@@ -671,9 +671,9 @@ function createSection(title: string): HTMLElement {
 
 function createLabeledInput(label: string, value: string, onChange: (v: string) => void): HTMLElement {
   const wrapper = document.createElement("div");
-  wrapper.style.cssText = "display:flex;align-items:center;gap:4px;";
+  wrapper.style.cssText = "display:flex;align-items:center;gap:4px;min-width:0;";
   const lbl = document.createElement("span");
-  lbl.style.cssText = "font-size:10px;color:#666;width:16px;text-align:center;display:flex;align-items:center;justify-content:center;";
+  lbl.style.cssText = "font-size:10px;color:#666;width:16px;flex-shrink:0;text-align:center;display:flex;align-items:center;justify-content:center;";
   if (label.startsWith("<svg")) {
     lbl.innerHTML = label.replace(/width="\d+"/, 'width="14"').replace(/height="\d+"/, 'height="14"');
   } else {
@@ -681,6 +681,7 @@ function createLabeledInput(label: string, value: string, onChange: (v: string) 
   }
   const input = document.createElement("input");
   input.className = "prop-input";
+  input.style.cssText = "min-width:0;flex:1;";
   input.value = value;
   input.addEventListener("change", () => onChange(input.value));
   wrapper.appendChild(lbl);
