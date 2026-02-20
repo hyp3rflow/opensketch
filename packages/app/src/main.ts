@@ -143,16 +143,21 @@ async function main() {
   const cbFrame = engine.add_frame(60, 320, 180, 32);
   engine.set_node_name(cbFrame, "Checkbox");
   engine.set_fill_color(cbFrame, 0, 0, 0, 0.0); // transparent
+  // Row layout with gap
+  engine.set_layout_mode(cbFrame, "flex");
+  engine.set_flex_direction(cbFrame, "row");
+  engine.set_align_items(cbFrame, "center");
+  engine.set_layout_gap(cbFrame, 8);
 
   // Box
-  const cbBox = engine.add_rect(68, 324, 24, 24);
+  const cbBox = engine.add_rect(0, 0, 24, 24);
   engine.set_fill_color(cbBox, 51, 51, 51, 1.0);
   engine.set_corner_radius(cbBox, 6);
   engine.set_stroke(cbBox, 100, 100, 100, 1.0, 1.5);
   engine.reparent_node(cbBox, cbFrame);
 
   // Label
-  const cbLabel = engine.add_text(100, 326, "Remember me", 14);
+  const cbLabel = engine.add_text(0, 0, "Remember me", 14);
   engine.set_fill_color(cbLabel, 200, 200, 200, 1.0);
   engine.reparent_node(cbLabel, cbFrame);
 
@@ -165,17 +170,25 @@ async function main() {
   const cbCheckedFrame = engine.add_frame(60, 380, 180, 32);
   engine.set_node_name(cbCheckedFrame, "Checkbox / checked");
   engine.set_fill_color(cbCheckedFrame, 0, 0, 0, 0.0);
+  engine.set_layout_mode(cbCheckedFrame, "flex");
+  engine.set_flex_direction(cbCheckedFrame, "row");
+  engine.set_align_items(cbCheckedFrame, "center");
+  engine.set_layout_gap(cbCheckedFrame, 8);
 
-  const cbCheckedBox = engine.add_rect(68, 384, 24, 24);
+  // Checked box (acts as container for checkmark)
+  const cbCheckedBox = engine.add_frame(0, 0, 24, 24);
   engine.set_fill_color(cbCheckedBox, 79, 70, 229, 1.0); // indigo = checked
   engine.set_corner_radius(cbCheckedBox, 6);
+  engine.set_layout_mode(cbCheckedBox, "flex");
+  engine.set_align_items(cbCheckedBox, "center");
+  engine.set_justify_content(cbCheckedBox, "center");
   engine.reparent_node(cbCheckedBox, cbCheckedFrame);
 
-  const cbCheckmark = engine.add_text(72, 384, "✓", 16);
+  const cbCheckmark = engine.add_text(0, 0, "✓", 16);
   engine.set_fill_color(cbCheckmark, 255, 255, 255, 1.0);
-  engine.reparent_node(cbCheckmark, cbCheckedFrame);
+  engine.reparent_node(cbCheckmark, cbCheckedBox);
 
-  const cbCheckedLabel = engine.add_text(100, 386, "Remember me", 14);
+  const cbCheckedLabel = engine.add_text(0, 0, "Remember me", 14);
   engine.set_fill_color(cbCheckedLabel, 200, 200, 200, 1.0);
   engine.reparent_node(cbCheckedLabel, cbCheckedFrame);
 
@@ -192,46 +205,64 @@ async function main() {
   engine.set_fill_color(modalFrame, 37, 37, 37, 1.0);
   engine.set_corner_radius(modalFrame, 16);
   engine.set_stroke(modalFrame, 60, 60, 60, 1.0, 1.0);
+  // Column layout with padding
+  engine.set_layout_mode(modalFrame, "flex");
+  engine.set_flex_direction(modalFrame, "column");
+  engine.set_layout_padding(modalFrame, 16, 20, 16, 20);
+  engine.set_layout_gap(modalFrame, 12);
 
   // Title
-  const modalTitle = engine.add_text(540, 80, "Dialog Title", 18);
+  const modalTitle = engine.add_text(0, 0, "Dialog Title", 18);
   engine.set_fill_color(modalTitle, 230, 230, 230, 1.0);
   engine.reparent_node(modalTitle, modalFrame);
 
   // Divider
-  const modalDiv = engine.add_rect(520, 112, 360, 1);
+  const modalDiv = engine.add_rect(0, 0, 320, 1);
   engine.set_fill_color(modalDiv, 60, 60, 60, 1.0);
   engine.reparent_node(modalDiv, modalFrame);
 
   // Content slot placeholder
-  const modalSlot = engine.add_frame(540, 124, 320, 100);
+  const modalSlot = engine.add_frame(0, 0, 320, 100);
   engine.set_node_name(modalSlot, "content");
   engine.set_fill_color(modalSlot, 0, 0, 0, 0.0);
   engine.reparent_node(modalSlot, modalFrame);
 
-  // Footer buttons area
+  // Footer buttons area — flex row, end-aligned
   const modalFooter = engine.add_frame(540, 248, 320, 40);
   engine.set_node_name(modalFooter, "footer");
   engine.set_fill_color(modalFooter, 0, 0, 0, 0.0);
+  engine.set_layout_mode(modalFooter, "flex");
+  engine.set_flex_direction(modalFooter, "row");
+  engine.set_justify_content(modalFooter, "end");
+  engine.set_align_items(modalFooter, "center");
+  engine.set_layout_gap(modalFooter, 12);
   engine.reparent_node(modalFooter, modalFrame);
 
-  // Cancel button in footer
-  const cancelBtn = engine.add_rect(640, 252, 80, 32);
+  // Cancel button in footer — flex centered
+  const cancelBtn = engine.add_frame(0, 0, 80, 32);
+  engine.set_node_name(cancelBtn, "Cancel Btn");
   engine.set_fill_color(cancelBtn, 75, 85, 99, 1.0);
   engine.set_corner_radius(cancelBtn, 8);
+  engine.set_layout_mode(cancelBtn, "flex");
+  engine.set_align_items(cancelBtn, "center");
+  engine.set_justify_content(cancelBtn, "center");
   engine.reparent_node(cancelBtn, modalFooter);
-  const cancelLbl = engine.add_text(655, 258, "Cancel", 13);
+  const cancelLbl = engine.add_text(0, 0, "Cancel", 13);
   engine.set_fill_color(cancelLbl, 200, 200, 200, 1.0);
-  engine.reparent_node(cancelLbl, modalFooter);
+  engine.reparent_node(cancelLbl, cancelBtn);
 
-  // Confirm button in footer
-  const confirmBtn = engine.add_rect(740, 252, 100, 32);
+  // Confirm button in footer — flex centered
+  const confirmBtn = engine.add_frame(0, 0, 100, 32);
+  engine.set_node_name(confirmBtn, "Confirm Btn");
   engine.set_fill_color(confirmBtn, 79, 70, 229, 1.0);
   engine.set_corner_radius(confirmBtn, 8);
+  engine.set_layout_mode(confirmBtn, "flex");
+  engine.set_align_items(confirmBtn, "center");
+  engine.set_justify_content(confirmBtn, "center");
   engine.reparent_node(confirmBtn, modalFooter);
-  const confirmLbl = engine.add_text(755, 258, "Confirm", 13);
+  const confirmLbl = engine.add_text(0, 0, "Confirm", 13);
   engine.set_fill_color(confirmLbl, 255, 255, 255, 1.0);
-  engine.reparent_node(confirmLbl, modalFooter);
+  engine.reparent_node(confirmLbl, confirmBtn);
 
   const modalCompId = engine.create_component(modalFrame, "Modal");
   engine.add_slot(modalCompId, "content", modalSlot);

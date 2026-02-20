@@ -51,7 +51,7 @@ impl Renderer {
         }
     }
 
-    pub fn render(&self, ctx: &CanvasRenderingContext2d, scene: &Scene, editing_node: Option<u64>) {
+    pub fn render(&self, ctx: &CanvasRenderingContext2d, scene: &Scene, _editing_node: Option<u64>) {
         ctx.set_fill_style_str("#1a1a1a");
         ctx.fill_rect(0.0, 0.0, self.canvas_width, self.canvas_height);
         self.draw_grid(ctx);
@@ -66,7 +66,7 @@ impl Renderer {
         for id in scene.render_order() {
             if let Some(node) = scene.get_node(id) {
                 if !node.visible { continue; }
-                self.render_node(ctx, node);
+                self.render_node(ctx, node, scene);
             }
         }
 
@@ -77,7 +77,7 @@ impl Renderer {
         }
 
         // Editing text cursor indicator
-        if let Some(eid) = editing_node {
+        if let Some(eid) = _editing_node {
             if let Some(node) = scene.get_node(eid) {
                 let lw = 1.5 / self.viewport.a;
                 ctx.set_stroke_style_str("#4a4af5");
@@ -91,7 +91,7 @@ impl Renderer {
         ctx.restore();
     }
 
-    fn render_node(&self, ctx: &CanvasRenderingContext2d, node: &Node) {
+    fn render_node(&self, ctx: &CanvasRenderingContext2d, node: &Node, scene: &Scene) {
         ctx.save();
         ctx.set_global_alpha(node.opacity);
 
@@ -99,10 +99,10 @@ impl Renderer {
             NodeKind::Rect => self.render_rect(ctx, node),
             NodeKind::Ellipse => self.render_ellipse(ctx, node),
             NodeKind::Text { content, font_size, font_family } => self.render_text(ctx, node, content, *font_size, font_family),
-            NodeKind::Frame => self.render_frame(ctx, node),
+            NodeKind::Frame => self.render_frame(ctx, node, scene),
             NodeKind::Group => {}
             NodeKind::Slot { .. } => self.render_slot(ctx, node),
-            NodeKind::Instance(_) => self.render_instance(ctx, node),
+            NodeKind::Instance(_) => self.render_instance(ctx, node, scene),
         }
 
         ctx.restore();
@@ -147,22 +147,39 @@ impl Renderer {
         }
     }
 
-    fn render_frame(&self, ctx: &CanvasRenderingContext2d, node: &Node) {
+    fn render_frame(&self, ctx: &CanvasRenderingContext2d, node: &Node, scene: &Scene) {
         if let Some(fill) = &node.fill {
             ctx.set_fill_style_str(&fill.color.to_css());
-            ctx.fill_rect(node.x, node.y, node.width, node.height);
+            if node.corner_radius > 0.0 {
+                self.draw_rounded_rect(ctx, node.x, node.y, node.width, node.height, node.corner_radius);
+                ctx.fill();
+            } else {
+                ctx.fill_rect(node.x, node.y, node.width, node.height);
+            }
         }
         if let Some(stroke) = &node.stroke {
             ctx.set_stroke_style_str(&stroke.color.to_css());
             ctx.set_line_width(stroke.width);
-            ctx.stroke_rect(node.x, node.y, node.width, node.height);
+            if node.corner_radius > 0.0 {
+                self.draw_rounded_rect(ctx, node.x, node.y, node.width, node.height, node.corner_radius);
+                ctx.stroke();
+            } else {
+                ctx.stroke_rect(node.x, node.y, node.width, node.height);
+            }
         }
-        let font_size = (11.0 / self.viewport.a).min(11.0);
-        let gap = (4.0 / self.viewport.a).min(4.0);
-        ctx.set_fill_style_str("rgba(255,255,255,0.5)");
-        ctx.set_font(&format!("{}px Inter, system-ui, sans-serif", font_size));
-        ctx.set_text_baseline("bottom");
-        ctx.fill_text(&node.name, node.x, node.y - gap).ok();
+        // Only show label if parent doesn't have layout (avoids clutter in nested layouts)
+        let parent_has_layout = node.parent
+            .and_then(|pid| scene.get_node(pid))
+            .map(|p| p.layout.mode != crate::node::LayoutMode::None)
+            .unwrap_or(false);
+        if !parent_has_layout {
+            let font_size = (11.0 / self.viewport.a).min(11.0);
+            let gap = (4.0 / self.viewport.a).min(4.0);
+            ctx.set_fill_style_str("rgba(255,255,255,0.5)");
+            ctx.set_font(&format!("{}px Inter, system-ui, sans-serif", font_size));
+            ctx.set_text_baseline("bottom");
+            ctx.fill_text(&node.name, node.x, node.y - gap).ok();
+        }
 
         // Note indicator (small yellow dot + count)
         if !node.notes.is_empty() {
@@ -202,7 +219,7 @@ impl Renderer {
         ctx.fill_text(&label, node.x + 4.0 / self.viewport.a, node.y + 4.0 / self.viewport.a).ok();
     }
 
-    fn render_instance(&self, ctx: &CanvasRenderingContext2d, node: &Node) {
+    fn render_instance(&self, ctx: &CanvasRenderingContext2d, node: &Node, scene: &Scene) {
         // Render like a frame but with diamond badge
         if let Some(fill) = &node.fill {
             ctx.set_fill_style_str(&fill.color.to_css());
@@ -220,13 +237,19 @@ impl Renderer {
             ctx.set_line_width(stroke.width);
             ctx.stroke_rect(node.x, node.y, node.width, node.height);
         }
-        // Instance label
-        let font_size = (11.0 / self.viewport.a).min(11.0);
-        let gap = (4.0 / self.viewport.a).min(4.0);
-        ctx.set_fill_style_str("rgba(16, 185, 129, 0.7)");
-        ctx.set_font(&format!("{}px Inter, system-ui, sans-serif", font_size));
-        ctx.set_text_baseline("bottom");
-        ctx.fill_text(&node.name, node.x, node.y - gap).ok();
+        // Instance label (skip if parent has layout)
+        let parent_has_layout = node.parent
+            .and_then(|pid| scene.get_node(pid))
+            .map(|p| p.layout.mode != crate::node::LayoutMode::None)
+            .unwrap_or(false);
+        if !parent_has_layout {
+            let font_size = (11.0 / self.viewport.a).min(11.0);
+            let gap = (4.0 / self.viewport.a).min(4.0);
+            ctx.set_fill_style_str("rgba(16, 185, 129, 0.7)");
+            ctx.set_font(&format!("{}px Inter, system-ui, sans-serif", font_size));
+            ctx.set_text_baseline("bottom");
+            ctx.fill_text(&node.name, node.x, node.y - gap).ok();
+        }
 
         if !node.notes.is_empty() {
             let r = (5.0 / self.viewport.a).min(5.0);

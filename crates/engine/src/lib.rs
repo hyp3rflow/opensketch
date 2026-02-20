@@ -90,12 +90,15 @@ impl Engine {
     /// Undo: restore previous state, push current to redo stack. Returns true if undone.
     pub fn undo(&mut self) -> bool {
         if let Some(prev) = self.undo_stack.pop() {
-            // Save current to redo
+            let saved_selection = self.scene.selection.clone();
             let current = serde_json::to_string(&self.scene.export()).unwrap_or_default();
             self.redo_stack.push(current);
-            // Restore
             if let Ok(data) = serde_json::from_str::<crate::scene::SceneData>(&prev) {
                 self.scene = Scene::import(data);
+                // Preserve selection (filter to nodes that still exist)
+                self.scene.selection = saved_selection.into_iter()
+                    .filter(|id| self.scene.get_node(*id).is_some())
+                    .collect();
             }
             true
         } else {
@@ -106,12 +109,14 @@ impl Engine {
     /// Redo: restore next state, push current to undo stack. Returns true if redone.
     pub fn redo(&mut self) -> bool {
         if let Some(next) = self.redo_stack.pop() {
-            // Save current to undo
+            let saved_selection = self.scene.selection.clone();
             let current = serde_json::to_string(&self.scene.export()).unwrap_or_default();
             self.undo_stack.push(current);
-            // Restore
             if let Ok(data) = serde_json::from_str::<crate::scene::SceneData>(&next) {
                 self.scene = Scene::import(data);
+                self.scene.selection = saved_selection.into_iter()
+                    .filter(|id| self.scene.get_node(*id).is_some())
+                    .collect();
             }
             true
         } else {
