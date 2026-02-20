@@ -696,15 +696,100 @@ function getKindStr(kind: any): string {
 export function setupAgentPanel(container: HTMLElement, editor: Editor) {
   const tools = buildTools();
   const messages: Message[] = [
-    { role: "system", content: "Agent ready. Type 'help' for commands.", timestamp: Date.now() },
+    { role: "system", content: "Agent ready. Type 'help' for commands, or switch to LLM mode.", timestamp: Date.now() },
   ];
+
+  // LLM state
+  let mode: "commands" | "llm" = "commands";
+  let llmHistory: import("./llm-agent").LLMMessage[] = [];
+  let isProcessing = false;
 
   container.innerHTML = "";
 
+  // Header with mode toggle
   const header = document.createElement("div");
   header.className = "agent-header";
-  header.innerHTML = `<span class="agent-title"><span class="agent-icon">${icons.robot.replace(/width="\d+"/, 'width="14"').replace(/height="\d+"/, 'height="14"')}</span> Agent</span><span class="agent-status online">online</span>`;
   container.appendChild(header);
+
+  function renderHeader() {
+    header.innerHTML = `
+      <span class="agent-title">
+        <span class="agent-icon">${icons.robot.replace(/width="\d+"/, 'width="14"').replace(/height="\d+"/, 'height="14"')}</span>
+        Agent
+      </span>
+      <div class="agent-mode-toggle">
+        <button class="agent-mode-btn ${mode === "commands" ? "active" : ""}" data-mode="commands">CMD</button>
+        <button class="agent-mode-btn ${mode === "llm" ? "active" : ""}" data-mode="llm">LLM</button>
+      </div>
+    `;
+    header.querySelectorAll(".agent-mode-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const newMode = (btn as HTMLElement).dataset.mode as "commands" | "llm";
+        if (newMode === "llm") {
+          import("./llm-agent").then(({ loadConfig }) => {
+            const config = loadConfig();
+            if (!config || !config.apiKey) {
+              showSettings();
+              return;
+            }
+            mode = "llm";
+            renderHeader();
+            input.placeholder = "Ask the AI agent...";
+            renderMessages();
+          });
+          return;
+        }
+        mode = newMode;
+        renderHeader();
+        input.placeholder = mode === "llm" ? "Ask the AI agent..." : "Type a command...";
+        renderMessages();
+      });
+    });
+  }
+  renderHeader();
+
+  // Settings overlay
+  function showSettings() {
+    import("./llm-agent").then(({ loadConfig, saveConfig }) => {
+    const existing = loadConfig();
+
+    const overlay = document.createElement("div");
+    overlay.style.cssText = `
+      position:absolute;inset:0;background:rgba(0,0,0,0.8);z-index:100;
+      display:flex;flex-direction:column;padding:16px;gap:12px;
+    `;
+    overlay.innerHTML = `
+      <div style="font-size:13px;font-weight:600;color:#ccc;margin-bottom:4px;">LLM Settings</div>
+      <label style="font-size:11px;color:#888;">API Endpoint</label>
+      <input id="llm-endpoint" class="prop-input" value="${existing?.endpoint || "https://api.openai.com/v1"}" placeholder="https://api.openai.com/v1" style="font-size:12px;">
+      <label style="font-size:11px;color:#888;">Model</label>
+      <input id="llm-model" class="prop-input" value="${existing?.model || "gpt-4o"}" placeholder="gpt-4o" style="font-size:12px;">
+      <label style="font-size:11px;color:#888;">API Key</label>
+      <input id="llm-key" class="prop-input" type="password" value="${existing?.apiKey || ""}" placeholder="sk-..." style="font-size:12px;">
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button id="llm-save" style="flex:1;padding:6px;background:#4f46e5;color:white;border:none;border-radius:6px;cursor:pointer;font-size:12px;">Save</button>
+        <button id="llm-cancel" style="flex:1;padding:6px;background:#333;color:#999;border:1px solid #444;border-radius:6px;cursor:pointer;font-size:12px;">Cancel</button>
+      </div>
+    `;
+    container.appendChild(overlay);
+
+    overlay.querySelector("#llm-save")!.addEventListener("click", () => {
+      const endpoint = (overlay.querySelector("#llm-endpoint") as HTMLInputElement).value.trim();
+      const model = (overlay.querySelector("#llm-model") as HTMLInputElement).value.trim();
+      const apiKey = (overlay.querySelector("#llm-key") as HTMLInputElement).value.trim();
+      if (!apiKey) { alert("API key required"); return; }
+      saveConfig({ apiKey, endpoint, model });
+      overlay.remove();
+      mode = "llm";
+      renderHeader();
+      input.placeholder = "Ask the AI agent...";
+      messages.push({ role: "system", content: `LLM connected: ${model}`, timestamp: Date.now() });
+      llmHistory = [];
+      renderMessages();
+    });
+    overlay.querySelector("#llm-cancel")!.addEventListener("click", () => overlay.remove());
+    }); // end import().then
+  }
 
   const messagesEl = document.createElement("div");
   messagesEl.className = "agent-messages";
@@ -719,8 +804,14 @@ export function setupAgentPanel(container: HTMLElement, editor: Editor) {
   const sendBtn = document.createElement("button");
   sendBtn.className = "agent-send";
   sendBtn.textContent = "→";
+  const settingsBtn = document.createElement("button");
+  settingsBtn.className = "agent-send";
+  settingsBtn.style.cssText = "font-size:14px;opacity:0.5;";
+  settingsBtn.textContent = "⚙";
+  settingsBtn.addEventListener("click", showSettings);
   inputArea.appendChild(input);
   inputArea.appendChild(sendBtn);
+  inputArea.appendChild(settingsBtn);
   container.appendChild(inputArea);
 
   function renderMessages() {
@@ -728,6 +819,10 @@ export function setupAgentPanel(container: HTMLElement, editor: Editor) {
     messages.forEach((msg) => {
       const el = document.createElement("div");
       el.className = `agent-msg agent-msg-${msg.role}`;
+      // Render tool call indicators
+      if (msg.role === "agent" && msg.content.startsWith("🔧")) {
+        el.style.cssText += "font-size:10px;opacity:0.6;font-family:monospace;";
+      }
       el.textContent = msg.content;
       messagesEl.appendChild(el);
     });
@@ -762,7 +857,6 @@ export function setupAgentPanel(container: HTMLElement, editor: Editor) {
           }
           return lines.join("\n");
         }
-        // Push undo for mutating commands
         const readOnly = new Set(["help", "inspect", "find", "list", "frames", "frame-children", "frame-tree", "components", "notes", "note-read", "context", "get-layout", "export", "saves", "png-data", "select"]);
         if (!readOnly.has(tool.name)) {
           editor.engine.push_undo();
@@ -773,14 +867,99 @@ export function setupAgentPanel(container: HTMLElement, editor: Editor) {
     return `Unknown command. Type 'help' for available tools.`;
   }
 
+  async function sendLLM(text: string) {
+    const { loadConfig, chatCompletion, buildToolDefs, executeTool, getSceneContext } = await import("./llm-agent");
+    const config = loadConfig();
+    if (!config) { messages.push({ role: "system", content: "No LLM configured. Click ⚙ to set up.", timestamp: Date.now() }); renderMessages(); return; }
+
+    messages.push({ role: "user", content: text, timestamp: Date.now() });
+    renderMessages();
+
+    // Build context
+    const sceneCtx = getSceneContext(editor);
+    const sysPrompt = `You are an AI design assistant for OpenSketch, a Figma-like design tool.
+You can create, modify, and inspect design elements on the canvas using the provided tools.
+Key concepts: Frames (containers with flex/grid layout), Rect/Ellipse (shapes), Text (with fonts), Components (reusable), Instances (copies).
+All node IDs are integers. Colors are hex (#RRGGBB). Use flex layout for proper centering.
+Respond concisely. Execute tools to fulfill the user's design requests.`;
+    if (llmHistory.length === 0) {
+      llmHistory.push({ role: "system", content: `${sysPrompt}\n\n${sceneCtx}` });
+    }
+    llmHistory[0] = { role: "system", content: `${sysPrompt}\n\n${sceneCtx}` };
+    llmHistory.push({ role: "user", content: text });
+
+    const toolDefs = buildToolDefs();
+    isProcessing = true;
+
+    // Add streaming message placeholder
+    const streamMsg: Message = { role: "agent", content: "", timestamp: Date.now() };
+    messages.push(streamMsg);
+
+    let maxRounds = 10;
+    while (maxRounds-- > 0) {
+      try {
+        const response = await chatCompletion(config, llmHistory, toolDefs, (chunk) => {
+          streamMsg.content += chunk;
+          renderMessages();
+        });
+
+        llmHistory.push(response);
+
+        // Handle tool calls
+        if (response.tool_calls && response.tool_calls.length > 0) {
+          // Show tool call indicators
+          for (const tc of response.tool_calls) {
+            const args = JSON.parse(tc.function.arguments || "{}");
+            const argsStr = Object.entries(args).map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(" ");
+            messages.push({ role: "agent", content: `🔧 ${tc.function.name}(${argsStr})`, timestamp: Date.now() });
+          }
+          renderMessages();
+
+          // Execute tools and add results
+          editor.engine.push_undo();
+          for (const tc of response.tool_calls) {
+            const args = JSON.parse(tc.function.arguments || "{}");
+            const result = executeTool(tc.function.name, args, editor);
+            llmHistory.push({
+              role: "tool",
+              tool_call_id: tc.id,
+              content: result.slice(0, 2000), // Truncate large results
+            });
+          }
+
+          // Continue conversation — LLM may want to call more tools or respond
+          streamMsg.content = "";
+          continue;
+        }
+
+        // No tool calls — final response
+        if (response.content) {
+          streamMsg.content = response.content;
+        }
+        break;
+      } catch (err: any) {
+        streamMsg.content = `Error: ${err.message}`;
+        break;
+      }
+    }
+
+    isProcessing = false;
+    renderMessages();
+  }
+
   function send() {
     const text = input.value.trim();
-    if (!text) return;
-    messages.push({ role: "user", content: text, timestamp: Date.now() });
+    if (!text || isProcessing) return;
     input.value = "";
-    const result = execute(text);
-    messages.push({ role: "agent", content: result, timestamp: Date.now() });
-    renderMessages();
+
+    if (mode === "llm") {
+      sendLLM(text);
+    } else {
+      messages.push({ role: "user", content: text, timestamp: Date.now() });
+      const result = execute(text);
+      messages.push({ role: "agent", content: result, timestamp: Date.now() });
+      renderMessages();
+    }
   }
 
   input.addEventListener("keydown", (e) => {
@@ -790,7 +969,7 @@ export function setupAgentPanel(container: HTMLElement, editor: Editor) {
   sendBtn.addEventListener("click", send);
   renderMessages();
 
-  // External API for programmatic access
+  // External API
   (window as any).__agentExecute = (command: string): string => {
     const result = execute(command);
     messages.push({ role: "agent", content: `> ${command}\n${result}`, timestamp: Date.now() });
@@ -798,7 +977,6 @@ export function setupAgentPanel(container: HTMLElement, editor: Editor) {
     return result;
   };
 
-  // Structured tool API for LLM agents
   (window as any).__agentTools = {
     list: () => tools.map((t) => ({ name: t.name, description: t.description, usage: t.usage })),
     call: (command: string) => execute(command),
