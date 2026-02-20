@@ -21,10 +21,15 @@
         </div>
       </div>
       <canvas id="canvas"></canvas>
-      <div id="properties-panel"></div>
+      <div id="right-pane">
+        <div id="right-pane-tabs">
+          <button class="right-pane-tab active" data-tab="properties">Properties</button>
+          <button class="right-pane-tab" data-tab="agent">Agent</button>
+        </div>
+        <div id="properties-panel" class="right-pane-content active"></div>
+        <div id="agent-panel" class="right-pane-content"></div>
+      </div>
       <div id="bottom-toolbar"></div>
-      <div id="agent-panel"></div>
-      <button id="agent-toggle"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="3"/><line x1="12" y1="8" x2="12" y2="11"/><line x1="8" y1="16" x2="8" y2="16" stroke-width="3" stroke-linecap="round"/><line x1="16" y1="16" x2="16" y2="16" stroke-width="3" stroke-linecap="round"/></svg></button>
     </div>
   </div>
   <script type="module" src="/src/main.ts"></script>

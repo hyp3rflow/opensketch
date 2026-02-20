@@ -60,17 +60,22 @@ async function main() {
   // Design system inside modal
   setupDesignSystemPanel(document.getElementById("design-system-panel")!, editor);
 
-  // Agent panel
+  // Agent panel (inside right pane)
   const agentPanel = document.getElementById("agent-panel")!;
-  const agentToggle = document.getElementById("agent-toggle")!;
   setupAgentPanel(agentPanel, editor);
 
-  agentToggle.addEventListener("click", () => {
-    const isOpen = agentPanel.classList.toggle("open");
-    agentToggle.classList.toggle("active", isOpen);
-    if (isOpen) {
-      agentPanel.querySelector<HTMLInputElement>(".agent-input")?.focus();
-    }
+  // Right pane tab switching
+  const rightPaneTabs = document.querySelectorAll(".right-pane-tab");
+  const rightPaneContents = document.querySelectorAll(".right-pane-content");
+  rightPaneTabs.forEach((tab) => {
+    tab.addEventListener("click", () => {
+      const target = (tab as HTMLElement).dataset.tab!;
+      rightPaneTabs.forEach((t) => t.classList.toggle("active", (t as HTMLElement).dataset.tab === target));
+      rightPaneContents.forEach((c) => c.classList.toggle("active", c.id === (target === "agent" ? "agent-panel" : "properties-panel")));
+      if (target === "agent") {
+        agentPanel.querySelector<HTMLInputElement>(".agent-input")?.focus();
+      }
+    });
   });
 
   // Keyboard shortcut: D to toggle design system
