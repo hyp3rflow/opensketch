@@ -309,6 +309,15 @@ impl Engine {
         self.renderer.pan(dx, dy);
     }
 
+    /// Center the viewport on a scene-space point
+    pub fn pan_to(&mut self, scene_x: f64, scene_y: f64) {
+        let zoom = self.renderer.viewport.a;
+        let cx = self.renderer.canvas_width / 2.0;
+        let cy = self.renderer.canvas_height / 2.0;
+        self.renderer.viewport.tx = cx - scene_x * zoom;
+        self.renderer.viewport.ty = cy - scene_y * zoom;
+    }
+
     pub fn get_zoom(&self) -> f64 {
         self.renderer.viewport.a
     }
@@ -824,6 +833,37 @@ impl Engine {
         }
 
         true
+    }
+
+    // =============================================
+    // Instance → Component info
+    // =============================================
+
+    /// Get component info for an instance node. Returns JSON: { component_id, component_name, source_node_id } or "null"
+    pub fn get_instance_component_info(&self, node_id: u64) -> String {
+        let comp_id = if let Some(node) = self.scene.get_node(node_id) {
+            match &node.kind {
+                NodeKind::Instance(data) => data.component_id,
+                _ => return "null".to_string(),
+            }
+        } else {
+            return "null".to_string();
+        };
+
+        if let Some(comp) = self.components.get(comp_id) {
+            // Find source node from default variant
+            let source_id = comp.variants.get(&comp.default_variant_key)
+                .map(|v| v.root_node_id)
+                .unwrap_or(0);
+            format!(
+                r#"{{"component_id":{},"component_name":"{}","source_node_id":{}}}"#,
+                comp_id,
+                comp.name.replace('"', "\\\""),
+                source_id
+            )
+        } else {
+            "null".to_string()
+        }
     }
 
     // =============================================

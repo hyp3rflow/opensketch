@@ -53,6 +53,61 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
     kindBadge.textContent = kindLabel;
     header.appendChild(kindBadge);
 
+    // Instance → Main Component link
+    const compInfoJson = editor.engine.get_instance_component_info(id);
+    const compInfo = JSON.parse(compInfoJson);
+    if (compInfo) {
+      const compCard = document.createElement("div");
+      compCard.style.cssText = `
+        display:flex; align-items:center; gap:8px;
+        padding:8px 10px; margin-bottom:8px;
+        background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.2);
+        border-radius:8px;
+      `;
+      const compIcon = document.createElement("span");
+      compIcon.innerHTML = icons.component.replace(/width="\d+"/, 'width="14"').replace(/height="\d+"/, 'height="14"');
+      compIcon.style.cssText = "opacity:0.7;color:#10b981;flex-shrink:0;display:flex;";
+      compCard.appendChild(compIcon);
+
+      const compText = document.createElement("div");
+      compText.style.cssText = "flex:1;min-width:0;";
+      const compLabel = document.createElement("div");
+      compLabel.style.cssText = "font-size:10px;color:#10b981;letter-spacing:0.3px;";
+      compLabel.textContent = "MAIN COMPONENT";
+      compText.appendChild(compLabel);
+      const compName = document.createElement("div");
+      compName.style.cssText = "font-size:12px;color:#ccc;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;";
+      compName.textContent = compInfo.component_name;
+      compText.appendChild(compName);
+      compCard.appendChild(compText);
+
+      const goBtn = document.createElement("button");
+      goBtn.style.cssText = `
+        background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.3);
+        border-radius:6px; padding:4px 10px; color:#10b981;
+        cursor:pointer; font-size:11px; font-weight:500;
+        transition:all 0.15s; flex-shrink:0;
+      `;
+      goBtn.textContent = "Go to →";
+      goBtn.addEventListener("mouseenter", () => { goBtn.style.background = "rgba(16,185,129,0.25)"; });
+      goBtn.addEventListener("mouseleave", () => { goBtn.style.background = "rgba(16,185,129,0.15)"; });
+      goBtn.addEventListener("click", () => {
+        const sourceId = BigInt(compInfo.source_node_id);
+        editor.engine.select(sourceId);
+        // Scroll to the component source node
+        const srcJson = editor.engine.get_node_json(sourceId);
+        if (srcJson) {
+          const src = JSON.parse(srcJson);
+          editor.engine.pan_to(src.x + src.width / 2, src.y + src.height / 2);
+        }
+        editor.requestRender();
+        refresh([Number(sourceId)]);
+        editor.fireSelectionNow([Number(sourceId)]);
+      });
+      compCard.appendChild(goBtn);
+      header.appendChild(compCard);
+    }
+
     const nameInput = document.createElement("input");
     nameInput.className = "prop-input";
     nameInput.value = node.name;
@@ -598,6 +653,8 @@ function getKindLabel(kind: unknown): string {
   }
   if (typeof kind === "object" && kind !== null) {
     if ("Text" in kind) return "Text";
+    if ("Instance" in kind) return "Instance";
+    if ("Slot" in kind) return "Slot";
   }
   return "Unknown";
 }

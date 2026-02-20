@@ -320,7 +320,7 @@ export class Editor {
     this.drag = null;
   }
 
-  private fireSelectionNow(ids: number[]) {
+  fireSelectionNow(ids: number[]) {
     if (this.selectionThrottleId) {
       cancelAnimationFrame(this.selectionThrottleId);
       this.selectionThrottleId = 0;
