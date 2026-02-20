@@ -1,6 +1,6 @@
 use wasm_bindgen::JsValue;
 use web_sys::CanvasRenderingContext2d;
-use crate::node::{Node, NodeKind};
+use crate::node::{Node, NodeKind, TextSizing};
 use crate::scene::Scene;
 use crate::transform::Transform;
 use crate::types::Color;
@@ -17,6 +17,37 @@ impl Renderer {
             viewport: Transform::identity(),
             canvas_width: width,
             canvas_height: height,
+        }
+    }
+
+    /// Measure all Fit-mode text nodes and update their dimensions
+    pub fn measure_text_nodes(&self, ctx: &CanvasRenderingContext2d, scene: &mut Scene) {
+        let ids: Vec<u64> = scene.all_node_ids();
+        for id in ids {
+            let (content, font_size, font_family, is_fit) = {
+                let node = match scene.get_node(id) {
+                    Some(n) => n,
+                    None => continue,
+                };
+                if node.text_sizing != TextSizing::Fit { continue; }
+                match &node.kind {
+                    NodeKind::Text { content, font_size, font_family } => {
+                        (content.clone(), *font_size, font_family.clone(), true)
+                    }
+                    _ => continue,
+                }
+            };
+            if !is_fit { continue; }
+
+            ctx.set_font(&format!("{}px {}, system-ui, sans-serif", font_size, font_family));
+            if let Ok(metrics) = ctx.measure_text(&content) {
+                let w = metrics.width();
+                let h = font_size * 1.2; // approximate line height
+                if let Some(node) = scene.get_node_mut(id) {
+                    node.width = w.max(1.0);
+                    node.height = h.max(1.0);
+                }
+            }
         }
     }
 

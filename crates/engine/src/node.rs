@@ -86,6 +86,17 @@ impl Default for FlexWrap {
     fn default() -> Self { FlexWrap::NoWrap }
 }
 
+/// Text sizing mode
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub enum TextSizing {
+    Fit,
+    Fixed,
+}
+
+impl Default for TextSizing {
+    fn default() -> Self { TextSizing::Fit }
+}
+
 /// Layout properties for container nodes (Frame, Instance, Group)
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct Layout {
@@ -130,6 +141,9 @@ pub struct Node {
     pub corner_radius: f64,
     pub children: Vec<NodeId>,
     pub parent: Option<NodeId>,
+    /// Text sizing mode (Fit = auto-size to content, Fixed = manual)
+    #[serde(default)]
+    pub text_sizing: TextSizing,
     /// Layout properties
     #[serde(default)]
     pub layout: Layout,
@@ -155,6 +169,7 @@ impl Node {
             corner_radius: 0.0,
             children: vec![],
             parent: None,
+            text_sizing: TextSizing::default(),
             layout: Layout::default(),
             notes: vec![],
         }

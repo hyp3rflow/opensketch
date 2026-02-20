@@ -264,6 +264,78 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       });
       fontRow.appendChild(fInput);
       textSection.appendChild(fontRow);
+
+      // Text sizing mode (Fit / Fixed)
+      const sizingRow = document.createElement("div");
+      sizingRow.className = "prop-row";
+      sizingRow.style.marginTop = "6px";
+      const sizingLabel = document.createElement("span");
+      sizingLabel.className = "prop-label";
+      sizingLabel.style.width = "40px";
+      sizingLabel.textContent = "Size";
+      sizingRow.appendChild(sizingLabel);
+
+      const currentSizing = editor.engine.get_text_sizing(BigInt(id));
+      const sizingGroup = document.createElement("div");
+      sizingGroup.style.cssText = "display:flex;gap:2px;flex:1;";
+
+      ["fit", "fixed"].forEach((mode) => {
+        const btn = document.createElement("button");
+        btn.textContent = mode === "fit" ? "Fit" : "Fixed";
+        btn.style.cssText = `
+          flex:1; padding:3px 8px; border:1px solid #444; border-radius:4px;
+          background:${mode === currentSizing ? "#4f46e5" : "#2a2a2a"};
+          color:${mode === currentSizing ? "#fff" : "#999"};
+          cursor:pointer; font-size:11px; transition:all 0.15s;
+        `;
+        btn.addEventListener("click", () => {
+          ensureUndo();
+          editor.engine.set_text_sizing(BigInt(id), mode);
+          editor.requestRender();
+          refresh(ids);
+        });
+        sizingGroup.appendChild(btn);
+      });
+
+      sizingRow.appendChild(sizingGroup);
+      textSection.appendChild(sizingRow);
+
+      // Show W/H fields only in Fixed mode
+      if (currentSizing === "fixed") {
+        const dimRow = document.createElement("div");
+        dimRow.className = "prop-row";
+        dimRow.style.marginTop = "4px";
+        const wLabel = document.createElement("span");
+        wLabel.className = "prop-label";
+        wLabel.style.width = "16px";
+        wLabel.textContent = "W";
+        dimRow.appendChild(wLabel);
+        const wIn = document.createElement("input");
+        wIn.className = "prop-input";
+        wIn.style.cssText = "width:50px;";
+        wIn.value = String(Math.round(node.width));
+        wIn.addEventListener("change", () => {
+          editor.engine.resize_node(BigInt(id), parseFloat(wIn.value) || node.width, node.height);
+          editor.requestRender();
+        });
+        dimRow.appendChild(wIn);
+        const hLabel = document.createElement("span");
+        hLabel.className = "prop-label";
+        hLabel.style.cssText = "width:16px;margin-left:8px;";
+        hLabel.textContent = "H";
+        dimRow.appendChild(hLabel);
+        const hIn = document.createElement("input");
+        hIn.className = "prop-input";
+        hIn.style.cssText = "width:50px;";
+        hIn.value = String(Math.round(node.height));
+        hIn.addEventListener("change", () => {
+          editor.engine.resize_node(BigInt(id), node.width, parseFloat(hIn.value) || node.height);
+          editor.requestRender();
+        });
+        dimRow.appendChild(hIn);
+        textSection.appendChild(dimRow);
+      }
+
       container.appendChild(textSection);
     }
 

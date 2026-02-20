@@ -23,6 +23,7 @@ features = [
   "DomRect",
   "MouseEvent",
   "console",
+  "TextMetrics",
 ]
 
 [profile.release]

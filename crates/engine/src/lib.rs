@@ -9,7 +9,7 @@ mod layout;
 
 use wasm_bindgen::prelude::*;
 use web_sys::CanvasRenderingContext2d;
-use crate::node::{Node, NodeKind, Fill, Stroke, LayoutMode, FlexDirection, Align, Justify, FlexWrap};
+use crate::node::{Node, NodeKind, Fill, Stroke, LayoutMode, FlexDirection, Align, Justify, FlexWrap, TextSizing};
 
 fn parse_align(s: &str) -> Align {
     match s {
@@ -62,6 +62,7 @@ impl Engine {
     }
 
     pub fn render(&mut self, ctx: &CanvasRenderingContext2d) {
+        self.renderer.measure_text_nodes(ctx, &mut self.scene);
         layout::compute_layouts(&mut self.scene);
         self.renderer.render(ctx, &self.scene, self.editing_node);
     }
@@ -818,6 +819,32 @@ impl Engine {
         }
 
         true
+    }
+
+    // =============================================
+    // Text Sizing
+    // =============================================
+
+    /// Set text sizing mode: "fit" or "fixed"
+    pub fn set_text_sizing(&mut self, id: u64, mode: &str) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            node.text_sizing = match mode {
+                "fixed" => TextSizing::Fixed,
+                _ => TextSizing::Fit,
+            };
+        }
+    }
+
+    /// Get text sizing mode
+    pub fn get_text_sizing(&self, id: u64) -> String {
+        if let Some(node) = self.scene.get_node(id) {
+            match node.text_sizing {
+                TextSizing::Fit => "fit".to_string(),
+                TextSizing::Fixed => "fixed".to_string(),
+            }
+        } else {
+            "fit".to_string()
+        }
     }
 
     // =============================================
