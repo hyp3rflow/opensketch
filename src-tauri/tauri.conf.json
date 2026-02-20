@@ -1,0 +1,28 @@
+{
+  "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/dev/crates/tauri-config-schema/schema.json",
+  "productName": "OpenSketch",
+  "version": "0.1.0",
+  "identifier": "com.opensketch.app",
+  "build": {
+    "frontendDist": "../packages/app/dist",
+    "devUrl": "http://localhost:5174",
+    "beforeDevCommand": "cd packages/app && npx vite --port 5174",
+    "beforeBuildCommand": "cd packages/app && npx vite build"
+  },
+  "app": {
+    "title": "OpenSketch",
+    "windows": [
+      {
+        "title": "OpenSketch",
+        "width": 1440,
+        "height": 900,
+        "resizable": true,
+        "decorations": true,
+        "transparent": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  }
+}
