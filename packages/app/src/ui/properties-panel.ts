@@ -394,186 +394,281 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       container.appendChild(textSection);
     }
 
-    // === Layout Section (Frame/Instance/Group) ===
+    // === Auto Layout Section (Frame/Instance/Group) ===
     const kindStr = typeof node.kind === "string" ? node.kind : Object.keys(node.kind)[0];
     if (["Frame", "Instance", "Group", "Slot"].includes(kindStr || "")) {
       const layoutJson = editor.engine.get_layout(BigInt(id));
       const layout = JSON.parse(layoutJson);
+      const hasLayout = layout.mode !== "None";
 
       const layoutSection = document.createElement("div");
       layoutSection.className = "prop-section";
+
+      // Title row with add/remove button
+      const titleRow = document.createElement("div");
+      titleRow.style.cssText = "display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;";
       const layoutTitle = document.createElement("div");
       layoutTitle.className = "prop-section-title";
-      layoutTitle.textContent = "Layout";
-      layoutSection.appendChild(layoutTitle);
+      layoutTitle.style.marginBottom = "0";
+      layoutTitle.textContent = "Auto layout";
+      titleRow.appendChild(layoutTitle);
 
-      // Mode
-      const modeRow = document.createElement("div");
-      modeRow.className = "prop-row";
-      const modeLabel = document.createElement("span");
-      modeLabel.className = "prop-label";
-      modeLabel.style.width = "50px";
-      modeLabel.textContent = "Mode";
-      modeRow.appendChild(modeLabel);
-      const modeSelect = document.createElement("select");
-      modeSelect.className = "prop-input";
-      ["None", "Flex", "Grid"].forEach((m) => {
-        const opt = document.createElement("option");
-        opt.value = m.toLowerCase();
-        opt.textContent = m;
-        opt.selected = layout.mode?.toLowerCase() === m.toLowerCase() || (m === "None" && layout.mode === "None");
-        modeSelect.appendChild(opt);
-      });
-      modeSelect.value = (layout.mode || "None").toLowerCase();
-      modeSelect.addEventListener("change", () => {
-        editor.engine.set_layout_mode(BigInt(id), modeSelect.value);
+      const toggleBtn = document.createElement("button");
+      toggleBtn.style.cssText = `
+        background:none;border:1px solid ${hasLayout ? "#555" : "#4f46e5"};border-radius:4px;
+        color:${hasLayout ? "#888" : "#4f46e5"};cursor:pointer;width:22px;height:22px;
+        display:flex;align-items:center;justify-content:center;padding:0;transition:all 0.15s;
+      `;
+      toggleBtn.innerHTML = hasLayout
+        ? icons.minus.replace(/width="\d+"/, 'width="12"').replace(/height="\d+"/, 'height="12"')
+        : icons.plus.replace(/width="\d+"/, 'width="12"').replace(/height="\d+"/, 'height="12"');
+      toggleBtn.title = hasLayout ? "Remove auto layout" : "Add auto layout";
+      toggleBtn.addEventListener("click", () => {
+        editor.engine.push_undo();
+        editor.engine.set_layout_mode(BigInt(id), hasLayout ? "none" : "flex");
         editor.requestRender();
         refresh(ids);
       });
-      modeRow.appendChild(modeSelect);
-      layoutSection.appendChild(modeRow);
+      titleRow.appendChild(toggleBtn);
+      layoutSection.appendChild(titleRow);
 
-      if (layout.mode !== "None") {
-        // Direction
+      if (hasLayout) {
+        // --- Direction + Distribution row ---
+        const dirRow = document.createElement("div");
+        dirRow.style.cssText = "display:flex;gap:4px;margin-bottom:8px;";
+
         if (layout.mode === "Flex") {
-          const dirRow = document.createElement("div");
-          dirRow.className = "prop-row";
-          const dirLabel = document.createElement("span");
-          dirLabel.className = "prop-label";
-          dirLabel.style.width = "50px";
-          dirLabel.textContent = "Dir";
-          dirRow.appendChild(dirLabel);
-          const dirSelect = document.createElement("select");
-          dirSelect.className = "prop-input";
-          ["Row", "Column"].forEach((d) => {
-            const opt = document.createElement("option");
-            opt.value = d.toLowerCase();
-            opt.textContent = d;
-            opt.selected = (layout.direction || "Row").toLowerCase() === d.toLowerCase();
-            dirSelect.appendChild(opt);
+          const dir = (layout.direction || "Row").toLowerCase();
+          // Direction toggle buttons
+          (["row", "column"] as const).forEach((d) => {
+            const btn = document.createElement("button");
+            const isActive = dir === d;
+            btn.style.cssText = `
+              flex:1;padding:5px 0;border:1px solid ${isActive ? "#4f46e5" : "#3a3a3a"};
+              border-radius:6px;background:${isActive ? "#4f46e520" : "#2a2a2a"};
+              color:${isActive ? "#818cf8" : "#666"};cursor:pointer;display:flex;
+              align-items:center;justify-content:center;gap:4px;font-size:10px;transition:all 0.15s;
+            `;
+            const icon = d === "row" ? icons.arrowRight : icons.arrowDown;
+            btn.innerHTML = icon.replace(/width="\d+"/, 'width="14"').replace(/height="\d+"/, 'height="14"');
+            btn.addEventListener("click", () => {
+              editor.engine.push_undo();
+              editor.engine.set_flex_direction(BigInt(id), d);
+              editor.requestRender();
+              refresh(ids);
+            });
+            dirRow.appendChild(btn);
           });
-          dirSelect.value = (layout.direction || "Row").toLowerCase();
-          dirSelect.addEventListener("change", () => {
-            editor.engine.set_flex_direction(BigInt(id), dirSelect.value);
+
+          // Wrap toggle
+          const isWrap = layout.wrap === true;
+          const wrapBtn = document.createElement("button");
+          wrapBtn.style.cssText = `
+            padding:5px 8px;border:1px solid ${isWrap ? "#4f46e5" : "#3a3a3a"};
+            border-radius:6px;background:${isWrap ? "#4f46e520" : "#2a2a2a"};
+            color:${isWrap ? "#818cf8" : "#666"};cursor:pointer;display:flex;
+            align-items:center;justify-content:center;transition:all 0.15s;
+          `;
+          wrapBtn.innerHTML = icons.wrap.replace(/width="\d+"/, 'width="14"').replace(/height="\d+"/, 'height="14"');
+          wrapBtn.title = "Wrap";
+          wrapBtn.addEventListener("click", () => {
+            editor.engine.push_undo();
+            // Toggle wrap via layout mode re-set (TODO: add dedicated wrap API)
             editor.requestRender();
+            refresh(ids);
           });
-          dirRow.appendChild(dirSelect);
-          layoutSection.appendChild(dirRow);
+          dirRow.appendChild(wrapBtn);
         }
 
-        // Align
-        const alignRow = document.createElement("div");
-        alignRow.className = "prop-row";
-        const alignLabel = document.createElement("span");
-        alignLabel.className = "prop-label";
-        alignLabel.style.width = "50px";
-        alignLabel.textContent = "Align";
-        alignRow.appendChild(alignLabel);
-        const alignSelect = document.createElement("select");
-        alignSelect.className = "prop-input";
-        ["Start", "Center", "End", "Stretch"].forEach((a) => {
+        // Grid/Flex mode toggle
+        const modeToggle = document.createElement("select");
+        modeToggle.style.cssText = "padding:5px 4px;border:1px solid #3a3a3a;border-radius:6px;background:#2a2a2a;color:#888;font-size:10px;cursor:pointer;appearance:none;text-align:center;width:44px;";
+        ["Flex", "Grid"].forEach((m) => {
           const opt = document.createElement("option");
-          opt.value = a.toLowerCase();
-          opt.textContent = a;
-          opt.selected = (layout.align_items || "Start").toLowerCase() === a.toLowerCase();
-          alignSelect.appendChild(opt);
+          opt.value = m.toLowerCase();
+          opt.textContent = m;
+          opt.selected = layout.mode === m;
+          modeToggle.appendChild(opt);
         });
-        alignSelect.value = (layout.align_items || "Start").toLowerCase();
-        alignSelect.addEventListener("change", () => {
-          editor.engine.set_align_items(BigInt(id), alignSelect.value);
+        modeToggle.addEventListener("change", () => {
+          editor.engine.push_undo();
+          editor.engine.set_layout_mode(BigInt(id), modeToggle.value);
           editor.requestRender();
+          refresh(ids);
         });
-        alignRow.appendChild(alignSelect);
-        layoutSection.appendChild(alignRow);
+        dirRow.appendChild(modeToggle);
+        layoutSection.appendChild(dirRow);
 
-        // Justify
-        const justRow = document.createElement("div");
-        justRow.className = "prop-row";
-        const justLabel = document.createElement("span");
-        justLabel.className = "prop-label";
-        justLabel.style.width = "50px";
-        justLabel.textContent = "Just";
-        justRow.appendChild(justLabel);
-        const justSelect = document.createElement("select");
-        justSelect.className = "prop-input";
-        ["Start", "Center", "End", "SpaceBetween", "SpaceAround", "SpaceEvenly"].forEach((j) => {
-          const opt = document.createElement("option");
-          opt.value = j.replace("Space", "space-").toLowerCase().replace("space-b", "space-b").replace("space-a", "space-a").replace("space-e", "space-e");
-          // Simpler mapping
-          const val = j === "SpaceBetween" ? "space-between" : j === "SpaceAround" ? "space-around" : j === "SpaceEvenly" ? "space-evenly" : j.toLowerCase();
-          opt.value = val;
-          opt.textContent = j;
-          const current = (layout.justify_content || "Start");
-          opt.selected = current.toLowerCase() === j.toLowerCase() || current === j;
-          justSelect.appendChild(opt);
-        });
-        const jcVal = layout.justify_content || "Start";
-        justSelect.value = jcVal === "SpaceBetween" ? "space-between" : jcVal === "SpaceAround" ? "space-around" : jcVal === "SpaceEvenly" ? "space-evenly" : jcVal.toLowerCase();
-        justSelect.addEventListener("change", () => {
-          editor.engine.set_justify_content(BigInt(id), justSelect.value);
-          editor.requestRender();
-        });
-        justRow.appendChild(justSelect);
-        layoutSection.appendChild(justRow);
+        // --- Alignment Matrix (3x3 grid) ---
+        if (layout.mode === "Flex") {
+          const dir = (layout.direction || "Row").toLowerCase();
+          const curAlign = (layout.align_items || "Start").toLowerCase();
+          const curJust = (layout.justify_content || "Start").toLowerCase();
+
+          const matrixWrap = document.createElement("div");
+          matrixWrap.style.cssText = "display:flex;align-items:center;gap:10px;margin-bottom:8px;";
+
+          const matrix = document.createElement("div");
+          matrix.style.cssText = "display:grid;grid-template-columns:repeat(3,1fr);gap:3px;width:54px;height:54px;background:#1e1e1e;border-radius:6px;padding:4px;flex-shrink:0;";
+
+          // Map: row direction → columns=justify, rows=align
+          // column direction → columns=align, rows=justify
+          const justMap = ["start", "center", "end"];
+          const alignMap = ["start", "center", "end"];
+
+          for (let row = 0; row < 3; row++) {
+            for (let col = 0; col < 3; col++) {
+              const dot = document.createElement("button");
+              let thisAlign: string, thisJust: string;
+              if (dir === "row") {
+                thisJust = justMap[col];
+                thisAlign = alignMap[row];
+              } else {
+                thisAlign = alignMap[col];
+                thisJust = justMap[row];
+              }
+              const isActive = curAlign === thisAlign && (curJust === thisJust || (curJust.startsWith("space") && thisJust === "start"));
+              dot.style.cssText = `
+                width:14px;height:14px;border-radius:3px;border:none;padding:0;cursor:pointer;
+                background:${isActive ? "#4f46e5" : "#3a3a3a"};
+                transition:all 0.15s;
+              `;
+              dot.addEventListener("mouseenter", () => { if (!isActive) dot.style.background = "#555"; });
+              dot.addEventListener("mouseleave", () => { if (!isActive) dot.style.background = "#3a3a3a"; });
+              dot.addEventListener("click", () => {
+                editor.engine.push_undo();
+                editor.engine.set_align_items(BigInt(id), thisAlign);
+                editor.engine.set_justify_content(BigInt(id), thisJust);
+                editor.requestRender();
+                refresh(ids);
+              });
+              matrix.appendChild(dot);
+            }
+          }
+          matrixWrap.appendChild(matrix);
+
+          // Distribution buttons (packed / space-between)
+          const distCol = document.createElement("div");
+          distCol.style.cssText = "display:flex;flex-direction:column;gap:3px;";
+
+          const distributions = [
+            { val: curJust.startsWith("space") ? curJust : "packed", icon: icons.packed, label: "Packed", isSpace: false },
+            { val: "space-between", icon: icons.spaceBetween, label: "Space between", isSpace: true },
+          ];
+          for (const d of distributions) {
+            const isActive = d.isSpace ? curJust.startsWith("space") : !curJust.startsWith("space");
+            const btn = document.createElement("button");
+            btn.style.cssText = `
+              padding:4px 8px;border:1px solid ${isActive ? "#4f46e5" : "#3a3a3a"};
+              border-radius:5px;background:${isActive ? "#4f46e520" : "#2a2a2a"};
+              color:${isActive ? "#818cf8" : "#666"};cursor:pointer;display:flex;
+              align-items:center;gap:4px;font-size:9px;transition:all 0.15s;white-space:nowrap;
+            `;
+            btn.innerHTML = d.icon.replace(/width="\d+"/, 'width="12"').replace(/height="\d+"/, 'height="12"') + `<span>${d.label}</span>`;
+            btn.addEventListener("click", () => {
+              editor.engine.push_undo();
+              if (d.isSpace) {
+                editor.engine.set_justify_content(BigInt(id), "space-between");
+              } else {
+                // Revert to the alignment matrix value
+                editor.engine.set_justify_content(BigInt(id), curJust.startsWith("space") ? "start" : curJust);
+              }
+              editor.requestRender();
+              refresh(ids);
+            });
+            distCol.appendChild(btn);
+          }
+          matrixWrap.appendChild(distCol);
+          layoutSection.appendChild(matrixWrap);
+        }
+
+        // --- Gap & Padding compact row ---
+        const metricsGrid = document.createElement("div");
+        metricsGrid.style.cssText = "display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px;";
 
         // Gap
-        const gapRow = document.createElement("div");
-        gapRow.className = "prop-row";
-        const gapLabel = document.createElement("span");
-        gapLabel.className = "prop-label";
-        gapLabel.style.width = "50px";
-        gapLabel.textContent = "Gap";
-        gapRow.appendChild(gapLabel);
-        const gapInput = document.createElement("input");
-        gapInput.className = "prop-input";
-        gapInput.value = String(layout.gap || 0);
-        gapInput.addEventListener("change", () => {
-          editor.engine.set_layout_gap(BigInt(id), parseFloat(gapInput.value) || 0);
+        const gapWrap = createLabeledInput("Gap", String(layout.gap || 0), (v) => {
+          editor.engine.push_undo();
+          editor.engine.set_layout_gap(BigInt(id), parseFloat(v) || 0);
           editor.requestRender();
         });
-        gapRow.appendChild(gapInput);
-        layoutSection.appendChild(gapRow);
+        metricsGrid.appendChild(gapWrap);
 
-        // Padding (single value for simplicity)
-        const padRow = document.createElement("div");
-        padRow.className = "prop-row";
-        const padLabel = document.createElement("span");
-        padLabel.className = "prop-label";
-        padLabel.style.width = "50px";
-        padLabel.textContent = "Pad";
-        padRow.appendChild(padLabel);
-        const padInput = document.createElement("input");
-        padInput.className = "prop-input";
-        padInput.placeholder = "t r b l";
-        padInput.value = `${layout.padding_top || 0} ${layout.padding_right || 0} ${layout.padding_bottom || 0} ${layout.padding_left || 0}`;
-        padInput.addEventListener("change", () => {
-          const parts = padInput.value.trim().split(/\s+/).map(Number);
-          const t = parts[0] || 0, r = parts[1] ?? t, b = parts[2] ?? t, l = parts[3] ?? r;
-          editor.engine.set_layout_padding(BigInt(id), t, r, b, l);
-          editor.requestRender();
-        });
-        padRow.appendChild(padInput);
-        layoutSection.appendChild(padRow);
-
-        // Grid columns
+        // Grid columns (or placeholder)
         if (layout.mode === "Grid") {
-          const colRow = document.createElement("div");
-          colRow.className = "prop-row";
-          const colLabel = document.createElement("span");
-          colLabel.className = "prop-label";
-          colLabel.style.width = "50px";
-          colLabel.textContent = "Cols";
-          colRow.appendChild(colLabel);
-          const colInput = document.createElement("input");
-          colInput.className = "prop-input";
-          colInput.value = String(layout.grid_columns || 2);
-          colInput.addEventListener("change", () => {
-            editor.engine.set_grid_columns(BigInt(id), parseInt(colInput.value) || 2);
+          const colWrap = createLabeledInput("Col", String(layout.grid_columns || 2), (v) => {
+            editor.engine.push_undo();
+            editor.engine.set_grid_columns(BigInt(id), parseInt(v) || 2);
             editor.requestRender();
           });
-          colRow.appendChild(colInput);
-          layoutSection.appendChild(colRow);
+          metricsGrid.appendChild(colWrap);
+        } else {
+          metricsGrid.appendChild(document.createElement("div")); // empty cell
         }
+        layoutSection.appendChild(metricsGrid);
+
+        // Padding — 4 individual inputs with visual layout
+        const padWrap = document.createElement("div");
+        padWrap.style.cssText = "background:#1e1e1e;border-radius:6px;padding:8px;position:relative;";
+
+        const padLabel = document.createElement("div");
+        padLabel.style.cssText = "font-size:9px;color:#555;text-align:center;margin-bottom:6px;letter-spacing:0.5px;";
+        padLabel.textContent = "PADDING";
+        padWrap.appendChild(padLabel);
+
+        // Top
+        const padTop = document.createElement("div");
+        padTop.style.cssText = "display:flex;justify-content:center;margin-bottom:4px;";
+        const topInput = document.createElement("input");
+        topInput.className = "prop-input";
+        topInput.style.cssText = "width:48px;min-width:0;text-align:center;font-size:11px;padding:3px 4px;";
+        topInput.value = String(layout.padding_top || 0);
+        topInput.addEventListener("change", () => {
+          editor.engine.push_undo();
+          editor.engine.set_layout_padding(BigInt(id), parseFloat(topInput.value)||0, parseFloat(rightInput.value)||0, parseFloat(bottomInput.value)||0, parseFloat(leftInput.value)||0);
+          editor.requestRender();
+        });
+        padTop.appendChild(topInput);
+        padWrap.appendChild(padTop);
+
+        // Left + Right row
+        const padMid = document.createElement("div");
+        padMid.style.cssText = "display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;";
+        const leftInput = document.createElement("input");
+        leftInput.className = "prop-input";
+        leftInput.style.cssText = "width:48px;min-width:0;text-align:center;font-size:11px;padding:3px 4px;";
+        leftInput.value = String(layout.padding_left || 0);
+        const midDot = document.createElement("div");
+        midDot.style.cssText = "width:6px;height:6px;border-radius:50%;background:#3a3a3a;";
+        const rightInput = document.createElement("input");
+        rightInput.className = "prop-input";
+        rightInput.style.cssText = "width:48px;min-width:0;text-align:center;font-size:11px;padding:3px 4px;";
+        rightInput.value = String(layout.padding_right || 0);
+        padMid.appendChild(leftInput);
+        padMid.appendChild(midDot);
+        padMid.appendChild(rightInput);
+        padWrap.appendChild(padMid);
+
+        // Bottom
+        const padBot = document.createElement("div");
+        padBot.style.cssText = "display:flex;justify-content:center;";
+        const bottomInput = document.createElement("input");
+        bottomInput.className = "prop-input";
+        bottomInput.style.cssText = "width:48px;min-width:0;text-align:center;font-size:11px;padding:3px 4px;";
+        bottomInput.value = String(layout.padding_bottom || 0);
+        padBot.appendChild(bottomInput);
+        padWrap.appendChild(padBot);
+
+        // All padding inputs commit on change
+        [leftInput, rightInput, bottomInput].forEach((inp) => {
+          inp.addEventListener("change", () => {
+            editor.engine.push_undo();
+            editor.engine.set_layout_padding(BigInt(id), parseFloat(topInput.value)||0, parseFloat(rightInput.value)||0, parseFloat(bottomInput.value)||0, parseFloat(leftInput.value)||0);
+            editor.requestRender();
+          });
+        });
+
+        layoutSection.appendChild(padWrap);
       }
 
       container.appendChild(layoutSection);
