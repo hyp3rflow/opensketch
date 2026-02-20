@@ -695,18 +695,16 @@ function getKindStr(kind: any): string {
 
 export function setupAgentPanel(container: HTMLElement, editor: Editor) {
   const tools = buildTools();
-  const messages: Message[] = [
-    { role: "system", content: "Agent ready. Type 'help' for commands, or switch to LLM mode.", timestamp: Date.now() },
-  ];
+  const messages: Message[] = [];
 
   // LLM state
-  let mode: "commands" | "llm" = "commands";
   let llmHistory: import("./llm-agent").LLMMessage[] = [];
   let isProcessing = false;
+  let configLoaded = false;
 
   container.innerHTML = "";
 
-  // Header with mode toggle
+  // Header
   const header = document.createElement("div");
   header.className = "agent-header";
   container.appendChild(header);
@@ -717,36 +715,24 @@ export function setupAgentPanel(container: HTMLElement, editor: Editor) {
         <span class="agent-icon">${icons.robot.replace(/width="\d+"/, 'width="14"').replace(/height="\d+"/, 'height="14"')}</span>
         Agent
       </span>
-      <div class="agent-mode-toggle">
-        <button class="agent-mode-btn ${mode === "commands" ? "active" : ""}" data-mode="commands">CMD</button>
-        <button class="agent-mode-btn ${mode === "llm" ? "active" : ""}" data-mode="llm">LLM</button>
-      </div>
+      <span class="agent-status ${configLoaded ? "online" : ""}" style="font-size:10px;color:${configLoaded ? "#10b981" : "#666"};">${configLoaded ? "connected" : "not configured"}</span>
     `;
-    header.querySelectorAll(".agent-mode-btn").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const newMode = (btn as HTMLElement).dataset.mode as "commands" | "llm";
-        if (newMode === "llm") {
-          import("./llm-agent").then(({ loadConfig }) => {
-            const config = loadConfig();
-            if (!config || !config.apiKey) {
-              showSettings();
-              return;
-            }
-            mode = "llm";
-            renderHeader();
-            input.placeholder = "Ask the AI agent...";
-            renderMessages();
-          });
-          return;
-        }
-        mode = newMode;
-        renderHeader();
-        input.placeholder = mode === "llm" ? "Ask the AI agent..." : "Type a command...";
-        renderMessages();
-      });
-    });
   }
   renderHeader();
+
+  // Auto-show settings if not configured
+  import("./llm-agent").then(({ loadConfig }) => {
+    const config = loadConfig();
+    if (config?.apiKey) {
+      configLoaded = true;
+      messages.push({ role: "system", content: `Connected to ${config.model}`, timestamp: Date.now() });
+      renderHeader();
+      renderMessages();
+    } else {
+      messages.push({ role: "system", content: "Click ⚙ to configure your LLM API key.", timestamp: Date.now() });
+      renderMessages();
+    }
+  });
 
   // Settings overlay
   function showSettings() {
@@ -780,10 +766,9 @@ export function setupAgentPanel(container: HTMLElement, editor: Editor) {
       if (!apiKey) { alert("API key required"); return; }
       saveConfig({ apiKey, endpoint, model });
       overlay.remove();
-      mode = "llm";
+      configLoaded = true;
       renderHeader();
-      input.placeholder = "Ask the AI agent...";
-      messages.push({ role: "system", content: `LLM connected: ${model}`, timestamp: Date.now() });
+      messages.push({ role: "system", content: `Connected to ${model}`, timestamp: Date.now() });
       llmHistory = [];
       renderMessages();
     });
@@ -799,7 +784,7 @@ export function setupAgentPanel(container: HTMLElement, editor: Editor) {
   inputArea.className = "agent-input-area";
   const input = document.createElement("input");
   input.className = "agent-input";
-  input.placeholder = "Type a command...";
+  input.placeholder = "Ask the AI agent...";
   input.spellcheck = false;
   const sendBtn = document.createElement("button");
   sendBtn.className = "agent-send";
@@ -870,7 +855,7 @@ export function setupAgentPanel(container: HTMLElement, editor: Editor) {
   async function sendLLM(text: string) {
     const { loadConfig, chatCompletion, buildToolDefs, executeTool, getSceneContext } = await import("./llm-agent");
     const config = loadConfig();
-    if (!config) { messages.push({ role: "system", content: "No LLM configured. Click ⚙ to set up.", timestamp: Date.now() }); renderMessages(); return; }
+    if (!config) { messages.push({ role: "system", content: "Click ⚙ to configure.", timestamp: Date.now() }); renderMessages(); return; }
 
     messages.push({ role: "user", content: text, timestamp: Date.now() });
     renderMessages();
@@ -952,14 +937,12 @@ Respond concisely. Execute tools to fulfill the user's design requests.`;
     if (!text || isProcessing) return;
     input.value = "";
 
-    if (mode === "llm") {
-      sendLLM(text);
-    } else {
-      messages.push({ role: "user", content: text, timestamp: Date.now() });
-      const result = execute(text);
-      messages.push({ role: "agent", content: result, timestamp: Date.now() });
+    if (!configLoaded) {
+      messages.push({ role: "system", content: "Please configure your API key first. Click ⚙.", timestamp: Date.now() });
       renderMessages();
+      return;
     }
+    sendLLM(text);
   }
 
   input.addEventListener("keydown", (e) => {
