@@ -14,7 +14,9 @@ Pure Rust crate compiled to WASM via `wasm-pack`. No NAPI — runs entirely in t
 
 ### `node.rs`
 - `NodeId = u64`
-- `NodeKind` enum: `Rect`, `Ellipse`, `Text { content, font_size, font_family }`, `Frame`, `Group`
+- `TextAlign` enum: `Left`, `Center`, `Right`
+- `FontStyle` enum: `Normal`, `Italic`
+- `NodeKind` enum: `Rect`, `Ellipse`, `Text { content, font_size, font_family, line_height, text_align, font_weight, font_style }`, `Frame`, `Group`
 - `Fill { color: Color }`, `Stroke { color: Color, width: f64 }`
 - `Node` struct: full node with id, name, kind, transform (x/y/w/h/rotation), style (opacity, fill, stroke, corner_radius), tree (children, parent), flags (visible, locked)
 
@@ -28,7 +30,11 @@ Pure Rust crate compiled to WASM via `wasm-pack`. No NAPI — runs entirely in t
 ### `render.rs`
 - `Renderer`: Canvas2D rendering with viewport transform
 - Grid rendering (zoom-adaptive line density)
-- Node rendering: Rect (with roundRect), Ellipse, Text (with font), Frame (white bg + label)
+- Node rendering: Rect (with roundRect), Ellipse, Text (multi-line, styled), Frame (white bg + label)
+- Text rendering: HiDPI pixel snap, alphabetic baseline, word wrap, text-align, font-weight, font-style
+- `wrap_text()`: word-level wrapping with newline support
+- `measure_text_nodes()`: accurate Fit-mode dimension calculation using canvas measureText
+- `build_font_string()`: CSS font string with weight + italic
 - Selection handles (8 points, cyan)
 - Frame labels: zoom-inverse scaling, max 11px screen size
 - Editing indicator: dashed blue border
