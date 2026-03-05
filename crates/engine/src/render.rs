@@ -1,6 +1,6 @@
 use wasm_bindgen::JsValue;
 use web_sys::CanvasRenderingContext2d;
-use crate::node::{Node, NodeKind, TextSizing};
+use crate::node::{Node, NodeKind, TextSizing, TextAlign, FontStyle};
 use crate::scene::Scene;
 use crate::transform::Transform;
 use crate::types::Color;
@@ -20,32 +20,101 @@ impl Renderer {
         }
     }
 
+    /// Build CSS font string from text properties
+    fn build_font_string(font_size: f64, font_family: &str, font_weight: u16, font_style: &FontStyle) -> String {
+        let style_str = match font_style {
+            FontStyle::Italic => "italic ",
+            FontStyle::Normal => "",
+        };
+        format!("{}{} {}px {}, system-ui, sans-serif", style_str, font_weight, font_size, font_family)
+    }
+
+    /// Word-wrap text into lines fitting within max_width. If max_width is None, no wrapping.
+    fn wrap_text(ctx: &CanvasRenderingContext2d, text: &str, max_width: Option<f64>) -> Vec<String> {
+        let mut lines = Vec::new();
+        for paragraph in text.split('\n') {
+            if paragraph.is_empty() {
+                lines.push(String::new());
+                continue;
+            }
+            match max_width {
+                Some(mw) if mw > 0.0 => {
+                    let words: Vec<&str> = paragraph.split(' ').collect();
+                    let mut current_line = String::new();
+                    for word in words {
+                        let test = if current_line.is_empty() {
+                            word.to_string()
+                        } else {
+                            format!("{} {}", current_line, word)
+                        };
+                        if let Ok(m) = ctx.measure_text(&test) {
+                            if m.width() > mw && !current_line.is_empty() {
+                                lines.push(current_line);
+                                current_line = word.to_string();
+                            } else {
+                                current_line = test;
+                            }
+                        } else {
+                            current_line = test;
+                        }
+                    }
+                    if !current_line.is_empty() {
+                        lines.push(current_line);
+                    }
+                }
+                _ => {
+                    lines.push(paragraph.to_string());
+                }
+            }
+        }
+        if lines.is_empty() {
+            lines.push(String::new());
+        }
+        lines
+    }
+
     /// Measure all Fit-mode text nodes and update their dimensions
     pub fn measure_text_nodes(&self, ctx: &CanvasRenderingContext2d, scene: &mut Scene) {
         let ids: Vec<u64> = scene.all_node_ids();
         for id in ids {
-            let (content, font_size, font_family, is_fit) = {
+            let (content, font_size, font_family, line_height, font_weight, font_style, is_fit, node_width) = {
                 let node = match scene.get_node(id) {
                     Some(n) => n,
                     None => continue,
                 };
-                if node.text_sizing != TextSizing::Fit { continue; }
                 match &node.kind {
-                    NodeKind::Text { content, font_size, font_family } => {
-                        (content.clone(), *font_size, font_family.clone(), true)
+                    NodeKind::Text { content, font_size, font_family, line_height, font_weight, font_style, .. } => {
+                        (content.clone(), *font_size, font_family.clone(), *line_height, *font_weight, font_style.clone(),
+                         node.text_sizing == TextSizing::Fit, node.width)
                     }
                     _ => continue,
                 }
             };
-            if !is_fit { continue; }
 
-            ctx.set_font(&format!("{}px {}, system-ui, sans-serif", font_size, font_family));
-            if let Ok(metrics) = ctx.measure_text(&content) {
-                let w = metrics.width();
-                let h = font_size * 1.2; // approximate line height
+            let font_str = Self::build_font_string(font_size, &font_family, font_weight, &font_style);
+            ctx.set_font(&font_str);
+
+            let max_width = if !is_fit { Some(node_width) } else { None };
+            let lines = Self::wrap_text(ctx, &content, max_width);
+            let line_h = font_size * line_height;
+
+            if is_fit {
+                let mut max_w: f64 = 1.0;
+                for line in &lines {
+                    if let Ok(m) = ctx.measure_text(line) {
+                        max_w = max_w.max(m.width());
+                    }
+                }
+                let total_h = line_h * lines.len() as f64;
                 if let Some(node) = scene.get_node_mut(id) {
-                    node.width = w.max(1.0);
-                    node.height = h.max(1.0);
+                    node.width = max_w.max(1.0);
+                    node.height = total_h.max(1.0);
+                }
+            } else {
+                // Fixed mode: update height to fit content
+                let total_h = line_h * lines.len() as f64;
+                if let Some(node) = scene.get_node_mut(id) {
+                    node.height = total_h.max(1.0);
                 }
             }
         }
@@ -98,7 +167,7 @@ impl Renderer {
         match &node.kind {
             NodeKind::Rect => self.render_rect(ctx, node),
             NodeKind::Ellipse => self.render_ellipse(ctx, node),
-            NodeKind::Text { content, font_size, font_family } => self.render_text(ctx, node, content, *font_size, font_family),
+            NodeKind::Text { content, font_size, font_family, line_height, text_align, font_weight, font_style } => self.render_text(ctx, node, content, *font_size, font_family, *line_height, text_align, *font_weight, font_style),
             NodeKind::Frame => self.render_frame(ctx, node, scene),
             NodeKind::Group => {}
             NodeKind::Slot { .. } => self.render_slot(ctx, node),
@@ -138,12 +207,50 @@ impl Renderer {
         self.apply_fill_stroke(ctx, node);
     }
 
-    fn render_text(&self, ctx: &CanvasRenderingContext2d, node: &Node, content: &str, font_size: f64, font_family: &str) {
+    fn render_text(&self, ctx: &CanvasRenderingContext2d, node: &Node, content: &str, font_size: f64, font_family: &str, line_height: f64, text_align: &TextAlign, font_weight: u16, font_style: &FontStyle) {
         if let Some(fill) = &node.fill {
             ctx.set_fill_style_str(&fill.color.to_css());
-            ctx.set_font(&format!("{}px {}, system-ui, sans-serif", font_size, font_family));
-            ctx.set_text_baseline("top");
-            ctx.fill_text(content, node.x, node.y).ok();
+            let font_str = Self::build_font_string(font_size, font_family, font_weight, font_style);
+            ctx.set_font(&font_str);
+            ctx.set_text_baseline("alphabetic");
+
+            // Get ascent for baseline offset
+            let ascent = if let Ok(m) = ctx.measure_text("M") {
+                m.actual_bounding_box_ascent()
+            } else {
+                font_size * 0.8
+            };
+
+            let max_width = if node.text_sizing == TextSizing::Fixed { Some(node.width) } else { None };
+            let lines = Self::wrap_text(ctx, content, max_width);
+            let line_h = font_size * line_height;
+            let zoom = self.viewport.a;
+
+            for (i, line) in lines.iter().enumerate() {
+                // HiDPI pixel snap: snap y to device pixels
+                let raw_y = node.y + ascent + line_h * i as f64;
+                let snapped_y = (raw_y * zoom).round() / zoom;
+
+                // text_align x calculation
+                let x = match text_align {
+                    TextAlign::Left => {
+                        let raw_x = node.x;
+                        (raw_x * zoom).round() / zoom
+                    }
+                    TextAlign::Center => {
+                        let lw = ctx.measure_text(line).map(|m| m.width()).unwrap_or(0.0);
+                        let raw_x = node.x + (node.width - lw) / 2.0;
+                        (raw_x * zoom).round() / zoom
+                    }
+                    TextAlign::Right => {
+                        let lw = ctx.measure_text(line).map(|m| m.width()).unwrap_or(0.0);
+                        let raw_x = node.x + node.width - lw;
+                        (raw_x * zoom).round() / zoom
+                    }
+                };
+
+                ctx.fill_text(line, x, snapped_y).ok();
+            }
         }
     }
 

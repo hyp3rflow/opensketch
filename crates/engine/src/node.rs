@@ -4,11 +4,46 @@ use serde::{Deserialize, Serialize};
 
 pub type NodeId = u64;
 
+/// Text alignment
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub enum TextAlign {
+    Left,
+    Center,
+    Right,
+}
+
+impl Default for TextAlign {
+    fn default() -> Self { TextAlign::Left }
+}
+
+/// Font style
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub enum FontStyle {
+    Normal,
+    Italic,
+}
+
+impl Default for FontStyle {
+    fn default() -> Self { FontStyle::Normal }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum NodeKind {
     Rect,
     Ellipse,
-    Text { content: String, font_size: f64, font_family: String },
+    Text {
+        content: String,
+        font_size: f64,
+        font_family: String,
+        #[serde(default = "default_line_height")]
+        line_height: f64,
+        #[serde(default)]
+        text_align: TextAlign,
+        #[serde(default = "default_font_weight")]
+        font_weight: u16,
+        #[serde(default)]
+        font_style: FontStyle,
+    },
     Frame,
     Group,
     /// A slot placeholder inside a component template
@@ -16,6 +51,9 @@ pub enum NodeKind {
     /// An instance of a component
     Instance(Box<InstanceData>),
 }
+
+fn default_line_height() -> f64 { 1.2 }
+fn default_font_weight() -> u16 { 400 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Fill {

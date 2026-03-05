@@ -9,7 +9,7 @@ mod layout;
 
 use wasm_bindgen::prelude::*;
 use web_sys::CanvasRenderingContext2d;
-use crate::node::{Node, NodeKind, Fill, Stroke, LayoutMode, FlexDirection, Align, Justify, FlexWrap, TextSizing};
+use crate::node::{Node, NodeKind, Fill, Stroke, LayoutMode, FlexDirection, Align, Justify, FlexWrap, TextSizing, TextAlign, FontStyle};
 
 fn parse_align(s: &str) -> Align {
     match s {
@@ -162,6 +162,10 @@ impl Engine {
             content: content.to_string(),
             font_size,
             font_family: "Inter".to_string(),
+            line_height: 1.2,
+            text_align: TextAlign::default(),
+            font_weight: 400,
+            font_style: FontStyle::default(),
         });
         node.x = x; node.y = y;
         node.width = content.len() as f64 * font_size * 0.6;
@@ -230,19 +234,16 @@ impl Engine {
 
     pub fn set_text_content(&mut self, id: u64, content: &str) {
         if let Some(node) = self.scene.get_node_mut(id) {
-            if let NodeKind::Text { content: ref mut c, font_size, .. } = node.kind {
+            if let NodeKind::Text { content: ref mut c, .. } = node.kind {
                 *c = content.to_string();
-                node.width = content.len() as f64 * font_size * 0.6;
             }
         }
     }
 
     pub fn set_font_size(&mut self, id: u64, size: f64) {
         if let Some(node) = self.scene.get_node_mut(id) {
-            if let NodeKind::Text { ref mut font_size, ref content, .. } = node.kind {
+            if let NodeKind::Text { ref mut font_size, .. } = node.kind {
                 *font_size = size;
-                node.width = content.len() as f64 * size * 0.6;
-                node.height = size * 1.2;
             }
         }
     }
@@ -320,6 +321,14 @@ impl Engine {
 
     pub fn get_zoom(&self) -> f64 {
         self.renderer.viewport.a
+    }
+
+    pub fn get_pan_x(&self) -> f64 {
+        self.renderer.viewport.tx
+    }
+
+    pub fn get_pan_y(&self) -> f64 {
+        self.renderer.viewport.ty
     }
 
     pub fn screen_to_scene_x(&self, x: f64, y: f64) -> f64 {
@@ -863,6 +872,49 @@ impl Engine {
             )
         } else {
             "null".to_string()
+        }
+    }
+
+    // =============================================
+    // Text Properties (Stage 2 & 3)
+    // =============================================
+
+    pub fn set_line_height(&mut self, id: u64, value: f64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Text { ref mut line_height, .. } = node.kind {
+                *line_height = value.max(0.5).min(5.0);
+            }
+        }
+    }
+
+    pub fn set_text_align(&mut self, id: u64, align: &str) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Text { ref mut text_align, .. } = node.kind {
+                *text_align = match align {
+                    "center" => TextAlign::Center,
+                    "right" => TextAlign::Right,
+                    _ => TextAlign::Left,
+                };
+            }
+        }
+    }
+
+    pub fn set_font_weight(&mut self, id: u64, weight: u16) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Text { ref mut font_weight, .. } = node.kind {
+                *font_weight = weight;
+            }
+        }
+    }
+
+    pub fn set_font_style(&mut self, id: u64, style: &str) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Text { ref mut font_style, .. } = node.kind {
+                *font_style = match style {
+                    "italic" => FontStyle::Italic,
+                    _ => FontStyle::Normal,
+                };
+            }
         }
     }
 

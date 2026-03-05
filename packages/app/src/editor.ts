@@ -355,6 +355,9 @@ export class Editor {
 
   private editingNodeId: bigint | null = null;
   private editingOrigContent: string = "";
+  private caretPos: number = 0;
+  private caretVisible: boolean = true;
+  private caretBlinkTimer: number = 0;
 
   private startTextEdit(nodeId: bigint | number, node: any) {
     if (this.editingOverlay) this.finishTextEdit();
@@ -386,11 +389,26 @@ export class Editor {
     this.engine.set_editing(bid);
     this.needsRender = true;
 
+    // Caret: start at end of text
+    this.caretPos = text.content.length;
+    this.caretVisible = true;
+    this.startCaretBlink();
+
+    const updateCaretPos = () => {
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0) {
+        this.caretPos = sel.getRangeAt(0).startOffset;
+        this.caretVisible = true; // reset blink on movement
+        this.needsRender = true;
+      }
+    };
+
     const finish = () => {
       if (!this.editingOverlay) return;
       el.remove();
       this.editingOverlay = null;
       this.editingNodeId = null;
+      this.stopCaretBlink();
       this.engine.set_editing(null);
       this.needsRender = true;
       this.canvas.focus();
@@ -403,6 +421,8 @@ export class Editor {
       const newContent = el.textContent || "";
       this.engine.set_text_content(bid, newContent);
       this.needsRender = true;
+      // Update caret after input
+      requestAnimationFrame(updateCaretPos);
     });
 
     el.addEventListener("keydown", (e) => {
@@ -413,20 +433,55 @@ export class Editor {
         finish();
       }
       if (e.key === "Enter" && !e.shiftKey) {
+        // Insert newline for multiline support
         e.preventDefault();
-        finish();
+        const sel = window.getSelection()!;
+        const range = sel.getRangeAt(0);
+        range.deleteContents();
+        const br = document.createTextNode("\n");
+        range.insertNode(br);
+        range.setStartAfter(br);
+        range.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(range);
+        el.dispatchEvent(new Event("input"));
+        return;
+      }
+      // Cmd+Left/Right: jump to start/end of text
+      if (e.metaKey && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
+        e.preventDefault();
+        const content = el.textContent || "";
+        const pos = e.key === "ArrowLeft" ? 0 : content.length;
+        const textNode = el.firstChild;
+        if (textNode) {
+          const range = document.createRange();
+          range.setStart(textNode, pos);
+          range.collapse(true);
+          const sel = window.getSelection()!;
+          sel.removeAllRanges();
+          sel.addRange(range);
+        }
+        this.caretPos = pos;
+        this.caretVisible = true;
+        this.startCaretBlink();
+        this.needsRender = true;
       }
       // Prevent other editor shortcuts while typing
       e.stopPropagation();
+      // Update caret position after key navigation
+      requestAnimationFrame(updateCaretPos);
     });
+
+    el.addEventListener("mouseup", () => requestAnimationFrame(updateCaretPos));
 
     document.body.appendChild(el);
     this.editingOverlay = el;
     el.focus();
 
-    // Select all text in the hidden element
+    // Place caret at end (not select all)
     const range = document.createRange();
     range.selectNodeContents(el);
+    range.collapse(false); // collapse to end
     const sel = window.getSelection()!;
     sel.removeAllRanges();
     sel.addRange(range);
@@ -442,12 +497,137 @@ export class Editor {
     return this.editingNodeId !== null;
   }
 
+  private startCaretBlink() {
+    this.stopCaretBlink();
+    this.caretVisible = true;
+    this.caretBlinkTimer = window.setInterval(() => {
+      this.caretVisible = !this.caretVisible;
+      this.needsRender = true;
+    }, 530);
+  }
+
+  private stopCaretBlink() {
+    if (this.caretBlinkTimer) {
+      clearInterval(this.caretBlinkTimer);
+      this.caretBlinkTimer = 0;
+    }
+  }
+
+  private renderCaret() {
+    if (!this.editingNodeId || !this.caretVisible) return;
+
+    const nodeJson = this.engine.get_node_json(this.editingNodeId);
+    if (!nodeJson) return;
+    const node = JSON.parse(nodeJson);
+    if (typeof node.kind !== "object" || !node.kind.Text) return;
+
+    const text = node.kind.Text;
+    const content = text.content as string;
+    const fontSize = text.font_size as number;
+    const fontFamily = text.font_family as string || "Inter";
+    const fontWeight = text.font_weight ?? 400;
+    const fontStyleStr = text.font_style === "Italic" ? "italic " : "";
+    const lineHeight = text.line_height ?? 1.2;
+    const textAlign = (text.text_align ?? "Left") as string;
+    const zoom = this.engine.get_zoom();
+    const panX = this.engine.get_pan_x();
+    const panY = this.engine.get_pan_y();
+
+    this.ctx.save();
+    this.ctx.font = `${fontStyleStr}${fontWeight} ${fontSize}px ${fontFamily}, system-ui, sans-serif`;
+
+    // Get ascent
+    const mMetrics = this.ctx.measureText("M");
+    const ascent = mMetrics.actualBoundingBoxAscent || fontSize * 0.8;
+
+    // Split content into lines (matching the wrap logic)
+    const maxWidth = node.text_sizing === "Fixed" ? node.width : undefined;
+    const lines = this.wrapText(content, maxWidth);
+
+    // Find which line the caret is on
+    let charCount = 0;
+    let caretLine = 0;
+    let caretCharInLine = 0;
+    for (let i = 0; i < lines.length; i++) {
+      const lineLen = lines[i].length;
+      if (charCount + lineLen >= this.caretPos) {
+        caretLine = i;
+        caretCharInLine = this.caretPos - charCount;
+        break;
+      }
+      charCount += lineLen + 1; // +1 for newline/space
+      if (i === lines.length - 1) {
+        caretLine = i;
+        caretCharInLine = lines[i].length;
+      }
+    }
+
+    const lineText = lines[caretLine] || "";
+    const textBefore = lineText.slice(0, caretCharInLine);
+    const lineW = this.ctx.measureText(lineText).width;
+    const beforeW = this.ctx.measureText(textBefore).width;
+    const lineH = fontSize * lineHeight;
+
+    // Calculate x based on alignment
+    let lineX = node.x;
+    if (textAlign === "Center") {
+      lineX = node.x + (node.width - lineW) / 2;
+    } else if (textAlign === "Right") {
+      lineX = node.x + node.width - lineW;
+    }
+
+    const caretX = lineX + beforeW;
+    const caretY = node.y + lineH * caretLine;
+
+    const screenX = caretX * zoom + panX;
+    const screenY = caretY * zoom + panY;
+    const caretHeight = lineH * zoom;
+
+    this.ctx.restore();
+
+    this.ctx.save();
+    this.ctx.strokeStyle = "#4a4af5";
+    this.ctx.lineWidth = 1.5;
+    this.ctx.beginPath();
+    this.ctx.moveTo(Math.round(screenX) + 0.5, screenY);
+    this.ctx.lineTo(Math.round(screenX) + 0.5, screenY + caretHeight);
+    this.ctx.stroke();
+    this.ctx.restore();
+  }
+
+  /** Word-wrap text to match engine logic */
+  private wrapText(text: string, maxWidth?: number): string[] {
+    const lines: string[] = [];
+    for (const paragraph of text.split('\n')) {
+      if (!paragraph) { lines.push(""); continue; }
+      if (maxWidth && maxWidth > 0) {
+        const words = paragraph.split(' ');
+        let current = "";
+        for (const word of words) {
+          const test = current ? `${current} ${word}` : word;
+          if (this.ctx.measureText(test).width > maxWidth && current) {
+            lines.push(current);
+            current = word;
+          } else {
+            current = test;
+          }
+        }
+        if (current) lines.push(current);
+      } else {
+        lines.push(paragraph);
+      }
+    }
+    if (lines.length === 0) lines.push("");
+    return lines;
+  }
+
   private startLoop() {
     const loop = () => {
       if (this.needsRender) {
         const dpr = window.devicePixelRatio || 1;
         this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         this.engine.render(this.ctx);
+        this.renderCaret();
         this.needsRender = false;
       }
       this.rafId = requestAnimationFrame(loop);
@@ -596,14 +776,24 @@ export class Editor {
       const text = kind.Text;
       const fontSize = text.font_size || 16;
       const fontFamily = text.font_family || "Inter";
-      ctx.font = `${fontSize}px ${fontFamily}`;
+      const fontWeight = text.font_weight ?? 400;
+      const fontStyleStr = text.font_style === "Italic" ? "italic " : "";
+      const lineHeight = text.line_height ?? 1.2;
+      ctx.font = `${fontStyleStr}${fontWeight} ${fontSize}px ${fontFamily}, system-ui, sans-serif`;
       if (fill) {
         ctx.fillStyle = `rgba(${fill.r},${fill.g},${fill.b},${fill.a})`;
       } else {
         ctx.fillStyle = "#000";
       }
-      ctx.textBaseline = "top";
-      ctx.fillText(text.content || "", x, y);
+      ctx.textBaseline = "alphabetic";
+      const mMetrics = ctx.measureText("M");
+      const ascent = mMetrics.actualBoundingBoxAscent || fontSize * 0.8;
+      const content = text.content || "";
+      const lines = content.split('\n');
+      const lineH = fontSize * lineHeight;
+      for (let i = 0; i < lines.length; i++) {
+        ctx.fillText(lines[i], x, y + ascent + lineH * i);
+      }
     }
   }
 

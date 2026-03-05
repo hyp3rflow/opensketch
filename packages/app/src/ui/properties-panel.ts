@@ -1,6 +1,52 @@
 import type { Editor } from "../editor";
 import { icons } from "./icons";
 
+// Stage 4: Google Fonts list
+const googleFonts = [
+  "Inter", "Roboto", "Open Sans", "Lato", "Montserrat", "Poppins",
+  "Raleway", "Nunito", "Ubuntu", "Playfair Display", "Merriweather",
+  "Source Sans 3", "Oswald", "Noto Sans", "Noto Sans KR", "Noto Sans JP",
+  "PT Sans", "Rubik", "Work Sans", "Fira Sans", "DM Sans",
+  "Quicksand", "Inconsolata", "JetBrains Mono", "Fira Code",
+  "IBM Plex Sans", "IBM Plex Mono", "Space Grotesk", "Outfit", "Pretendard",
+];
+
+const loadedFonts = new Set<string>(["Inter", "system-ui", "Arial", "Helvetica", "Georgia", "Times New Roman", "Courier New", "Menlo", "Monaco"]);
+
+async function loadGoogleFont(family: string, editor: Editor) {
+  if (loadedFonts.has(family)) return;
+  loadedFonts.add(family);
+  try {
+    const url = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(family)}:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap`;
+    const resp = await fetch(url);
+    const css = await resp.text();
+    // Extract font-face declarations and load via FontFace API
+    const faceRegex = /@font-face\s*\{[^}]*src:\s*url\(([^)]+)\)[^}]*font-weight:\s*(\d+)[^}]*font-style:\s*(\w+)[^}]*/g;
+    let match;
+    const promises: Promise<void>[] = [];
+    while ((match = faceRegex.exec(css)) !== null) {
+      const fontUrl = match[1];
+      const weight = match[2] || "400";
+      const style = match[3] || "normal";
+      const face = new FontFace(family, `url(${fontUrl})`, { weight, style });
+      promises.push(face.load().then((loaded) => { document.fonts.add(loaded); }));
+    }
+    // Fallback: if regex didn't match, inject as stylesheet
+    if (promises.length === 0) {
+      const link = document.createElement("link");
+      link.rel = "stylesheet";
+      link.href = url;
+      document.head.appendChild(link);
+      await new Promise((r) => { link.onload = r; setTimeout(r, 3000); });
+    } else {
+      await Promise.all(promises);
+    }
+    editor.requestRender();
+  } catch (e) {
+    console.warn(`Failed to load font: ${family}`, e);
+  }
+}
+
 export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
   // Push undo once per property edit session (debounced)
   let undoPushed = false;
@@ -274,12 +320,97 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       });
       textSection.appendChild(contentArea);
 
-      // Font family
-      const fonts = [
-        "Inter", "system-ui", "Arial", "Helvetica", "Georgia", "Times New Roman",
-        "Courier New", "Menlo", "Monaco", "SF Pro Display", "SF Mono",
-        "Roboto", "Noto Sans KR", "Pretendard",
+      // Font weight + style row
+      const styleRow = document.createElement("div");
+      styleRow.style.cssText = "display:flex;gap:4px;margin-top:6px;";
+
+      // Font weight select
+      const weightSelect = document.createElement("select");
+      weightSelect.className = "prop-input";
+      weightSelect.style.cssText = "flex:1;cursor:pointer;";
+      const weights = [
+        { v: 100, l: "Thin" }, { v: 200, l: "ExtraLight" }, { v: 300, l: "Light" },
+        { v: 400, l: "Regular" }, { v: 500, l: "Medium" }, { v: 600, l: "SemiBold" },
+        { v: 700, l: "Bold" }, { v: 800, l: "ExtraBold" }, { v: 900, l: "Black" },
       ];
+      const curWeight = node.kind.Text.font_weight ?? 400;
+      weights.forEach(({ v, l }) => {
+        const opt = document.createElement("option");
+        opt.value = String(v);
+        opt.textContent = `${l} (${v})`;
+        if (v === curWeight) opt.selected = true;
+        weightSelect.appendChild(opt);
+      });
+      weightSelect.addEventListener("change", () => {
+        editor.engine.set_font_weight(id, parseInt(weightSelect.value));
+        editor.requestRender();
+      });
+      styleRow.appendChild(weightSelect);
+
+      // Italic toggle
+      const curStyle = node.kind.Text.font_style ?? "Normal";
+      const italicBtn = document.createElement("button");
+      const isItalic = curStyle === "Italic";
+      italicBtn.textContent = "I";
+      italicBtn.style.cssText = `
+        width:32px;border:1px solid ${isItalic ? "#4f46e5" : "#444"};border-radius:4px;
+        background:${isItalic ? "#4f46e520" : "#2a2a2a"};color:${isItalic ? "#818cf8" : "#999"};
+        cursor:pointer;font-style:italic;font-size:13px;font-weight:600;transition:all 0.15s;
+      `;
+      italicBtn.addEventListener("click", () => {
+        ensureUndo();
+        editor.engine.set_font_style(id, isItalic ? "normal" : "italic");
+        editor.requestRender();
+        refresh(ids);
+      });
+      styleRow.appendChild(italicBtn);
+      textSection.appendChild(styleRow);
+
+      // Text align row
+      const alignRow = document.createElement("div");
+      alignRow.style.cssText = "display:flex;gap:2px;margin-top:6px;";
+      const curAlign = (node.kind.Text.text_align ?? "Left").toLowerCase();
+      (["left", "center", "right"] as const).forEach((a) => {
+        const btn = document.createElement("button");
+        const isActive = curAlign === a;
+        btn.textContent = a === "left" ? "≡←" : a === "center" ? "≡↔" : "≡→";
+        btn.style.cssText = `
+          flex:1;padding:4px 0;border:1px solid ${isActive ? "#4f46e5" : "#444"};border-radius:4px;
+          background:${isActive ? "#4f46e520" : "#2a2a2a"};color:${isActive ? "#818cf8" : "#999"};
+          cursor:pointer;font-size:11px;transition:all 0.15s;
+        `;
+        btn.addEventListener("click", () => {
+          ensureUndo();
+          editor.engine.set_text_align(id, a);
+          editor.requestRender();
+          refresh(ids);
+        });
+        alignRow.appendChild(btn);
+      });
+      textSection.appendChild(alignRow);
+
+      // Line height
+      const lhRow = document.createElement("div");
+      lhRow.className = "prop-row";
+      lhRow.style.marginTop = "6px";
+      const lhLabel = document.createElement("span");
+      lhLabel.className = "prop-label";
+      lhLabel.style.width = "24px";
+      lhLabel.textContent = "LH";
+      lhRow.appendChild(lhLabel);
+      const lhInput = document.createElement("input");
+      lhInput.className = "prop-input";
+      lhInput.value = String(node.kind.Text.line_height ?? 1.2);
+      lhInput.addEventListener("change", () => {
+        editor.engine.set_line_height(id, parseFloat(lhInput.value) || 1.2);
+        editor.requestRender();
+        refresh(ids);
+      });
+      lhRow.appendChild(lhInput);
+      textSection.appendChild(lhRow);
+
+      // Font family
+      const fonts = googleFonts;
       const familyRow = document.createElement("div");
       familyRow.className = "prop-row";
       familyRow.style.marginTop = "6px";
@@ -295,7 +426,9 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         familySelect.appendChild(opt);
       });
       familySelect.addEventListener("change", () => {
-        editor.engine.set_font_family(id, familySelect.value);
+        const family = familySelect.value;
+        editor.engine.set_font_family(id, family);
+        loadGoogleFont(family, editor);
         editor.requestRender();
       });
       familyRow.appendChild(familySelect);
