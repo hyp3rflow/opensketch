@@ -32,6 +32,9 @@ body { font-family: Inter, system-ui, sans-serif; background: #1e1e1e; color: #c
 .layer-item.selected { background: #2d3748; border-left-color: #4a4af5; }
 .layer-arrow { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; flex-shrink: 0; }
 .layer-item .layer-icon { opacity: 0.5; display: flex; align-items: center; }
+.layer-item .layer-icon--component { color: #a855f7; opacity: 0.9; }
+.layer-item .layer-icon--instance { color: #a855f7; opacity: 0.9; }
+.layer-item .layer-icon--slot { color: #22c55e; opacity: 0.9; }
 .layer-item .layer-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .layer-item .layer-visibility { opacity: 0.3; cursor: pointer; display: flex; align-items: center; }
 .layer-item .layer-visibility:hover { opacity: 1; }

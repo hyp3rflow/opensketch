@@ -514,7 +514,8 @@ export class Editor {
   }
 
   private renderCaret() {
-    if (!this.editingNodeId || !this.caretVisible) return;
+    if (!this.editingNodeId) return;
+    if (!this.caretVisible) return;
 
     const nodeJson = this.engine.get_node_json(this.editingNodeId);
     if (!nodeJson) return;
@@ -585,12 +586,14 @@ export class Editor {
 
     this.ctx.restore();
 
+    // Draw caret line in screen space (DPR transform already applied by render loop)
     this.ctx.save();
-    this.ctx.strokeStyle = "#4a4af5";
+    this.ctx.strokeStyle = "#fff";
     this.ctx.lineWidth = 1.5;
     this.ctx.beginPath();
-    this.ctx.moveTo(Math.round(screenX) + 0.5, screenY);
-    this.ctx.lineTo(Math.round(screenX) + 0.5, screenY + caretHeight);
+    const cx = Math.round(screenX) + 0.5;
+    this.ctx.moveTo(cx, screenY);
+    this.ctx.lineTo(cx, screenY + caretHeight);
     this.ctx.stroke();
     this.ctx.restore();
   }

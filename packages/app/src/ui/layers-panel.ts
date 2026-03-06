@@ -86,11 +86,15 @@ export function setupLayersPanel(container: HTMLElement, editor: Editor) {
       else if (node.kind.startsWith("Slot")) kindKey = "Slot";
       // Detect component source frames
       const isComponentSource = node.name.startsWith("[C] ");
+      if (isComponentSource) icon.classList.add("layer-icon--component");
+      else if (kindKey === "Instance") icon.classList.add("layer-icon--instance");
+      else if (kindKey === "Slot") icon.classList.add("layer-icon--slot");
       icon.innerHTML = iconSized(isComponentSource ? icons.component : (kindIcons[kindKey] || icons.text), 14);
 
       const name = document.createElement("span");
       name.className = "layer-name";
-      name.textContent = node.name;
+      const displayName = node.name.replace(/^\[(C|I|S)\] /, "");
+      name.textContent = displayName;
       if (isFrame) name.style.fontWeight = "600";
 
       const vis = document.createElement("span");

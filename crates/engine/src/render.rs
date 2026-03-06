@@ -98,6 +98,17 @@ impl Renderer {
             let lines = Self::wrap_text(ctx, &content, max_width);
             let line_h = font_size * line_height;
 
+            // Use font metrics for accurate bounding box height
+            let font_height = if let Ok(m) = ctx.measure_text("Mg") {
+                let fa = m.font_bounding_box_ascent();
+                let fd = m.font_bounding_box_descent();
+                if fa > 0.0 { fa + fd } else { font_size }
+            } else {
+                font_size
+            };
+            // Line height is at least the font's natural height
+            let effective_line_h = line_h.max(font_height);
+
             if is_fit {
                 let mut max_w: f64 = 1.0;
                 for line in &lines {
@@ -105,14 +116,14 @@ impl Renderer {
                         max_w = max_w.max(m.width());
                     }
                 }
-                let total_h = line_h * lines.len() as f64;
+                let total_h = effective_line_h * lines.len() as f64;
                 if let Some(node) = scene.get_node_mut(id) {
                     node.width = max_w.max(1.0);
                     node.height = total_h.max(1.0);
                 }
             } else {
                 // Fixed mode: update height to fit content
-                let total_h = line_h * lines.len() as f64;
+                let total_h = effective_line_h * lines.len() as f64;
                 if let Some(node) = scene.get_node_mut(id) {
                     node.height = total_h.max(1.0);
                 }
@@ -214,21 +225,26 @@ impl Renderer {
             ctx.set_font(&font_str);
             ctx.set_text_baseline("alphabetic");
 
-            // Get ascent for baseline offset
-            let ascent = if let Ok(m) = ctx.measure_text("M") {
-                m.actual_bounding_box_ascent()
+            // Get font metrics for baseline positioning
+            let (font_ascent, font_descent) = if let Ok(m) = ctx.measure_text("Mg") {
+                let fa = m.font_bounding_box_ascent();
+                let fd = m.font_bounding_box_descent();
+                if fa > 0.0 { (fa, fd) } else { (font_size * 0.8, font_size * 0.2) }
             } else {
-                font_size * 0.8
+                (font_size * 0.8, font_size * 0.2)
             };
+            let font_height = font_ascent + font_descent;
 
             let max_width = if node.text_sizing == TextSizing::Fixed { Some(node.width) } else { None };
             let lines = Self::wrap_text(ctx, content, max_width);
-            let line_h = font_size * line_height;
+            let line_h = (font_size * line_height).max(font_height);
             let zoom = self.viewport.a;
+            // Center font within line height
+            let half_leading = (line_h - font_height) / 2.0;
 
             for (i, line) in lines.iter().enumerate() {
-                // HiDPI pixel snap: snap y to device pixels
-                let raw_y = node.y + ascent + line_h * i as f64;
+                // Baseline = top of line + half_leading + font_ascent
+                let raw_y = node.y + half_leading + font_ascent + line_h * i as f64;
                 let snapped_y = (raw_y * zoom).round() / zoom;
 
                 // text_align x calculation
