@@ -5,7 +5,7 @@
 ### Core Engine
 - [x] Scene graph (flat HashMap + tree via parent/children)
 - [x] Node types: Rectangle, Ellipse, Text, Frame, Group
-- [x] Properties: position, size, rotation, opacity, fill, stroke, corner radius, shadows, blur
+- [x] Properties: position, size, rotation, opacity, fill, stroke (color, width, dash, cap, join), corner radius, shadows, blur
 - [x] Viewport: pan, zoom (scroll wheel with rAF batching)
 - [x] Hit testing (reverse render order, respects visibility/lock)
 - [x] Selection (single + multi-select + marquee drag-select, with resize handles)
@@ -31,7 +31,7 @@
   - Corner radius (Rect/Frame only)
   - Opacity (slider + percentage)
   - Fill color (picker + hex + alpha)
-  - Stroke color/width + "Add stroke"
+  - Stroke color/width + "Add stroke" + dash pattern, line cap, line join
   - Text: content, font family (14 fonts), font size
   - Node name, type badge
   - Multi-select count, empty state

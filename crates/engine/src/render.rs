@@ -359,12 +359,14 @@ impl Renderer {
         if let Some(stroke) = &node.stroke {
             ctx.set_stroke_style_str(&stroke.color.to_css());
             ctx.set_line_width(stroke.width);
+            self.apply_stroke_options(ctx, stroke);
             if node.corner_radius > 0.0 {
                 self.draw_rounded_rect(ctx, node.x, node.y, node.width, node.height, node.corner_radius);
                 ctx.stroke();
             } else {
                 ctx.stroke_rect(node.x, node.y, node.width, node.height);
             }
+            if !stroke.dash_array.is_empty() { ctx.set_line_dash(&js_sys::Array::new()).ok(); }
         }
         // Only show label if parent doesn't have layout (avoids clutter in nested layouts)
         let parent_has_layout = node.parent
@@ -434,7 +436,9 @@ impl Renderer {
         if let Some(stroke) = &node.stroke {
             ctx.set_stroke_style_str(&stroke.color.to_css());
             ctx.set_line_width(stroke.width);
+            self.apply_stroke_options(ctx, stroke);
             ctx.stroke_rect(node.x, node.y, node.width, node.height);
+            if !stroke.dash_array.is_empty() { ctx.set_line_dash(&js_sys::Array::new()).ok(); }
         }
         // Instance label (skip if parent has layout)
         let parent_has_layout = node.parent
@@ -618,8 +622,37 @@ impl Renderer {
         if let Some(stroke) = &node.stroke {
             ctx.set_stroke_style_str(&stroke.color.to_css());
             ctx.set_line_width(stroke.width);
+            self.apply_stroke_options(ctx, stroke);
             ctx.stroke();
+            // Reset dash
+            if !stroke.dash_array.is_empty() {
+                ctx.set_line_dash(&js_sys::Array::new()).ok();
+            }
         }
+    }
+
+    fn apply_stroke_options(&self, ctx: &CanvasRenderingContext2d, stroke: &crate::node::Stroke) {
+        // Dash pattern
+        if !stroke.dash_array.is_empty() {
+            let arr = js_sys::Array::new();
+            for &v in &stroke.dash_array {
+                arr.push(&JsValue::from(v));
+            }
+            ctx.set_line_dash(&arr).ok();
+            ctx.set_line_dash_offset(stroke.dash_offset);
+        }
+        // Line cap
+        ctx.set_line_cap(match &stroke.line_cap {
+            crate::node::LineCap::Butt => "butt",
+            crate::node::LineCap::Round => "round",
+            crate::node::LineCap::Square => "square",
+        });
+        // Line join
+        ctx.set_line_join(match &stroke.line_join {
+            crate::node::LineJoin::Miter => "miter",
+            crate::node::LineJoin::Round => "round",
+            crate::node::LineJoin::Bevel => "bevel",
+        });
     }
 
     fn draw_grid(&self, ctx: &CanvasRenderingContext2d) {

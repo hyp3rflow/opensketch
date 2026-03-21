@@ -170,10 +170,40 @@ impl Fill {
     }
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub enum LineCap {
+    Butt,
+    Round,
+    Square,
+}
+
+impl Default for LineCap {
+    fn default() -> Self { LineCap::Butt }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub enum LineJoin {
+    Miter,
+    Round,
+    Bevel,
+}
+
+impl Default for LineJoin {
+    fn default() -> Self { LineJoin::Miter }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Stroke {
     pub color: Color,
     pub width: f64,
+    #[serde(default)]
+    pub dash_array: Vec<f64>,
+    #[serde(default)]
+    pub dash_offset: f64,
+    #[serde(default)]
+    pub line_cap: LineCap,
+    #[serde(default)]
+    pub line_join: LineJoin,
 }
 
 /// Layout mode for container nodes

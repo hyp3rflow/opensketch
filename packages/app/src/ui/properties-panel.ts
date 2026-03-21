@@ -494,6 +494,74 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         });
         widthRow.appendChild(wInput);
         strokeSection.appendChild(widthRow);
+
+        // Dash pattern
+        const dashRow = document.createElement("div");
+        dashRow.className = "prop-row";
+        dashRow.style.marginTop = "4px";
+        const dashLabel = document.createElement("span");
+        dashLabel.className = "prop-label";
+        dashLabel.textContent = "Dash";
+        dashLabel.title = "Dash pattern (comma-separated, e.g. 10,5)";
+        dashRow.appendChild(dashLabel);
+        const dashInput = document.createElement("input");
+        dashInput.className = "prop-input";
+        dashInput.placeholder = "e.g. 10,5";
+        dashInput.value = (node.stroke.dash_array && node.stroke.dash_array.length > 0) ? node.stroke.dash_array.join(",") : "";
+        dashInput.addEventListener("change", () => {
+          editor.engine.set_stroke_dash(id, dashInput.value, 0);
+          editor.requestRender();
+        });
+        dashRow.appendChild(dashInput);
+        strokeSection.appendChild(dashRow);
+
+        // Line cap
+        const capRow = document.createElement("div");
+        capRow.className = "prop-row";
+        capRow.style.marginTop = "4px";
+        const capLabel = document.createElement("span");
+        capLabel.className = "prop-label";
+        capLabel.textContent = "Cap";
+        capRow.appendChild(capLabel);
+        const capSelect = document.createElement("select");
+        capSelect.className = "prop-input";
+        for (const v of ["Butt", "Round", "Square"]) {
+          const opt = document.createElement("option");
+          opt.value = v.toLowerCase();
+          opt.textContent = v;
+          if ((node.stroke.line_cap || "Butt") === v) opt.selected = true;
+          capSelect.appendChild(opt);
+        }
+        capSelect.addEventListener("change", () => {
+          editor.engine.set_stroke_cap(id, capSelect.value);
+          editor.requestRender();
+        });
+        capRow.appendChild(capSelect);
+        strokeSection.appendChild(capRow);
+
+        // Line join
+        const joinRow = document.createElement("div");
+        joinRow.className = "prop-row";
+        joinRow.style.marginTop = "4px";
+        const joinLabel = document.createElement("span");
+        joinLabel.className = "prop-label";
+        joinLabel.textContent = "Join";
+        joinRow.appendChild(joinLabel);
+        const joinSelect = document.createElement("select");
+        joinSelect.className = "prop-input";
+        for (const v of ["Miter", "Round", "Bevel"]) {
+          const opt = document.createElement("option");
+          opt.value = v.toLowerCase();
+          opt.textContent = v;
+          if ((node.stroke.line_join || "Miter") === v) opt.selected = true;
+          joinSelect.appendChild(opt);
+        }
+        joinSelect.addEventListener("change", () => {
+          editor.engine.set_stroke_join(id, joinSelect.value);
+          editor.requestRender();
+        });
+        joinRow.appendChild(joinSelect);
+        strokeSection.appendChild(joinRow);
       } else {
         const addBtn = document.createElement("button");
         addBtn.className = "prop-add-btn";

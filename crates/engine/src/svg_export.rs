@@ -224,6 +224,7 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
                     if c.a < 1.0 {
                         rect_attrs.push_str(&format!(r#" stroke-opacity="{}""#, c.a));
                     }
+                    append_stroke_options(&mut rect_attrs, stroke);
                 }
                 rect_attrs.push_str("/>\n");
                 g.push_str(&rect_attrs);
@@ -376,6 +377,7 @@ fn render_node_svg_adjusted(scene: &Scene, node: &Node, buf: &mut String, parent
                     if c.a < 1.0 {
                         rect_attrs.push_str(&format!(r#" stroke-opacity="{}""#, c.a));
                     }
+                    append_stroke_options(&mut rect_attrs, stroke);
                 }
                 rect_attrs.push_str("/>\n");
                 g.push_str(&rect_attrs);
@@ -480,6 +482,27 @@ fn append_fill_stroke(attrs: &mut String, node: &Node) {
         if c.a < 1.0 {
             attrs.push_str(&format!(r#" stroke-opacity="{}""#, c.a));
         }
+        append_stroke_options(attrs, stroke);
+    }
+}
+
+fn append_stroke_options(attrs: &mut String, stroke: &crate::node::Stroke) {
+    if !stroke.dash_array.is_empty() {
+        let dash_str: Vec<String> = stroke.dash_array.iter().map(|v| v.to_string()).collect();
+        attrs.push_str(&format!(r#" stroke-dasharray="{}""#, dash_str.join(",")));
+        if stroke.dash_offset != 0.0 {
+            attrs.push_str(&format!(r#" stroke-dashoffset="{}""#, stroke.dash_offset));
+        }
+    }
+    match stroke.line_cap {
+        crate::node::LineCap::Round => { attrs.push_str(r#" stroke-linecap="round""#); }
+        crate::node::LineCap::Square => { attrs.push_str(r#" stroke-linecap="square""#); }
+        crate::node::LineCap::Butt => {} // default
+    }
+    match stroke.line_join {
+        crate::node::LineJoin::Round => { attrs.push_str(r#" stroke-linejoin="round""#); }
+        crate::node::LineJoin::Bevel => { attrs.push_str(r#" stroke-linejoin="bevel""#); }
+        crate::node::LineJoin::Miter => {} // default
     }
 }
 
