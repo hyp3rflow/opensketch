@@ -339,6 +339,76 @@ pub struct Shadow {
     pub visible: bool,
 }
 
+/// Blend mode for layer compositing
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
+pub enum BlendMode {
+    Normal,
+    Multiply,
+    Screen,
+    Overlay,
+    Darken,
+    Lighten,
+    ColorDodge,
+    ColorBurn,
+    HardLight,
+    SoftLight,
+    Difference,
+    Exclusion,
+    Hue,
+    Saturation,
+    Color,
+    Luminosity,
+}
+
+impl Default for BlendMode {
+    fn default() -> Self { BlendMode::Normal }
+}
+
+impl BlendMode {
+    /// Returns the CSS `globalCompositeOperation` / `mix-blend-mode` value
+    pub fn to_css(&self) -> &'static str {
+        match self {
+            BlendMode::Normal => "normal",
+            BlendMode::Multiply => "multiply",
+            BlendMode::Screen => "screen",
+            BlendMode::Overlay => "overlay",
+            BlendMode::Darken => "darken",
+            BlendMode::Lighten => "lighten",
+            BlendMode::ColorDodge => "color-dodge",
+            BlendMode::ColorBurn => "color-burn",
+            BlendMode::HardLight => "hard-light",
+            BlendMode::SoftLight => "soft-light",
+            BlendMode::Difference => "difference",
+            BlendMode::Exclusion => "exclusion",
+            BlendMode::Hue => "hue",
+            BlendMode::Saturation => "saturation",
+            BlendMode::Color => "color",
+            BlendMode::Luminosity => "luminosity",
+        }
+    }
+
+    pub fn from_str(s: &str) -> Self {
+        match s {
+            "multiply" => BlendMode::Multiply,
+            "screen" => BlendMode::Screen,
+            "overlay" => BlendMode::Overlay,
+            "darken" => BlendMode::Darken,
+            "lighten" => BlendMode::Lighten,
+            "color-dodge" => BlendMode::ColorDodge,
+            "color-burn" => BlendMode::ColorBurn,
+            "hard-light" => BlendMode::HardLight,
+            "soft-light" => BlendMode::SoftLight,
+            "difference" => BlendMode::Difference,
+            "exclusion" => BlendMode::Exclusion,
+            "hue" => BlendMode::Hue,
+            "saturation" => BlendMode::Saturation,
+            "color" => BlendMode::Color,
+            "luminosity" => BlendMode::Luminosity,
+            _ => BlendMode::Normal,
+        }
+    }
+}
+
 /// Attached note (markdown)
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Note {
@@ -386,6 +456,9 @@ pub struct Node {
     /// When true, this node acts as a mask — clipping all subsequent siblings
     #[serde(default)]
     pub is_mask: bool,
+    /// Blend mode for compositing
+    #[serde(default)]
+    pub blend_mode: BlendMode,
 }
 
 impl Node {
@@ -412,6 +485,7 @@ impl Node {
             blur: 0.0,
             constraints: Constraints::default(),
             is_mask: false,
+            blend_mode: BlendMode::default(),
         }
     }
 

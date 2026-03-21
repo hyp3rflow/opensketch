@@ -185,6 +185,7 @@
   - Pure TypeScript implementation (no Rust/WASM changes needed)
   - Snap works with multi-selection (combined bounding box)
   - Guides auto-clear on pointer up
+- [x] **Blend modes**: 16 compositing modes (Normal, Multiply, Screen, Overlay, Darken, Lighten, Color Dodge, Color Burn, Hard Light, Soft Light, Difference, Exclusion, Hue, Saturation, Color, Luminosity)
 - [ ] Boolean operations
 - [x] Constraints (responsive resizing) — Horizontal: Left/Right/LeftAndRight/Center/Scale, Vertical: Top/Bottom/TopAndBottom/Center/Scale
 - [ ] Prototyping (interactions/transitions)
@@ -208,3 +209,11 @@
 - Layers panel: "M" badge shown on mask nodes
 - SVG export: uses `<clipPath>` elements
 - WASM: `set_mask(id, bool)`, `get_mask(id) -> bool`
+
+### Blend Modes
+- 16 standard CSS blend modes: Normal, Multiply, Screen, Overlay, Darken, Lighten, Color Dodge, Color Burn, Hard Light, Soft Light, Difference, Exclusion, Hue, Saturation, Color, Luminosity
+- `BlendMode` enum on Node with `#[serde(default)]` for backward compatibility
+- Canvas rendering: `globalCompositeOperation` applied per node
+- SVG export: `mix-blend-mode` style attribute
+- WASM: `set_blend_mode(id, mode_str)`, `get_blend_mode(id) -> String`
+- Properties panel: Blend mode dropdown in Effects section

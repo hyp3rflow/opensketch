@@ -704,6 +704,36 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       blurRow.appendChild(blurInput);
       effectsSection.appendChild(blurRow);
 
+      // Blend mode
+      const blendRow = document.createElement("div");
+      blendRow.className = "prop-row";
+      const blendLabel = document.createElement("span");
+      blendLabel.className = "prop-label";
+      blendLabel.style.width = "40px";
+      blendLabel.textContent = "Blend";
+      blendRow.appendChild(blendLabel);
+      const blendSelect = document.createElement("select");
+      blendSelect.className = "prop-input";
+      const blendModes = [
+        "normal", "multiply", "screen", "overlay", "darken", "lighten",
+        "color-dodge", "color-burn", "hard-light", "soft-light",
+        "difference", "exclusion", "hue", "saturation", "color", "luminosity"
+      ];
+      const currentBlend = editor.engine.get_blend_mode(BigInt(id));
+      for (const mode of blendModes) {
+        const opt = document.createElement("option");
+        opt.value = mode;
+        opt.textContent = mode.charAt(0).toUpperCase() + mode.slice(1).replace(/-/g, " ");
+        if (mode === currentBlend) opt.selected = true;
+        blendSelect.appendChild(opt);
+      }
+      blendSelect.addEventListener("change", () => {
+        editor.engine.set_blend_mode(BigInt(id), blendSelect.value);
+        editor.requestRender();
+      });
+      blendRow.appendChild(blendSelect);
+      effectsSection.appendChild(blendRow);
+
       // Shadows
       const shadowsJson = editor.engine.get_shadows(BigInt(id));
       const shadows: any[] = JSON.parse(shadowsJson);

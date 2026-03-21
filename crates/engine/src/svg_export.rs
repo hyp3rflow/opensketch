@@ -79,6 +79,7 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
             if has_opacity {
                 attrs.push_str(&format!(r#" opacity="{}""#, node.opacity));
             }
+            append_blend_mode(&mut attrs, node);
             attrs.push_str(&filter_attr);
             attrs.push_str("/>\n");
             buf.push_str(&attrs);
@@ -100,6 +101,7 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
             if has_opacity {
                 attrs.push_str(&format!(r#" opacity="{}""#, node.opacity));
             }
+            append_blend_mode(&mut attrs, node);
             attrs.push_str(&filter_attr);
             attrs.push_str("/>\n");
             buf.push_str(&attrs);
@@ -154,6 +156,7 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
             if has_opacity {
                 attrs.push_str(&format!(r#" opacity="{}""#, node.opacity));
             }
+            append_blend_mode(&mut attrs, node);
 
             // Multi-line: split by newline
             let lines: Vec<&str> = content.split('\n').collect();
@@ -196,6 +199,7 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
             if has_opacity {
                 g.push_str(&format!(r#" opacity="{}""#, node.opacity));
             }
+            append_blend_mode(&mut g, node);
             g.push_str(">\n");
 
             // Frame background
@@ -245,6 +249,7 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
             if has_opacity {
                 attrs.push_str(&format!(r#" opacity="{}""#, node.opacity));
             }
+            append_blend_mode(&mut attrs, node);
             attrs.push_str(&filter_attr);
             attrs.push_str("/>\n");
             buf.push_str(&attrs);
@@ -257,6 +262,7 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
                 if has_opacity {
                     attrs.push_str(&format!(r#" opacity="{}""#, node.opacity));
                 }
+                append_blend_mode(&mut attrs, node);
                 attrs.push_str(">\n");
             }
             // Clip with corner radius if needed
@@ -279,6 +285,9 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
             if !(has_transform || node.rotation != 0.0) && has_opacity {
                 attrs.push_str(&format!(r#" opacity="{}""#, node.opacity));
             }
+            if !(has_transform || node.rotation != 0.0) {
+                append_blend_mode(&mut attrs, node);
+            }
             attrs.push_str("/>\n");
             if has_transform || node.rotation != 0.0 {
                 attrs.push_str("</g>\n");
@@ -298,6 +307,7 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
             if has_opacity {
                 g.push_str(&format!(r#" opacity="{}""#, node.opacity));
             }
+            append_blend_mode(&mut g, node);
             g.push_str(">\n");
             buf.push_str(&g);
 
@@ -463,6 +473,13 @@ fn render_node_svg_adjusted(scene: &Scene, node: &Node, buf: &mut String, parent
             // Leaf nodes: render directly (coords already adjusted)
             render_node_svg(scene, node, buf);
         }
+    }
+}
+
+fn append_blend_mode(attrs: &mut String, node: &Node) {
+    use crate::node::BlendMode;
+    if node.blend_mode != BlendMode::Normal {
+        attrs.push_str(&format!(r#" style="mix-blend-mode:{}""#, node.blend_mode.to_css()));
     }
 }
 

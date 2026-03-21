@@ -1095,6 +1095,9 @@ export class Editor {
 
       this.ctx.save();
       this.ctx.globalAlpha = node.opacity ?? 1;
+      if (node.blend_mode && node.blend_mode !== "normal") {
+        this.ctx.globalCompositeOperation = node.blend_mode;
+      }
 
       // Clip for corner radius
       if (node.corner_radius > 0) {
@@ -1228,6 +1231,9 @@ export class Editor {
 
       offCtx.save();
       offCtx.globalAlpha = node.opacity ?? 1;
+      if (node.blend_mode && node.blend_mode !== "normal") {
+        offCtx.globalCompositeOperation = node.blend_mode;
+      }
 
       if (node.rotation && node.rotation !== 0) {
         offCtx.translate(node.x + node.width / 2, node.y + node.height / 2);

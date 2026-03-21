@@ -248,6 +248,11 @@ impl Renderer {
         ctx.save();
         ctx.set_global_alpha(node.opacity);
 
+        // Blend mode
+        if node.blend_mode != crate::node::BlendMode::Normal {
+            ctx.set_global_composite_operation(node.blend_mode.to_css()).ok();
+        }
+
         // Layer blur
         if node.blur > 0.0 {
             ctx.set_filter(&format!("blur({}px)", node.blur));

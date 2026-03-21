@@ -10,7 +10,7 @@ mod svg_export;
 
 use wasm_bindgen::prelude::*;
 use web_sys::CanvasRenderingContext2d;
-use crate::node::{Node, NodeKind, Fill, FillType, GradientStop, Stroke, LayoutMode, FlexDirection, Align, Justify, FlexWrap, TextSizing, TextAlign, FontStyle, PathPoint, ConstraintH, ConstraintV};
+use crate::node::{Node, NodeKind, Fill, FillType, GradientStop, Stroke, LayoutMode, FlexDirection, Align, Justify, FlexWrap, TextSizing, TextAlign, FontStyle, PathPoint, ConstraintH, ConstraintV, BlendMode};
 
 fn parse_align(s: &str) -> Align {
     match s {
@@ -588,6 +588,18 @@ impl Engine {
 
     pub fn get_mask(&self, id: u64) -> bool {
         self.scene.get_node(id).map(|n| n.is_mask).unwrap_or(false)
+    }
+
+    pub fn set_blend_mode(&mut self, id: u64, mode: &str) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            node.blend_mode = BlendMode::from_str(mode);
+        }
+    }
+
+    pub fn get_blend_mode(&self, id: u64) -> String {
+        self.scene.get_node(id)
+            .map(|n| n.blend_mode.to_css().to_string())
+            .unwrap_or_else(|| "normal".to_string())
     }
 
     pub fn select(&mut self, id: u64) {
