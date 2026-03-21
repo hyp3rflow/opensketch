@@ -17,7 +17,10 @@ Pure Rust crate compiled to WASM via `wasm-pack`. No NAPI — runs entirely in t
 - `TextAlign` enum: `Left`, `Center`, `Right`
 - `FontStyle` enum: `Normal`, `Italic`
 - `NodeKind` enum: `Rect`, `Ellipse`, `Text { content, font_size, font_family, line_height, text_align, font_weight, font_style }`, `Frame`, `Group`, `Image { src, fit }`
-- `Fill { color: Color }`, `Stroke { color: Color, width: f64 }`
+- `GradientStop { offset: f64, color: Color }`
+- `FillType`: `Solid { color }` | `LinearGradient { start_x, start_y, end_x, end_y, stops }` | `RadialGradient { center_x, center_y, radius, stops }` — coordinates normalized 0~1
+- `Fill { fill_type: FillType }` (backward-compatible deserialization from old `{ color }` format)
+- `Stroke { color: Color, width: f64 }`
 - `Shadow { color: Color, offset_x, offset_y, blur, spread, visible }` — drop shadow effect
 - `Node` struct: full node with id, name, kind, transform (x/y/w/h/rotation), style (opacity, fill, stroke, corner_radius, shadows: Vec<Shadow>, blur: f64), tree (children, parent), flags (visible, locked)
 

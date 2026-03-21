@@ -10,7 +10,7 @@ mod svg_export;
 
 use wasm_bindgen::prelude::*;
 use web_sys::CanvasRenderingContext2d;
-use crate::node::{Node, NodeKind, Fill, Stroke, LayoutMode, FlexDirection, Align, Justify, FlexWrap, TextSizing, TextAlign, FontStyle};
+use crate::node::{Node, NodeKind, Fill, FillType, GradientStop, Stroke, LayoutMode, FlexDirection, Align, Justify, FlexWrap, TextSizing, TextAlign, FontStyle};
 
 fn parse_align(s: &str) -> Align {
     match s {
@@ -172,7 +172,7 @@ impl Engine {
         node.width = content.len() as f64 * font_size * 0.6;
         node.height = font_size * 1.2;
         node.name = format!("Text {}", self.scene.node_count() + 1);
-        node.fill = Some(Fill { color: Color::black() });
+        node.fill = Some(Fill::solid(Color::black()));
         self.scene.add_node(node)
     }
 
@@ -220,7 +220,7 @@ impl Engine {
         let mut node = Node::new(0, NodeKind::Frame);
         node.x = x; node.y = y; node.width = w; node.height = h;
         node.name = format!("Frame {}", self.scene.node_count() + 1);
-        node.fill = Some(Fill { color: Color::white() });
+        node.fill = Some(Fill::solid(Color::white()));
         self.scene.add_node(node)
     }
 
@@ -245,8 +245,88 @@ impl Engine {
 
     pub fn set_fill_color(&mut self, id: u64, r: u8, g: u8, b: u8, a: f64) {
         if let Some(node) = self.scene.get_node_mut(id) {
-            node.fill = Some(Fill { color: Color { r, g, b, a } });
+            node.fill = Some(Fill::solid(Color { r, g, b, a }));
         }
+    }
+
+    /// Set fill to a linear gradient. stops_json: [{"offset":0,"r":255,"g":0,"b":0,"a":1}, ...]
+    pub fn set_fill_linear_gradient(&mut self, id: u64, start_x: f64, start_y: f64, end_x: f64, end_y: f64, stops_json: &str) {
+        let stops: Vec<serde_json::Value> = serde_json::from_str(stops_json).unwrap_or_default();
+        let gradient_stops: Vec<GradientStop> = stops.iter().map(|s| GradientStop {
+            offset: s["offset"].as_f64().unwrap_or(0.0),
+            color: Color {
+                r: s["r"].as_u64().unwrap_or(0) as u8,
+                g: s["g"].as_u64().unwrap_or(0) as u8,
+                b: s["b"].as_u64().unwrap_or(0) as u8,
+                a: s["a"].as_f64().unwrap_or(1.0),
+            },
+        }).collect();
+        if let Some(node) = self.scene.get_node_mut(id) {
+            node.fill = Some(Fill {
+                fill_type: FillType::LinearGradient {
+                    start_x, start_y, end_x, end_y,
+                    stops: gradient_stops,
+                },
+            });
+        }
+    }
+
+    /// Set fill to a radial gradient. stops_json: [{"offset":0,"r":255,"g":0,"b":0,"a":1}, ...]
+    pub fn set_fill_radial_gradient(&mut self, id: u64, center_x: f64, center_y: f64, radius: f64, stops_json: &str) {
+        let stops: Vec<serde_json::Value> = serde_json::from_str(stops_json).unwrap_or_default();
+        let gradient_stops: Vec<GradientStop> = stops.iter().map(|s| GradientStop {
+            offset: s["offset"].as_f64().unwrap_or(0.0),
+            color: Color {
+                r: s["r"].as_u64().unwrap_or(0) as u8,
+                g: s["g"].as_u64().unwrap_or(0) as u8,
+                b: s["b"].as_u64().unwrap_or(0) as u8,
+                a: s["a"].as_f64().unwrap_or(1.0),
+            },
+        }).collect();
+        if let Some(node) = self.scene.get_node_mut(id) {
+            node.fill = Some(Fill {
+                fill_type: FillType::RadialGradient {
+                    center_x, center_y, radius,
+                    stops: gradient_stops,
+                },
+            });
+        }
+    }
+
+    /// Get fill info as JSON: { "type": "Solid"|"LinearGradient"|"RadialGradient", ... }
+    pub fn get_fill_info(&self, id: u64) -> String {
+        if let Some(node) = self.scene.get_node(id) {
+            if let Some(fill) = &node.fill {
+                return match &fill.fill_type {
+                    FillType::Solid { color } => {
+                        serde_json::json!({
+                            "type": "Solid",
+                            "color": { "r": color.r, "g": color.g, "b": color.b, "a": color.a }
+                        }).to_string()
+                    }
+                    FillType::LinearGradient { start_x, start_y, end_x, end_y, stops } => {
+                        serde_json::json!({
+                            "type": "LinearGradient",
+                            "start_x": start_x, "start_y": start_y,
+                            "end_x": end_x, "end_y": end_y,
+                            "stops": stops.iter().map(|s| serde_json::json!({
+                                "offset": s.offset, "r": s.color.r, "g": s.color.g, "b": s.color.b, "a": s.color.a
+                            })).collect::<Vec<_>>()
+                        }).to_string()
+                    }
+                    FillType::RadialGradient { center_x, center_y, radius, stops } => {
+                        serde_json::json!({
+                            "type": "RadialGradient",
+                            "center_x": center_x, "center_y": center_y, "radius": radius,
+                            "stops": stops.iter().map(|s| serde_json::json!({
+                                "offset": s.offset, "r": s.color.r, "g": s.color.g, "b": s.color.b, "a": s.color.a
+                            })).collect::<Vec<_>>()
+                        }).to_string()
+                    }
+                };
+            }
+        }
+        "null".to_string()
     }
 
     pub fn set_stroke(&mut self, id: u64, r: u8, g: u8, b: u8, a: f64, width: f64) {

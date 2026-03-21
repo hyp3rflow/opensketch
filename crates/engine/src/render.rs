@@ -276,7 +276,7 @@ impl Renderer {
 
     fn render_text(&self, ctx: &CanvasRenderingContext2d, node: &Node, content: &str, font_size: f64, font_family: &str, line_height: f64, text_align: &TextAlign, font_weight: u16, font_style: &FontStyle) {
         if let Some(fill) = &node.fill {
-            ctx.set_fill_style_str(&fill.color.to_css());
+            ctx.set_fill_style_str(&fill.color().to_css());
             let font_str = Self::build_font_string(font_size, font_family, font_weight, font_style);
             ctx.set_font(&font_str);
             ctx.set_text_baseline("alphabetic");
@@ -327,8 +327,8 @@ impl Renderer {
     }
 
     fn render_frame(&self, ctx: &CanvasRenderingContext2d, node: &Node, scene: &Scene) {
-        if let Some(fill) = &node.fill {
-            ctx.set_fill_style_str(&fill.color.to_css());
+        if node.fill.is_some() {
+            self.apply_fill_style(ctx, node);
             if node.corner_radius > 0.0 {
                 self.draw_rounded_rect(ctx, node.x, node.y, node.width, node.height, node.corner_radius);
                 ctx.fill();
@@ -400,8 +400,8 @@ impl Renderer {
 
     fn render_instance(&self, ctx: &CanvasRenderingContext2d, node: &Node, scene: &Scene) {
         // Render like a frame but with diamond badge
-        if let Some(fill) = &node.fill {
-            ctx.set_fill_style_str(&fill.color.to_css());
+        if node.fill.is_some() {
+            self.apply_fill_style(ctx, node);
             if node.corner_radius > 0.0 {
                 ctx.begin_path();
                 let r = node.corner_radius.min(node.width / 2.0).min(node.height / 2.0);
@@ -451,7 +451,7 @@ impl Renderer {
     fn render_image_placeholder(&self, ctx: &CanvasRenderingContext2d, node: &Node) {
         // Draw a light placeholder rect; actual image drawn by TS overlay
         if let Some(fill) = &node.fill {
-            ctx.set_fill_style_str(&fill.color.to_css());
+            ctx.set_fill_style_str(&fill.color().to_css());
         } else {
             ctx.set_fill_style_str("rgba(40,40,40,1)");
         }
@@ -524,9 +524,42 @@ impl Renderer {
         ctx.close_path();
     }
 
-    fn apply_fill_stroke(&self, ctx: &CanvasRenderingContext2d, node: &Node) {
+    fn apply_fill_style(&self, ctx: &CanvasRenderingContext2d, node: &Node) {
         if let Some(fill) = &node.fill {
-            ctx.set_fill_style_str(&fill.color.to_css());
+            match &fill.fill_type {
+                crate::node::FillType::Solid { color } => {
+                    ctx.set_fill_style_str(&color.to_css());
+                }
+                crate::node::FillType::LinearGradient { start_x, start_y, end_x, end_y, stops } => {
+                    let grad = ctx.create_linear_gradient(
+                        node.x + start_x * node.width,
+                        node.y + start_y * node.height,
+                        node.x + end_x * node.width,
+                        node.y + end_y * node.height,
+                    );
+                    for stop in stops {
+                        grad.add_color_stop(stop.offset as f32, &stop.color.to_css()).ok();
+                    }
+                    ctx.set_fill_style(&grad);
+                }
+                crate::node::FillType::RadialGradient { center_x, center_y, radius, stops } => {
+                    let cx = node.x + center_x * node.width;
+                    let cy = node.y + center_y * node.height;
+                    let r = radius * node.width.max(node.height);
+                    if let Ok(grad) = ctx.create_radial_gradient(cx, cy, 0.0, cx, cy, r) {
+                        for stop in stops {
+                            grad.add_color_stop(stop.offset as f32, &stop.color.to_css()).ok();
+                        }
+                        ctx.set_fill_style(&grad);
+                    }
+                }
+            }
+        }
+    }
+
+    fn apply_fill_stroke(&self, ctx: &CanvasRenderingContext2d, node: &Node) {
+        if node.fill.is_some() {
+            self.apply_fill_style(ctx, node);
             ctx.fill();
         }
         if let Some(stroke) = &node.stroke {

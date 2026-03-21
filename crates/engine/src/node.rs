@@ -65,8 +65,73 @@ fn default_font_weight() -> u16 { 400 }
 fn default_image_fit() -> String { "cover".to_string() }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Fill {
+pub struct GradientStop {
+    pub offset: f64,
     pub color: Color,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum FillType {
+    Solid {
+        color: Color,
+    },
+    LinearGradient {
+        start_x: f64,
+        start_y: f64,
+        end_x: f64,
+        end_y: f64,
+        stops: Vec<GradientStop>,
+    },
+    RadialGradient {
+        center_x: f64,
+        center_y: f64,
+        radius: f64,
+        stops: Vec<GradientStop>,
+    },
+}
+
+/// Fill supports backward-compatible deserialization:
+/// Old format: `{"color": {...}}` → Solid
+/// New format: `{"fill_type": {"Solid": ...}}` or `{"fill_type": {"LinearGradient": ...}}`
+#[derive(Clone, Debug, Serialize)]
+pub struct Fill {
+    pub fill_type: FillType,
+}
+
+impl<'de> serde::Deserialize<'de> for Fill {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where D: serde::Deserializer<'de>
+    {
+        let value = serde_json::Value::deserialize(deserializer)?;
+        // New format: has "fill_type" key
+        if let Some(ft) = value.get("fill_type") {
+            let fill_type: FillType = serde_json::from_value(ft.clone())
+                .map_err(serde::de::Error::custom)?;
+            return Ok(Fill { fill_type });
+        }
+        // Old format: has "color" key directly
+        if let Some(color_val) = value.get("color") {
+            let color: Color = serde_json::from_value(color_val.clone())
+                .map_err(serde::de::Error::custom)?;
+            return Ok(Fill::solid(color));
+        }
+        Err(serde::de::Error::custom("expected fill_type or color"))
+    }
+}
+
+impl Fill {
+    pub fn solid(color: Color) -> Self {
+        Fill { fill_type: FillType::Solid { color } }
+    }
+
+    pub fn color(&self) -> Color {
+        match &self.fill_type {
+            FillType::Solid { color } => *color,
+            FillType::LinearGradient { stops, .. } | FillType::RadialGradient { stops, .. } => {
+                stops.first().map(|s| s.color).unwrap_or(Color::white())
+            }
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -228,7 +293,7 @@ impl Node {
             opacity: 1.0,
             visible: true,
             locked: false,
-            fill: Some(Fill { color: Color { r: 200, g: 200, b: 200, a: 1.0 } }),
+            fill: Some(Fill::solid(Color { r: 200, g: 200, b: 200, a: 1.0 })),
             stroke: None,
             corner_radius: 0.0,
             children: vec![],

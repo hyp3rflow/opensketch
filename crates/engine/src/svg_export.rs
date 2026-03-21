@@ -1,4 +1,4 @@
-use crate::node::{Node, NodeKind, NodeId, TextAlign, FontStyle};
+use crate::node::{Node, NodeKind, NodeId, TextAlign, FontStyle, FillType};
 use crate::scene::Scene;
 
 fn color_to_hex(r: u8, g: u8, b: u8) -> String {
@@ -46,9 +46,17 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
     // Build filter if needed
     let filter_id = format!("filter-{}", node.id);
     let filter_defs = build_filter_defs(node, &filter_id);
-    if let Some(ref defs) = filter_defs {
+    // Build gradient defs
+    let gradient_defs = build_gradient_defs(node);
+
+    if filter_defs.is_some() || gradient_defs.is_some() {
         buf.push_str("<defs>");
-        buf.push_str(defs);
+        if let Some(ref defs) = filter_defs {
+            buf.push_str(defs);
+        }
+        if let Some(ref defs) = gradient_defs {
+            buf.push_str(defs);
+        }
         buf.push_str("</defs>\n");
     }
     let filter_attr = if filter_defs.is_some() {
@@ -127,7 +135,7 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
 
             // Fill color for text
             if let Some(ref fill) = node.fill {
-                let c = &fill.color;
+                let c = fill.color();
                 attrs.push_str(&format!(r#" fill="{}""#, color_to_hex(c.r, c.g, c.b)));
                 if c.a < 1.0 {
                     attrs.push_str(&format!(r#" fill-opacity="{}""#, c.a));
@@ -197,10 +205,17 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
                     rect_attrs.push_str(&format!(r#" rx="{}" ry="{}""#, node.corner_radius, node.corner_radius));
                 }
                 if let Some(ref fill) = node.fill {
-                    let c = &fill.color;
-                    rect_attrs.push_str(&format!(r#" fill="{}""#, color_to_hex(c.r, c.g, c.b)));
-                    if c.a < 1.0 {
-                        rect_attrs.push_str(&format!(r#" fill-opacity="{}""#, c.a));
+                    match &fill.fill_type {
+                        FillType::Solid { color: c } => {
+                            rect_attrs.push_str(&format!(r#" fill="{}""#, color_to_hex(c.r, c.g, c.b)));
+                            if c.a < 1.0 {
+                                rect_attrs.push_str(&format!(r#" fill-opacity="{}""#, c.a));
+                            }
+                        }
+                        _ => {
+                            // Gradient defs already emitted; reference by id
+                            rect_attrs.push_str(&format!(r#" fill="url(#grad-{})""#, node.id));
+                        }
                     }
                 }
                 if let Some(ref stroke) = node.stroke {
@@ -330,10 +345,17 @@ fn render_node_svg_adjusted(scene: &Scene, node: &Node, buf: &mut String, parent
                     rect_attrs.push_str(&format!(r#" rx="{}" ry="{}""#, node.corner_radius, node.corner_radius));
                 }
                 if let Some(ref fill) = node.fill {
-                    let c = &fill.color;
-                    rect_attrs.push_str(&format!(r#" fill="{}""#, color_to_hex(c.r, c.g, c.b)));
-                    if c.a < 1.0 {
-                        rect_attrs.push_str(&format!(r#" fill-opacity="{}""#, c.a));
+                    match &fill.fill_type {
+                        FillType::Solid { color: c } => {
+                            rect_attrs.push_str(&format!(r#" fill="{}""#, color_to_hex(c.r, c.g, c.b)));
+                            if c.a < 1.0 {
+                                rect_attrs.push_str(&format!(r#" fill-opacity="{}""#, c.a));
+                            }
+                        }
+                        _ => {
+                            // Gradient defs already emitted; reference by id
+                            rect_attrs.push_str(&format!(r#" fill="url(#grad-{})""#, node.id));
+                        }
                     }
                 }
                 if let Some(ref stroke) = node.stroke {
@@ -387,12 +409,55 @@ fn append_transform(attrs: &mut String, node: &Node) {
     }
 }
 
+fn build_gradient_defs(node: &Node) -> Option<String> {
+    let fill = node.fill.as_ref()?;
+    match &fill.fill_type {
+        FillType::LinearGradient { start_x, start_y, end_x, end_y, stops } => {
+            let grad_id = format!("grad-{}", node.id);
+            let mut defs = format!(
+                r#"<linearGradient id="{}" x1="{}%" y1="{}%" x2="{}%" y2="{}%">"#,
+                grad_id, start_x * 100.0, start_y * 100.0, end_x * 100.0, end_y * 100.0
+            );
+            for stop in stops {
+                defs.push_str(&format!(
+                    r#"<stop offset="{}%" stop-color="{}" stop-opacity="{}"/>"#,
+                    stop.offset * 100.0, color_to_hex(stop.color.r, stop.color.g, stop.color.b), stop.color.a
+                ));
+            }
+            defs.push_str("</linearGradient>");
+            Some(defs)
+        }
+        FillType::RadialGradient { center_x, center_y, radius, stops } => {
+            let grad_id = format!("grad-{}", node.id);
+            let mut defs = format!(
+                r#"<radialGradient id="{}" cx="{}%" cy="{}%" r="{}%">"#,
+                grad_id, center_x * 100.0, center_y * 100.0, radius * 100.0
+            );
+            for stop in stops {
+                defs.push_str(&format!(
+                    r#"<stop offset="{}%" stop-color="{}" stop-opacity="{}"/>"#,
+                    stop.offset * 100.0, color_to_hex(stop.color.r, stop.color.g, stop.color.b), stop.color.a
+                ));
+            }
+            defs.push_str("</radialGradient>");
+            Some(defs)
+        }
+        FillType::Solid { .. } => None,
+    }
+}
+
 fn append_fill_stroke(attrs: &mut String, node: &Node) {
     if let Some(ref fill) = node.fill {
-        let c = &fill.color;
-        attrs.push_str(&format!(r#" fill="{}""#, color_to_hex(c.r, c.g, c.b)));
-        if c.a < 1.0 {
-            attrs.push_str(&format!(r#" fill-opacity="{}""#, c.a));
+        match &fill.fill_type {
+            FillType::Solid { color: c } => {
+                attrs.push_str(&format!(r#" fill="{}""#, color_to_hex(c.r, c.g, c.b)));
+                if c.a < 1.0 {
+                    attrs.push_str(&format!(r#" fill-opacity="{}""#, c.a));
+                }
+            }
+            FillType::LinearGradient { .. } | FillType::RadialGradient { .. } => {
+                attrs.push_str(&format!(r#" fill="url(#grad-{})""#, node.id));
+            }
         }
     } else {
         attrs.push_str(r#" fill="none""#);

@@ -162,6 +162,13 @@
 - [ ] Plugin system
 - [ ] Canvas text cursor + multi-line text
 - [x] Image nodes (drag & drop, URL, clipboard paste, cover/contain/fill)
+- [x] **Gradient fills**: Solid/LinearGradient/RadialGradient fill types with gradient stops editor
+  - Linear: start/end points (normalized 0~1), multiple color stops
+  - Radial: center/radius (normalized), multiple color stops
+  - Properties panel: mode switcher (Solid/Linear/Radial), stop color pickers, position inputs
+  - Canvas rendering via createLinearGradient/createRadialGradient
+  - SVG export with `<linearGradient>`/`<radialGradient>` defs
+  - Backward-compatible serialization (old files still load)
 - [ ] Boolean operations
 - [ ] Pen tool (vector paths)
 - [ ] Constraints (responsive resizing)
