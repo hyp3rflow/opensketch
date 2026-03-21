@@ -30,6 +30,8 @@ export class Editor {
   private onSelectionChanges: ((ids: number[]) => void)[] = [];
   private onLayersChanges: (() => void)[] = [];
   private spaceHeld = false;
+  private _clipboard: string | null = null;
+  private _pasteCount = 0;
 
   // Throttle selection callbacks during drag
   private selectionDirty = false;
@@ -117,6 +119,62 @@ export class Editor {
         if (this.engine.redo()) {
           this.onLayersChanges.forEach(fn => fn());
           this.fireSelectionNow(Array.from(this.engine.get_selection()).map(Number));
+          this.needsRender = true;
+        }
+        return;
+      }
+      // Copy: Cmd+C
+      if ((e.metaKey || e.ctrlKey) && e.key === "c" && !e.shiftKey) {
+        e.preventDefault();
+        const json = this.engine.copy_selected();
+        if (json && json !== "[]") {
+          this._clipboard = json;
+          this._pasteCount = 0;
+        }
+        return;
+      }
+      // Cut: Cmd+X
+      if ((e.metaKey || e.ctrlKey) && e.key === "x") {
+        e.preventDefault();
+        const json = this.engine.copy_selected();
+        if (json && json !== "[]") {
+          this._clipboard = json;
+          this._pasteCount = 0;
+          this.engine.push_undo();
+          const sel = this.engine.get_selection();
+          sel.forEach((id: number) => this.engine.remove_node(id));
+          this.engine.deselect_all();
+          this.onLayersChanges.forEach(fn => fn());
+          this.fireSelectionNow([]);
+          this.needsRender = true;
+        }
+        return;
+      }
+      // Paste: Cmd+V
+      if ((e.metaKey || e.ctrlKey) && e.key === "v" && !e.shiftKey) {
+        e.preventDefault();
+        if (this._clipboard) {
+          this.engine.push_undo();
+          this._pasteCount++;
+          const offset = this._pasteCount * 10;
+          const newIds = this.engine.paste_nodes(this._clipboard, offset, offset);
+          const ids = JSON.parse(newIds).map(Number);
+          this.onLayersChanges.forEach(fn => fn());
+          this.fireSelectionNow(ids);
+          this.needsRender = true;
+        }
+        return;
+      }
+      // Duplicate: Cmd+D
+      if ((e.metaKey || e.ctrlKey) && e.key === "d") {
+        e.preventDefault();
+        const json = this.engine.copy_selected();
+        if (json && json !== "[]") {
+          this.engine.push_undo();
+          const newIds = this.engine.paste_nodes(json, 10, 10);
+          const ids = JSON.parse(newIds).map(Number);
+          this.onLayersChanges.forEach(fn => fn());
+          this.fireSelectionNow(ids);
           this.needsRender = true;
         }
         return;

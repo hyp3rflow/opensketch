@@ -396,6 +396,97 @@ impl Engine {
         }
     }
 
+    // === Copy / Paste ===
+
+    /// Serialize selected nodes (with subtrees) as JSON for clipboard.
+    pub fn copy_selected(&self) -> String {
+        let sel = &self.scene.selection;
+        if sel.is_empty() {
+            return "[]".to_string();
+        }
+        let mut nodes: Vec<serde_json::Value> = Vec::new();
+        for &id in sel {
+            fn collect_tree(scene: &Scene, id: u64) -> Vec<Node> {
+                let mut result = Vec::new();
+                if let Some(node) = scene.get_node(id) {
+                    result.push(node.clone());
+                    for &child_id in &node.children {
+                        result.extend(collect_tree(scene, child_id));
+                    }
+                }
+                result
+            }
+            let tree_nodes = collect_tree(&self.scene, id);
+            for n in tree_nodes {
+                nodes.push(serde_json::to_value(&n).unwrap_or_default());
+            }
+        }
+        serde_json::to_string(&nodes).unwrap_or_default()
+    }
+
+    /// Paste nodes from JSON. Assigns new IDs, offsets positions, and selects pasted nodes.
+    /// Returns the new top-level node IDs as JSON array.
+    pub fn paste_nodes(&mut self, json: &str, offset_x: f64, offset_y: f64) -> String {
+        let parsed: Vec<Node> = match serde_json::from_str(json) {
+            Ok(v) => v,
+            Err(_) => return "[]".to_string(),
+        };
+        if parsed.is_empty() {
+            return "[]".to_string();
+        }
+
+        // Build old_id -> new_id mapping
+        use std::collections::HashMap;
+        let mut id_map: HashMap<u64, u64> = HashMap::new();
+        // First pass: assign new IDs
+        let mut new_nodes: Vec<Node> = Vec::new();
+        for node in &parsed {
+            let old_id = node.id;
+            // Use scene's add_node later, but we need to pre-assign IDs
+            id_map.insert(old_id, 0); // placeholder
+            new_nodes.push(node.clone());
+        }
+
+        // Figure out which are top-level (their parent is not in the copied set)
+        let copied_ids: std::collections::HashSet<u64> = parsed.iter().map(|n| n.id).collect();
+
+        // Assign real new IDs and remap
+        let mut real_id_map: HashMap<u64, u64> = HashMap::new();
+        let mut top_level_ids: Vec<u64> = Vec::new();
+
+        for node in &mut new_nodes {
+            let old_id = node.id;
+            // Remap children and parent later; first add to scene
+            let is_top = node.parent.map_or(true, |p| !copied_ids.contains(&p));
+            if is_top {
+                node.parent = None;
+                node.x += offset_x;
+                node.y += offset_y;
+            }
+            node.children.clear(); // will be re-added by scene.add_node
+            node.id = 0;
+            let new_id = self.scene.add_node(node.clone());
+            real_id_map.insert(old_id, new_id);
+            if is_top {
+                top_level_ids.push(new_id);
+            }
+        }
+
+        // Reparent children
+        for node in &parsed {
+            for &child_old_id in &node.children {
+                if let (Some(&parent_new), Some(&child_new)) = (real_id_map.get(&node.id), real_id_map.get(&child_old_id)) {
+                    self.scene.reparent(child_new, Some(parent_new));
+                }
+            }
+        }
+
+        // Select pasted top-level nodes
+        self.scene.selection = top_level_ids.clone();
+
+        serde_json::to_string(&top_level_ids).unwrap_or_default()
+    }
+
     // === Frame Tools ===
 
     /// Get all children of a frame/group node

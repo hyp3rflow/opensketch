@@ -92,6 +92,14 @@
 - [x] Supports Rect, Ellipse, Text, Frame with all styles
 - [x] Data URL output + file download
 
+### Copy / Paste
+- [x] **Copy** (Cmd+C): serialize selected nodes + subtrees to internal clipboard
+- [x] **Cut** (Cmd+X): copy + delete selected nodes
+- [x] **Paste** (Cmd+V): deserialize with new IDs, offset +10px per paste
+- [x] **Duplicate** (Cmd+D): instant copy+paste with 10px offset
+- [x] Hierarchy preservation: children/parent relationships remapped
+- [x] Undo integration: all paste/cut operations push undo
+
 ### Performance
 - [x] Wheel event batching (accumulate dx/dy per rAF)
 - [x] PointerEvent + setPointerCapture
@@ -105,8 +113,8 @@
 
 ## 🔮 Future Ideas
 - [x] Multi-select (shift+click, shift+click deselect, drag-select marquee, multi-node move)
-- [ ] Undo/redo
-- [ ] Copy/paste
+- [x] Undo/redo
+- [x] Copy/paste (Cmd+C/V/X/D with hierarchy, ID remapping, offset)
 - [ ] Alignment tools (align left/center/right, distribute)
 - [ ] Auto-layout (Figma-like)
 - [ ] Components/instances
