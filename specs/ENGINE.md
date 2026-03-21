@@ -16,7 +16,7 @@ Pure Rust crate compiled to WASM via `wasm-pack`. No NAPI — runs entirely in t
 - `NodeId = u64`
 - `TextAlign` enum: `Left`, `Center`, `Right`
 - `FontStyle` enum: `Normal`, `Italic`
-- `NodeKind` enum: `Rect`, `Ellipse`, `Text { content, font_size, font_family, line_height, text_align, font_weight, font_style }`, `Frame`, `Group`
+- `NodeKind` enum: `Rect`, `Ellipse`, `Text { content, font_size, font_family, line_height, text_align, font_weight, font_style }`, `Frame`, `Group`, `Image { src, fit }`
 - `Fill { color: Color }`, `Stroke { color: Color, width: f64 }`
 - `Node` struct: full node with id, name, kind, transform (x/y/w/h/rotation), style (opacity, fill, stroke, corner_radius), tree (children, parent), flags (visible, locked)
 

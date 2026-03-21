@@ -1,6 +1,6 @@
 import type { Engine } from "./wasm/opensketch_engine";
 
-export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame";
+export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "image";
 
 interface DragState {
   startX: number;
@@ -33,6 +33,11 @@ export class Editor {
   private _clipboard: string | null = null;
   private _pasteCount = 0;
 
+  // Image cache: nodeId -> HTMLImageElement
+  private imageCache = new Map<string, HTMLImageElement>();
+  private _imageCache: Map<string, HTMLImageElement> = new Map();
+  private _imageLoading: Set<string> = new Set();
+
   // Throttle selection callbacks during drag
   private selectionDirty = false;
   private selectionThrottleId = 0;
@@ -43,6 +48,7 @@ export class Editor {
     this.ctx = canvas.getContext("2d")!;
     this.setupCanvas();
     this.setupEvents();
+    this.setupDragDrop();
     this.startLoop();
   }
 
@@ -150,18 +156,26 @@ export class Editor {
         }
         return;
       }
-      // Paste: Cmd+V
+      // Paste: Cmd+V (check for clipboard images first, then nodes)
       if ((e.metaKey || e.ctrlKey) && e.key === "v" && !e.shiftKey) {
         e.preventDefault();
-        if (this._clipboard) {
-          this.engine.push_undo();
-          this._pasteCount++;
-          const offset = this._pasteCount * 10;
-          const newIds = this.engine.paste_nodes(this._clipboard, offset, offset);
-          const ids = JSON.parse(newIds).map(Number);
-          this.onLayersChanges.forEach(fn => fn());
-          this.fireSelectionNow(ids);
-          this.needsRender = true;
+        // Try clipboard image paste
+        if (navigator.clipboard && navigator.clipboard.read) {
+          navigator.clipboard.read().then(items => {
+            for (const item of items) {
+              const imageType = item.types.find(t => t.startsWith("image/"));
+              if (imageType) {
+                item.getType(imageType).then(blob => this.createImageFromBlob(blob));
+                return;
+              }
+            }
+            // No image — do normal node paste
+            this.pasteNodes();
+          }).catch(() => {
+            this.pasteNodes();
+          });
+        } else {
+          this.pasteNodes();
         }
         return;
       }
@@ -185,6 +199,7 @@ export class Editor {
       if (e.key === "o" || e.key === "O") this.setTool("ellipse");
       if (e.key === "t" || e.key === "T") this.setTool("text");
       if (e.key === "f" || e.key === "F") this.setTool("frame");
+      if (e.key === "i" || e.key === "I") this.setTool("image");
       if (e.key === "Delete" || e.key === "Backspace") {
         this.engine.push_undo();
         const sel = this.engine.get_selection();
@@ -289,7 +304,7 @@ export class Editor {
       return;
     }
 
-    if (["rect", "ellipse", "text", "frame"].includes(this.currentTool)) {
+    if (["rect", "ellipse", "text", "frame", "image"].includes(this.currentTool)) {
       const sx = this.engine.screen_to_scene_x(x, y);
       const sy = this.engine.screen_to_scene_y(x, y);
       this.drag = { startX: sx, startY: sy, currentX: sx, currentY: sy };
@@ -370,7 +385,7 @@ export class Editor {
       return;
     }
 
-    if (["rect", "ellipse", "text", "frame"].includes(this.currentTool)) {
+    if (["rect", "ellipse", "text", "frame", "image"].includes(this.currentTool)) {
       this.drag.currentX = this.engine.screen_to_scene_x(x, y);
       this.drag.currentY = this.engine.screen_to_scene_y(x, y);
       this.needsRender = true;
@@ -405,6 +420,7 @@ export class Editor {
           case "ellipse": id = this.engine.add_ellipse(x, y, w, h); break;
           case "frame": id = this.engine.add_frame(x, y, w, h); break;
           case "text": id = this.engine.add_text(x, y, "Text", 16); break;
+          case "image": id = this.engine.add_image(x, y, w, h, ""); this.promptImageSrc(id); break;
           default: id = 0;
         }
         if (id > 0) {
@@ -753,6 +769,7 @@ export class Editor {
         const dpr = window.devicePixelRatio || 1;
         this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         this.engine.render(this.ctx);
+        this.renderImages();
         this.renderCaret();
         this.renderMarquee();
         this.needsRender = false;
@@ -760,6 +777,140 @@ export class Editor {
       this.rafId = requestAnimationFrame(loop);
     };
     this.rafId = requestAnimationFrame(loop);
+  }
+
+  private getOrLoadImage(src: string, nodeId: string): HTMLImageElement | null {
+    const key = `${nodeId}:${src}`;
+    if (this.imageCache.has(key)) {
+      const img = this.imageCache.get(key)!;
+      return img.complete && img.naturalWidth > 0 ? img : null;
+    }
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.src = src;
+    img.onload = () => { this.needsRender = true; };
+    this.imageCache.set(key, img);
+    return null;
+  }
+
+  private renderImages() {
+    const zoom = this.engine.get_zoom();
+    const panX = this.engine.get_pan_x();
+    const panY = this.engine.get_pan_y();
+    const layers: any[] = JSON.parse(this.engine.get_layer_list());
+    for (const layer of layers) {
+      if (!layer.visible) continue;
+      const kind = layer.kind;
+      if (typeof kind !== "string" || !kind.startsWith("Image")) continue;
+      const nj = this.engine.get_node_json(BigInt(layer.id));
+      if (!nj) continue;
+      const node = JSON.parse(nj);
+      if (typeof node.kind !== "object" || !node.kind.Image) continue;
+      const imgData = node.kind.Image;
+      if (!imgData.src) continue;
+      const img = this.getOrLoadImage(imgData.src, String(layer.id));
+      if (!img) continue;
+      const sx = node.x * zoom + panX;
+      const sy = node.y * zoom + panY;
+      const sw = node.width * zoom;
+      const sh = node.height * zoom;
+      this.ctx.save();
+      this.ctx.globalAlpha = node.opacity ?? 1;
+      if (node.corner_radius > 0) {
+        this.ctx.beginPath();
+        this.ctx.roundRect(sx, sy, sw, sh, node.corner_radius * zoom);
+        this.ctx.clip();
+      }
+      // Object-fit logic
+      const fit = imgData.fit || "cover";
+      const iw = img.naturalWidth;
+      const ih = img.naturalHeight;
+      if (fit === "fill") {
+        this.ctx.drawImage(img, sx, sy, sw, sh);
+      } else {
+        const nodeAspect = sw / sh;
+        const imgAspect = iw / ih;
+        let dw: number, dh: number, dx: number, dy: number;
+        if ((fit === "cover" && imgAspect > nodeAspect) || (fit === "contain" && imgAspect < nodeAspect)) {
+          dh = sh; dw = sh * imgAspect;
+        } else {
+          dw = sw; dh = sw / imgAspect;
+        }
+        dx = sx + (sw - dw) / 2;
+        dy = sy + (sh - dh) / 2;
+        this.ctx.drawImage(img, dx, dy, dw, dh);
+      }
+      this.ctx.restore();
+    }
+  }
+
+  setupImageHandlers() {
+    // Drag & drop
+    this.canvas.addEventListener("dragover", (e) => { e.preventDefault(); e.dataTransfer!.dropEffect = "copy"; });
+    this.canvas.addEventListener("drop", (e) => {
+      e.preventDefault();
+      const files = e.dataTransfer?.files;
+      if (!files?.length) return;
+      for (const file of Array.from(files)) {
+        if (!file.type.startsWith("image/")) continue;
+        const reader = new FileReader();
+        reader.onload = () => {
+          const dataUrl = reader.result as string;
+          const img = new Image();
+          img.onload = () => {
+            const maxW = 400;
+            const scale = img.width > maxW ? maxW / img.width : 1;
+            const w = img.width * scale;
+            const h = img.height * scale;
+            const sx = this.engine.screen_to_scene_x(e.offsetX, e.offsetY);
+            const sy = this.engine.screen_to_scene_y(e.offsetX, e.offsetY);
+            this.engine.push_undo();
+            const id = this.engine.add_image(sx - w / 2, sy - h / 2, w, h, dataUrl);
+            this.engine.select(id);
+            this.fireSelectionNow([Number(id)]);
+            this.onLayersChanges.forEach(fn => fn());
+            this.needsRender = true;
+          };
+          img.src = dataUrl;
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+
+    // Paste image from clipboard
+    window.addEventListener("paste", (e) => {
+      if (this.isInputFocused()) return;
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of Array.from(items)) {
+        if (!item.type.startsWith("image/")) continue;
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (!file) continue;
+        const reader = new FileReader();
+        reader.onload = () => {
+          const dataUrl = reader.result as string;
+          const img = new Image();
+          img.onload = () => {
+            const maxW = 400;
+            const scale = img.width > maxW ? maxW / img.width : 1;
+            const w = img.width * scale;
+            const h = img.height * scale;
+            const cx = this.engine.screen_to_scene_x(this.canvas.clientWidth / 2, this.canvas.clientHeight / 2);
+            const cy = this.engine.screen_to_scene_y(this.canvas.clientWidth / 2, this.canvas.clientHeight / 2);
+            this.engine.push_undo();
+            const id = this.engine.add_image(cx - w / 2, cy - h / 2, w, h, dataUrl);
+            this.engine.select(id);
+            this.fireSelectionNow([Number(id)]);
+            this.onLayersChanges.forEach(fn => fn());
+            this.needsRender = true;
+          };
+          img.src = dataUrl;
+        };
+        reader.readAsDataURL(file);
+        break; // only first image
+      }
+    });
   }
 
   setTool(tool: ToolType) {
@@ -774,8 +925,189 @@ export class Editor {
     const cursors: Record<ToolType, string> = {
       select: "default", hand: "grab", rect: "crosshair",
       ellipse: "crosshair", text: "text", frame: "crosshair",
+      image: "crosshair",
     };
     this.canvas.style.cursor = cursors[this.currentTool] || "default";
+  }
+
+  // === Image support ===
+
+  private pasteNodes() {
+    if (this._clipboard) {
+      this.engine.push_undo();
+      this._pasteCount++;
+      const offset = this._pasteCount * 10;
+      const newIds = this.engine.paste_nodes(this._clipboard, offset, offset);
+      const ids = JSON.parse(newIds).map(Number);
+      this.onLayersChanges.forEach(fn => fn());
+      this.fireSelectionNow(ids);
+      this.needsRender = true;
+    }
+  }
+
+  private createImageFromBlob(blob: Blob) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      const img = new Image();
+      img.onload = () => {
+        const zoom = this.engine.get_zoom();
+        const cx = this.canvas.getBoundingClientRect().width / 2;
+        const cy = this.canvas.getBoundingClientRect().height / 2;
+        const sx = this.engine.screen_to_scene_x(cx, cy);
+        const sy = this.engine.screen_to_scene_y(cx, cy);
+        // Limit size to 400px max dimension
+        let w = img.naturalWidth;
+        let h = img.naturalHeight;
+        const maxDim = 400;
+        if (w > maxDim || h > maxDim) {
+          const scale = maxDim / Math.max(w, h);
+          w = Math.round(w * scale);
+          h = Math.round(h * scale);
+        }
+        this.engine.push_undo();
+        const id = this.engine.add_image(sx - w / 2, sy - h / 2, w, h, dataUrl);
+        this._imageCache.set(dataUrl, img);
+        this.engine.select(id);
+        this.fireSelectionNow([Number(id)]);
+        this.onLayersChanges.forEach(fn => fn());
+        this.needsRender = true;
+      };
+      img.src = dataUrl;
+    };
+    reader.readAsDataURL(blob);
+  }
+
+  private promptImageSrc(nodeId: number | bigint) {
+    const src = prompt("Image URL:");
+    if (src) {
+      this.engine.set_image_src(BigInt(nodeId), src);
+      this.loadImageForNode(src);
+      this.needsRender = true;
+    }
+  }
+
+  private loadImageForNode(src: string) {
+    if (!src || this._imageCache.has(src) || this._imageLoading.has(src)) return;
+    this._imageLoading.add(src);
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      this._imageCache.set(src, img);
+      this._imageLoading.delete(src);
+      this.needsRender = true;
+    };
+    img.onerror = () => {
+      this._imageLoading.delete(src);
+    };
+    img.src = src;
+  }
+
+  private setupDragDrop() {
+    this.canvas.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      e.dataTransfer!.dropEffect = "copy";
+    });
+    this.canvas.addEventListener("drop", (e) => {
+      e.preventDefault();
+      const files = e.dataTransfer?.files;
+      if (!files || files.length === 0) return;
+      for (const file of Array.from(files)) {
+        if (!file.type.startsWith("image/")) continue;
+        const reader = new FileReader();
+        reader.onload = () => {
+          const dataUrl = reader.result as string;
+          const img = new Image();
+          img.onload = () => {
+            const sx = this.engine.screen_to_scene_x(e.offsetX, e.offsetY);
+            const sy = this.engine.screen_to_scene_y(e.offsetX, e.offsetY);
+            let w = img.naturalWidth;
+            let h = img.naturalHeight;
+            const maxDim = 400;
+            if (w > maxDim || h > maxDim) {
+              const scale = maxDim / Math.max(w, h);
+              w = Math.round(w * scale);
+              h = Math.round(h * scale);
+            }
+            this.engine.push_undo();
+            const id = this.engine.add_image(sx - w / 2, sy - h / 2, w, h, dataUrl);
+            this._imageCache.set(dataUrl, img);
+            this.engine.select(id);
+            this.fireSelectionNow([Number(id)]);
+            this.onLayersChanges.forEach(fn => fn());
+            this.needsRender = true;
+          };
+          img.src = dataUrl;
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+  }
+
+  /** Render images on top of the engine-rendered canvas */
+  private renderImages() {
+    const layers = JSON.parse(this.engine.get_layer_list());
+    const zoom = this.engine.get_zoom();
+    const panX = this.engine.get_pan_x();
+    const panY = this.engine.get_pan_y();
+
+    for (const layer of layers) {
+      if (!layer.visible) continue;
+      const nj = this.engine.get_node_json(BigInt(layer.id));
+      if (!nj) continue;
+      const node = JSON.parse(nj);
+      const kind = node.kind;
+      if (typeof kind !== "object" || !kind.Image) continue;
+
+      const src = kind.Image.src;
+      if (!src) continue;
+
+      // Ensure image is loaded
+      const img = this._imageCache.get(src);
+      if (!img) {
+        this.loadImageForNode(src);
+        continue;
+      }
+
+      const x = node.x * zoom + panX;
+      const y = node.y * zoom + panY;
+      const w = node.width * zoom;
+      const h = node.height * zoom;
+
+      this.ctx.save();
+      this.ctx.globalAlpha = node.opacity ?? 1;
+
+      // Clip for corner radius
+      if (node.corner_radius > 0) {
+        const r = node.corner_radius * zoom;
+        this.ctx.beginPath();
+        this.ctx.roundRect(x, y, w, h, r);
+        this.ctx.clip();
+      }
+
+      // Draw image with fit mode
+      const fit = kind.Image.fit || "cover";
+      if (fit === "fill") {
+        this.ctx.drawImage(img, x, y, w, h);
+      } else {
+        // cover or contain
+        const imgAspect = img.naturalWidth / img.naturalHeight;
+        const nodeAspect = w / h;
+        let sx = 0, sy = 0, sw = img.naturalWidth, sh = img.naturalHeight;
+        if (fit === "cover") {
+          if (imgAspect > nodeAspect) {
+            sw = img.naturalHeight * nodeAspect;
+            sx = (img.naturalWidth - sw) / 2;
+          } else {
+            sh = img.naturalWidth / nodeAspect;
+            sy = (img.naturalHeight - sh) / 2;
+          }
+        }
+        this.ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
+      }
+
+      this.ctx.restore();
+    }
   }
 
   selectNode(id: number | bigint) {

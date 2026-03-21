@@ -116,6 +116,18 @@
 - [x] TypeScript: `Editor.exportSVG()`, `exportSelectionSVG()`, `downloadSVG()` (Blob + download link)
 - [x] Toolbar: download button (exports selection if any, otherwise full canvas)
 
+### Image Nodes
+- [x] **NodeKind::Image**: src (URL/data URI) + fit mode (cover/contain/fill)
+- [x] **WASM bindings**: `add_image()`, `set_image_src()`, `set_image_fit()`
+- [x] **Canvas rendering**: TS-side drawImage with fit modes + corner radius clipping
+- [x] **Drag & drop**: drop image files onto canvas → auto-create image node
+- [x] **Clipboard paste**: Cmd+V with image data → creates image node at center
+- [x] **Image tool**: toolbar button (I) → draw rect → prompt URL
+- [x] **Properties panel**: source URL input, fit mode toggle (Cover/Contain/Fill)
+- [x] **SVG export**: `<image>` element with preserveAspectRatio
+- [x] **Placeholder rendering**: mountain/sun icon when image not loaded
+- [x] **Image cache**: loaded images cached for reuse
+
 ### Performance
 - [x] Wheel event batching (accumulate dx/dy per rAF)
 - [x] PointerEvent + setPointerCapture
@@ -138,7 +150,7 @@
 - [ ] Collaborative editing (CRDT)
 - [ ] Plugin system
 - [ ] Canvas text cursor + multi-line text
-- [ ] Image nodes
+- [x] Image nodes (drag & drop, URL, clipboard paste, cover/contain/fill)
 - [ ] Boolean operations
 - [ ] Pen tool (vector paths)
 - [ ] Constraints (responsive resizing)

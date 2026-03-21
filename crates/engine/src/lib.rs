@@ -176,12 +176,79 @@ impl Engine {
         self.scene.add_node(node)
     }
 
+    pub fn add_image(&mut self, x: f64, y: f64, w: f64, h: f64, src: &str) -> u64 {
+        let mut node = Node::new(0, NodeKind::Image {
+            src: src.to_string(),
+            fit: "cover".to_string(),
+        });
+        node.x = x; node.y = y; node.width = w; node.height = h;
+        node.name = format!("Image {}", self.scene.node_count() + 1);
+        node.fill = None;
+        self.scene.add_node(node)
+    }
+
+    pub fn set_image_src(&mut self, id: u64, src: &str) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Image { src: ref mut s, .. } = node.kind {
+                *s = src.to_string();
+            }
+        }
+    }
+
+    pub fn set_image_fit(&mut self, id: u64, fit: &str) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Image { fit: ref mut f, .. } = node.kind {
+                *f = match fit {
+                    "contain" => "contain".to_string(),
+                    "fill" => "fill".to_string(),
+                    _ => "cover".to_string(),
+                };
+            }
+        }
+    }
+
     pub fn add_frame(&mut self, x: f64, y: f64, w: f64, h: f64) -> u64 {
         let mut node = Node::new(0, NodeKind::Frame);
         node.x = x; node.y = y; node.width = w; node.height = h;
         node.name = format!("Frame {}", self.scene.node_count() + 1);
         node.fill = Some(Fill { color: Color::white() });
         self.scene.add_node(node)
+    }
+
+    pub fn add_image(&mut self, x: f64, y: f64, w: f64, h: f64, src: &str) -> u64 {
+        let mut node = Node::new(0, NodeKind::Image {
+            src: src.to_string(),
+            fit: "cover".to_string(),
+        });
+        node.x = x; node.y = y; node.width = w; node.height = h;
+        node.name = format!("Image {}", self.scene.node_count() + 1);
+        node.fill = None;
+        self.scene.add_node(node)
+    }
+
+    pub fn set_image_src(&mut self, id: u64, src: &str) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Image { src: ref mut s, .. } = node.kind {
+                *s = src.to_string();
+            }
+        }
+    }
+
+    pub fn set_image_fit(&mut self, id: u64, fit: &str) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Image { fit: ref mut f, .. } = node.kind {
+                *f = fit.to_string();
+            }
+        }
+    }
+
+    pub fn get_image_src(&self, id: u64) -> String {
+        if let Some(node) = self.scene.get_node(id) {
+            if let NodeKind::Image { ref src, .. } = node.kind {
+                return src.clone();
+            }
+        }
+        String::new()
     }
 
     pub fn remove_node(&mut self, id: u64) {

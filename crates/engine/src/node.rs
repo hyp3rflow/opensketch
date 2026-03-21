@@ -50,10 +50,19 @@ pub enum NodeKind {
     Slot { slot_name: String },
     /// An instance of a component
     Instance(Box<InstanceData>),
+    /// An image node (rendered via TS-side drawImage)
+    Image {
+        /// URL or data URI of the image
+        src: String,
+        /// Object-fit mode: "cover", "contain", "fill"
+        #[serde(default = "default_image_fit")]
+        fit: String,
+    },
 }
 
 fn default_line_height() -> f64 { 1.2 }
 fn default_font_weight() -> u16 { 400 }
+fn default_image_fit() -> String { "cover".to_string() }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Fill {

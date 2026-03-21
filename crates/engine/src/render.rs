@@ -183,6 +183,7 @@ impl Renderer {
             NodeKind::Group => {}
             NodeKind::Slot { .. } => self.render_slot(ctx, node),
             NodeKind::Instance(_) => self.render_instance(ctx, node, scene),
+            NodeKind::Image { .. } => self.render_image_placeholder(ctx, node),
         }
 
         ctx.restore();
@@ -390,6 +391,47 @@ impl Renderer {
                 ctx.fill_text(&node.notes.len().to_string(), cx - fs * 0.25, cy).ok();
             }
         }
+    }
+
+    fn render_image_placeholder(&self, ctx: &CanvasRenderingContext2d, node: &Node) {
+        // Draw a light placeholder rect; actual image drawn by TS overlay
+        if let Some(fill) = &node.fill {
+            ctx.set_fill_style_str(&fill.color.to_css());
+        } else {
+            ctx.set_fill_style_str("rgba(40,40,40,1)");
+        }
+        if node.corner_radius > 0.0 {
+            self.draw_rounded_rect(ctx, node.x, node.y, node.width, node.height, node.corner_radius);
+            ctx.fill();
+        } else {
+            ctx.fill_rect(node.x, node.y, node.width, node.height);
+        }
+        // Image icon placeholder (cross lines)
+        let cx = node.x + node.width / 2.0;
+        let cy = node.y + node.height / 2.0;
+        let icon_size = (node.width.min(node.height) * 0.3).min(24.0 / self.viewport.a);
+        ctx.set_stroke_style_str("rgba(255,255,255,0.2)");
+        ctx.set_line_width(1.5 / self.viewport.a);
+        // Mountain/image icon
+        ctx.begin_path();
+        ctx.move_to(cx - icon_size, cy + icon_size * 0.6);
+        ctx.line_to(cx - icon_size * 0.3, cy - icon_size * 0.2);
+        ctx.line_to(cx + icon_size * 0.1, cy + icon_size * 0.3);
+        ctx.line_to(cx + icon_size * 0.5, cy - icon_size * 0.5);
+        ctx.line_to(cx + icon_size, cy + icon_size * 0.6);
+        ctx.stroke();
+        // Sun circle
+        ctx.begin_path();
+        ctx.arc(cx - icon_size * 0.5, cy - icon_size * 0.4, icon_size * 0.2, 0.0, std::f64::consts::TAU).ok();
+        ctx.stroke();
+
+        // Frame label
+        let font_size = (11.0 / self.viewport.a).min(11.0);
+        let gap = (4.0 / self.viewport.a).min(4.0);
+        ctx.set_fill_style_str("rgba(255,255,255,0.4)");
+        ctx.set_font(&format!("{}px Inter, system-ui, sans-serif", font_size));
+        ctx.set_text_baseline("bottom");
+        ctx.fill_text(&node.name, node.x, node.y - gap).ok();
     }
 
     fn render_selection(&self, ctx: &CanvasRenderingContext2d, node: &Node) {

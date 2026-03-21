@@ -579,6 +579,57 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       container.appendChild(textSection);
     }
 
+    // --- Image-specific ---
+    if (typeof node.kind === "object" && node.kind.Image) {
+      const imgSection = createSection("Image");
+      const imgData = node.kind.Image;
+
+      // Source URL
+      const srcRow = document.createElement("div");
+      srcRow.className = "prop-row";
+      const srcLabel = document.createElement("span");
+      srcLabel.className = "prop-label";
+      srcLabel.style.width = "28px";
+      srcLabel.textContent = "Src";
+      srcRow.appendChild(srcLabel);
+      const srcInput = document.createElement("input");
+      srcInput.className = "prop-input";
+      srcInput.style.flex = "1";
+      srcInput.placeholder = "Image URL or data URI";
+      srcInput.value = (imgData.src || "").startsWith("data:") ? "(embedded)" : (imgData.src || "");
+      srcInput.addEventListener("change", () => {
+        editor.engine.set_image_src(id, srcInput.value);
+        editor.requestRender();
+      });
+      srcRow.appendChild(srcInput);
+      imgSection.appendChild(srcRow);
+
+      // Fit mode
+      const fitRow = document.createElement("div");
+      fitRow.style.cssText = "display:flex;gap:2px;margin-top:6px;";
+      const curFit = imgData.fit || "cover";
+      (["cover", "contain", "fill"] as const).forEach((f) => {
+        const btn = document.createElement("button");
+        const isActive = curFit === f;
+        btn.textContent = f.charAt(0).toUpperCase() + f.slice(1);
+        btn.style.cssText = `
+          flex:1;padding:4px 0;border:1px solid ${isActive ? "#4f46e5" : "#444"};border-radius:4px;
+          background:${isActive ? "#4f46e520" : "#2a2a2a"};color:${isActive ? "#818cf8" : "#999"};
+          cursor:pointer;font-size:11px;transition:all 0.15s;
+        `;
+        btn.addEventListener("click", () => {
+          ensureUndo();
+          editor.engine.set_image_fit(id, f);
+          editor.requestRender();
+          refresh(ids);
+        });
+        fitRow.appendChild(btn);
+      });
+      imgSection.appendChild(fitRow);
+
+      container.appendChild(imgSection);
+    }
+
     // === Auto Layout Section (Frame/Instance/Group) ===
     const kindStr = typeof node.kind === "string" ? node.kind : Object.keys(node.kind)[0];
     if (["Frame", "Instance", "Group", "Slot"].includes(kindStr || "")) {
@@ -933,6 +984,7 @@ function getKindLabel(kind: unknown): string {
   }
   if (typeof kind === "object" && kind !== null) {
     if ("Text" in kind) return "Text";
+    if ("Image" in kind) return "Image";
     if ("Instance" in kind) return "Instance";
     if ("Slot" in kind) return "Slot";
   }
