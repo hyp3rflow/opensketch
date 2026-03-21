@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use serde::{Serialize, Deserialize};
-use crate::node::{Node, NodeId};
+use crate::node::{Node, NodeId, NodeKind, ConstraintH, ConstraintV};
 use crate::types::Point;
 
 #[derive(Serialize, Deserialize)]
@@ -128,6 +128,103 @@ impl Scene {
         if let Some(node) = self.nodes.get_mut(&id) {
             node.width = width.max(1.0);
             node.height = height.max(1.0);
+        }
+    }
+
+    /// Resize a Frame/Group and apply constraints to its children.
+    /// Child positions are absolute in our scene, so we convert to/from local coords.
+    pub fn resize_node_with_constraints(&mut self, id: NodeId, new_width: f64, new_height: f64) {
+        let (parent_x, parent_y, old_w, old_h, is_container) = if let Some(node) = self.nodes.get(&id) {
+            let is_container = matches!(node.kind, NodeKind::Frame | NodeKind::Group);
+            (node.x, node.y, node.width, node.height, is_container)
+        } else {
+            return;
+        };
+
+        if !is_container || old_w < 1.0 || old_h < 1.0 {
+            self.resize_node(id, new_width, new_height);
+            return;
+        }
+
+        let children: Vec<NodeId> = self.nodes.get(&id).map(|n| n.children.clone()).unwrap_or_default();
+
+        // Collect child constraint data before mutation
+        struct ChildData { id: NodeId, lx: f64, ly: f64, w: f64, h: f64, ch: ConstraintH, cv: ConstraintV }
+        let child_data: Vec<ChildData> = children.iter().filter_map(|&cid| {
+            self.nodes.get(&cid).map(|c| ChildData {
+                id: cid,
+                lx: c.x - parent_x,
+                ly: c.y - parent_y,
+                w: c.width,
+                h: c.height,
+                ch: c.constraints.horizontal.clone(),
+                cv: c.constraints.vertical.clone(),
+            })
+        }).collect();
+
+        // Resize parent
+        let nw = new_width.max(1.0);
+        let nh = new_height.max(1.0);
+        if let Some(node) = self.nodes.get_mut(&id) {
+            node.width = nw;
+            node.height = nh;
+        }
+
+        // Apply constraints to each child
+        for cd in child_data {
+            let mut cx = cd.lx;
+            let mut cy = cd.ly;
+            let mut cw = cd.w;
+            let mut ch = cd.h;
+
+            match cd.ch {
+                ConstraintH::Left => {}
+                ConstraintH::Right => {
+                    let right_margin = old_w - (cx + cw);
+                    cx = nw - right_margin - cw;
+                }
+                ConstraintH::LeftAndRight => {
+                    let right_margin = old_w - (cx + cw);
+                    cw = (nw - cx - right_margin).max(1.0);
+                }
+                ConstraintH::Center => {
+                    let center_ratio = (cx + cw / 2.0) / old_w;
+                    cx = center_ratio * nw - cw / 2.0;
+                }
+                ConstraintH::Scale => {
+                    let ratio = nw / old_w;
+                    cx *= ratio;
+                    cw = (cw * ratio).max(1.0);
+                }
+            }
+
+            match cd.cv {
+                ConstraintV::Top => {}
+                ConstraintV::Bottom => {
+                    let bottom_margin = old_h - (cy + ch);
+                    cy = nh - bottom_margin - ch;
+                }
+                ConstraintV::TopAndBottom => {
+                    let bottom_margin = old_h - (cy + ch);
+                    ch = (nh - cy - bottom_margin).max(1.0);
+                }
+                ConstraintV::Center => {
+                    let center_ratio = (cy + ch / 2.0) / old_h;
+                    cy = center_ratio * nh - ch / 2.0;
+                }
+                ConstraintV::Scale => {
+                    let ratio = nh / old_h;
+                    cy *= ratio;
+                    ch = (ch * ratio).max(1.0);
+                }
+            }
+
+            if let Some(child) = self.nodes.get_mut(&cd.id) {
+                child.x = parent_x + cx;
+                child.y = parent_y + cy;
+                child.width = cw;
+                child.height = ch;
+            }
         }
     }
 

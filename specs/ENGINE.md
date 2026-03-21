@@ -77,6 +77,16 @@ Pure Rust crate compiled to WASM via `wasm-pack`. No NAPI — runs entirely in t
 - SVG: `<feGaussianBlur>` filter
 - WASM: `set_blur`, `get_blur`
 
+### Constraints (Responsive Resize)
+- Node has `constraints: Constraints` with `horizontal: ConstraintH` and `vertical: ConstraintV`
+- `ConstraintH`: Left (default), Right, LeftAndRight, Center, Scale
+- `ConstraintV`: Top (default), Bottom, TopAndBottom, Center, Scale
+- When a Frame/Group is resized, children are repositioned/resized based on their constraint settings
+- Child positions are absolute in the scene; constraint math converts to/from local coords relative to parent
+- WASM: `set_constraints(id, horizontal, vertical)`, `get_constraints(id)` → JSON, `resize_node_with_constraints(id, w, h)`
+- Properties panel shows Constraints section for children of Frame/Group nodes
+- `#[serde(default)]` for backward compatibility with old scene files
+
 ## Dependencies
 
 ```toml
@@ -95,3 +105,11 @@ wasm-pack build --target web --out-dir ../../packages/app/src/wasm
 ```
 
 Output: `packages/app/src/wasm/` (opensketch_engine.js + .wasm + .d.ts)
+
+
+## Constraints System
+- `Constraints { horizontal: ConstraintH, vertical: ConstraintV }` on every Node
+- `ConstraintH`: Left | Right | LeftAndRight | Center | Scale
+- `ConstraintV`: Top | Bottom | TopAndBottom | Center | Scale
+- `Scene::resize_node_with_constraints()`: only applies to Frame/Group; falls back to simple resize for others
+- Math uses local coordinates (child.x - parent.x) for correct constraint calculation

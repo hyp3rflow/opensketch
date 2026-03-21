@@ -186,5 +186,15 @@
   - Snap works with multi-selection (combined bounding box)
   - Guides auto-clear on pointer up
 - [ ] Boolean operations
-- [ ] Constraints (responsive resizing)
+- [x] Constraints (responsive resizing) — Horizontal: Left/Right/LeftAndRight/Center/Scale, Vertical: Top/Bottom/TopAndBottom/Center/Scale
 - [ ] Prototyping (interactions/transitions)
+
+
+### Constraints (Responsive Resize)
+- **Horizontal**: Left (default), Right, Left & Right (stretch), Center, Scale
+- **Vertical**: Top (default), Bottom, Top & Bottom (stretch), Center, Scale
+- Applied when parent Frame/Group is resized — children reposition/resize based on constraint settings
+- Local coordinate conversion (absolute → local → apply constraint → absolute)
+- WASM: `set_constraints(id, horizontal, vertical)`, `get_constraints(id)`, `resize_node_with_constraints(id, w, h)`
+- Properties panel: Constraints section with H/V dropdowns (shown for nodes with Frame/Group parent)
+- Backward compatible via `#[serde(default)]`

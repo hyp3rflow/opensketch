@@ -10,7 +10,7 @@ mod svg_export;
 
 use wasm_bindgen::prelude::*;
 use web_sys::CanvasRenderingContext2d;
-use crate::node::{Node, NodeKind, Fill, FillType, GradientStop, Stroke, LayoutMode, FlexDirection, Align, Justify, FlexWrap, TextSizing, TextAlign, FontStyle, PathPoint};
+use crate::node::{Node, NodeKind, Fill, FillType, GradientStop, Stroke, LayoutMode, FlexDirection, Align, Justify, FlexWrap, TextSizing, TextAlign, FontStyle, PathPoint, ConstraintH, ConstraintV};
 
 fn parse_align(s: &str) -> Align {
     match s {
@@ -1647,6 +1647,58 @@ impl Engine {
         } else {
             0.0
         }
+    }
+
+    // =============================================
+    // Constraints
+    // =============================================
+
+    /// Set constraints on a node: horizontal and vertical
+    pub fn set_constraints(&mut self, id: u64, horizontal: &str, vertical: &str) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            node.constraints.horizontal = match horizontal {
+                "right" => ConstraintH::Right,
+                "left_and_right" | "leftAndRight" => ConstraintH::LeftAndRight,
+                "center" => ConstraintH::Center,
+                "scale" => ConstraintH::Scale,
+                _ => ConstraintH::Left,
+            };
+            node.constraints.vertical = match vertical {
+                "bottom" => ConstraintV::Bottom,
+                "top_and_bottom" | "topAndBottom" => ConstraintV::TopAndBottom,
+                "center" => ConstraintV::Center,
+                "scale" => ConstraintV::Scale,
+                _ => ConstraintV::Top,
+            };
+        }
+    }
+
+    /// Get constraints as JSON: { "horizontal": "left", "vertical": "top" }
+    pub fn get_constraints(&self, id: u64) -> String {
+        if let Some(node) = self.scene.get_node(id) {
+            let h = match node.constraints.horizontal {
+                ConstraintH::Left => "left",
+                ConstraintH::Right => "right",
+                ConstraintH::LeftAndRight => "leftAndRight",
+                ConstraintH::Center => "center",
+                ConstraintH::Scale => "scale",
+            };
+            let v = match node.constraints.vertical {
+                ConstraintV::Top => "top",
+                ConstraintV::Bottom => "bottom",
+                ConstraintV::TopAndBottom => "topAndBottom",
+                ConstraintV::Center => "center",
+                ConstraintV::Scale => "scale",
+            };
+            format!(r#"{{"horizontal":"{}","vertical":"{}"}}"#, h, v)
+        } else {
+            r#"{"horizontal":"left","vertical":"top"}"#.to_string()
+        }
+    }
+
+    /// Resize a frame with constraint-aware child repositioning
+    pub fn resize_node_with_constraints(&mut self, id: u64, w: f64, h: f64) {
+        self.scene.resize_node_with_constraints(id, w, h);
     }
 
     /// Get node JSON enriched with notes (for agent consumption)

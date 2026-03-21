@@ -293,6 +293,41 @@ pub struct Layout {
     pub grid_rows: u32,
 }
 
+/// Horizontal constraint
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub enum ConstraintH {
+    Left,
+    Right,
+    LeftAndRight,
+    Center,
+    Scale,
+}
+
+impl Default for ConstraintH {
+    fn default() -> Self { ConstraintH::Left }
+}
+
+/// Vertical constraint
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub enum ConstraintV {
+    Top,
+    Bottom,
+    TopAndBottom,
+    Center,
+    Scale,
+}
+
+impl Default for ConstraintV {
+    fn default() -> Self { ConstraintV::Top }
+}
+
+/// Constraints for responsive resize
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct Constraints {
+    pub horizontal: ConstraintH,
+    pub vertical: ConstraintV,
+}
+
 /// Drop shadow effect
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Shadow {
@@ -345,6 +380,9 @@ pub struct Node {
     /// Layer blur (0 = none)
     #[serde(default)]
     pub blur: f64,
+    /// Constraints (responsive resize behavior relative to parent)
+    #[serde(default)]
+    pub constraints: Constraints,
 }
 
 impl Node {
@@ -369,6 +407,7 @@ impl Node {
             notes: vec![],
             shadows: vec![],
             blur: 0.0,
+            constraints: Constraints::default(),
         }
     }
 

@@ -263,6 +263,87 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
     sizeSection.appendChild(rotRow);
     container.appendChild(sizeSection);
 
+    // --- Constraints (only for children of Frame) ---
+    if (node.parent) {
+      const parentJson = editor.engine.get_node_json(BigInt(node.parent));
+      if (parentJson) {
+        const parentNode = JSON.parse(parentJson);
+        const parentKind = typeof parentNode.kind === "string" ? parentNode.kind : Object.keys(parentNode.kind)[0];
+        if (parentKind === "Frame" || parentKind === "Group") {
+          const constraintsJson = editor.engine.get_constraints(BigInt(id));
+          const constraints = JSON.parse(constraintsJson);
+          const constraintSection = createSection("Constraints");
+
+          const hOptions = [
+            { value: "left", label: "Left" },
+            { value: "right", label: "Right" },
+            { value: "leftAndRight", label: "Left & Right" },
+            { value: "center", label: "Center" },
+            { value: "scale", label: "Scale" },
+          ];
+          const vOptions = [
+            { value: "top", label: "Top" },
+            { value: "bottom", label: "Bottom" },
+            { value: "topAndBottom", label: "Top & Bottom" },
+            { value: "center", label: "Center" },
+            { value: "scale", label: "Scale" },
+          ];
+
+          const hRow = document.createElement("div");
+          hRow.className = "prop-row";
+          const hLabel = document.createElement("span");
+          hLabel.className = "prop-label";
+          hLabel.textContent = "H";
+          hLabel.style.width = "24px";
+          const hSelect = document.createElement("select");
+          hSelect.className = "prop-input";
+          hSelect.style.flex = "1";
+          for (const opt of hOptions) {
+            const o = document.createElement("option");
+            o.value = opt.value;
+            o.textContent = opt.label;
+            if (constraints.horizontal === opt.value) o.selected = true;
+            hSelect.appendChild(o);
+          }
+          hSelect.addEventListener("change", () => {
+            editor.engine.push_undo();
+            editor.engine.set_constraints(BigInt(id), hSelect.value, vSelect.value);
+            editor.requestRender();
+          });
+          hRow.appendChild(hLabel);
+          hRow.appendChild(hSelect);
+          constraintSection.appendChild(hRow);
+
+          const vRow = document.createElement("div");
+          vRow.className = "prop-row";
+          const vLabel = document.createElement("span");
+          vLabel.className = "prop-label";
+          vLabel.textContent = "V";
+          vLabel.style.width = "24px";
+          const vSelect = document.createElement("select");
+          vSelect.className = "prop-input";
+          vSelect.style.flex = "1";
+          for (const opt of vOptions) {
+            const o = document.createElement("option");
+            o.value = opt.value;
+            o.textContent = opt.label;
+            if (constraints.vertical === opt.value) o.selected = true;
+            vSelect.appendChild(o);
+          }
+          vSelect.addEventListener("change", () => {
+            editor.engine.push_undo();
+            editor.engine.set_constraints(BigInt(id), hSelect.value, vSelect.value);
+            editor.requestRender();
+          });
+          vRow.appendChild(vLabel);
+          vRow.appendChild(vSelect);
+          constraintSection.appendChild(vRow);
+
+          container.appendChild(constraintSection);
+        }
+      }
+    }
+
     // --- Appearance ---
     const appSection = createSection("Appearance");
 

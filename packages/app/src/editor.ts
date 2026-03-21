@@ -463,7 +463,8 @@ export class Editor {
         }
         if (nw > 0 && nh > 0) {
           this.engine.set_node_position(this.drag.nodeId, nx, ny);
-          this.engine.resize_node(this.drag.nodeId, nw, nh);
+          // Use constraint-aware resize for frames/groups
+          this.engine.resize_node_with_constraints(this.drag.nodeId, nw, nh);
         }
       } else {
         const zoom = this.engine.get_zoom();
