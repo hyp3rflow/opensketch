@@ -8,7 +8,7 @@
 - [x] Properties: position, size, rotation, opacity, fill, stroke, corner radius
 - [x] Viewport: pan, zoom (scroll wheel with rAF batching)
 - [x] Hit testing (reverse render order, respects visibility/lock)
-- [x] Selection (single, with 8 resize handles)
+- [x] Selection (single + multi-select + marquee drag-select, with resize handles)
 - [x] Scene serialization (JSON export/import)
 - [x] Node operations: create, delete, move, resize, duplicate, reparent
 - [x] Name search (partial match, case-insensitive)
@@ -104,7 +104,7 @@
 - [ ] Not yet built/tested (needs `cargo-tauri` CLI)
 
 ## 🔮 Future Ideas
-- [ ] Multi-select (shift+click, drag-select)
+- [x] Multi-select (shift+click, shift+click deselect, drag-select marquee, multi-node move)
 - [ ] Undo/redo
 - [ ] Copy/paste
 - [ ] Alignment tools (align left/center/right, distribute)

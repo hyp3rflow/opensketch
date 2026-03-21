@@ -21,6 +21,7 @@ export class Editor {
   ctx: CanvasRenderingContext2d;
   currentTool: ToolType = "select";
   private drag: DragState | null = null;
+  private marquee: { startX: number; startY: number; currentX: number; currentY: number } | null = null;
   private isPanning = false;
   private lastPanX = 0;
   private lastPanY = 0;
@@ -192,22 +193,37 @@ export class Editor {
 
       const hit = this.engine.hit_test(x, y);
       if (hit != null) {
+        const currentSel = Array.from(this.engine.get_selection()).map(Number);
+        const alreadySelected = currentSel.includes(Number(hit));
         if (e.shiftKey) {
-          this.engine.add_to_selection(hit);
-        } else {
+          if (alreadySelected) {
+            // Shift+click on selected node → deselect it
+            this.engine.deselect_all();
+            for (const id of currentSel) {
+              if (id !== Number(hit)) this.engine.add_to_selection(id);
+            }
+          } else {
+            this.engine.add_to_selection(hit);
+          }
+        } else if (!alreadySelected) {
           this.engine.select(hit);
         }
-        const nodeJson = this.engine.get_node_json(hit);
-        if (nodeJson) {
-          const node = JSON.parse(nodeJson);
-          this.engine.push_undo();
-          this.drag = {
-            startX: x, startY: y, currentX: x, currentY: y,
-            nodeId: hit, originalX: node.x, originalY: node.y,
-          };
-        }
+        // Start drag for moving — nodeId is used as anchor
+        this.engine.push_undo();
+        this.drag = {
+          startX: x, startY: y, currentX: x, currentY: y,
+          nodeId: hit,
+        };
       } else {
-        this.engine.deselect_all();
+        // Start marquee drag-select
+        if (!e.shiftKey) {
+          this.engine.deselect_all();
+        }
+        this.marquee = { startX: x, startY: y, currentX: x, currentY: y };
+        this.fireSelectionNow(Array.from(this.engine.get_selection()).map(Number));
+        this.needsRender = true;
+        this.canvas.setPointerCapture(e.pointerId);
+        return;
       }
       this.fireSelectionNow(Array.from(this.engine.get_selection()).map(Number));
       this.needsRender = true;
@@ -230,6 +246,26 @@ export class Editor {
       this.engine.pan(dx, dy);
       this.lastPanX = e.clientX;
       this.lastPanY = e.clientY;
+      this.needsRender = true;
+      return;
+    }
+
+    if (this.marquee) {
+      this.marquee.currentX = e.offsetX;
+      this.marquee.currentY = e.offsetY;
+      // Live preview: select nodes in marquee rect
+      const mx = Math.min(this.marquee.startX, this.marquee.currentX);
+      const my = Math.min(this.marquee.startY, this.marquee.currentY);
+      const mx2 = Math.max(this.marquee.startX, this.marquee.currentX);
+      const my2 = Math.max(this.marquee.startY, this.marquee.currentY);
+      if (Math.abs(mx2 - mx) > 2 || Math.abs(my2 - my) > 2) {
+        const ids = Array.from(this.engine.hit_test_rect(mx, my, mx2, my2)).map(Number);
+        this.engine.deselect_all();
+        for (const id of ids) {
+          this.engine.add_to_selection(id);
+        }
+        this.fireSelectionThrottled(ids);
+      }
       this.needsRender = true;
       return;
     }
@@ -262,7 +298,11 @@ export class Editor {
         const zoom = this.engine.get_zoom();
         const dx = (x - this.drag.currentX) / zoom;
         const dy = (y - this.drag.currentY) / zoom;
-        this.engine.move_node(this.drag.nodeId, dx, dy);
+        // Move all selected nodes
+        const sel = Array.from(this.engine.get_selection()).map(Number);
+        for (const id of sel) {
+          this.engine.move_node(id, dx, dy);
+        }
         this.drag.currentX = x;
         this.drag.currentY = y;
       }
@@ -283,6 +323,13 @@ export class Editor {
     if (this.isPanning) {
       this.isPanning = false;
       this.updateCursor();
+      return;
+    }
+
+    if (this.marquee) {
+      this.fireSelectionNow(Array.from(this.engine.get_selection()).map(Number));
+      this.marquee = null;
+      this.needsRender = true;
       return;
     }
 
@@ -598,6 +645,24 @@ export class Editor {
     this.ctx.restore();
   }
 
+  private renderMarquee() {
+    if (!this.marquee) return;
+    const { startX, startY, currentX, currentY } = this.marquee;
+    const x = Math.min(startX, currentX);
+    const y = Math.min(startY, currentY);
+    const w = Math.abs(currentX - startX);
+    const h = Math.abs(currentY - startY);
+    if (w < 2 && h < 2) return;
+
+    this.ctx.save();
+    this.ctx.fillStyle = "rgba(59, 130, 246, 0.08)";
+    this.ctx.strokeStyle = "rgba(59, 130, 246, 0.5)";
+    this.ctx.lineWidth = 1;
+    this.ctx.fillRect(x, y, w, h);
+    this.ctx.strokeRect(x + 0.5, y + 0.5, w, h);
+    this.ctx.restore();
+  }
+
   /** Word-wrap text to match engine logic */
   private wrapText(text: string, maxWidth?: number): string[] {
     const lines: string[] = [];
@@ -631,6 +696,7 @@ export class Editor {
         this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         this.engine.render(this.ctx);
         this.renderCaret();
+        this.renderMarquee();
         this.needsRender = false;
       }
       this.rafId = requestAnimationFrame(loop);

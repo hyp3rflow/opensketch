@@ -291,6 +291,17 @@ impl Engine {
         self.scene.hit_test(Point { x: sx, y: sy })
     }
 
+    /// Hit-test a screen-space rectangle and return all intersecting node IDs.
+    pub fn hit_test_rect(&self, sx1: f64, sy1: f64, sx2: f64, sy2: f64) -> Vec<u64> {
+        let (x1, y1) = self.renderer.screen_to_scene(sx1, sy1);
+        let (x2, y2) = self.renderer.screen_to_scene(sx2, sy2);
+        let rx = x1.min(x2);
+        let ry = y1.min(y2);
+        let rw = (x2 - x1).abs();
+        let rh = (y2 - y1).abs();
+        self.scene.hit_test_rect(rx, ry, rw, rh)
+    }
+
     pub fn hit_test_handle(&self, screen_x: f64, screen_y: f64) -> i32 {
         let (sx, sy) = self.renderer.screen_to_scene(screen_x, screen_y);
         let handle_size = 8.0 / self.renderer.viewport.a;

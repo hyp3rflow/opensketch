@@ -80,6 +80,30 @@ impl Scene {
         }
     }
 
+    /// Return all visible, unlocked node ids whose bounds intersect the given rectangle.
+    pub fn hit_test_rect(&self, x: f64, y: f64, w: f64, h: f64) -> Vec<NodeId> {
+        let rx = x;
+        let ry = y;
+        let rx2 = x + w;
+        let ry2 = y + h;
+        let mut result = vec![];
+        for &id in &self.render_order() {
+            if let Some(node) = self.nodes.get(&id) {
+                if !node.visible || node.locked { continue; }
+                // Skip Frame/Group containers — only select leaf-like nodes
+                let nx = node.x;
+                let ny = node.y;
+                let nx2 = node.x + node.width;
+                let ny2 = node.y + node.height;
+                // AABB overlap
+                if nx < rx2 && nx2 > rx && ny < ry2 && ny2 > ry {
+                    result.push(id);
+                }
+            }
+        }
+        result
+    }
+
     pub fn hit_test(&self, point: Point) -> Option<NodeId> {
         let order = self.render_order();
         for &id in order.iter().rev() {
