@@ -1,6 +1,10 @@
 import type { Engine } from "./wasm/opensketch_engine";
+import { computeSnap, renderGuides, type SnapGuide } from "./tools/smart-guides";
 
 export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "image" | "pen";
+
+/** Snap threshold in screen pixels */
+const SNAP_THRESHOLD_PX = 5;
 
 interface DragState {
   startX: number;
@@ -41,6 +45,9 @@ export class Editor {
   private _penDragging = false;
   private _penDragStartX = 0;
   private _penDragStartY = 0;
+
+  // Smart guides state
+  private _snapGuides: SnapGuide[] = [];
 
   // Throttle selection callbacks during drag
   private selectionDirty = false;
@@ -460,12 +467,28 @@ export class Editor {
         }
       } else {
         const zoom = this.engine.get_zoom();
-        const dx = (x - this.drag.currentX) / zoom;
-        const dy = (y - this.drag.currentY) / zoom;
-        // Move all selected nodes
+        const rawDx = (x - this.drag.currentX) / zoom;
+        const rawDy = (y - this.drag.currentY) / zoom;
+        // Move all selected nodes (raw first)
         const sel = Array.from(this.engine.get_selection()).map(Number);
         for (const id of sel) {
-          this.engine.move_node(id, dx, dy);
+          this.engine.move_node(id, rawDx, rawDy);
+        }
+        // Smart guides snapping
+        const selSet = new Set(sel);
+        const others = this.getNonSelectedBounds(selSet);
+        const bbox = this.getSelectionBBox(sel);
+        if (bbox && others.length > 0) {
+          const threshold = SNAP_THRESHOLD_PX / zoom;
+          const snap = computeSnap(bbox, others, threshold);
+          if (snap.dx !== 0 || snap.dy !== 0) {
+            for (const id of sel) {
+              this.engine.move_node(id, snap.dx, snap.dy);
+            }
+          }
+          this._snapGuides = snap.guides;
+        } else {
+          this._snapGuides = [];
         }
         this.drag.currentX = x;
         this.drag.currentY = y;
@@ -535,6 +558,7 @@ export class Editor {
       this.fireSelectionNow(Array.from(this.engine.get_selection()).map(Number));
     }
 
+    this._snapGuides = [];
     this.drag = null;
   }
 
@@ -816,6 +840,14 @@ export class Editor {
     this.ctx.restore();
   }
 
+  private renderSmartGuides() {
+    if (this._snapGuides.length === 0) return;
+    const zoom = this.engine.get_zoom();
+    const panX = this.engine.get_pan_x();
+    const panY = this.engine.get_pan_y();
+    renderGuides(this.ctx, this._snapGuides, zoom, panX, panY);
+  }
+
   private renderMarquee() {
     if (!this.marquee) return;
     const { startX, startY, currentX, currentY } = this.marquee;
@@ -867,6 +899,7 @@ export class Editor {
         this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         this.engine.render(this.ctx);
         this.renderImages();
+        this.renderSmartGuides();
         this.renderCaret();
         this.renderMarquee();
         this.needsRender = false;
@@ -1093,6 +1126,36 @@ export class Editor {
 
       this.ctx.restore();
     }
+  }
+
+  /** Get bounds of all visible, non-selected nodes for snapping */
+  private getNonSelectedBounds(selectedIds: Set<number>): { id: number; x: number; y: number; w: number; h: number }[] {
+    const layers = JSON.parse(this.engine.get_layer_list());
+    const result: { id: number; x: number; y: number; w: number; h: number }[] = [];
+    for (const l of layers) {
+      if (!l.visible || selectedIds.has(l.id)) continue;
+      const nj = this.engine.get_node_json(BigInt(l.id));
+      if (!nj) continue;
+      const n = JSON.parse(nj);
+      result.push({ id: l.id, x: n.x, y: n.y, w: n.width, h: n.height });
+    }
+    return result;
+  }
+
+  /** Get combined bounding box of selected nodes */
+  private getSelectionBBox(sel: number[]): { x: number; y: number; w: number; h: number } | null {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const id of sel) {
+      const nj = this.engine.get_node_json(BigInt(id));
+      if (!nj) continue;
+      const n = JSON.parse(nj);
+      minX = Math.min(minX, n.x);
+      minY = Math.min(minY, n.y);
+      maxX = Math.max(maxX, n.x + n.width);
+      maxY = Math.max(maxY, n.y + n.height);
+    }
+    if (!isFinite(minX)) return null;
+    return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
   }
 
   selectNode(id: number | bigint) {

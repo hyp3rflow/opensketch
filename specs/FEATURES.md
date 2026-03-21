@@ -178,6 +178,13 @@
   - Properties panel: point count display, open/closed toggle
   - WASM bindings: add_path, path_add_point, path_add_curve_point, path_set_point, path_set_handle_out/in, path_remove_point, path_set_closed, path_get_data, path_point_count
   - Toolbar: Pen button (P shortcut)
+- [x] **Smart Guides / Snapping**: Figma-style alignment guides during drag-move
+  - Snap to edges (left/right/top/bottom) and centers of other nodes
+  - Configurable threshold (5px screen-space)
+  - Visual guide lines: magenta (#ff3366) lines extending between snapped nodes
+  - Pure TypeScript implementation (no Rust/WASM changes needed)
+  - Snap works with multi-selection (combined bounding box)
+  - Guides auto-clear on pointer up
 - [ ] Boolean operations
 - [ ] Constraints (responsive resizing)
 - [ ] Prototyping (interactions/transitions)
