@@ -116,3 +116,8 @@ Available: select, hand, rect, ellipse, text, frame, eye, eyeOff, rotation, corn
 - **Selection handles** → resize (8 handles)
 - **Pointer events** with setPointerCapture for drag
 - **Frame labels** scale inversely with zoom (max 11px screen)
+
+### Mask Toggle
+- Located in Properties panel → Appearance section (after opacity)
+- Checkbox labeled "Use as mask"
+- Layers panel shows "M" badge (purple) on mask nodes

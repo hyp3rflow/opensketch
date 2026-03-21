@@ -143,12 +143,7 @@ impl Renderer {
             self.viewport.tx, self.viewport.ty,
         ).ok();
 
-        for id in scene.render_order() {
-            if let Some(node) = scene.get_node(id) {
-                if !node.visible { continue; }
-                self.render_node(ctx, node, scene);
-            }
-        }
+        self.render_children(ctx, &scene.get_root_children(), scene);
 
         for &id in &scene.selection {
             if let Some(node) = scene.get_node(id) {
@@ -169,6 +164,84 @@ impl Renderer {
         }
 
         ctx.restore();
+    }
+
+    fn render_children(&self, ctx: &CanvasRenderingContext2d, children: &[u64], scene: &Scene) {
+        let mut mask_active = false;
+        for &child_id in children {
+            if let Some(node) = scene.get_node(child_id) {
+                if !node.visible { continue; }
+                if node.is_mask {
+                    if mask_active {
+                        ctx.restore();
+                    }
+                    // Render the mask node itself
+                    self.render_node(ctx, node, scene);
+                    // Now set up clipping from the mask shape
+                    ctx.save();
+                    self.build_clip_path(ctx, node);
+                    ctx.clip();
+                    mask_active = true;
+                } else {
+                    self.render_node(ctx, node, scene);
+                }
+            }
+        }
+        if mask_active {
+            ctx.restore();
+        }
+    }
+
+    fn build_clip_path(&self, ctx: &CanvasRenderingContext2d, node: &Node) {
+        ctx.begin_path();
+        match &node.kind {
+            NodeKind::Rect | NodeKind::Frame | NodeKind::Instance(_) | NodeKind::Image { .. } => {
+                if node.corner_radius > 0.0 {
+                    let r = node.corner_radius.min(node.width / 2.0).min(node.height / 2.0);
+                    ctx.move_to(node.x + r, node.y);
+                    ctx.line_to(node.x + node.width - r, node.y);
+                    ctx.arc_to(node.x + node.width, node.y, node.x + node.width, node.y + r, r).ok();
+                    ctx.line_to(node.x + node.width, node.y + node.height - r);
+                    ctx.arc_to(node.x + node.width, node.y + node.height, node.x + node.width - r, node.y + node.height, r).ok();
+                    ctx.line_to(node.x + r, node.y + node.height);
+                    ctx.arc_to(node.x, node.y + node.height, node.x, node.y + node.height - r, r).ok();
+                    ctx.line_to(node.x, node.y + r);
+                    ctx.arc_to(node.x, node.y, node.x + r, node.y, r).ok();
+                    ctx.close_path();
+                } else {
+                    ctx.rect(node.x, node.y, node.width, node.height);
+                }
+            }
+            NodeKind::Ellipse => {
+                ctx.ellipse(
+                    node.x + node.width / 2.0,
+                    node.y + node.height / 2.0,
+                    node.width / 2.0,
+                    node.height / 2.0,
+                    node.rotation,
+                    0.0,
+                    std::f64::consts::TAU,
+                ).ok();
+            }
+            NodeKind::Path { ref points, closed } => {
+                if !points.is_empty() {
+                    ctx.move_to(points[0].x, points[0].y);
+                    for i in 1..points.len() {
+                        let prev = &points[i - 1];
+                        let curr = &points[i];
+                        if prev.has_handle_out() || curr.has_handle_in() {
+                            ctx.bezier_curve_to(prev.handle_out_x, prev.handle_out_y, curr.handle_in_x, curr.handle_in_y, curr.x, curr.y);
+                        } else {
+                            ctx.line_to(curr.x, curr.y);
+                        }
+                    }
+                    if *closed { ctx.close_path(); }
+                }
+            }
+            _ => {
+                ctx.rect(node.x, node.y, node.width, node.height);
+            }
+        }
     }
 
     fn render_node(&self, ctx: &CanvasRenderingContext2d, node: &Node, scene: &Scene) {
@@ -254,7 +327,7 @@ impl Renderer {
             NodeKind::Ellipse => self.render_ellipse(ctx, node),
             NodeKind::Text { content, font_size, font_family, line_height, text_align, font_weight, font_style } => self.render_text(ctx, node, content, *font_size, font_family, *line_height, text_align, *font_weight, font_style),
             NodeKind::Frame => self.render_frame(ctx, node, scene),
-            NodeKind::Group => {}
+            NodeKind::Group => { self.render_children(ctx, &node.children, scene); }
             NodeKind::Slot { .. } => self.render_slot(ctx, node),
             NodeKind::Instance(_) => self.render_instance(ctx, node, scene),
             NodeKind::Path { ref points, closed } => self.render_path(ctx, node, points, *closed),
@@ -399,6 +472,8 @@ impl Renderer {
                 ctx.fill_text(&node.notes.len().to_string(), cx - fs * 0.25, cy).ok();
             }
         }
+        // Render children hierarchically (for mask support)
+        self.render_children(ctx, &node.children, scene);
     }
 
     fn render_slot(&self, ctx: &CanvasRenderingContext2d, node: &Node) {
@@ -470,6 +545,8 @@ impl Renderer {
                 ctx.fill_text(&node.notes.len().to_string(), cx - fs * 0.25, cy).ok();
             }
         }
+        // Render children hierarchically (for mask support)
+        self.render_children(ctx, &node.children, scene);
     }
 
     fn render_image_placeholder(&self, ctx: &CanvasRenderingContext2d, node: &Node) {

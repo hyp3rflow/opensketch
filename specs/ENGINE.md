@@ -113,3 +113,13 @@ Output: `packages/app/src/wasm/` (opensketch_engine.js + .wasm + .d.ts)
 - `ConstraintV`: Top | Bottom | TopAndBottom | Center | Scale
 - `Scene::resize_node_with_constraints()`: only applies to Frame/Group; falls back to simple resize for others
 - Math uses local coordinates (child.x - parent.x) for correct constraint calculation
+
+
+## Mask / Clip System
+- `Node.is_mask: bool` — when true, this node acts as a mask (Figma-style)
+- Mask clips all subsequent siblings within the same parent container
+- Rendering uses hierarchical `render_children()` instead of flat `render_order()` iteration
+- Canvas2D: `ctx.save()` → `build_clip_path()` → `ctx.clip()` → render siblings → `ctx.restore()`
+- SVG export: emits `<clipPath>` defs and wraps clipped siblings in `<g clip-path="url(#...)">`
+- Supports Rect, Ellipse, Path, and rounded-rect shapes as masks
+- WASM API: `set_mask(id, bool)`, `get_mask(id) -> bool`

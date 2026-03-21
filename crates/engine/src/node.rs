@@ -383,6 +383,9 @@ pub struct Node {
     /// Constraints (responsive resize behavior relative to parent)
     #[serde(default)]
     pub constraints: Constraints,
+    /// When true, this node acts as a mask — clipping all subsequent siblings
+    #[serde(default)]
+    pub is_mask: bool,
 }
 
 impl Node {
@@ -408,6 +411,7 @@ impl Node {
             shadows: vec![],
             blur: 0.0,
             constraints: Constraints::default(),
+            is_mask: false,
         }
     }
 

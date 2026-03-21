@@ -198,3 +198,13 @@
 - WASM: `set_constraints(id, horizontal, vertical)`, `get_constraints(id)`, `resize_node_with_constraints(id, w, h)`
 - Properties panel: Constraints section with H/V dropdowns (shown for nodes with Frame/Group parent)
 - Backward compatible via `#[serde(default)]`
+
+### Mask / Clip (Figma-style)
+- Any shape node can be marked as a mask via `is_mask` toggle
+- Mask clips all subsequent siblings within the same parent
+- Mask node itself is rendered normally (visible/hidden independent of mask role)
+- Works with Rect, Ellipse, Path shapes (including rounded corners)
+- Properties panel: "Use as mask" checkbox in Appearance section
+- Layers panel: "M" badge shown on mask nodes
+- SVG export: uses `<clipPath>` elements
+- WASM: `set_mask(id, bool)`, `get_mask(id) -> bool`

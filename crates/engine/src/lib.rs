@@ -580,6 +580,16 @@ impl Engine {
         }
     }
 
+    pub fn set_mask(&mut self, id: u64, is_mask: bool) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            node.is_mask = is_mask;
+        }
+    }
+
+    pub fn get_mask(&self, id: u64) -> bool {
+        self.scene.get_node(id).map(|n| n.is_mask).unwrap_or(false)
+    }
+
     pub fn select(&mut self, id: u64) {
         self.scene.selection = vec![id];
     }
@@ -712,6 +722,7 @@ impl Engine {
                         "locked": n.locked,
                         "parent": n.parent,
                         "children": n.children,
+                        "is_mask": n.is_mask,
                     })
                 })
             })

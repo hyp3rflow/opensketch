@@ -381,6 +381,30 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
     opacitySlider.addEventListener("input", () => setOpacity(parseInt(opacitySlider.value)));
     opacityVal.addEventListener("change", () => setOpacity(parseInt(opacityVal.value)));
     appSection.appendChild(opacityRow);
+
+    // Mask toggle
+    {
+      const maskRow = document.createElement("div");
+      maskRow.className = "prop-row";
+      maskRow.style.alignItems = "center";
+      const maskLabel = document.createElement("label");
+      maskLabel.style.cssText = "display:flex;align-items:center;gap:6px;cursor:pointer;color:#aaa;font-size:12px;";
+      const maskCheck = document.createElement("input");
+      maskCheck.type = "checkbox";
+      maskCheck.checked = editor.engine.get_mask(BigInt(id));
+      maskCheck.style.cssText = "accent-color:#818cf8;";
+      maskCheck.addEventListener("change", () => {
+        ensureUndo();
+        editor.engine.set_mask(BigInt(id), maskCheck.checked);
+        editor.requestRender();
+        editor.notifyLayers();
+      });
+      maskLabel.appendChild(maskCheck);
+      maskLabel.appendChild(document.createTextNode("Use as mask"));
+      maskRow.appendChild(maskLabel);
+      appSection.appendChild(maskRow);
+    }
+
     container.appendChild(appSection);
 
     // --- Fill ---

@@ -25,6 +25,7 @@ interface LayerNode {
   locked: boolean;
   parent: number | null;
   children: number[];
+  is_mask: boolean;
 }
 
 export function setupLayersPanel(container: HTMLElement, editor: Editor) {
@@ -110,6 +111,14 @@ export function setupLayersPanel(container: HTMLElement, editor: Editor) {
       item.appendChild(arrow);
       item.appendChild(icon);
       item.appendChild(name);
+      if (node.is_mask) {
+        const maskBadge = document.createElement("span");
+        maskBadge.className = "layer-mask-badge";
+        maskBadge.title = "Mask";
+        maskBadge.style.cssText = "font-size:9px;color:#818cf8;background:#818cf820;padding:1px 4px;border-radius:3px;margin-left:auto;margin-right:4px;flex-shrink:0;";
+        maskBadge.textContent = "M";
+        item.appendChild(maskBadge);
+      }
       item.appendChild(vis);
 
       item.addEventListener("click", () => {

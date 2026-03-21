@@ -230,15 +230,8 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
                 g.push_str(&rect_attrs);
             }
 
-            // Render children — children coords are absolute, so translate them relative to group
-            for &child_id in &node.children {
-                if let Some(child) = scene.get_node(child_id) {
-                    let mut adjusted = child.clone();
-                    adjusted.x -= node.x;
-                    adjusted.y -= node.y;
-                    render_node_svg_adjusted(scene, &adjusted, buf, node.x, node.y);
-                }
-            }
+            // Render children with mask/clip support
+            render_children_svg(scene, &node.children, &mut g, node.x, node.y, true);
 
             g.push_str("</g>\n");
             buf.push_str(&g);
@@ -308,17 +301,91 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
             g.push_str(">\n");
             buf.push_str(&g);
 
-            for &child_id in &node.children {
-                if let Some(child) = scene.get_node(child_id) {
-                    let mut adjusted = child.clone();
-                    adjusted.x -= node.x;
-                    adjusted.y -= node.y;
-                    render_node_svg_adjusted(scene, &adjusted, buf, node.x, node.y);
-                }
-            }
+            render_children_svg(scene, &node.children, buf, node.x, node.y, true);
 
             buf.push_str("</g>\n");
             return;
+        }
+    }
+}
+
+/// Render children with mask/clip support for SVG export.
+/// When a child has is_mask=true, a <clipPath> is created from its shape,
+/// and subsequent siblings are wrapped in a <g clip-path="url(#...)"> until end or next mask.
+fn render_children_svg(scene: &Scene, children: &[NodeId], buf: &mut String, parent_x: f64, parent_y: f64, adjusted: bool) {
+    static CLIP_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let mut mask_active = false;
+
+    for &child_id in children {
+        if let Some(child) = scene.get_node(child_id) {
+            if !child.visible { continue; }
+
+            let mut node = child.clone();
+            if adjusted {
+                node.x -= parent_x;
+                node.y -= parent_y;
+            }
+
+            if child.is_mask {
+                if mask_active {
+                    buf.push_str("</g>\n"); // close previous clip group
+                }
+                let clip_id = format!("clip-{}", CLIP_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed));
+                // Emit the mask node itself
+                if adjusted {
+                    render_node_svg_adjusted(scene, &node, buf, parent_x, parent_y);
+                } else {
+                    render_node_svg(scene, &node, buf);
+                }
+                // Create clipPath def and open clipped group
+                buf.push_str(&format!("<clipPath id=\"{}\">\n", clip_id));
+                emit_clip_shape(buf, &node);
+                buf.push_str("</clipPath>\n");
+                buf.push_str(&format!("<g clip-path=\"url(#{})\">\n", clip_id));
+                mask_active = true;
+            } else {
+                if adjusted {
+                    render_node_svg_adjusted(scene, &node, buf, parent_x, parent_y);
+                } else {
+                    render_node_svg(scene, &node, buf);
+                }
+            }
+        }
+    }
+    if mask_active {
+        buf.push_str("</g>\n");
+    }
+}
+
+/// Emit the shape of a node as a clip path element
+fn emit_clip_shape(buf: &mut String, node: &Node) {
+    match &node.kind {
+        NodeKind::Rect | NodeKind::Frame | NodeKind::Instance(_) | NodeKind::Image { .. } => {
+            let mut s = format!(r#"<rect x="{}" y="{}" width="{}" height="{}""#, node.x, node.y, node.width, node.height);
+            if node.corner_radius > 0.0 {
+                s.push_str(&format!(r#" rx="{}" ry="{}""#, node.corner_radius, node.corner_radius));
+            }
+            s.push_str("/>\n");
+            buf.push_str(&s);
+        }
+        NodeKind::Ellipse => {
+            buf.push_str(&format!(
+                r#"<ellipse cx="{}" cy="{}" rx="{}" ry="{}"/>"#,
+                node.x + node.width / 2.0, node.y + node.height / 2.0,
+                node.width / 2.0, node.height / 2.0
+            ));
+            buf.push('\n');
+        }
+        NodeKind::Path { ref points, closed } => {
+            if !points.is_empty() {
+                let d = build_svg_path_d(points, *closed);
+                buf.push_str(&format!(r#"<path d="{}"/>"#, d));
+                buf.push('\n');
+            }
+        }
+        _ => {
+            buf.push_str(&format!(r#"<rect x="{}" y="{}" width="{}" height="{}"/>"#, node.x, node.y, node.width, node.height));
+            buf.push('\n');
         }
     }
 }
@@ -385,18 +452,10 @@ fn render_node_svg_adjusted(scene: &Scene, node: &Node, buf: &mut String, parent
 
             buf.push_str(&g);
 
-            // Children: get original children from scene and adjust coords
+            // Children with mask/clip support
             let original_node_x = node.x + parent_x;
             let original_node_y = node.y + parent_y;
-            for &child_id in &node.children {
-                // Get from scene since adjusted node's children IDs are still valid
-                if let Some(child) = scene.get_node(child_id) {
-                    let mut adjusted = child.clone();
-                    adjusted.x -= original_node_x;
-                    adjusted.y -= original_node_y;
-                    render_node_svg_adjusted(scene, &adjusted, buf, original_node_x, original_node_y);
-                }
-            }
+            render_children_svg(scene, &node.children, buf, original_node_x, original_node_y, true);
 
             buf.push_str("</g>\n");
         }

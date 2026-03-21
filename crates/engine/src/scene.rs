@@ -253,6 +253,10 @@ impl Scene {
         }
     }
 
+    pub fn get_root_children(&self) -> Vec<NodeId> {
+        self.root_children.clone()
+    }
+
     pub fn get_children_of(&self, parent_id: NodeId) -> Vec<NodeId> {
         if let Some(node) = self.nodes.get(&parent_id) {
             node.children.clone()
