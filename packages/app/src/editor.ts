@@ -925,6 +925,46 @@ export class Editor {
   }
 
   /**
+   * Export entire scene as SVG string
+   */
+  exportSVG(): string {
+    return this.engine.export_svg();
+  }
+
+  /**
+   * Export selected nodes as SVG string
+   */
+  exportSelectionSVG(): string {
+    return this.engine.export_selection_svg();
+  }
+
+  /**
+   * Export SVG and trigger download
+   */
+  downloadSVG(nodeId?: number | bigint, filename?: string) {
+    let svg: string;
+    if (nodeId != null) {
+      svg = this.engine.export_node_svg(BigInt(nodeId));
+    } else {
+      const sel = Array.from(this.engine.get_selection()).map(Number);
+      if (sel.length > 0) {
+        svg = this.engine.export_selection_svg();
+      } else {
+        svg = this.engine.export_svg();
+      }
+    }
+    if (!svg) return false;
+    const blob = new Blob([svg], { type: "image/svg+xml" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename || "opensketch-export.svg";
+    a.click();
+    URL.revokeObjectURL(url);
+    return true;
+  }
+
+  /**
    * Export frame as PNG and trigger download
    */
   downloadPng(nodeId?: number | bigint, scale: number = 2, filename?: string) {

@@ -6,6 +6,7 @@ mod render;
 mod hit_test;
 pub mod component;
 mod layout;
+mod svg_export;
 
 use wasm_bindgen::prelude::*;
 use web_sys::CanvasRenderingContext2d;
@@ -1206,6 +1207,28 @@ impl Engine {
             "vertical" => self.scene.distribute_vertical(&ids),
             _ => {}
         }
+    }
+
+    // =============================================
+    // SVG Export
+    // =============================================
+
+    /// Export entire scene as SVG
+    pub fn export_svg(&self) -> String {
+        svg_export::export_scene_svg(&self.scene)
+    }
+
+    /// Export selected nodes as SVG
+    pub fn export_selection_svg(&self) -> String {
+        if self.scene.selection.is_empty() {
+            return String::new();
+        }
+        svg_export::export_nodes_svg(&self.scene, &self.scene.selection)
+    }
+
+    /// Export a single node as SVG
+    pub fn export_node_svg(&self, node_id: u64) -> String {
+        svg_export::export_node_svg(&self.scene, node_id)
     }
 
     /// Get all notes for a node as JSON

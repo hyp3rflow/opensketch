@@ -107,6 +107,15 @@
 - [x] Hierarchy preservation: children/parent relationships remapped
 - [x] Undo integration: all paste/cut operations push undo
 
+### SVG Export
+- [x] Rust engine: `svg_export.rs` module (pure string SVG generation, no external deps)
+- [x] Node types: Rect, Ellipse, Text (multiline, font properties, alignment), Frame, Group, Instance, Slot
+- [x] Style support: fill (hex + opacity), stroke (color + width), corner radius, opacity, rotation
+- [x] Nested children: Frame/Group → `<g>` with coordinate adjustment
+- [x] WASM bindings: `export_svg()`, `export_selection_svg()`, `export_node_svg(id)`
+- [x] TypeScript: `Editor.exportSVG()`, `exportSelectionSVG()`, `downloadSVG()` (Blob + download link)
+- [x] Toolbar: download button (exports selection if any, otherwise full canvas)
+
 ### Performance
 - [x] Wheel event batching (accumulate dx/dy per rAF)
 - [x] PointerEvent + setPointerCapture
@@ -125,7 +134,7 @@
 - [x] Alignment tools (align left/center/right/top/center-v/bottom, distribute H/V)
 - [ ] Auto-layout (Figma-like)
 - [ ] Components/instances
-- [ ] SVG export
+- [x] SVG export (per-node, selection, full canvas; Rust engine + WASM + toolbar button)
 - [ ] Collaborative editing (CRDT)
 - [ ] Plugin system
 - [ ] Canvas text cursor + multi-line text

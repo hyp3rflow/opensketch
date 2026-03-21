@@ -67,4 +67,5 @@ export const icons = {
   alignBottom: s('<line x1="3" y1="21" x2="21" y2="21"/><rect x="5" y="3" width="4" height="14" rx="1"/><rect x="13" y="9" width="4" height="8" rx="1"/>'),
   distributeH: s('<line x1="3" y1="3" x2="3" y2="21"/><line x1="21" y1="3" x2="21" y2="21"/><rect x="8" y="6" width="3" height="12" rx="1"/><rect x="13" y="6" width="3" height="12" rx="1"/>'),
   distributeV: s('<line x1="3" y1="3" x2="21" y2="3"/><line x1="3" y1="21" x2="21" y2="21"/><rect x="6" y="8" width="12" height="3" rx="1"/><rect x="6" y="13" width="12" height="3" rx="1"/>'),
+  download: s('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>'),
 };

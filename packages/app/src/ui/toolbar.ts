@@ -44,6 +44,18 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
     container.appendChild(dsBtn);
   }
 
+  // SVG export button
+  const sepSvg = document.createElement("div");
+  sepSvg.className = "tool-btn-separator";
+  container.appendChild(sepSvg);
+
+  const svgBtn = document.createElement("button");
+  svgBtn.className = "tool-btn";
+  svgBtn.title = "Export SVG";
+  svgBtn.innerHTML = icons.download;
+  svgBtn.addEventListener("click", () => editor.downloadSVG());
+  container.appendChild(svgBtn);
+
   // Mode toggle (rightmost)
   const sep2 = document.createElement("div");
   sep2.className = "tool-btn-separator";
