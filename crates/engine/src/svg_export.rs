@@ -226,26 +226,6 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
             }
             buf.push_str(&attrs);
         }
-        NodeKind::Image { ref src, ref fit } => {
-            let mut attrs = String::new();
-            attrs.push_str(&format!(
-                r#"<image href="{}" width="{}" height="{}""#,
-                escape_xml(src), node.width, node.height
-            ));
-            // Map fit to preserveAspectRatio
-            let par = match fit.as_str() {
-                "contain" => "xMidYMid meet",
-                "fill" => "none",
-                _ => "xMidYMid slice", // cover
-            };
-            attrs.push_str(&format!(r#" preserveAspectRatio="{}""#, par));
-            append_transform(&mut attrs, node);
-            if has_opacity {
-                attrs.push_str(&format!(r#" opacity="{}""#, node.opacity));
-            }
-            attrs.push_str("/>\n");
-            buf.push_str(&attrs);
-        }
         NodeKind::Slot { .. } | NodeKind::Instance(_) => {
             // Render as group with children
             let mut g = String::from("<g");
