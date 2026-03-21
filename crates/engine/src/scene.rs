@@ -168,6 +168,90 @@ impl Scene {
         self.render_order()
     }
 
+    // =============================================
+    // Alignment & Distribution
+    // =============================================
+
+    pub fn align_left(&mut self, ids: &[NodeId]) {
+        if ids.len() < 2 { return; }
+        let min_x = ids.iter().filter_map(|&id| self.nodes.get(&id)).map(|n| n.x).fold(f64::INFINITY, f64::min);
+        for &id in ids {
+            if let Some(node) = self.nodes.get_mut(&id) { node.x = min_x; }
+        }
+    }
+
+    pub fn align_center_h(&mut self, ids: &[NodeId]) {
+        if ids.len() < 2 { return; }
+        let (min_x, max_x2) = ids.iter().filter_map(|&id| self.nodes.get(&id)).fold((f64::INFINITY, f64::NEG_INFINITY), |(mn, mx), n| (mn.min(n.x), mx.max(n.x + n.width)));
+        let center = (min_x + max_x2) / 2.0;
+        for &id in ids {
+            if let Some(node) = self.nodes.get_mut(&id) { node.x = center - node.width / 2.0; }
+        }
+    }
+
+    pub fn align_right(&mut self, ids: &[NodeId]) {
+        if ids.len() < 2 { return; }
+        let max_x2 = ids.iter().filter_map(|&id| self.nodes.get(&id)).map(|n| n.x + n.width).fold(f64::NEG_INFINITY, f64::max);
+        for &id in ids {
+            if let Some(node) = self.nodes.get_mut(&id) { node.x = max_x2 - node.width; }
+        }
+    }
+
+    pub fn align_top(&mut self, ids: &[NodeId]) {
+        if ids.len() < 2 { return; }
+        let min_y = ids.iter().filter_map(|&id| self.nodes.get(&id)).map(|n| n.y).fold(f64::INFINITY, f64::min);
+        for &id in ids {
+            if let Some(node) = self.nodes.get_mut(&id) { node.y = min_y; }
+        }
+    }
+
+    pub fn align_center_v(&mut self, ids: &[NodeId]) {
+        if ids.len() < 2 { return; }
+        let (min_y, max_y2) = ids.iter().filter_map(|&id| self.nodes.get(&id)).fold((f64::INFINITY, f64::NEG_INFINITY), |(mn, mx), n| (mn.min(n.y), mx.max(n.y + n.height)));
+        let center = (min_y + max_y2) / 2.0;
+        for &id in ids {
+            if let Some(node) = self.nodes.get_mut(&id) { node.y = center - node.height / 2.0; }
+        }
+    }
+
+    pub fn align_bottom(&mut self, ids: &[NodeId]) {
+        if ids.len() < 2 { return; }
+        let max_y2 = ids.iter().filter_map(|&id| self.nodes.get(&id)).map(|n| n.y + n.height).fold(f64::NEG_INFINITY, f64::max);
+        for &id in ids {
+            if let Some(node) = self.nodes.get_mut(&id) { node.y = max_y2 - node.height; }
+        }
+    }
+
+    pub fn distribute_horizontal(&mut self, ids: &[NodeId]) {
+        if ids.len() < 3 { return; }
+        let mut items: Vec<(NodeId, f64, f64)> = ids.iter().filter_map(|&id| self.nodes.get(&id).map(|n| (id, n.x, n.width))).collect();
+        items.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+        let total_width: f64 = items.iter().map(|i| i.2).sum();
+        let min_x = items.first().unwrap().1;
+        let max_x2 = items.last().map(|i| i.1 + i.2).unwrap();
+        let gap = (max_x2 - min_x - total_width) / (items.len() - 1) as f64;
+        let mut cursor = min_x;
+        for (id, _, w) in &items {
+            if let Some(node) = self.nodes.get_mut(id) { node.x = cursor; }
+            cursor += w + gap;
+        }
+    }
+
+    pub fn distribute_vertical(&mut self, ids: &[NodeId]) {
+        if ids.len() < 3 { return; }
+        let mut items: Vec<(NodeId, f64, f64)> = ids.iter().filter_map(|&id| self.nodes.get(&id).map(|n| (id, n.y, n.height))).collect();
+        items.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+        let total_height: f64 = items.iter().map(|i| i.2).sum();
+        let min_y = items.first().unwrap().1;
+        let max_y2 = items.last().map(|i| i.1 + i.2).unwrap();
+        let gap = (max_y2 - min_y - total_height) / (items.len() - 1) as f64;
+        let mut cursor = min_y;
+        for (id, _, h) in &items {
+            if let Some(node) = self.nodes.get_mut(id) { node.y = cursor; }
+            cursor += h + gap;
+        }
+    }
+
     pub fn reparent(&mut self, node_id: NodeId, new_parent: Option<NodeId>) {
         // Remove from old parent
         if let Some(node) = self.nodes.get(&node_id) {

@@ -1170,6 +1170,44 @@ impl Engine {
         false
     }
 
+    // =============================================
+    // Alignment & Distribution
+    // =============================================
+
+    pub fn align_left(&mut self, ids: Vec<u64>) { self.scene.align_left(&ids); }
+    pub fn align_center_h(&mut self, ids: Vec<u64>) { self.scene.align_center_h(&ids); }
+    pub fn align_right(&mut self, ids: Vec<u64>) { self.scene.align_right(&ids); }
+    pub fn align_top(&mut self, ids: Vec<u64>) { self.scene.align_top(&ids); }
+    pub fn align_center_v(&mut self, ids: Vec<u64>) { self.scene.align_center_v(&ids); }
+    pub fn align_bottom(&mut self, ids: Vec<u64>) { self.scene.align_bottom(&ids); }
+    pub fn distribute_horizontal(&mut self, ids: Vec<u64>) { self.scene.distribute_horizontal(&ids); }
+    pub fn distribute_vertical(&mut self, ids: Vec<u64>) { self.scene.distribute_vertical(&ids); }
+
+    /// Align current selection by direction: "left","center_h","right","top","center_v","bottom"
+    pub fn align_selection(&mut self, direction: &str) {
+        let ids = self.scene.selection.clone();
+        if ids.len() < 2 { return; }
+        match direction {
+            "left" => self.scene.align_left(&ids),
+            "center_h" => self.scene.align_center_h(&ids),
+            "right" => self.scene.align_right(&ids),
+            "top" => self.scene.align_top(&ids),
+            "center_v" => self.scene.align_center_v(&ids),
+            "bottom" => self.scene.align_bottom(&ids),
+            _ => {}
+        }
+    }
+
+    /// Distribute current selection: "horizontal" or "vertical"
+    pub fn distribute_selection(&mut self, axis: &str) {
+        let ids = self.scene.selection.clone();
+        match axis {
+            "horizontal" => self.scene.distribute_horizontal(&ids),
+            "vertical" => self.scene.distribute_vertical(&ids),
+            _ => {}
+        }
+    }
+
     /// Get all notes for a node as JSON
     pub fn get_notes(&self, node_id: u64) -> String {
         if let Some(node) = self.scene.get_node(node_id) {

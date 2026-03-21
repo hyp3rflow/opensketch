@@ -76,10 +76,62 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
     }
 
     if (ids.length > 1) {
-      container.innerHTML = `
-        <div style="padding:12px;">
-          <div class="prop-section-title">${ids.length} elements selected</div>
-        </div>`;
+      const wrap = document.createElement("div");
+      wrap.style.cssText = "padding:12px;";
+      const title = document.createElement("div");
+      title.className = "prop-section-title";
+      title.textContent = `${ids.length} elements selected`;
+      wrap.appendChild(title);
+
+      // Alignment section
+      const alignSection = createSection("Align");
+      const alignRow = document.createElement("div");
+      alignRow.style.cssText = "display:grid;grid-template-columns:repeat(6,1fr);gap:2px;margin-bottom:8px;";
+
+      const bigIds = new BigUint64Array(ids.map((i) => BigInt(i)));
+      const alignActions: { icon: string; label: string; fn: () => void }[] = [
+        { icon: icons.alignLeft, label: "Align left", fn: () => editor.engine.align_left(bigIds) },
+        { icon: icons.alignCenterH, label: "Align center H", fn: () => editor.engine.align_center_h(bigIds) },
+        { icon: icons.alignRight, label: "Align right", fn: () => editor.engine.align_right(bigIds) },
+        { icon: icons.alignTop, label: "Align top", fn: () => editor.engine.align_top(bigIds) },
+        { icon: icons.alignCenterV, label: "Align center V", fn: () => editor.engine.align_center_v(bigIds) },
+        { icon: icons.alignBottom, label: "Align bottom", fn: () => editor.engine.align_bottom(bigIds) },
+      ];
+      for (const a of alignActions) {
+        const btn = document.createElement("button");
+        btn.title = a.label;
+        btn.style.cssText = "padding:6px 0;border:1px solid #3a3a3a;border-radius:6px;background:#2a2a2a;color:#888;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.15s;";
+        btn.innerHTML = a.icon.replace(/width="\d+"/, 'width="16"').replace(/height="\d+"/, 'height="16"');
+        btn.addEventListener("mouseenter", () => { btn.style.borderColor = "#4f46e5"; btn.style.color = "#818cf8"; });
+        btn.addEventListener("mouseleave", () => { btn.style.borderColor = "#3a3a3a"; btn.style.color = "#888"; });
+        btn.addEventListener("click", () => { editor.engine.push_undo(); a.fn(); editor.requestRender(); });
+        alignRow.appendChild(btn);
+      }
+      alignSection.appendChild(alignRow);
+
+      // Distribute row (only if 3+)
+      if (ids.length >= 3) {
+        const distRow = document.createElement("div");
+        distRow.style.cssText = "display:grid;grid-template-columns:1fr 1fr;gap:4px;";
+        const distActions: { icon: string; label: string; fn: () => void }[] = [
+          { icon: icons.distributeH, label: "Distribute horizontally", fn: () => editor.engine.distribute_horizontal(new BigUint64Array(ids.map((i) => BigInt(i)))) },
+          { icon: icons.distributeV, label: "Distribute vertically", fn: () => editor.engine.distribute_vertical(new BigUint64Array(ids.map((i) => BigInt(i)))) },
+        ];
+        for (const d of distActions) {
+          const btn = document.createElement("button");
+          btn.title = d.label;
+          btn.style.cssText = "padding:6px;border:1px solid #3a3a3a;border-radius:6px;background:#2a2a2a;color:#888;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;font-size:10px;transition:all 0.15s;";
+          btn.innerHTML = d.icon.replace(/width="\d+"/, 'width="14"').replace(/height="\d+"/, 'height="14"') + `<span>${d.label.replace("Distribute ", "")}</span>`;
+          btn.addEventListener("mouseenter", () => { btn.style.borderColor = "#4f46e5"; btn.style.color = "#818cf8"; });
+          btn.addEventListener("mouseleave", () => { btn.style.borderColor = "#3a3a3a"; btn.style.color = "#888"; });
+          btn.addEventListener("click", () => { editor.engine.push_undo(); d.fn(); editor.requestRender(); });
+          distRow.appendChild(btn);
+        }
+        alignSection.appendChild(distRow);
+      }
+
+      wrap.appendChild(alignSection);
+      container.appendChild(wrap);
       return;
     }
 

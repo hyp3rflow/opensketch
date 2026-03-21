@@ -71,6 +71,13 @@
 - [x] **Overrides**: per-instance text/visibility overrides on children
 - [x] **9 agent commands**: create, prop, variant, slot, instance, switch, fill, list, override
 
+### Alignment & Distribution
+- [x] **Align**: left, center-H, right, top, center-V, bottom (multi-select, 2+ nodes)
+- [x] **Distribute**: horizontal, vertical (3+ nodes, equal spacing)
+- [x] **Properties panel UI**: 6 align buttons + 2 distribute buttons (shown on multi-select)
+- [x] **Undo integration**: push_undo before every alignment action
+- [x] **Dual API**: explicit IDs (`align_left(ids)`) + selection-based (`align_selection("left")`)
+
 ### Agent Panel
 - [x] Toggle button (🤖, bottom-right)
 - [x] Chat UI (user/agent/system messages)
@@ -115,7 +122,7 @@
 - [x] Multi-select (shift+click, shift+click deselect, drag-select marquee, multi-node move)
 - [x] Undo/redo
 - [x] Copy/paste (Cmd+C/V/X/D with hierarchy, ID remapping, offset)
-- [ ] Alignment tools (align left/center/right, distribute)
+- [x] Alignment tools (align left/center/right/top/center-v/bottom, distribute H/V)
 - [ ] Auto-layout (Figma-like)
 - [ ] Components/instances
 - [ ] SVG export
