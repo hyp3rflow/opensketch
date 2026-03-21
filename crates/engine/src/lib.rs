@@ -383,6 +383,40 @@ impl Engine {
         self.renderer.viewport.ty
     }
 
+    pub fn set_viewport(&mut self, zoom: f64, tx: f64, ty: f64) {
+        let z = zoom.clamp(0.1, 10.0);
+        self.renderer.viewport.a = z;
+        self.renderer.viewport.d = z;
+        self.renderer.viewport.tx = tx;
+        self.renderer.viewport.ty = ty;
+    }
+
+    pub fn get_canvas_width(&self) -> f64 {
+        self.renderer.canvas_width
+    }
+
+    pub fn get_canvas_height(&self) -> f64 {
+        self.renderer.canvas_height
+    }
+
+    /// Returns JSON "[minX, minY, maxX, maxY]" or "" if no nodes.
+    pub fn get_scene_bounds(&self) -> String {
+        match self.scene.get_bounds() {
+            Some((x1, y1, x2, y2)) => format!("[{},{},{},{}]", x1, y1, x2, y2),
+            None => String::new(),
+        }
+    }
+
+    /// Returns JSON "[minX, minY, maxX, maxY]" for current selection, or "".
+    pub fn get_selection_bounds(&self) -> String {
+        let sel = &self.scene.selection;
+        if sel.is_empty() { return String::new(); }
+        match self.scene.get_bounds_of(sel) {
+            Some((x1, y1, x2, y2)) => format!("[{},{},{},{}]", x1, y1, x2, y2),
+            None => String::new(),
+        }
+    }
+
     pub fn screen_to_scene_x(&self, x: f64, y: f64) -> f64 {
         self.renderer.screen_to_scene(x, y).0
     }

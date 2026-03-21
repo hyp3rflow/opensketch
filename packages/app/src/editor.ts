@@ -191,6 +191,36 @@ export class Editor {
         }
         return;
       }
+      // Zoom to 100%: Cmd+0
+      if ((e.metaKey || e.ctrlKey) && e.key === "0") {
+        e.preventDefault();
+        this.zoomTo100();
+        return;
+      }
+      // Zoom to fit: Cmd+1
+      if ((e.metaKey || e.ctrlKey) && e.key === "1") {
+        e.preventDefault();
+        this.zoomToFit();
+        return;
+      }
+      // Zoom to selection: Cmd+2
+      if ((e.metaKey || e.ctrlKey) && e.key === "2") {
+        e.preventDefault();
+        this.zoomToSelection();
+        return;
+      }
+      // Zoom in: = or +
+      if (e.key === "=" || e.key === "+") {
+        e.preventDefault();
+        this.zoomBy(1.25);
+        return;
+      }
+      // Zoom out: -
+      if (e.key === "-" && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        this.zoomBy(0.8);
+        return;
+      }
       if (e.key === "v" || e.key === "V") this.setTool("select");
       if (e.key === "h" || e.key === "H") this.setTool("hand");
       if (e.key === "r" || e.key === "R") this.setTool("rect");
@@ -1171,5 +1201,85 @@ export class Editor {
     a.download = filename || (nodeId ? `frame-${nodeId}.png` : "opensketch-export.png");
     a.click();
     return true;
+  }
+
+  // =============================================
+  // Zoom controls
+  // =============================================
+
+  getZoomLevel(): number {
+    return this.engine.get_zoom();
+  }
+
+  zoomTo100() {
+    const cw = this.engine.get_canvas_width();
+    const ch = this.engine.get_canvas_height();
+    const panX = this.engine.get_pan_x();
+    const panY = this.engine.get_pan_y();
+    const zoom = this.engine.get_zoom();
+    // Keep center point stable
+    const centerSceneX = (cw / 2 - panX) / zoom;
+    const centerSceneY = (ch / 2 - panY) / zoom;
+    const newTx = cw / 2 - centerSceneX;
+    const newTy = ch / 2 - centerSceneY;
+    this.engine.set_viewport(1.0, newTx, newTy);
+    this.needsRender = true;
+    this.onZoomChange();
+  }
+
+  zoomToFit() {
+    const boundsJson = this.engine.get_scene_bounds();
+    if (!boundsJson) return;
+    this.zoomToBounds(JSON.parse(boundsJson));
+  }
+
+  zoomToSelection() {
+    const boundsJson = this.engine.get_selection_bounds();
+    if (!boundsJson) return;
+    this.zoomToBounds(JSON.parse(boundsJson));
+  }
+
+  private zoomToBounds(bounds: [number, number, number, number]) {
+    const [minX, minY, maxX, maxY] = bounds;
+    const w = maxX - minX;
+    const h = maxY - minY;
+    if (w <= 0 || h <= 0) return;
+    const cw = this.engine.get_canvas_width();
+    const ch = this.engine.get_canvas_height();
+    const padding = 40;
+    const zoom = Math.min((cw - padding * 2) / w, (ch - padding * 2) / h, 10);
+    const clampedZoom = Math.max(0.1, Math.min(zoom, 10));
+    const cx = (minX + maxX) / 2;
+    const cy = (minY + maxY) / 2;
+    const tx = cw / 2 - cx * clampedZoom;
+    const ty = ch / 2 - cy * clampedZoom;
+    this.engine.set_viewport(clampedZoom, tx, ty);
+    this.needsRender = true;
+    this.onZoomChange();
+  }
+
+  zoomBy(factor: number) {
+    const cw = this.engine.get_canvas_width();
+    const ch = this.engine.get_canvas_height();
+    const zoom = this.engine.get_zoom();
+    const panX = this.engine.get_pan_x();
+    const panY = this.engine.get_pan_y();
+    const newZoom = Math.max(0.1, Math.min(zoom * factor, 10));
+    const scale = newZoom / zoom;
+    const tx = cw / 2 - (cw / 2 - panX) * scale;
+    const ty = ch / 2 - (ch / 2 - panY) * scale;
+    this.engine.set_viewport(newZoom, tx, ty);
+    this.needsRender = true;
+    this.onZoomChange();
+  }
+
+  private _onZoomChanges: (() => void)[] = [];
+
+  onZoomChanged(fn: () => void) {
+    this._onZoomChanges.push(fn);
+  }
+
+  private onZoomChange() {
+    this._onZoomChanges.forEach(fn => fn());
   }
 }

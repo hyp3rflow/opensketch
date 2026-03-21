@@ -129,3 +129,10 @@ select.prop-input { appearance: none; background: #333 url("data:image/svg+xml,%
 .agent-input:focus { border-color: #4a4af5; }
 .agent-send { width: 32px; flex-shrink: 0; background: #4a4af5; border: none; border-radius: 8px; color: #fff; font-size: 14px; cursor: pointer; transition: background 0.15s; }
 .agent-send:hover { background: #5b5bf5; }
+
+/* Zoom controls */
+.zoom-controls { position: absolute; bottom: 16px; left: 284px; z-index: 20; background: #2a2a2a; border-radius: 8px; display: flex; align-items: center; gap: 0; box-shadow: 0 2px 8px rgba(0,0,0,0.2), 0 0 0 1px rgba(255,255,255,0.06); height: 32px; overflow: hidden; }
+.zoom-controls .zoom-btn { width: 30px; height: 32px; display: flex; align-items: center; justify-content: center; border: none; background: transparent; color: #aaa; cursor: pointer; transition: all 0.15s; }
+.zoom-controls .zoom-btn:hover { background: #3a3a3a; color: #fff; }
+.zoom-controls .zoom-level { border: none; background: transparent; color: #ccc; font-size: 11px; font-weight: 600; padding: 0 6px; height: 32px; cursor: pointer; min-width: 48px; text-align: center; transition: all 0.15s; }
+.zoom-controls .zoom-level:hover { background: #3a3a3a; color: #fff; }

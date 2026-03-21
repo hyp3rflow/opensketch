@@ -252,6 +252,38 @@ impl Scene {
         }
     }
 
+    /// Returns (min_x, min_y, max_x, max_y) bounding box of all nodes, or None if empty.
+    pub fn get_bounds(&self) -> Option<(f64, f64, f64, f64)> {
+        let mut min_x = f64::INFINITY;
+        let mut min_y = f64::INFINITY;
+        let mut max_x = f64::NEG_INFINITY;
+        let mut max_y = f64::NEG_INFINITY;
+        for node in self.nodes.values() {
+            min_x = min_x.min(node.x);
+            min_y = min_y.min(node.y);
+            max_x = max_x.max(node.x + node.width);
+            max_y = max_y.max(node.y + node.height);
+        }
+        if min_x.is_finite() { Some((min_x, min_y, max_x, max_y)) } else { None }
+    }
+
+    /// Returns bounding box of given node ids, or None if empty.
+    pub fn get_bounds_of(&self, ids: &[NodeId]) -> Option<(f64, f64, f64, f64)> {
+        let mut min_x = f64::INFINITY;
+        let mut min_y = f64::INFINITY;
+        let mut max_x = f64::NEG_INFINITY;
+        let mut max_y = f64::NEG_INFINITY;
+        for &id in ids {
+            if let Some(node) = self.nodes.get(&id) {
+                min_x = min_x.min(node.x);
+                min_y = min_y.min(node.y);
+                max_x = max_x.max(node.x + node.width);
+                max_y = max_y.max(node.y + node.height);
+            }
+        }
+        if min_x.is_finite() { Some((min_x, min_y, max_x, max_y)) } else { None }
+    }
+
     pub fn reparent(&mut self, node_id: NodeId, new_parent: Option<NodeId>) {
         // Remove from old parent
         if let Some(node) = self.nodes.get(&node_id) {

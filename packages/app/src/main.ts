@@ -6,6 +6,7 @@ import { setupPropertiesPanel } from "./ui/properties-panel";
 import { setupDesignSystemPanel } from "./ui/design-system";
 import { setupAgentPanel } from "./ui/agent-panel";
 import { setupNoteOverlay } from "./ui/note-overlay";
+import { setupZoomControls } from "./ui/zoom-controls";
 
 async function main() {
   const wasm = await loadEngine();
@@ -53,6 +54,9 @@ async function main() {
 
   // Right panel = properties
   setupPropertiesPanel(document.getElementById("properties-panel")!, editor);
+
+  // Zoom controls (bottom-left, next to layers panel)
+  setupZoomControls(document.getElementById("workspace")!, editor);
 
   // Note overlay (positioned over canvas)
   const noteOverlay = setupNoteOverlay(document.getElementById("workspace")!, editor);

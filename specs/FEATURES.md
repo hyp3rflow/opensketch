@@ -130,6 +130,15 @@
 - [x] **Placeholder rendering**: mountain/sun icon when image not loaded
 - [x] **Image cache**: loaded images cached for reuse
 
+### Zoom Controls
+- [x] **Zoom to fit** (Cmd+1): fit all nodes in viewport with padding
+- [x] **Zoom to 100%** (Cmd+0): reset zoom to 1x, keeping center stable
+- [x] **Zoom to selection** (Cmd+2): fit selected nodes in viewport
+- [x] **Zoom in/out**: +/- keys (1.25x/0.8x factor), center-stable
+- [x] **Zoom controls UI**: bottom-left floating bar (−, percentage, +, fit button)
+- [x] **Real-time zoom display**: rAF polling for wheel zoom updates
+- [x] **Engine API**: `set_viewport()`, `get_scene_bounds()`, `get_selection_bounds()`
+
 ### Performance
 - [x] Wheel event batching (accumulate dx/dy per rAF)
 - [x] PointerEvent + setPointerCapture
