@@ -1,6 +1,6 @@
 use wasm_bindgen::JsValue;
 use web_sys::CanvasRenderingContext2d;
-use crate::node::{Node, NodeKind, TextSizing, TextAlign, FontStyle};
+use crate::node::{Node, NodeKind, TextSizing, TextAlign, FontStyle, PathPoint};
 use crate::scene::Scene;
 use crate::transform::Transform;
 use crate::types::Color;
@@ -221,6 +221,25 @@ impl Renderer {
                     ).ok();
                     ctx.fill();
                 }
+                NodeKind::Path { ref points, closed } => {
+                    if !points.is_empty() {
+                        ctx.set_stroke_style_str("rgba(0,0,0,1)");
+                        ctx.set_line_width(node.stroke.as_ref().map(|s| s.width).unwrap_or(2.0));
+                        ctx.begin_path();
+                        ctx.move_to(points[0].x + far, points[0].y);
+                        for i in 1..points.len() {
+                            let prev = &points[i - 1];
+                            let curr = &points[i];
+                            if prev.has_handle_out() || curr.has_handle_in() {
+                                ctx.bezier_curve_to(prev.handle_out_x + far, prev.handle_out_y, curr.handle_in_x + far, curr.handle_in_y, curr.x + far, curr.y);
+                            } else {
+                                ctx.line_to(curr.x + far, curr.y);
+                            }
+                        }
+                        if *closed { ctx.close_path(); }
+                        ctx.stroke();
+                    }
+                }
                 _ => {
                     ctx.set_fill_style_str("rgba(0,0,0,1)");
                     ctx.fill_rect(node.x + far, node.y, node.width, node.height);
@@ -238,6 +257,7 @@ impl Renderer {
             NodeKind::Group => {}
             NodeKind::Slot { .. } => self.render_slot(ctx, node),
             NodeKind::Instance(_) => self.render_instance(ctx, node, scene),
+            NodeKind::Path { ref points, closed } => self.render_path(ctx, node, points, *closed),
             NodeKind::Image { .. } => self.render_image_placeholder(ctx, node),
         }
 
@@ -487,6 +507,39 @@ impl Renderer {
         ctx.set_font(&format!("{}px Inter, system-ui, sans-serif", font_size));
         ctx.set_text_baseline("bottom");
         ctx.fill_text(&node.name, node.x, node.y - gap).ok();
+    }
+
+    fn render_path(&self, ctx: &CanvasRenderingContext2d, node: &Node, points: &[PathPoint], closed: bool) {
+        if points.is_empty() { return; }
+        ctx.begin_path();
+        ctx.move_to(points[0].x, points[0].y);
+        for i in 1..points.len() {
+            let prev = &points[i - 1];
+            let curr = &points[i];
+            if prev.has_handle_out() || curr.has_handle_in() {
+                ctx.bezier_curve_to(
+                    prev.handle_out_x, prev.handle_out_y,
+                    curr.handle_in_x, curr.handle_in_y,
+                    curr.x, curr.y,
+                );
+            } else {
+                ctx.line_to(curr.x, curr.y);
+            }
+        }
+        if closed && points.len() > 1 {
+            let last = &points[points.len() - 1];
+            let first = &points[0];
+            if last.has_handle_out() || first.has_handle_in() {
+                ctx.bezier_curve_to(
+                    last.handle_out_x, last.handle_out_y,
+                    first.handle_in_x, first.handle_in_y,
+                    first.x, first.y,
+                );
+            } else {
+                ctx.close_path();
+            }
+        }
+        self.apply_fill_stroke(ctx, node);
     }
 
     fn render_selection(&self, ctx: &CanvasRenderingContext2d, node: &Node) {

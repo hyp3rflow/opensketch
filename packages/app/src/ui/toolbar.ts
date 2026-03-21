@@ -9,6 +9,7 @@ const tools: { id: ToolType; icon: string; label: string }[] = [
   { id: "text", icon: icons.text, label: "Text (T)" },
   { id: "frame", icon: icons.frame, label: "Frame (F)" },
   { id: "image", icon: icons.image, label: "Image (I)" },
+  { id: "pen", icon: icons.penTool, label: "Pen (P)" },
 ];
 
 export type AppMode = "edit" | "dev";

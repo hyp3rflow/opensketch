@@ -27,6 +27,35 @@ impl Default for FontStyle {
     fn default() -> Self { FontStyle::Normal }
 }
 
+/// A point on a vector path with optional bezier control handles.
+/// Handle coordinates are absolute (not relative to the anchor point).
+/// If handle == anchor, the segment is a straight line on that side.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct PathPoint {
+    pub x: f64,
+    pub y: f64,
+    /// Incoming control handle (absolute coords)
+    pub handle_in_x: f64,
+    pub handle_in_y: f64,
+    /// Outgoing control handle (absolute coords)
+    pub handle_out_x: f64,
+    pub handle_out_y: f64,
+}
+
+impl PathPoint {
+    pub fn corner(x: f64, y: f64) -> Self {
+        Self { x, y, handle_in_x: x, handle_in_y: y, handle_out_x: x, handle_out_y: y }
+    }
+
+    pub fn has_handle_in(&self) -> bool {
+        (self.handle_in_x - self.x).abs() > 0.001 || (self.handle_in_y - self.y).abs() > 0.001
+    }
+
+    pub fn has_handle_out(&self) -> bool {
+        (self.handle_out_x - self.x).abs() > 0.001 || (self.handle_out_y - self.y).abs() > 0.001
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum NodeKind {
     Rect,
@@ -50,6 +79,13 @@ pub enum NodeKind {
     Slot { slot_name: String },
     /// An instance of a component
     Instance(Box<InstanceData>),
+    /// A vector path (bezier curves)
+    Path {
+        /// Path points with bezier handles
+        points: Vec<PathPoint>,
+        /// Whether the path is closed
+        closed: bool,
+    },
     /// An image node (rendered via TS-side drawImage)
     Image {
         /// URL or data URI of the image

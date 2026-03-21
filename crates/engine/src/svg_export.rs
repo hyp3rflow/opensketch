@@ -1,4 +1,4 @@
-use crate::node::{Node, NodeKind, NodeId, TextAlign, FontStyle, FillType};
+use crate::node::{Node, NodeKind, NodeId, TextAlign, FontStyle, FillType, PathPoint};
 use crate::scene::Scene;
 
 fn color_to_hex(r: u8, g: u8, b: u8) -> String {
@@ -242,6 +242,18 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
             g.push_str("</g>\n");
             buf.push_str(&g);
             return; // already handled children
+        }
+        NodeKind::Path { ref points, closed } => {
+            if points.is_empty() { return; }
+            let d = build_svg_path_d(points, *closed);
+            let mut attrs = format!(r#"<path d="{}""#, d);
+            append_fill_stroke(&mut attrs, node);
+            if has_opacity {
+                attrs.push_str(&format!(r#" opacity="{}""#, node.opacity));
+            }
+            attrs.push_str(&filter_attr);
+            attrs.push_str("/>\n");
+            buf.push_str(&attrs);
         }
         NodeKind::Image { ref src, ref fit } => {
             let mut attrs = String::new();
@@ -526,6 +538,35 @@ pub fn export_nodes_svg(scene: &Scene, node_ids: &[NodeId]) -> String {
 {}</svg>"#,
         min_x, min_y, w, h, w, h, body
     )
+}
+
+fn build_svg_path_d(points: &[PathPoint], closed: bool) -> String {
+    if points.is_empty() { return String::new(); }
+    let mut d = format!("M{},{}", points[0].x, points[0].y);
+    for i in 1..points.len() {
+        let prev = &points[i - 1];
+        let curr = &points[i];
+        if prev.has_handle_out() || curr.has_handle_in() {
+            d.push_str(&format!(" C{},{} {},{} {},{}",
+                prev.handle_out_x, prev.handle_out_y,
+                curr.handle_in_x, curr.handle_in_y,
+                curr.x, curr.y));
+        } else {
+            d.push_str(&format!(" L{},{}", curr.x, curr.y));
+        }
+    }
+    if closed && points.len() > 1 {
+        let last = &points[points.len() - 1];
+        let first = &points[0];
+        if last.has_handle_out() || first.has_handle_in() {
+            d.push_str(&format!(" C{},{} {},{} {},{}",
+                last.handle_out_x, last.handle_out_y,
+                first.handle_in_x, first.handle_in_y,
+                first.x, first.y));
+        }
+        d.push_str(" Z");
+    }
+    d
 }
 
 /// Export entire scene as SVG

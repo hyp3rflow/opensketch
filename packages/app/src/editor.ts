@@ -1,6 +1,6 @@
 import type { Engine } from "./wasm/opensketch_engine";
 
-export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "image";
+export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "image" | "pen";
 
 interface DragState {
   startX: number;
@@ -35,6 +35,12 @@ export class Editor {
 
   private _imageCache: Map<string, HTMLImageElement> = new Map();
   private _imageLoading: Set<string> = new Set();
+
+  // Pen tool state
+  private _penPathId: number | null = null;
+  private _penDragging = false;
+  private _penDragStartX = 0;
+  private _penDragStartY = 0;
 
   // Throttle selection callbacks during drag
   private selectionDirty = false;
@@ -228,6 +234,7 @@ export class Editor {
       if (e.key === "t" || e.key === "T") this.setTool("text");
       if (e.key === "f" || e.key === "F") this.setTool("frame");
       if (e.key === "i" || e.key === "I") this.setTool("image");
+      if (e.key === "p" || e.key === "P") this.setTool("pen");
       if (e.key === "Delete" || e.key === "Backspace") {
         this.engine.push_undo();
         const sel = this.engine.get_selection();
@@ -238,9 +245,19 @@ export class Editor {
         this.needsRender = true;
       }
       if (e.key === "Escape") {
+        if (this._penPathId != null) {
+          this.finishPenPath();
+          this.needsRender = true;
+          return;
+        }
         this.engine.deselect_all();
         this.fireSelectionNow([]);
         this.needsRender = true;
+      }
+      if (e.key === "Enter" && this._penPathId != null) {
+        this.finishPenPath();
+        this.needsRender = true;
+        return;
       }
     });
 
@@ -332,6 +349,40 @@ export class Editor {
       return;
     }
 
+    if (this.currentTool === "pen") {
+      const sx = this.engine.screen_to_scene_x(x, y);
+      const sy = this.engine.screen_to_scene_y(x, y);
+
+      // Check if clicking near the first point to close the path
+      if (this._penPathId != null) {
+        const data = JSON.parse(this.engine.path_get_data(this._penPathId) || "{}");
+        if (data.points && data.points.length >= 3) {
+          const first = data.points[0];
+          const dist = Math.hypot(sx - first.x, sy - first.y);
+          const threshold = 8 / this.engine.get_zoom();
+          if (dist < threshold) {
+            this.engine.path_set_closed(this._penPathId, true);
+            this.finishPenPath();
+            this.needsRender = true;
+            return;
+          }
+        }
+      }
+
+      if (this._penPathId == null) {
+        this.engine.push_undo();
+        this._penPathId = Number(this.engine.add_path(sx, sy));
+        this.engine.select(this._penPathId);
+      }
+      this.engine.path_add_point(this._penPathId, sx, sy);
+      this._penDragging = true;
+      this._penDragStartX = sx;
+      this._penDragStartY = sy;
+      this.needsRender = true;
+      this.canvas.setPointerCapture(e.pointerId);
+      return;
+    }
+
     if (["rect", "ellipse", "text", "frame", "image"].includes(this.currentTool)) {
       const sx = this.engine.screen_to_scene_x(x, y);
       const sy = this.engine.screen_to_scene_y(x, y);
@@ -347,6 +398,18 @@ export class Editor {
       this.engine.pan(dx, dy);
       this.lastPanX = e.clientX;
       this.lastPanY = e.clientY;
+      this.needsRender = true;
+      return;
+    }
+
+    // Pen tool: drag to create bezier handles
+    if (this._penDragging && this._penPathId != null) {
+      const sx = this.engine.screen_to_scene_x(e.offsetX, e.offsetY);
+      const sy = this.engine.screen_to_scene_y(e.offsetX, e.offsetY);
+      const pointCount = this.engine.path_point_count(this._penPathId);
+      if (pointCount > 0) {
+        this.engine.path_set_handle_out(this._penPathId, pointCount - 1, sx, sy);
+      }
       this.needsRender = true;
       return;
     }
@@ -424,6 +487,12 @@ export class Editor {
     if (this.isPanning) {
       this.isPanning = false;
       this.updateCursor();
+      return;
+    }
+
+    if (this._penDragging) {
+      this._penDragging = false;
+      this.needsRender = true;
       return;
     }
 
@@ -808,6 +877,10 @@ export class Editor {
   }
 
   setTool(tool: ToolType) {
+    // Finish any in-progress pen path when switching away
+    if (this._penPathId != null && tool !== "pen") {
+      this.finishPenPath();
+    }
     this.currentTool = tool;
     this.updateCursor();
     document.querySelectorAll(".tool-btn").forEach((btn) => {
@@ -815,11 +888,29 @@ export class Editor {
     });
   }
 
+  private finishPenPath() {
+    if (this._penPathId != null) {
+      // Remove paths with fewer than 2 points
+      const count = this.engine.path_point_count(this._penPathId);
+      if (count < 2) {
+        this.engine.remove_node(this._penPathId);
+        this.engine.deselect_all();
+      } else {
+        this.engine.select(this._penPathId);
+        this.fireSelectionNow([this._penPathId]);
+        this.onLayersChanges.forEach(fn => fn());
+      }
+      this._penPathId = null;
+      this._penDragging = false;
+    }
+    this.setTool("select");
+  }
+
   private updateCursor() {
     const cursors: Record<ToolType, string> = {
       select: "default", hand: "grab", rect: "crosshair",
       ellipse: "crosshair", text: "text", frame: "crosshair",
-      image: "crosshair",
+      image: "crosshair", pen: "crosshair",
     };
     this.canvas.style.cursor = cursors[this.currentTool] || "default";
   }

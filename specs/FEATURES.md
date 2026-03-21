@@ -169,7 +169,15 @@
   - Canvas rendering via createLinearGradient/createRadialGradient
   - SVG export with `<linearGradient>`/`<radialGradient>` defs
   - Backward-compatible serialization (old files still load)
+- [x] Pen tool (vector paths)
+  - NodeKind::Path with PathPoint (anchor + bezier in/out handles)
+  - Click to place corner points, drag to create bezier curves (mirrored handles)
+  - Click near first point to close path, Escape/Enter to finish open path
+  - Canvas rendering: bezier_curve_to for curves, line_to for straight segments
+  - SVG export: `<path d="M... C... L... Z"/>` with full bezier support
+  - Properties panel: point count display, open/closed toggle
+  - WASM bindings: add_path, path_add_point, path_add_curve_point, path_set_point, path_set_handle_out/in, path_remove_point, path_set_closed, path_get_data, path_point_count
+  - Toolbar: Pen button (P shortcut)
 - [ ] Boolean operations
-- [ ] Pen tool (vector paths)
 - [ ] Constraints (responsive resizing)
 - [ ] Prototyping (interactions/transitions)

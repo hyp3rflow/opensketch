@@ -10,7 +10,7 @@ mod svg_export;
 
 use wasm_bindgen::prelude::*;
 use web_sys::CanvasRenderingContext2d;
-use crate::node::{Node, NodeKind, Fill, FillType, GradientStop, Stroke, LayoutMode, FlexDirection, Align, Justify, FlexWrap, TextSizing, TextAlign, FontStyle};
+use crate::node::{Node, NodeKind, Fill, FillType, GradientStop, Stroke, LayoutMode, FlexDirection, Align, Justify, FlexWrap, TextSizing, TextAlign, FontStyle, PathPoint};
 
 fn parse_align(s: &str) -> Align {
     match s {
@@ -193,6 +193,127 @@ impl Engine {
                 *s = src.to_string();
             }
         }
+    }
+
+    // =============================================
+    // Path / Pen tool
+    // =============================================
+
+    /// Create a new empty path node at the given position
+    pub fn add_path(&mut self, x: f64, y: f64) -> u64 {
+        let mut node = Node::new(0, NodeKind::Path { points: vec![], closed: false });
+        node.x = x; node.y = y; node.width = 0.0; node.height = 0.0;
+        node.name = format!("Path {}", self.scene.node_count() + 1);
+        node.fill = None;
+        node.stroke = Some(Stroke { color: crate::types::Color::white(), width: 2.0 });
+        self.scene.add_node(node)
+    }
+
+    /// Add a corner point (no bezier handles) to a path
+    pub fn path_add_point(&mut self, id: u64, x: f64, y: f64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Path { ref mut points, .. } = node.kind {
+                points.push(PathPoint::corner(x, y));
+                recalc_path_bounds(node);
+            }
+        }
+    }
+
+    /// Add a point with bezier handles to a path
+    pub fn path_add_curve_point(&mut self, id: u64, x: f64, y: f64, hix: f64, hiy: f64, hox: f64, hoy: f64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Path { ref mut points, .. } = node.kind {
+                points.push(PathPoint { x, y, handle_in_x: hix, handle_in_y: hiy, handle_out_x: hox, handle_out_y: hoy });
+                recalc_path_bounds(node);
+            }
+        }
+    }
+
+    /// Update a path point's position
+    pub fn path_set_point(&mut self, id: u64, index: u32, x: f64, y: f64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Path { ref mut points, .. } = node.kind {
+                if let Some(pt) = points.get_mut(index as usize) {
+                    let dx = x - pt.x;
+                    let dy = y - pt.y;
+                    pt.x = x; pt.y = y;
+                    pt.handle_in_x += dx; pt.handle_in_y += dy;
+                    pt.handle_out_x += dx; pt.handle_out_y += dy;
+                }
+                recalc_path_bounds(node);
+            }
+        }
+    }
+
+    /// Update a path point's outgoing handle
+    pub fn path_set_handle_out(&mut self, id: u64, index: u32, hx: f64, hy: f64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Path { ref mut points, .. } = node.kind {
+                if let Some(pt) = points.get_mut(index as usize) {
+                    pt.handle_out_x = hx; pt.handle_out_y = hy;
+                    // Mirror: set handle_in symmetrically
+                    pt.handle_in_x = 2.0 * pt.x - hx;
+                    pt.handle_in_y = 2.0 * pt.y - hy;
+                }
+                recalc_path_bounds(node);
+            }
+        }
+    }
+
+    /// Update a path point's incoming handle
+    pub fn path_set_handle_in(&mut self, id: u64, index: u32, hx: f64, hy: f64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Path { ref mut points, .. } = node.kind {
+                if let Some(pt) = points.get_mut(index as usize) {
+                    pt.handle_in_x = hx; pt.handle_in_y = hy;
+                }
+                recalc_path_bounds(node);
+            }
+        }
+    }
+
+    /// Remove a point from a path by index
+    pub fn path_remove_point(&mut self, id: u64, index: u32) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Path { ref mut points, .. } = node.kind {
+                if (index as usize) < points.len() {
+                    points.remove(index as usize);
+                }
+                recalc_path_bounds(node);
+            }
+        }
+    }
+
+    /// Close or open a path
+    pub fn path_set_closed(&mut self, id: u64, closed: bool) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Path { closed: ref mut c, .. } = node.kind {
+                *c = closed;
+            }
+        }
+    }
+
+    /// Get path data as JSON: { points: [...], closed: bool }
+    pub fn path_get_data(&self, id: u64) -> String {
+        if let Some(node) = self.scene.get_node(id) {
+            if let NodeKind::Path { ref points, closed } = node.kind {
+                return serde_json::to_string(&serde_json::json!({
+                    "points": points,
+                    "closed": closed,
+                })).unwrap_or_default();
+            }
+        }
+        "{}".to_string()
+    }
+
+    /// Get the number of points in a path
+    pub fn path_point_count(&self, id: u64) -> u32 {
+        if let Some(node) = self.scene.get_node(id) {
+            if let NodeKind::Path { ref points, .. } = node.kind {
+                return points.len() as u32;
+            }
+        }
+        0
     }
 
     pub fn set_image_fit(&mut self, id: u64, fit: &str) {
@@ -1478,5 +1599,32 @@ impl Engine {
         } else {
             "null".to_string()
         }
+    }
+}
+
+/// Recalculate a path node's bounding box from its points (including bezier handles).
+fn recalc_path_bounds(node: &mut Node) {
+    if let NodeKind::Path { ref points, .. } = node.kind {
+        if points.is_empty() {
+            node.width = 0.0;
+            node.height = 0.0;
+            return;
+        }
+        let mut min_x = f64::INFINITY;
+        let mut min_y = f64::INFINITY;
+        let mut max_x = f64::NEG_INFINITY;
+        let mut max_y = f64::NEG_INFINITY;
+        for pt in points {
+            for (px, py) in [(pt.x, pt.y), (pt.handle_in_x, pt.handle_in_y), (pt.handle_out_x, pt.handle_out_y)] {
+                min_x = min_x.min(px);
+                min_y = min_y.min(py);
+                max_x = max_x.max(px);
+                max_y = max_y.max(py);
+            }
+        }
+        node.x = min_x;
+        node.y = min_y;
+        node.width = (max_x - min_x).max(1.0);
+        node.height = (max_y - min_y).max(1.0);
     }
 }

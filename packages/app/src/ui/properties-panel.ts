@@ -1020,6 +1020,38 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       container.appendChild(imgSection);
     }
 
+    // === Path Section ===
+    if (typeof node.kind === "object" && node.kind.Path) {
+      const pathSection = createSection("Path");
+      const pathData = node.kind.Path;
+
+      const infoRow = document.createElement("div");
+      infoRow.style.cssText = "display:flex;align-items:center;gap:8px;margin-bottom:6px;";
+
+      const pointsLabel = document.createElement("span");
+      pointsLabel.style.cssText = "font-size:11px;color:#999;";
+      pointsLabel.textContent = `${pathData.points?.length || 0} points`;
+      infoRow.appendChild(pointsLabel);
+
+      const closedBtn = document.createElement("button");
+      const isClosed = pathData.closed;
+      closedBtn.textContent = isClosed ? "Closed" : "Open";
+      closedBtn.style.cssText = `
+        padding:3px 8px;border:1px solid ${isClosed ? "#4f46e5" : "#444"};border-radius:4px;
+        background:${isClosed ? "#4f46e520" : "#2a2a2a"};color:${isClosed ? "#818cf8" : "#999"};
+        cursor:pointer;font-size:11px;
+      `;
+      closedBtn.addEventListener("click", () => {
+        ensureUndo();
+        editor.engine.path_set_closed(id, !isClosed);
+        editor.requestRender();
+        refresh(ids);
+      });
+      infoRow.appendChild(closedBtn);
+      pathSection.appendChild(infoRow);
+      container.appendChild(pathSection);
+    }
+
     // === Auto Layout Section (Frame/Instance/Group) ===
     const kindStr = typeof node.kind === "string" ? node.kind : Object.keys(node.kind)[0];
     if (["Frame", "Instance", "Group", "Slot"].includes(kindStr || "")) {
@@ -1377,6 +1409,7 @@ function getKindLabel(kind: unknown): string {
     if ("Image" in kind) return "Image";
     if ("Instance" in kind) return "Instance";
     if ("Slot" in kind) return "Slot";
+    if ("Path" in kind) return "Path";
   }
   return "Unknown";
 }
