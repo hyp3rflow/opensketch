@@ -162,6 +162,17 @@ pub struct Layout {
     pub grid_rows: u32,
 }
 
+/// Drop shadow effect
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Shadow {
+    pub color: Color,
+    pub offset_x: f64,
+    pub offset_y: f64,
+    pub blur: f64,
+    pub spread: f64,
+    pub visible: bool,
+}
+
 /// Attached note (markdown)
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Note {
@@ -197,6 +208,12 @@ pub struct Node {
     /// Attached notes (markdown documents)
     #[serde(default)]
     pub notes: Vec<Note>,
+    /// Drop shadows
+    #[serde(default)]
+    pub shadows: Vec<Shadow>,
+    /// Layer blur (0 = none)
+    #[serde(default)]
+    pub blur: f64,
 }
 
 impl Node {
@@ -219,6 +236,8 @@ impl Node {
             text_sizing: TextSizing::default(),
             layout: Layout::default(),
             notes: vec![],
+            shadows: vec![],
+            blur: 0.0,
         }
     }
 

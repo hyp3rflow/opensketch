@@ -357,6 +357,245 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       container.appendChild(strokeSection);
     }
 
+    // --- Effects (Shadows + Blur) ---
+    {
+      const effectsSection = createSection("Effects");
+
+      // Layer blur
+      const blurVal = editor.engine.get_blur(BigInt(id));
+      const blurRow = document.createElement("div");
+      blurRow.className = "prop-row";
+      const blurLabel = document.createElement("span");
+      blurLabel.className = "prop-label";
+      blurLabel.style.width = "40px";
+      blurLabel.textContent = "Blur";
+      blurRow.appendChild(blurLabel);
+      const blurInput = document.createElement("input");
+      blurInput.className = "prop-input";
+      blurInput.value = String(blurVal || 0);
+      blurInput.addEventListener("change", () => {
+        editor.engine.set_blur(BigInt(id), parseFloat(blurInput.value) || 0);
+        editor.requestRender();
+      });
+      blurRow.appendChild(blurInput);
+      effectsSection.appendChild(blurRow);
+
+      // Shadows
+      const shadowsJson = editor.engine.get_shadows(BigInt(id));
+      const shadows: any[] = JSON.parse(shadowsJson);
+
+      shadows.forEach((shadow: any, idx: number) => {
+        const shadowWrap = document.createElement("div");
+        shadowWrap.style.cssText = "background:#1e1e1e;border-radius:6px;padding:8px;margin-bottom:6px;position:relative;";
+
+        // Header: visibility toggle + "Shadow N" + delete
+        const headerRow = document.createElement("div");
+        headerRow.style.cssText = "display:flex;align-items:center;gap:6px;margin-bottom:6px;";
+
+        const visBtn = document.createElement("button");
+        visBtn.style.cssText = `background:none;border:none;cursor:pointer;padding:2px;color:${shadow.visible ? "#818cf8" : "#555"};font-size:12px;`;
+        visBtn.textContent = shadow.visible ? "👁" : "👁‍🗨";
+        visBtn.addEventListener("click", () => {
+          ensureUndo();
+          editor.engine.set_shadow_visible(BigInt(id), idx, !shadow.visible);
+          editor.requestRender();
+          refresh(ids);
+        });
+        headerRow.appendChild(visBtn);
+
+        const label = document.createElement("span");
+        label.style.cssText = "font-size:11px;color:#888;flex:1;";
+        label.textContent = `Shadow ${idx + 1}`;
+        headerRow.appendChild(label);
+
+        const delBtn = document.createElement("button");
+        delBtn.style.cssText = "background:none;border:none;cursor:pointer;color:#555;font-size:11px;padding:2px 4px;";
+        delBtn.textContent = "✕";
+        delBtn.addEventListener("click", () => {
+          ensureUndo();
+          editor.engine.remove_shadow(BigInt(id), idx);
+          editor.requestRender();
+          refresh(ids);
+        });
+        headerRow.appendChild(delBtn);
+        shadowWrap.appendChild(headerRow);
+
+        // Color row
+        shadowWrap.appendChild(createColorRow(
+          shadow.color,
+          (r, g, b, a) => {
+            editor.engine.update_shadow(BigInt(id), idx, r, g, b, a, shadow.offset_x, shadow.offset_y, shadow.blur, shadow.spread);
+            editor.requestRender();
+          }
+        ));
+
+        // Offset + blur + spread row
+        const propsRow = document.createElement("div");
+        propsRow.style.cssText = "display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:4px;margin-top:6px;";
+        const makeInput = (lbl: string, val: number, field: string) => {
+          const w = createLabeledInput(lbl, String(val), (v) => {
+            const s = { ...shadow };
+            (s as any)[field] = parseFloat(v) || 0;
+            editor.engine.update_shadow(BigInt(id), idx, s.color.r, s.color.g, s.color.b, s.color.a, s.offset_x, s.offset_y, s.blur, s.spread);
+            editor.requestRender();
+          });
+          return w;
+        };
+        propsRow.appendChild(makeInput("X", shadow.offset_x, "offset_x"));
+        propsRow.appendChild(makeInput("Y", shadow.offset_y, "offset_y"));
+        propsRow.appendChild(makeInput("B", shadow.blur, "blur"));
+        propsRow.appendChild(makeInput("S", shadow.spread, "spread"));
+        shadowWrap.appendChild(propsRow);
+
+        effectsSection.appendChild(shadowWrap);
+      });
+
+      const addShadowBtn = document.createElement("button");
+      addShadowBtn.className = "prop-add-btn";
+      addShadowBtn.textContent = "+ Add drop shadow";
+      addShadowBtn.addEventListener("click", () => {
+        ensureUndo();
+        editor.engine.add_shadow(BigInt(id), 0, 0, 0, 0.25, 0, 4, 8, 0);
+        editor.requestRender();
+        refresh(ids);
+      });
+      effectsSection.appendChild(addShadowBtn);
+
+      container.appendChild(effectsSection);
+    }
+
+    // --- Effects (Shadows + Blur) ---
+    {
+      const effectsSection = document.createElement("div");
+      effectsSection.className = "prop-section";
+
+      const effectsTitle = document.createElement("div");
+      effectsTitle.className = "prop-section-title";
+      effectsTitle.textContent = "Effects";
+      effectsSection.appendChild(effectsTitle);
+
+      // Layer blur
+      const blurRow = document.createElement("div");
+      blurRow.className = "prop-row";
+      const blurLabel = document.createElement("span");
+      blurLabel.className = "prop-label";
+      blurLabel.style.width = "40px";
+      blurLabel.textContent = "Blur";
+      blurRow.appendChild(blurLabel);
+      const blurInput = document.createElement("input");
+      blurInput.className = "prop-input";
+      blurInput.type = "number";
+      blurInput.min = "0";
+      blurInput.step = "1";
+      blurInput.value = String(editor.engine.get_blur(id) || 0);
+      blurInput.addEventListener("change", () => {
+        editor.engine.set_blur(id, parseFloat(blurInput.value) || 0);
+        editor.requestRender();
+      });
+      blurRow.appendChild(blurInput);
+      effectsSection.appendChild(blurRow);
+
+      // Shadows
+      const shadowsJson = editor.engine.get_shadows(id);
+      const shadows: any[] = JSON.parse(shadowsJson || "[]");
+
+      shadows.forEach((shadow: any, idx: number) => {
+        const shadowEl = document.createElement("div");
+        shadowEl.style.cssText = "background:#1e1e1e;border-radius:6px;padding:8px;margin-bottom:6px;position:relative;";
+
+        // Header: visibility toggle + "Drop Shadow" + delete
+        const hdr = document.createElement("div");
+        hdr.style.cssText = "display:flex;align-items:center;gap:6px;margin-bottom:6px;";
+
+        const visBtn = document.createElement("button");
+        visBtn.style.cssText = `width:18px;height:18px;border:1px solid ${shadow.visible ? "#4f46e5" : "#444"};border-radius:4px;background:${shadow.visible ? "#4f46e520" : "#2a2a2a"};cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;`;
+        visBtn.innerHTML = shadow.visible ? icons.eye.replace(/width="\d+"/, 'width="12"').replace(/height="\d+"/, 'height="12"') : icons.eyeOff.replace(/width="\d+"/, 'width="12"').replace(/height="\d+"/, 'height="12"');
+        visBtn.addEventListener("click", () => {
+          ensureUndo();
+          editor.engine.set_shadow_visible(id, idx, !shadow.visible);
+          editor.requestRender();
+          refresh(ids);
+        });
+        hdr.appendChild(visBtn);
+
+        const label = document.createElement("span");
+        label.style.cssText = "flex:1;font-size:11px;color:#888;";
+        label.textContent = "Drop shadow";
+        hdr.appendChild(label);
+
+        const delBtn = document.createElement("button");
+        delBtn.style.cssText = "background:transparent;border:none;color:#555;cursor:pointer;font-size:11px;padding:2px 4px;border-radius:4px;";
+        delBtn.textContent = "✕";
+        delBtn.addEventListener("click", () => {
+          ensureUndo();
+          editor.engine.remove_shadow(id, idx);
+          editor.requestRender();
+          refresh(ids);
+        });
+        hdr.appendChild(delBtn);
+        shadowEl.appendChild(hdr);
+
+        // Color row
+        const colorRow = createColorRow(
+          shadow.color,
+          (r, g, b, a) => {
+            editor.engine.update_shadow(id, idx, r, g, b, a, shadow.offset_x, shadow.offset_y, shadow.blur, shadow.spread);
+            editor.requestRender();
+          }
+        );
+        shadowEl.appendChild(colorRow);
+
+        // Offset X/Y + Blur + Spread
+        const paramsRow = document.createElement("div");
+        paramsRow.style.cssText = "display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:4px;margin-top:6px;";
+
+        const makeParam = (lbl: string, val: number, key: string) => {
+          const w = document.createElement("div");
+          w.style.cssText = "display:flex;flex-direction:column;gap:2px;";
+          const l = document.createElement("span");
+          l.style.cssText = "font-size:9px;color:#555;text-align:center;";
+          l.textContent = lbl;
+          w.appendChild(l);
+          const inp = document.createElement("input");
+          inp.className = "prop-input";
+          inp.style.cssText = "text-align:center;font-size:11px;padding:3px 2px;";
+          inp.type = "number";
+          inp.value = String(val);
+          inp.addEventListener("change", () => {
+            ensureUndo();
+            const s = shadow;
+            const updated = { ...s, [key]: parseFloat(inp.value) || 0 };
+            editor.engine.update_shadow(id, idx, s.color.r, s.color.g, s.color.b, s.color.a, updated.offset_x, updated.offset_y, updated.blur, updated.spread);
+            editor.requestRender();
+            refresh(ids);
+          });
+          w.appendChild(inp);
+          return w;
+        };
+
+        paramsRow.appendChild(makeParam("X", shadow.offset_x, "offset_x"));
+        paramsRow.appendChild(makeParam("Y", shadow.offset_y, "offset_y"));
+        paramsRow.appendChild(makeParam("Blur", shadow.blur, "blur"));
+        paramsRow.appendChild(makeParam("Spread", shadow.spread, "spread"));
+        shadowEl.appendChild(paramsRow);
+
+        effectsSection.appendChild(shadowEl);
+      });
+
+      const addShadowBtn = document.createElement("button");
+      addShadowBtn.className = "prop-add-btn";
+      addShadowBtn.textContent = "+ Add drop shadow";
+      addShadowBtn.addEventListener("click", () => {
+        ensureUndo();
+        editor.engine.add_shadow(id, 0, 0, 0, 0.25, 0, 4, 8, 0);
+        editor.requestRender();
+        refresh(ids);
+      });
+      effectsSection.appendChild(addShadowBtn);
+
+      container.appendChild(effectsSection);
+    }
+
     // --- Text-specific ---
     if (typeof node.kind === "object" && node.kind.Text) {
       const textSection = createSection("Text");

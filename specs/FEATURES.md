@@ -5,7 +5,7 @@
 ### Core Engine
 - [x] Scene graph (flat HashMap + tree via parent/children)
 - [x] Node types: Rectangle, Ellipse, Text, Frame, Group
-- [x] Properties: position, size, rotation, opacity, fill, stroke, corner radius
+- [x] Properties: position, size, rotation, opacity, fill, stroke, corner radius, shadows, blur
 - [x] Viewport: pan, zoom (scroll wheel with rAF batching)
 - [x] Hit testing (reverse render order, respects visibility/lock)
 - [x] Selection (single + multi-select + marquee drag-select, with resize handles)
@@ -20,6 +20,8 @@
 - [x] Selection handles (cyan, 8-point)
 - [x] Text editing indicator (dashed blue border)
 - [x] Rotation support (node-level)
+- [x] Drop shadow rendering (multi-pass Canvas shadow API, per-node multiple shadows)
+- [x] Layer blur (CSS filter blur via Canvas API)
 
 ### UI Panels
 - [x] **Left Panel** with tab navigation (Layers / Design)

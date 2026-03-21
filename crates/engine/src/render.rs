@@ -175,6 +175,61 @@ impl Renderer {
         ctx.save();
         ctx.set_global_alpha(node.opacity);
 
+        // Layer blur
+        if node.blur > 0.0 {
+            ctx.set_filter(&format!("blur({}px)", node.blur));
+        }
+
+        // Drop shadows: render each visible shadow by drawing the node shape with shadow settings
+        // Canvas API only supports one shadow at a time, so we draw multiple passes
+        for shadow in &node.shadows {
+            if !shadow.visible || (shadow.blur == 0.0 && shadow.offset_x == 0.0 && shadow.offset_y == 0.0 && shadow.spread == 0.0) {
+                continue;
+            }
+            ctx.save();
+            ctx.set_shadow_color(&shadow.color.to_css());
+            ctx.set_shadow_blur(shadow.blur + shadow.spread);
+            ctx.set_shadow_offset_x(shadow.offset_x);
+            ctx.set_shadow_offset_y(shadow.offset_y);
+            // Draw node shape offscreen so only the shadow is visible
+            // We translate far away, draw the shape, and the shadow appears at the correct position
+            let far = 99999.0;
+            ctx.save();
+            ctx.translate(-far, 0.0).ok();
+            match &node.kind {
+                NodeKind::Rect | NodeKind::Frame | NodeKind::Instance(_) | NodeKind::Image { .. } => {
+                    ctx.set_fill_style_str("rgba(0,0,0,1)");
+                    if node.corner_radius > 0.0 {
+                        self.draw_rounded_rect(ctx, node.x + far, node.y, node.width, node.height, node.corner_radius);
+                    } else {
+                        ctx.begin_path();
+                        ctx.rect(node.x + far, node.y, node.width, node.height);
+                    }
+                    ctx.fill();
+                }
+                NodeKind::Ellipse => {
+                    ctx.set_fill_style_str("rgba(0,0,0,1)");
+                    ctx.begin_path();
+                    ctx.ellipse(
+                        node.x + far + node.width / 2.0,
+                        node.y + node.height / 2.0,
+                        node.width / 2.0,
+                        node.height / 2.0,
+                        node.rotation,
+                        0.0,
+                        std::f64::consts::TAU,
+                    ).ok();
+                    ctx.fill();
+                }
+                _ => {
+                    ctx.set_fill_style_str("rgba(0,0,0,1)");
+                    ctx.fill_rect(node.x + far, node.y, node.width, node.height);
+                }
+            }
+            ctx.restore();
+            ctx.restore();
+        }
+
         match &node.kind {
             NodeKind::Rect => self.render_rect(ctx, node),
             NodeKind::Ellipse => self.render_ellipse(ctx, node),

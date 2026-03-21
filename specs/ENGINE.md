@@ -18,7 +18,8 @@ Pure Rust crate compiled to WASM via `wasm-pack`. No NAPI — runs entirely in t
 - `FontStyle` enum: `Normal`, `Italic`
 - `NodeKind` enum: `Rect`, `Ellipse`, `Text { content, font_size, font_family, line_height, text_align, font_weight, font_style }`, `Frame`, `Group`, `Image { src, fit }`
 - `Fill { color: Color }`, `Stroke { color: Color, width: f64 }`
-- `Node` struct: full node with id, name, kind, transform (x/y/w/h/rotation), style (opacity, fill, stroke, corner_radius), tree (children, parent), flags (visible, locked)
+- `Shadow { color: Color, offset_x, offset_y, blur, spread, visible }` — drop shadow effect
+- `Node` struct: full node with id, name, kind, transform (x/y/w/h/rotation), style (opacity, fill, stroke, corner_radius, shadows: Vec<Shadow>, blur: f64), tree (children, parent), flags (visible, locked)
 
 ### `scene.rs`
 - `Scene`: flat HashMap + root_children ordering
@@ -35,6 +36,8 @@ Pure Rust crate compiled to WASM via `wasm-pack`. No NAPI — runs entirely in t
 - `wrap_text()`: word-level wrapping with newline support
 - `measure_text_nodes()`: accurate Fit-mode dimension calculation using canvas measureText
 - `build_font_string()`: CSS font string with weight + italic
+- Drop shadow rendering: multi-pass Canvas shadow API (offscreen shape trick for shadow-only)
+- Layer blur: CSS filter `blur(Xpx)` via `ctx.set_filter()`
 - Selection handles (8 points, cyan)
 - Frame labels: zoom-inverse scaling, max 11px screen size
 - Editing indicator: dashed blue border
@@ -52,6 +55,21 @@ Pure Rust crate compiled to WASM via `wasm-pack`. No NAPI — runs entirely in t
 - `Engine` struct: Scene + Renderer + editing state
 - 40+ `#[wasm_bindgen]` methods (see AGENT-API.md for full list)
 - Categories: create, delete, select, query, modify, transform, text, scene I/O, frame tools
+
+## Effects System
+
+### Shadow
+- `Shadow` struct: `color`, `offset_x`, `offset_y`, `blur`, `spread`, `visible`
+- Node has `shadows: Vec<Shadow>` — multiple drop shadows per node
+- Canvas rendering: each visible shadow drawn as a separate pass using Canvas shadow API (offset to hide source shape, only shadow visible)
+- SVG export: `<feDropShadow>` filter elements
+- WASM: `add_shadow`, `remove_shadow`, `update_shadow`, `set_shadow_visible`, `get_shadows`
+
+### Layer Blur
+- Node has `blur: f64` — Gaussian blur on entire node (0 = none)
+- Canvas: `ctx.set_filter("blur(Xpx)")`
+- SVG: `<feGaussianBlur>` filter
+- WASM: `set_blur`, `get_blur`
 
 ## Dependencies
 

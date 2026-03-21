@@ -35,7 +35,7 @@ use crate::scene::Scene;
 use crate::render::Renderer;
 use crate::types::{Color, Point};
 use crate::component::{ComponentStore, VariantProp, VariantPropType, VariantValue, VariantData, VariantKey, SlotDef, InstanceData, NodeOverrides};
-use crate::node::Note;
+use crate::node::{Note, Shadow};
 
 #[wasm_bindgen]
 pub struct Engine {
@@ -1277,6 +1277,70 @@ impl Engine {
             serde_json::to_string(&node.notes).unwrap_or_default()
         } else {
             "[]".to_string()
+        }
+    }
+
+    // =============================================
+    // Shadows & Blur
+    // =============================================
+
+    pub fn add_shadow(&mut self, id: u64, r: u8, g: u8, b: u8, a: f64, offset_x: f64, offset_y: f64, blur: f64, spread: f64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            node.shadows.push(Shadow {
+                color: Color { r, g, b, a },
+                offset_x, offset_y, blur, spread,
+                visible: true,
+            });
+        }
+    }
+
+    pub fn remove_shadow(&mut self, id: u64, index: usize) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if index < node.shadows.len() {
+                node.shadows.remove(index);
+            }
+        }
+    }
+
+    pub fn set_shadow_visible(&mut self, id: u64, index: usize, visible: bool) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let Some(s) = node.shadows.get_mut(index) {
+                s.visible = visible;
+            }
+        }
+    }
+
+    pub fn update_shadow(&mut self, id: u64, index: usize, r: u8, g: u8, b: u8, a: f64, offset_x: f64, offset_y: f64, blur: f64, spread: f64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let Some(s) = node.shadows.get_mut(index) {
+                s.color = Color { r, g, b, a };
+                s.offset_x = offset_x;
+                s.offset_y = offset_y;
+                s.blur = blur;
+                s.spread = spread;
+            }
+        }
+    }
+
+    pub fn set_blur(&mut self, id: u64, blur: f64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            node.blur = blur.max(0.0);
+        }
+    }
+
+    pub fn get_shadows(&self, id: u64) -> String {
+        if let Some(node) = self.scene.get_node(id) {
+            serde_json::to_string(&node.shadows).unwrap_or_default()
+        } else {
+            "[]".to_string()
+        }
+    }
+
+    pub fn get_blur(&self, id: u64) -> f64 {
+        if let Some(node) = self.scene.get_node(id) {
+            node.blur
+        } else {
+            0.0
         }
     }
 

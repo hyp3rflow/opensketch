@@ -13,6 +13,28 @@ fn escape_xml(s: &str) -> String {
         .replace('\'', "&apos;")
 }
 
+fn build_filter_defs(node: &Node, filter_id: &str) -> Option<String> {
+    let has_shadows = node.shadows.iter().any(|s| s.visible);
+    let has_blur = node.blur > 0.0;
+    if !has_shadows && !has_blur {
+        return None;
+    }
+    let mut defs = format!(r#"<filter id="{}" x="-50%" y="-50%" width="200%" height="200%">"#, filter_id);
+    if has_blur {
+        defs.push_str(&format!(r#"<feGaussianBlur in="SourceGraphic" stdDeviation="{}"/>"#, node.blur));
+    }
+    for s in &node.shadows {
+        if !s.visible { continue; }
+        let hex = format!("#{:02x}{:02x}{:02x}", s.color.r, s.color.g, s.color.b);
+        defs.push_str(&format!(
+            r#"<feDropShadow dx="{}" dy="{}" stdDeviation="{}" flood-color="{}" flood-opacity="{}"/>"#,
+            s.offset_x, s.offset_y, (s.blur + s.spread) / 2.0, hex, s.color.a
+        ));
+    }
+    defs.push_str("</filter>");
+    Some(defs)
+}
+
 fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
     if !node.visible {
         return;
@@ -20,6 +42,20 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
 
     let has_transform = node.x != 0.0 || node.y != 0.0 || node.rotation != 0.0;
     let has_opacity = node.opacity < 1.0;
+
+    // Build filter if needed
+    let filter_id = format!("filter-{}", node.id);
+    let filter_defs = build_filter_defs(node, &filter_id);
+    if let Some(ref defs) = filter_defs {
+        buf.push_str("<defs>");
+        buf.push_str(defs);
+        buf.push_str("</defs>\n");
+    }
+    let filter_attr = if filter_defs.is_some() {
+        format!(r#" filter="url(#{})""#, filter_id)
+    } else {
+        String::new()
+    };
 
     match &node.kind {
         NodeKind::Rect => {
@@ -35,6 +71,7 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
             if has_opacity {
                 attrs.push_str(&format!(r#" opacity="{}""#, node.opacity));
             }
+            attrs.push_str(&filter_attr);
             attrs.push_str("/>\n");
             buf.push_str(&attrs);
         }
@@ -55,6 +92,7 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
             if has_opacity {
                 attrs.push_str(&format!(r#" opacity="{}""#, node.opacity));
             }
+            attrs.push_str(&filter_attr);
             attrs.push_str("/>\n");
             buf.push_str(&attrs);
         }
