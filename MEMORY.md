@@ -21,7 +21,7 @@
 - **Styles library** (shared color/text styles) — ColorStyle + TextStyle with CRUD, apply/detach, sync, Properties panel UI dropdowns
 - **Inspect mode** (CSS code gen) — Right pane "Inspect" tab, generates CSS from selected node, syntax highlighting, clipboard copy, SVG stroke attributes
 - **Flatten selection** — Any shape→Path 변환, Group/Frame→Union path, Cmd+E, 툴바 버튼
-- **Layout grid overlay** — Frame에 Columns/Rows/Grid 오버레이, count/gutter/margin/color 설정, Ctrl+G 전역 토글, Properties panel UI
+- **Layout grid overlay** — Frame에 Columns/Rows/Grid 오버레이, count/gutter/margin/color, Auto/Fixed size mode, Ctrl+G 전역 토글, Properties panel UI
 
 ## 📋 Backlog
 - Tauri desktop build (scaffolded but not tested)
