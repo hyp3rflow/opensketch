@@ -15,7 +15,7 @@ use web_sys::CanvasRenderingContext2d;
 use i_overlay::core::fill_rule::FillRule;
 use i_overlay::core::overlay_rule::OverlayRule;
 use i_overlay::float::single::SingleFloatOverlay;
-use crate::node::{Node, NodeKind, Fill, FillType, GradientStop, Stroke, LayoutMode, FlexDirection, Align, Justify, FlexWrap, TextSizing, TextAlign, FontStyle, PathPoint, ConstraintH, ConstraintV, BlendMode, LayoutGrid};
+use crate::node::{Node, NodeKind, Fill, FillType, GradientStop, Stroke, LayoutMode, FlexDirection, Align, Justify, FlexWrap, TextSizing, TextAlign, FontStyle, PathPoint, ConstraintH, ConstraintV, BlendMode, LayoutGrid, SizingMode};
 
 fn parse_align(s: &str) -> Align {
     match s {
@@ -1656,6 +1656,47 @@ impl Engine {
     pub fn get_layout(&self, id: u64) -> String {
         if let Some(node) = self.scene.get_node(id) {
             serde_json::to_string(&node.layout).unwrap_or_default()
+        } else {
+            "null".to_string()
+        }
+    }
+
+    /// Set horizontal sizing mode: "fixed", "hug", "fill"
+    pub fn set_sizing_h(&mut self, id: u64, mode: &str) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            node.sizing_h = match mode {
+                "hug" => SizingMode::Hug,
+                "fill" => SizingMode::Fill,
+                _ => SizingMode::Fixed,
+            };
+        }
+    }
+
+    /// Set vertical sizing mode: "fixed", "hug", "fill"
+    pub fn set_sizing_v(&mut self, id: u64, mode: &str) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            node.sizing_v = match mode {
+                "hug" => SizingMode::Hug,
+                "fill" => SizingMode::Fill,
+                _ => SizingMode::Fixed,
+            };
+        }
+    }
+
+    /// Get sizing modes as JSON: { "h": "fixed"|"hug"|"fill", "v": "fixed"|"hug"|"fill" }
+    pub fn get_sizing(&self, id: u64) -> String {
+        if let Some(node) = self.scene.get_node(id) {
+            let h = match node.sizing_h {
+                SizingMode::Fixed => "fixed",
+                SizingMode::Hug => "hug",
+                SizingMode::Fill => "fill",
+            };
+            let v = match node.sizing_v {
+                SizingMode::Fixed => "fixed",
+                SizingMode::Hug => "hug",
+                SizingMode::Fill => "fill",
+            };
+            format!(r#"{{"h":"{}","v":"{}"}}"#, h, v)
         } else {
             "null".to_string()
         }

@@ -287,6 +287,21 @@ impl Default for TextSizing {
     fn default() -> Self { TextSizing::Fit }
 }
 
+/// Auto layout sizing mode for children (Figma-style hug/fill)
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub enum SizingMode {
+    /// Use the node's explicit width/height
+    Fixed,
+    /// Shrink to fit content (only meaningful for containers)
+    Hug,
+    /// Expand to fill available space in parent's layout
+    Fill,
+}
+
+impl Default for SizingMode {
+    fn default() -> Self { SizingMode::Fixed }
+}
+
 /// Layout properties for container nodes (Frame, Instance, Group)
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct Layout {
@@ -630,6 +645,12 @@ pub struct Node {
     /// Prototype interactions (click → navigate to frame/page)
     #[serde(default)]
     pub interactions: Vec<Interaction>,
+    /// Horizontal sizing mode in parent auto layout
+    #[serde(default)]
+    pub sizing_h: SizingMode,
+    /// Vertical sizing mode in parent auto layout
+    #[serde(default)]
+    pub sizing_v: SizingMode,
 }
 
 impl Node {
@@ -661,6 +682,8 @@ impl Node {
             text_style_id: None,
             layout_grids: vec![],
             interactions: vec![],
+            sizing_h: SizingMode::default(),
+            sizing_v: SizingMode::default(),
         }
     }
 

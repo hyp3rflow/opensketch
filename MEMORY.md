@@ -24,13 +24,16 @@
 - **Layout grid overlay** — Frame에 Columns/Rows/Grid 오버레이, count/gutter/margin/color, Auto/Fixed size mode, Ctrl+G 전역 토글, Properties panel UI
 - **Keyboard shortcuts panel** — Cmd+/ 또는 ? 키로 토글, 카테고리별 단축키 정리, 검색 필터, ESC/backdrop 닫기
 
+- **Auto layout hug/fill sizing** — SizingMode(Fixed/Hug/Fill) per axis, Fill children expand to fill remaining space, Hug parents shrink to content, Properties panel dropdowns
+
 ## 📋 Backlog
 - Tauri desktop build (scaffolded but not tested)
-- Export/import styles (JSON style library files)
-- Prototype/interaction links (click → navigate to frame)
-- Comments/annotations (collaborative review)
 - Variable collections (design tokens with modes/themes)
 - Plugin API (extensible tool/panel system)
+- Selection colors / multi-fill (multiple fills per node like Figma)
+- Right-click context menu (copy/paste/group/lock/delete actions)
+- Outline stroke (inside/outside/center stroke alignment)
+- Component variant switching UI (instance → variant picker dropdown)
 
 ## 🏗 Architecture Notes
 - Rust WASM engine: `crates/engine/src/`

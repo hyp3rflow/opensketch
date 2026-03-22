@@ -28,7 +28,8 @@ Pure Rust crate compiled to WASM via `wasm-pack`. No NAPI — runs entirely in t
 - `LayoutGridType`: `Columns`, `Rows`, `Grid` — layout grid overlay type
 - `GridSizeMode`: `Auto` | `Fixed(f64)` — column/row width mode
 - `LayoutGrid { grid_type, count: u32, size_mode: GridSizeMode, gutter: f64, margin: f64, color: Color, visible: bool }` — Figma-style layout grid overlay
-- `Node` struct: full node with id, name, kind, transform (x/y/w/h/rotation), style (opacity, fill, stroke, corner_radius, shadows: Vec<Shadow>, blur: f64), tree (children, parent), flags (visible, locked), layout_grids: Vec<LayoutGrid>
+- `SizingMode`: `Fixed` | `Hug` | `Fill` — auto layout child sizing (Figma-style)
+- `Node` struct: full node with id, name, kind, transform (x/y/w/h/rotation), style (opacity, fill, stroke, corner_radius, shadows: Vec<Shadow>, blur: f64), tree (children, parent), flags (visible, locked), layout_grids: Vec<LayoutGrid>, sizing_h/sizing_v: SizingMode
 
 ### `scene.rs`
 - `Scene`: flat HashMap + root_children ordering

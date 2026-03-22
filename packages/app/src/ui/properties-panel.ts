@@ -316,6 +316,95 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       }));
     }
     sizeSection.appendChild(rotRow);
+    // Sizing mode (Hug/Fill/Fixed) — show for nodes in auto-layout parent
+    if (node.parent) {
+      const _parentJsonSz = editor.engine.get_node_json(BigInt(node.parent));
+      if (_parentJsonSz) {
+        const _parentNodeSz = JSON.parse(_parentJsonSz);
+        const _parentLayoutSz = JSON.parse(editor.engine.get_layout(BigInt(Number(_parentNodeSz.id))) || "{}");
+        if (_parentLayoutSz.mode && _parentLayoutSz.mode !== "None") {
+          const sizingJson = editor.engine.get_sizing(BigInt(id));
+          const sizing = JSON.parse(sizingJson || '{"h":"fixed","v":"fixed"}');
+          const szRow = document.createElement("div");
+          szRow.style.cssText = "display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px;";
+          for (const axis of ["h", "v"] as const) {
+            const wrap = document.createElement("div");
+            wrap.style.cssText = "display:flex;align-items:center;gap:4px;";
+            const lbl = document.createElement("span");
+            lbl.style.cssText = "font-size:10px;color:#666;width:12px;";
+            lbl.textContent = axis === "h" ? "W" : "H";
+            wrap.appendChild(lbl);
+            const sel = document.createElement("select");
+            sel.className = "prop-input";
+            sel.style.cssText = "flex:1;font-size:11px;padding:3px 4px;";
+            for (const m of ["fixed", "fill", "hug"]) {
+              const opt = document.createElement("option");
+              opt.value = m;
+              opt.textContent = m === "fixed" ? "Fixed" : m === "fill" ? "Fill" : "Hug";
+              opt.selected = sizing[axis] === m;
+              sel.appendChild(opt);
+            }
+            sel.addEventListener("change", () => {
+              editor.engine.push_undo();
+              if (axis === "h") {
+                editor.engine.set_sizing_h(BigInt(id), sel.value);
+              } else {
+                editor.engine.set_sizing_v(BigInt(id), sel.value);
+              }
+              editor.requestRender();
+              refresh(ids);
+            });
+            wrap.appendChild(sel);
+            szRow.appendChild(wrap);
+          }
+          sizeSection.appendChild(szRow);
+        }
+      }
+    }
+
+    // Also show Hug sizing option on the auto-layout container itself
+    {
+      const sizingJson = editor.engine.get_sizing(BigInt(id));
+      const sizing = JSON.parse(sizingJson || '{"h":"fixed","v":"fixed"}');
+      const layoutJson2 = editor.engine.get_layout(BigInt(id));
+      const layout2 = JSON.parse(layoutJson2 || "{}");
+      if (layout2.mode && layout2.mode !== "None") {
+        const szRow2 = document.createElement("div");
+        szRow2.style.cssText = "display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px;";
+        for (const axis of ["h", "v"] as const) {
+          const wrap = document.createElement("div");
+          wrap.style.cssText = "display:flex;align-items:center;gap:4px;";
+          const lbl = document.createElement("span");
+          lbl.style.cssText = "font-size:10px;color:#666;width:12px;";
+          lbl.textContent = axis === "h" ? "W" : "H";
+          wrap.appendChild(lbl);
+          const sel = document.createElement("select");
+          sel.className = "prop-input";
+          sel.style.cssText = "flex:1;font-size:11px;padding:3px 4px;";
+          for (const m of ["fixed", "hug"]) {
+            const opt = document.createElement("option");
+            opt.value = m;
+            opt.textContent = m === "fixed" ? "Fixed" : "Hug";
+            opt.selected = sizing[axis] === m;
+            sel.appendChild(opt);
+          }
+          sel.addEventListener("change", () => {
+            editor.engine.push_undo();
+            if (axis === "h") {
+              editor.engine.set_sizing_h(BigInt(id), sel.value);
+            } else {
+              editor.engine.set_sizing_v(BigInt(id), sel.value);
+            }
+            editor.requestRender();
+            refresh(ids);
+          });
+          wrap.appendChild(sel);
+          szRow2.appendChild(wrap);
+        }
+        sizeSection.appendChild(szRow2);
+      }
+    }
+
     container.appendChild(sizeSection);
 
     // --- Constraints (only for children of Frame) ---
