@@ -269,7 +269,7 @@ impl Scene {
     /// Child positions are absolute in our scene, so we convert to/from local coords.
     pub fn resize_node_with_constraints(&mut self, id: NodeId, new_width: f64, new_height: f64) {
         let (parent_x, parent_y, old_w, old_h, is_container) = if let Some(node) = self.nodes.get(&id) {
-            let is_container = matches!(node.kind, NodeKind::Frame | NodeKind::Group);
+            let is_container = matches!(node.kind, NodeKind::Frame | NodeKind::Group | NodeKind::Section);
             (node.x, node.y, node.width, node.height, is_container)
         } else {
             return;

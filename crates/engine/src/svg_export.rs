@@ -179,7 +179,7 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
             }
             buf.push_str(&attrs);
         }
-        NodeKind::Frame | NodeKind::Group => {
+        NodeKind::Section | NodeKind::Frame | NodeKind::Group => {
             let mut g = String::from("<g");
 
             // Build transform
@@ -203,7 +203,7 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
             g.push_str(">\n");
 
             // Frame background
-            if matches!(node.kind, NodeKind::Frame) {
+            if matches!(node.kind, NodeKind::Frame | NodeKind::Section) {
                 let mut rect_attrs = format!(r#"<rect width="{}" height="{}""#, node.width, node.height);
                 if node.corner_radius > 0.0 {
                     rect_attrs.push_str(&format!(r#" rx="{}" ry="{}""#, node.corner_radius, node.corner_radius));
@@ -416,7 +416,7 @@ fn render_children_svg(scene: &Scene, children: &[NodeId], buf: &mut String, par
 /// Emit the shape of a node as a clip path element
 fn emit_clip_shape(buf: &mut String, node: &Node) {
     match &node.kind {
-        NodeKind::Rect | NodeKind::Frame | NodeKind::Instance(_) | NodeKind::Image { .. } => {
+        NodeKind::Rect | NodeKind::Frame | NodeKind::Section | NodeKind::Instance(_) | NodeKind::Image { .. } => {
             let mut s = format!(r#"<rect x="{}" y="{}" width="{}" height="{}""#, node.x, node.y, node.width, node.height);
             if node.corner_radius > 0.0 {
                 s.push_str(&format!(r#" rx="{}" ry="{}""#, node.corner_radius, node.corner_radius));
@@ -511,7 +511,7 @@ fn render_node_svg_adjusted(scene: &Scene, node: &Node, buf: &mut String, parent
             g.push_str(">\n");
 
             // Frame background
-            if matches!(node.kind, NodeKind::Frame) {
+            if matches!(node.kind, NodeKind::Frame | NodeKind::Section) {
                 let mut rect_attrs = format!(r#"<rect width="{}" height="{}""#, node.width, node.height);
                 if node.corner_radius > 0.0 {
                     rect_attrs.push_str(&format!(r#" rx="{}" ry="{}""#, node.corner_radius, node.corner_radius));

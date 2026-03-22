@@ -406,6 +406,15 @@ impl Engine {
         String::new()
     }
 
+    pub fn add_section(&mut self, name: &str, x: f64, y: f64, w: f64, h: f64) -> u64 {
+        let mut node = Node::new(0, NodeKind::Section);
+        node.x = x; node.y = y; node.width = w; node.height = h;
+        node.name = if name.is_empty() { format!("Section {}", self.scene.node_count() + 1) } else { name.to_string() };
+        node.fills = vec![];
+        node.corner_radius = 8.0;
+        self.scene.add_node(node)
+    }
+
     pub fn add_frame(&mut self, x: f64, y: f64, w: f64, h: f64) -> u64 {
         let mut node = Node::new(0, NodeKind::Frame);
         node.x = x; node.y = y; node.width = w; node.height = h;

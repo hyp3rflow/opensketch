@@ -8,6 +8,7 @@ const tools: { id: ToolType; icon: string; label: string }[] = [
   { id: "ellipse", icon: icons.ellipse, label: "Ellipse (O)" },
   { id: "text", icon: icons.text, label: "Text (T)" },
   { id: "frame", icon: icons.frame, label: "Frame (F)" },
+  { id: "section", icon: icons.section, label: "Section (⇧S)" },
   { id: "image", icon: icons.image, label: "Image (I)" },
   { id: "pen", icon: icons.penTool, label: "Pen (P)" },
   { id: "star", icon: icons.star, label: "Star (S)" },

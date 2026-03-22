@@ -387,3 +387,14 @@
 - [x] **Components section**: Lists all components from ComponentStore with variant count, click to create instance at (100,100)
 - [x] **Color Styles section**: Color swatch + name + hex value, click to apply to selected nodes
 - [x] **Text Styles section**: Font preview "Ag" + name + font details, click to apply text style to selected nodes
+
+### Section Nodes
+- [x] **NodeKind::Section**: Page organization container (like Frame but with prominent title label)
+- [x] **Rendering**: Rounded rect background (rgba(26,26,46,0.6)) + border + title label above section
+- [x] **Children**: Supports child nodes (rendered inside, like Frame)
+- [x] **WASM**: add_section(name, x, y, w, h) binding
+- [x] **SVG export**: Exported as group with rect background (same as Frame/Group)
+- [x] **Toolbar**: Section button (⇧S shortcut)
+- [x] **Layers panel**: Section icon, container expand/collapse
+- [x] **Hit test**: AABB bounds (same as all nodes)
+- [x] **Constraints**: Section children support responsive resize constraints

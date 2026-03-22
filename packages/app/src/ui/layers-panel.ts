@@ -8,6 +8,7 @@ const kindIcons: Record<string, string> = {
   Group: icons.frame,
   Slot: icons.slot,
   Instance: icons.instance,
+  Section: icons.section,
 };
 
 function iconSized(svg: string, size = 14) {
@@ -54,7 +55,7 @@ export function setupLayersPanel(container: HTMLElement, editor: Editor) {
     function renderNode(node: LayerNode, depth: number) {
       const hasChildren = node.children.length > 0;
       const isCollapsed = collapsed.has(node.id);
-      const isFrame = node.kind === "Frame" || node.kind === "Group";
+      const isFrame = node.kind === "Frame" || node.kind === "Group" || node.kind === "Section";
 
       const item = document.createElement("div");
       item.className = "layer-item" + (selection.has(node.id) ? " selected" : "");

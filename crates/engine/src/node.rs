@@ -106,6 +106,8 @@ pub enum NodeKind {
         /// Number of sides
         sides: u32,
     },
+    /// A section container (Figma Section — page organization with title label)
+    Section,
 }
 
 fn default_line_height() -> f64 { 1.2 }

@@ -4,7 +4,7 @@ import type { RulersAPI } from "./ui/rulers";
 import { toggleShortcutsPanel, isShortcutsPanelVisible, closeShortcutsPanel } from "./ui/shortcuts-panel";
 import { showContextMenu, hideContextMenu, type MenuItem } from "./ui/context-menu";
 
-export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "image" | "pen" | "star" | "polygon";
+export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "section" | "image" | "pen" | "star" | "polygon";
 
 /** Snap threshold in screen pixels */
 const SNAP_THRESHOLD_PX = 5;
@@ -306,7 +306,8 @@ export class Editor {
       if (e.key === "f" || e.key === "F") this.setTool("frame");
       if (e.key === "i" || e.key === "I") this.setTool("image");
       if (e.key === "p" || e.key === "P") this.setTool("pen");
-      if (e.key === "s" || e.key === "S") this.setTool("star");
+      if ((e.key === "s" || e.key === "S") && e.shiftKey) this.setTool("section");
+      else if (e.key === "s" || e.key === "S") this.setTool("star");
       if (e.key === "g" || e.key === "G") this.setTool("polygon");
       if (e.key === "Delete" || e.key === "Backspace") {
         if (this._pathEditMode && this._pathEditNodeId != null && this._pathEditSelectedPoint != null) {
@@ -504,7 +505,7 @@ export class Editor {
       return;
     }
 
-    if (["rect", "ellipse", "text", "frame", "image"].includes(this.currentTool)) {
+    if (["rect", "ellipse", "text", "frame", "section", "image"].includes(this.currentTool)) {
       const sx = this.engine.screen_to_scene_x(x, y);
       const sy = this.engine.screen_to_scene_y(x, y);
       this.drag = { startX: sx, startY: sy, currentX: sx, currentY: sy };
@@ -667,7 +668,7 @@ export class Editor {
       return;
     }
 
-    if (["rect", "ellipse", "text", "frame", "image"].includes(this.currentTool)) {
+    if (["rect", "ellipse", "text", "frame", "section", "image"].includes(this.currentTool)) {
       this.drag.currentX = this.engine.screen_to_scene_x(x, y);
       this.drag.currentY = this.engine.screen_to_scene_y(x, y);
       this.needsRender = true;
@@ -714,6 +715,7 @@ export class Editor {
           case "rect": id = this.engine.add_rect(x, y, w, h); break;
           case "ellipse": id = this.engine.add_ellipse(x, y, w, h); break;
           case "frame": id = this.engine.add_frame(x, y, w, h); break;
+          case "section": id = this.engine.add_section("", x, y, w, h); break;
           case "text": id = this.engine.add_text(x, y, "Text", 16); break;
           case "image": id = this.engine.add_image(x, y, w, h, ""); this.promptImageSrc(id); break;
           case "star": id = this.engine.add_star(x, y, w, h, 5, 0.4); break;
@@ -1344,7 +1346,7 @@ export class Editor {
     const cursors: Record<ToolType, string> = {
       select: "default", hand: "grab", rect: "crosshair",
       ellipse: "crosshair", text: "text", frame: "crosshair",
-      image: "crosshair", pen: "crosshair",
+      section: "crosshair", image: "crosshair", pen: "crosshair",
     };
     this.canvas.style.cursor = cursors[this.currentTool] || "default";
   }

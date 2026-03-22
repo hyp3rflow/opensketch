@@ -195,7 +195,7 @@ impl Renderer {
     fn build_clip_path(&self, ctx: &CanvasRenderingContext2d, node: &Node) {
         ctx.begin_path();
         match &node.kind {
-            NodeKind::Rect | NodeKind::Frame | NodeKind::Instance(_) | NodeKind::Image { .. } => {
+            NodeKind::Rect | NodeKind::Frame | NodeKind::Section | NodeKind::Instance(_) | NodeKind::Image { .. } => {
                 if node.corner_radius > 0.0 {
                     let r = node.corner_radius.min(node.width / 2.0).min(node.height / 2.0);
                     ctx.move_to(node.x + r, node.y);
@@ -308,7 +308,7 @@ impl Renderer {
             ctx.save();
             ctx.translate(-far, 0.0).ok();
             match &node.kind {
-                NodeKind::Rect | NodeKind::Frame | NodeKind::Instance(_) | NodeKind::Image { .. } => {
+                NodeKind::Rect | NodeKind::Frame | NodeKind::Section | NodeKind::Instance(_) | NodeKind::Image { .. } => {
                     ctx.set_fill_style_str("rgba(0,0,0,1)");
                     if node.corner_radius > 0.0 {
                         self.draw_rounded_rect(ctx, node.x + far, node.y, node.width, node.height, node.corner_radius);
@@ -372,6 +372,7 @@ impl Renderer {
             NodeKind::Image { .. } => self.render_image_placeholder(ctx, node),
             NodeKind::Star { points, inner_radius } => self.render_star(ctx, node, *points, *inner_radius),
             NodeKind::Polygon { sides } => self.render_polygon(ctx, node, *sides),
+            NodeKind::Section => self.render_section(ctx, node, scene),
         }
 
         ctx.restore();
@@ -735,6 +736,32 @@ impl Renderer {
         }
         ctx.close_path();
         self.apply_fill_stroke(ctx, node);
+    }
+
+    fn render_section(&self, ctx: &CanvasRenderingContext2d, node: &Node, scene: &Scene) {
+        let r = 8.0; // rounded corners
+        // Background
+        ctx.set_fill_style_str("rgba(26, 26, 46, 0.6)");
+        self.draw_rounded_rect(ctx, node.x, node.y, node.width, node.height, r);
+        ctx.fill();
+
+        // Border
+        let lw = 1.0 / self.viewport.a;
+        ctx.set_stroke_style_str("rgba(255,255,255,0.08)");
+        ctx.set_line_width(lw);
+        self.draw_rounded_rect(ctx, node.x, node.y, node.width, node.height, r);
+        ctx.stroke();
+
+        // Title label above the section
+        let font_size = (14.0 / self.viewport.a).min(14.0);
+        let gap = (6.0 / self.viewport.a).min(6.0);
+        ctx.set_fill_style_str("rgba(255,255,255,0.7)");
+        ctx.set_font(&format!("600 {}px Inter, system-ui, sans-serif", font_size));
+        ctx.set_text_baseline("bottom");
+        ctx.fill_text(&node.name, node.x, node.y - gap).ok();
+
+        // Render children
+        self.render_children(ctx, &node.children, scene);
     }
 
     fn render_selection(&self, ctx: &CanvasRenderingContext2d, node: &Node) {
