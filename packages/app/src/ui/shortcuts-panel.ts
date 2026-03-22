@@ -73,6 +73,7 @@ const SHORTCUT_DATA: ShortcutCategory[] = [
       { keys: ["⌘", "⇧", "I"], description: "Intersect" },
       { keys: ["⌘", "⇧", "X"], description: "Exclude" },
       { keys: ["⌘", "E"], description: "Flatten to path" },
+      { keys: ["⌘", "⌥", "R"], description: "Responsive preview" },
     ],
   },
   {

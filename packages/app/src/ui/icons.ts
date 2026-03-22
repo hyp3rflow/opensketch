@@ -80,4 +80,5 @@ export const icons = {
   flatten: s('<path d="M4 4h6v6H4z" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="15" cy="15" r="4" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M12 19l-2 2M19 12l2-2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M7 17L4 20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>'),
   play: s('<polygon points="5,3 19,12 5,21" fill="currentColor" stroke="none"/>'),
   section: s('<rect x="3" y="6" width="18" height="15" rx="3" stroke-dasharray="0"/><line x1="3" y1="3" x2="14" y2="3" stroke-width="2.5" stroke-linecap="round"/>'),
+  responsive: s('<rect x="2" y="4" width="8" height="14" rx="1" fill="none"/><rect x="12" y="6" width="10" height="12" rx="1" fill="none"/><line x1="4" y1="16" x2="8" y2="16" stroke-linecap="round"/><line x1="15" y1="16" x2="19" y2="16" stroke-linecap="round"/>'),
 };

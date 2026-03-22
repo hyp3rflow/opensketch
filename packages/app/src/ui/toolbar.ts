@@ -168,6 +168,14 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
     container.appendChild(protoBtn);
   }
 
+  // Responsive preview button
+  const respBtn = document.createElement("button");
+  respBtn.className = "tool-btn";
+  respBtn.title = "Responsive Preview (⌘⌥R)";
+  respBtn.innerHTML = icons.responsive;
+  respBtn.addEventListener("click", () => editor.openResponsivePreview());
+  container.appendChild(respBtn);
+
   // Mode toggle (rightmost)
   const sep2 = document.createElement("div");
   sep2.className = "tool-btn-separator";

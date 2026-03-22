@@ -398,3 +398,12 @@
 - [x] **Layers panel**: Section icon, container expand/collapse
 - [x] **Hit test**: AABB bounds (same as all nodes)
 - [x] **Constraints**: Section children support responsive resize constraints
+
+### Responsive Resize Preview
+- [x] **Fullscreen overlay**: Shows selected Frame at multiple breakpoints side by side
+- [x] **Default breakpoints**: Mobile (375px), Tablet (768px), Desktop (1440px)
+- [x] **Custom breakpoints**: Add/remove breakpoints via UI
+- [x] **SVG-based rendering**: Uses export_node_svg after resize_node_with_constraints
+- [x] **Scene snapshot/restore**: Preserves original scene state during preview generation
+- [x] **Toolbar button**: Responsive icon + Cmd+Alt+R shortcut
+- [x] **Keyboard**: Cmd+Alt+R toggle, Escape to close

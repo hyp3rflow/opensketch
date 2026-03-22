@@ -3,6 +3,7 @@ import { computeSnap, renderGuides, type SnapGuide } from "./tools/smart-guides"
 import type { RulersAPI } from "./ui/rulers";
 import { toggleShortcutsPanel, isShortcutsPanelVisible, closeShortcutsPanel } from "./ui/shortcuts-panel";
 import { showContextMenu, hideContextMenu, type MenuItem } from "./ui/context-menu";
+import { openResponsivePreview, isResponsivePreviewOpen, closeResponsivePreview } from "./ui/responsive-preview";
 
 export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "section" | "image" | "pen" | "star" | "polygon";
 
@@ -289,6 +290,17 @@ export class Editor {
         if (boolKey === "s") { e.preventDefault(); this.booleanOperation("subtract"); return; }
         if (boolKey === "i") { e.preventDefault(); this.booleanOperation("intersect"); return; }
         if (boolKey === "x") { e.preventDefault(); this.booleanOperation("exclude"); return; }
+      }
+
+      // Ctrl/Cmd+Alt+R: responsive resize preview
+      if ((e.metaKey || e.ctrlKey) && e.altKey && (e.key === "r" || e.key === "®")) {
+        e.preventDefault();
+        if (isResponsivePreviewOpen()) {
+          closeResponsivePreview();
+        } else {
+          openResponsivePreview(this.engine);
+        }
+        return;
       }
 
       // Ctrl/Cmd+G: toggle layout grid overlay
@@ -1884,6 +1896,10 @@ export class Editor {
   // =============================================
   // Flatten Selection
   // =============================================
+
+  openResponsivePreview() {
+    openResponsivePreview(this.engine);
+  }
 
   flattenSelection() {
     const sel = Array.from(this.engine.get_selection()).map(Number);
