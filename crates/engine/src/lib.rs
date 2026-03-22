@@ -8,6 +8,7 @@ pub mod component;
 mod layout;
 mod svg_export;
 mod boolean_ops;
+pub mod styles;
 
 use wasm_bindgen::prelude::*;
 use web_sys::CanvasRenderingContext2d;
@@ -37,6 +38,7 @@ use crate::render::Renderer;
 use crate::types::{Color, Point};
 use crate::component::{ComponentStore, VariantProp, VariantPropType, VariantValue, VariantData, VariantKey, SlotDef, InstanceData, NodeOverrides};
 use crate::node::{Note, Shadow};
+use crate::styles::StyleStore;
 
 #[wasm_bindgen]
 pub struct Engine {
@@ -44,6 +46,7 @@ pub struct Engine {
     renderer: Renderer,
     editing_node: Option<u64>,
     components: ComponentStore,
+    styles: StyleStore,
     undo_stack: Vec<String>,
     redo_stack: Vec<String>,
 }
@@ -58,6 +61,7 @@ impl Engine {
             renderer: Renderer::new(width, height),
             editing_node: None,
             components: ComponentStore::new(),
+            styles: StyleStore::new(),
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
         }
@@ -1848,6 +1852,193 @@ impl Engine {
     // =============================================
     // Boolean Operations
     // =============================================
+
+    // =============================================
+    // Styles Library
+    // =============================================
+
+    /// Add a color style. Returns the style ID.
+    pub fn add_color_style(&mut self, name: &str, r: u8, g: u8, b: u8, a: f64) -> u64 {
+        self.styles.add_color_style(name.to_string(), r, g, b, a)
+    }
+
+    /// Update a color style by ID.
+    pub fn update_color_style(&mut self, id: u64, name: &str, r: u8, g: u8, b: u8, a: f64) -> bool {
+        self.styles.update_color_style(id, name.to_string(), r, g, b, a)
+    }
+
+    /// Remove a color style.
+    pub fn remove_color_style(&mut self, id: u64) -> bool {
+        // Detach from all nodes that reference this style
+        let node_ids: Vec<u64> = self.scene.all_node_ids();
+        for nid in node_ids {
+            if let Some(node) = self.scene.get_node_mut(nid) {
+                if node.color_style_id == Some(id) {
+                    node.color_style_id = None;
+                }
+            }
+        }
+        self.styles.remove_color_style(id)
+    }
+
+    /// List all color styles as JSON array.
+    pub fn list_color_styles(&self) -> String {
+        let styles: Vec<_> = self.styles.list_color_styles().iter().map(|s| {
+            serde_json::json!({
+                "id": s.id, "name": s.name,
+                "r": s.fill_r, "g": s.fill_g, "b": s.fill_b, "a": s.fill_a,
+            })
+        }).collect();
+        serde_json::to_string(&styles).unwrap_or_default()
+    }
+
+    /// Add a text style. Returns the style ID.
+    pub fn add_text_style(&mut self, name: &str, font_family: &str, font_size: f64, font_weight: u16, font_style: &str, line_height: f64, text_align: &str, r: u8, g: u8, b: u8, a: f64) -> u64 {
+        let fs = if font_style == "italic" { crate::node::FontStyle::Italic } else { crate::node::FontStyle::Normal };
+        let ta = match text_align {
+            "center" => crate::node::TextAlign::Center,
+            "right" => crate::node::TextAlign::Right,
+            _ => crate::node::TextAlign::Left,
+        };
+        self.styles.add_text_style(name.to_string(), font_family.to_string(), font_size, font_weight, fs, line_height, ta, r, g, b, a)
+    }
+
+    /// Update a text style by ID (JSON partial update).
+    pub fn update_text_style(&mut self, id: u64, json: &str) -> bool {
+        self.styles.update_text_style(id, json)
+    }
+
+    /// Remove a text style.
+    pub fn remove_text_style(&mut self, id: u64) -> bool {
+        let node_ids: Vec<u64> = self.scene.all_node_ids();
+        for nid in node_ids {
+            if let Some(node) = self.scene.get_node_mut(nid) {
+                if node.text_style_id == Some(id) {
+                    node.text_style_id = None;
+                }
+            }
+        }
+        self.styles.remove_text_style(id)
+    }
+
+    /// List all text styles as JSON array.
+    pub fn list_text_styles(&self) -> String {
+        let styles: Vec<_> = self.styles.list_text_styles().iter().map(|s| {
+            serde_json::json!({
+                "id": s.id, "name": s.name,
+                "font_family": s.font_family, "font_size": s.font_size,
+                "font_weight": s.font_weight, "font_style": format!("{:?}", s.font_style),
+                "line_height": s.line_height, "text_align": format!("{:?}", s.text_align),
+                "r": s.color_r, "g": s.color_g, "b": s.color_b, "a": s.color_a,
+            })
+        }).collect();
+        serde_json::to_string(&styles).unwrap_or_default()
+    }
+
+    /// Apply a color style to a node (sets fill color + links style ID).
+    pub fn apply_color_style(&mut self, node_id: u64, style_id: u64) -> bool {
+        if let Some(style) = self.styles.get_color_style(style_id) {
+            let (r, g, b, a) = (style.fill_r, style.fill_g, style.fill_b, style.fill_a);
+            if let Some(node) = self.scene.get_node_mut(node_id) {
+                node.fill = Some(crate::node::Fill::solid(Color { r, g, b, a }));
+                node.color_style_id = Some(style_id);
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Detach color style from a node (keeps current fill, removes link).
+    pub fn detach_color_style(&mut self, node_id: u64) -> bool {
+        if let Some(node) = self.scene.get_node_mut(node_id) {
+            node.color_style_id = None;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Apply a text style to a text node (sets font props + links style ID).
+    pub fn apply_text_style(&mut self, node_id: u64, style_id: u64) -> bool {
+        if let Some(style) = self.styles.get_text_style(style_id).cloned() {
+            if let Some(node) = self.scene.get_node_mut(node_id) {
+                if let NodeKind::Text { ref mut font_family, ref mut font_size, ref mut font_weight, ref mut font_style, ref mut line_height, ref mut text_align, .. } = node.kind {
+                    *font_family = style.font_family;
+                    *font_size = style.font_size;
+                    *font_weight = style.font_weight;
+                    *font_style = style.font_style;
+                    *line_height = style.line_height;
+                    *text_align = style.text_align;
+                    node.fill = Some(crate::node::Fill::solid(Color { r: style.color_r, g: style.color_g, b: style.color_b, a: style.color_a }));
+                }
+                node.text_style_id = Some(style_id);
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Detach text style from a node.
+    pub fn detach_text_style(&mut self, node_id: u64) -> bool {
+        if let Some(node) = self.scene.get_node_mut(node_id) {
+            node.text_style_id = None;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Get style info for a node as JSON: { color_style_id, text_style_id, color_style_name, text_style_name }
+    pub fn get_node_style_info(&self, node_id: u64) -> String {
+        if let Some(node) = self.scene.get_node(node_id) {
+            let cs_name = node.color_style_id.and_then(|id| self.styles.get_color_style(id)).map(|s| s.name.clone());
+            let ts_name = node.text_style_id.and_then(|id| self.styles.get_text_style(id)).map(|s| s.name.clone());
+            serde_json::json!({
+                "color_style_id": node.color_style_id,
+                "text_style_id": node.text_style_id,
+                "color_style_name": cs_name,
+                "text_style_name": ts_name,
+            }).to_string()
+        } else {
+            "null".to_string()
+        }
+    }
+
+    /// Sync all nodes linked to a color style (after style update).
+    pub fn sync_color_style(&mut self, style_id: u64) {
+        if let Some(style) = self.styles.get_color_style(style_id).cloned() {
+            let node_ids: Vec<u64> = self.scene.all_node_ids();
+            for nid in node_ids {
+                if let Some(node) = self.scene.get_node_mut(nid) {
+                    if node.color_style_id == Some(style_id) {
+                        node.fill = Some(crate::node::Fill::solid(Color { r: style.fill_r, g: style.fill_g, b: style.fill_b, a: style.fill_a }));
+                    }
+                }
+            }
+        }
+    }
+
+    /// Sync all nodes linked to a text style (after style update).
+    pub fn sync_text_style(&mut self, style_id: u64) {
+        if let Some(style) = self.styles.get_text_style(style_id).cloned() {
+            let node_ids: Vec<u64> = self.scene.all_node_ids();
+            for nid in node_ids {
+                if let Some(node) = self.scene.get_node_mut(nid) {
+                    if node.text_style_id == Some(style_id) {
+                        if let NodeKind::Text { ref mut font_family, ref mut font_size, ref mut font_weight, ref mut font_style, ref mut line_height, ref mut text_align, .. } = node.kind {
+                            *font_family = style.font_family.clone();
+                            *font_size = style.font_size;
+                            *font_weight = style.font_weight;
+                            *font_style = style.font_style.clone();
+                            *line_height = style.line_height;
+                            *text_align = style.text_align.clone();
+                            node.fill = Some(crate::node::Fill::solid(Color { r: style.color_r, g: style.color_g, b: style.color_b, a: style.color_a }));
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     /// Perform a boolean operation on selected nodes.
     /// op: "union" | "subtract" | "intersect" | "exclude"

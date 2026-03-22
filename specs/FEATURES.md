@@ -204,6 +204,17 @@
 - [x] Constraints (responsive resizing) — Horizontal: Left/Right/LeftAndRight/Center/Scale, Vertical: Top/Bottom/TopAndBottom/Center/Scale
 - [ ] Prototyping (interactions/transitions)
 
+### Styles Library (Shared Color & Text Styles)
+- [x] **ColorStyle**: name + RGBA fill color, CRUD via StyleStore
+- [x] **TextStyle**: name + font_family, font_size, font_weight, font_style, line_height, text_align, color — CRUD via StyleStore
+- [x] **Apply/Detach**: link a style to any node; applying sets fill/text properties, detaching keeps current values
+- [x] **Sync on update**: `sync_color_style(id)` / `sync_text_style(id)` propagates changes to all linked nodes
+- [x] **Node fields**: `color_style_id`, `text_style_id` optional fields on Node (backward-compatible via `#[serde(default)]`)
+- [x] **WASM API**: add/update/remove/list color_style & text_style, apply/detach, get_node_style_info, sync
+- [x] **Properties panel UI**: Color Style dropdown (apply/detach/create from current fill), Text Style dropdown (apply/detach/create from current text props)
+- [x] **Quick create**: "+" button creates a new style from the node's current properties
+- [x] **Linked indicator**: 🔗 badge shows linked style name
+
 
 ### Boolean Operations
 - [x] **Operations**: Union, Subtract (Difference), Intersect, Exclude (XOR)

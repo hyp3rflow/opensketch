@@ -471,6 +471,12 @@ pub struct Node {
     /// Blend mode for compositing
     #[serde(default)]
     pub blend_mode: BlendMode,
+    /// Linked color style ID (shared style)
+    #[serde(default)]
+    pub color_style_id: Option<u64>,
+    /// Linked text style ID (shared style)
+    #[serde(default)]
+    pub text_style_id: Option<u64>,
 }
 
 impl Node {
@@ -498,6 +504,8 @@ impl Node {
             constraints: Constraints::default(),
             is_mask: false,
             blend_mode: BlendMode::default(),
+            color_style_id: None,
+            text_style_id: None,
         }
     }
 

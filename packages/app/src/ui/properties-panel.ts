@@ -407,6 +407,76 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
 
     container.appendChild(appSection);
 
+    // --- Color Style ---
+    {
+      const styleSection = createSection("Color Style");
+      const styleInfoJson = editor.engine.get_node_style_info(id);
+      const styleInfo = JSON.parse(styleInfoJson || "null");
+      const colorStylesJson = editor.engine.list_color_styles();
+      const colorStyles: any[] = JSON.parse(colorStylesJson || "[]");
+
+      const styleRow = document.createElement("div");
+      styleRow.style.cssText = "display:flex;gap:4px;align-items:center;";
+
+      const styleSelect = document.createElement("select");
+      styleSelect.className = "prop-input";
+      styleSelect.style.flex = "1";
+      const noneOpt = document.createElement("option");
+      noneOpt.value = "";
+      noneOpt.textContent = styleInfo?.color_style_id ? "— Detach —" : "— None —";
+      styleSelect.appendChild(noneOpt);
+      for (const cs of colorStyles) {
+        const opt = document.createElement("option");
+        opt.value = String(cs.id);
+        opt.textContent = cs.name;
+        opt.style.color = `rgb(${cs.r},${cs.g},${cs.b})`;
+        if (styleInfo?.color_style_id === cs.id) opt.selected = true;
+        styleSelect.appendChild(opt);
+      }
+      styleSelect.addEventListener("change", () => {
+        ensureUndo();
+        if (styleSelect.value) {
+          editor.engine.apply_color_style(id, BigInt(styleSelect.value));
+        } else {
+          editor.engine.detach_color_style(id);
+        }
+        editor.requestRender();
+        refresh(ids);
+      });
+      styleRow.appendChild(styleSelect);
+
+      // Quick create from current fill
+      const createBtn = document.createElement("button");
+      createBtn.style.cssText = "background:none;border:1px solid #444;border-radius:4px;color:#888;cursor:pointer;font-size:11px;padding:3px 6px;white-space:nowrap;";
+      createBtn.textContent = "+";
+      createBtn.title = "Create color style from current fill";
+      createBtn.addEventListener("click", () => {
+        ensureUndo();
+        const fillInfoJson = editor.engine.get_fill_info(id);
+        const fillInfo = JSON.parse(fillInfoJson || "null");
+        const c = fillInfo?.color || { r: 200, g: 200, b: 200, a: 1 };
+        const name = prompt("Color style name:", "Color " + (colorStyles.length + 1));
+        if (name) {
+          const sid = editor.engine.add_color_style(name, c.r, c.g, c.b, c.a);
+          editor.engine.apply_color_style(id, sid);
+          editor.requestRender();
+          refresh(ids);
+        }
+      });
+      styleRow.appendChild(createBtn);
+      styleSection.appendChild(styleRow);
+
+      // Show linked style indicator
+      if (styleInfo?.color_style_name) {
+        const linkedLabel = document.createElement("div");
+        linkedLabel.style.cssText = "font-size:10px;color:#818cf8;margin-top:4px;";
+        linkedLabel.textContent = `🔗 ${styleInfo.color_style_name}`;
+        styleSection.appendChild(linkedLabel);
+      }
+
+      container.appendChild(styleSection);
+    }
+
     // --- Fill ---
     if (node.fill) {
       const fillSection = createSection("Fill");
@@ -952,6 +1022,77 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
 
     // --- Text-specific ---
     if (typeof node.kind === "object" && node.kind.Text) {
+      // Text Style dropdown
+      {
+        const tsSection = createSection("Text Style");
+        const styleInfoJson = editor.engine.get_node_style_info(id);
+        const styleInfo = JSON.parse(styleInfoJson || "null");
+        const textStylesJson = editor.engine.list_text_styles();
+        const textStyles: any[] = JSON.parse(textStylesJson || "[]");
+
+        const tsRow = document.createElement("div");
+        tsRow.style.cssText = "display:flex;gap:4px;align-items:center;";
+
+        const tsSelect = document.createElement("select");
+        tsSelect.className = "prop-input";
+        tsSelect.style.flex = "1";
+        const tsNone = document.createElement("option");
+        tsNone.value = "";
+        tsNone.textContent = styleInfo?.text_style_id ? "— Detach —" : "— None —";
+        tsSelect.appendChild(tsNone);
+        for (const ts of textStyles) {
+          const opt = document.createElement("option");
+          opt.value = String(ts.id);
+          opt.textContent = `${ts.name} (${ts.font_family} ${ts.font_size}px)`;
+          if (styleInfo?.text_style_id === ts.id) opt.selected = true;
+          tsSelect.appendChild(opt);
+        }
+        tsSelect.addEventListener("change", () => {
+          ensureUndo();
+          if (tsSelect.value) {
+            editor.engine.apply_text_style(id, BigInt(tsSelect.value));
+          } else {
+            editor.engine.detach_text_style(id);
+          }
+          editor.requestRender();
+          refresh(ids);
+        });
+        tsRow.appendChild(tsSelect);
+
+        // Quick create text style
+        const tsCreateBtn = document.createElement("button");
+        tsCreateBtn.style.cssText = "background:none;border:1px solid #444;border-radius:4px;color:#888;cursor:pointer;font-size:11px;padding:3px 6px;white-space:nowrap;";
+        tsCreateBtn.textContent = "+";
+        tsCreateBtn.title = "Create text style from current text properties";
+        tsCreateBtn.addEventListener("click", () => {
+          ensureUndo();
+          const td = node.kind.Text;
+          const fillInfoJson = editor.engine.get_fill_info(id);
+          const fillInfo = JSON.parse(fillInfoJson || "null");
+          const c = fillInfo?.color || { r: 0, g: 0, b: 0, a: 1 };
+          const name = prompt("Text style name:", "Text " + (textStyles.length + 1));
+          if (name) {
+            const fs = (td.font_style || "Normal") === "Italic" ? "italic" : "normal";
+            const ta = (td.text_align || "Left").toLowerCase();
+            const sid = editor.engine.add_text_style(name, td.font_family || "Inter", td.font_size || 16, td.font_weight || 400, fs, td.line_height || 1.2, ta, c.r, c.g, c.b, c.a);
+            editor.engine.apply_text_style(id, sid);
+            editor.requestRender();
+            refresh(ids);
+          }
+        });
+        tsRow.appendChild(tsCreateBtn);
+        tsSection.appendChild(tsRow);
+
+        if (styleInfo?.text_style_name) {
+          const linkedLabel = document.createElement("div");
+          linkedLabel.style.cssText = "font-size:10px;color:#818cf8;margin-top:4px;";
+          linkedLabel.textContent = `🔗 ${styleInfo.text_style_name}`;
+          tsSection.appendChild(linkedLabel);
+        }
+
+        container.appendChild(tsSection);
+      }
+
       const textSection = createSection("Text");
 
       // Content
