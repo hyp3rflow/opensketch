@@ -32,7 +32,6 @@
 - Tauri desktop build (scaffolded but not tested)
 - Variable collections (design tokens with modes/themes)
 - Plugin API (extensible tool/panel system)
-- Outline stroke (inside/outside/center stroke alignment)
 - Component variant switching UI (instance → variant picker dropdown)
 
 ## 🏗 Architecture Notes
