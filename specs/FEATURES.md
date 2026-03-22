@@ -362,4 +362,5 @@
 - [x] **Auto-select on right-click**: Right-clicking unselected node selects it first
 - [x] **Figma-style UI**: Dark background, rounded corners, hover highlights, viewport-aware positioning
 - [x] **Z-order WASM bindings**: bring_to_front, send_to_back, bring_forward, send_backward
+- [x] **Group/Ungroup**: group_selected, ungroup WASM bindings with context menu integration
 - [x] **Select all**: select_all WASM binding (visible, unlocked root nodes)

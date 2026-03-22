@@ -1909,9 +1909,7 @@ export class Editor {
     const mod = isMac ? "⌘" : "Ctrl+";
 
     // If right-clicked on a node that's not selected, select it
-    const wx = (e.offsetX - this.panX) / this.zoom;
-    const wy = (e.offsetY - this.panY) / this.zoom;
-    const hitId = Number(this.engine.hit_test(wx, wy));
+    const hitId = Number(this.engine.hit_test(e.offsetX, e.offsetY) ?? 0);
     if (hitId > 0 && !sel.includes(hitId)) {
       this.engine.deselect_all();
       this.engine.select(BigInt(hitId));
@@ -1943,6 +1941,14 @@ export class Editor {
         isHidden = !data.visible;
       } catch {}
 
+      // Group/Ungroup
+      let isGroup = false;
+      try {
+        const kind = typeof JSON.parse(node).kind === "string" ? JSON.parse(node).kind : Object.keys(JSON.parse(node).kind)[0];
+        isGroup = kind === "Group";
+      } catch {}
+      items.push({ label: "Group", shortcut: `${mod}G`, enabled: selAfter.length >= 2, action: () => this.ctxGroup() });
+      items.push({ label: "Ungroup", enabled: isGroup, action: () => this.ctxUngroup() });
       items.push({ label: isLocked ? "Unlock" : "Lock", action: () => this.ctxToggleLock() });
       items.push({ label: isHidden ? "Show" : "Hide", action: () => this.ctxToggleVisible() });
       items.push({ separator: true, label: "" });
@@ -2063,6 +2069,28 @@ export class Editor {
     for (const id of sel) this.engine.send_to_back(id);
     this.onLayersChanges.forEach(fn => fn());
     this.needsRender = true;
+  }
+
+  private ctxGroup() {
+    this.engine.push_undo();
+    const gid = this.engine.group_selected();
+    if (gid) {
+      this.onLayersChanges.forEach(fn => fn());
+      this.fireSelectionNow([Number(gid)]);
+      this.needsRender = true;
+    }
+  }
+
+  private ctxUngroup() {
+    const sel = Array.from(this.engine.get_selection()).map(Number);
+    if (sel.length !== 1) return;
+    this.engine.push_undo();
+    if (this.engine.ungroup(sel[0])) {
+      const newSel = Array.from(this.engine.get_selection()).map(Number);
+      this.onLayersChanges.forEach(fn => fn());
+      this.fireSelectionNow(newSel);
+      this.needsRender = true;
+    }
   }
 
   private ctxSelectAll() {

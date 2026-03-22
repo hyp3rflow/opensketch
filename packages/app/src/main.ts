@@ -13,7 +13,6 @@ import { AutoSave, setupHistoryPanel } from "./autosave";
 import { setupInspectPanel } from "./ui/inspect-panel";
 import { createPrototypeViewer } from "./ui/prototype-viewer";
 import { CommentOverlay, setupCommentsPanel } from "./ui/comments";
-import { setupContextMenu } from "./ui/context-menu";
 
 async function main() {
   const wasm = await loadEngine();
@@ -76,9 +75,6 @@ async function main() {
 
   // Zoom controls (bottom-left, next to layers panel)
   setupZoomControls(document.getElementById("workspace")!, editor);
-
-  // Right-click context menu
-  setupContextMenu(editor);
 
   // Rulers & guides
   const rulers = setupRulers(document.getElementById("workspace")!, editor);
