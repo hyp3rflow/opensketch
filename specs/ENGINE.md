@@ -20,7 +20,7 @@ Pure Rust crate compiled to WASM via `wasm-pack`. No NAPI — runs entirely in t
 - `PathPoint { x, y, handle_in_x, handle_in_y, handle_out_x, handle_out_y }` — anchor + bezier control handles (absolute coords)
 - `GradientStop { offset: f64, color: Color }`
 - `FillType`: `Solid { color }` | `LinearGradient { start_x, start_y, end_x, end_y, stops }` | `RadialGradient { center_x, center_y, radius, stops }` — coordinates normalized 0~1
-- `Fill { fill_type: FillType }` (backward-compatible deserialization from old `{ color }` format)
+- `Fill { fill_type: FillType, visible: bool }` (backward-compatible deserialization from old `{ color }` format; visible defaults to true)
 - `Stroke { color: Color, width: f64, dash_array: Vec<f64>, dash_offset: f64, line_cap: LineCap, line_join: LineJoin, align: StrokeAlign }`
 - `StrokeAlign { Center, Inside, Outside }` — stroke alignment (Figma-style)
 - `LineCap { Butt, Round, Square }` — stroke end cap style
@@ -30,7 +30,7 @@ Pure Rust crate compiled to WASM via `wasm-pack`. No NAPI — runs entirely in t
 - `GridSizeMode`: `Auto` | `Fixed(f64)` — column/row width mode
 - `LayoutGrid { grid_type, count: u32, size_mode: GridSizeMode, gutter: f64, margin: f64, color: Color, visible: bool }` — Figma-style layout grid overlay
 - `SizingMode`: `Fixed` | `Hug` | `Fill` — auto layout child sizing (Figma-style)
-- `Node` struct: full node with id, name, kind, transform (x/y/w/h/rotation), style (opacity, fill, stroke, corner_radius, shadows: Vec<Shadow>, blur: f64), tree (children, parent), flags (visible, locked), layout_grids: Vec<LayoutGrid>, sizing_h/sizing_v: SizingMode
+- `Node` struct: full node with id, name, kind, transform (x/y/w/h/rotation), style (opacity, fills: Vec<Fill>, stroke, corner_radius, shadows: Vec<Shadow>, blur: f64), tree (children, parent), flags (visible, locked), layout_grids: Vec<LayoutGrid>, sizing_h/sizing_v: SizingMode
 
 ### `scene.rs`
 - `Scene`: flat HashMap + root_children ordering
@@ -66,6 +66,16 @@ Pure Rust crate compiled to WASM via `wasm-pack`. No NAPI — runs entirely in t
 - `Engine` struct: Scene + Renderer + editing state
 - 40+ `#[wasm_bindgen]` methods (see AGENT-API.md for full list)
 - Categories: create, delete, select, query, modify, transform, text, scene I/O, frame tools
+
+## Multi-fill System
+- Node has `fills: Vec<Fill>` — multiple fills per node (Figma-style), rendered bottom → top
+- Each `Fill` has `fill_type: FillType` and `visible: bool` toggle
+- Backward compatible: old `"fill": {...}` JSON deserialized into `fills[0]`; `fill` field is `skip_serializing`
+- `Node::normalize_fills()` called on import to migrate old single fill → fills array
+- Rendering: all visible fills rendered in sequence (bottom → top) before stroke
+- SVG export: uses first visible fill (SVG doesn't natively support stacked fills)
+- WASM API: `add_fill`, `remove_fill`, `update_fill_at`, `set_fill_visible_at`, `get_fills`, `get_fill_count`, `move_fill`, `set_fill_linear_gradient_at`, `set_fill_radial_gradient_at`
+- Legacy `set_fill_color` / `set_fill_linear_gradient` / `set_fill_radial_gradient` update fills[0]
 
 ## Effects System
 

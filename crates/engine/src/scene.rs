@@ -356,7 +356,9 @@ impl Scene {
             let root_children;
             if let Some(page) = data.pages.get(active) {
                 for node in &page.nodes {
-                    nodes.insert(node.id, node.clone());
+                    let mut n = node.clone();
+                    n.normalize_fills();
+                    nodes.insert(n.id, n);
                 }
                 root_children = page.root_children.clone();
             } else {
@@ -373,7 +375,15 @@ impl Scene {
                 root_children,
                 next_id: data.next_id,
                 selection: vec![],
-                pages: data.pages,
+                pages: {
+                    let mut pages = data.pages;
+                    for page in &mut pages {
+                        for node in &mut page.nodes {
+                            node.normalize_fills();
+                        }
+                    }
+                    pages
+                },
                 active_page_index: active,
                 next_page_id,
                 comments: data.comments,
@@ -383,7 +393,9 @@ impl Scene {
             // Legacy single-page format
             let mut nodes = HashMap::new();
             for node in &data.nodes {
-                nodes.insert(node.id, node.clone());
+                let mut n = node.clone();
+                n.normalize_fills();
+                nodes.insert(n.id, n);
             }
             let page = Page {
                 id: 1,

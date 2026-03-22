@@ -174,6 +174,11 @@
   - Linear: start/end points (normalized 0~1), multiple color stops
   - Radial: center/radius (normalized), multiple color stops
   - Properties panel: mode switcher (Solid/Linear/Radial), stop color pickers, position inputs
+- [x] **Multi-fill**: Multiple fills per node (Figma-style), each with visible toggle
+  - Fills rendered bottom → top, supports Solid/Linear/Radial per fill
+  - Add/remove/reorder fills, per-fill visibility toggle
+  - Backward-compatible serde (old single `fill` migrated to `fills[0]`)
+  - WASM: add_fill, remove_fill, update_fill_at, move_fill, set_fill_visible_at, get_fills
   - Canvas rendering via createLinearGradient/createRadialGradient
   - SVG export with `<linearGradient>`/`<radialGradient>` defs
   - Backward-compatible serialization (old files still load)

@@ -180,7 +180,7 @@ impl Engine {
         node.width = content.len() as f64 * font_size * 0.6;
         node.height = font_size * 1.2;
         node.name = format!("Text {}", self.scene.node_count() + 1);
-        node.fill = Some(Fill::solid(Color::black()));
+        node.fills = vec![Fill::solid(Color::black())];
         self.scene.add_node(node)
     }
 
@@ -250,7 +250,7 @@ impl Engine {
         });
         node.x = x; node.y = y; node.width = w; node.height = h;
         node.name = format!("Image {}", self.scene.node_count() + 1);
-        node.fill = None;
+        node.fills = vec![];
         self.scene.add_node(node)
     }
 
@@ -271,7 +271,7 @@ impl Engine {
         let mut node = Node::new(0, NodeKind::Path { points: vec![], closed: false });
         node.x = x; node.y = y; node.width = 0.0; node.height = 0.0;
         node.name = format!("Path {}", self.scene.node_count() + 1);
-        node.fill = None;
+        node.fills = vec![];
         node.stroke = Some(Stroke { color: crate::types::Color::white(), width: 2.0, dash_array: vec![], dash_offset: 0.0, line_cap: Default::default(), line_join: Default::default(), align: Default::default() });
         self.scene.add_node(node)
     }
@@ -408,7 +408,7 @@ impl Engine {
         let mut node = Node::new(0, NodeKind::Frame);
         node.x = x; node.y = y; node.width = w; node.height = h;
         node.name = format!("Frame {}", self.scene.node_count() + 1);
-        node.fill = Some(Fill::solid(Color::white()));
+        node.fills = vec![Fill::solid(Color::white())];
         self.scene.add_node(node)
     }
 
@@ -433,7 +433,11 @@ impl Engine {
 
     pub fn set_fill_color(&mut self, id: u64, r: u8, g: u8, b: u8, a: f64) {
         if let Some(node) = self.scene.get_node_mut(id) {
-            node.fill = Some(Fill::solid(Color { r, g, b, a }));
+            if node.fills.is_empty() {
+                node.fills.push(Fill::solid(Color { r, g, b, a }));
+            } else {
+                node.fills[0] = Fill::solid(Color { r, g, b, a });
+            }
         }
     }
 
@@ -450,12 +454,18 @@ impl Engine {
             },
         }).collect();
         if let Some(node) = self.scene.get_node_mut(id) {
-            node.fill = Some(Fill {
+            let new_fill = Fill {
                 fill_type: FillType::LinearGradient {
                     start_x, start_y, end_x, end_y,
                     stops: gradient_stops,
                 },
-            });
+                visible: true,
+            };
+            if node.fills.is_empty() {
+                node.fills.push(new_fill);
+            } else {
+                node.fills[0] = new_fill;
+            }
         }
     }
 
@@ -472,19 +482,25 @@ impl Engine {
             },
         }).collect();
         if let Some(node) = self.scene.get_node_mut(id) {
-            node.fill = Some(Fill {
+            let new_fill = Fill {
                 fill_type: FillType::RadialGradient {
                     center_x, center_y, radius,
                     stops: gradient_stops,
                 },
-            });
+                visible: true,
+            };
+            if node.fills.is_empty() {
+                node.fills.push(new_fill);
+            } else {
+                node.fills[0] = new_fill;
+            }
         }
     }
 
     /// Get fill info as JSON: { "type": "Solid"|"LinearGradient"|"RadialGradient", ... }
     pub fn get_fill_info(&self, id: u64) -> String {
         if let Some(node) = self.scene.get_node(id) {
-            if let Some(fill) = &node.fill {
+            if let Some(fill) = node.first_fill() {
                 return match &fill.fill_type {
                     FillType::Solid { color } => {
                         serde_json::json!({
@@ -515,6 +531,174 @@ impl Engine {
             }
         }
         "null".to_string()
+    }
+
+    // =============================================
+    // Multi-fill API
+    // =============================================
+
+    /// Add a solid fill to the node. Returns the index.
+    pub fn add_fill(&mut self, id: u64, r: u8, g: u8, b: u8, a: f64) -> i32 {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            node.fills.push(Fill::solid(Color { r, g, b, a }));
+            (node.fills.len() - 1) as i32
+        } else {
+            -1
+        }
+    }
+
+    /// Remove a fill by index.
+    pub fn remove_fill(&mut self, id: u64, index: u32) -> bool {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            let idx = index as usize;
+            if idx < node.fills.len() {
+                node.fills.remove(idx);
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Update fill at index with a solid color.
+    pub fn update_fill_at(&mut self, id: u64, index: u32, r: u8, g: u8, b: u8, a: f64) -> bool {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            let idx = index as usize;
+            if idx < node.fills.len() {
+                node.fills[idx] = Fill::solid(Color { r, g, b, a });
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Set fill visible/hidden at index.
+    pub fn set_fill_visible_at(&mut self, id: u64, index: u32, visible: bool) -> bool {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            let idx = index as usize;
+            if idx < node.fills.len() {
+                node.fills[idx].visible = visible;
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Get all fills as JSON array.
+    pub fn get_fills(&self, id: u64) -> String {
+        if let Some(node) = self.scene.get_node(id) {
+            let fills: Vec<serde_json::Value> = node.fills.iter().enumerate().map(|(i, fill)| {
+                let base = match &fill.fill_type {
+                    FillType::Solid { color } => {
+                        serde_json::json!({
+                            "index": i,
+                            "type": "Solid",
+                            "visible": fill.visible,
+                            "color": { "r": color.r, "g": color.g, "b": color.b, "a": color.a }
+                        })
+                    }
+                    FillType::LinearGradient { start_x, start_y, end_x, end_y, stops } => {
+                        serde_json::json!({
+                            "index": i,
+                            "type": "LinearGradient",
+                            "visible": fill.visible,
+                            "start_x": start_x, "start_y": start_y,
+                            "end_x": end_x, "end_y": end_y,
+                            "stops": stops.iter().map(|s| serde_json::json!({
+                                "offset": s.offset, "r": s.color.r, "g": s.color.g, "b": s.color.b, "a": s.color.a
+                            })).collect::<Vec<_>>()
+                        })
+                    }
+                    FillType::RadialGradient { center_x, center_y, radius, stops } => {
+                        serde_json::json!({
+                            "index": i,
+                            "type": "RadialGradient",
+                            "visible": fill.visible,
+                            "center_x": center_x, "center_y": center_y, "radius": radius,
+                            "stops": stops.iter().map(|s| serde_json::json!({
+                                "offset": s.offset, "r": s.color.r, "g": s.color.g, "b": s.color.b, "a": s.color.a
+                            })).collect::<Vec<_>>()
+                        })
+                    }
+                };
+                base
+            }).collect();
+            serde_json::to_string(&fills).unwrap_or_else(|_| "[]".to_string())
+        } else {
+            "[]".to_string()
+        }
+    }
+
+    /// Get fill count for a node.
+    pub fn get_fill_count(&self, id: u64) -> u32 {
+        self.scene.get_node(id)
+            .map(|n| n.fills.len() as u32)
+            .unwrap_or(0)
+    }
+
+    /// Move a fill from one index to another.
+    pub fn move_fill(&mut self, id: u64, from_index: u32, to_index: u32) -> bool {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            let from = from_index as usize;
+            let to = to_index as usize;
+            if from < node.fills.len() && to < node.fills.len() && from != to {
+                let fill = node.fills.remove(from);
+                node.fills.insert(to, fill);
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Set fill at index to linear gradient.
+    pub fn set_fill_linear_gradient_at(&mut self, id: u64, index: u32, start_x: f64, start_y: f64, end_x: f64, end_y: f64, stops_json: &str) {
+        let stops: Vec<serde_json::Value> = serde_json::from_str(stops_json).unwrap_or_default();
+        let gradient_stops: Vec<GradientStop> = stops.iter().map(|s| GradientStop {
+            offset: s["offset"].as_f64().unwrap_or(0.0),
+            color: Color {
+                r: s["r"].as_u64().unwrap_or(0) as u8,
+                g: s["g"].as_u64().unwrap_or(0) as u8,
+                b: s["b"].as_u64().unwrap_or(0) as u8,
+                a: s["a"].as_f64().unwrap_or(1.0),
+            },
+        }).collect();
+        if let Some(node) = self.scene.get_node_mut(id) {
+            let idx = index as usize;
+            if idx < node.fills.len() {
+                node.fills[idx] = Fill {
+                    fill_type: FillType::LinearGradient {
+                        start_x, start_y, end_x, end_y,
+                        stops: gradient_stops,
+                    },
+                    visible: node.fills[idx].visible,
+                };
+            }
+        }
+    }
+
+    /// Set fill at index to radial gradient.
+    pub fn set_fill_radial_gradient_at(&mut self, id: u64, index: u32, center_x: f64, center_y: f64, radius: f64, stops_json: &str) {
+        let stops: Vec<serde_json::Value> = serde_json::from_str(stops_json).unwrap_or_default();
+        let gradient_stops: Vec<GradientStop> = stops.iter().map(|s| GradientStop {
+            offset: s["offset"].as_f64().unwrap_or(0.0),
+            color: Color {
+                r: s["r"].as_u64().unwrap_or(0) as u8,
+                g: s["g"].as_u64().unwrap_or(0) as u8,
+                b: s["b"].as_u64().unwrap_or(0) as u8,
+                a: s["a"].as_f64().unwrap_or(1.0),
+            },
+        }).collect();
+        if let Some(node) = self.scene.get_node_mut(id) {
+            let idx = index as usize;
+            if idx < node.fills.len() {
+                node.fills[idx] = Fill {
+                    fill_type: FillType::RadialGradient {
+                        center_x, center_y, radius,
+                        stops: gradient_stops,
+                    },
+                    visible: node.fills[idx].visible,
+                };
+            }
+        }
     }
 
     pub fn set_stroke(&mut self, id: u64, r: u8, g: u8, b: u8, a: f64, width: f64) {
@@ -1283,7 +1467,7 @@ impl Engine {
         if let Some(template_root) = variant.nodes.first() {
             instance_root.width = template_root.width;
             instance_root.height = template_root.height;
-            instance_root.fill = template_root.fill.clone();
+            instance_root.fills = template_root.fills.clone();
             instance_root.stroke = template_root.stroke.clone();
             instance_root.corner_radius = template_root.corner_radius;
             instance_root.layout = template_root.layout.clone();
@@ -1377,7 +1561,7 @@ impl Engine {
             if let Some(template_root) = variant.nodes.first() {
                 node.width = template_root.width;
                 node.height = template_root.height;
-                node.fill = template_root.fill.clone();
+                node.fills = template_root.fills.clone();
                 node.stroke = template_root.stroke.clone();
                 node.corner_radius = template_root.corner_radius;
                 node.layout = template_root.layout.clone();
@@ -2101,7 +2285,7 @@ impl Engine {
         if let Some(style) = self.styles.get_color_style(style_id) {
             let (r, g, b, a) = (style.fill_r, style.fill_g, style.fill_b, style.fill_a);
             if let Some(node) = self.scene.get_node_mut(node_id) {
-                node.fill = Some(crate::node::Fill::solid(Color { r, g, b, a }));
+                node.fills = vec![crate::node::Fill::solid(Color { r, g, b, a })];
                 node.color_style_id = Some(style_id);
                 return true;
             }
@@ -2130,7 +2314,7 @@ impl Engine {
                     *font_style = style.font_style;
                     *line_height = style.line_height;
                     *text_align = style.text_align;
-                    node.fill = Some(crate::node::Fill::solid(Color { r: style.color_r, g: style.color_g, b: style.color_b, a: style.color_a }));
+                    node.fills = vec![crate::node::Fill::solid(Color { r: style.color_r, g: style.color_g, b: style.color_b, a: style.color_a })];
                 }
                 node.text_style_id = Some(style_id);
                 return true;
@@ -2172,7 +2356,7 @@ impl Engine {
             for nid in node_ids {
                 if let Some(node) = self.scene.get_node_mut(nid) {
                     if node.color_style_id == Some(style_id) {
-                        node.fill = Some(crate::node::Fill::solid(Color { r: style.fill_r, g: style.fill_g, b: style.fill_b, a: style.fill_a }));
+                        node.fills = vec![crate::node::Fill::solid(Color { r: style.fill_r, g: style.fill_g, b: style.fill_b, a: style.fill_a })];
                     }
                 }
             }
@@ -2193,7 +2377,7 @@ impl Engine {
                             *font_style = style.font_style.clone();
                             *line_height = style.line_height;
                             *text_align = style.text_align.clone();
-                            node.fill = Some(crate::node::Fill::solid(Color { r: style.color_r, g: style.color_g, b: style.color_b, a: style.color_a }));
+                            node.fills = vec![crate::node::Fill::solid(Color { r: style.color_r, g: style.color_g, b: style.color_b, a: style.color_a })];
                         }
                     }
                 }
@@ -2264,13 +2448,13 @@ impl Engine {
             }
         }
 
-        // Use first node's fill for the result
-        let fill = subject.fill.clone();
+        // Use first node's fills for the result
+        let fills = subject.fills.clone();
         let stroke = subject.stroke.clone();
 
         // Create result path node
         let mut result_node = Node::new(0, NodeKind::Path { points: result_points, closed: true });
-        result_node.fill = fill;
+        result_node.fills = fills;
         result_node.stroke = stroke;
         let op_name = match op {
             "union" => "Union",
@@ -2357,7 +2541,7 @@ impl Engine {
                     let points: Vec<PathPoint> = result_poly.iter().map(|p| PathPoint::corner(p[0], p[1])).collect();
                     let mut result_node = Node::new(0, NodeKind::Path { points, closed: true });
                     result_node.name = format!("Flattened {}", node.name);
-                    result_node.fill = node.fill.clone();
+                    result_node.fills = node.fills.clone();
                     result_node.stroke = node.stroke.clone();
                     result_node.opacity = node.opacity;
                     result_node.blend_mode = node.blend_mode.clone();
@@ -2378,7 +2562,7 @@ impl Engine {
                     let closed = true;
                     let mut result_node = Node::new(0, NodeKind::Path { points, closed });
                     result_node.name = format!("Flattened {}", node.name);
-                    result_node.fill = node.fill.clone();
+                    result_node.fills = node.fills.clone();
                     result_node.stroke = node.stroke.clone();
                     result_node.opacity = node.opacity;
                     result_node.corner_radius = 0.0; // path doesn't use corner radius

@@ -215,7 +215,7 @@ function generateCSS(
     if (node.font_style && node.font_style !== "normal") lines.push(`font-style: ${node.font_style};`);
     if (node.line_height && node.line_height !== 1.2) lines.push(`line-height: ${node.line_height};`);
     if (node.text_align && node.text_align !== "left") lines.push(`text-align: ${node.text_align};`);
-    if (node.fill) lines.push(`color: ${rgbaToCSS(node.fill)};`);
+    if (node.fills?.[0]) lines.push(`color: ${rgbaToCSS(node.fills[0])};`);
   }
 
   // Layout (Flex/Grid)

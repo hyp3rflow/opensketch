@@ -621,166 +621,159 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       container.appendChild(styleSection);
     }
 
-    // --- Fill ---
-    if (node.fill) {
+    // --- Fills (multi-fill) ---
+    {
       const fillSection = createSection("Fill");
+      const fillsJson = editor.engine.get_fills(id);
+      const fills: any[] = JSON.parse(fillsJson || "[]");
 
-      // Get fill info from engine
-      const fillInfoJson = editor.engine.get_fill_info(id);
-      const fillInfo = JSON.parse(fillInfoJson || "null");
-      const fillType = fillInfo?.type || "Solid";
+      fills.forEach((fill: any, idx: number) => {
+        const fillWrap = document.createElement("div");
+        fillWrap.style.cssText = "background:#1e1e1e;border-radius:6px;padding:8px;margin-bottom:6px;position:relative;";
 
-      // Fill mode selector: Solid / Linear / Radial
-      const modeRow = document.createElement("div");
-      modeRow.style.cssText = "display:flex;gap:2px;margin-bottom:8px;";
-      (["Solid", "Linear", "Radial"] as const).forEach((mode) => {
-        const btn = document.createElement("button");
-        const isActive = (mode === "Solid" && fillType === "Solid") ||
-                         (mode === "Linear" && fillType === "LinearGradient") ||
-                         (mode === "Radial" && fillType === "RadialGradient");
-        btn.textContent = mode;
-        btn.style.cssText = `
-          flex:1;padding:4px 0;border:1px solid ${isActive ? "#4f46e5" : "#444"};border-radius:4px;
-          background:${isActive ? "#4f46e520" : "#2a2a2a"};color:${isActive ? "#818cf8" : "#999"};
-          cursor:pointer;font-size:10px;transition:all 0.15s;
-        `;
-        btn.addEventListener("click", () => {
+        // Header: visibility toggle + fill type + delete
+        const hdr = document.createElement("div");
+        hdr.style.cssText = "display:flex;align-items:center;gap:6px;margin-bottom:6px;";
+
+        const visBtn = document.createElement("button");
+        visBtn.style.cssText = `width:18px;height:18px;border:1px solid ${fill.visible ? "#4f46e5" : "#444"};border-radius:4px;background:${fill.visible ? "#4f46e520" : "#2a2a2a"};cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;`;
+        visBtn.innerHTML = fill.visible ? icons.eye.replace(/width="\d+"/, 'width="12"').replace(/height="\d+"/, 'height="12"') : icons.eyeOff.replace(/width="\d+"/, 'width="12"').replace(/height="\d+"/, 'height="12"');
+        visBtn.addEventListener("click", () => {
           ensureUndo();
-          if (mode === "Solid") {
-            const c = fillInfo?.color || (fillInfo?.stops?.[0]) || { r: 200, g: 200, b: 200, a: 1 };
-            editor.engine.set_fill_color(id, c.r, c.g, c.b, c.a);
-          } else if (mode === "Linear") {
-            const stops = fillInfo?.stops || [
+          editor.engine.set_fill_visible_at(id, idx, !fill.visible);
+          editor.requestRender();
+          refresh(ids);
+        });
+        hdr.appendChild(visBtn);
+
+        // Fill type selector
+        const typeSelect = document.createElement("select");
+        typeSelect.className = "prop-input";
+        typeSelect.style.cssText = "flex:1;font-size:11px;";
+        for (const t of ["Solid", "LinearGradient", "RadialGradient"]) {
+          const opt = document.createElement("option");
+          opt.value = t;
+          opt.textContent = t === "LinearGradient" ? "Linear" : t === "RadialGradient" ? "Radial" : "Solid";
+          if (fill.type === t) opt.selected = true;
+          typeSelect.appendChild(opt);
+        }
+        typeSelect.addEventListener("change", () => {
+          ensureUndo();
+          if (typeSelect.value === "Solid") {
+            const c = fill.color || fill.stops?.[0] || { r: 200, g: 200, b: 200, a: 1 };
+            editor.engine.update_fill_at(id, idx, c.r, c.g, c.b, c.a);
+          } else if (typeSelect.value === "LinearGradient") {
+            const stops = fill.stops || [
               { offset: 0, r: 79, g: 70, b: 229, a: 1 },
               { offset: 1, r: 16, g: 185, b: 129, a: 1 },
             ];
-            editor.engine.set_fill_linear_gradient(id, 0, 0, 1, 1, JSON.stringify(stops));
+            editor.engine.set_fill_linear_gradient_at(id, idx, 0, 0, 1, 1, JSON.stringify(stops));
           } else {
-            const stops = fillInfo?.stops || [
+            const stops = fill.stops || [
               { offset: 0, r: 79, g: 70, b: 229, a: 1 },
               { offset: 1, r: 16, g: 185, b: 129, a: 1 },
             ];
-            editor.engine.set_fill_radial_gradient(id, 0.5, 0.5, 0.5, JSON.stringify(stops));
+            editor.engine.set_fill_radial_gradient_at(id, idx, 0.5, 0.5, 0.5, JSON.stringify(stops));
           }
           editor.requestRender();
           refresh(ids);
         });
-        modeRow.appendChild(btn);
-      });
-      fillSection.appendChild(modeRow);
+        hdr.appendChild(typeSelect);
 
-      if (fillType === "Solid") {
-        // Solid color picker
-        const color = fillInfo?.color || { r: 200, g: 200, b: 200, a: 1 };
-        fillSection.appendChild(createColorRow(color, (r, g, b, a) => {
-          editor.engine.set_fill_color(id, r, g, b, a);
-          editor.requestRender();
-        }));
-      } else {
-        // Gradient stops editor
-        const stops: any[] = fillInfo?.stops || [];
-        stops.forEach((stop: any, idx: number) => {
-          const stopRow = document.createElement("div");
-          stopRow.style.cssText = "display:flex;align-items:center;gap:4px;margin-bottom:4px;";
+        // Move up/down buttons
+        if (fills.length > 1) {
+          if (idx > 0) {
+            const upBtn = document.createElement("button");
+            upBtn.style.cssText = "background:none;border:1px solid #444;border-radius:4px;color:#888;cursor:pointer;font-size:10px;padding:2px 4px;";
+            upBtn.textContent = "▲";
+            upBtn.title = "Move up";
+            upBtn.addEventListener("click", () => { ensureUndo(); editor.engine.move_fill(id, idx, idx - 1); editor.requestRender(); refresh(ids); });
+            hdr.appendChild(upBtn);
+          }
+          if (idx < fills.length - 1) {
+            const dnBtn = document.createElement("button");
+            dnBtn.style.cssText = "background:none;border:1px solid #444;border-radius:4px;color:#888;cursor:pointer;font-size:10px;padding:2px 4px;";
+            dnBtn.textContent = "▼";
+            dnBtn.title = "Move down";
+            dnBtn.addEventListener("click", () => { ensureUndo(); editor.engine.move_fill(id, idx, idx + 1); editor.requestRender(); refresh(ids); });
+            hdr.appendChild(dnBtn);
+          }
+        }
 
-          // Offset input
-          const offsetInput = document.createElement("input");
-          offsetInput.className = "prop-input";
-          offsetInput.style.cssText = "width:40px;flex:none;text-align:center;font-size:11px;";
-          offsetInput.value = Math.round(stop.offset * 100) + "%";
-          offsetInput.addEventListener("change", () => {
-            const newOffset = parseInt(offsetInput.value) / 100;
-            stops[idx].offset = Math.max(0, Math.min(1, isNaN(newOffset) ? stop.offset : newOffset));
-            applyGradient();
-          });
-          stopRow.appendChild(offsetInput);
+        const delBtn = document.createElement("button");
+        delBtn.style.cssText = "background:transparent;border:none;color:#555;cursor:pointer;font-size:11px;padding:2px 4px;border-radius:4px;";
+        delBtn.textContent = "✕";
+        delBtn.addEventListener("click", () => { ensureUndo(); editor.engine.remove_fill(id, idx); editor.requestRender(); refresh(ids); });
+        hdr.appendChild(delBtn);
+        fillWrap.appendChild(hdr);
 
-          // Color for this stop
-          stopRow.appendChild(createColorRow(
-            { r: stop.r, g: stop.g, b: stop.b, a: stop.a },
-            (r, g, b, a) => {
-              stops[idx] = { ...stops[idx], r, g, b, a };
-              applyGradient();
-            }
-          ));
-
-          // Remove stop button (only if > 2 stops)
-          if (stops.length > 2) {
-            const delBtn = document.createElement("button");
-            delBtn.style.cssText = "background:none;border:none;color:#555;cursor:pointer;font-size:11px;padding:2px;";
-            delBtn.textContent = "✕";
-            delBtn.addEventListener("click", () => {
-              stops.splice(idx, 1);
-              applyGradient();
-              refresh(ids);
+        // Fill content based on type
+        if (fill.type === "Solid") {
+          const color = fill.color || { r: 200, g: 200, b: 200, a: 1 };
+          fillWrap.appendChild(createColorRow(color, (r, g, b, a) => {
+            editor.engine.update_fill_at(id, idx, r, g, b, a);
+            editor.requestRender();
+          }));
+        } else {
+          // Gradient stops
+          const stops: any[] = fill.stops || [];
+          stops.forEach((stop: any, si: number) => {
+            const stopRow = document.createElement("div");
+            stopRow.style.cssText = "display:flex;align-items:center;gap:4px;margin-bottom:4px;";
+            const offsetInput = document.createElement("input");
+            offsetInput.className = "prop-input";
+            offsetInput.style.cssText = "width:40px;flex:none;text-align:center;font-size:11px;";
+            offsetInput.value = Math.round(stop.offset * 100) + "%";
+            offsetInput.addEventListener("change", () => {
+              const newOffset = parseInt(offsetInput.value) / 100;
+              stops[si].offset = Math.max(0, Math.min(1, isNaN(newOffset) ? stop.offset : newOffset));
+              applyGrad();
             });
-            stopRow.appendChild(delBtn);
+            stopRow.appendChild(offsetInput);
+            stopRow.appendChild(createColorRow(
+              { r: stop.r, g: stop.g, b: stop.b, a: stop.a },
+              (r, g, b, a) => { stops[si] = { ...stops[si], r, g, b, a }; applyGrad(); }
+            ));
+            if (stops.length > 2) {
+              const sdel = document.createElement("button");
+              sdel.style.cssText = "background:none;border:none;color:#555;cursor:pointer;font-size:11px;padding:2px;";
+              sdel.textContent = "✕";
+              sdel.addEventListener("click", () => { stops.splice(si, 1); applyGrad(); refresh(ids); });
+              stopRow.appendChild(sdel);
+            }
+            fillWrap.appendChild(stopRow);
+          });
+          const addStopBtn = document.createElement("button");
+          addStopBtn.className = "prop-add-btn";
+          addStopBtn.textContent = "+ Add stop";
+          addStopBtn.addEventListener("click", () => { ensureUndo(); stops.push({ offset: 0.5, r: 255, g: 255, b: 255, a: 1 }); applyGrad(); refresh(ids); });
+          fillWrap.appendChild(addStopBtn);
+
+          function applyGrad() {
+            ensureUndo();
+            if (fill.type === "LinearGradient") {
+              editor.engine.set_fill_linear_gradient_at(id, idx, fill.start_x ?? 0, fill.start_y ?? 0, fill.end_x ?? 1, fill.end_y ?? 1, JSON.stringify(stops));
+            } else {
+              editor.engine.set_fill_radial_gradient_at(id, idx, fill.center_x ?? 0.5, fill.center_y ?? 0.5, fill.radius ?? 0.5, JSON.stringify(stops));
+            }
+            editor.requestRender();
           }
-
-          fillSection.appendChild(stopRow);
-        });
-
-        // Add stop button
-        const addStopBtn = document.createElement("button");
-        addStopBtn.className = "prop-add-btn";
-        addStopBtn.textContent = "+ Add stop";
-        addStopBtn.addEventListener("click", () => {
-          ensureUndo();
-          stops.push({ offset: 0.5, r: 255, g: 255, b: 255, a: 1 });
-          applyGradient();
-          refresh(ids);
-        });
-        fillSection.appendChild(addStopBtn);
-
-        // Gradient parameters (direction for linear, center/radius for radial)
-        if (fillType === "LinearGradient") {
-          const dirRow = document.createElement("div");
-          dirRow.style.cssText = "display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:4px;margin-top:6px;";
-          const params = [
-            { label: "X1", key: "start_x", val: fillInfo.start_x },
-            { label: "Y1", key: "start_y", val: fillInfo.start_y },
-            { label: "X2", key: "end_x", val: fillInfo.end_x },
-            { label: "Y2", key: "end_y", val: fillInfo.end_y },
-          ];
-          const paramValues: any = { start_x: fillInfo.start_x, start_y: fillInfo.start_y, end_x: fillInfo.end_x, end_y: fillInfo.end_y };
-          params.forEach(({ label, key, val }) => {
-            dirRow.appendChild(createLabeledInput(label, String(Math.round(val * 100) / 100), (v) => {
-              ensureUndo();
-              paramValues[key] = parseFloat(v) || 0;
-              editor.engine.set_fill_linear_gradient(id, paramValues.start_x, paramValues.start_y, paramValues.end_x, paramValues.end_y, JSON.stringify(stops));
-              editor.requestRender();
-            }));
-          });
-          fillSection.appendChild(dirRow);
-        } else if (fillType === "RadialGradient") {
-          const radRow = document.createElement("div");
-          radRow.style.cssText = "display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;margin-top:6px;";
-          const paramValues: any = { center_x: fillInfo.center_x, center_y: fillInfo.center_y, radius: fillInfo.radius };
-          [
-            { label: "CX", key: "center_x", val: fillInfo.center_x },
-            { label: "CY", key: "center_y", val: fillInfo.center_y },
-            { label: "R", key: "radius", val: fillInfo.radius },
-          ].forEach(({ label, key, val }) => {
-            radRow.appendChild(createLabeledInput(label, String(Math.round(val * 100) / 100), (v) => {
-              ensureUndo();
-              paramValues[key] = parseFloat(v) || 0;
-              editor.engine.set_fill_radial_gradient(id, paramValues.center_x, paramValues.center_y, paramValues.radius, JSON.stringify(stops));
-              editor.requestRender();
-            }));
-          });
-          fillSection.appendChild(radRow);
         }
 
-        function applyGradient() {
-          ensureUndo();
-          if (fillType === "LinearGradient") {
-            editor.engine.set_fill_linear_gradient(id, fillInfo.start_x, fillInfo.start_y, fillInfo.end_x, fillInfo.end_y, JSON.stringify(stops));
-          } else {
-            editor.engine.set_fill_radial_gradient(id, fillInfo.center_x, fillInfo.center_y, fillInfo.radius, JSON.stringify(stops));
-          }
-          editor.requestRender();
-        }
-      }
+        fillSection.appendChild(fillWrap);
+      });
+
+      // Add fill button
+      const addFillBtn = document.createElement("button");
+      addFillBtn.className = "prop-add-btn";
+      addFillBtn.textContent = "+ Add fill";
+      addFillBtn.addEventListener("click", () => {
+        ensureUndo();
+        editor.engine.add_fill(id, 200, 200, 200, 1.0);
+        editor.requestRender();
+        refresh(ids);
+      });
+      fillSection.appendChild(addFillBtn);
 
       container.appendChild(fillSection);
     }

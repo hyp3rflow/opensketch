@@ -408,7 +408,7 @@ impl Renderer {
     }
 
     fn render_text(&self, ctx: &CanvasRenderingContext2d, node: &Node, content: &str, font_size: f64, font_family: &str, line_height: f64, text_align: &TextAlign, font_weight: u16, font_style: &FontStyle) {
-        if let Some(fill) = &node.fill {
+        if let Some(fill) = node.visible_fills().last() {
             ctx.set_fill_style_str(&fill.color().to_css());
             let font_str = Self::build_font_string(font_size, font_family, font_weight, font_style);
             ctx.set_font(&font_str);
@@ -476,8 +476,9 @@ impl Renderer {
             }
         }
 
-        if node.fill.is_some() {
-            self.apply_fill_style(ctx, node);
+        // Render all visible fills
+        for fill in node.visible_fills() {
+            self.apply_single_fill_style(ctx, fill, node);
             if node.corner_radius > 0.0 {
                 self.draw_rounded_rect(ctx, node.x, node.y, node.width, node.height, node.corner_radius);
                 ctx.fill();
@@ -569,8 +570,8 @@ impl Renderer {
 
     fn render_instance(&self, ctx: &CanvasRenderingContext2d, node: &Node, scene: &Scene) {
         // Render like a frame but with diamond badge
-        if node.fill.is_some() {
-            self.apply_fill_style(ctx, node);
+        for fill in node.visible_fills() {
+            self.apply_single_fill_style(ctx, fill, node);
             if node.corner_radius > 0.0 {
                 ctx.begin_path();
                 let r = node.corner_radius.min(node.width / 2.0).min(node.height / 2.0);
@@ -623,7 +624,7 @@ impl Renderer {
 
     fn render_image_placeholder(&self, ctx: &CanvasRenderingContext2d, node: &Node) {
         // Draw a light placeholder rect; actual image drawn by TS overlay
-        if let Some(fill) = &node.fill {
+        if let Some(fill) = node.visible_fills().next() {
             ctx.set_fill_style_str(&fill.color().to_css());
         } else {
             ctx.set_fill_style_str("rgba(40,40,40,1)");
@@ -771,36 +772,41 @@ impl Renderer {
         ctx.close_path();
     }
 
-    fn apply_fill_style(&self, ctx: &CanvasRenderingContext2d, node: &Node) {
-        if let Some(fill) = &node.fill {
-            match &fill.fill_type {
-                crate::node::FillType::Solid { color } => {
-                    ctx.set_fill_style_str(&color.to_css());
+    fn apply_single_fill_style(&self, ctx: &CanvasRenderingContext2d, fill: &crate::node::Fill, node: &Node) {
+        match &fill.fill_type {
+            crate::node::FillType::Solid { color } => {
+                ctx.set_fill_style_str(&color.to_css());
+            }
+            crate::node::FillType::LinearGradient { start_x, start_y, end_x, end_y, stops } => {
+                let grad = ctx.create_linear_gradient(
+                    node.x + start_x * node.width,
+                    node.y + start_y * node.height,
+                    node.x + end_x * node.width,
+                    node.y + end_y * node.height,
+                );
+                for stop in stops {
+                    grad.add_color_stop(stop.offset as f32, &stop.color.to_css()).ok();
                 }
-                crate::node::FillType::LinearGradient { start_x, start_y, end_x, end_y, stops } => {
-                    let grad = ctx.create_linear_gradient(
-                        node.x + start_x * node.width,
-                        node.y + start_y * node.height,
-                        node.x + end_x * node.width,
-                        node.y + end_y * node.height,
-                    );
+                ctx.set_fill_style(&grad);
+            }
+            crate::node::FillType::RadialGradient { center_x, center_y, radius, stops } => {
+                let cx = node.x + center_x * node.width;
+                let cy = node.y + center_y * node.height;
+                let r = radius * node.width.max(node.height);
+                if let Ok(grad) = ctx.create_radial_gradient(cx, cy, 0.0, cx, cy, r) {
                     for stop in stops {
                         grad.add_color_stop(stop.offset as f32, &stop.color.to_css()).ok();
                     }
                     ctx.set_fill_style(&grad);
                 }
-                crate::node::FillType::RadialGradient { center_x, center_y, radius, stops } => {
-                    let cx = node.x + center_x * node.width;
-                    let cy = node.y + center_y * node.height;
-                    let r = radius * node.width.max(node.height);
-                    if let Ok(grad) = ctx.create_radial_gradient(cx, cy, 0.0, cx, cy, r) {
-                        for stop in stops {
-                            grad.add_color_stop(stop.offset as f32, &stop.color.to_css()).ok();
-                        }
-                        ctx.set_fill_style(&grad);
-                    }
-                }
             }
+        }
+    }
+
+    /// Apply first visible fill style (backward-compat helper for contexts that set fill once).
+    fn apply_fill_style(&self, ctx: &CanvasRenderingContext2d, node: &Node) {
+        if let Some(fill) = node.visible_fills().next() {
+            self.apply_single_fill_style(ctx, fill, node);
         }
     }
 
@@ -817,19 +823,16 @@ impl Renderer {
                     ctx.set_line_dash(&js_sys::Array::new()).ok();
                 }
                 ctx.restore();
-                // Fill on top (masks inner half of stroke)
-                if node.fill.is_some() {
-                    self.apply_fill_style(ctx, node);
-                    ctx.fill();
+                // Fill on top (masks inner half of stroke) — render all visible fills
+                if node.has_fill() {
+                    for fill in node.visible_fills() {
+                        self.apply_single_fill_style(ctx, fill, node);
+                        ctx.fill();
+                    }
                 } else {
-                    // No fill: clip out interior to show only outside stroke
-                    // Use evenodd: outer rect + shape path → clips to outside
                     ctx.save();
                     ctx.begin_path();
-                    // Large outer rect
                     ctx.rect(-1e6, -1e6, 2e6, 2e6);
-                    // Re-trace current shape path (already in subpath from caller)
-                    // We need to clear and re-fill with background
                     ctx.set_fill_style_str("rgba(0,0,0,0)");
                     ctx.fill();
                     ctx.restore();
@@ -838,8 +841,9 @@ impl Renderer {
             }
         }
 
-        if node.fill.is_some() {
-            self.apply_fill_style(ctx, node);
+        // Render all visible fills (bottom → top)
+        for fill in node.visible_fills() {
+            self.apply_single_fill_style(ctx, fill, node);
             ctx.fill();
         }
         if let Some(stroke) = &node.stroke {
@@ -847,7 +851,6 @@ impl Renderer {
             self.apply_stroke_options(ctx, stroke);
             match stroke.align {
                 crate::node::StrokeAlign::Inside => {
-                    // Inside: clip to shape, stroke with 2x width
                     ctx.save();
                     ctx.clip();
                     ctx.set_line_width(stroke.width * 2.0);
@@ -855,12 +858,10 @@ impl Renderer {
                     ctx.restore();
                 }
                 _ => {
-                    // Center (default)
                     ctx.set_line_width(stroke.width);
                     ctx.stroke();
                 }
             }
-            // Reset dash
             if !stroke.dash_array.is_empty() {
                 ctx.set_line_dash(&js_sys::Array::new()).ok();
             }

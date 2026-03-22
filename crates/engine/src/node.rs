@@ -138,12 +138,16 @@ pub enum FillType {
     },
 }
 
+fn default_visible() -> bool { true }
+
 /// Fill supports backward-compatible deserialization:
 /// Old format: `{"color": {...}}` → Solid
 /// New format: `{"fill_type": {"Solid": ...}}` or `{"fill_type": {"LinearGradient": ...}}`
 #[derive(Clone, Debug, Serialize)]
 pub struct Fill {
     pub fill_type: FillType,
+    #[serde(default = "default_visible")]
+    pub visible: bool,
 }
 
 impl<'de> serde::Deserialize<'de> for Fill {
@@ -151,17 +155,18 @@ impl<'de> serde::Deserialize<'de> for Fill {
     where D: serde::Deserializer<'de>
     {
         let value = serde_json::Value::deserialize(deserializer)?;
+        let visible = value.get("visible").and_then(|v| v.as_bool()).unwrap_or(true);
         // New format: has "fill_type" key
         if let Some(ft) = value.get("fill_type") {
             let fill_type: FillType = serde_json::from_value(ft.clone())
                 .map_err(serde::de::Error::custom)?;
-            return Ok(Fill { fill_type });
+            return Ok(Fill { fill_type, visible });
         }
         // Old format: has "color" key directly
         if let Some(color_val) = value.get("color") {
             let color: Color = serde_json::from_value(color_val.clone())
                 .map_err(serde::de::Error::custom)?;
-            return Ok(Fill::solid(color));
+            return Ok(Fill { fill_type: FillType::Solid { color }, visible });
         }
         Err(serde::de::Error::custom("expected fill_type or color"))
     }
@@ -169,7 +174,7 @@ impl<'de> serde::Deserialize<'de> for Fill {
 
 impl Fill {
     pub fn solid(color: Color) -> Self {
-        Fill { fill_type: FillType::Solid { color } }
+        Fill { fill_type: FillType::Solid { color }, visible: true }
     }
 
     pub fn color(&self) -> Color {
@@ -617,7 +622,12 @@ pub struct Node {
     pub opacity: f64,
     pub visible: bool,
     pub locked: bool,
+    /// Deprecated single fill — deserialized from old JSON, not serialized.
+    #[serde(default, skip_serializing)]
     pub fill: Option<Fill>,
+    /// Multiple fills (rendered bottom → top). Primary storage for fills.
+    #[serde(default)]
+    pub fills: Vec<Fill>,
     pub stroke: Option<Stroke>,
     pub corner_radius: f64,
     pub children: Vec<NodeId>,
@@ -678,7 +688,8 @@ impl Node {
             opacity: 1.0,
             visible: true,
             locked: false,
-            fill: Some(Fill::solid(Color { r: 200, g: 200, b: 200, a: 1.0 })),
+            fill: None,
+            fills: vec![Fill::solid(Color { r: 200, g: 200, b: 200, a: 1.0 })],
             stroke: None,
             corner_radius: 0.0,
             children: vec![],
@@ -702,5 +713,31 @@ impl Node {
 
     pub fn bounds(&self) -> BBox {
         BBox { x: self.x, y: self.y, width: self.width, height: self.height }
+    }
+
+    /// Migrate deprecated `fill` field into `fills` (call after deserialization).
+    pub fn normalize_fills(&mut self) {
+        if self.fills.is_empty() {
+            if let Some(f) = self.fill.take() {
+                self.fills.push(f);
+            }
+        } else {
+            self.fill = None;
+        }
+    }
+
+    /// Get the first fill (backward compat helper).
+    pub fn first_fill(&self) -> Option<&Fill> {
+        self.fills.first()
+    }
+
+    /// Get visible fills (for rendering, bottom→top order).
+    pub fn visible_fills(&self) -> impl Iterator<Item = &Fill> {
+        self.fills.iter().filter(|f| f.visible)
+    }
+
+    /// Check if node has any fills.
+    pub fn has_fill(&self) -> bool {
+        !self.fills.is_empty()
     }
 }

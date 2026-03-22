@@ -26,12 +26,12 @@
 
 - **Auto layout hug/fill sizing** — SizingMode(Fixed/Hug/Fill) per axis, Fill children expand to fill remaining space, Hug parents shrink to content, Properties panel dropdowns
 - **Right-click context menu** — Figma-style context menu with Copy/Cut/Paste/Duplicate/Delete, Group/Ungroup, Lock/Unlock, Show/Hide, z-order (Bring to Front/Forward, Send Backward/Back), Flatten, Select All, Zoom controls, shortcut display, disabled states, auto-select on right-click
+- **Multi-fill (multiple fills per node)** — Figma-style Vec<Fill> with per-fill visible toggle, rendered bottom→top, add/remove/reorder fills UI, backward-compatible serde, WASM bindings (add_fill, remove_fill, update_fill_at, move_fill, set_fill_visible_at, get_fills)
 
 ## 📋 Backlog
 - Tauri desktop build (scaffolded but not tested)
 - Variable collections (design tokens with modes/themes)
 - Plugin API (extensible tool/panel system)
-- Selection colors / multi-fill (multiple fills per node like Figma)
 - Outline stroke (inside/outside/center stroke alignment)
 - Component variant switching UI (instance → variant picker dropdown)
 

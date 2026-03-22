@@ -136,7 +136,7 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
             attrs.push_str(&format!(r#" text-anchor="{}""#, anchor));
 
             // Fill color for text
-            if let Some(ref fill) = node.fill {
+            if let Some(fill) = node.visible_fills().next() {
                 let c = fill.color();
                 attrs.push_str(&format!(r#" fill="{}""#, color_to_hex(c.r, c.g, c.b)));
                 if c.a < 1.0 {
@@ -208,7 +208,7 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
                 if node.corner_radius > 0.0 {
                     rect_attrs.push_str(&format!(r#" rx="{}" ry="{}""#, node.corner_radius, node.corner_radius));
                 }
-                if let Some(ref fill) = node.fill {
+                if let Some(fill) = node.visible_fills().next() {
                     match &fill.fill_type {
                         FillType::Solid { color: c } => {
                             rect_attrs.push_str(&format!(r#" fill="{}""#, color_to_hex(c.r, c.g, c.b)));
@@ -516,7 +516,7 @@ fn render_node_svg_adjusted(scene: &Scene, node: &Node, buf: &mut String, parent
                 if node.corner_radius > 0.0 {
                     rect_attrs.push_str(&format!(r#" rx="{}" ry="{}""#, node.corner_radius, node.corner_radius));
                 }
-                if let Some(ref fill) = node.fill {
+                if let Some(fill) = node.visible_fills().next() {
                     match &fill.fill_type {
                         FillType::Solid { color: c } => {
                             rect_attrs.push_str(&format!(r#" fill="{}""#, color_to_hex(c.r, c.g, c.b)));
@@ -582,7 +582,7 @@ fn append_transform(attrs: &mut String, node: &Node) {
 }
 
 fn build_gradient_defs(node: &Node) -> Option<String> {
-    let fill = node.fill.as_ref()?;
+    let fill = node.first_fill()?;
     match &fill.fill_type {
         FillType::LinearGradient { start_x, start_y, end_x, end_y, stops } => {
             let grad_id = format!("grad-{}", node.id);
@@ -619,7 +619,7 @@ fn build_gradient_defs(node: &Node) -> Option<String> {
 }
 
 fn append_fill_stroke(attrs: &mut String, node: &Node) {
-    if let Some(ref fill) = node.fill {
+    if let Some(fill) = node.visible_fills().next() {
         match &fill.fill_type {
             FillType::Solid { color: c } => {
                 attrs.push_str(&format!(r#" fill="{}""#, color_to_hex(c.r, c.g, c.b)));
