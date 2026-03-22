@@ -153,3 +153,9 @@ select.prop-input { appearance: none; background: #333 url("data:image/svg+xml,%
 .history-restore-btn { background: none; border: 1px solid #444; color: #888; cursor: pointer; padding: 3px 6px; border-radius: 4px; display: flex; align-items: center; opacity: 0; transition: opacity 0.15s; }
 .history-entry:hover .history-restore-btn { opacity: 1; }
 .history-restore-btn:hover { color: #fff; border-color: #666; background: rgba(255,255,255,0.08); }
+
+/* Rulers */
+.ruler { position: absolute; z-index: 15; }
+.ruler-h { top: 0; left: 20px; right: 0; height: 20px; cursor: row-resize; }
+.ruler-v { top: 20px; left: 0; bottom: 0; width: 20px; cursor: col-resize; }
+.ruler-corner { position: absolute; top: 0; left: 0; width: 20px; height: 20px; background: #2a2a2a; z-index: 16; border-right: 1px solid rgba(255,255,255,0.06); border-bottom: 1px solid rgba(255,255,255,0.06); }

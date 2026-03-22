@@ -7,6 +7,7 @@ import { setupDesignSystemPanel } from "./ui/design-system";
 import { setupAgentPanel } from "./ui/agent-panel";
 import { setupNoteOverlay } from "./ui/note-overlay";
 import { setupZoomControls } from "./ui/zoom-controls";
+import { setupRulers } from "./ui/rulers";
 import { AutoSave, setupHistoryPanel } from "./autosave";
 
 async function main() {
@@ -67,6 +68,10 @@ async function main() {
 
   // Zoom controls (bottom-left, next to layers panel)
   setupZoomControls(document.getElementById("workspace")!, editor);
+
+  // Rulers & guides
+  const rulers = setupRulers(document.getElementById("workspace")!, editor);
+  editor.setRulers(rulers);
 
   // Note overlay (positioned over canvas)
   const noteOverlay = setupNoteOverlay(document.getElementById("workspace")!, editor);

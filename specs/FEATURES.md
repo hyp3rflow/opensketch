@@ -246,3 +246,14 @@
 - [x] **Clear history**: trash button to wipe all snapshots
 - [x] **Storage management**: auto-trims old entries on localStorage quota errors
 - [x] **Change detection**: simple hash to skip redundant saves
+
+### Ruler / Guides
+- [x] **Horizontal ruler**: Top edge, tick marks + numbers, zoom/pan-aware
+- [x] **Vertical ruler**: Left edge, tick marks + numbers, zoom/pan-aware
+- [x] **Draggable guides**: Drag from ruler to create guide lines on canvas
+- [x] **Guide rendering**: Blue (#4a90d9) guide lines spanning full canvas
+- [x] **Snap to guides**: Guide positions integrated with smart-guides snapping system
+- [x] **Remove guides**: Double-click a guide to delete, or drag back to ruler
+- [x] **Adaptive tick spacing**: Tick intervals auto-adjust based on zoom level (50-200px screen spacing)
+- [x] **Corner square**: Top-left 20×20px corner piece between rulers
+- Pure TypeScript implementation (no Rust changes)

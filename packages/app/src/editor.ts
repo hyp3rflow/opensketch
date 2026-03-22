@@ -1,5 +1,6 @@
 import type { Engine } from "./wasm/opensketch_engine";
 import { computeSnap, renderGuides, type SnapGuide } from "./tools/smart-guides";
+import type { RulersAPI } from "./ui/rulers";
 
 export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "image" | "pen" | "star" | "polygon";
 
@@ -58,6 +59,9 @@ export class Editor {
   // Smart guides state
   private _snapGuides: SnapGuide[] = [];
   private onSaveCallbacks: (() => void)[] = [];
+
+  // Rulers & guides
+  private _rulers: RulersAPI | null = null;
 
   // Throttle selection callbacks during drag
   private selectionDirty = false;
@@ -584,9 +588,19 @@ export class Editor {
         for (const id of sel) {
           this.engine.move_node(id, rawDx, rawDy);
         }
-        // Smart guides snapping
+        // Smart guides snapping (including ruler guides)
         const selSet = new Set(sel);
         const others = this.getNonSelectedBounds(selSet);
+        // Add ruler guide positions as zero-size virtual nodes for snapping
+        if (this._rulers) {
+          const gp = this._rulers.getSnapPositions();
+          for (const gx of gp.xs) {
+            others.push({ id: -1, x: gx, y: -1e6, w: 0, h: 2e6 });
+          }
+          for (const gy of gp.ys) {
+            others.push({ id: -1, x: -1e6, y: gy, w: 2e6, h: 0 });
+          }
+        }
         const bbox = this.getSelectionBBox(sel);
         if (bbox && others.length > 0) {
           const threshold = SNAP_THRESHOLD_PX / zoom;
@@ -831,6 +845,16 @@ export class Editor {
 
   private onDoubleClick(e: MouseEvent) {
     if (this.currentTool !== "select") return;
+    // Double-click on a guide line → remove it
+    if (this._rulers) {
+      const zoom = this.engine.get_zoom();
+      const panX = this.engine.get_pan_x();
+      const panY = this.engine.get_pan_y();
+      if (this._rulers.removeGuideAt(e.offsetX, e.offsetY, zoom, panX, panY)) {
+        this.needsRender = true;
+        return;
+      }
+    }
     const hit = this.engine.hit_test(e.offsetX, e.offsetY);
     if (hit == null) return;
 
@@ -1154,10 +1178,12 @@ export class Editor {
         this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         this.engine.render(this.ctx);
         this.renderImages();
+        this.renderGuideLines();
         this.renderSmartGuides();
         this.renderPathEditOverlay();
         this.renderCaret();
         this.renderMarquee();
+        this._rulers?.render();
         this.needsRender = false;
       }
       this.rafId = requestAnimationFrame(loop);
@@ -1425,6 +1451,19 @@ export class Editor {
   onSelection(fn: (ids: number[]) => void) { this.onSelectionChanges.push(fn); }
   onLayers(fn: () => void) { this.onLayersChanges.push(fn); }
   requestRender() { this.needsRender = true; }
+
+  setRulers(rulers: RulersAPI) { this._rulers = rulers; }
+
+  getRulers(): RulersAPI | null { return this._rulers; }
+
+  private renderGuideLines() {
+    if (!this._rulers) return;
+    const zoom = this.engine.get_zoom();
+    const panX = this.engine.get_pan_x();
+    const panY = this.engine.get_pan_y();
+    const rect = this.canvas.getBoundingClientRect();
+    this._rulers.renderGuideLines(this.ctx, zoom, panX, panY, rect.width, rect.height);
+  }
   notifyLayersChanged() { this.onLayersChanges.forEach(fn => fn()); }
   notifySelectionChanged(ids: number[]) { this.fireSelectionNow(ids); }
   onSave(fn: () => void) { this.onSaveCallbacks.push(fn); }

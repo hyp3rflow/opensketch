@@ -121,3 +121,13 @@ Available: select, hand, rect, ellipse, text, frame, eye, eyeOff, rotation, corn
 - Located in Properties panel → Appearance section (after opacity)
 - Checkbox labeled "Use as mask"
 - Layers panel shows "M" badge (purple) on mask nodes
+
+### Rulers & Guides
+- Horizontal ruler at top (20px height), vertical ruler at left (20px width)
+- Corner square (20×20) at top-left intersection
+- Dark background (#2a2a2a) matching floating panels
+- Tick marks: major ticks (10px) with labels, minor ticks (5px), adaptive spacing
+- Drag from ruler to create guide line (blue #4a90d9)
+- Guide lines span full canvas, dragging shows lighter blue (#6db3f8)
+- Double-click guide to remove, drag back to ruler to remove
+- Guides snap with existing smart-guides system
