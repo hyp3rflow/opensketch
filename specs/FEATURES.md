@@ -178,6 +178,13 @@
   - Properties panel: point count display, open/closed toggle
   - WASM bindings: add_path, path_add_point, path_add_curve_point, path_set_point, path_set_handle_out/in, path_remove_point, path_set_closed, path_get_data, path_point_count
   - Toolbar: Pen button (P shortcut)
+- [x] **Path point editing mode**: double-click Path node to edit individual points/handles
+  - Double-click Path → enter edit mode, Escape to exit
+  - Drag anchor points (handles move along), drag handles to adjust curves
+  - Alt+drag handle: break mirror (move independently)
+  - Delete/Backspace: remove selected point
+  - Visual overlay: anchor squares, handle circles, connecting lines (screen-space sizing)
+  - Selected point highlighted in blue
 - [x] **Smart Guides / Snapping**: Figma-style alignment guides during drag-move
   - Snap to edges (left/right/top/bottom) and centers of other nodes
   - Configurable threshold (5px screen-space)

@@ -46,6 +46,15 @@ export class Editor {
   private _penDragStartX = 0;
   private _penDragStartY = 0;
 
+  // Path edit mode state
+  private _pathEditMode = false;
+  private _pathEditNodeId: number | null = null;
+  private _pathEditSelectedPoint: number | null = null;
+  private _pathEditDragType: 'anchor' | 'handle_in' | 'handle_out' | null = null;
+  private _pathEditDragOffsetX = 0;
+  private _pathEditDragOffsetY = 0;
+  private _pathEditHandleOffsets: { hix: number; hiy: number; hox: number; hoy: number } | null = null;
+
   // Smart guides state
   private _snapGuides: SnapGuide[] = [];
 
@@ -243,6 +252,22 @@ export class Editor {
       if (e.key === "i" || e.key === "I") this.setTool("image");
       if (e.key === "p" || e.key === "P") this.setTool("pen");
       if (e.key === "Delete" || e.key === "Backspace") {
+        if (this._pathEditMode && this._pathEditNodeId != null && this._pathEditSelectedPoint != null) {
+          this.engine.push_undo();
+          this.engine.path_remove_point(this._pathEditNodeId, this._pathEditSelectedPoint);
+          const count = this.engine.path_point_count(this._pathEditNodeId);
+          if (count < 2) {
+            this.exitPathEditMode();
+            this.engine.remove_node(this._pathEditNodeId);
+            this.engine.deselect_all();
+            this.onLayersChanges.forEach(fn => fn());
+            this.fireSelectionNow([]);
+          } else {
+            this._pathEditSelectedPoint = null;
+          }
+          this.needsRender = true;
+          return;
+        }
         this.engine.push_undo();
         const sel = this.engine.get_selection();
         sel.forEach((id: number) => this.engine.remove_node(id));
@@ -252,6 +277,11 @@ export class Editor {
         this.needsRender = true;
       }
       if (e.key === "Escape") {
+        if (this._pathEditMode) {
+          this.exitPathEditMode();
+          this.needsRender = true;
+          return;
+        }
         if (this._penPathId != null) {
           this.finishPenPath();
           this.needsRender = true;
@@ -293,6 +323,33 @@ export class Editor {
       this.canvas.style.cursor = "grabbing";
       this.canvas.setPointerCapture(e.pointerId);
       return;
+    }
+
+    if (this.currentTool === "select" && this._pathEditMode) {
+      const hit = this.pathEditHitTest(x, y);
+      if (hit) {
+        this._pathEditSelectedPoint = hit.index;
+        this._pathEditDragType = hit.type;
+        // Store handle offsets for anchor drag
+        if (hit.type === 'anchor') {
+          const points = this.getPathPoints();
+          if (points) {
+            const p = points[hit.index];
+            this._pathEditHandleOffsets = {
+              hix: p.hix - p.x, hiy: p.hiy - p.y,
+              hox: p.hox - p.x, hoy: p.hoy - p.y,
+            };
+          }
+        }
+        this.engine.push_undo();
+        this.needsRender = true;
+        this.canvas.setPointerCapture(e.pointerId);
+        return;
+      } else {
+        // Click outside points → exit path edit mode
+        this.exitPathEditMode();
+        // Fall through to normal select
+      }
     }
 
     if (this.currentTool === "select") {
@@ -409,6 +466,49 @@ export class Editor {
       return;
     }
 
+    // Path edit mode dragging
+    if (this._pathEditMode && this._pathEditDragType && this._pathEditNodeId != null && this._pathEditSelectedPoint != null) {
+      const sx = this.engine.screen_to_scene_x(e.offsetX, e.offsetY);
+      const sy = this.engine.screen_to_scene_y(e.offsetX, e.offsetY);
+      const idx = this._pathEditSelectedPoint;
+      const nodeId = this._pathEditNodeId;
+
+      if (this._pathEditDragType === 'anchor') {
+        this.engine.path_set_point(nodeId, idx, sx, sy);
+        // Move handles along with anchor
+        if (this._pathEditHandleOffsets) {
+          const o = this._pathEditHandleOffsets;
+          this.engine.path_set_handle_in(nodeId, idx, sx + o.hix, sy + o.hiy);
+          this.engine.path_set_handle_out(nodeId, idx, sx + o.hox, sy + o.hoy);
+        }
+      } else if (this._pathEditDragType === 'handle_in') {
+        this.engine.path_set_handle_in(nodeId, idx, sx, sy);
+        // Mirror handle_out unless Alt is held
+        if (!e.altKey) {
+          const points = this.getPathPoints();
+          if (points) {
+            const p = points[idx];
+            const dx = sx - p.x;
+            const dy = sy - p.y;
+            this.engine.path_set_handle_out(nodeId, idx, p.x - dx, p.y - dy);
+          }
+        }
+      } else if (this._pathEditDragType === 'handle_out') {
+        this.engine.path_set_handle_out(nodeId, idx, sx, sy);
+        if (!e.altKey) {
+          const points = this.getPathPoints();
+          if (points) {
+            const p = points[idx];
+            const dx = sx - p.x;
+            const dy = sy - p.y;
+            this.engine.path_set_handle_in(nodeId, idx, p.x - dx, p.y - dy);
+          }
+        }
+      }
+      this.needsRender = true;
+      return;
+    }
+
     // Pen tool: drag to create bezier handles
     if (this._penDragging && this._penPathId != null) {
       const sx = this.engine.screen_to_scene_x(e.offsetX, e.offsetY);
@@ -514,6 +614,13 @@ export class Editor {
       return;
     }
 
+    if (this._pathEditDragType) {
+      this._pathEditDragType = null;
+      this._pathEditHandleOffsets = null;
+      this.needsRender = true;
+      return;
+    }
+
     if (this._penDragging) {
       this._penDragging = false;
       this.needsRender = true;
@@ -580,6 +687,135 @@ export class Editor {
     }
   }
 
+  // === Path Edit Mode ===
+
+  private enterPathEditMode(nodeId: number) {
+    this._pathEditMode = true;
+    this._pathEditNodeId = nodeId;
+    this._pathEditSelectedPoint = null;
+    this._pathEditDragType = null;
+    this.engine.select(BigInt(nodeId));
+    this.canvas.style.cursor = "crosshair";
+    this.needsRender = true;
+  }
+
+  private exitPathEditMode() {
+    this._pathEditMode = false;
+    this._pathEditNodeId = null;
+    this._pathEditSelectedPoint = null;
+    this._pathEditDragType = null;
+    this.updateCursor();
+    this.needsRender = true;
+  }
+
+  private getPathPoints(): { x: number; y: number; hix: number; hiy: number; hox: number; hoy: number }[] | null {
+    if (this._pathEditNodeId == null) return null;
+    const data = this.engine.path_get_data(this._pathEditNodeId);
+    if (!data) return null;
+    const parsed = JSON.parse(data);
+    if (!parsed.points) return null;
+    return parsed.points.map((p: any) => ({
+      x: p.x, y: p.y,
+      hix: p.handle_in_x ?? p.x, hiy: p.handle_in_y ?? p.y,
+      hox: p.handle_out_x ?? p.x, hoy: p.handle_out_y ?? p.y,
+    }));
+  }
+
+  private pathEditHitTest(screenX: number, screenY: number): { index: number; type: 'anchor' | 'handle_in' | 'handle_out' } | null {
+    const points = this.getPathPoints();
+    if (!points) return null;
+    const zoom = this.engine.get_zoom();
+    const panX = this.engine.get_pan_x();
+    const panY = this.engine.get_pan_y();
+    const threshold = 8; // screen pixels
+
+    // Check anchors first (higher priority)
+    for (let i = 0; i < points.length; i++) {
+      const p = points[i];
+      const sx = p.x * zoom + panX;
+      const sy = p.y * zoom + panY;
+      if (Math.abs(screenX - sx) < threshold && Math.abs(screenY - sy) < threshold) {
+        return { index: i, type: 'anchor' };
+      }
+    }
+    // Check handles (only for selected point, or all if none selected)
+    for (let i = 0; i < points.length; i++) {
+      const p = points[i];
+      // handle_in
+      const hix = p.hix * zoom + panX;
+      const hiy = p.hiy * zoom + panY;
+      if (Math.abs(screenX - hix) < threshold && Math.abs(screenY - hiy) < threshold) {
+        return { index: i, type: 'handle_in' };
+      }
+      // handle_out
+      const hox = p.hox * zoom + panX;
+      const hoy = p.hoy * zoom + panY;
+      if (Math.abs(screenX - hox) < threshold && Math.abs(screenY - hoy) < threshold) {
+        return { index: i, type: 'handle_out' };
+      }
+    }
+    return null;
+  }
+
+  private renderPathEditOverlay() {
+    if (!this._pathEditMode || this._pathEditNodeId == null) return;
+    const points = this.getPathPoints();
+    if (!points) return;
+    const zoom = this.engine.get_zoom();
+    const panX = this.engine.get_pan_x();
+    const panY = this.engine.get_pan_y();
+
+    this.ctx.save();
+    for (let i = 0; i < points.length; i++) {
+      const p = points[i];
+      const ax = p.x * zoom + panX;
+      const ay = p.y * zoom + panY;
+      const hix = p.hix * zoom + panX;
+      const hiy = p.hiy * zoom + panY;
+      const hox = p.hox * zoom + panX;
+      const hoy = p.hoy * zoom + panY;
+      const isSelected = i === this._pathEditSelectedPoint;
+
+      // Draw handle lines
+      this.ctx.strokeStyle = "rgba(59, 130, 246, 0.6)";
+      this.ctx.lineWidth = 1;
+      if (Math.abs(hix - ax) > 0.5 || Math.abs(hiy - ay) > 0.5) {
+        this.ctx.beginPath();
+        this.ctx.moveTo(ax, ay);
+        this.ctx.lineTo(hix, hiy);
+        this.ctx.stroke();
+      }
+      if (Math.abs(hox - ax) > 0.5 || Math.abs(hoy - ay) > 0.5) {
+        this.ctx.beginPath();
+        this.ctx.moveTo(ax, ay);
+        this.ctx.lineTo(hox, hoy);
+        this.ctx.stroke();
+      }
+
+      // Draw handle circles
+      const drawHandle = (hx: number, hy: number) => {
+        this.ctx.beginPath();
+        this.ctx.arc(hx, hy, 3, 0, Math.PI * 2);
+        this.ctx.fillStyle = isSelected ? "#3b82f6" : "#ffffff";
+        this.ctx.fill();
+        this.ctx.strokeStyle = "#3b82f6";
+        this.ctx.lineWidth = 1.5;
+        this.ctx.stroke();
+      };
+      if (Math.abs(hix - ax) > 0.5 || Math.abs(hiy - ay) > 0.5) drawHandle(hix, hiy);
+      if (Math.abs(hox - ax) > 0.5 || Math.abs(hoy - ay) > 0.5) drawHandle(hox, hoy);
+
+      // Draw anchor square
+      const s = 4;
+      this.ctx.fillStyle = isSelected ? "#3b82f6" : "#ffffff";
+      this.ctx.strokeStyle = "#3b82f6";
+      this.ctx.lineWidth = 1.5;
+      this.ctx.fillRect(ax - s, ay - s, s * 2, s * 2);
+      this.ctx.strokeRect(ax - s, ay - s, s * 2, s * 2);
+    }
+    this.ctx.restore();
+  }
+
   private editingOverlay: HTMLElement | null = null;
 
   private onDoubleClick(e: MouseEvent) {
@@ -590,6 +826,13 @@ export class Editor {
     const nodeJson = this.engine.get_node_json(hit);
     if (!nodeJson) return;
     const node = JSON.parse(nodeJson);
+
+    // Path node → enter path edit mode
+    if (typeof node.kind === "object" && node.kind.Path) {
+      this.enterPathEditMode(Number(hit));
+      return;
+    }
+
     if (typeof node.kind !== "object" || !node.kind.Text) return;
 
     // Start inline text editing
@@ -901,6 +1144,7 @@ export class Editor {
         this.engine.render(this.ctx);
         this.renderImages();
         this.renderSmartGuides();
+        this.renderPathEditOverlay();
         this.renderCaret();
         this.renderMarquee();
         this.needsRender = false;
