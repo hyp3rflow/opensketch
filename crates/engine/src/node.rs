@@ -539,6 +539,35 @@ impl Default for Interaction {
     }
 }
 
+/// A reply in a comment thread
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CommentReply {
+    pub id: u64,
+    pub author: String,
+    pub text: String,
+    pub timestamp: u64,
+}
+
+/// A positioned comment on the canvas (for collaborative review)
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Comment {
+    pub id: u64,
+    pub x: f64,
+    pub y: f64,
+    pub author: String,
+    pub text: String,
+    pub timestamp: u64,
+    pub resolved: bool,
+    #[serde(default)]
+    pub replies: Vec<CommentReply>,
+    /// Optional: pinned to a specific node
+    #[serde(default)]
+    pub node_id: Option<u64>,
+    /// Page ID this comment belongs to
+    #[serde(default)]
+    pub page_id: u64,
+}
+
 /// Attached note (markdown)
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Note {

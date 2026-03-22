@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use serde::{Serialize, Deserialize};
-use crate::node::{Node, NodeId, NodeKind, ConstraintH, ConstraintV};
+use crate::node::{Node, NodeId, NodeKind, ConstraintH, ConstraintV, Comment, CommentReply};
 use crate::types::Point;
 
 /// A single page within the scene
@@ -29,6 +29,11 @@ pub struct SceneData {
     pub active_page_index: usize,
     #[serde(default)]
     pub next_page_id: u64,
+    /// Comments / annotations
+    #[serde(default)]
+    pub comments: Vec<Comment>,
+    #[serde(default)]
+    pub next_comment_id: u64,
 }
 
 pub struct Scene {
@@ -40,6 +45,9 @@ pub struct Scene {
     pages: Vec<Page>,
     active_page_index: usize,
     next_page_id: u64,
+    // Comments
+    comments: Vec<Comment>,
+    next_comment_id: u64,
 }
 
 impl Scene {
@@ -52,6 +60,8 @@ impl Scene {
             pages: vec![Page { id: 1, name: "Page 1".to_string(), nodes: vec![], root_children: vec![] }],
             active_page_index: 0,
             next_page_id: 2,
+            comments: vec![],
+            next_comment_id: 1,
         }
     }
 
@@ -279,6 +289,8 @@ impl Scene {
             pages,
             active_page_index: self.active_page_index,
             next_page_id: self.next_page_id,
+            comments: self.comments.clone(),
+            next_comment_id: self.next_comment_id,
         }
     }
 
@@ -299,6 +311,9 @@ impl Scene {
             let next_page_id = if data.next_page_id > 0 { data.next_page_id } else {
                 data.pages.iter().map(|p| p.id).max().unwrap_or(0) + 1
             };
+            let next_comment_id = if data.next_comment_id > 0 { data.next_comment_id } else {
+                data.comments.iter().map(|c| c.id).max().unwrap_or(0) + 1
+            };
             Self {
                 nodes,
                 root_children,
@@ -307,6 +322,8 @@ impl Scene {
                 pages: data.pages,
                 active_page_index: active,
                 next_page_id,
+                comments: data.comments,
+                next_comment_id,
             }
         } else {
             // Legacy single-page format
@@ -328,6 +345,8 @@ impl Scene {
                 pages: vec![page],
                 active_page_index: 0,
                 next_page_id: 2,
+                comments: vec![],
+                next_comment_id: 1,
             }
         }
     }
@@ -599,6 +618,81 @@ impl Scene {
                 node.parent = None;
             }
         }
+    }
+
+    // =============================================
+    // Comments / Annotations
+    // =============================================
+
+    pub fn add_comment(&mut self, x: f64, y: f64, author: &str, text: &str, node_id: Option<u64>) -> u64 {
+        let id = self.next_comment_id;
+        self.next_comment_id += 1;
+        let page_id = self.pages.get(self.active_page_index).map(|p| p.id).unwrap_or(0);
+        self.comments.push(Comment {
+            id, x, y,
+            author: author.to_string(),
+            text: text.to_string(),
+            timestamp: js_sys::Date::now() as u64,
+            resolved: false,
+            replies: vec![],
+            node_id,
+            page_id,
+        });
+        id
+    }
+
+    pub fn remove_comment(&mut self, comment_id: u64) -> bool {
+        let len = self.comments.len();
+        self.comments.retain(|c| c.id != comment_id);
+        self.comments.len() < len
+    }
+
+    pub fn resolve_comment(&mut self, comment_id: u64, resolved: bool) {
+        if let Some(c) = self.comments.iter_mut().find(|c| c.id == comment_id) {
+            c.resolved = resolved;
+        }
+    }
+
+    pub fn edit_comment(&mut self, comment_id: u64, text: &str) {
+        if let Some(c) = self.comments.iter_mut().find(|c| c.id == comment_id) {
+            c.text = text.to_string();
+        }
+    }
+
+    pub fn add_reply(&mut self, comment_id: u64, author: &str, text: &str) -> u64 {
+        let reply_id = self.next_comment_id;
+        self.next_comment_id += 1;
+        if let Some(c) = self.comments.iter_mut().find(|c| c.id == comment_id) {
+            c.replies.push(CommentReply {
+                id: reply_id,
+                author: author.to_string(),
+                text: text.to_string(),
+                timestamp: js_sys::Date::now() as u64,
+            });
+        }
+        reply_id
+    }
+
+    pub fn remove_reply(&mut self, comment_id: u64, reply_id: u64) -> bool {
+        if let Some(c) = self.comments.iter_mut().find(|c| c.id == comment_id) {
+            let len = c.replies.len();
+            c.replies.retain(|r| r.id != reply_id);
+            return c.replies.len() < len;
+        }
+        false
+    }
+
+    pub fn get_comments_for_page(&self) -> Vec<&Comment> {
+        let page_id = self.pages.get(self.active_page_index).map(|p| p.id).unwrap_or(0);
+        self.comments.iter().filter(|c| c.page_id == page_id).collect()
+    }
+
+    pub fn get_all_comments(&self) -> &[Comment] {
+        &self.comments
+    }
+
+    pub fn get_comment(&self, comment_id: u64) -> Option<&Comment> {
+        self.comments.iter().find(|c| c.id == comment_id)
     }
 
 }

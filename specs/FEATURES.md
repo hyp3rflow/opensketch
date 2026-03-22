@@ -323,3 +323,17 @@
 - [x] **Portable format**: Version field, full ColorStyle + TextStyle serialization
 - [x] **UI**: "Styles Library" section in Properties panel empty state (no selection)
 - Rust StyleStore export_json/import_json + WASM bindings
+
+### Comments / Annotations
+- [x] **Comment struct**: id, x, y, author, text, timestamp, resolved, replies[], node_id, page_id
+- [x] **Scene-level storage**: Comments stored at Scene level (not per-node), serialized in SceneData
+- [x] **Thread replies**: CommentReply struct with threaded conversation support
+- [x] **WASM bindings**: add_comment, add_comment_on_node, remove_comment, resolve_comment, edit_comment, add_reply, remove_reply, get_comments, get_all_comments, get_comment, get_comment_count
+- [x] **Canvas pins**: Blue pin icons at comment positions, zoom/pan aware, click to open thread
+- [x] **Comment mode**: C key toggle, crosshair cursor, click to place comment
+- [x] **Thread popup**: View comment + replies, resolve/delete actions, add reply (Cmd+Enter to submit)
+- [x] **Comments panel**: Right pane "Comments" tab listing all comments, click to pan-to
+- [x] **Resolved filter**: Resolved comments shown separately in panel, hideable on canvas
+- [x] **Page-aware**: Comments belong to specific pages
+- [x] **Undo integration**: All comment operations push undo state
+- [x] **Backward compatible**: serde(default) for comments/next_comment_id in SceneData

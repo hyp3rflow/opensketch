@@ -2400,6 +2400,76 @@ impl Engine {
             }
         }
     }
+
+    // =============================================
+    // Comments / Annotations
+    // =============================================
+
+    /// Add a comment at (x, y) canvas coords. Returns comment ID.
+    pub fn add_comment(&mut self, x: f64, y: f64, author: &str, text: &str) -> u32 {
+        self.push_undo();
+        self.scene.add_comment(x, y, author, text, None) as u32
+    }
+
+    /// Add a comment pinned to a specific node
+    pub fn add_comment_on_node(&mut self, x: f64, y: f64, author: &str, text: &str, node_id: u32) -> u32 {
+        self.push_undo();
+        self.scene.add_comment(x, y, author, text, Some(node_id as u64)) as u32
+    }
+
+    /// Remove a comment by ID
+    pub fn remove_comment(&mut self, comment_id: u32) -> bool {
+        self.push_undo();
+        self.scene.remove_comment(comment_id as u64)
+    }
+
+    /// Resolve/unresolve a comment
+    pub fn resolve_comment(&mut self, comment_id: u32, resolved: bool) {
+        self.push_undo();
+        self.scene.resolve_comment(comment_id as u64, resolved);
+    }
+
+    /// Edit comment text
+    pub fn edit_comment(&mut self, comment_id: u32, text: &str) {
+        self.push_undo();
+        self.scene.edit_comment(comment_id as u64, text);
+    }
+
+    /// Add a reply to a comment thread
+    pub fn add_reply(&mut self, comment_id: u32, author: &str, text: &str) -> u32 {
+        self.push_undo();
+        self.scene.add_reply(comment_id as u64, author, text) as u32
+    }
+
+    /// Remove a reply
+    pub fn remove_reply(&mut self, comment_id: u32, reply_id: u32) -> bool {
+        self.push_undo();
+        self.scene.remove_reply(comment_id as u64, reply_id as u64)
+    }
+
+    /// Get all comments for current page as JSON
+    pub fn get_comments(&self) -> String {
+        let comments = self.scene.get_comments_for_page();
+        serde_json::to_string(&comments).unwrap_or_else(|_| "[]".to_string())
+    }
+
+    /// Get all comments (all pages) as JSON
+    pub fn get_all_comments(&self) -> String {
+        serde_json::to_string(self.scene.get_all_comments()).unwrap_or_else(|_| "[]".to_string())
+    }
+
+    /// Get a single comment as JSON
+    pub fn get_comment(&self, comment_id: u32) -> String {
+        match self.scene.get_comment(comment_id as u64) {
+            Some(c) => serde_json::to_string(c).unwrap_or_else(|_| "null".to_string()),
+            None => "null".to_string(),
+        }
+    }
+
+    /// Get comment count for current page
+    pub fn get_comment_count(&self) -> u32 {
+        self.scene.get_comments_for_page().len() as u32
+    }
 }
 
 /// Recalculate a path node's bounding box from its points (including bezier handles).
@@ -2427,4 +2497,5 @@ fn recalc_path_bounds(node: &mut Node) {
         node.width = (max_x - min_x).max(1.0);
         node.height = (max_y - min_y).max(1.0);
     }
+
 }
