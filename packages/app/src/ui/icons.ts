@@ -77,4 +77,5 @@ export const icons = {
   boolSubtract: s('<rect x="3" y="5" width="10" height="10" rx="1" fill="currentColor" stroke="none"/><rect x="9" y="9" width="10" height="10" rx="1" fill="none" stroke="currentColor" stroke-dasharray="2 1"/>'),
   boolIntersect: s('<rect x="3" y="5" width="10" height="10" rx="1" fill="none"/><rect x="9" y="9" width="10" height="10" rx="1" fill="none"/><rect x="9" y="9" width="4" height="6" rx="0" fill="currentColor" stroke="none"/>'),
   boolExclude: s('<rect x="3" y="5" width="10" height="10" rx="1" fill="currentColor" stroke="none"/><rect x="9" y="9" width="10" height="10" rx="1" fill="currentColor" stroke="none"/><rect x="9" y="9" width="4" height="6" rx="0" fill="var(--bg-primary, #1e1e2e)" stroke="none"/>'),
+  flatten: s('<path d="M4 4h6v6H4z" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="15" cy="15" r="4" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M12 19l-2 2M19 12l2-2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M7 17L4 20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>'),
 };

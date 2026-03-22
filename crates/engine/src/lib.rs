@@ -12,6 +12,9 @@ pub mod styles;
 
 use wasm_bindgen::prelude::*;
 use web_sys::CanvasRenderingContext2d;
+use i_overlay::core::fill_rule::FillRule;
+use i_overlay::core::overlay_rule::OverlayRule;
+use i_overlay::float::single::SingleFloatOverlay;
 use crate::node::{Node, NodeKind, Fill, FillType, GradientStop, Stroke, LayoutMode, FlexDirection, Align, Justify, FlexWrap, TextSizing, TextAlign, FontStyle, PathPoint, ConstraintH, ConstraintV, BlendMode};
 
 fn parse_align(s: &str) -> Align {
@@ -2121,6 +2124,109 @@ impl Engine {
         self.scene.selection = vec![new_id];
 
         new_id
+    }
+
+    /// Flatten selected nodes into Path nodes.
+    /// Each selected non-path node is converted to a Path (polygon approximation).
+    /// Groups/Frames are recursively flattened into a single union path.
+    /// Returns the number of nodes flattened.
+    pub fn flatten_selection(&mut self) -> u32 {
+        self.push_undo();
+        let sel = self.scene.selection.clone();
+        if sel.is_empty() {
+            return 0;
+        }
+
+        let mut count = 0u32;
+        let mut new_selection = Vec::new();
+
+        for &id in &sel {
+            let node = match self.scene.get_node(id) {
+                Some(n) => n.clone(),
+                None => continue,
+            };
+
+            match &node.kind {
+                // Already a path — skip
+                NodeKind::Path { .. } => {
+                    new_selection.push(id);
+                    continue;
+                }
+                // Frame/Group: collect children polygons → union them all into one path
+                NodeKind::Frame | NodeKind::Group => {
+                    let child_ids = node.children.clone();
+                    if child_ids.is_empty() {
+                        new_selection.push(id);
+                        continue;
+                    }
+                    // Collect all child polygons
+                    let mut polygons: Vec<Vec<[f64; 2]>> = Vec::new();
+                    for &cid in &child_ids {
+                        if let Some(child) = self.scene.get_node(cid) {
+                            let poly = boolean_ops::node_to_polygon(child);
+                            if poly.len() >= 3 {
+                                polygons.push(poly);
+                            }
+                        }
+                    }
+                    if polygons.is_empty() {
+                        new_selection.push(id);
+                        continue;
+                    }
+                    // Union all polygons
+                    let mut result_poly = polygons[0].clone();
+                    for poly in &polygons[1..] {
+                        let res = result_poly.overlay(poly, OverlayRule::Union, FillRule::EvenOdd);
+                        if let Some(shape) = res.first() {
+                            if let Some(contour) = shape.first() {
+                                if contour.len() >= 3 {
+                                    result_poly = contour.clone();
+                                }
+                            }
+                        }
+                    }
+                    let points: Vec<PathPoint> = result_poly.iter().map(|p| PathPoint::corner(p[0], p[1])).collect();
+                    let mut result_node = Node::new(0, NodeKind::Path { points, closed: true });
+                    result_node.name = format!("Flattened {}", node.name);
+                    result_node.fill = node.fill.clone();
+                    result_node.stroke = node.stroke.clone();
+                    result_node.opacity = node.opacity;
+                    result_node.blend_mode = node.blend_mode.clone();
+                    recalc_path_bounds(&mut result_node);
+                    let new_id = self.scene.add_node(result_node);
+                    self.scene.remove_node(id);
+                    new_selection.push(new_id);
+                    count += 1;
+                }
+                // Simple shapes: convert to path
+                _ => {
+                    let poly = boolean_ops::node_to_polygon(&node);
+                    if poly.len() < 3 {
+                        new_selection.push(id);
+                        continue;
+                    }
+                    let points: Vec<PathPoint> = poly.iter().map(|p| PathPoint::corner(p[0], p[1])).collect();
+                    let closed = true;
+                    let mut result_node = Node::new(0, NodeKind::Path { points, closed });
+                    result_node.name = format!("Flattened {}", node.name);
+                    result_node.fill = node.fill.clone();
+                    result_node.stroke = node.stroke.clone();
+                    result_node.opacity = node.opacity;
+                    result_node.corner_radius = 0.0; // path doesn't use corner radius
+                    result_node.shadows = node.shadows.clone();
+                    result_node.blur = node.blur;
+                    result_node.blend_mode = node.blend_mode.clone();
+                    recalc_path_bounds(&mut result_node);
+                    let new_id = self.scene.add_node(result_node);
+                    self.scene.remove_node(id);
+                    new_selection.push(new_id);
+                    count += 1;
+                }
+            }
+        }
+
+        self.scene.selection = new_selection;
+        count
     }
 }
 

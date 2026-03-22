@@ -230,6 +230,16 @@
 - [x] **Toolbar UI**: 4 boolean op buttons (Union/Subtract/Intersect/Exclude) with icons
 - [x] **Selection-aware**: buttons disabled when < 2 nodes selected, enabled when 2+
 
+### Flatten Selection
+- [x] **Convert to Path**: Any shape (Rect, Ellipse, Star, Polygon, Text, Image) → Path node
+- [x] **Group/Frame flatten**: All children unioned into single Path via i_overlay
+- [x] **Preserves style**: fill, stroke, opacity, shadows, blur, blend mode carried over
+- [x] **Multi-select**: Flatten multiple nodes at once (each independently)
+- [x] **WASM API**: `flatten_selection() -> u32` — returns count of flattened nodes
+- [x] **Keyboard shortcut**: Cmd/Ctrl+E
+- [x] **Toolbar UI**: Flatten button (enabled when 1+ node selected)
+- [x] **Undo integration**: push_undo before flatten
+
 ### Constraints (Responsive Resize)
 - **Horizontal**: Left (default), Right, Left & Right (stretch), Center, Scale
 - **Vertical**: Top (default), Bottom, Top & Bottom (stretch), Center, Scale

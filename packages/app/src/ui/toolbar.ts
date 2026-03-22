@@ -121,11 +121,23 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
     boolBtns.push(btn);
   }
 
-  // Update boolean ops button state based on selection
+  // Flatten button
+  const flattenBtn = document.createElement("button");
+  flattenBtn.className = "tool-btn bool-op-btn";
+  flattenBtn.title = "Flatten (⌘E)";
+  flattenBtn.innerHTML = icons.flatten;
+  flattenBtn.disabled = true;
+  flattenBtn.addEventListener("click", () => {
+    editor.flattenSelection();
+  });
+  container.appendChild(flattenBtn);
+
+  // Update boolean ops + flatten button state based on selection
   const updateBoolState = () => {
     const sel = Array.from(editor.engine.get_selection());
     const enabled = sel.length >= 2;
     boolBtns.forEach(btn => btn.disabled = !enabled);
+    flattenBtn.disabled = sel.length === 0;
   };
   editor.onSelection(updateBoolState);
 

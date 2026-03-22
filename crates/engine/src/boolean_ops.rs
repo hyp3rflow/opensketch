@@ -14,7 +14,7 @@ pub enum BooleanOp {
 
 /// Convert a node to a polygon (list of [f64; 2] points).
 /// Curves (ellipse, bezier) are approximated with line segments.
-fn node_to_polygon(node: &Node) -> Vec<[f64; 2]> {
+pub fn node_to_polygon(node: &Node) -> Vec<[f64; 2]> {
     match &node.kind {
         NodeKind::Rect => {
             let (x, y, w, h) = (node.x, node.y, node.width, node.height);

@@ -254,6 +254,12 @@ export class Editor {
         this.zoomBy(0.8);
         return;
       }
+      // Flatten selection: Ctrl/Cmd+E
+      if ((e.metaKey || e.ctrlKey) && e.key === "e" && !e.shiftKey) {
+        e.preventDefault();
+        this.flattenSelection();
+        return;
+      }
       // Boolean operations: Ctrl/Cmd+Shift+U/S/I/X (but only without other modifiers conflicting)
       if ((e.metaKey || e.ctrlKey) && e.shiftKey) {
         const boolKey = e.key.toLowerCase();
@@ -1761,6 +1767,22 @@ export class Editor {
     const newId = this.engine.boolean_operation(op);
     if (newId) {
       this.fireSelectionNow([Number(newId)]);
+      (this as any).onLayersChanges?.forEach?.((fn: any) => fn());
+      this.requestRender();
+    }
+  }
+
+  // =============================================
+  // Flatten Selection
+  // =============================================
+
+  flattenSelection() {
+    const sel = Array.from(this.engine.get_selection()).map(Number);
+    if (sel.length === 0) return;
+    const count = this.engine.flatten_selection();
+    if (count > 0) {
+      const newSel = Array.from(this.engine.get_selection()).map(Number);
+      this.fireSelectionNow(newSel);
       (this as any).onLayersChanges?.forEach?.((fn: any) => fn());
       this.requestRender();
     }
