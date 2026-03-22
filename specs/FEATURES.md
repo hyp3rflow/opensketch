@@ -6,6 +6,7 @@
 - [x] Scene graph (flat HashMap + tree via parent/children)
 - [x] Node types: Rectangle, Ellipse, Text, Frame, Group
 - [x] Properties: position, size, rotation, opacity, fill, stroke (color, width, dash, cap, join), corner radius, shadows, blur
+- [x] Layout grid overlay (Columns, Rows, Grid) on Frame nodes with Ctrl/Cmd+G toggle
 - [x] Viewport: pan, zoom (scroll wheel with rAF batching)
 - [x] Hit testing (reverse render order, respects visibility/lock)
 - [x] Selection (single + multi-select + marquee drag-select, with resize handles)

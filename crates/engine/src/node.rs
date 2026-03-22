@@ -421,6 +421,55 @@ impl BlendMode {
     }
 }
 
+/// Layout grid overlay type
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub enum LayoutGridType {
+    Columns,
+    Rows,
+    Grid,
+}
+
+impl Default for LayoutGridType {
+    fn default() -> Self { LayoutGridType::Columns }
+}
+
+/// Layout grid size mode
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub enum GridSizeMode {
+    Auto,
+    Fixed(f64),
+}
+
+impl Default for GridSizeMode {
+    fn default() -> Self { GridSizeMode::Auto }
+}
+
+/// Layout grid overlay definition
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct LayoutGrid {
+    pub grid_type: LayoutGridType,
+    pub count: u32,
+    pub size_mode: GridSizeMode,
+    pub gutter: f64,
+    pub margin: f64,
+    pub color: Color,
+    pub visible: bool,
+}
+
+impl Default for LayoutGrid {
+    fn default() -> Self {
+        Self {
+            grid_type: LayoutGridType::Columns,
+            count: 12,
+            size_mode: GridSizeMode::Auto,
+            gutter: 20.0,
+            margin: 20.0,
+            color: Color { r: 255, g: 0, b: 0, a: 0.1 },
+            visible: true,
+        }
+    }
+}
+
 /// Attached note (markdown)
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Note {
@@ -477,6 +526,9 @@ pub struct Node {
     /// Linked text style ID (shared style)
     #[serde(default)]
     pub text_style_id: Option<u64>,
+    /// Layout grid overlays (Figma-style, for Frame nodes)
+    #[serde(default)]
+    pub layout_grids: Vec<LayoutGrid>,
 }
 
 impl Node {
@@ -506,6 +558,7 @@ impl Node {
             blend_mode: BlendMode::default(),
             color_style_id: None,
             text_style_id: None,
+            layout_grids: vec![],
         }
     }
 

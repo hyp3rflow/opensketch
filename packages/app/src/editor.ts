@@ -59,6 +59,7 @@ export class Editor {
   // Smart guides state
   private _snapGuides: SnapGuide[] = [];
   private onSaveCallbacks: (() => void)[] = [];
+  private _layoutGridsVisible = true;
 
   // Rulers & guides
   private _rulers: RulersAPI | null = null;
@@ -269,6 +270,13 @@ export class Editor {
         if (boolKey === "x") { e.preventDefault(); this.booleanOperation("exclude"); return; }
       }
 
+      // Ctrl/Cmd+G: toggle layout grid overlay
+      if ((e.metaKey || e.ctrlKey) && (e.key === "g" || e.key === "G") && !e.shiftKey) {
+        e.preventDefault();
+        this._layoutGridsVisible = !this._layoutGridsVisible;
+        this.needsRender = true;
+        return;
+      }
       if (e.key === "v" || e.key === "V") this.setTool("select");
       if (e.key === "h" || e.key === "H") this.setTool("hand");
       if (e.key === "r" || e.key === "R") this.setTool("rect");
@@ -1134,6 +1142,80 @@ export class Editor {
     this.ctx.restore();
   }
 
+  private renderLayoutGrids() {
+    if (!this._layoutGridsVisible) return;
+    const layers = JSON.parse(this.engine.get_layer_list());
+    const zoom = this.engine.get_zoom();
+    const panX = this.engine.get_pan_x();
+    const panY = this.engine.get_pan_y();
+
+    for (const layer of layers) {
+      if (!layer.visible) continue;
+      const nj = this.engine.get_node_json(BigInt(layer.id));
+      if (!nj) continue;
+      const node = JSON.parse(nj);
+      const kind = typeof node.kind === "string" ? node.kind : Object.keys(node.kind)[0];
+      if (kind !== "Frame") continue;
+      if (!node.layout_grids || node.layout_grids.length === 0) continue;
+
+      for (const grid of node.layout_grids) {
+        if (!grid.visible) continue;
+        const c = grid.color;
+        const color = `rgba(${c.r},${c.g},${c.b},${c.a})`;
+        const fx = node.x * zoom + panX;
+        const fy = node.y * zoom + panY;
+        const fw = node.width * zoom;
+        const fh = node.height * zoom;
+        const margin = (grid.margin || 0) * zoom;
+        const gutter = (grid.gutter || 0) * zoom;
+
+        this.ctx.save();
+        // Clip to frame bounds
+        this.ctx.beginPath();
+        this.ctx.rect(fx, fy, fw, fh);
+        this.ctx.clip();
+
+        const sm = grid.size_mode;
+        const fixedSize = typeof sm === "object" && sm.Fixed ? sm.Fixed * zoom : 0;
+
+        if (grid.grid_type === "Columns" || grid.grid_type === "Rows") {
+          const isCol = grid.grid_type === "Columns";
+          const count = grid.count || 12;
+          const totalDim = isCol ? fw : fh;
+          const usable = totalDim - margin * 2;
+          const totalGutter = gutter * (count - 1);
+          const itemSize = fixedSize > 0 ? fixedSize : (usable - totalGutter) / count;
+          if (itemSize < 0.5) { this.ctx.restore(); continue; }
+          this.ctx.fillStyle = color;
+          for (let i = 0; i < count; i++) {
+            const off = margin + i * (itemSize + gutter);
+            if (isCol) {
+              this.ctx.fillRect(fx + off, fy, itemSize, fh);
+            } else {
+              this.ctx.fillRect(fx, fy + off, fw, itemSize);
+            }
+          }
+        } else if (grid.grid_type === "Grid") {
+          const cellSize = fixedSize > 0 ? fixedSize : (grid.count || 10) * zoom;
+          if (cellSize < 1) { this.ctx.restore(); continue; }
+          this.ctx.strokeStyle = color;
+          this.ctx.lineWidth = 1;
+          this.ctx.beginPath();
+          for (let x = fx; x <= fx + fw + 0.5; x += cellSize) {
+            this.ctx.moveTo(x, fy);
+            this.ctx.lineTo(x, fy + fh);
+          }
+          for (let y = fy; y <= fy + fh + 0.5; y += cellSize) {
+            this.ctx.moveTo(fx, y);
+            this.ctx.lineTo(fx + fw, y);
+          }
+          this.ctx.stroke();
+        }
+        this.ctx.restore();
+      }
+    }
+  }
+
   private renderSmartGuides() {
     if (this._snapGuides.length === 0) return;
     const zoom = this.engine.get_zoom();
@@ -1193,6 +1275,7 @@ export class Editor {
         this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         this.engine.render(this.ctx);
         this.renderImages();
+        this.renderLayoutGrids();
         this.renderGuideLines();
         this.renderSmartGuides();
         this.renderPathEditOverlay();
@@ -1466,6 +1549,9 @@ export class Editor {
   onSelection(fn: (ids: number[]) => void) { this.onSelectionChanges.push(fn); }
   onLayers(fn: () => void) { this.onLayersChanges.push(fn); }
   requestRender() { this.needsRender = true; }
+
+  get layoutGridsVisible() { return this._layoutGridsVisible; }
+  set layoutGridsVisible(v: boolean) { this._layoutGridsVisible = v; this.needsRender = true; }
 
   setRulers(rulers: RulersAPI) { this._rulers = rulers; }
 

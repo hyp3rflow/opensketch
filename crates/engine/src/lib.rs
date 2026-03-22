@@ -15,7 +15,7 @@ use web_sys::CanvasRenderingContext2d;
 use i_overlay::core::fill_rule::FillRule;
 use i_overlay::core::overlay_rule::OverlayRule;
 use i_overlay::float::single::SingleFloatOverlay;
-use crate::node::{Node, NodeKind, Fill, FillType, GradientStop, Stroke, LayoutMode, FlexDirection, Align, Justify, FlexWrap, TextSizing, TextAlign, FontStyle, PathPoint, ConstraintH, ConstraintV, BlendMode};
+use crate::node::{Node, NodeKind, Fill, FillType, GradientStop, Stroke, LayoutMode, FlexDirection, Align, Justify, FlexWrap, TextSizing, TextAlign, FontStyle, PathPoint, ConstraintH, ConstraintV, BlendMode, LayoutGrid};
 
 fn parse_align(s: &str) -> Align {
     match s {
@@ -2227,6 +2227,70 @@ impl Engine {
 
         self.scene.selection = new_selection;
         count
+    }
+
+    // =============================================
+    // Layout Grid Overlay
+    // =============================================
+
+    /// Add a layout grid to a node. grid_json: { "grid_type": "Columns"|"Rows"|"Grid", "count": 12, ... }
+    pub fn add_layout_grid(&mut self, node_id: u64, grid_json: &str) -> bool {
+        let grid: LayoutGrid = match serde_json::from_str(grid_json) {
+            Ok(g) => g,
+            Err(_) => LayoutGrid::default(),
+        };
+        if let Some(node) = self.scene.get_node_mut(node_id) {
+            node.layout_grids.push(grid);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Remove a layout grid by index
+    pub fn remove_layout_grid(&mut self, node_id: u64, index: u32) -> bool {
+        let idx = index as usize;
+        if let Some(node) = self.scene.get_node_mut(node_id) {
+            if idx < node.layout_grids.len() {
+                node.layout_grids.remove(idx);
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Update a layout grid at index
+    pub fn update_layout_grid(&mut self, node_id: u64, index: u32, grid_json: &str) -> bool {
+        let idx = index as usize;
+        let grid: LayoutGrid = match serde_json::from_str(grid_json) {
+            Ok(g) => g,
+            Err(_) => return false,
+        };
+        if let Some(node) = self.scene.get_node_mut(node_id) {
+            if let Some(g) = node.layout_grids.get_mut(idx) {
+                *g = grid;
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Get layout grids as JSON array
+    pub fn get_layout_grids(&self, node_id: u64) -> String {
+        if let Some(node) = self.scene.get_node(node_id) {
+            serde_json::to_string(&node.layout_grids).unwrap_or_else(|_| "[]".to_string())
+        } else {
+            "[]".to_string()
+        }
+    }
+
+    /// Toggle visibility of a specific layout grid
+    pub fn set_layout_grid_visible(&mut self, node_id: u64, index: u32, visible: bool) {
+        if let Some(node) = self.scene.get_node_mut(node_id) {
+            if let Some(g) = node.layout_grids.get_mut(index as usize) {
+                g.visible = visible;
+            }
+        }
     }
 }
 

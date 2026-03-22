@@ -1710,6 +1710,197 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       container.appendChild(layoutSection);
     }
 
+    // === Layout Grid Section (Frame only) ===
+    if (kindStr === "Frame") {
+      const gridsJson = editor.engine.get_layout_grids(BigInt(id));
+      const grids: any[] = JSON.parse(gridsJson || "[]");
+      const gridSection = createSection("Layout Grid");
+
+      grids.forEach((grid: any, idx: number) => {
+        const gridWrap = document.createElement("div");
+        gridWrap.style.cssText = "background:#1e1e1e;border-radius:6px;padding:8px;margin-bottom:6px;position:relative;";
+
+        // Header row
+        const hdr = document.createElement("div");
+        hdr.style.cssText = "display:flex;align-items:center;gap:6px;margin-bottom:6px;";
+
+        const visBtn = document.createElement("button");
+        visBtn.style.cssText = `width:18px;height:18px;border:1px solid ${grid.visible ? "#4f46e5" : "#444"};border-radius:4px;background:${grid.visible ? "#4f46e520" : "#2a2a2a"};cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;`;
+        visBtn.innerHTML = grid.visible ? icons.eye.replace(/width="\d+"/, 'width="12"').replace(/height="\d+"/, 'height="12"') : icons.eyeOff.replace(/width="\d+"/, 'width="12"').replace(/height="\d+"/, 'height="12"');
+        visBtn.addEventListener("click", () => {
+          ensureUndo();
+          editor.engine.set_layout_grid_visible(BigInt(id), idx, !grid.visible);
+          editor.requestRender();
+          refresh(ids);
+        });
+        hdr.appendChild(visBtn);
+
+        const typeSelect = document.createElement("select");
+        typeSelect.className = "prop-input";
+        typeSelect.style.cssText = "flex:1;font-size:11px;";
+        for (const t of ["Columns", "Rows", "Grid"]) {
+          const opt = document.createElement("option");
+          opt.value = t;
+          opt.textContent = t;
+          if (grid.grid_type === t) opt.selected = true;
+          typeSelect.appendChild(opt);
+        }
+        typeSelect.addEventListener("change", () => {
+          ensureUndo();
+          grid.grid_type = typeSelect.value;
+          editor.engine.update_layout_grid(BigInt(id), idx, JSON.stringify(grid));
+          editor.requestRender();
+          refresh(ids);
+        });
+        hdr.appendChild(typeSelect);
+
+        const delBtn = document.createElement("button");
+        delBtn.style.cssText = "background:transparent;border:none;color:#555;cursor:pointer;font-size:11px;padding:2px 4px;border-radius:4px;";
+        delBtn.textContent = "✕";
+        delBtn.addEventListener("click", () => {
+          ensureUndo();
+          editor.engine.remove_layout_grid(BigInt(id), idx);
+          editor.requestRender();
+          refresh(ids);
+        });
+        hdr.appendChild(delBtn);
+        gridWrap.appendChild(hdr);
+
+        // Properties row
+        const propsRow = document.createElement("div");
+        propsRow.style.cssText = "display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:4px;";
+
+        const makeGridInput = (lbl: string, val: number, key: string) => {
+          const w = document.createElement("div");
+          w.style.cssText = "display:flex;flex-direction:column;gap:2px;";
+          const l = document.createElement("span");
+          l.style.cssText = "font-size:9px;color:#555;text-align:center;";
+          l.textContent = lbl;
+          w.appendChild(l);
+          const inp = document.createElement("input");
+          inp.className = "prop-input";
+          inp.style.cssText = "text-align:center;font-size:11px;padding:3px 2px;";
+          inp.type = "number";
+          inp.value = String(val);
+          inp.addEventListener("change", () => {
+            ensureUndo();
+            (grid as any)[key] = parseFloat(inp.value) || 0;
+            editor.engine.update_layout_grid(BigInt(id), idx, JSON.stringify(grid));
+            editor.requestRender();
+          });
+          w.appendChild(inp);
+          return w;
+        };
+
+        if (grid.grid_type === "Grid") {
+          propsRow.style.gridTemplateColumns = "1fr 1fr";
+          const curSize = typeof grid.size_mode === "object" && grid.size_mode.Fixed ? grid.size_mode.Fixed : 10;
+          const sizeWrap = document.createElement("div");
+          sizeWrap.style.cssText = "display:flex;flex-direction:column;gap:2px;";
+          const sLbl = document.createElement("span");
+          sLbl.style.cssText = "font-size:9px;color:#555;text-align:center;";
+          sLbl.textContent = "Size";
+          sizeWrap.appendChild(sLbl);
+          const sInp = document.createElement("input");
+          sInp.className = "prop-input";
+          sInp.style.cssText = "text-align:center;font-size:11px;padding:3px 2px;";
+          sInp.type = "number";
+          sInp.value = String(curSize);
+          sInp.addEventListener("change", () => {
+            ensureUndo();
+            grid.size_mode = { Fixed: parseFloat(sInp.value) || 10 };
+            editor.engine.update_layout_grid(BigInt(id), idx, JSON.stringify(grid));
+            editor.requestRender();
+          });
+          sizeWrap.appendChild(sInp);
+          propsRow.appendChild(sizeWrap);
+          propsRow.appendChild(makeGridInput("Count", grid.count || 10, "count"));
+        } else {
+          propsRow.appendChild(makeGridInput("Count", grid.count || 12, "count"));
+          propsRow.appendChild(makeGridInput("Gutter", grid.gutter || 20, "gutter"));
+          propsRow.appendChild(makeGridInput("Margin", grid.margin || 0, "margin"));
+          // Size mode: Auto or Fixed
+          const curFixed = typeof grid.size_mode === "object" && grid.size_mode.Fixed ? grid.size_mode.Fixed : 0;
+          const sWrap = document.createElement("div");
+          sWrap.style.cssText = "display:flex;flex-direction:column;gap:2px;";
+          const sL = document.createElement("span");
+          sL.style.cssText = "font-size:9px;color:#555;text-align:center;";
+          sL.textContent = curFixed > 0 ? "Width" : "Auto";
+          sWrap.appendChild(sL);
+          const sI = document.createElement("input");
+          sI.className = "prop-input";
+          sI.style.cssText = "text-align:center;font-size:11px;padding:3px 2px;";
+          sI.type = "number";
+          sI.value = curFixed > 0 ? String(curFixed) : "";
+          sI.placeholder = "Auto";
+          sI.addEventListener("change", () => {
+            ensureUndo();
+            const v = parseFloat(sI.value);
+            grid.size_mode = v > 0 ? { Fixed: v } : "Auto";
+            editor.engine.update_layout_grid(BigInt(id), idx, JSON.stringify(grid));
+            editor.requestRender();
+          });
+          sWrap.appendChild(sI);
+          propsRow.appendChild(sWrap);
+        }
+        gridWrap.appendChild(propsRow);
+
+        // Color row
+        const colorRow = document.createElement("div");
+        colorRow.style.cssText = "display:flex;align-items:center;gap:6px;margin-top:6px;";
+        const colorLabel = document.createElement("span");
+        colorLabel.style.cssText = "font-size:10px;color:#666;";
+        colorLabel.textContent = "Color";
+        colorRow.appendChild(colorLabel);
+        const colorInput = document.createElement("input");
+        colorInput.type = "color";
+        colorInput.value = `#${((1 << 24) + ((grid.color?.r || 255) << 16) + ((grid.color?.g || 0) << 8) + (grid.color?.b || 0)).toString(16).slice(1)}`;
+        colorInput.style.cssText = "width:28px;height:20px;border:1px solid #444;border-radius:4px;padding:0;cursor:pointer;background:transparent;";
+        colorInput.addEventListener("change", () => {
+          ensureUndo();
+          const hex = colorInput.value;
+          grid.color = { r: parseInt(hex.slice(1,3),16), g: parseInt(hex.slice(3,5),16), b: parseInt(hex.slice(5,7),16), a: grid.color?.a ?? 0.1 };
+          editor.engine.update_layout_grid(BigInt(id), idx, JSON.stringify(grid));
+          editor.requestRender();
+        });
+        colorRow.appendChild(colorInput);
+        const alphaInput = document.createElement("input");
+        alphaInput.className = "prop-input";
+        alphaInput.style.cssText = "width:48px;flex:none;font-size:11px;text-align:center;";
+        alphaInput.value = Math.round((grid.color?.a ?? 0.1) * 100) + "%";
+        alphaInput.addEventListener("change", () => {
+          ensureUndo();
+          grid.color.a = Math.max(0, Math.min(1, parseInt(alphaInput.value) / 100));
+          editor.engine.update_layout_grid(BigInt(id), idx, JSON.stringify(grid));
+          editor.requestRender();
+        });
+        colorRow.appendChild(alphaInput);
+        gridWrap.appendChild(colorRow);
+
+        gridSection.appendChild(gridWrap);
+      });
+
+      const addGridBtn = document.createElement("button");
+      addGridBtn.className = "prop-add-btn";
+      addGridBtn.textContent = "+ Add layout grid";
+      addGridBtn.addEventListener("click", () => {
+        ensureUndo();
+        editor.engine.add_layout_grid(BigInt(id), JSON.stringify({
+          grid_type: "Columns",
+          count: 12,
+          size_mode: "Auto",
+          gutter: 20,
+          margin: 20,
+          color: { r: 255, g: 0, b: 0, a: 0.1 },
+          visible: true,
+        }));
+        editor.requestRender();
+        refresh(ids);
+      });
+      gridSection.appendChild(addGridBtn);
+      container.appendChild(gridSection);
+    }
+
     // === Notes Section ===
     const notes: any[] = JSON.parse(editor.engine.get_notes(BigInt(id)));
     const notesSection = document.createElement("div");
