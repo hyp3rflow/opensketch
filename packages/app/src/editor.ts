@@ -1,6 +1,7 @@
 import type { Engine } from "./wasm/opensketch_engine";
 import { computeSnap, renderGuides, type SnapGuide } from "./tools/smart-guides";
 import type { RulersAPI } from "./ui/rulers";
+import { toggleShortcutsPanel, isShortcutsPanelVisible, closeShortcutsPanel } from "./ui/shortcuts-panel";
 
 export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "image" | "pen" | "star" | "polygon";
 
@@ -128,6 +129,24 @@ export class Editor {
 
     window.addEventListener("keydown", (e) => {
       if (this.isInputFocused()) return;
+      // Shortcuts panel: Cmd+/ or ?
+      if ((e.metaKey || e.ctrlKey) && e.key === "/") {
+        e.preventDefault();
+        toggleShortcutsPanel();
+        return;
+      }
+      if (e.key === "?" && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        toggleShortcutsPanel();
+        return;
+      }
+      // If shortcuts panel is visible, let it handle ESC, block other keys
+      if (isShortcutsPanelVisible()) {
+        if (e.key === "Escape") {
+          closeShortcutsPanel();
+        }
+        return;
+      }
       if (e.code === "Space") {
         e.preventDefault();
         this.spaceHeld = true;

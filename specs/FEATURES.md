@@ -337,3 +337,11 @@
 - [x] **Page-aware**: Comments belong to specific pages
 - [x] **Undo integration**: All comment operations push undo state
 - [x] **Backward compatible**: serde(default) for comments/next_comment_id in SceneData
+
+### Keyboard Shortcuts Panel
+- [x] **Modal overlay**: Toggled via ⌘/ or ? key
+- [x] **Categorized shortcuts**: Tools, Edit, View, Selection, Boolean & Transform, Pen Tool
+- [x] **Search**: Real-time filtering by description or key name
+- [x] **Figma-style UI**: Dark modal with kbd tags, section headers, search input
+- [x] **ESC to close**: Also closes on backdrop click
+- [x] **Editor integration**: Blocks other key events while panel is open
