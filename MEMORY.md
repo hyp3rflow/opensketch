@@ -22,7 +22,7 @@
 - **Inspect mode** (CSS code gen) — Right pane "Inspect" tab, generates CSS from selected node, syntax highlighting, clipboard copy, SVG stroke attributes
 - **Flatten selection** — Any shape→Path 변환, Group/Frame→Union path, Cmd+E, 툴바 버튼
 - **Layout grid overlay** — Frame에 Columns/Rows/Grid 오버레이, count/gutter/margin/color, Auto/Fixed size mode, Ctrl+G 전역 토글, Properties panel UI
-- **Keyboard shortcuts panel** — ⌘/ 또는 ? 키로 토글, 카테고리별 단축키 목록, 검색 필터링, Figma 스타일 모달 UI
+- **Keyboard shortcuts panel** — Cmd+/ 또는 ? 키로 토글, 카테고리별 단축키 정리, 검색 필터, ESC/backdrop 닫기
 
 ## 📋 Backlog
 - Tauri desktop build (scaffolded but not tested)

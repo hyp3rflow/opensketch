@@ -43,6 +43,13 @@
   - localStorage persistence
   - System name editing
 
+### Keyboard Shortcuts Panel
+- [x] Modal overlay toggled by Cmd+/ or ? key
+- [x] All shortcuts organized by category (Tools, Edit, View, Boolean & Transform, Selection)
+- [x] Real-time search/filter
+- [x] ESC to close, backdrop click to close
+- [x] Figma-style dark UI with kbd tags
+
 ### Toolbar
 - [x] Bottom-center floating Figma-style
 - [x] Tools: Select, Hand | Rectangle, Ellipse, Text, Frame

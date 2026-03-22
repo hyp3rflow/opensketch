@@ -140,3 +140,12 @@ Available: select, hand, rect, ellipse, text, frame, eye, eyeOff, rotation, corn
 - Guide lines span full canvas, dragging shows lighter blue (#6db3f8)
 - Double-click guide to remove, drag back to ruler to remove
 - Guides snap with existing smart-guides system
+
+### Keyboard Shortcuts Panel
+- Centered modal overlay (520px wide, max 70vh height)
+- Toggle: Cmd+/ or ? key; close: ESC or backdrop click
+- Dark panel (#2a2a2a) with header, search input, and categorized shortcut list
+- Categories: Tools, Edit, View, Boolean & Transform, Selection & Navigation
+- Each row shows description (left) and kbd-styled key badges (right)
+- Search filters shortcuts in real-time across all categories
+- File: `packages/app/src/ui/shortcuts-panel.ts`
