@@ -19,11 +19,11 @@
 - Ruler / guides
 - **Boolean operations** (Union, Subtract, Intersect, Exclude) — i_overlay crate, toolbar buttons, keyboard shortcuts
 - **Styles library** (shared color/text styles) — ColorStyle + TextStyle with CRUD, apply/detach, sync, Properties panel UI dropdowns
+- **Inspect mode** (CSS code gen) — Right pane "Inspect" tab, generates CSS from selected node, syntax highlighting, clipboard copy, SVG stroke attributes
 
 ## 📋 Backlog
 - Tauri desktop build (scaffolded but not tested)
 - Flatten selection
-- Inspect mode (CSS code gen)
 - Layout grid overlay
 - Export/import styles (JSON style library files)
 - Prototype/interaction links (click → navigate to frame)

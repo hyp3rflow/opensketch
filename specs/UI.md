@@ -83,6 +83,15 @@ Shows properties of selected node(s):
 Empty state: cursor icon + "Select an element"
 Multi-select: "{n} elements selected"
 
+## Inspect Panel (Right Pane Tab)
+
+"Inspect" tab in right pane — generates CSS code from selected node:
+- **CSS code block**: VS Code-style syntax highlighting (dark theme)
+- **SVG attributes**: Separate section for stroke-dasharray, linecap, linejoin
+- **Copy button**: Copies all CSS to clipboard with "Copied!" feedback
+- Properties covered: dimensions, position, border-radius, background (solid/gradient), opacity, border, box-shadow, blur, blend-mode, rotation, text props, flex/grid layout
+- Empty state: "Select an element to inspect CSS"
+
 ## Bottom Toolbar
 
 Centered, horizontal, floating:

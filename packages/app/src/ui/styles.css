@@ -174,3 +174,11 @@ select.prop-input { appearance: none; background: #333 url("data:image/svg+xml,%
 .page-context-item:hover { background: rgba(255,255,255,0.08); }
 .page-context-item.disabled { color: #555; cursor: default; }
 .page-context-item.disabled:hover { background: transparent; }
+
+/* Inspect Panel */
+.inspect-code { background: #1a1a2e; border: 1px solid #333; border-radius: 6px; padding: 10px 12px; font-family: "JetBrains Mono", "Fira Code", "Consolas", monospace; font-size: 11px; line-height: 1.6; color: #d4d4d4; overflow-x: auto; margin: 0; white-space: pre; tab-size: 2; }
+.inspect-code .css-prop { color: #9cdcfe; }
+.inspect-code .css-num { color: #b5cea8; }
+.inspect-code .css-color { color: #ce9178; }
+.inspect-code .css-str { color: #ce9178; }
+.inspect-code .css-sel { color: #dcdcaa; }

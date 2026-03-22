@@ -289,3 +289,13 @@
 - [x] **Adaptive tick spacing**: Tick intervals auto-adjust based on zoom level (50-200px screen spacing)
 - [x] **Corner square**: Top-left 20×20px corner piece between rulers
 - Pure TypeScript implementation (no Rust changes)
+
+### Inspect Mode (CSS Code Gen)
+- [x] **Inspect tab**: "Inspect" tab in right pane alongside Properties/Agent/History
+- [x] **CSS generation**: Generates CSS from selected node properties
+- [x] **Supported properties**: width, height, position, border-radius, background (solid/linear-gradient/radial-gradient), opacity, border, box-shadow, filter:blur, mix-blend-mode, transform:rotate
+- [x] **Text CSS**: font-family, font-size, font-weight, font-style, line-height, text-align
+- [x] **Layout CSS**: display:flex/grid with direction, align-items, justify-content, gap, wrap, padding
+- [x] **SVG attributes**: stroke-dasharray, stroke-linecap, stroke-linejoin (separate section)
+- [x] **Clipboard copy**: One-click copy button with "Copied!" feedback
+- [x] **Syntax highlighting**: VS Code-inspired coloring (property names, values, colors, strings)
