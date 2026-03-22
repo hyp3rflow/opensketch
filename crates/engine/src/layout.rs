@@ -231,6 +231,8 @@ fn compute_flex(scene: &mut Scene, layout: &Layout, px: f64, py: f64, pw: f64, p
                 if is_row { child.height = avail_cross; }
                 else { child.width = avail_cross; }
             }
+            // Apply min/max size constraints
+            child.clamp_size();
         }
 
         main_pos += child_main;
@@ -278,6 +280,8 @@ fn compute_grid(scene: &mut Scene, layout: &Layout, px: f64, py: f64, pw: f64, p
             child.x = x;
             child.y = y;
             child.width = col_w; // Grid children fill column width
+            // Apply min/max size constraints
+            child.clamp_size();
         }
     }
 }

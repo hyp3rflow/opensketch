@@ -479,6 +479,42 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       }
     }
 
+    // --- Min/Max size constraints ---
+    {
+      const mmJson = editor.engine.get_min_max_size(BigInt(id));
+      const mm = JSON.parse(mmJson || '{"min_w":null,"max_w":null,"min_h":null,"max_h":null}');
+      const mmRow = document.createElement("div");
+      mmRow.style.cssText = "display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:4px;margin-top:6px;";
+      for (const [key, label] of [["min_w","Min W"],["max_w","Max W"],["min_h","Min H"],["max_h","Max H"]] as const) {
+        const wrap = document.createElement("div");
+        wrap.style.cssText = "display:flex;flex-direction:column;gap:2px;";
+        const lbl = document.createElement("span");
+        lbl.style.cssText = "font-size:9px;color:#888;";
+        lbl.textContent = label;
+        wrap.appendChild(lbl);
+        const inp = document.createElement("input");
+        inp.type = "number";
+        inp.className = "prop-input";
+        inp.style.cssText = "width:100%;font-size:11px;padding:3px 4px;";
+        inp.placeholder = "—";
+        inp.value = mm[key] != null ? String(mm[key]) : "";
+        inp.addEventListener("change", () => {
+          editor.engine.push_undo();
+          const val = inp.value === "" ? 0 : parseFloat(inp.value);
+          const bigId = BigInt(id);
+          if (key === "min_w") editor.engine.set_min_width(bigId, val);
+          else if (key === "max_w") editor.engine.set_max_width(bigId, val);
+          else if (key === "min_h") editor.engine.set_min_height(bigId, val);
+          else editor.engine.set_max_height(bigId, val);
+          editor.requestRender();
+          refresh(ids);
+        });
+        wrap.appendChild(inp);
+        mmRow.appendChild(wrap);
+      }
+      sizeSection.appendChild(mmRow);
+    }
+
     container.appendChild(sizeSection);
 
     // --- Constraints (only for children of Frame) ---

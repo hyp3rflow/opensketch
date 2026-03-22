@@ -138,6 +138,10 @@ function generateCSS(
   // Dimensions
   lines.push(`width: ${Math.round(node.width)}px;`);
   lines.push(`height: ${Math.round(node.height)}px;`);
+  if (node.min_width != null) lines.push(`min-width: ${Math.round(node.min_width)}px;`);
+  if (node.max_width != null) lines.push(`max-width: ${Math.round(node.max_width)}px;`);
+  if (node.min_height != null) lines.push(`min-height: ${Math.round(node.min_height)}px;`);
+  if (node.max_height != null) lines.push(`max-height: ${Math.round(node.max_height)}px;`);
 
   // Position (absolute)
   lines.push(`position: absolute;`);

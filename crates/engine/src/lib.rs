@@ -1933,6 +1933,47 @@ impl Engine {
     }
 
     // =============================================
+    // Min/Max size constraints
+
+    pub fn set_min_width(&mut self, id: u64, val: f64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            node.min_width = if val <= 0.0 { None } else { Some(val) };
+        }
+    }
+
+    pub fn set_max_width(&mut self, id: u64, val: f64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            node.max_width = if val <= 0.0 { None } else { Some(val) };
+        }
+    }
+
+    pub fn set_min_height(&mut self, id: u64, val: f64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            node.min_height = if val <= 0.0 { None } else { Some(val) };
+        }
+    }
+
+    pub fn set_max_height(&mut self, id: u64, val: f64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            node.max_height = if val <= 0.0 { None } else { Some(val) };
+        }
+    }
+
+    pub fn get_min_max_size(&self, id: u64) -> String {
+        if let Some(node) = self.scene.get_node(id) {
+            format!(
+                r#"{{"min_w":{},"max_w":{},"min_h":{},"max_h":{}}}"#,
+                node.min_width.map(|v| v.to_string()).unwrap_or("null".to_string()),
+                node.max_width.map(|v| v.to_string()).unwrap_or("null".to_string()),
+                node.min_height.map(|v| v.to_string()).unwrap_or("null".to_string()),
+                node.max_height.map(|v| v.to_string()).unwrap_or("null".to_string()),
+            )
+        } else {
+            "null".to_string()
+        }
+    }
+
+    // =============================================
     // Notes
     // =============================================
 

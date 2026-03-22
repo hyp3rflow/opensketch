@@ -674,6 +674,15 @@ pub struct Node {
     /// Vertical sizing mode in parent auto layout
     #[serde(default)]
     pub sizing_v: SizingMode,
+    /// Min/Max size constraints (None = no limit)
+    #[serde(default)]
+    pub min_width: Option<f64>,
+    #[serde(default)]
+    pub max_width: Option<f64>,
+    #[serde(default)]
+    pub min_height: Option<f64>,
+    #[serde(default)]
+    pub max_height: Option<f64>,
 }
 
 impl Node {
@@ -708,7 +717,19 @@ impl Node {
             interactions: vec![],
             sizing_h: SizingMode::default(),
             sizing_v: SizingMode::default(),
+            min_width: None,
+            max_width: None,
+            min_height: None,
+            max_height: None,
         }
+    }
+
+    /// Clamp width/height to min/max constraints
+    pub fn clamp_size(&mut self) {
+        if let Some(min) = self.min_width { self.width = self.width.max(min); }
+        if let Some(max) = self.max_width { self.width = self.width.min(max); }
+        if let Some(min) = self.min_height { self.height = self.height.max(min); }
+        if let Some(max) = self.max_height { self.height = self.height.min(max); }
     }
 
     pub fn bounds(&self) -> BBox {

@@ -28,11 +28,16 @@
 - **Right-click context menu** — Figma-style context menu with Copy/Cut/Paste/Duplicate/Delete, Group/Ungroup, Lock/Unlock, Show/Hide, z-order (Bring to Front/Forward, Send Backward/Back), Flatten, Select All, Zoom controls, shortcut display, disabled states, auto-select on right-click
 - **Multi-fill (multiple fills per node)** — Figma-style Vec<Fill> with per-fill visible toggle, rendered bottom→top, add/remove/reorder fills UI, backward-compatible serde, WASM bindings (add_fill, remove_fill, update_fill_at, move_fill, set_fill_visible_at, get_fills)
 
+- **Min/Max size constraints** — Node에 min_width/max_width/min_height/max_height: Option<f64>, clamp_size() 헬퍼, Flex/Grid 레이아웃 후 자동 클램핑, WASM 5개 바인딩, Properties panel 4칸 입력 UI, Inspect panel CSS 생성
+
 ## 📋 Backlog
 - Tauri desktop build (scaffolded but not tested)
-- Variable collections (design tokens with modes/themes)
 - Plugin API (extensible tool/panel system)
-- Component variant switching UI (instance → variant picker dropdown)
+- Responsive resize preview (artboard breakpoints, side-by-side view)
+- Smart animate transitions (prototype viewer에서 매칭 노드 간 interpolation)
+- Asset library panel (components/colors/text styles 통합 브라우저)
+- Section nodes (Figma Section — 페이지 내 구역 그룹핑, 프레젠테이션 순서)
+- Variable scoping (변수 사용 범위 제한: collection → specific frames/pages)
 
 ## 🏗 Architecture Notes
 - Rust WASM engine: `crates/engine/src/`
