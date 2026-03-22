@@ -136,4 +136,50 @@ impl StyleStore {
         styles.sort_by_key(|s| s.id);
         styles
     }
+
+    /// Export all styles as a portable JSON object (ids remapped on import).
+    pub fn export_json(&self) -> String {
+        #[derive(Serialize)]
+        struct StyleLibrary<'a> {
+            version: u32,
+            color_styles: Vec<&'a ColorStyle>,
+            text_styles: Vec<&'a TextStyle>,
+        }
+        let lib = StyleLibrary {
+            version: 1,
+            color_styles: self.list_color_styles(),
+            text_styles: self.list_text_styles(),
+        };
+        serde_json::to_string_pretty(&lib).unwrap_or_else(|_| "{}".into())
+    }
+
+    /// Import styles from JSON, assigning new IDs. Returns (color_count, text_count).
+    pub fn import_json(&mut self, json: &str) -> (usize, usize) {
+        #[derive(Deserialize)]
+        struct StyleLibrary {
+            #[serde(default)]
+            color_styles: Vec<ColorStyle>,
+            #[serde(default)]
+            text_styles: Vec<TextStyle>,
+        }
+        let lib: StyleLibrary = match serde_json::from_str(json) {
+            Ok(v) => v,
+            Err(_) => return (0, 0),
+        };
+        let cc = lib.color_styles.len();
+        let tc = lib.text_styles.len();
+        for cs in lib.color_styles {
+            self.add_color_style(cs.name, cs.fill_r, cs.fill_g, cs.fill_b, cs.fill_a);
+        }
+        for ts in lib.text_styles {
+            let font_style = ts.font_style;
+            let text_align = ts.text_align;
+            self.add_text_style(
+                ts.name, ts.font_family, ts.font_size, ts.font_weight,
+                font_style, ts.line_height, text_align,
+                ts.color_r, ts.color_g, ts.color_b, ts.color_a,
+            );
+        }
+        (cc, tc)
+    }
 }

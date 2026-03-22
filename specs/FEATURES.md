@@ -310,3 +310,10 @@
 - [x] **SVG attributes**: stroke-dasharray, stroke-linecap, stroke-linejoin (separate section)
 - [x] **Clipboard copy**: One-click copy button with "Copied!" feedback
 - [x] **Syntax highlighting**: VS Code-inspired coloring (property names, values, colors, strings)
+
+### Export/Import Styles
+- [x] **Export styles**: JSON file download with all color + text styles
+- [x] **Import styles**: File picker → merge into current style library with new IDs
+- [x] **Portable format**: Version field, full ColorStyle + TextStyle serialization
+- [x] **UI**: "Styles Library" section in Properties panel empty state (no selection)
+- Rust StyleStore export_json/import_json + WASM bindings

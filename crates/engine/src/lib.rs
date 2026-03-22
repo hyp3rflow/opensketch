@@ -2043,6 +2043,17 @@ impl Engine {
         }
     }
 
+    /// Export all styles as JSON for file download.
+    pub fn export_styles(&self) -> String {
+        self.styles.export_json()
+    }
+
+    /// Import styles from JSON. Returns "cc,tc" (color count, text count imported).
+    pub fn import_styles(&mut self, json: &str) -> String {
+        let (cc, tc) = self.styles.import_json(json);
+        format!("{},{}", cc, tc)
+    }
+
     /// Perform a boolean operation on selected nodes.
     /// op: "union" | "subtract" | "intersect" | "exclude"
     /// Returns the new node ID, or 0 if failed.

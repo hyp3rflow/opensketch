@@ -67,11 +67,66 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
     undoPushed = false;
     container.innerHTML = "";
     if (ids.length === 0) {
-      container.innerHTML = `
-        <div style="display:flex;flex-direction:column;align-items:center;padding-top:60px;color:#555;">
-          <span style="opacity:0.4;margin-bottom:8px;">${icons.cursor}</span>
-          <span style="font-size:11px;">Select an element</span>
-        </div>`;
+      const emptyDiv = document.createElement("div");
+      emptyDiv.style.cssText = "display:flex;flex-direction:column;align-items:center;padding-top:60px;color:#555;";
+      emptyDiv.innerHTML = `
+        <span style="opacity:0.4;margin-bottom:8px;">${icons.cursor}</span>
+        <span style="font-size:11px;">Select an element</span>`;
+
+      // Styles Library section
+      const libSection = document.createElement("div");
+      libSection.style.cssText = "width:100%;padding:20px 16px;margin-top:40px;border-top:1px solid #333;";
+      const libTitle = document.createElement("div");
+      libTitle.style.cssText = "font-size:11px;font-weight:600;color:#888;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px;";
+      libTitle.textContent = "Styles Library";
+      libSection.appendChild(libTitle);
+
+      const btnStyle = "padding:6px 12px;font-size:11px;border:1px solid #444;border-radius:4px;background:#2a2a2a;color:#ccc;cursor:pointer;flex:1;text-align:center;";
+      const btnRow = document.createElement("div");
+      btnRow.style.cssText = "display:flex;gap:6px;";
+
+      const exportBtn = document.createElement("button");
+      exportBtn.textContent = "Export Styles";
+      exportBtn.style.cssText = btnStyle;
+      exportBtn.onclick = () => {
+        const json = editor.engine.export_styles();
+        const blob = new Blob([json], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "opensketch-styles.json";
+        a.click();
+        URL.revokeObjectURL(url);
+      };
+
+      const importBtn = document.createElement("button");
+      importBtn.textContent = "Import Styles";
+      importBtn.style.cssText = btnStyle;
+      importBtn.onclick = () => {
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = ".json";
+        input.onchange = () => {
+          const file = input.files?.[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = () => {
+            const result = editor.engine.import_styles(reader.result as string);
+            const [cc, tc] = result.split(",").map(Number);
+            alert(`Imported ${cc} color style(s) and ${tc} text style(s).`);
+            editor.requestRender();
+          };
+          reader.readAsText(file);
+        };
+        input.click();
+      };
+
+      btnRow.appendChild(exportBtn);
+      btnRow.appendChild(importBtn);
+      libSection.appendChild(btnRow);
+      emptyDiv.appendChild(libSection);
+
+      container.appendChild(emptyDiv);
       return;
     }
 
