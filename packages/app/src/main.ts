@@ -8,6 +8,7 @@ import { setupAgentPanel } from "./ui/agent-panel";
 import { setupNoteOverlay } from "./ui/note-overlay";
 import { setupZoomControls } from "./ui/zoom-controls";
 import { setupRulers } from "./ui/rulers";
+import { setupPageTabs } from "./ui/page-tabs";
 import { AutoSave, setupHistoryPanel } from "./autosave";
 
 async function main() {
@@ -72,6 +73,9 @@ async function main() {
   // Rulers & guides
   const rulers = setupRulers(document.getElementById("workspace")!, editor);
   editor.setRulers(rulers);
+
+  // Page tabs (bottom center, above toolbar)
+  const pageTabs = setupPageTabs(document.getElementById("workspace")!, editor);
 
   // Note overlay (positioned over canvas)
   const noteOverlay = setupNoteOverlay(document.getElementById("workspace")!, editor);

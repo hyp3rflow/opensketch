@@ -193,6 +193,13 @@
   - Snap works with multi-selection (combined bounding box)
   - Guides auto-clear on pointer up
 - [x] **Blend modes**: 16 compositing modes (Normal, Multiply, Screen, Overlay, Darken, Lighten, Color Dodge, Color Burn, Hard Light, Soft Light, Difference, Exclusion, Hue, Saturation, Color, Luminosity)
+- [x] **Multi-page support**: multiple pages per document with tab UI
+  - Page management: add, remove, rename, duplicate, switch
+  - Backward-compatible serialization (old single-page files auto-migrate to "Page 1")
+  - Tab bar UI: bottom-center above toolbar, click to switch, double-click to rename
+  - Context menu: Rename, Duplicate, Delete (minimum 1 page enforced)
+  - Undo/redo: full scene snapshots include all pages
+  - WASM API: add_page, remove_page, rename_page, set_active_page, duplicate_page, get_pages, get_active_page_id, get_page_count
 - [ ] Boolean operations
 - [x] Constraints (responsive resizing) — Horizontal: Left/Right/LeftAndRight/Center/Scale, Vertical: Top/Bottom/TopAndBottom/Center/Scale
 - [ ] Prototyping (interactions/transitions)

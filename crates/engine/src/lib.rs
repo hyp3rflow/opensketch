@@ -1783,6 +1783,46 @@ impl Engine {
         self.scene.resize_node_with_constraints(id, w, h);
     }
 
+    // =============================================
+    // Multi-page support
+    // =============================================
+
+    pub fn add_page(&mut self, name: &str) -> u64 {
+        self.scene.add_page(name)
+    }
+
+    pub fn remove_page(&mut self, page_id: u64) -> bool {
+        self.scene.remove_page(page_id)
+    }
+
+    pub fn rename_page(&mut self, page_id: u64, name: &str) {
+        self.scene.rename_page(page_id, name);
+    }
+
+    pub fn set_active_page(&mut self, page_id: u64) -> bool {
+        self.scene.set_active_page(page_id)
+    }
+
+    pub fn duplicate_page(&mut self, page_id: u64) -> u64 {
+        self.scene.duplicate_page(page_id)
+    }
+
+    pub fn get_pages(&self) -> String {
+        let info = self.scene.get_pages_info();
+        let arr: Vec<serde_json::Value> = info.iter().map(|(id, name)| {
+            serde_json::json!({"id": id, "name": name})
+        }).collect();
+        serde_json::to_string(&arr).unwrap_or_default()
+    }
+
+    pub fn get_active_page_id(&self) -> u64 {
+        self.scene.get_active_page_id()
+    }
+
+    pub fn get_page_count(&self) -> usize {
+        self.scene.get_page_count()
+    }
+
     /// Get node JSON enriched with notes (for agent consumption)
     pub fn get_node_with_notes(&self, node_id: u64) -> String {
         if let Some(node) = self.scene.get_node(node_id) {

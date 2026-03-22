@@ -3,11 +3,32 @@ use serde::{Serialize, Deserialize};
 use crate::node::{Node, NodeId, NodeKind, ConstraintH, ConstraintV};
 use crate::types::Point;
 
-#[derive(Serialize, Deserialize)]
-pub struct SceneData {
+/// A single page within the scene
+#[derive(Clone, Serialize, Deserialize)]
+pub struct Page {
+    pub id: u64,
+    pub name: String,
     pub nodes: Vec<Node>,
     pub root_children: Vec<NodeId>,
+}
+
+/// Serialization format — backward compatible with old single-page SceneData
+#[derive(Serialize, Deserialize)]
+pub struct SceneData {
+    /// Legacy field: nodes for single-page files
+    #[serde(default)]
+    pub nodes: Vec<Node>,
+    #[serde(default)]
+    pub root_children: Vec<NodeId>,
+    #[serde(default)]
     pub next_id: NodeId,
+    /// Multi-page support
+    #[serde(default)]
+    pub pages: Vec<Page>,
+    #[serde(default)]
+    pub active_page_index: usize,
+    #[serde(default)]
+    pub next_page_id: u64,
 }
 
 pub struct Scene {
@@ -15,6 +36,10 @@ pub struct Scene {
     root_children: Vec<NodeId>,
     next_id: NodeId,
     pub selection: Vec<NodeId>,
+    // Multi-page
+    pages: Vec<Page>,
+    active_page_index: usize,
+    next_page_id: u64,
 }
 
 impl Scene {
@@ -24,6 +49,9 @@ impl Scene {
             root_children: vec![],
             next_id: 1,
             selection: vec![],
+            pages: vec![Page { id: 1, name: "Page 1".to_string(), nodes: vec![], root_children: vec![] }],
+            active_page_index: 0,
+            next_page_id: 2,
         }
     }
 
@@ -233,23 +261,70 @@ impl Scene {
     }
 
     pub fn export(&self) -> SceneData {
+        // Save current active page's nodes back before exporting
+        let mut pages = self.pages.clone();
+        if let Some(page) = pages.get_mut(self.active_page_index) {
+            page.nodes = self.nodes.values().cloned().collect();
+            page.root_children = self.root_children.clone();
+        }
         SceneData {
+            // Keep legacy fields populated for backward compat
             nodes: self.nodes.values().cloned().collect(),
             root_children: self.root_children.clone(),
             next_id: self.next_id,
+            pages,
+            active_page_index: self.active_page_index,
+            next_page_id: self.next_page_id,
         }
     }
 
     pub fn import(data: SceneData) -> Self {
-        let mut nodes = HashMap::new();
-        for node in data.nodes {
-            nodes.insert(node.id, node);
-        }
-        Self {
-            nodes,
-            root_children: data.root_children,
-            next_id: data.next_id,
-            selection: vec![],
+        if !data.pages.is_empty() {
+            // Multi-page format
+            let active = data.active_page_index.min(data.pages.len().saturating_sub(1));
+            let mut nodes = HashMap::new();
+            let root_children;
+            if let Some(page) = data.pages.get(active) {
+                for node in &page.nodes {
+                    nodes.insert(node.id, node.clone());
+                }
+                root_children = page.root_children.clone();
+            } else {
+                root_children = vec![];
+            }
+            let next_page_id = if data.next_page_id > 0 { data.next_page_id } else {
+                data.pages.iter().map(|p| p.id).max().unwrap_or(0) + 1
+            };
+            Self {
+                nodes,
+                root_children,
+                next_id: data.next_id,
+                selection: vec![],
+                pages: data.pages,
+                active_page_index: active,
+                next_page_id,
+            }
+        } else {
+            // Legacy single-page format
+            let mut nodes = HashMap::new();
+            for node in &data.nodes {
+                nodes.insert(node.id, node.clone());
+            }
+            let page = Page {
+                id: 1,
+                name: "Page 1".to_string(),
+                nodes: data.nodes,
+                root_children: data.root_children.clone(),
+            };
+            Self {
+                nodes,
+                root_children: data.root_children,
+                next_id: data.next_id,
+                selection: vec![],
+                pages: vec![page],
+                active_page_index: 0,
+                next_page_id: 2,
+            }
         }
     }
 
@@ -385,6 +460,116 @@ impl Scene {
         if min_x.is_finite() { Some((min_x, min_y, max_x, max_y)) } else { None }
     }
 
+    // =============================================
+    // Multi-page support
+    // =============================================
+
+    /// Save current active page's in-memory nodes back to the pages vec
+    fn save_active_page(&mut self) {
+        if let Some(page) = self.pages.get_mut(self.active_page_index) {
+            page.nodes = self.nodes.values().cloned().collect();
+            page.root_children = self.root_children.clone();
+        }
+    }
+
+    /// Load a page's data into the active nodes/root_children
+    fn load_page(&mut self, index: usize) {
+        if let Some(page) = self.pages.get(index) {
+            self.nodes.clear();
+            for node in &page.nodes {
+                self.nodes.insert(node.id, node.clone());
+            }
+            self.root_children = page.root_children.clone();
+        }
+    }
+
+    pub fn add_page(&mut self, name: &str) -> u64 {
+        self.save_active_page();
+        let id = self.next_page_id;
+        self.next_page_id += 1;
+        self.pages.push(Page {
+            id,
+            name: name.to_string(),
+            nodes: vec![],
+            root_children: vec![],
+        });
+        id
+    }
+
+    pub fn remove_page(&mut self, page_id: u64) -> bool {
+        if self.pages.len() <= 1 { return false; }
+        let idx = match self.pages.iter().position(|p| p.id == page_id) {
+            Some(i) => i,
+            None => return false,
+        };
+        // If removing active page, switch first
+        if idx == self.active_page_index {
+            let new_idx = if idx > 0 { idx - 1 } else { 1 };
+            self.save_active_page();
+            self.pages.remove(idx);
+            let new_active = new_idx.min(self.pages.len() - 1);
+            self.active_page_index = new_active;
+            self.load_page(new_active);
+        } else {
+            self.save_active_page();
+            self.pages.remove(idx);
+            // Adjust active index if needed
+            if idx < self.active_page_index {
+                self.active_page_index -= 1;
+            }
+        }
+        self.selection.clear();
+        true
+    }
+
+    pub fn rename_page(&mut self, page_id: u64, name: &str) {
+        if let Some(page) = self.pages.iter_mut().find(|p| p.id == page_id) {
+            page.name = name.to_string();
+        }
+    }
+
+    pub fn set_active_page(&mut self, page_id: u64) -> bool {
+        let idx = match self.pages.iter().position(|p| p.id == page_id) {
+            Some(i) => i,
+            None => return false,
+        };
+        if idx == self.active_page_index { return true; }
+        self.save_active_page();
+        self.active_page_index = idx;
+        self.load_page(idx);
+        self.selection.clear();
+        true
+    }
+
+    pub fn duplicate_page(&mut self, page_id: u64) -> u64 {
+        self.save_active_page();
+        let src = match self.pages.iter().find(|p| p.id == page_id) {
+            Some(p) => p.clone(),
+            None => return 0,
+        };
+        let new_id = self.next_page_id;
+        self.next_page_id += 1;
+        self.pages.push(Page {
+            id: new_id,
+            name: format!("{} copy", src.name),
+            nodes: src.nodes,
+            root_children: src.root_children,
+        });
+        new_id
+    }
+
+    pub fn get_page_count(&self) -> usize {
+        self.pages.len()
+    }
+
+    pub fn get_active_page_id(&self) -> u64 {
+        self.pages.get(self.active_page_index).map(|p| p.id).unwrap_or(0)
+    }
+
+    pub fn get_pages_info(&self) -> Vec<(u64, String)> {
+        self.pages.iter().map(|p| (p.id, p.name.clone())).collect()
+    }
+
     pub fn reparent(&mut self, node_id: NodeId, new_parent: Option<NodeId>) {
         // Remove from old parent
         if let Some(node) = self.nodes.get(&node_id) {
@@ -411,4 +596,5 @@ impl Scene {
             }
         }
     }
+
 }
