@@ -15,7 +15,7 @@ use web_sys::CanvasRenderingContext2d;
 use i_overlay::core::fill_rule::FillRule;
 use i_overlay::core::overlay_rule::OverlayRule;
 use i_overlay::float::single::SingleFloatOverlay;
-use crate::node::{Node, NodeKind, Fill, FillType, GradientStop, Stroke, LayoutMode, FlexDirection, Align, Justify, FlexWrap, TextSizing, TextAlign, FontStyle, PathPoint, ConstraintH, ConstraintV, BlendMode, LayoutGrid, SizingMode};
+use crate::node::{Node, NodeKind, Fill, FillType, GradientStop, Stroke, StrokeAlign, LayoutMode, FlexDirection, Align, Justify, FlexWrap, TextSizing, TextAlign, FontStyle, PathPoint, ConstraintH, ConstraintV, BlendMode, LayoutGrid, SizingMode};
 
 fn parse_align(s: &str) -> Align {
     match s {
@@ -272,7 +272,7 @@ impl Engine {
         node.x = x; node.y = y; node.width = 0.0; node.height = 0.0;
         node.name = format!("Path {}", self.scene.node_count() + 1);
         node.fill = None;
-        node.stroke = Some(Stroke { color: crate::types::Color::white(), width: 2.0, dash_array: vec![], dash_offset: 0.0, line_cap: Default::default(), line_join: Default::default() });
+        node.stroke = Some(Stroke { color: crate::types::Color::white(), width: 2.0, dash_array: vec![], dash_offset: 0.0, line_cap: Default::default(), line_join: Default::default(), align: Default::default() });
         self.scene.add_node(node)
     }
 
@@ -527,7 +527,21 @@ impl Engine {
                 dash_offset: existing.as_ref().map(|s| s.dash_offset).unwrap_or(0.0),
                 line_cap: existing.as_ref().map(|s| s.line_cap.clone()).unwrap_or_default(),
                 line_join: existing.as_ref().map(|s| s.line_join.clone()).unwrap_or_default(),
+                align: existing.as_ref().map(|s| s.align.clone()).unwrap_or_default(),
             });
+        }
+    }
+
+    /// Set stroke alignment (Center, Inside, Outside)
+    pub fn set_stroke_align(&mut self, id: u64, align: &str) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let Some(stroke) = &mut node.stroke {
+                stroke.align = match align {
+                    "Inside" => StrokeAlign::Inside,
+                    "Outside" => StrokeAlign::Outside,
+                    _ => StrokeAlign::Center,
+                };
+            }
         }
     }
 
@@ -545,6 +559,11 @@ impl Engine {
                     crate::node::LineJoin::Round => "round",
                     crate::node::LineJoin::Bevel => "bevel",
                 };
+                let align = match stroke.align {
+                    crate::node::StrokeAlign::Center => "Center",
+                    crate::node::StrokeAlign::Inside => "Inside",
+                    crate::node::StrokeAlign::Outside => "Outside",
+                };
                 return serde_json::json!({
                     "color": { "r": stroke.color.r, "g": stroke.color.g, "b": stroke.color.b, "a": stroke.color.a },
                     "width": stroke.width,
@@ -552,6 +571,7 @@ impl Engine {
                     "dash_offset": stroke.dash_offset,
                     "line_cap": cap,
                     "line_join": join,
+                    "align": align,
                 }).to_string();
             }
         }

@@ -662,6 +662,15 @@ fn append_stroke_options(attrs: &mut String, stroke: &crate::node::Stroke) {
         crate::node::LineJoin::Bevel => { attrs.push_str(r#" stroke-linejoin="bevel""#); }
         crate::node::LineJoin::Miter => {} // default
     }
+    match stroke.align {
+        crate::node::StrokeAlign::Inside => {
+            attrs.push_str(r#" data-stroke-align="inside""#);
+        }
+        crate::node::StrokeAlign::Outside => {
+            attrs.push_str(r#" paint-order="stroke" data-stroke-align="outside""#);
+        }
+        crate::node::StrokeAlign::Center => {} // default
+    }
 }
 
 /// Export a single node (and its children) as SVG string

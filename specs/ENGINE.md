@@ -21,7 +21,8 @@ Pure Rust crate compiled to WASM via `wasm-pack`. No NAPI — runs entirely in t
 - `GradientStop { offset: f64, color: Color }`
 - `FillType`: `Solid { color }` | `LinearGradient { start_x, start_y, end_x, end_y, stops }` | `RadialGradient { center_x, center_y, radius, stops }` — coordinates normalized 0~1
 - `Fill { fill_type: FillType }` (backward-compatible deserialization from old `{ color }` format)
-- `Stroke { color: Color, width: f64, dash_array: Vec<f64>, dash_offset: f64, line_cap: LineCap, line_join: LineJoin }`
+- `Stroke { color: Color, width: f64, dash_array: Vec<f64>, dash_offset: f64, line_cap: LineCap, line_join: LineJoin, align: StrokeAlign }`
+- `StrokeAlign { Center, Inside, Outside }` — stroke alignment (Figma-style)
 - `LineCap { Butt, Round, Square }` — stroke end cap style
 - `LineJoin { Miter, Round, Bevel }` — stroke corner join style
 - `Shadow { color: Color, offset_x, offset_y, blur, spread, visible }` — drop shadow effect

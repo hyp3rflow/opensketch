@@ -881,6 +881,30 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         });
         joinRow.appendChild(joinSelect);
         strokeSection.appendChild(joinRow);
+
+        // Stroke align
+        const alignRow = document.createElement("div");
+        alignRow.className = "prop-row";
+        alignRow.style.marginTop = "4px";
+        const alignLabel = document.createElement("span");
+        alignLabel.className = "prop-label";
+        alignLabel.textContent = "Align";
+        alignRow.appendChild(alignLabel);
+        const alignSelect = document.createElement("select");
+        alignSelect.className = "prop-input";
+        for (const v of ["Center", "Inside", "Outside"]) {
+          const opt = document.createElement("option");
+          opt.value = v;
+          opt.textContent = v;
+          if ((node.stroke.align || "Center") === v) opt.selected = true;
+          alignSelect.appendChild(opt);
+        }
+        alignSelect.addEventListener("change", () => {
+          editor.engine.set_stroke_align(id, alignSelect.value);
+          editor.requestRender();
+        });
+        alignRow.appendChild(alignSelect);
+        strokeSection.appendChild(alignRow);
       } else {
         const addBtn = document.createElement("button");
         addBtn.className = "prop-add-btn";

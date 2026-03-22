@@ -204,6 +204,17 @@ impl Default for LineJoin {
     fn default() -> Self { LineJoin::Miter }
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub enum StrokeAlign {
+    Center,
+    Inside,
+    Outside,
+}
+
+impl Default for StrokeAlign {
+    fn default() -> Self { StrokeAlign::Center }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Stroke {
     pub color: Color,
@@ -216,6 +227,8 @@ pub struct Stroke {
     pub line_cap: LineCap,
     #[serde(default)]
     pub line_join: LineJoin,
+    #[serde(default)]
+    pub align: StrokeAlign,
 }
 
 /// Layout mode for container nodes

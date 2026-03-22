@@ -176,6 +176,11 @@ function generateCSS(
   // Stroke → border
   if (stroke && stroke.color && stroke.width) {
     lines.push(`border: ${stroke.width}px solid ${rgbaToCSS(stroke.color)};`);
+    if (stroke.align === "Inside") {
+      lines.push(`box-sizing: border-box; /* stroke inside */`);
+    } else if (stroke.align === "Outside") {
+      lines.push(`outline: ${stroke.width}px solid ${rgbaToCSS(stroke.color)}; /* stroke outside */`);
+    }
   }
 
   // Shadows → box-shadow

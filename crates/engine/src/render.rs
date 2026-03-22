@@ -460,6 +460,22 @@ impl Renderer {
     }
 
     fn render_frame(&self, ctx: &CanvasRenderingContext2d, node: &Node, scene: &Scene) {
+        // For outside stroke: draw stroke first, then fill on top
+        if let Some(stroke) = &node.stroke {
+            if stroke.align == crate::node::StrokeAlign::Outside {
+                ctx.set_stroke_style_str(&stroke.color.to_css());
+                ctx.set_line_width(stroke.width * 2.0);
+                self.apply_stroke_options(ctx, stroke);
+                if node.corner_radius > 0.0 {
+                    self.draw_rounded_rect(ctx, node.x, node.y, node.width, node.height, node.corner_radius);
+                    ctx.stroke();
+                } else {
+                    ctx.stroke_rect(node.x, node.y, node.width, node.height);
+                }
+                if !stroke.dash_array.is_empty() { ctx.set_line_dash(&js_sys::Array::new()).ok(); }
+            }
+        }
+
         if node.fill.is_some() {
             self.apply_fill_style(ctx, node);
             if node.corner_radius > 0.0 {
@@ -470,16 +486,32 @@ impl Renderer {
             }
         }
         if let Some(stroke) = &node.stroke {
-            ctx.set_stroke_style_str(&stroke.color.to_css());
-            ctx.set_line_width(stroke.width);
-            self.apply_stroke_options(ctx, stroke);
-            if node.corner_radius > 0.0 {
-                self.draw_rounded_rect(ctx, node.x, node.y, node.width, node.height, node.corner_radius);
-                ctx.stroke();
-            } else {
-                ctx.stroke_rect(node.x, node.y, node.width, node.height);
+            if stroke.align != crate::node::StrokeAlign::Outside {
+                ctx.set_stroke_style_str(&stroke.color.to_css());
+                self.apply_stroke_options(ctx, stroke);
+                let w = if stroke.align == crate::node::StrokeAlign::Inside { stroke.width * 2.0 } else { stroke.width };
+                ctx.set_line_width(w);
+                if stroke.align == crate::node::StrokeAlign::Inside {
+                    ctx.save();
+                    if node.corner_radius > 0.0 {
+                        self.draw_rounded_rect(ctx, node.x, node.y, node.width, node.height, node.corner_radius);
+                    } else {
+                        ctx.begin_path();
+                        ctx.rect(node.x, node.y, node.width, node.height);
+                    }
+                    ctx.clip();
+                }
+                if node.corner_radius > 0.0 {
+                    self.draw_rounded_rect(ctx, node.x, node.y, node.width, node.height, node.corner_radius);
+                    ctx.stroke();
+                } else {
+                    ctx.stroke_rect(node.x, node.y, node.width, node.height);
+                }
+                if stroke.align == crate::node::StrokeAlign::Inside {
+                    ctx.restore();
+                }
+                if !stroke.dash_array.is_empty() { ctx.set_line_dash(&js_sys::Array::new()).ok(); }
             }
-            if !stroke.dash_array.is_empty() { ctx.set_line_dash(&js_sys::Array::new()).ok(); }
         }
         // Only show label if parent doesn't have layout (avoids clutter in nested layouts)
         let parent_has_layout = node.parent
@@ -773,15 +805,61 @@ impl Renderer {
     }
 
     fn apply_fill_stroke(&self, ctx: &CanvasRenderingContext2d, node: &Node) {
+        if let Some(stroke) = &node.stroke {
+            if stroke.align == crate::node::StrokeAlign::Outside {
+                // Outside: stroke with 2x width first, then fill on top to mask inner half
+                ctx.save();
+                ctx.set_stroke_style_str(&stroke.color.to_css());
+                ctx.set_line_width(stroke.width * 2.0);
+                self.apply_stroke_options(ctx, stroke);
+                ctx.stroke();
+                if !stroke.dash_array.is_empty() {
+                    ctx.set_line_dash(&js_sys::Array::new()).ok();
+                }
+                ctx.restore();
+                // Fill on top (masks inner half of stroke)
+                if node.fill.is_some() {
+                    self.apply_fill_style(ctx, node);
+                    ctx.fill();
+                } else {
+                    // No fill: clip out interior to show only outside stroke
+                    // Use evenodd: outer rect + shape path → clips to outside
+                    ctx.save();
+                    ctx.begin_path();
+                    // Large outer rect
+                    ctx.rect(-1e6, -1e6, 2e6, 2e6);
+                    // Re-trace current shape path (already in subpath from caller)
+                    // We need to clear and re-fill with background
+                    ctx.set_fill_style_str("rgba(0,0,0,0)");
+                    ctx.fill();
+                    ctx.restore();
+                }
+                return;
+            }
+        }
+
         if node.fill.is_some() {
             self.apply_fill_style(ctx, node);
             ctx.fill();
         }
         if let Some(stroke) = &node.stroke {
             ctx.set_stroke_style_str(&stroke.color.to_css());
-            ctx.set_line_width(stroke.width);
             self.apply_stroke_options(ctx, stroke);
-            ctx.stroke();
+            match stroke.align {
+                crate::node::StrokeAlign::Inside => {
+                    // Inside: clip to shape, stroke with 2x width
+                    ctx.save();
+                    ctx.clip();
+                    ctx.set_line_width(stroke.width * 2.0);
+                    ctx.stroke();
+                    ctx.restore();
+                }
+                _ => {
+                    // Center (default)
+                    ctx.set_line_width(stroke.width);
+                    ctx.stroke();
+                }
+            }
             // Reset dash
             if !stroke.dash_array.is_empty() {
                 ctx.set_line_dash(&js_sys::Array::new()).ok();
