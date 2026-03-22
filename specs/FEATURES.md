@@ -203,7 +203,13 @@
   - WASM API: add_page, remove_page, rename_page, set_active_page, duplicate_page, get_pages, get_active_page_id, get_page_count
 - [x] Boolean operations (Union, Subtract, Intersect, Exclude)
 - [x] Constraints (responsive resizing) — Horizontal: Left/Right/LeftAndRight/Center/Scale, Vertical: Top/Bottom/TopAndBottom/Center/Scale
-- [ ] Prototyping (interactions/transitions)
+- [x] Prototyping (interactions/transitions)
+  - Interaction struct: trigger (OnClick/OnHover/OnPress/OnDrag), action (NavigateTo/Back/ScrollTo/OpenOverlay/CloseOverlay), target node/page ID, transition type (Instant/Dissolve/SmartAnimate/SlideIn/SlideOut/Push), duration
+  - WASM API: add_interaction, remove_interaction, clear_interactions, get_interactions, get_interaction_count, get_all_interactions
+  - Properties panel: "Interactions" section with trigger/action/target/transition/duration editors, add/remove
+  - Prototype viewer: full-screen overlay, click navigation, back stack, Esc to close
+  - Toolbar: Play button (▶), keyboard shortcut Cmd+Enter
+  - Interaction hotspot hints (blue dashed borders in preview)
 
 ### Styles Library (Shared Color & Text Styles)
 - [x] **ColorStyle**: name + RGBA fill color, CRUD via StyleStore

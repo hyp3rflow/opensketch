@@ -470,6 +470,75 @@ impl Default for LayoutGrid {
     }
 }
 
+/// Interaction trigger type
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub enum InteractionTrigger {
+    OnClick,
+    OnHover,
+    OnPress,
+    OnDrag,
+}
+
+impl Default for InteractionTrigger {
+    fn default() -> Self { InteractionTrigger::OnClick }
+}
+
+/// Interaction action type
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub enum InteractionAction {
+    NavigateTo,
+    Back,
+    ScrollTo,
+    OpenOverlay,
+    CloseOverlay,
+}
+
+impl Default for InteractionAction {
+    fn default() -> Self { InteractionAction::NavigateTo }
+}
+
+/// Transition animation type
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub enum TransitionType {
+    Instant,
+    Dissolve,
+    SmartAnimate,
+    SlideIn,
+    SlideOut,
+    Push,
+}
+
+impl Default for TransitionType {
+    fn default() -> Self { TransitionType::Instant }
+}
+
+/// A prototype interaction link
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Interaction {
+    pub trigger: InteractionTrigger,
+    pub action: InteractionAction,
+    /// Target frame/page node ID (0 = none)
+    pub target_node_id: u64,
+    /// Target page ID (0 = same page)
+    pub target_page_id: u64,
+    pub transition: TransitionType,
+    /// Transition duration in ms
+    pub transition_duration_ms: u32,
+}
+
+impl Default for Interaction {
+    fn default() -> Self {
+        Self {
+            trigger: InteractionTrigger::OnClick,
+            action: InteractionAction::NavigateTo,
+            target_node_id: 0,
+            target_page_id: 0,
+            transition: TransitionType::Instant,
+            transition_duration_ms: 300,
+        }
+    }
+}
+
 /// Attached note (markdown)
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Note {
@@ -529,6 +598,9 @@ pub struct Node {
     /// Layout grid overlays (Figma-style, for Frame nodes)
     #[serde(default)]
     pub layout_grids: Vec<LayoutGrid>,
+    /// Prototype interactions (click → navigate to frame/page)
+    #[serde(default)]
+    pub interactions: Vec<Interaction>,
 }
 
 impl Node {
@@ -559,6 +631,7 @@ impl Node {
             color_style_id: None,
             text_style_id: None,
             layout_grids: vec![],
+            interactions: vec![],
         }
     }
 

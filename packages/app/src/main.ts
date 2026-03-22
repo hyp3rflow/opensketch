@@ -11,6 +11,7 @@ import { setupRulers } from "./ui/rulers";
 import { setupPageTabs } from "./ui/page-tabs";
 import { AutoSave, setupHistoryPanel } from "./autosave";
 import { setupInspectPanel } from "./ui/inspect-panel";
+import { createPrototypeViewer } from "./ui/prototype-viewer";
 
 async function main() {
   const wasm = await loadEngine();
@@ -42,6 +43,9 @@ async function main() {
     if (e.target === dsBackdrop) toggleDesignSystem();
   });
 
+  // Prototype viewer
+  const prototypeViewer = createPrototypeViewer(editor);
+
   // Bottom toolbar (with design system button + mode toggle)
   setupToolbar(document.getElementById("bottom-toolbar")!, editor, toggleDesignSystem, (mode) => {
     document.body.setAttribute("data-mode", mode);
@@ -60,7 +64,7 @@ async function main() {
     if (mode === "dev") editor.setTool("select");
     // Toggle note overlay
     noteOverlay.setEnabled(mode === "dev");
-  });
+  }, () => prototypeViewer.show());
 
   // Left panel = layers only
   setupLayersPanel(document.getElementById("layers-panel")!, editor);
@@ -110,6 +114,11 @@ async function main() {
   window.addEventListener("keydown", (e) => {
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
     if (e.key === "d" || e.key === "D") toggleDesignSystem();
+    // Cmd+Enter or Ctrl+Enter → prototype mode
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      prototypeViewer.show();
+    }
   });
 
   // ==========================================

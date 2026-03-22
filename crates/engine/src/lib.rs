@@ -40,7 +40,7 @@ use crate::scene::Scene;
 use crate::render::Renderer;
 use crate::types::{Color, Point};
 use crate::component::{ComponentStore, VariantProp, VariantPropType, VariantValue, VariantData, VariantKey, SlotDef, InstanceData, NodeOverrides};
-use crate::node::{Note, Shadow};
+use crate::node::{Note, Shadow, Interaction, InteractionTrigger, InteractionAction, TransitionType};
 use crate::styles::StyleStore;
 
 #[wasm_bindgen]
@@ -667,6 +667,103 @@ impl Engine {
         self.scene.get_node(id)
             .map(|n| n.blend_mode.to_css().to_string())
             .unwrap_or_else(|| "normal".to_string())
+    }
+
+    // ── Prototype interactions ──────────────────────────────
+
+    /// Add an interaction to a node. Returns the index of the new interaction.
+    pub fn add_interaction(
+        &mut self, id: u64,
+        trigger: &str, action: &str,
+        target_node_id: u64, target_page_id: u64,
+        transition: &str, transition_duration_ms: u32,
+    ) -> i32 {
+        let trig = match trigger {
+            "hover" => InteractionTrigger::OnHover,
+            "press" => InteractionTrigger::OnPress,
+            "drag" => InteractionTrigger::OnDrag,
+            _ => InteractionTrigger::OnClick,
+        };
+        let act = match action {
+            "back" => InteractionAction::Back,
+            "scroll-to" => InteractionAction::ScrollTo,
+            "open-overlay" => InteractionAction::OpenOverlay,
+            "close-overlay" => InteractionAction::CloseOverlay,
+            _ => InteractionAction::NavigateTo,
+        };
+        let trans = match transition {
+            "dissolve" => TransitionType::Dissolve,
+            "smart-animate" => TransitionType::SmartAnimate,
+            "slide-in" => TransitionType::SlideIn,
+            "slide-out" => TransitionType::SlideOut,
+            "push" => TransitionType::Push,
+            _ => TransitionType::Instant,
+        };
+        if let Some(node) = self.scene.get_node_mut(id) {
+            let interaction = Interaction {
+                trigger: trig,
+                action: act,
+                target_node_id,
+                target_page_id,
+                transition: trans,
+                transition_duration_ms,
+            };
+            node.interactions.push(interaction);
+            (node.interactions.len() - 1) as i32
+        } else {
+            -1
+        }
+    }
+
+    /// Remove an interaction by index
+    pub fn remove_interaction(&mut self, id: u64, index: u32) -> bool {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            let idx = index as usize;
+            if idx < node.interactions.len() {
+                node.interactions.remove(idx);
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Clear all interactions on a node
+    pub fn clear_interactions(&mut self, id: u64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            node.interactions.clear();
+        }
+    }
+
+    /// Get interactions as JSON array
+    pub fn get_interactions(&self, id: u64) -> String {
+        if let Some(node) = self.scene.get_node(id) {
+            serde_json::to_string(&node.interactions).unwrap_or_else(|_| "[]".to_string())
+        } else {
+            "[]".to_string()
+        }
+    }
+
+    /// Get interaction count for a node
+    pub fn get_interaction_count(&self, id: u64) -> u32 {
+        self.scene.get_node(id)
+            .map(|n| n.interactions.len() as u32)
+            .unwrap_or(0)
+    }
+
+    /// Get all nodes with interactions (returns JSON: [{id, interactions: [...]}])
+    pub fn get_all_interactions(&self) -> String {
+        let mut result: Vec<serde_json::Value> = vec![];
+        for node in self.scene.all_nodes() {
+            if !node.interactions.is_empty() {
+                let val = serde_json::json!({
+                    "id": node.id,
+                    "name": node.name,
+                    "interactions": node.interactions,
+                });
+                result.push(val);
+            }
+        }
+        serde_json::to_string(&result).unwrap_or_else(|_| "[]".to_string())
     }
 
     pub fn select(&mut self, id: u64) {

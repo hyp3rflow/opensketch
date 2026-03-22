@@ -48,7 +48,7 @@ function addImageFromFile(editor: Editor) {
   input.click();
 }
 
-export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSystem?: () => void, onModeChange?: (mode: AppMode) => void) {
+export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSystem?: () => void, onModeChange?: (mode: AppMode) => void, onPrototype?: () => void) {
   let currentMode: AppMode = "edit";
   tools.forEach((tool, i) => {
     if (i === 2) {
@@ -152,6 +152,20 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
   svgBtn.innerHTML = icons.download;
   svgBtn.addEventListener("click", () => editor.downloadSVG());
   container.appendChild(svgBtn);
+
+  // Prototype play button
+  if (onPrototype) {
+    const sepProto = document.createElement("div");
+    sepProto.className = "tool-btn-separator";
+    container.appendChild(sepProto);
+
+    const protoBtn = document.createElement("button");
+    protoBtn.className = "tool-btn";
+    protoBtn.title = "Present Prototype (⌘⏎)";
+    protoBtn.innerHTML = icons.play;
+    protoBtn.addEventListener("click", onPrototype);
+    container.appendChild(protoBtn);
+  }
 
   // Mode toggle (rightmost)
   const sep2 = document.createElement("div");

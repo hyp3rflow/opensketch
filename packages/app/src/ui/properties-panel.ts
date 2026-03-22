@@ -1075,6 +1075,192 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       container.appendChild(effectsSection);
     }
 
+    // --- Prototype Interactions ---
+    {
+      const interSection = createSection("Interactions");
+
+      const interJson = editor.engine.get_interactions(id);
+      const interactions: any[] = JSON.parse(interJson || "[]");
+
+      // Get all frames across all pages for target selection
+      const pagesJson = editor.engine.get_pages();
+      const pages: any[] = JSON.parse(pagesJson || "[]");
+
+      interactions.forEach((inter: any, idx: number) => {
+        const interEl = document.createElement("div");
+        interEl.style.cssText = "background:#1e1e1e;border-radius:6px;padding:8px;margin-bottom:6px;position:relative;";
+
+        // Header: trigger label + delete
+        const hdr = document.createElement("div");
+        hdr.style.cssText = "display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;";
+        const trigLabel = document.createElement("span");
+        trigLabel.style.cssText = "font-size:11px;color:#aaa;";
+        trigLabel.textContent = `${inter.trigger || "OnClick"} → ${inter.action || "NavigateTo"}`;
+        hdr.appendChild(trigLabel);
+
+        const delBtn = document.createElement("button");
+        delBtn.style.cssText = "width:18px;height:18px;border:1px solid #444;border-radius:4px;background:#2a2a2a;cursor:pointer;padding:0;color:#888;font-size:12px;line-height:1;";
+        delBtn.textContent = "×";
+        delBtn.addEventListener("click", () => {
+          ensureUndo();
+          editor.engine.remove_interaction(id, idx);
+          editor.requestRender();
+          refresh(ids);
+        });
+        hdr.appendChild(delBtn);
+        interEl.appendChild(hdr);
+
+        // Trigger select
+        const trigRow = document.createElement("div");
+        trigRow.style.cssText = "display:flex;gap:4px;margin-bottom:4px;align-items:center;";
+        const trigLbl = document.createElement("span");
+        trigLbl.style.cssText = "font-size:10px;color:#666;width:50px;flex-shrink:0;";
+        trigLbl.textContent = "Trigger";
+        trigRow.appendChild(trigLbl);
+        const trigSelect = document.createElement("select");
+        trigSelect.className = "prop-input";
+        trigSelect.style.flex = "1";
+        for (const t of ["click", "hover", "press", "drag"]) {
+          const opt = document.createElement("option");
+          opt.value = t;
+          opt.textContent = t.charAt(0).toUpperCase() + t.slice(1);
+          const trigMap: Record<string, string> = { OnClick: "click", OnHover: "hover", OnPress: "press", OnDrag: "drag" };
+          if ((trigMap[inter.trigger] || "click") === t) opt.selected = true;
+          trigSelect.appendChild(opt);
+        }
+        trigSelect.addEventListener("change", () => {
+          ensureUndo();
+          editor.engine.remove_interaction(id, idx);
+          editor.engine.add_interaction(
+            id, trigSelect.value, actSelect.value,
+            BigInt(inter.target_node_id || 0), BigInt(inter.target_page_id || 0),
+            transSelect.value, parseInt(durInput.value) || 300
+          );
+          editor.requestRender();
+          refresh(ids);
+        });
+        trigRow.appendChild(trigSelect);
+        interEl.appendChild(trigRow);
+
+        // Action select
+        const actRow = document.createElement("div");
+        actRow.style.cssText = "display:flex;gap:4px;margin-bottom:4px;align-items:center;";
+        const actLbl = document.createElement("span");
+        actLbl.style.cssText = "font-size:10px;color:#666;width:50px;flex-shrink:0;";
+        actLbl.textContent = "Action";
+        actRow.appendChild(actLbl);
+        const actSelect = document.createElement("select");
+        actSelect.className = "prop-input";
+        actSelect.style.flex = "1";
+        for (const a of ["navigate-to", "back", "scroll-to", "open-overlay", "close-overlay"]) {
+          const opt = document.createElement("option");
+          opt.value = a;
+          opt.textContent = a.split("-").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+          const actMap: Record<string, string> = { NavigateTo: "navigate-to", Back: "back", ScrollTo: "scroll-to", OpenOverlay: "open-overlay", CloseOverlay: "close-overlay" };
+          if ((actMap[inter.action] || "navigate-to") === a) opt.selected = true;
+          actSelect.appendChild(opt);
+        }
+        actRow.appendChild(actSelect);
+        interEl.appendChild(actRow);
+
+        // Target node ID input (simple for now)
+        const targetRow = document.createElement("div");
+        targetRow.style.cssText = "display:flex;gap:4px;margin-bottom:4px;align-items:center;";
+        const targetLbl = document.createElement("span");
+        targetLbl.style.cssText = "font-size:10px;color:#666;width:50px;flex-shrink:0;";
+        targetLbl.textContent = "Target";
+        targetRow.appendChild(targetLbl);
+        const targetInput = document.createElement("input");
+        targetInput.className = "prop-input";
+        targetInput.style.flex = "1";
+        targetInput.type = "number";
+        targetInput.placeholder = "Frame ID";
+        targetInput.value = String(inter.target_node_id || "");
+        targetInput.addEventListener("change", () => {
+          ensureUndo();
+          editor.engine.remove_interaction(id, idx);
+          editor.engine.add_interaction(
+            id, trigSelect.value, actSelect.value,
+            BigInt(parseInt(targetInput.value) || 0), BigInt(inter.target_page_id || 0),
+            transSelect.value, parseInt(durInput.value) || 300
+          );
+          editor.requestRender();
+          refresh(ids);
+        });
+        targetRow.appendChild(targetInput);
+        interEl.appendChild(targetRow);
+
+        // Transition select
+        const transRow = document.createElement("div");
+        transRow.style.cssText = "display:flex;gap:4px;margin-bottom:4px;align-items:center;";
+        const transLbl = document.createElement("span");
+        transLbl.style.cssText = "font-size:10px;color:#666;width:50px;flex-shrink:0;";
+        transLbl.textContent = "Transition";
+        transRow.appendChild(transLbl);
+        const transSelect = document.createElement("select");
+        transSelect.className = "prop-input";
+        transSelect.style.flex = "1";
+        for (const tr of ["instant", "dissolve", "smart-animate", "slide-in", "slide-out", "push"]) {
+          const opt = document.createElement("option");
+          opt.value = tr;
+          opt.textContent = tr.split("-").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+          const trMap: Record<string, string> = { Instant: "instant", Dissolve: "dissolve", SmartAnimate: "smart-animate", SlideIn: "slide-in", SlideOut: "slide-out", Push: "push" };
+          if ((trMap[inter.transition] || "instant") === tr) opt.selected = true;
+          transSelect.appendChild(opt);
+        }
+        transRow.appendChild(transSelect);
+        interEl.appendChild(transRow);
+
+        // Duration
+        const durRow = document.createElement("div");
+        durRow.style.cssText = "display:flex;gap:4px;align-items:center;";
+        const durLbl = document.createElement("span");
+        durLbl.style.cssText = "font-size:10px;color:#666;width:50px;flex-shrink:0;";
+        durLbl.textContent = "Duration";
+        durRow.appendChild(durLbl);
+        const durInput = document.createElement("input");
+        durInput.className = "prop-input";
+        durInput.style.flex = "1";
+        durInput.type = "number";
+        durInput.min = "0";
+        durInput.step = "50";
+        durInput.value = String(inter.transition_duration_ms || 300);
+        durInput.addEventListener("change", () => {
+          ensureUndo();
+          editor.engine.remove_interaction(id, idx);
+          editor.engine.add_interaction(
+            id, trigSelect.value, actSelect.value,
+            BigInt(inter.target_node_id || 0), BigInt(inter.target_page_id || 0),
+            transSelect.value, parseInt(durInput.value) || 300
+          );
+          editor.requestRender();
+          refresh(ids);
+        });
+        const durMs = document.createElement("span");
+        durMs.style.cssText = "font-size:10px;color:#666;";
+        durMs.textContent = "ms";
+        durRow.appendChild(durInput);
+        durRow.appendChild(durMs);
+        interEl.appendChild(durRow);
+
+        interSection.appendChild(interEl);
+      });
+
+      // Add interaction button
+      const addInterBtn = document.createElement("button");
+      addInterBtn.className = "prop-add-btn";
+      addInterBtn.textContent = "+ Add interaction";
+      addInterBtn.addEventListener("click", () => {
+        ensureUndo();
+        editor.engine.add_interaction(id, "click", "navigate-to", BigInt(0), BigInt(0), "instant", 300);
+        editor.requestRender();
+        refresh(ids);
+      });
+      interSection.appendChild(addInterBtn);
+
+      container.appendChild(interSection);
+    }
+
     // --- Text-specific ---
     if (typeof node.kind === "object" && node.kind.Text) {
       // Text Style dropdown

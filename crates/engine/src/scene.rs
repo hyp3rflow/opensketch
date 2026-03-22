@@ -78,6 +78,10 @@ impl Scene {
         self.nodes.get_mut(&id)
     }
 
+    pub fn all_nodes(&self) -> impl Iterator<Item = &Node> {
+        self.nodes.values()
+    }
+
     pub fn remove_node(&mut self, id: NodeId) {
         if let Some(node) = self.nodes.remove(&id) {
             self.root_children.retain(|&c| c != id);
