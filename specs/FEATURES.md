@@ -369,3 +369,14 @@
 - [x] **Z-order WASM bindings**: bring_to_front, send_to_back, bring_forward, send_backward
 - [x] **Group/Ungroup**: group_selected, ungroup WASM bindings with context menu integration
 - [x] **Select all**: select_all WASM binding (visible, unlocked root nodes)
+
+### Variable Collections (Design Tokens)
+- [x] **Rust variable.rs**: VariableCollection, Variable, VariableMode, VariableBinding types
+- [x] **Variable types**: Color, Number, String, Boolean with per-mode values
+- [x] **Mode system**: Multiple modes per collection (e.g., Light/Dark), add/remove/rename/switch
+- [x] **Scene integration**: variable_collections, variable_bindings stored in Scene, apply_variables() resolves all bindings
+- [x] **Bindable properties**: fill.0.color, stroke.color, opacity, corner_radius, width, height
+- [x] **WASM bindings**: create/rename/delete collection, add/rename/delete mode, create/set/delete variable, bind/unbind, get_collections, get_bindings, apply_variables
+- [x] **Variables panel**: Right pane "Variables" tab with collection CRUD, mode tabs, variable table with type-specific editors
+- [x] **Binding UI**: Properties panel "Variable Bindings" section with bind/unbind per property, variable picker popup
+- [x] **Backward-compatible serde**: Default empty collections/bindings for existing files

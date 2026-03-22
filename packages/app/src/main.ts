@@ -13,6 +13,7 @@ import { AutoSave, setupHistoryPanel } from "./autosave";
 import { setupInspectPanel } from "./ui/inspect-panel";
 import { createPrototypeViewer } from "./ui/prototype-viewer";
 import { CommentOverlay, setupCommentsPanel } from "./ui/comments";
+import { setupVariablesPanel } from "./ui/variables-panel";
 
 async function main() {
   const wasm = await loadEngine();
@@ -99,6 +100,7 @@ async function main() {
   // Comments overlay + panel
   const commentOverlay = new CommentOverlay(document.getElementById("canvas-container") || editor.canvas.parentElement!, editor);
   setupCommentsPanel(document.getElementById("comments-panel")!, editor, commentOverlay);
+  setupVariablesPanel(document.getElementById("variables-panel")!, editor);
 
   // Right pane tab switching
   const rightPaneTabs = document.querySelectorAll(".right-pane-tab");
@@ -107,7 +109,7 @@ async function main() {
     tab.addEventListener("click", () => {
       const target = (tab as HTMLElement).dataset.tab!;
       rightPaneTabs.forEach((t) => t.classList.toggle("active", (t as HTMLElement).dataset.tab === target));
-      const tabContentMap: Record<string, string> = { agent: "agent-panel", properties: "properties-panel", history: "history-panel", inspect: "inspect-panel", comments: "comments-panel" };
+      const tabContentMap: Record<string, string> = { agent: "agent-panel", properties: "properties-panel", history: "history-panel", inspect: "inspect-panel", comments: "comments-panel", variables: "variables-panel" };
       rightPaneContents.forEach((c) => c.classList.toggle("active", c.id === tabContentMap[target]));
       if (target === "agent") {
         agentPanel.querySelector<HTMLInputElement>(".agent-input")?.focus();

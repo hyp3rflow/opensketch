@@ -852,6 +852,118 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       container.appendChild(fillSection);
     }
 
+    // --- Variable Bindings ---
+    {
+      const bindSection = createSection("Variable Bindings");
+      const bindingsJson = editor.engine.get_bindings(id);
+      const bindings: any[] = JSON.parse(bindingsJson || "[]");
+      const collectionsJson = editor.engine.get_collections();
+      const collections: any[] = JSON.parse(collectionsJson || "[]");
+
+      const bindableProps = ["fill.0.color", "stroke.color", "opacity", "corner_radius", "width", "height"];
+
+      for (const prop of bindableProps) {
+        const row = document.createElement("div");
+        row.style.cssText = "display:flex;align-items:center;gap:6px;margin-bottom:4px;";
+
+        const label = document.createElement("span");
+        label.style.cssText = "font-size:10px;color:#888;min-width:80px;";
+        label.textContent = prop;
+        row.appendChild(label);
+
+        const existing = bindings.find((b: any) => b.property === prop);
+
+        if (existing) {
+          const col = collections.find((c: any) => c.id === existing.collection_id);
+          const varName = col?.variables?.find((v: any) => v.id === existing.variable_id)?.name || "?";
+          const badge = document.createElement("span");
+          badge.style.cssText = "font-size:10px;color:#818cf8;background:rgba(79,70,229,0.1);padding:2px 6px;border-radius:3px;flex:1;";
+          badge.textContent = `${col?.name || "?"} / ${varName}`;
+          row.appendChild(badge);
+
+          const unbindBtn = document.createElement("button");
+          unbindBtn.style.cssText = "background:none;border:none;color:#f87171;cursor:pointer;font-size:10px;padding:2px;";
+          unbindBtn.textContent = "✕";
+          unbindBtn.addEventListener("click", () => {
+            editor.engine.push_undo();
+            editor.engine.unbind_variable(id, prop);
+            editor.engine.apply_variables();
+            editor.requestRender();
+            refresh(ids);
+          });
+          row.appendChild(unbindBtn);
+        } else if (collections.length > 0) {
+          const bindBtn = document.createElement("button");
+          bindBtn.style.cssText = "background:none;border:1px solid #444;border-radius:4px;color:#888;cursor:pointer;font-size:10px;padding:2px 6px;";
+          bindBtn.innerHTML = "⚡ Bind";
+          bindBtn.addEventListener("click", () => {
+            // Simple picker: show popup
+            const popup = document.createElement("div");
+            popup.style.cssText = "position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#1e1e1e;border:1px solid #444;border-radius:8px;padding:16px;z-index:10000;min-width:250px;max-height:400px;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.5);";
+
+            const popTitle = document.createElement("div");
+            popTitle.style.cssText = "font-size:12px;color:#ccc;font-weight:600;margin-bottom:10px;";
+            popTitle.textContent = `Bind "${prop}" to variable`;
+            popup.appendChild(popTitle);
+
+            for (const col of collections) {
+              const colLabel = document.createElement("div");
+              colLabel.style.cssText = "font-size:10px;color:#666;margin-top:8px;margin-bottom:4px;text-transform:uppercase;";
+              colLabel.textContent = col.name;
+              popup.appendChild(colLabel);
+
+              const expectedType = (prop === "fill.0.color" || prop === "stroke.color") ? "Color" : "Number";
+              const matchingVars = col.variables.filter((v: any) => v.value_type === expectedType);
+
+              if (matchingVars.length === 0) {
+                const noVars = document.createElement("div");
+                noVars.style.cssText = "font-size:10px;color:#555;padding:4px 0;";
+                noVars.textContent = `No ${expectedType} variables`;
+                popup.appendChild(noVars);
+              }
+
+              for (const v of matchingVars) {
+                const vBtn = document.createElement("button");
+                vBtn.style.cssText = "display:block;width:100%;text-align:left;background:#2a2a2a;border:1px solid #333;border-radius:4px;color:#ccc;cursor:pointer;font-size:11px;padding:6px 8px;margin-bottom:2px;";
+                vBtn.textContent = v.name;
+                vBtn.addEventListener("mouseenter", () => { vBtn.style.borderColor = "#4f46e5"; });
+                vBtn.addEventListener("mouseleave", () => { vBtn.style.borderColor = "#333"; });
+                vBtn.addEventListener("click", () => {
+                  editor.engine.push_undo();
+                  editor.engine.bind_variable(id, prop, BigInt(col.id), BigInt(v.id));
+                  editor.engine.apply_variables();
+                  editor.requestRender();
+                  document.body.removeChild(popup);
+                  refresh(ids);
+                });
+                popup.appendChild(vBtn);
+              }
+            }
+
+            const cancelBtn = document.createElement("button");
+            cancelBtn.style.cssText = "margin-top:10px;width:100%;background:#333;border:none;border-radius:4px;color:#888;cursor:pointer;font-size:11px;padding:6px;";
+            cancelBtn.textContent = "Cancel";
+            cancelBtn.addEventListener("click", () => document.body.removeChild(popup));
+            popup.appendChild(cancelBtn);
+
+            document.body.appendChild(popup);
+          });
+          row.appendChild(bindBtn);
+        }
+
+        bindSection.appendChild(row);
+      }
+
+      if (collections.length === 0) {
+        const hint = document.createElement("div");
+        hint.style.cssText = "font-size:10px;color:#555;text-align:center;padding:8px 0;";
+        hint.textContent = "Create a variable collection first";
+        bindSection.appendChild(hint);
+      }
+
+      container.appendChild(bindSection);
+    }
+
     // --- Stroke ---
     {
       const strokeSection = createSection("Stroke");

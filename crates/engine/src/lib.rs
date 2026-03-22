@@ -9,6 +9,7 @@ mod layout;
 mod svg_export;
 mod boolean_ops;
 pub mod styles;
+pub mod variable;
 
 use wasm_bindgen::prelude::*;
 use web_sys::CanvasRenderingContext2d;
@@ -71,6 +72,7 @@ impl Engine {
     }
 
     pub fn render(&mut self, ctx: &CanvasRenderingContext2d) {
+        self.scene.apply_variables();
         self.renderer.measure_text_nodes(ctx, &mut self.scene);
         layout::compute_layouts(&mut self.scene);
         self.renderer.render(ctx, &self.scene, self.editing_node);
@@ -2800,6 +2802,128 @@ impl Engine {
         self.scene.remove_node(id);
         self.scene.selection = new_sel;
         true
+    }
+
+    // =============================================
+    // Variable Collections
+    // =============================================
+
+    pub fn create_collection(&mut self, name: &str) -> u64 {
+        self.scene.create_collection(name.to_string())
+    }
+
+    pub fn rename_collection(&mut self, id: u64, name: &str) {
+        if let Some(c) = self.scene.get_collection_mut(id) {
+            c.name = name.to_string();
+        }
+    }
+
+    pub fn delete_collection(&mut self, id: u64) -> bool {
+        self.scene.delete_collection(id)
+    }
+
+    pub fn var_add_mode(&mut self, collection_id: u64, name: &str) -> u64 {
+        if let Some(c) = self.scene.get_collection_mut(collection_id) {
+            c.add_mode(name.to_string())
+        } else {
+            0
+        }
+    }
+
+    pub fn var_rename_mode(&mut self, collection_id: u64, mode_id: u64, name: &str) {
+        if let Some(c) = self.scene.get_collection_mut(collection_id) {
+            c.rename_mode(mode_id, name.to_string());
+        }
+    }
+
+    pub fn var_delete_mode(&mut self, collection_id: u64, mode_id: u64) -> bool {
+        if let Some(c) = self.scene.get_collection_mut(collection_id) {
+            c.remove_mode(mode_id)
+        } else {
+            false
+        }
+    }
+
+    pub fn set_active_mode(&mut self, collection_id: u64, mode_id: u64) {
+        if let Some(c) = self.scene.get_collection_mut(collection_id) {
+            if c.modes.iter().any(|m| m.id == mode_id) {
+                c.active_mode_id = mode_id;
+            }
+        }
+    }
+
+    pub fn create_variable(&mut self, collection_id: u64, name: &str, var_type: &str) -> u64 {
+        let vt = match var_type {
+            "Color" | "color" => variable::VariableType::Color,
+            "Number" | "number" => variable::VariableType::Number,
+            "String" | "string" => variable::VariableType::String,
+            "Boolean" | "boolean" => variable::VariableType::Boolean,
+            _ => variable::VariableType::Color,
+        };
+        if let Some(c) = self.scene.get_collection_mut(collection_id) {
+            c.create_variable(name.to_string(), vt)
+        } else {
+            0
+        }
+    }
+
+    pub fn set_variable_value(&mut self, collection_id: u64, var_id: u64, mode_id: u64, value_json: &str) -> bool {
+        let val: serde_json::Value = match serde_json::from_str(value_json) {
+            Ok(v) => v,
+            Err(_) => return false,
+        };
+        let var_val = if let Some(s) = val.get("Color").and_then(|v| v.as_str()) {
+            variable::VariableValue::Color(s.to_string())
+        } else if let Some(n) = val.get("Number").and_then(|v| v.as_f64()) {
+            variable::VariableValue::Number(n)
+        } else if let Some(s) = val.get("String").and_then(|v| v.as_str()) {
+            variable::VariableValue::String(s.to_string())
+        } else if let Some(b) = val.get("Boolean").and_then(|v| v.as_bool()) {
+            variable::VariableValue::Boolean(b)
+        } else {
+            return false;
+        };
+        if let Some(c) = self.scene.get_collection_mut(collection_id) {
+            c.update_variable_value(var_id, mode_id, var_val)
+        } else {
+            false
+        }
+    }
+
+    pub fn delete_variable(&mut self, collection_id: u64, var_id: u64) -> bool {
+        if let Some(c) = self.scene.get_collection_mut(collection_id) {
+            c.delete_variable(var_id)
+        } else {
+            false
+        }
+    }
+
+    pub fn get_collections(&self) -> String {
+        serde_json::to_string(&self.scene.variable_collections).unwrap_or_else(|_| "[]".to_string())
+    }
+
+    pub fn bind_variable(&mut self, node_id: u64, property: &str, collection_id: u64, var_id: u64) {
+        self.scene.bind_variable(node_id, property.to_string(), collection_id, var_id);
+    }
+
+    pub fn unbind_variable(&mut self, node_id: u64, property: &str) {
+        self.scene.unbind_variable(node_id, property);
+    }
+
+    pub fn get_bindings(&self, node_id: u64) -> String {
+        let bindings = self.scene.get_bindings_for_node(node_id);
+        let result: Vec<serde_json::Value> = bindings.iter().map(|(prop, b)| {
+            serde_json::json!({
+                "property": prop,
+                "collection_id": b.collection_id,
+                "variable_id": b.variable_id,
+            })
+        }).collect();
+        serde_json::to_string(&result).unwrap_or_else(|_| "[]".to_string())
+    }
+
+    pub fn apply_variables(&mut self) {
+        self.scene.apply_variables();
     }
 }
 

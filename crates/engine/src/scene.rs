@@ -2,6 +2,29 @@ use std::collections::HashMap;
 use serde::{Serialize, Deserialize};
 use crate::node::{Node, NodeId, NodeKind, ConstraintH, ConstraintV, Comment, CommentReply};
 use crate::types::Point;
+use crate::variable::{VariableCollection, VariableBinding, CollectionId, VariableId, VariableValue};
+use crate::types::Color;
+
+fn parse_hex_color(hex: &str) -> Option<Color> {
+    let hex = hex.trim_start_matches('#');
+    let (r, g, b, a) = match hex.len() {
+        6 => {
+            let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
+            let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
+            let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
+            (r, g, b, 1.0)
+        }
+        8 => {
+            let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
+            let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
+            let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
+            let a = u8::from_str_radix(&hex[6..8], 16).ok()?;
+            (r, g, b, a as f64 / 255.0)
+        }
+        _ => return None,
+    };
+    Some(Color { r, g, b, a })
+}
 
 /// A single page within the scene
 #[derive(Clone, Serialize, Deserialize)]
@@ -34,6 +57,14 @@ pub struct SceneData {
     pub comments: Vec<Comment>,
     #[serde(default)]
     pub next_comment_id: u64,
+    /// Variable collections
+    #[serde(default)]
+    pub variable_collections: Vec<VariableCollection>,
+    #[serde(default)]
+    pub next_collection_id: u64,
+    /// Variable bindings: key = "node_id:property", value = binding
+    #[serde(default)]
+    pub variable_bindings: HashMap<String, VariableBinding>,
 }
 
 pub struct Scene {
@@ -48,6 +79,10 @@ pub struct Scene {
     // Comments
     comments: Vec<Comment>,
     next_comment_id: u64,
+    // Variables
+    pub variable_collections: Vec<VariableCollection>,
+    next_collection_id: u64,
+    pub variable_bindings: HashMap<String, VariableBinding>,
 }
 
 impl Scene {
@@ -62,6 +97,9 @@ impl Scene {
             next_page_id: 2,
             comments: vec![],
             next_comment_id: 1,
+            variable_collections: vec![],
+            next_collection_id: 1,
+            variable_bindings: HashMap::new(),
         }
     }
 
@@ -345,6 +383,9 @@ impl Scene {
             next_page_id: self.next_page_id,
             comments: self.comments.clone(),
             next_comment_id: self.next_comment_id,
+            variable_collections: self.variable_collections.clone(),
+            next_collection_id: self.next_collection_id,
+            variable_bindings: self.variable_bindings.clone(),
         }
     }
 
@@ -388,6 +429,9 @@ impl Scene {
                 next_page_id,
                 comments: data.comments,
                 next_comment_id,
+                variable_collections: data.variable_collections,
+                next_collection_id: if data.next_collection_id > 0 { data.next_collection_id } else { 1 },
+                variable_bindings: data.variable_bindings,
             }
         } else {
             // Legacy single-page format
@@ -413,6 +457,9 @@ impl Scene {
                 next_page_id: 2,
                 comments: vec![],
                 next_comment_id: 1,
+                variable_collections: vec![],
+                next_collection_id: 1,
+                variable_bindings: HashMap::new(),
             }
         }
     }
@@ -773,4 +820,128 @@ impl Scene {
         self.comments.iter().find(|c| c.id == comment_id)
     }
 
+    // =============================================
+    // Variable Collections
+    // =============================================
+
+    pub fn create_collection(&mut self, name: String) -> CollectionId {
+        let id = self.next_collection_id;
+        self.next_collection_id += 1;
+        self.variable_collections.push(VariableCollection::new(id, name));
+        id
+    }
+
+    pub fn delete_collection(&mut self, id: CollectionId) -> bool {
+        let len = self.variable_collections.len();
+        self.variable_collections.retain(|c| c.id != id);
+        // Remove bindings referencing this collection
+        self.variable_bindings.retain(|_, b| b.collection_id != id);
+        self.variable_collections.len() < len
+    }
+
+    pub fn get_collection_mut(&mut self, id: CollectionId) -> Option<&mut VariableCollection> {
+        self.variable_collections.iter_mut().find(|c| c.id == id)
+    }
+
+    pub fn get_collection(&self, id: CollectionId) -> Option<&VariableCollection> {
+        self.variable_collections.iter().find(|c| c.id == id)
+    }
+
+    pub fn bind_variable(&mut self, node_id: u64, property: String, collection_id: CollectionId, variable_id: VariableId) {
+        let key = format!("{}:{}", node_id, property);
+        self.variable_bindings.insert(key, VariableBinding { collection_id, variable_id });
+    }
+
+    pub fn unbind_variable(&mut self, node_id: u64, property: &str) {
+        let key = format!("{}:{}", node_id, property);
+        self.variable_bindings.remove(&key);
+    }
+
+    pub fn resolve_binding(&self, node_id: u64, property: &str) -> Option<VariableValue> {
+        let key = format!("{}:{}", node_id, property);
+        let binding = self.variable_bindings.get(&key)?;
+        let collection = self.get_collection(binding.collection_id)?;
+        collection.resolve(binding.variable_id)
+    }
+
+    pub fn get_bindings_for_node(&self, node_id: u64) -> Vec<(String, VariableBinding)> {
+        let prefix = format!("{}:", node_id);
+        self.variable_bindings.iter()
+            .filter(|(k, _)| k.starts_with(&prefix))
+            .map(|(k, v)| (k[prefix.len()..].to_string(), v.clone()))
+            .collect()
+    }
+
+    /// Apply all variable bindings with current active modes
+    pub fn apply_variables(&mut self) {
+        let bindings: Vec<(String, VariableBinding)> = self.variable_bindings.iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+
+        for (key, binding) in bindings {
+            let value = {
+                let collection = match self.get_collection(binding.collection_id) {
+                    Some(c) => c,
+                    None => continue,
+                };
+                match collection.resolve(binding.variable_id) {
+                    Some(v) => v,
+                    None => continue,
+                }
+            };
+
+            // Parse key: "node_id:property"
+            let parts: Vec<&str> = key.splitn(2, ':').collect();
+            if parts.len() != 2 { continue; }
+            let node_id: u64 = match parts[0].parse() {
+                Ok(id) => id,
+                Err(_) => continue,
+            };
+            let property = parts[1];
+
+            match (property, &value) {
+                ("fill.0.color", VariableValue::Color(hex)) => {
+                    if let Some(node) = self.nodes.get_mut(&node_id) {
+                        if let Some(color) = parse_hex_color(hex) {
+                            if node.fills.is_empty() {
+                                node.fills.push(crate::node::Fill::solid(color));
+                            } else {
+                                node.fills[0] = crate::node::Fill::solid(color);
+                            }
+                        }
+                    }
+                }
+                ("stroke.color", VariableValue::Color(hex)) => {
+                    if let Some(node) = self.nodes.get_mut(&node_id) {
+                        if let Some(color) = parse_hex_color(hex) {
+                            if let Some(stroke) = &mut node.stroke {
+                                stroke.color = color;
+                            }
+                        }
+                    }
+                }
+                ("opacity", VariableValue::Number(val)) => {
+                    if let Some(node) = self.nodes.get_mut(&node_id) {
+                        node.opacity = val.clamp(0.0, 1.0);
+                    }
+                }
+                ("corner_radius", VariableValue::Number(val)) => {
+                    if let Some(node) = self.nodes.get_mut(&node_id) {
+                        node.corner_radius = val.max(0.0);
+                    }
+                }
+                ("width", VariableValue::Number(val)) => {
+                    if let Some(node) = self.nodes.get_mut(&node_id) {
+                        node.width = val.max(1.0);
+                    }
+                }
+                ("height", VariableValue::Number(val)) => {
+                    if let Some(node) = self.nodes.get_mut(&node_id) {
+                        node.height = val.max(1.0);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
 }
