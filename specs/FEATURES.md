@@ -380,3 +380,10 @@
 - [x] **Variables panel**: Right pane "Variables" tab with collection CRUD, mode tabs, variable table with type-specific editors
 - [x] **Binding UI**: Properties panel "Variable Bindings" section with bind/unbind per property, variable picker popup
 - [x] **Backward-compatible serde**: Default empty collections/bindings for existing files
+
+### Asset Library Panel
+- [x] **Assets tab**: Right pane "Assets" tab alongside Properties/Agent/History/Inspect/Comments/Variables
+- [x] **Search/filter**: Global search bar filters all asset types by name
+- [x] **Components section**: Lists all components from ComponentStore with variant count, click to create instance at (100,100)
+- [x] **Color Styles section**: Color swatch + name + hex value, click to apply to selected nodes
+- [x] **Text Styles section**: Font preview "Ag" + name + font details, click to apply text style to selected nodes
