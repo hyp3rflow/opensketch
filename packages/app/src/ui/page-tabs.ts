@@ -11,7 +11,7 @@ interface PageInfo {
 
 export function setupPageTabs(container: HTMLElement, editor: Editor) {
   const bar = document.createElement("div");
-  bar.className = "page-tabs-bar";
+  bar.className = "page-tabs";
   container.appendChild(bar);
 
   function getPages(): PageInfo[] {
@@ -81,7 +81,7 @@ export function setupPageTabs(container: HTMLElement, editor: Editor) {
       const newId = editor.engine.add_page(name);
       if (newId) {
         editor.engine.set_active_page(Number(newId));
-        editor.deselect_all();
+        editor.engine.deselect_all();
         editor.requestRender();
         render();
       }
@@ -94,17 +94,14 @@ export function setupPageTabs(container: HTMLElement, editor: Editor) {
     if (pageId === currentId) return;
     editor.engine.push_undo();
     editor.engine.set_active_page(pageId);
-    editor.deselect_all();
+    editor.engine.deselect_all();
     editor.requestRender();
     render();
-    // Notify layers panel etc.
-    (editor as any).fireSelectionChange?.();
-    (editor as any).fireLayersChange?.();
   }
 
   function startRename(tab: HTMLElement, label: HTMLElement, pageId: number) {
     const input = document.createElement("input");
-    input.className = "page-tab-rename-input";
+    input.className = "page-tab-input";
     input.value = label.textContent || "";
     input.style.width = Math.max(40, label.offsetWidth + 8) + "px";
     tab.replaceChild(input, label);
@@ -126,10 +123,10 @@ export function setupPageTabs(container: HTMLElement, editor: Editor) {
 
   function showContextMenu(x: number, y: number, pageId: number, totalPages: number) {
     // Remove existing context menu
-    document.querySelector(".page-ctx-menu")?.remove();
+    document.querySelector(".page-context-menu")?.remove();
 
     const menu = document.createElement("div");
-    menu.className = "page-ctx-menu";
+    menu.className = "page-context-menu";
     menu.style.left = x + "px";
     menu.style.top = y + "px";
 
@@ -144,7 +141,7 @@ export function setupPageTabs(container: HTMLElement, editor: Editor) {
         const newId = editor.engine.duplicate_page(pageId);
         if (newId) {
           editor.engine.set_active_page(Number(newId));
-          editor.deselect_all();
+          editor.engine.deselect_all();
           editor.requestRender();
           render();
         }
@@ -152,7 +149,7 @@ export function setupPageTabs(container: HTMLElement, editor: Editor) {
       ...(totalPages > 1 ? [{ label: "Delete", action: () => {
         editor.engine.push_undo();
         editor.engine.remove_page(pageId);
-        editor.deselect_all();
+        editor.engine.deselect_all();
         editor.requestRender();
         render();
       }}] : []),
@@ -160,7 +157,7 @@ export function setupPageTabs(container: HTMLElement, editor: Editor) {
 
     items.forEach((item) => {
       const el = document.createElement("div");
-      el.className = "page-ctx-item";
+      el.className = "page-context-item";
       el.textContent = item.label;
       el.addEventListener("click", () => {
         menu.remove();
@@ -182,7 +179,7 @@ export function setupPageTabs(container: HTMLElement, editor: Editor) {
   }
 
   // Re-render on selection/layers changes (page switch triggers these)
-  editor.onSelectionChange(() => render());
+  editor.onSelection(() => render());
 
   // Initial render
   render();
