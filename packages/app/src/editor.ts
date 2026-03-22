@@ -1,7 +1,7 @@
 import type { Engine } from "./wasm/opensketch_engine";
 import { computeSnap, renderGuides, type SnapGuide } from "./tools/smart-guides";
 
-export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "image" | "pen";
+export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "image" | "pen" | "star" | "polygon";
 
 /** Snap threshold in screen pixels */
 const SNAP_THRESHOLD_PX = 5;
@@ -251,6 +251,8 @@ export class Editor {
       if (e.key === "f" || e.key === "F") this.setTool("frame");
       if (e.key === "i" || e.key === "I") this.setTool("image");
       if (e.key === "p" || e.key === "P") this.setTool("pen");
+      if (e.key === "s" || e.key === "S") this.setTool("star");
+      if (e.key === "g" || e.key === "G") this.setTool("polygon");
       if (e.key === "Delete" || e.key === "Backspace") {
         if (this._pathEditMode && this._pathEditNodeId != null && this._pathEditSelectedPoint != null) {
           this.engine.push_undo();
@@ -649,6 +651,8 @@ export class Editor {
           case "frame": id = this.engine.add_frame(x, y, w, h); break;
           case "text": id = this.engine.add_text(x, y, "Text", 16); break;
           case "image": id = this.engine.add_image(x, y, w, h, ""); this.promptImageSrc(id); break;
+          case "star": id = this.engine.add_star(x, y, w, h, 5, 0.4); break;
+          case "polygon": id = this.engine.add_polygon(x, y, w, h, 6); break;
           default: id = 0;
         }
         if (id > 0) {

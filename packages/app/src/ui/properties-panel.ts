@@ -1255,6 +1255,40 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       container.appendChild(pathSection);
     }
 
+    // === Star properties ===
+    if (typeof node.kind === "object" && node.kind.Star) {
+      const starSection = createSection("Star");
+      const starRow = document.createElement("div");
+      starRow.style.cssText = "display:grid;grid-template-columns:1fr 1fr;gap:6px;";
+      starRow.appendChild(createLabeledInput("Pts", String(node.kind.Star.points ?? 5), (v) => {
+        editor.engine.set_star_points(id, parseInt(v) || 5);
+        editor.requestRender();
+        refresh(ids);
+      }));
+      starRow.appendChild(createLabeledInput("Inner", ((node.kind.Star.inner_radius ?? 0.4) * 100).toFixed(0) + "%", (v) => {
+        const val = parseFloat(v.replace("%", "")) / 100;
+        editor.engine.set_star_inner_radius(id, isNaN(val) ? 0.4 : val);
+        editor.requestRender();
+        refresh(ids);
+      }));
+      starSection.appendChild(starRow);
+      container.appendChild(starSection);
+    }
+
+    // === Polygon properties ===
+    if (typeof node.kind === "object" && node.kind.Polygon) {
+      const polySection = createSection("Polygon");
+      const polyRow = document.createElement("div");
+      polyRow.style.cssText = "display:grid;grid-template-columns:1fr;gap:6px;";
+      polyRow.appendChild(createLabeledInput("Sides", String(node.kind.Polygon.sides ?? 6), (v) => {
+        editor.engine.set_polygon_sides(id, parseInt(v) || 6);
+        editor.requestRender();
+        refresh(ids);
+      }));
+      polySection.appendChild(polyRow);
+      container.appendChild(polySection);
+    }
+
     // === Auto Layout Section (Frame/Instance/Group) ===
     const kindStr = typeof node.kind === "string" ? node.kind : Object.keys(node.kind)[0];
     if (["Frame", "Instance", "Group", "Slot"].includes(kindStr || "")) {
@@ -1613,6 +1647,8 @@ function getKindLabel(kind: unknown): string {
     if ("Instance" in kind) return "Instance";
     if ("Slot" in kind) return "Slot";
     if ("Path" in kind) return "Path";
+    if ("Star" in kind) return "Star";
+    if ("Polygon" in kind) return "Polygon";
   }
   return "Unknown";
 }

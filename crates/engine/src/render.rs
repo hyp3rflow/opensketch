@@ -238,6 +238,39 @@ impl Renderer {
                     if *closed { ctx.close_path(); }
                 }
             }
+            NodeKind::Star { points, inner_radius } => {
+                let cx = node.x + node.width / 2.0;
+                let cy = node.y + node.height / 2.0;
+                let rx = node.width / 2.0;
+                let ry = node.height / 2.0;
+                let n = (*points).max(3) as usize;
+                let angle_step = std::f64::consts::TAU / (n as f64 * 2.0);
+                let start_angle = -std::f64::consts::FRAC_PI_2;
+                for i in 0..(n * 2) {
+                    let angle = start_angle + angle_step * i as f64;
+                    let (r_x, r_y) = if i % 2 == 0 { (rx, ry) } else { (rx * inner_radius, ry * inner_radius) };
+                    let px = cx + angle.cos() * r_x;
+                    let py = cy + angle.sin() * r_y;
+                    if i == 0 { ctx.move_to(px, py); } else { ctx.line_to(px, py); }
+                }
+                ctx.close_path();
+            }
+            NodeKind::Polygon { sides } => {
+                let cx = node.x + node.width / 2.0;
+                let cy = node.y + node.height / 2.0;
+                let rx = node.width / 2.0;
+                let ry = node.height / 2.0;
+                let n = (*sides).max(3) as usize;
+                let angle_step = std::f64::consts::TAU / n as f64;
+                let start_angle = -std::f64::consts::FRAC_PI_2;
+                for i in 0..n {
+                    let angle = start_angle + angle_step * i as f64;
+                    let px = cx + angle.cos() * rx;
+                    let py = cy + angle.sin() * ry;
+                    if i == 0 { ctx.move_to(px, py); } else { ctx.line_to(px, py); }
+                }
+                ctx.close_path();
+            }
             _ => {
                 ctx.rect(node.x, node.y, node.width, node.height);
             }
@@ -337,6 +370,8 @@ impl Renderer {
             NodeKind::Instance(_) => self.render_instance(ctx, node, scene),
             NodeKind::Path { ref points, closed } => self.render_path(ctx, node, points, *closed),
             NodeKind::Image { .. } => self.render_image_placeholder(ctx, node),
+            NodeKind::Star { points, inner_radius } => self.render_star(ctx, node, *points, *inner_radius),
+            NodeKind::Polygon { sides } => self.render_polygon(ctx, node, *sides),
         }
 
         ctx.restore();
@@ -625,6 +660,47 @@ impl Renderer {
                 ctx.close_path();
             }
         }
+        self.apply_fill_stroke(ctx, node);
+    }
+
+    fn render_star(&self, ctx: &CanvasRenderingContext2d, node: &Node, points: u32, inner_radius: f64) {
+        let cx = node.x + node.width / 2.0;
+        let cy = node.y + node.height / 2.0;
+        let rx = node.width / 2.0;
+        let ry = node.height / 2.0;
+        let n = points.max(3) as usize;
+        let angle_step = std::f64::consts::TAU / (n as f64 * 2.0);
+        let start_angle = -std::f64::consts::FRAC_PI_2; // start from top
+
+        ctx.begin_path();
+        for i in 0..(n * 2) {
+            let angle = start_angle + angle_step * i as f64;
+            let (r_x, r_y) = if i % 2 == 0 { (rx, ry) } else { (rx * inner_radius, ry * inner_radius) };
+            let px = cx + angle.cos() * r_x;
+            let py = cy + angle.sin() * r_y;
+            if i == 0 { ctx.move_to(px, py); } else { ctx.line_to(px, py); }
+        }
+        ctx.close_path();
+        self.apply_fill_stroke(ctx, node);
+    }
+
+    fn render_polygon(&self, ctx: &CanvasRenderingContext2d, node: &Node, sides: u32) {
+        let cx = node.x + node.width / 2.0;
+        let cy = node.y + node.height / 2.0;
+        let rx = node.width / 2.0;
+        let ry = node.height / 2.0;
+        let n = sides.max(3) as usize;
+        let angle_step = std::f64::consts::TAU / n as f64;
+        let start_angle = -std::f64::consts::FRAC_PI_2;
+
+        ctx.begin_path();
+        for i in 0..n {
+            let angle = start_angle + angle_step * i as f64;
+            let px = cx + angle.cos() * rx;
+            let py = cy + angle.sin() * ry;
+            if i == 0 { ctx.move_to(px, py); } else { ctx.line_to(px, py); }
+        }
+        ctx.close_path();
         self.apply_fill_stroke(ctx, node);
     }
 

@@ -16,7 +16,7 @@ Pure Rust crate compiled to WASM via `wasm-pack`. No NAPI — runs entirely in t
 - `NodeId = u64`
 - `TextAlign` enum: `Left`, `Center`, `Right`
 - `FontStyle` enum: `Normal`, `Italic`
-- `NodeKind` enum: `Rect`, `Ellipse`, `Text { content, font_size, font_family, line_height, text_align, font_weight, font_style }`, `Frame`, `Group`, `Path { points: Vec<PathPoint>, closed: bool }`, `Image { src, fit }`
+- `NodeKind` enum: `Rect`, `Ellipse`, `Text { content, font_size, font_family, line_height, text_align, font_weight, font_style }`, `Frame`, `Group`, `Path { points: Vec<PathPoint>, closed: bool }`, `Image { src, fit }`, `Star { points: u32, inner_radius: f64 }`, `Polygon { sides: u32 }`
 - `PathPoint { x, y, handle_in_x, handle_in_y, handle_out_x, handle_out_y }` — anchor + bezier control handles (absolute coords)
 - `GradientStop { offset: f64, color: Color }`
 - `FillType`: `Solid { color }` | `LinearGradient { start_x, start_y, end_x, end_y, stops }` | `RadialGradient { center_x, center_y, radius, stops }` — coordinates normalized 0~1

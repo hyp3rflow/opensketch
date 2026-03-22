@@ -224,3 +224,13 @@
 - SVG export: `mix-blend-mode` style attribute
 - WASM: `set_blend_mode(id, mode_str)`, `get_blend_mode(id) -> String`
 - Properties panel: Blend mode dropdown in Effects section
+
+### Star / Polygon Shapes
+- `NodeKind::Star { points: u32, inner_radius: f64 }` — configurable tip count and inner radius ratio (0~1)
+- `NodeKind::Polygon { sides: u32 }` — regular polygon with configurable side count
+- Canvas rendering: vertex calculation → moveTo/lineTo → fill/stroke, clip path support
+- SVG export: Star → `<path>`, Polygon → `<polygon>`
+- WASM: `add_star`, `add_polygon`, `set/get_star_points`, `set/get_star_inner_radius`, `set/get_polygon_sides`
+- Toolbar: Star (S shortcut) / Polygon (G shortcut) buttons
+- Properties panel: Star → Points + Inner Radius inputs, Polygon → Sides input
+- Backward-compatible serde (`#[serde(default)]` not needed — new enum variants)

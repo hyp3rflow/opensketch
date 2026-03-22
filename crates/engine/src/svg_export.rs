@@ -294,6 +294,52 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
             }
             buf.push_str(&attrs);
         }
+        NodeKind::Star { points, inner_radius } => {
+            let cx = node.x + node.width / 2.0;
+            let cy = node.y + node.height / 2.0;
+            let rx = node.width / 2.0;
+            let ry = node.height / 2.0;
+            let n = (*points).max(3) as usize;
+            let angle_step = std::f64::consts::TAU / (n as f64 * 2.0);
+            let start_angle = -std::f64::consts::FRAC_PI_2;
+            let mut d = String::new();
+            for i in 0..(n * 2) {
+                let angle = start_angle + angle_step * i as f64;
+                let (r_x, r_y) = if i % 2 == 0 { (rx, ry) } else { (rx * inner_radius, ry * inner_radius) };
+                let px = cx + angle.cos() * r_x;
+                let py = cy + angle.sin() * r_y;
+                if i == 0 { d.push_str(&format!("M{},{}", px, py)); }
+                else { d.push_str(&format!(" L{},{}", px, py)); }
+            }
+            d.push_str(" Z");
+            let mut attrs = format!(r#"<path d="{}""#, d);
+            append_fill_stroke(&mut attrs, node);
+            if has_opacity { attrs.push_str(&format!(r#" opacity="{}""#, node.opacity)); }
+            append_blend_mode(&mut attrs, node);
+            attrs.push_str(&filter_attr);
+            attrs.push_str("/>\n");
+            buf.push_str(&attrs);
+        }
+        NodeKind::Polygon { sides } => {
+            let cx = node.x + node.width / 2.0;
+            let cy = node.y + node.height / 2.0;
+            let rx = node.width / 2.0;
+            let ry = node.height / 2.0;
+            let n = (*sides).max(3) as usize;
+            let angle_step = std::f64::consts::TAU / n as f64;
+            let start_angle = -std::f64::consts::FRAC_PI_2;
+            let pts: Vec<String> = (0..n).map(|i| {
+                let angle = start_angle + angle_step * i as f64;
+                format!("{},{}", cx + angle.cos() * rx, cy + angle.sin() * ry)
+            }).collect();
+            let mut attrs = format!(r#"<polygon points="{}""#, pts.join(" "));
+            append_fill_stroke(&mut attrs, node);
+            if has_opacity { attrs.push_str(&format!(r#" opacity="{}""#, node.opacity)); }
+            append_blend_mode(&mut attrs, node);
+            attrs.push_str(&filter_attr);
+            attrs.push_str("/>\n");
+            buf.push_str(&attrs);
+        }
         NodeKind::Slot { .. } | NodeKind::Instance(_) => {
             // Render as group with children
             let mut g = String::from("<g");
@@ -392,6 +438,42 @@ fn emit_clip_shape(buf: &mut String, node: &Node) {
                 buf.push_str(&format!(r#"<path d="{}"/>"#, d));
                 buf.push('\n');
             }
+        }
+        NodeKind::Star { points, inner_radius } => {
+            let cx = node.x + node.width / 2.0;
+            let cy = node.y + node.height / 2.0;
+            let rx = node.width / 2.0;
+            let ry = node.height / 2.0;
+            let n = (*points).max(3) as usize;
+            let angle_step = std::f64::consts::TAU / (n as f64 * 2.0);
+            let start_angle = -std::f64::consts::FRAC_PI_2;
+            let mut d = String::new();
+            for i in 0..(n * 2) {
+                let angle = start_angle + angle_step * i as f64;
+                let (r_x, r_y) = if i % 2 == 0 { (rx, ry) } else { (rx * inner_radius, ry * inner_radius) };
+                let px = cx + angle.cos() * r_x;
+                let py = cy + angle.sin() * r_y;
+                if i == 0 { d.push_str(&format!("M{},{}", px, py)); }
+                else { d.push_str(&format!(" L{},{}", px, py)); }
+            }
+            d.push_str(" Z");
+            buf.push_str(&format!(r#"<path d="{}"/>"#, d));
+            buf.push('\n');
+        }
+        NodeKind::Polygon { sides } => {
+            let cx = node.x + node.width / 2.0;
+            let cy = node.y + node.height / 2.0;
+            let rx = node.width / 2.0;
+            let ry = node.height / 2.0;
+            let n = (*sides).max(3) as usize;
+            let angle_step = std::f64::consts::TAU / n as f64;
+            let start_angle = -std::f64::consts::FRAC_PI_2;
+            let pts: Vec<String> = (0..n).map(|i| {
+                let angle = start_angle + angle_step * i as f64;
+                format!("{},{}", cx + angle.cos() * rx, cy + angle.sin() * ry)
+            }).collect();
+            buf.push_str(&format!(r#"<polygon points="{}"/>"#, pts.join(" ")));
+            buf.push('\n');
         }
         _ => {
             buf.push_str(&format!(r#"<rect x="{}" y="{}" width="{}" height="{}"/>"#, node.x, node.y, node.width, node.height));

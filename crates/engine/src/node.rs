@@ -94,6 +94,18 @@ pub enum NodeKind {
         #[serde(default = "default_image_fit")]
         fit: String,
     },
+    /// A star shape with configurable point count and inner radius ratio
+    Star {
+        /// Number of points (tips)
+        points: u32,
+        /// Inner radius as a ratio of outer radius (0.0–1.0)
+        inner_radius: f64,
+    },
+    /// A regular polygon with configurable side count
+    Polygon {
+        /// Number of sides
+        sides: u32,
+    },
 }
 
 fn default_line_height() -> f64 { 1.2 }

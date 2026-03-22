@@ -88,7 +88,7 @@ Multi-select: "{n} elements selected"
 Centered, horizontal, floating:
 - **Select** (arrow) + **Hand** (grab)
 - Separator
-- **Rectangle** + **Ellipse** + **Text** + **Frame**
+- **Rectangle** + **Ellipse** + **Text** + **Frame** + **Star** (S) + **Polygon** (G)
 - Active tool: `#4a4af5` background + white icon
 
 ## Agent Panel (300×360px)

@@ -176,6 +176,65 @@ impl Engine {
         self.scene.add_node(node)
     }
 
+    pub fn add_star(&mut self, x: f64, y: f64, w: f64, h: f64, points: u32, inner_radius: f64) -> u64 {
+        let mut node = Node::new(0, NodeKind::Star { points: points.max(3), inner_radius: inner_radius.clamp(0.0, 1.0) });
+        node.x = x; node.y = y; node.width = w; node.height = h;
+        node.name = format!("Star {}", self.scene.node_count() + 1);
+        self.scene.add_node(node)
+    }
+
+    pub fn add_polygon(&mut self, x: f64, y: f64, w: f64, h: f64, sides: u32) -> u64 {
+        let mut node = Node::new(0, NodeKind::Polygon { sides: sides.max(3) });
+        node.x = x; node.y = y; node.width = w; node.height = h;
+        node.name = format!("Polygon {}", self.scene.node_count() + 1);
+        self.scene.add_node(node)
+    }
+
+    pub fn set_star_points(&mut self, id: u64, points: u32) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Star { points: ref mut p, .. } = node.kind {
+                *p = points.max(3);
+            }
+        }
+    }
+
+    pub fn set_star_inner_radius(&mut self, id: u64, inner_radius: f64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Star { inner_radius: ref mut ir, .. } = node.kind {
+                *ir = inner_radius.clamp(0.0, 1.0);
+            }
+        }
+    }
+
+    pub fn set_polygon_sides(&mut self, id: u64, sides: u32) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Polygon { sides: ref mut s } = node.kind {
+                *s = sides.max(3);
+            }
+        }
+    }
+
+    pub fn get_star_points(&self, id: u64) -> u32 {
+        if let Some(node) = self.scene.get_node(id) {
+            if let NodeKind::Star { points, .. } = node.kind { return points; }
+        }
+        5
+    }
+
+    pub fn get_star_inner_radius(&self, id: u64) -> f64 {
+        if let Some(node) = self.scene.get_node(id) {
+            if let NodeKind::Star { inner_radius, .. } = node.kind { return inner_radius; }
+        }
+        0.4
+    }
+
+    pub fn get_polygon_sides(&self, id: u64) -> u32 {
+        if let Some(node) = self.scene.get_node(id) {
+            if let NodeKind::Polygon { sides } = node.kind { return sides; }
+        }
+        6
+    }
+
     pub fn add_image(&mut self, x: f64, y: f64, w: f64, h: f64, src: &str) -> u64 {
         let mut node = Node::new(0, NodeKind::Image {
             src: src.to_string(),
