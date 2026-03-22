@@ -2511,6 +2511,68 @@ impl Engine {
     pub fn get_comment_count(&self) -> u32 {
         self.scene.get_comments_for_page().len() as u32
     }
+
+    pub fn select_all(&mut self) {
+        self.scene.select_all();
+    }
+
+    pub fn bring_to_front(&mut self, id: u64) {
+        self.scene.bring_to_front(id);
+    }
+
+    pub fn send_to_back(&mut self, id: u64) {
+        self.scene.send_to_back(id);
+    }
+
+    pub fn bring_forward(&mut self, id: u64) {
+        self.scene.bring_forward(id);
+    }
+
+    pub fn send_backward(&mut self, id: u64) {
+        self.scene.send_backward(id);
+    }
+
+    pub fn group_selected(&mut self) -> u64 {
+        if self.scene.selection.len() < 2 { return 0; }
+        let sel = self.scene.selection.clone();
+        let bounds = match self.scene.get_bounds_of(&sel) {
+            Some(b) => b,
+            None => return 0,
+        };
+        let mut group = Node::new(0, NodeKind::Group);
+        group.x = bounds.0;
+        group.y = bounds.1;
+        group.width = bounds.2 - bounds.0;
+        group.height = bounds.3 - bounds.1;
+        group.name = format!("Group {}", self.scene.node_count() + 1);
+        let first_parent = self.scene.get_node(sel[0]).and_then(|n| n.parent);
+        group.parent = first_parent;
+        let group_id = self.scene.add_node(group);
+        for &id in &sel {
+            self.scene.reparent(id, Some(group_id));
+        }
+        self.scene.selection = vec![group_id];
+        group_id
+    }
+
+    pub fn ungroup(&mut self, id: u64) -> bool {
+        let (children, parent) = if let Some(node) = self.scene.get_node(id) {
+            match node.kind {
+                NodeKind::Group => (node.children.clone(), node.parent),
+                _ => return false,
+            }
+        } else {
+            return false;
+        };
+        let mut new_sel = vec![];
+        for cid in &children {
+            self.scene.reparent(*cid, parent);
+            new_sel.push(*cid);
+        }
+        self.scene.remove_node(id);
+        self.scene.selection = new_sel;
+        true
+    }
 }
 
 /// Recalculate a path node's bounding box from its points (including bezier handles).

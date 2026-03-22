@@ -2,6 +2,7 @@ import type { Engine } from "./wasm/opensketch_engine";
 import { computeSnap, renderGuides, type SnapGuide } from "./tools/smart-guides";
 import type { RulersAPI } from "./ui/rulers";
 import { toggleShortcutsPanel, isShortcutsPanelVisible, closeShortcutsPanel } from "./ui/shortcuts-panel";
+import { showContextMenu, hideContextMenu, type MenuItem } from "./ui/context-menu";
 
 export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "image" | "pen" | "star" | "polygon";
 
@@ -99,6 +100,7 @@ export class Editor {
     this.canvas.addEventListener("pointermove", (e) => this.onPointerMove(e));
     this.canvas.addEventListener("pointerup", (e) => this.onPointerUp(e));
     this.canvas.addEventListener("dblclick", (e) => this.onDoubleClick(e));
+    this.canvas.addEventListener("contextmenu", (e) => this.onContextMenu(e));
 
     // Wheel: batch into rAF
     let pendingWheel: { dx: number; dy: number; cx: number; cy: number; isZoom: boolean } | null = null;
@@ -1891,5 +1893,182 @@ export class Editor {
       (this as any).onLayersChanges?.forEach?.((fn: any) => fn());
       this.requestRender();
     }
+  }
+
+  // =============================================
+  // Right-click context menu
+  // =============================================
+
+  private onContextMenu(e: MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const sel = Array.from(this.engine.get_selection()).map(Number);
+    const hasSel = sel.length > 0;
+    const isMac = navigator.platform.includes("Mac");
+    const mod = isMac ? "⌘" : "Ctrl+";
+
+    // If right-clicked on a node that's not selected, select it
+    const wx = (e.offsetX - this.panX) / this.zoom;
+    const wy = (e.offsetY - this.panY) / this.zoom;
+    const hitId = Number(this.engine.hit_test(wx, wy));
+    if (hitId > 0 && !sel.includes(hitId)) {
+      this.engine.deselect_all();
+      this.engine.select(BigInt(hitId));
+      this.fireSelectionNow([hitId]);
+      this.needsRender = true;
+    }
+
+    const selAfter = Array.from(this.engine.get_selection()).map(Number);
+    const hasSelAfter = selAfter.length > 0;
+
+    const items: MenuItem[] = [];
+
+    if (hasSelAfter) {
+      // Node context menu
+      items.push({ label: "Copy", shortcut: `${mod}C`, enabled: true, action: () => this.ctxCopy() });
+      items.push({ label: "Cut", shortcut: `${mod}X`, enabled: true, action: () => this.ctxCut() });
+      items.push({ label: "Paste", shortcut: `${mod}V`, enabled: !!this._clipboard, action: () => this.pasteNodes() });
+      items.push({ label: "Duplicate", shortcut: `${mod}D`, enabled: true, action: () => this.ctxDuplicate() });
+      items.push({ label: "Delete", shortcut: "⌫", enabled: true, action: () => this.ctxDelete() });
+      items.push({ separator: true, label: "" });
+
+      // Lock / visibility
+      const node = this.engine.get_node_json(selAfter[0]);
+      let isLocked = false;
+      let isHidden = false;
+      try {
+        const data = JSON.parse(node);
+        isLocked = data.locked;
+        isHidden = !data.visible;
+      } catch {}
+
+      items.push({ label: isLocked ? "Unlock" : "Lock", action: () => this.ctxToggleLock() });
+      items.push({ label: isHidden ? "Show" : "Hide", action: () => this.ctxToggleVisible() });
+      items.push({ separator: true, label: "" });
+
+      items.push({ label: "Bring to Front", shortcut: "]", action: () => this.ctxBringToFront() });
+      items.push({ label: "Bring Forward", shortcut: "⌥]", action: () => this.ctxBringForward() });
+      items.push({ label: "Send Backward", shortcut: "⌥[", action: () => this.ctxSendBackward() });
+      items.push({ label: "Send to Back", shortcut: "[", action: () => this.ctxSendToBack() });
+      items.push({ separator: true, label: "" });
+
+      items.push({ label: "Flatten", shortcut: `${mod}E`, enabled: true, action: () => this.flattenSelection() });
+    } else {
+      // Empty canvas context menu
+      items.push({ label: "Paste", shortcut: `${mod}V`, enabled: !!this._clipboard, action: () => this.pasteNodes() });
+      items.push({ label: "Select All", shortcut: `${mod}A`, action: () => this.ctxSelectAll() });
+      items.push({ separator: true, label: "" });
+      items.push({ label: "Zoom to Fit", shortcut: `${mod}1`, action: () => this.zoomToFit() });
+      items.push({ label: "Zoom to 100%", shortcut: `${mod}0`, action: () => this.zoomTo100() });
+    }
+
+    showContextMenu(e.clientX, e.clientY, items);
+  }
+
+  private ctxCopy() {
+    const json = this.engine.copy_selected();
+    if (json && json !== "[]") {
+      this._clipboard = json;
+      this._pasteCount = 0;
+    }
+  }
+
+  private ctxCut() {
+    this.ctxCopy();
+    this.engine.push_undo();
+    const sel = this.engine.get_selection();
+    sel.forEach((id: number) => this.engine.remove_node(id));
+    this.engine.deselect_all();
+    this.onLayersChanges.forEach(fn => fn());
+    this.fireSelectionNow([]);
+    this.needsRender = true;
+  }
+
+  private ctxDuplicate() {
+    const json = this.engine.copy_selected();
+    if (json && json !== "[]") {
+      this.engine.push_undo();
+      const newIds = this.engine.paste_nodes(json, 10, 10);
+      const ids = JSON.parse(newIds).map(Number);
+      this.onLayersChanges.forEach(fn => fn());
+      this.fireSelectionNow(ids);
+      this.needsRender = true;
+    }
+  }
+
+  private ctxDelete() {
+    this.engine.push_undo();
+    const sel = this.engine.get_selection();
+    sel.forEach((id: number) => this.engine.remove_node(id));
+    this.engine.deselect_all();
+    this.onLayersChanges.forEach(fn => fn());
+    this.fireSelectionNow([]);
+    this.needsRender = true;
+  }
+
+  private ctxToggleLock() {
+    const sel = Array.from(this.engine.get_selection()).map(Number);
+    this.engine.push_undo();
+    for (const id of sel) {
+      try {
+        const data = JSON.parse(this.engine.get_node_json(id));
+        this.engine.set_locked(id, !data.locked);
+      } catch {}
+    }
+    this.onLayersChanges.forEach(fn => fn());
+    this.needsRender = true;
+  }
+
+  private ctxToggleVisible() {
+    const sel = Array.from(this.engine.get_selection()).map(Number);
+    this.engine.push_undo();
+    for (const id of sel) {
+      try {
+        const data = JSON.parse(this.engine.get_node_json(id));
+        this.engine.set_visible(id, !data.visible);
+      } catch {}
+    }
+    this.onLayersChanges.forEach(fn => fn());
+    this.needsRender = true;
+  }
+
+  private ctxBringToFront() {
+    const sel = Array.from(this.engine.get_selection()).map(Number);
+    this.engine.push_undo();
+    for (const id of sel) this.engine.bring_to_front(id);
+    this.onLayersChanges.forEach(fn => fn());
+    this.needsRender = true;
+  }
+
+  private ctxBringForward() {
+    const sel = Array.from(this.engine.get_selection()).map(Number);
+    this.engine.push_undo();
+    for (const id of sel) this.engine.bring_forward(id);
+    this.onLayersChanges.forEach(fn => fn());
+    this.needsRender = true;
+  }
+
+  private ctxSendBackward() {
+    const sel = Array.from(this.engine.get_selection()).map(Number);
+    this.engine.push_undo();
+    for (const id of sel) this.engine.send_backward(id);
+    this.onLayersChanges.forEach(fn => fn());
+    this.needsRender = true;
+  }
+
+  private ctxSendToBack() {
+    const sel = Array.from(this.engine.get_selection()).map(Number);
+    this.engine.push_undo();
+    for (const id of sel) this.engine.send_to_back(id);
+    this.onLayersChanges.forEach(fn => fn());
+    this.needsRender = true;
+  }
+
+  private ctxSelectAll() {
+    this.engine.select_all();
+    const sel = Array.from(this.engine.get_selection()).map(Number);
+    this.fireSelectionNow(sel);
+    this.needsRender = true;
   }
 }

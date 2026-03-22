@@ -352,3 +352,14 @@
 - [x] **Figma-style UI**: Dark modal with kbd tags, section headers, search input
 - [x] **ESC to close**: Also closes on backdrop click
 - [x] **Editor integration**: Blocks other key events while panel is open
+
+### Right-click Context Menu
+- [x] **Canvas context menu**: Custom right-click menu replacing browser default
+- [x] **Node menu**: Copy, Cut, Paste, Duplicate, Delete, Lock/Unlock, Show/Hide, z-order (Bring to Front/Forward, Send Backward/Back), Flatten
+- [x] **Empty canvas menu**: Paste, Select All, Zoom to Fit, Zoom to 100%
+- [x] **Shortcut display**: Keyboard shortcuts shown alongside each menu item
+- [x] **Disabled states**: Items greyed out when not applicable (e.g. Paste without clipboard)
+- [x] **Auto-select on right-click**: Right-clicking unselected node selects it first
+- [x] **Figma-style UI**: Dark background, rounded corners, hover highlights, viewport-aware positioning
+- [x] **Z-order WASM bindings**: bring_to_front, send_to_back, bring_forward, send_backward
+- [x] **Select all**: select_all WASM binding (visible, unlocked root nodes)

@@ -107,6 +107,60 @@ impl Scene {
         self.selection.retain(|&s| s != id);
     }
 
+    pub fn bring_to_front(&mut self, id: NodeId) {
+        let parent = self.nodes.get(&id).and_then(|n| n.parent);
+        let list = if let Some(pid) = parent {
+            &mut self.nodes.get_mut(&pid).unwrap().children
+        } else {
+            &mut self.root_children
+        };
+        if let Some(pos) = list.iter().position(|&c| c == id) {
+            list.remove(pos);
+            list.push(id);
+        }
+    }
+
+    pub fn send_to_back(&mut self, id: NodeId) {
+        let parent = self.nodes.get(&id).and_then(|n| n.parent);
+        let list = if let Some(pid) = parent {
+            &mut self.nodes.get_mut(&pid).unwrap().children
+        } else {
+            &mut self.root_children
+        };
+        if let Some(pos) = list.iter().position(|&c| c == id) {
+            list.remove(pos);
+            list.insert(0, id);
+        }
+    }
+
+    pub fn bring_forward(&mut self, id: NodeId) {
+        let parent = self.nodes.get(&id).and_then(|n| n.parent);
+        let list = if let Some(pid) = parent {
+            &mut self.nodes.get_mut(&pid).unwrap().children
+        } else {
+            &mut self.root_children
+        };
+        if let Some(pos) = list.iter().position(|&c| c == id) {
+            if pos + 1 < list.len() {
+                list.swap(pos, pos + 1);
+            }
+        }
+    }
+
+    pub fn send_backward(&mut self, id: NodeId) {
+        let parent = self.nodes.get(&id).and_then(|n| n.parent);
+        let list = if let Some(pid) = parent {
+            &mut self.nodes.get_mut(&pid).unwrap().children
+        } else {
+            &mut self.root_children
+        };
+        if let Some(pos) = list.iter().position(|&c| c == id) {
+            if pos > 0 {
+                list.swap(pos, pos - 1);
+            }
+        }
+    }
+
     pub fn render_order(&self) -> Vec<NodeId> {
         let mut result = vec![];
         self.collect_render_order(&self.root_children, &mut result);
@@ -616,6 +670,18 @@ impl Scene {
             self.root_children.push(node_id);
             if let Some(node) = self.nodes.get_mut(&node_id) {
                 node.parent = None;
+            }
+        }
+    }
+
+    /// Select all visible, unlocked nodes (root level)
+    pub fn select_all(&mut self) {
+        self.selection.clear();
+        for &id in &self.root_children {
+            if let Some(node) = self.nodes.get(&id) {
+                if node.visible && !node.locked {
+                    self.selection.push(id);
+                }
             }
         }
     }
