@@ -234,3 +234,15 @@
 - Toolbar: Star (S shortcut) / Polygon (G shortcut) buttons
 - Properties panel: Star → Points + Inner Radius inputs, Polygon → Sides input
 - Backward-compatible serde (`#[serde(default)]` not needed — new enum variants)
+
+### Auto-save & Version History
+- [x] **Auto-save**: localStorage persistence every 30 seconds
+- [x] **Manual save**: Cmd+S / Ctrl+S keyboard shortcut
+- [x] **Session restore**: auto-loads previous session on startup (skips demo scene)
+- [x] **beforeunload save**: saves on tab/window close
+- [x] **Version history**: stores up to 20 timestamped snapshots (auto + manual)
+- [x] **History panel**: "History" tab in right pane with restore buttons
+- [x] **Restore flow**: saves current state before restoring, confirm dialog
+- [x] **Clear history**: trash button to wipe all snapshots
+- [x] **Storage management**: auto-trims old entries on localStorage quota errors
+- [x] **Change detection**: simple hash to skip redundant saves

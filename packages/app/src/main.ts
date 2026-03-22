@@ -7,6 +7,7 @@ import { setupDesignSystemPanel } from "./ui/design-system";
 import { setupAgentPanel } from "./ui/agent-panel";
 import { setupNoteOverlay } from "./ui/note-overlay";
 import { setupZoomControls } from "./ui/zoom-controls";
+import { AutoSave, setupHistoryPanel } from "./autosave";
 
 async function main() {
   const wasm = await loadEngine();
@@ -15,6 +16,15 @@ async function main() {
   const engine = new wasm.Engine(rect.width, rect.height);
 
   const editor = new Editor(engine, canvas);
+
+  // Auto-save: restore previous session & start periodic saves
+  const autoSave = new AutoSave(editor);
+  const hadSavedSession = autoSave.restore();
+  autoSave.start();
+  editor.onSave(() => autoSave.save("manual"));
+
+  // Save before unload
+  window.addEventListener("beforeunload", () => autoSave.save("auto"));
 
   // Design system modal
   const dsBackdrop = document.getElementById("ds-modal-backdrop")!;
@@ -75,7 +85,8 @@ async function main() {
     tab.addEventListener("click", () => {
       const target = (tab as HTMLElement).dataset.tab!;
       rightPaneTabs.forEach((t) => t.classList.toggle("active", (t as HTMLElement).dataset.tab === target));
-      rightPaneContents.forEach((c) => c.classList.toggle("active", c.id === (target === "agent" ? "agent-panel" : "properties-panel")));
+      const tabContentMap: Record<string, string> = { agent: "agent-panel", properties: "properties-panel", history: "history-panel" };
+      rightPaneContents.forEach((c) => c.classList.toggle("active", c.id === tabContentMap[target]));
       if (target === "agent") {
         agentPanel.querySelector<HTMLInputElement>(".agent-input")?.focus();
       }
@@ -89,8 +100,9 @@ async function main() {
   });
 
   // ==========================================
-  // Demo Scene — Component Examples
+  // Demo Scene — Component Examples (only if no saved session)
   // ==========================================
+  if (!hadSavedSession) {
 
   // --- 1. Button Component ---
   const btnFrame = engine.add_frame(60, 60, 160, 48);
@@ -291,6 +303,13 @@ async function main() {
   // (The slot is a child of the instance)
 
   editor.requestRender();
+  } // end if (!hadSavedSession)
+
+  // Setup version history panel
+  const historyContainer = document.getElementById("history-panel");
+  if (historyContainer) {
+    setupHistoryPanel(historyContainer, autoSave);
+  }
 }
 
 main().catch(console.error);

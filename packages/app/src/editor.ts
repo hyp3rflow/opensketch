@@ -57,6 +57,7 @@ export class Editor {
 
   // Smart guides state
   private _snapGuides: SnapGuide[] = [];
+  private onSaveCallbacks: (() => void)[] = [];
 
   // Throttle selection callbacks during drag
   private selectionDirty = false;
@@ -147,6 +148,12 @@ export class Editor {
           this.fireSelectionNow(Array.from(this.engine.get_selection()).map(Number));
           this.needsRender = true;
         }
+        return;
+      }
+      // Save: Cmd+S — triggers manual save (handled by autosave if attached)
+      if ((e.metaKey || e.ctrlKey) && e.key === "s") {
+        e.preventDefault();
+        this.onSaveCallbacks.forEach(fn => fn());
         return;
       }
       // Copy: Cmd+C
@@ -1418,6 +1425,9 @@ export class Editor {
   onSelection(fn: (ids: number[]) => void) { this.onSelectionChanges.push(fn); }
   onLayers(fn: () => void) { this.onLayersChanges.push(fn); }
   requestRender() { this.needsRender = true; }
+  notifyLayersChanged() { this.onLayersChanges.forEach(fn => fn()); }
+  notifySelectionChanged(ids: number[]) { this.fireSelectionNow(ids); }
+  onSave(fn: () => void) { this.onSaveCallbacks.push(fn); }
 
   /**
    * Export a specific node (or entire canvas) as PNG data URL.

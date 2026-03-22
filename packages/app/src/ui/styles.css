@@ -136,3 +136,20 @@ select.prop-input { appearance: none; background: #333 url("data:image/svg+xml,%
 .zoom-controls .zoom-btn:hover { background: #3a3a3a; color: #fff; }
 .zoom-controls .zoom-level { border: none; background: transparent; color: #ccc; font-size: 11px; font-weight: 600; padding: 0 6px; height: 32px; cursor: pointer; min-width: 48px; text-align: center; transition: all 0.15s; }
 .zoom-controls .zoom-level:hover { background: #3a3a3a; color: #fff; }
+
+/* Version History Panel */
+.history-panel { display: flex; flex-direction: column; height: 100%; }
+.history-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.06); flex-shrink: 0; }
+.history-title { font-size: 12px; font-weight: 600; color: #ccc; }
+.history-clear-btn { background: none; border: none; color: #666; cursor: pointer; padding: 4px; border-radius: 4px; display: flex; align-items: center; }
+.history-clear-btn:hover { color: #e55; background: rgba(255,80,80,0.1); }
+.history-list { flex: 1; overflow-y: auto; padding: 6px 0; }
+.history-empty { color: #666; font-size: 12px; text-align: center; padding: 24px 14px; }
+.history-entry { display: flex; align-items: center; justify-content: space-between; padding: 8px 14px; cursor: default; transition: background 0.1s; }
+.history-entry:hover { background: rgba(255,255,255,0.04); }
+.history-entry-info { display: flex; flex-direction: column; gap: 2px; }
+.history-entry-time { font-size: 11px; color: #aaa; }
+.history-entry-label { font-size: 10px; color: #666; text-transform: capitalize; }
+.history-restore-btn { background: none; border: 1px solid #444; color: #888; cursor: pointer; padding: 3px 6px; border-radius: 4px; display: flex; align-items: center; opacity: 0; transition: opacity 0.15s; }
+.history-entry:hover .history-restore-btn { opacity: 1; }
+.history-restore-btn:hover { color: #fff; border-color: #666; background: rgba(255,255,255,0.08); }
