@@ -20,6 +20,7 @@ body { font-family: Inter, system-ui, sans-serif; background: #1e1e1e; color: #c
 .tool-btn:hover { background: #3a3a3a; color: #fff; }
 .tool-btn.active { background: #4a4af5; color: #fff; }
 .tool-btn-separator { width: 1px; height: 20px; background: #3a3a3a; margin: 0 4px; }
+.tool-btn:disabled { opacity: 0.3; cursor: default; pointer-events: none; }
 .mode-toggle { display: flex; background: #1e1e1e; border-radius: 8px; padding: 2px; gap: 1px; }
 .mode-btn { width: 30px; height: 28px; display: flex; align-items: center; justify-content: center; border: none; background: transparent; color: #666; border-radius: 6px; cursor: pointer; font-size: 14px; transition: all 0.15s; }
 .mode-btn:hover { color: #aaa; background: rgba(255,255,255,0.04); }

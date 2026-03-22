@@ -94,6 +94,41 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
     container.appendChild(dsBtn);
   }
 
+  // Boolean operations buttons
+  const sepBool = document.createElement("div");
+  sepBool.className = "tool-btn-separator bool-ops-separator";
+  container.appendChild(sepBool);
+
+  const boolOps: { id: string; icon: string; label: string }[] = [
+    { id: "union", icon: icons.boolUnion, label: "Union (Ctrl+Shift+U)" },
+    { id: "subtract", icon: icons.boolSubtract, label: "Subtract (Ctrl+Shift+S)" },
+    { id: "intersect", icon: icons.boolIntersect, label: "Intersect (Ctrl+Shift+I)" },
+    { id: "exclude", icon: icons.boolExclude, label: "Exclude (Ctrl+Shift+X)" },
+  ];
+
+  const boolBtns: HTMLButtonElement[] = [];
+  for (const op of boolOps) {
+    const btn = document.createElement("button");
+    btn.className = "tool-btn bool-op-btn";
+    btn.setAttribute("data-bool-op", op.id);
+    btn.title = op.label;
+    btn.innerHTML = op.icon;
+    btn.disabled = true;
+    btn.addEventListener("click", () => {
+      editor.booleanOperation(op.id as any);
+    });
+    container.appendChild(btn);
+    boolBtns.push(btn);
+  }
+
+  // Update boolean ops button state based on selection
+  const updateBoolState = () => {
+    const sel = Array.from(editor.engine.get_selection());
+    const enabled = sel.length >= 2;
+    boolBtns.forEach(btn => btn.disabled = !enabled);
+  };
+  editor.onSelection(updateBoolState);
+
   // SVG export button
   const sepSvg = document.createElement("div");
   sepSvg.className = "tool-btn-separator";

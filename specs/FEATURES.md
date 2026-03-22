@@ -200,10 +200,24 @@
   - Context menu: Rename, Duplicate, Delete (minimum 1 page enforced)
   - Undo/redo: full scene snapshots include all pages
   - WASM API: add_page, remove_page, rename_page, set_active_page, duplicate_page, get_pages, get_active_page_id, get_page_count
-- [ ] Boolean operations
+- [x] Boolean operations (Union, Subtract, Intersect, Exclude)
 - [x] Constraints (responsive resizing) — Horizontal: Left/Right/LeftAndRight/Center/Scale, Vertical: Top/Bottom/TopAndBottom/Center/Scale
 - [ ] Prototyping (interactions/transitions)
 
+
+### Boolean Operations
+- [x] **Operations**: Union, Subtract (Difference), Intersect, Exclude (XOR)
+- [x] **Shape support**: Rect, Ellipse, Star, Polygon, Path (closed/open) → polygon conversion
+- [x] **Ellipse/curve approximation**: 64-segment polygon for ellipses, 16-step bezier flattening for paths
+- [x] **i_overlay crate**: production-quality polygon clipping engine (EvenOdd fill rule)
+- [x] **Multi-node chaining**: Union/Intersect supports 3+ nodes via sequential pairwise operations
+- [x] **Result**: new Path node (closed, corner points) with first node's fill/stroke
+- [x] **Original removal**: source nodes deleted after operation
+- [x] **Undo integration**: push_undo before operation
+- [x] **WASM API**: `boolean_operation(op: &str) -> u64` — operates on current selection
+- [x] **Keyboard shortcuts**: Ctrl/Cmd+Shift+U (Union), +S (Subtract), +I (Intersect), +X (Exclude)
+- [x] **Toolbar UI**: 4 boolean op buttons (Union/Subtract/Intersect/Exclude) with icons
+- [x] **Selection-aware**: buttons disabled when < 2 nodes selected, enabled when 2+
 
 ### Constraints (Responsive Resize)
 - **Horizontal**: Left (default), Right, Left & Right (stretch), Center, Scale

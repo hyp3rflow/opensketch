@@ -254,6 +254,15 @@ export class Editor {
         this.zoomBy(0.8);
         return;
       }
+      // Boolean operations: Ctrl/Cmd+Shift+U/S/I/X (but only without other modifiers conflicting)
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey) {
+        const boolKey = e.key.toLowerCase();
+        if (boolKey === "u") { e.preventDefault(); this.booleanOperation("union"); return; }
+        if (boolKey === "s") { e.preventDefault(); this.booleanOperation("subtract"); return; }
+        if (boolKey === "i") { e.preventDefault(); this.booleanOperation("intersect"); return; }
+        if (boolKey === "x") { e.preventDefault(); this.booleanOperation("exclude"); return; }
+      }
+
       if (e.key === "v" || e.key === "V") this.setTool("select");
       if (e.key === "h" || e.key === "H") this.setTool("hand");
       if (e.key === "r" || e.key === "R") this.setTool("rect");
@@ -1739,5 +1748,21 @@ export class Editor {
 
   private onZoomChange() {
     this._onZoomChanges.forEach(fn => fn());
+  }
+
+  // =============================================
+  // Boolean Operations
+  // =============================================
+
+  booleanOperation(op: "union" | "subtract" | "intersect" | "exclude") {
+    const sel = Array.from(this.engine.get_selection()).map(Number);
+    if (sel.length < 2) return;
+    this.engine.push_undo();
+    const newId = this.engine.boolean_operation(op);
+    if (newId) {
+      this.fireSelectionNow([Number(newId)]);
+      (this as any).onLayersChanges?.forEach?.((fn: any) => fn());
+      this.requestRender();
+    }
   }
 }

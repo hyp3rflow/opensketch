@@ -7,6 +7,7 @@ mod hit_test;
 pub mod component;
 mod layout;
 mod svg_export;
+mod boolean_ops;
 
 use wasm_bindgen::prelude::*;
 use web_sys::CanvasRenderingContext2d;
@@ -1843,6 +1844,92 @@ impl Engine {
         } else {
             "null".to_string()
         }
+    }
+    // =============================================
+    // Boolean Operations
+    // =============================================
+
+    /// Perform a boolean operation on selected nodes.
+    /// op: "union" | "subtract" | "intersect" | "exclude"
+    /// Returns the new node ID, or 0 if failed.
+    pub fn boolean_operation(&mut self, op: &str) -> u64 {
+        let sel = self.scene.selection.clone();
+        if sel.len() < 2 {
+            return 0;
+        }
+
+        // Get subject (first selected) and clip (second selected)
+        let subject = match self.scene.get_node(sel[0]) {
+            Some(n) => n.clone(),
+            None => return 0,
+        };
+        let clip = match self.scene.get_node(sel[1]) {
+            Some(n) => n.clone(),
+            None => return 0,
+        };
+
+        let mut result_points = match boolean_ops::boolean_op(&subject, &clip, match op {
+            "union" => boolean_ops::BooleanOp::Union,
+            "subtract" => boolean_ops::BooleanOp::Subtract,
+            "intersect" => boolean_ops::BooleanOp::Intersect,
+            "exclude" => boolean_ops::BooleanOp::Exclude,
+            _ => return 0,
+        }) {
+            Some(pts) => pts,
+            None => return 0,
+        };
+
+        // Chain with additional nodes for union/intersect
+        if sel.len() > 2 && (op == "union" || op == "intersect") {
+            for &id in &sel[2..] {
+                let next_node = match self.scene.get_node(id) {
+                    Some(n) => n.clone(),
+                    None => continue,
+                };
+                // Create temp path node from current result
+                let mut temp = Node::new(0, NodeKind::Path { points: result_points.clone(), closed: true });
+                // Calculate bounds
+                recalc_path_bounds(&mut temp);
+                let chain_op = match op {
+                    "union" => boolean_ops::BooleanOp::Union,
+                    "intersect" => boolean_ops::BooleanOp::Intersect,
+                    _ => boolean_ops::BooleanOp::Union,
+                };
+                if let Some(pts) = boolean_ops::boolean_op(&temp, &next_node, chain_op) {
+                    result_points = pts;
+                }
+            }
+        }
+
+        // Use first node's fill for the result
+        let fill = subject.fill.clone();
+        let stroke = subject.stroke.clone();
+
+        // Create result path node
+        let mut result_node = Node::new(0, NodeKind::Path { points: result_points, closed: true });
+        result_node.fill = fill;
+        result_node.stroke = stroke;
+        let op_name = match op {
+            "union" => "Union",
+            "subtract" => "Subtract",
+            "intersect" => "Intersect",
+            "exclude" => "Exclude",
+            _ => "Boolean",
+        };
+        result_node.name = format!("{} {}", op_name, self.scene.node_count() + 1);
+        recalc_path_bounds(&mut result_node);
+
+        let new_id = self.scene.add_node(result_node);
+
+        // Remove original nodes
+        for &id in &sel {
+            self.scene.remove_node(id);
+        }
+
+        // Select the new node
+        self.scene.selection = vec![new_id];
+
+        new_id
     }
 }
 
