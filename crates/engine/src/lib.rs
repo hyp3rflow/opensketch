@@ -1689,9 +1689,9 @@ impl Engine {
 
     /// Get component info for an instance node. Returns JSON: { component_id, component_name, source_node_id } or "null"
     pub fn get_instance_component_info(&self, node_id: u64) -> String {
-        let comp_id = if let Some(node) = self.scene.get_node(node_id) {
+        let (comp_id, current_values) = if let Some(node) = self.scene.get_node(node_id) {
             match &node.kind {
-                NodeKind::Instance(data) => data.component_id,
+                NodeKind::Instance(data) => (data.component_id, data.variant_values.clone()),
                 _ => return "null".to_string(),
             }
         } else {
@@ -1703,12 +1703,36 @@ impl Engine {
             let source_id = comp.variants.get(&comp.default_variant_key)
                 .map(|v| v.root_node_id)
                 .unwrap_or(0);
-            format!(
-                r#"{{"component_id":{},"component_name":"{}","source_node_id":{}}}"#,
-                comp_id,
-                comp.name.replace('"', "\\\""),
-                source_id
-            )
+
+            let properties: Vec<_> = comp.properties.iter().map(|p| {
+                let current = current_values.get(&p.name)
+                    .map(|v| v.to_display())
+                    .unwrap_or_else(|| p.default_value.to_display());
+                serde_json::json!({
+                    "name": p.name,
+                    "type": match &p.prop_type {
+                        VariantPropType::Boolean => serde_json::json!({"kind": "boolean"}),
+                        VariantPropType::String { options } => serde_json::json!({"kind": "string", "options": options}),
+                    },
+                    "default": p.default_value.to_display(),
+                    "current": current,
+                })
+            }).collect();
+
+            let variant_keys: Vec<_> = comp.variants.keys().cloned().collect();
+
+            let current_obj: serde_json::Map<String, serde_json::Value> = current_values.iter()
+                .map(|(k, v)| (k.clone(), serde_json::Value::String(v.to_display())))
+                .collect();
+
+            serde_json::to_string(&serde_json::json!({
+                "component_id": comp_id,
+                "component_name": comp.name,
+                "source_node_id": source_id,
+                "properties": properties,
+                "variant_keys": variant_keys,
+                "current_variant_values": current_obj,
+            })).unwrap_or_else(|_| "null".to_string())
         } else {
             "null".to_string()
         }

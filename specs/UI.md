@@ -80,6 +80,12 @@ Shows properties of selected node(s):
 - **Stroke**: color picker + hex + width + "Add stroke" button
 - **Text** (Text nodes only): content textarea, font family dropdown (14 fonts), font size input
 
+- **Component Instance**: green card with component name + "Go to →" button
+- **Variant Picker** (Instance with variant props): purple "VARIANTS" section
+  - Boolean props: toggle switch (on/off)
+  - String props: dropdown select with options
+  - Changes trigger `set_instance_variant()` → re-renders instance with new variant
+
 Empty state: cursor icon + "Select an element"
 Multi-select: "{n} elements selected"
 

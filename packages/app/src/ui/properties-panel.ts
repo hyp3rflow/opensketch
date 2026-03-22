@@ -259,6 +259,80 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       });
       compCard.appendChild(goBtn);
       header.appendChild(compCard);
+
+      // === Variant Picker ===
+      if (compInfo.properties && compInfo.properties.length > 0) {
+        const variantSection = document.createElement("div");
+        variantSection.style.cssText = `
+          margin-bottom:8px; padding:8px 10px;
+          background:rgba(139,92,246,0.06); border:1px solid rgba(139,92,246,0.15);
+          border-radius:8px;
+        `;
+
+        const variantTitle = document.createElement("div");
+        variantTitle.style.cssText = "font-size:10px;color:#8b5cf6;letter-spacing:0.3px;margin-bottom:6px;font-weight:600;";
+        variantTitle.textContent = "VARIANTS";
+        variantSection.appendChild(variantTitle);
+
+        for (const prop of compInfo.properties) {
+          const propRow = document.createElement("div");
+          propRow.style.cssText = "display:flex;align-items:center;gap:6px;margin-bottom:4px;";
+
+          const propLabel = document.createElement("span");
+          propLabel.style.cssText = "font-size:11px;color:#999;min-width:60px;";
+          propLabel.textContent = prop.name;
+          propRow.appendChild(propLabel);
+
+          if (prop.type.kind === "boolean") {
+            const toggle = document.createElement("button");
+            const isOn = prop.current === "true";
+            toggle.style.cssText = `
+              width:32px; height:18px; border-radius:9px; border:none; cursor:pointer;
+              background:${isOn ? "#8b5cf6" : "#444"}; position:relative; transition:background 0.2s;
+            `;
+            const knob = document.createElement("span");
+            knob.style.cssText = `
+              position:absolute; top:2px; ${isOn ? "right:2px" : "left:2px"};
+              width:14px; height:14px; border-radius:7px; background:#fff; transition:all 0.2s;
+            `;
+            toggle.appendChild(knob);
+            toggle.addEventListener("click", () => {
+              const newVal = prop.current === "true" ? "false" : "true";
+              const newKey: Record<string, any> = { ...(compInfo.current_variant_values || {}) };
+              newKey[prop.name] = { Boolean: newVal === "true" };
+              editor.engine.set_instance_variant(BigInt(id), JSON.stringify(newKey));
+              editor.requestRender();
+              refresh([id]);
+            });
+            propRow.appendChild(toggle);
+          } else if (prop.type.kind === "string" && prop.type.options) {
+            const select = document.createElement("select");
+            select.style.cssText = `
+              flex:1; background:#2a2a2a; border:1px solid #444; border-radius:4px;
+              color:#ccc; font-size:11px; padding:3px 6px; outline:none; cursor:pointer;
+            `;
+            for (const opt of prop.type.options) {
+              const option = document.createElement("option");
+              option.value = opt;
+              option.textContent = opt;
+              if (opt === prop.current) option.selected = true;
+              select.appendChild(option);
+            }
+            select.addEventListener("change", () => {
+              const newKey: Record<string, any> = { ...(compInfo.current_variant_values || {}) };
+              newKey[prop.name] = { String: select.value };
+              editor.engine.set_instance_variant(BigInt(id), JSON.stringify(newKey));
+              editor.requestRender();
+              refresh([id]);
+            });
+            propRow.appendChild(select);
+          }
+
+          variantSection.appendChild(propRow);
+        }
+
+        header.appendChild(variantSection);
+      }
     }
 
     const nameInput = document.createElement("input");
