@@ -1,5 +1,6 @@
 import type { Engine } from "./wasm/opensketch_engine";
 import { computeSnap, renderGuides, type SnapGuide } from "./tools/smart-guides";
+import { computeMeasureLines, renderMeasureLines, renderTargetHighlight, type MeasureLine } from "./tools/measure";
 import type { RulersAPI } from "./ui/rulers";
 import { toggleShortcutsPanel, isShortcutsPanelVisible, closeShortcutsPanel } from "./ui/shortcuts-panel";
 import { showContextMenu, hideContextMenu, type MenuItem } from "./ui/context-menu";
@@ -61,6 +62,9 @@ export class Editor {
 
   // Smart guides state
   private _snapGuides: SnapGuide[] = [];
+  private _measureLines: MeasureLine[] = [];
+  private _measureTargetBounds: { x: number; y: number; w: number; h: number } | null = null;
+  private _altHeld = false;
   private onSaveCallbacks: (() => void)[] = [];
   private _layoutGridsVisible = true;
 
@@ -131,6 +135,7 @@ export class Editor {
     }, { passive: false });
 
     window.addEventListener("keydown", (e) => {
+      if (e.key === "Alt") this._altHeld = true;
       if (this.isInputFocused()) return;
       // Shortcuts panel: Cmd+/ or ?
       if ((e.metaKey || e.ctrlKey) && e.key === "/") {
@@ -373,7 +378,14 @@ export class Editor {
         this.spaceHeld = false;
         this.updateCursor();
       }
+      if (e.key === "Alt") {
+        this._altHeld = false;
+        this._measureLines = [];
+        this._measureTargetBounds = null;
+        this.needsRender = true;
+      }
     });
+    // Alt key tracking is handled in the main keydown listener below
   }
 
   private isInputFocused(): boolean {
@@ -609,6 +621,15 @@ export class Editor {
       }
       this.needsRender = true;
       return;
+    }
+
+    // Measure tool: Alt + hover with selection
+    if (this._altHeld || e.altKey) {
+      this.updateMeasure(e.offsetX, e.offsetY);
+    } else if (this._measureLines.length > 0) {
+      this._measureLines = [];
+      this._measureTargetBounds = null;
+      this.needsRender = true;
     }
 
     if (!this.drag) return;
@@ -1251,6 +1272,54 @@ export class Editor {
     }
   }
 
+  private updateMeasure(screenX: number, screenY: number) {
+    const sel = Array.from(this.engine.get_selection()).map(Number);
+    if (sel.length === 0) {
+      this._measureLines = [];
+      this._measureTargetBounds = null;
+      return;
+    }
+
+    const selBBox = this.getSelectionBBox(sel);
+    if (!selBBox) { this._measureLines = []; this._measureTargetBounds = null; return; }
+
+    // Hit test to find hovered node
+    const hitBigInt = this.engine.hit_test(screenX, screenY);
+    const hitId = hitBigInt != null ? Number(hitBigInt) : 0;
+    const selSet = new Set(sel);
+
+    if (hitId && !selSet.has(hitId)) {
+      // Measure to hovered node
+      const nj = this.engine.get_node_json(BigInt(hitId));
+      if (nj) {
+        const n = JSON.parse(nj);
+        const targetBounds = { x: n.x, y: n.y, w: n.width, h: n.height };
+        const zoom = this.engine.get_zoom();
+        const panX = this.engine.get_pan_x();
+        const panY = this.engine.get_pan_y();
+        this._measureLines = computeMeasureLines(selBBox, targetBounds, zoom, panX, panY);
+        this._measureTargetBounds = targetBounds;
+        this.needsRender = true;
+        return;
+      }
+    }
+
+    // No target — clear
+    this._measureLines = [];
+    this._measureTargetBounds = null;
+    this.needsRender = true;
+  }
+
+  private renderMeasure() {
+    if (this._measureTargetBounds) {
+      const zoom = this.engine.get_zoom();
+      const panX = this.engine.get_pan_x();
+      const panY = this.engine.get_pan_y();
+      renderTargetHighlight(this.ctx, this._measureTargetBounds, zoom, panX, panY);
+    }
+    renderMeasureLines(this.ctx, this._measureLines);
+  }
+
   private renderSmartGuides() {
     if (this._snapGuides.length === 0) return;
     const zoom = this.engine.get_zoom();
@@ -1313,6 +1382,7 @@ export class Editor {
         this.renderLayoutGrids();
         this.renderGuideLines();
         this.renderSmartGuides();
+        this.renderMeasure();
         this.renderPathEditOverlay();
         this.renderCaret();
         this.renderMarquee();

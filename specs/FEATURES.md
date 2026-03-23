@@ -407,3 +407,12 @@
 - [x] **Scene snapshot/restore**: Preserves original scene state during preview generation
 - [x] **Toolbar button**: Responsive icon + Cmd+Alt+R shortcut
 - [x] **Keyboard**: Cmd+Alt+R toggle, Escape to close
+
+### Measure Tool
+- [x] **Alt+hover**: Hold Alt with selection → hover over another node to show distances
+- [x] **Distance lines**: Red dashed lines (#ff3366) with px distance labels (pink pills)
+- [x] **Edge-to-edge**: Shows horizontal and vertical gap distances between bounding boxes
+- [x] **Overlap handling**: When nodes overlap, shows distances to individual edges
+- [x] **Target highlight**: Hovered node outlined with red dashed border
+- [x] **End ticks**: Perpendicular tick marks at measurement endpoints
+- [x] **Pure TypeScript**: tools/measure.ts, no Rust changes needed
