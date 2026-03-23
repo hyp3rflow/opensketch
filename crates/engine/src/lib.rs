@@ -826,6 +826,16 @@ impl Engine {
         }
     }
 
+    /// Batch rename selected nodes.
+    /// pattern: {name} = original name, {n} = number, {N} = zero-padded number
+    pub fn batch_rename_selection(&mut self, pattern: &str, start_num: u32) -> u32 {
+        let ids = self.scene.selection.clone();
+        if ids.is_empty() { return 0; }
+        self.push_undo();
+        self.scene.batch_rename(&ids, pattern, start_num);
+        ids.len() as u32
+    }
+
     pub fn set_text_content(&mut self, id: u64, content: &str) {
         if let Some(node) = self.scene.get_node_mut(id) {
             if let NodeKind::Text { content: ref mut c, .. } = node.kind {

@@ -944,4 +944,22 @@ impl Scene {
             }
         }
     }
+
+    /// Batch rename nodes by IDs.
+    /// pattern: use `{name}` for original name, `{n}` for sequential number, `{N}` for zero-padded number
+    /// Example: "{name} - {n}" with ids [a,b,c] starting at 1 → "Rect - 1", "Ellipse - 2", "Text - 3"
+    pub fn batch_rename(&mut self, ids: &[NodeId], pattern: &str, start_num: u32) {
+        let pad_width = ((ids.len() as f64).log10().floor() as usize) + 1;
+        for (i, &id) in ids.iter().enumerate() {
+            let num = start_num as usize + i;
+            if let Some(node) = self.get_node_mut(id) {
+                let original = node.name.clone();
+                let new_name = pattern
+                    .replace("{name}", &original)
+                    .replace("{N}", &format!("{:0>width$}", num, width = pad_width))
+                    .replace("{n}", &num.to_string());
+                node.name = new_name;
+            }
+        }
+    }
 }

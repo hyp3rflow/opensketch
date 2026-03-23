@@ -416,3 +416,12 @@
 - [x] **Target highlight**: Hovered node outlined with red dashed border
 - [x] **End ticks**: Perpendicular tick marks at measurement endpoints
 - [x] **Pure TypeScript**: tools/measure.ts, no Rust changes needed
+
+### Batch Rename
+- [x] **Pattern-based rename**: {name} = original name, {n} = sequential number, {N} = zero-padded number
+- [x] **Rust engine**: Scene.batch_rename() method with id list, pattern, start number
+- [x] **WASM binding**: batch_rename_selection(pattern, start_num) with undo integration
+- [x] **Dialog UI**: Modal dialog with pattern input, start number, live preview of tokens
+- [x] **Context menu**: "Batch Rename…" option when 2+ nodes selected
+- [x] **Keyboard shortcut**: Cmd/Ctrl+Shift+R
+- [x] **Undo support**: Full undo via push_undo() before rename
