@@ -5,6 +5,7 @@ import type { RulersAPI } from "./ui/rulers";
 import { toggleShortcutsPanel, isShortcutsPanelVisible, closeShortcutsPanel } from "./ui/shortcuts-panel";
 import { showContextMenu, hideContextMenu, type MenuItem } from "./ui/context-menu";
 import { openResponsivePreview, isResponsivePreviewOpen, closeResponsivePreview } from "./ui/responsive-preview";
+import { CursorPresence } from "./ui/cursor-presence";
 
 export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "section" | "image" | "pen" | "star" | "polygon" | "slice" | "connector";
 
@@ -73,6 +74,10 @@ export class Editor {
 
   // Rulers & guides
   private _rulers: RulersAPI | null = null;
+
+  // Cursor presence
+  private _cursorPresence = new CursorPresence();
+  private _cursorDemoCleanup: (() => void) | null = null;
 
   // Throttle selection callbacks during drag
   private selectionDirty = false;
@@ -1580,6 +1585,7 @@ export class Editor {
         this.renderMarquee();
         this.renderConnectorPreview();
         this.renderSliceOverlays();
+        this.renderCursorPresence();
         this._rulers?.render();
         this.needsRender = false;
       }
@@ -1869,6 +1875,35 @@ export class Editor {
   notifyLayersChanged() { this.onLayersChanges.forEach(fn => fn()); }
 
   /** Render slice overlays (dashed outlines + labels) on canvas */
+  private renderCursorPresence() {
+    const zoom = this.engine.get_zoom();
+    const panX = this.engine.get_pan_x();
+    const panY = this.engine.get_pan_y();
+    this._cursorPresence.render(this.ctx, zoom, panX, panY);
+    // Re-render if cursors are animating (fade-out)
+    if (this._cursorPresence.getCursors().length > 0) {
+      this.needsRender = true;
+    }
+  }
+
+  /** Get cursor presence instance for external integration */
+  get cursorPresence() { return this._cursorPresence; }
+
+  /** Toggle cursor presence demo simulation */
+  toggleCursorDemo(): boolean {
+    if (this._cursorDemoCleanup) {
+      this._cursorDemoCleanup();
+      this._cursorDemoCleanup = null;
+      this.needsRender = true;
+      return false;
+    } else {
+      const rect = this.canvas.getBoundingClientRect();
+      this._cursorDemoCleanup = this._cursorPresence.startDemo(rect.width, rect.height);
+      this.needsRender = true;
+      return true;
+    }
+  }
+
   private renderSliceOverlays() {
     const slicesJson = this.engine.get_slices();
     const slices: Array<{id: number; name: string; x: number; y: number; width: number; height: number}> = JSON.parse(slicesJson);

@@ -178,6 +178,17 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
   respBtn.addEventListener("click", () => editor.openResponsivePreview());
   container.appendChild(respBtn);
 
+  // Cursor presence demo toggle
+  const cursorBtn = document.createElement("button");
+  cursorBtn.className = "tool-btn";
+  cursorBtn.title = "Toggle Cursor Presence Demo";
+  cursorBtn.innerHTML = icons.users;
+  cursorBtn.addEventListener("click", () => {
+    const active = editor.toggleCursorDemo();
+    cursorBtn.classList.toggle("active", active);
+  });
+  container.appendChild(cursorBtn);
+
   // Mode toggle (rightmost)
   const sep2 = document.createElement("div");
   sep2.className = "tool-btn-separator";

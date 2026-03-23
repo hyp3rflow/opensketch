@@ -491,3 +491,24 @@ Save, manage, and apply named export configurations (format, scale, suffix) for 
 - [x] PNG export: Uses editor.exportPng() with configurable scale
 - [x] SVG export: Uses engine.export_node_svg() / export_svg()
 - [x] Auto-naming: node name + suffix + format extension
+
+## Cursor Presence Indicators
+
+Simulated multi-user cursor display for collaboration readiness.
+
+### Core
+- [x] RemoteCursor data model: id, name, color, x/y (world coords), selectedIds, tool, lastSeen
+- [x] CursorPresence class: add/update/remove cursors, auto-cleanup stale cursors
+- [x] 10 preset colors, auto-assignment
+
+### Rendering
+- [x] Colored arrow cursor (Figma-style pointer) with white outline + shadow
+- [x] Name label pill (rounded rect with user color + white text)
+- [x] Fade-out animation for stale cursors (10s timeout, 2s fade)
+- [x] Selection highlights: dashed colored rectangles around remote-selected nodes
+
+### Demo Simulation
+- [x] `startDemo()`: 3 fake users (Alice, Bob, Carol) with smooth random movement
+- [x] Toolbar toggle button (Users icon)
+- [x] `editor.toggleCursorDemo()` API
+- [x] `editor.cursorPresence` getter for external integration (WebSocket, WebRTC)
