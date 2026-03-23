@@ -886,6 +886,10 @@ pub struct Node {
     /// Responsive breakpoints: layout overrides based on frame width
     #[serde(default)]
     pub breakpoints: Vec<Breakpoint>,
+    /// Absolute positioning: when true, this child is excluded from parent auto-layout flow
+    /// but remains a child of the frame (Figma "Absolute position")
+    #[serde(default)]
+    pub absolute_position: bool,
 }
 
 impl Node {
@@ -931,6 +935,7 @@ impl Node {
             scroll_y: 0.0,
             bitmap_filter: None,
             breakpoints: vec![],
+            absolute_position: false,
         }
     }
 

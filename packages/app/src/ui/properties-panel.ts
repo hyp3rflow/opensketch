@@ -450,6 +450,27 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             szRow.appendChild(wrap);
           }
           sizeSection.appendChild(szRow);
+
+          // Absolute position toggle
+          const isAbsolute = editor.engine.get_absolute_position(BigInt(id));
+          const absRow = document.createElement("div");
+          absRow.style.cssText = "display:flex;align-items:center;gap:6px;margin-top:6px;";
+          const absCheck = document.createElement("input");
+          absCheck.type = "checkbox";
+          absCheck.checked = isAbsolute;
+          absCheck.style.cssText = "margin:0;accent-color:#4f46e5;";
+          absCheck.addEventListener("change", () => {
+            editor.engine.push_undo();
+            editor.engine.set_absolute_position(BigInt(id), absCheck.checked);
+            editor.requestRender();
+            refresh(ids);
+          });
+          const absLabel = document.createElement("span");
+          absLabel.style.cssText = "font-size:11px;color:#999;";
+          absLabel.textContent = "Absolute position";
+          absRow.appendChild(absCheck);
+          absRow.appendChild(absLabel);
+          sizeSection.appendChild(absRow);
         }
       }
     }

@@ -93,7 +93,7 @@ fn apply_hug_sizing(scene: &mut Scene, parent_id: NodeId) {
 
     for &cid in &children {
         if let Some(child) = scene.get_node(cid) {
-            if !child.visible { continue; }
+            if !child.visible || child.absolute_position { continue; }
             has_child = true;
             min_x = min_x.min(child.x);
             min_y = min_y.min(child.y);
@@ -177,7 +177,7 @@ fn compute_flex(scene: &mut Scene, layout: &Layout, px: f64, py: f64, pw: f64, p
     let mut child_infos: Vec<ChildInfo> = vec![];
     for &cid in children {
         if let Some(child) = scene.get_node(cid) {
-            if !child.visible { continue; }
+            if !child.visible || child.absolute_position { continue; }
             let fill_main = if is_row {
                 child.sizing_h == SizingMode::Fill
             } else {
@@ -333,7 +333,7 @@ fn compute_grid(scene: &mut Scene, layout: &Layout, px: f64, py: f64, pw: f64, p
     let mut visible_children: Vec<(NodeId, f64)> = vec![];
     for &cid in children {
         if let Some(child) = scene.get_node(cid) {
-            if !child.visible { continue; }
+            if !child.visible || child.absolute_position { continue; }
             visible_children.push((cid, child.height));
         }
     }

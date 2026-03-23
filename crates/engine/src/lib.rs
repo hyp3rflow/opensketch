@@ -2289,6 +2289,19 @@ impl Engine {
     }
 
     // =============================================
+    // Absolute positioning (exclude from parent auto-layout flow)
+
+    pub fn set_absolute_position(&mut self, id: u64, absolute: bool) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            node.absolute_position = absolute;
+        }
+    }
+
+    pub fn get_absolute_position(&self, id: u64) -> bool {
+        self.scene.get_node(id).map(|n| n.absolute_position).unwrap_or(false)
+    }
+
+    // =============================================
     // Min/Max size constraints
 
     pub fn set_min_width(&mut self, id: u64, val: f64) {
