@@ -449,3 +449,23 @@
 - [x] **Properties panel**: Path type dropdown (Straight/Curved), start/end arrow checkboxes
 - [x] **Layers panel**: Connector icon in node tree
 - [x] **Stroke support**: Color, width, dash pattern via existing stroke properties
+
+## Bookmarks / Favorites
+
+Quick-access bookmark system for nodes across pages.
+
+### Engine (Rust)
+- [x] `Node.bookmarked: bool` field with `#[serde(default)]` for backward compatibility
+- [x] `Scene.toggle_bookmark()`, `is_bookmarked()`, `get_bookmarked_nodes()`, `get_all_bookmarked_nodes()`
+
+### WASM Bindings
+- [x] `toggle_bookmark(id)` → bool (new state)
+- [x] `is_bookmarked(id)` → bool
+- [x] `get_bookmarked_nodes()` → JSON (current page)
+- [x] `get_all_bookmarked_nodes()` → JSON (all pages with page info)
+
+### UI
+- [x] **Layers panel**: ⭐ bookmark toggle per node (star icon, yellow when active)
+- [x] **Bookmarks panel**: Right pane "Bookmarks" tab, grouped by page, click to navigate
+- [x] **Keyboard shortcut**: ⌘⇧B to toggle bookmark on selected nodes
+- [x] **Navigation**: Click bookmarked node → switch page + pan to center + select

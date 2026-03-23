@@ -114,6 +114,24 @@ export function setupLayersPanel(container: HTMLElement, editor: Editor) {
       item.appendChild(arrow);
       item.appendChild(icon);
       item.appendChild(name);
+      // Bookmark toggle
+      const bookmarked = editor.engine.is_bookmarked(BigInt(node.id));
+      const bm = document.createElement("span");
+      bm.className = "layer-bookmark";
+      bm.style.cssText = `font-size:11px;cursor:pointer;margin-left:auto;margin-right:2px;flex-shrink:0;opacity:${bookmarked ? "1" : "0"};color:#f59e0b;transition:opacity 0.15s;`;
+      bm.textContent = bookmarked ? "★" : "☆";
+      bm.title = bookmarked ? "Remove bookmark" : "Bookmark";
+      bm.addEventListener("click", (e) => {
+        e.stopPropagation();
+        editor.engine.push_undo();
+        editor.engine.toggle_bookmark(BigInt(node.id));
+        editor.requestRender();
+        refresh();
+      });
+      // Show on hover
+      item.addEventListener("mouseenter", () => { if (!editor.engine.is_bookmarked(BigInt(node.id))) bm.style.opacity = "0.4"; });
+      item.addEventListener("mouseleave", () => { if (!editor.engine.is_bookmarked(BigInt(node.id))) bm.style.opacity = "0"; });
+
       if (node.is_mask) {
         const maskBadge = document.createElement("span");
         maskBadge.className = "layer-mask-badge";
@@ -122,6 +140,24 @@ export function setupLayersPanel(container: HTMLElement, editor: Editor) {
         maskBadge.textContent = "M";
         item.appendChild(maskBadge);
       }
+      // Bookmark toggle
+      const bookmark = document.createElement("span");
+      bookmark.className = "layer-bookmark";
+      const isBookmarked = editor.engine.is_bookmarked(BigInt(node.id));
+      bookmark.innerHTML = isBookmarked
+        ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="#facc15" stroke="#facc15" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`
+        : `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`;
+      bookmark.style.cssText = "cursor:pointer;flex-shrink:0;opacity:0.5;margin-right:2px;";
+      if (isBookmarked) bookmark.style.opacity = "1";
+      bookmark.addEventListener("click", (e) => {
+        e.stopPropagation();
+        editor.engine.push_undo();
+        editor.engine.toggle_bookmark(BigInt(node.id));
+        editor.requestRender();
+        refresh();
+      });
+      item.appendChild(bookmark);
+      item.appendChild(bm);
       item.appendChild(vis);
 
       item.addEventListener("click", () => {

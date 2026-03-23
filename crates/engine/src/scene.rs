@@ -945,6 +945,53 @@ impl Scene {
         }
     }
 
+    // =============================================
+    // Bookmarks
+    // =============================================
+
+    pub fn toggle_bookmark(&mut self, id: NodeId) -> bool {
+        if let Some(node) = self.nodes.get_mut(&id) {
+            node.bookmarked = !node.bookmarked;
+            node.bookmarked
+        } else {
+            false
+        }
+    }
+
+    pub fn is_bookmarked(&self, id: NodeId) -> bool {
+        self.nodes.get(&id).map(|n| n.bookmarked).unwrap_or(false)
+    }
+
+    pub fn get_bookmarked_nodes(&self) -> Vec<(NodeId, String)> {
+        self.nodes.values()
+            .filter(|n| n.bookmarked)
+            .map(|n| (n.id, n.name.clone()))
+            .collect()
+    }
+
+    /// Get bookmarked nodes across all pages
+    pub fn get_all_bookmarked_nodes(&self) -> Vec<(u64, NodeId, String, String)> {
+        let mut result = Vec::new();
+        // Current page
+        let current_page_id = self.pages.get(self.active_page_index).map(|p| p.id).unwrap_or(0);
+        let current_page_name = self.pages.get(self.active_page_index).map(|p| p.name.clone()).unwrap_or_default();
+        for node in self.nodes.values() {
+            if node.bookmarked {
+                result.push((current_page_id, node.id, node.name.clone(), current_page_name.clone()));
+            }
+        }
+        // Other pages
+        for (i, page) in self.pages.iter().enumerate() {
+            if i == self.active_page_index { continue; }
+            for node in &page.nodes {
+                if node.bookmarked {
+                    result.push((page.id, node.id, node.name.clone(), page.name.clone()));
+                }
+            }
+        }
+        result
+    }
+
     /// Batch rename nodes by IDs.
     /// pattern: use `{name}` for original name, `{n}` for sequential number, `{N}` for zero-padded number
     /// Example: "{name} - {n}" with ids [a,b,c] starting at 1 → "Rect - 1", "Ellipse - 2", "Text - 3"

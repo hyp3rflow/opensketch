@@ -706,6 +706,9 @@ pub struct Node {
     pub min_height: Option<f64>,
     #[serde(default)]
     pub max_height: Option<f64>,
+    /// Bookmarked for quick access
+    #[serde(default)]
+    pub bookmarked: bool,
 }
 
 impl Node {
@@ -744,6 +747,7 @@ impl Node {
             max_width: None,
             min_height: None,
             max_height: None,
+            bookmarked: false,
         }
     }
 

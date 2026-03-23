@@ -15,6 +15,7 @@ import { createPrototypeViewer } from "./ui/prototype-viewer";
 import { CommentOverlay, setupCommentsPanel } from "./ui/comments";
 import { setupVariablesPanel } from "./ui/variables-panel";
 import { setupAssetPanel } from "./ui/asset-panel";
+import { setupBookmarksPanel } from "./ui/bookmarks-panel";
 
 async function main() {
   const wasm = await loadEngine();
@@ -103,6 +104,7 @@ async function main() {
   setupCommentsPanel(document.getElementById("comments-panel")!, editor, commentOverlay);
   setupVariablesPanel(document.getElementById("variables-panel")!, editor);
   setupAssetPanel(document.getElementById("assets-panel")!, editor);
+  setupBookmarksPanel(document.getElementById("bookmarks-panel")!, editor);
 
   // Right pane tab switching
   const rightPaneTabs = document.querySelectorAll(".right-pane-tab");
@@ -111,7 +113,7 @@ async function main() {
     tab.addEventListener("click", () => {
       const target = (tab as HTMLElement).dataset.tab!;
       rightPaneTabs.forEach((t) => t.classList.toggle("active", (t as HTMLElement).dataset.tab === target));
-      const tabContentMap: Record<string, string> = { agent: "agent-panel", properties: "properties-panel", history: "history-panel", inspect: "inspect-panel", comments: "comments-panel", variables: "variables-panel", assets: "assets-panel" };
+      const tabContentMap: Record<string, string> = { agent: "agent-panel", properties: "properties-panel", history: "history-panel", inspect: "inspect-panel", comments: "comments-panel", variables: "variables-panel", assets: "assets-panel", bookmarks: "bookmarks-panel" };
       rightPaneContents.forEach((c) => c.classList.toggle("active", c.id === tabContentMap[target]));
       if (target === "agent") {
         agentPanel.querySelector<HTMLInputElement>(".agent-input")?.focus();

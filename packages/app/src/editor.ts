@@ -291,6 +291,20 @@ export class Editor {
         this.flattenSelection();
         return;
       }
+      // Bookmark toggle: Cmd+Shift+B
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "b" || e.key === "B")) {
+        e.preventDefault();
+        const sel = Array.from(this.engine.get_selection()).map(Number);
+        if (sel.length > 0) {
+          this.engine.push_undo();
+          for (const id of sel) {
+            this.engine.toggle_bookmark(BigInt(id));
+          }
+          this.onLayersChanges.forEach(fn => fn());
+          this.needsRender = true;
+        }
+        return;
+      }
       // Boolean operations: Ctrl/Cmd+Shift+U/S/I/X (but only without other modifiers conflicting)
       if ((e.metaKey || e.ctrlKey) && e.shiftKey) {
         const boolKey = e.key.toLowerCase();
@@ -298,6 +312,20 @@ export class Editor {
         if (boolKey === "s") { e.preventDefault(); this.booleanOperation("subtract"); return; }
         if (boolKey === "i") { e.preventDefault(); this.booleanOperation("intersect"); return; }
         if (boolKey === "x") { e.preventDefault(); this.booleanOperation("exclude"); return; }
+      }
+
+      // Ctrl/Cmd+Shift+B: toggle bookmark on selected nodes
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "b" || e.key === "B")) {
+        e.preventDefault();
+        const sel = Array.from(this.engine.get_selection()).map(Number);
+        if (sel.length > 0) {
+          this.engine.push_undo();
+          for (const id of sel) {
+            this.engine.toggle_bookmark(BigInt(id));
+          }
+          this.requestRender();
+        }
+        return;
       }
 
       // Ctrl/Cmd+Shift+R: batch rename
