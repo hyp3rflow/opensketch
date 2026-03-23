@@ -1,11 +1,18 @@
 import type { Editor } from "../editor";
 import { icons } from "./icons";
 
+type CodeLang = "css" | "swiftui" | "kotlin" | "svg";
+
 /**
- * Inspect panel — generates CSS code from selected node properties.
+ * Inspect panel — generates CSS / SwiftUI / Kotlin Compose / SVG code from selected node properties.
+ * Also provides asset download (PNG/SVG export of the selected node).
  */
 export function setupInspectPanel(container: HTMLElement, editor: Editor) {
+  let currentLang: CodeLang = "css";
+  let currentIds: number[] = [];
+
   function refresh(ids: number[]) {
+    currentIds = ids;
     container.innerHTML = "";
     if (ids.length === 0) {
       container.innerHTML = `
@@ -16,7 +23,7 @@ export function setupInspectPanel(container: HTMLElement, editor: Editor) {
       return;
     }
     if (ids.length > 1) {
-      container.innerHTML = `<div style="padding:16px;color:#666;font-size:12px;">Select a single element to inspect CSS</div>`;
+      container.innerHTML = `<div style="padding:16px;color:#666;font-size:12px;">Select a single element to inspect code</div>`;
       return;
     }
 
@@ -35,8 +42,11 @@ export function setupInspectPanel(container: HTMLElement, editor: Editor) {
     const layoutJson = editor.engine.get_layout(bid);
     const layout = layoutJson ? JSON.parse(layoutJson) : null;
 
-    const css = generateCSS(node, fillInfo, strokeInfo, shadows, blur, blendMode, layout);
-    const svgProps = generateSVGProps(node, fillInfo, strokeInfo, shadows, blur);
+    let bitmapFilter: any = null;
+    try {
+      const bfJson = (editor.engine as any).get_bitmap_filter?.(bid);
+      if (bfJson) bitmapFilter = JSON.parse(bfJson);
+    } catch {}
 
     const wrap = document.createElement("div");
     wrap.style.cssText = "padding:12px;display:flex;flex-direction:column;gap:12px;";
@@ -47,15 +57,66 @@ export function setupInspectPanel(container: HTMLElement, editor: Editor) {
     header.textContent = getKindLabel(node.kind) + (node.name ? ` — ${node.name}` : "");
     wrap.appendChild(header);
 
-    // CSS section
-    wrap.appendChild(createCodeSection("CSS", css));
+    // Language tabs
+    const tabBar = document.createElement("div");
+    tabBar.style.cssText = "display:flex;gap:2px;background:#1a1a1a;border-radius:6px;padding:2px;";
+    const langs: { key: CodeLang; label: string }[] = [
+      { key: "css", label: "CSS" },
+      { key: "swiftui", label: "SwiftUI" },
+      { key: "kotlin", label: "Kotlin" },
+      { key: "svg", label: "SVG" },
+    ];
+    for (const lang of langs) {
+      const tab = document.createElement("button");
+      tab.textContent = lang.label;
+      const isActive = currentLang === lang.key;
+      tab.style.cssText = `
+        flex:1;padding:5px 8px;border:none;border-radius:4px;font-size:11px;font-weight:500;cursor:pointer;transition:all 0.15s;
+        background:${isActive ? "#333" : "transparent"};color:${isActive ? "#e0e0e0" : "#777"};
+      `;
+      tab.addEventListener("click", () => {
+        currentLang = lang.key;
+        refresh(currentIds);
+      });
+      tabBar.appendChild(tab);
+    }
+    wrap.appendChild(tabBar);
 
-    // SVG section (if relevant)
-    if (svgProps) {
-      wrap.appendChild(createCodeSection("SVG Attributes", svgProps));
+    // Generate code
+    const ctx = { node, fill: fillInfo, stroke: strokeInfo, shadows, blur, blendMode, layout, bitmapFilter };
+    let code = "";
+    switch (currentLang) {
+      case "css": code = generateCSS(ctx); break;
+      case "swiftui": code = generateSwiftUI(ctx); break;
+      case "kotlin": code = generateKotlin(ctx); break;
+      case "svg": code = generateSVGProps(ctx) || "// No SVG-specific attributes"; break;
     }
 
+    wrap.appendChild(createCodeSection(langs.find(l => l.key === currentLang)!.label, code));
+
+    // Asset download section
+    const assetSection = document.createElement("div");
+    assetSection.style.cssText = "display:flex;gap:8px;";
+    const pngBtn = createDownloadBtn("↓ PNG", () => downloadAsset(editor, ids[0]!, "png"));
+    const svgBtn = createDownloadBtn("↓ SVG", () => downloadAsset(editor, ids[0]!, "svg"));
+    assetSection.appendChild(pngBtn);
+    assetSection.appendChild(svgBtn);
+    wrap.appendChild(assetSection);
+
     container.appendChild(wrap);
+  }
+
+  function createDownloadBtn(label: string, action: () => void): HTMLButtonElement {
+    const btn = document.createElement("button");
+    btn.textContent = label;
+    btn.style.cssText = `
+      flex:1;padding:6px 12px;background:#1e1e1e;border:1px solid #444;border-radius:6px;
+      color:#aaa;font-size:11px;cursor:pointer;transition:all 0.15s;font-weight:500;
+    `;
+    btn.addEventListener("mouseenter", () => { btn.style.borderColor = "#4f46e5"; btn.style.color = "#818cf8"; });
+    btn.addEventListener("mouseleave", () => { btn.style.borderColor = "#444"; btn.style.color = "#aaa"; });
+    btn.addEventListener("click", action);
+    return btn;
   }
 
   function createCodeSection(title: string, code: string): HTMLElement {
@@ -90,7 +151,7 @@ export function setupInspectPanel(container: HTMLElement, editor: Editor) {
 
     const codeBlock = document.createElement("pre");
     codeBlock.style.cssText = "margin:0;padding:12px;font-family:'JetBrains Mono','Fira Code',monospace;font-size:11px;line-height:1.6;overflow-x:auto;color:#d4d4d4;white-space:pre-wrap;word-break:break-all;";
-    codeBlock.innerHTML = highlightCSS(code);
+    codeBlock.innerHTML = highlightCode(code, currentLang);
     section.appendChild(codeBlock);
 
     return section;
@@ -100,6 +161,8 @@ export function setupInspectPanel(container: HTMLElement, editor: Editor) {
 
   return { refresh };
 }
+
+// ─── Helpers ───────────────────────────────────────────
 
 function getKindLabel(kind: any): string {
   if (typeof kind === "string") return kind;
@@ -130,12 +193,43 @@ function colorToHex(color: any): string {
   return `#${r}${g}${b}`;
 }
 
-function generateCSS(
-  node: any, fill: any, stroke: any, shadows: any[], blur: number, blendMode: string, layout: any
-): string {
-  const lines: string[] = [];
+function swiftColor(color: any): string {
+  if (!color) return ".clear";
+  const r = (color.r ?? 0).toFixed(3);
+  const g = (color.g ?? 0).toFixed(3);
+  const b = (color.b ?? 0).toFixed(3);
+  const a = color.a ?? 1;
+  if (a < 1) return `Color(red: ${r}, green: ${g}, blue: ${b}, opacity: ${a.toFixed(2)})`;
+  return `Color(red: ${r}, green: ${g}, blue: ${b})`;
+}
 
-  // Dimensions
+function kotlinColor(color: any): string {
+  if (!color) return "Color.Transparent";
+  const r = Math.round((color.r ?? 0) * 255);
+  const g = Math.round((color.g ?? 0) * 255);
+  const b = Math.round((color.b ?? 0) * 255);
+  const a = Math.round((color.a ?? 1) * 255);
+  return `Color(0x${a.toString(16).padStart(2, "0").toUpperCase()}${r.toString(16).padStart(2, "0").toUpperCase()}${g.toString(16).padStart(2, "0").toUpperCase()}${b.toString(16).padStart(2, "0").toUpperCase()})`;
+}
+
+interface CodeCtx {
+  node: any;
+  fill: any;
+  stroke: any;
+  shadows: any[];
+  blur: number;
+  blendMode: string;
+  layout: any;
+  bitmapFilter: any;
+}
+
+// ─── CSS Code Gen ─────────────────────────────────────
+
+function generateCSS(ctx: CodeCtx): string {
+  const { node, fill, stroke, shadows, blur, blendMode, layout, bitmapFilter } = ctx;
+  const lines: string[] = [];
+  const kind = node.kind;
+
   lines.push(`width: ${Math.round(node.width)}px;`);
   lines.push(`height: ${Math.round(node.height)}px;`);
   if (node.min_width != null) lines.push(`min-width: ${Math.round(node.min_width)}px;`);
@@ -143,31 +237,30 @@ function generateCSS(
   if (node.min_height != null) lines.push(`min-height: ${Math.round(node.min_height)}px;`);
   if (node.max_height != null) lines.push(`max-height: ${Math.round(node.max_height)}px;`);
 
-  // Position (absolute)
   lines.push(`position: absolute;`);
   lines.push(`left: ${Math.round(node.x)}px;`);
   lines.push(`top: ${Math.round(node.y)}px;`);
 
-  // Border radius
   if (node.corner_radius && node.corner_radius > 0) {
     lines.push(`border-radius: ${node.corner_radius}px;`);
   }
+  if (typeof kind === "string" && kind === "Ellipse") {
+    const brIdx = lines.findIndex(l => l.startsWith("border-radius"));
+    if (brIdx >= 0) lines[brIdx] = "border-radius: 50%;";
+    else lines.push("border-radius: 50%;");
+  }
 
-  // Rotation
   if (node.rotation && node.rotation !== 0) {
     lines.push(`transform: rotate(${node.rotation.toFixed(1)}deg);`);
   }
-
-  // Opacity
   if (node.opacity !== undefined && node.opacity < 1) {
     lines.push(`opacity: ${node.opacity.toFixed(2)};`);
   }
 
-  // Fill → background
+  // Fill
   if (fill) {
     if (fill.type === "Solid" || fill.color) {
-      const c = fill.color || fill;
-      lines.push(`background-color: ${rgbaToCSS(c)};`);
+      lines.push(`background-color: ${rgbaToCSS(fill.color || fill)};`);
     } else if (fill.type === "LinearGradient" && fill.stops) {
       const stops = fill.stops.map((s: any) => `${rgbaToCSS(s.color)} ${(s.offset * 100).toFixed(0)}%`).join(", ");
       lines.push(`background: linear-gradient(${stops});`);
@@ -177,61 +270,49 @@ function generateCSS(
     }
   }
 
-  // Stroke → border
+  // Stroke
   if (stroke && stroke.color && stroke.width) {
     lines.push(`border: ${stroke.width}px solid ${rgbaToCSS(stroke.color)};`);
-    if (stroke.align === "Inside") {
-      lines.push(`box-sizing: border-box; /* stroke inside */`);
-    } else if (stroke.align === "Outside") {
-      lines.push(`outline: ${stroke.width}px solid ${rgbaToCSS(stroke.color)}; /* stroke outside */`);
-    }
+    if (stroke.align === "Inside") lines.push(`box-sizing: border-box; /* stroke inside */`);
+    else if (stroke.align === "Outside") lines.push(`outline: ${stroke.width}px solid ${rgbaToCSS(stroke.color)}; /* stroke outside */`);
   }
 
-  // Shadows → box-shadow
-  if (shadows && shadows.length > 0) {
-    const visibleShadows = shadows.filter((s: any) => s.visible !== false);
-    if (visibleShadows.length > 0) {
-      const shadowStr = visibleShadows.map((s: any) =>
+  // Shadows
+  if (shadows?.length > 0) {
+    const vis = shadows.filter((s: any) => s.visible !== false);
+    if (vis.length > 0) {
+      const str = vis.map((s: any) =>
         `${s.offset_x ?? 0}px ${s.offset_y ?? 0}px ${s.blur ?? 0}px ${s.spread ?? 0}px ${rgbaToCSS(s.color)}`
       ).join(",\n    ");
-      lines.push(`box-shadow: ${shadowStr};`);
+      lines.push(`box-shadow: ${str};`);
     }
   }
 
-  // Blur + bitmap filters → filter
+  // Filter (blur + bitmap)
   {
-    const filterParts: string[] = [];
-    if (blur && blur > 0) filterParts.push(`blur(${blur}px)`);
-    const bfJson = engine.get_bitmap_filter(BigInt(id));
-    if (bfJson) {
-      try {
-        const bf = JSON.parse(bfJson);
-        if (bf.enabled !== false) {
-          if (Math.abs(bf.brightness - 1) >= 0.001) filterParts.push(`brightness(${bf.brightness})`);
-          if (Math.abs(bf.contrast - 1) >= 0.001) filterParts.push(`contrast(${bf.contrast})`);
-          if (Math.abs(bf.saturation - 1) >= 0.001) filterParts.push(`saturate(${bf.saturation})`);
-          if (Math.abs(bf.hue_rotate) >= 0.001) filterParts.push(`hue-rotate(${bf.hue_rotate}deg)`);
-          if (Math.abs(bf.invert) >= 0.001) filterParts.push(`invert(${bf.invert})`);
-          if (Math.abs(bf.grayscale) >= 0.001) filterParts.push(`grayscale(${bf.grayscale})`);
-          if (Math.abs(bf.sepia) >= 0.001) filterParts.push(`sepia(${bf.sepia})`);
-        }
-      } catch {}
+    const parts: string[] = [];
+    if (blur && blur > 0) parts.push(`blur(${blur}px)`);
+    if (bitmapFilter && bitmapFilter.enabled !== false) {
+      const bf = bitmapFilter;
+      if (Math.abs(bf.brightness - 1) >= 0.001) parts.push(`brightness(${bf.brightness})`);
+      if (Math.abs(bf.contrast - 1) >= 0.001) parts.push(`contrast(${bf.contrast})`);
+      if (Math.abs(bf.saturation - 1) >= 0.001) parts.push(`saturate(${bf.saturation})`);
+      if (Math.abs(bf.hue_rotate) >= 0.001) parts.push(`hue-rotate(${bf.hue_rotate}deg)`);
+      if (Math.abs(bf.invert) >= 0.001) parts.push(`invert(${bf.invert})`);
+      if (Math.abs(bf.grayscale) >= 0.001) parts.push(`grayscale(${bf.grayscale})`);
+      if (Math.abs(bf.sepia) >= 0.001) parts.push(`sepia(${bf.sepia})`);
     }
-    if (filterParts.length > 0) {
-      lines.push(`filter: ${filterParts.join(" ")};`);
-    }
+    if (parts.length > 0) lines.push(`filter: ${parts.join(" ")};`);
   }
 
-  // Blend mode
+  // Blend
   if (blendMode && blendMode !== "Normal" && blendMode !== "normal") {
     const cssBlend = blendMode.replace(/([A-Z])/g, "-$1").toLowerCase().replace(/^-/, "");
     lines.push(`mix-blend-mode: ${cssBlend};`);
   }
 
-  // Text properties
-  const kind = node.kind;
-  if (kind && (kind.Text !== undefined || typeof kind === "string" && kind === "Text")) {
-    const text = typeof kind === "object" ? kind.Text : null;
+  // Text
+  if (kind && (kind.Text !== undefined || (typeof kind === "string" && kind === "Text"))) {
     if (node.font_family) lines.push(`font-family: '${node.font_family}';`);
     if (node.font_size) lines.push(`font-size: ${node.font_size}px;`);
     if (node.font_weight && node.font_weight !== 400) lines.push(`font-weight: ${node.font_weight};`);
@@ -244,7 +325,6 @@ function generateCSS(
       lines.push(`text-decoration: ${cssVal};`);
     }
     if (node.letter_spacing && node.letter_spacing !== 0) lines.push(`letter-spacing: ${node.letter_spacing}px;`);
-    if (node.paragraph_spacing && node.paragraph_spacing !== 0) lines.push(`/* paragraph-spacing: ${node.paragraph_spacing}px; */`);
     if (node.fills?.[0]) lines.push(`color: ${rgbaToCSS(node.fills[0])};`);
   }
 
@@ -253,7 +333,7 @@ function generateCSS(
     lines.push(`overflow: ${node.overflow === "Scroll" ? "auto" : "hidden"};`);
   }
 
-  // Layout (Flex/Grid)
+  // Layout
   if (layout && layout.mode && layout.mode !== "None") {
     if (layout.mode === "Flex") {
       lines.push(`display: flex;`);
@@ -277,39 +357,256 @@ function generateCSS(
     }
   }
 
-  // Ellipse → border-radius: 50%
-  if (typeof kind === "string" && kind === "Ellipse") {
-    // Replace any existing border-radius
-    const brIdx = lines.findIndex(l => l.startsWith("border-radius"));
-    if (brIdx >= 0) lines[brIdx] = "border-radius: 50%;";
-    else lines.push("border-radius: 50%;");
+  return lines.join("\n");
+}
+
+// ─── SwiftUI Code Gen ─────────────────────────────────
+
+function generateSwiftUI(ctx: CodeCtx): string {
+  const { node, fill, stroke, shadows, blur, blendMode, layout } = ctx;
+  const kind = node.kind;
+  const lines: string[] = [];
+  const isText = kind && (kind.Text !== undefined || (typeof kind === "string" && kind === "Text"));
+  const isEllipse = typeof kind === "string" && kind === "Ellipse";
+  const isImage = kind && kind.Image !== undefined;
+
+  // View body
+  if (isText) {
+    const text = typeof kind === "object" ? kind.Text : "";
+    lines.push(`Text("${(text || "").replace(/"/g, '\\"')}")`);
+    if (node.font_family) lines.push(`    .font(.custom("${node.font_family}", size: ${node.font_size || 16}))`);
+    else if (node.font_size) lines.push(`    .font(.system(size: ${node.font_size}))`);
+    if (node.font_weight && node.font_weight !== 400) {
+      const w = swiftFontWeight(node.font_weight);
+      lines.push(`    .fontWeight(.${w})`);
+    }
+    if (node.font_style === "italic") lines.push(`    .italic()`);
+    if (node.text_align && node.text_align !== "left") {
+      const align = node.text_align === "center" ? "center" : node.text_align === "right" ? "trailing" : "leading";
+      lines.push(`    .multilineTextAlignment(.${align})`);
+    }
+    if (node.line_height && node.line_height !== 1.2) {
+      lines.push(`    .lineSpacing(${((node.line_height - 1) * (node.font_size || 16)).toFixed(1)})`);
+    }
+    if (node.letter_spacing) lines.push(`    .kerning(${node.letter_spacing})`);
+    const textDeco = node.text_decoration;
+    if (textDeco === "Underline") lines.push(`    .underline()`);
+    else if (textDeco === "Strikethrough") lines.push(`    .strikethrough()`);
+    // Text color from fills
+    if (node.fills?.[0]) lines.push(`    .foregroundColor(${swiftColor(node.fills[0])})`);
+  } else if (isImage) {
+    lines.push(`AsyncImage(url: URL(string: "${kind.Image?.src || ""}")) { image in`);
+    lines.push(`    image.resizable()`);
+    const fit = kind.Image?.fit || "Cover";
+    lines.push(`    ${fit === "Contain" ? ".aspectRatio(contentMode: .fit)" : ".aspectRatio(contentMode: .fill)"}`);
+    lines.push(`} placeholder: {`);
+    lines.push(`    ProgressView()`);
+    lines.push(`}`);
+  } else if (isEllipse) {
+    lines.push(`Ellipse()`);
+  } else {
+    // Rectangle-ish (Rect, Frame, Star, Polygon, Path)
+    if (node.corner_radius && node.corner_radius > 0) {
+      lines.push(`RoundedRectangle(cornerRadius: ${node.corner_radius})`);
+    } else {
+      lines.push(`Rectangle()`);
+    }
+  }
+
+  // Fill
+  if (fill) {
+    if (fill.type === "Solid" || fill.color) {
+      lines.push(`    .fill(${swiftColor(fill.color || fill)})`);
+    } else if (fill.type === "LinearGradient" && fill.stops) {
+      const stops = fill.stops.map((s: any) =>
+        `.init(color: ${swiftColor(s.color)}, location: ${s.offset.toFixed(2)})`
+      ).join(", ");
+      lines.push(`    .fill(LinearGradient(stops: [${stops}], startPoint: .leading, endPoint: .trailing))`);
+    } else if (fill.type === "RadialGradient" && fill.stops) {
+      const stops = fill.stops.map((s: any) =>
+        `.init(color: ${swiftColor(s.color)}, location: ${s.offset.toFixed(2)})`
+      ).join(", ");
+      lines.push(`    .fill(RadialGradient(stops: [${stops}], center: .center, startRadius: 0, endRadius: ${Math.max(node.width, node.height) / 2}))`);
+    }
+  }
+
+  // Stroke
+  if (stroke && stroke.color && stroke.width) {
+    lines.push(`    .overlay(`);
+    const shape = isEllipse ? "Ellipse()" : (node.corner_radius > 0 ? `RoundedRectangle(cornerRadius: ${node.corner_radius})` : "Rectangle()");
+    lines.push(`        ${shape}.stroke(${swiftColor(stroke.color)}, lineWidth: ${stroke.width})`);
+    lines.push(`    )`);
+  }
+
+  // Frame
+  lines.push(`    .frame(width: ${Math.round(node.width)}, height: ${Math.round(node.height)})`);
+
+  // Position
+  lines.push(`    .position(x: ${Math.round(node.x + node.width / 2)}, y: ${Math.round(node.y + node.height / 2)})`);
+
+  // Rotation
+  if (node.rotation && node.rotation !== 0) {
+    lines.push(`    .rotationEffect(.degrees(${node.rotation.toFixed(1)}))`);
+  }
+
+  // Opacity
+  if (node.opacity !== undefined && node.opacity < 1) {
+    lines.push(`    .opacity(${node.opacity.toFixed(2)})`);
+  }
+
+  // Shadow
+  if (shadows?.length > 0) {
+    const s = shadows.find((s: any) => s.visible !== false);
+    if (s) {
+      lines.push(`    .shadow(color: ${swiftColor(s.color)}, radius: ${s.blur ?? 0}, x: ${s.offset_x ?? 0}, y: ${s.offset_y ?? 0})`);
+    }
+  }
+
+  // Blur
+  if (blur && blur > 0) {
+    lines.push(`    .blur(radius: ${blur})`);
+  }
+
+  // Blend mode
+  if (blendMode && blendMode !== "Normal") {
+    const bm = swiftBlendMode(blendMode);
+    if (bm) lines.push(`    .blendMode(.${bm})`);
+  }
+
+  // Clipping
+  if (node.overflow === "Hidden") {
+    lines.push(`    .clipped()`);
   }
 
   return lines.join("\n");
 }
 
-function cssAlignValue(v: string): string {
-  const map: Record<string, string> = { Start: "flex-start", Center: "center", End: "flex-end", Stretch: "stretch" };
-  return map[v] || v.toLowerCase();
-}
+// ─── Kotlin Compose Code Gen ──────────────────────────
 
-function cssJustifyValue(v: string): string {
-  const map: Record<string, string> = { Start: "flex-start", Center: "center", End: "flex-end", SpaceBetween: "space-between", SpaceAround: "space-around" };
-  return map[v] || v.toLowerCase();
-}
+function generateKotlin(ctx: CodeCtx): string {
+  const { node, fill, stroke, shadows, blur, blendMode, layout } = ctx;
+  const kind = node.kind;
+  const isText = kind && (kind.Text !== undefined || (typeof kind === "string" && kind === "Text"));
+  const isEllipse = typeof kind === "string" && kind === "Ellipse";
+  const isImage = kind && kind.Image !== undefined;
 
-function generateSVGProps(
-  node: any, fill: any, stroke: any, shadows: any[], blur: number
-): string | null {
-  if (!stroke?.dash_array && !stroke?.line_cap && !stroke?.line_join) {
-    // Only show SVG section if there are SVG-specific props
-    const kind = node.kind;
-    const isPath = kind && (kind.Path !== undefined || kind === "Path");
-    const isStar = kind && (kind.Star !== undefined);
-    const isPoly = kind && (kind.Polygon !== undefined);
-    if (!isPath && !isStar && !isPoly) return null;
+  const lines: string[] = [];
+
+  // Modifier chain
+  const mods: string[] = [];
+  mods.push(`.size(${Math.round(node.width)}.dp, ${Math.round(node.height)}.dp)`);
+  mods.push(`.offset(x = ${Math.round(node.x)}.dp, y = ${Math.round(node.y)}.dp)`);
+
+  if (node.corner_radius && node.corner_radius > 0 && !isEllipse) {
+    mods.push(`.clip(RoundedCornerShape(${node.corner_radius}.dp))`);
+  }
+  if (isEllipse) {
+    mods.push(`.clip(CircleShape)`);
   }
 
+  // Fill → background
+  if (fill) {
+    if (fill.type === "Solid" || fill.color) {
+      mods.push(`.background(${kotlinColor(fill.color || fill)})`);
+    } else if (fill.type === "LinearGradient" && fill.stops) {
+      const stops = fill.stops.map((s: any) => `${kotlinColor(s.color)}`).join(", ");
+      mods.push(`.background(Brush.linearGradient(listOf(${stops})))`);
+    }
+  }
+
+  // Stroke → border
+  if (stroke && stroke.color && stroke.width) {
+    const shape = isEllipse ? "CircleShape" : (node.corner_radius > 0 ? `RoundedCornerShape(${node.corner_radius}.dp)` : "RectangleShape");
+    mods.push(`.border(${stroke.width}.dp, ${kotlinColor(stroke.color)}, ${shape})`);
+  }
+
+  // Rotation
+  if (node.rotation && node.rotation !== 0) {
+    mods.push(`.rotate(${node.rotation.toFixed(1)}f)`);
+  }
+
+  // Opacity
+  if (node.opacity !== undefined && node.opacity < 1) {
+    mods.push(`.alpha(${node.opacity.toFixed(2)}f)`);
+  }
+
+  // Shadow
+  if (shadows?.length > 0) {
+    const s = shadows.find((s: any) => s.visible !== false);
+    if (s) {
+      mods.push(`.shadow(elevation = ${s.blur ?? 4}.dp)`);
+    }
+  }
+
+  // Blur
+  if (blur && blur > 0) {
+    mods.push(`.blur(${blur}.dp)`);
+  }
+
+  if (isText) {
+    const text = typeof kind === "object" ? kind.Text : "";
+    lines.push(`Text(`);
+    lines.push(`    text = "${(text || "").replace(/"/g, '\\"')}",`);
+    if (node.font_size) lines.push(`    fontSize = ${node.font_size}.sp,`);
+    if (node.font_weight && node.font_weight !== 400) {
+      lines.push(`    fontWeight = FontWeight(${node.font_weight}),`);
+    }
+    if (node.font_style === "italic") lines.push(`    fontStyle = FontStyle.Italic,`);
+    if (node.font_family) lines.push(`    fontFamily = FontFamily(Font(R.font.${node.font_family.toLowerCase().replace(/\s+/g, "_")})),`);
+    if (node.text_align) {
+      const align = node.text_align === "center" ? "Center" : node.text_align === "right" ? "End" : "Start";
+      lines.push(`    textAlign = TextAlign.${align},`);
+    }
+    if (node.line_height && node.line_height !== 1.2) {
+      lines.push(`    lineHeight = ${(node.line_height * (node.font_size || 16)).toFixed(0)}.sp,`);
+    }
+    if (node.letter_spacing) lines.push(`    letterSpacing = ${node.letter_spacing}.sp,`);
+    const textDeco = node.text_decoration;
+    if (textDeco === "Underline") lines.push(`    textDecoration = TextDecoration.Underline,`);
+    else if (textDeco === "Strikethrough") lines.push(`    textDecoration = TextDecoration.LineThrough,`);
+    if (node.fills?.[0]) lines.push(`    color = ${kotlinColor(node.fills[0])},`);
+    lines.push(`    modifier = Modifier`);
+    lines.push(`        ${mods.join("\n        ")}`);
+    lines.push(`)`);
+  } else if (isImage) {
+    lines.push(`AsyncImage(`);
+    lines.push(`    model = "${kind.Image?.src || ""}",`);
+    lines.push(`    contentDescription = null,`);
+    const fit = kind.Image?.fit || "Cover";
+    lines.push(`    contentScale = ContentScale.${fit === "Contain" ? "Fit" : fit === "Fill" ? "FillBounds" : "Crop"},`);
+    lines.push(`    modifier = Modifier`);
+    lines.push(`        ${mods.join("\n        ")}`);
+    lines.push(`)`);
+  } else {
+    // Box
+    lines.push(`Box(`);
+    lines.push(`    modifier = Modifier`);
+    lines.push(`        ${mods.join("\n        ")}`);
+    lines.push(`) {`);
+    if (layout && layout.mode === "Flex") {
+      const isCol = layout.direction === "Column";
+      lines.push(`    ${isCol ? "Column" : "Row"}(`);
+      if (layout.gap) lines.push(`        ${isCol ? "verticalArrangement" : "horizontalArrangement"} = Arrangement.spacedBy(${layout.gap}.dp),`);
+      if (layout.align_items) {
+        const align = layout.align_items === "Center" ? "CenterHorizontally" : layout.align_items === "End" ? "End" : "Start";
+        lines.push(`        ${isCol ? "horizontalAlignment" : "verticalAlignment"} = Alignment.${align},`);
+      }
+      if (layout.padding) {
+        const p = layout.padding;
+        lines.push(`        modifier = Modifier.padding(start = ${p.left ?? 0}.dp, top = ${p.top ?? 0}.dp, end = ${p.right ?? 0}.dp, bottom = ${p.bottom ?? 0}.dp)`);
+      }
+      lines.push(`    ) { /* children */ }`);
+    }
+    lines.push(`}`);
+  }
+
+  return lines.join("\n");
+}
+
+// ─── SVG Props Gen ────────────────────────────────────
+
+function generateSVGProps(ctx: CodeCtx): string | null {
+  const { node, fill, stroke, shadows, blur } = ctx;
   const lines: string[] = [];
 
   if (fill) {
@@ -321,7 +618,7 @@ function generateSVGProps(
   if (stroke && stroke.color && stroke.width) {
     lines.push(`stroke="${colorToHex(stroke.color)}"`);
     lines.push(`stroke-width="${stroke.width}"`);
-    if (stroke.dash_array && stroke.dash_array.length > 0) {
+    if (stroke.dash_array?.length > 0) {
       lines.push(`stroke-dasharray="${stroke.dash_array.join(" ")}"`);
       if (stroke.dash_offset) lines.push(`stroke-dashoffset="${stroke.dash_offset}"`);
     }
@@ -340,26 +637,150 @@ function generateSVGProps(
   return lines.length > 0 ? lines.join("\n") : null;
 }
 
+// ─── Asset Download ───────────────────────────────────
+
+function downloadAsset(editor: Editor, nodeId: number, format: "png" | "svg") {
+  try {
+    if (format === "svg") {
+      const svg = editor.engine.export_node_svg(BigInt(nodeId));
+      if (svg) {
+        const blob = new Blob([svg], { type: "image/svg+xml" });
+        downloadBlob(blob, `node-${nodeId}.svg`);
+      }
+    } else {
+      // PNG: render node to offscreen canvas
+      const json = editor.engine.get_node_json(BigInt(nodeId));
+      if (!json) return;
+      const node = JSON.parse(json);
+      const scale = 2;
+      const w = Math.ceil(node.width * scale);
+      const h = Math.ceil(node.height * scale);
+      const offscreen = document.createElement("canvas");
+      offscreen.width = w;
+      offscreen.height = h;
+      const octx = offscreen.getContext("2d")!;
+      octx.scale(scale, scale);
+      octx.translate(-node.x, -node.y);
+      // Use engine's export
+      try {
+        const png = (editor as any).exportNodePNG?.(nodeId, scale);
+        if (png) { downloadBlob(png, `node-${nodeId}.png`); return; }
+      } catch {}
+      // Fallback: capture from main canvas via engine export
+      const dataUrl = editor.engine.export_png(BigInt(nodeId), scale);
+      if (dataUrl) {
+        const a = document.createElement("a");
+        a.href = dataUrl;
+        a.download = `node-${nodeId}.png`;
+        a.click();
+      }
+    }
+  } catch (e) {
+    console.warn("Asset download failed:", e);
+  }
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ─── Utility ──────────────────────────────────────────
+
+function cssAlignValue(v: string): string {
+  const map: Record<string, string> = { Start: "flex-start", Center: "center", End: "flex-end", Stretch: "stretch" };
+  return map[v] || v.toLowerCase();
+}
+
+function cssJustifyValue(v: string): string {
+  const map: Record<string, string> = { Start: "flex-start", Center: "center", End: "flex-end", SpaceBetween: "space-between", SpaceAround: "space-around" };
+  return map[v] || v.toLowerCase();
+}
+
+function swiftFontWeight(w: number): string {
+  if (w <= 100) return "ultraLight";
+  if (w <= 200) return "thin";
+  if (w <= 300) return "light";
+  if (w <= 400) return "regular";
+  if (w <= 500) return "medium";
+  if (w <= 600) return "semibold";
+  if (w <= 700) return "bold";
+  if (w <= 800) return "heavy";
+  return "black";
+}
+
+function swiftBlendMode(mode: string): string | null {
+  const map: Record<string, string> = {
+    Multiply: "multiply", Screen: "screen", Overlay: "overlay",
+    Darken: "darken", Lighten: "lighten", ColorDodge: "colorDodge",
+    ColorBurn: "colorBurn", SoftLight: "softLight", HardLight: "hardLight",
+    Difference: "difference", Exclusion: "exclusion",
+    Hue: "hue", Saturation: "saturation", Color: "color", Luminosity: "luminosity",
+  };
+  return map[mode] || null;
+}
+
+function highlightCode(code: string, lang: CodeLang): string {
+  if (lang === "css" || lang === "svg") return highlightCSS(code);
+  if (lang === "swiftui") return highlightSwift(code);
+  if (lang === "kotlin") return highlightKotlin(code);
+  return escapeHtml(code);
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 function highlightCSS(code: string): string {
   return code
-    // Properties (word before colon)
     .replace(/^([\w-]+)(?=:)/gm, '<span style="color:#9cdcfe;">$1</span>')
-    // Values: numbers with units
     .replace(/:\s*(.+);/g, (_m, val) => {
       const highlighted = (val as string)
-        // Numbers + units
         .replace(/(\d+\.?\d*)(px|deg|%)?/g, '<span style="color:#b5cea8;">$1$2</span>')
-        // Color values: rgb/rgba/hex
         .replace(/(rgba?\([^)]+\))/g, '<span style="color:#ce9178;">$1</span>')
         .replace(/(#[0-9a-fA-F]{3,8})/g, '<span style="color:#ce9178;">$1</span>')
-        // Keywords
         .replace(/\b(solid|absolute|flex|grid|column|wrap|center|none|inherit|italic)\b/g, '<span style="color:#c586c0;">$1</span>')
-        // Strings (font names)
         .replace(/('[^']+')/g, '<span style="color:#ce9178;">$1</span>');
       return `: ${highlighted};`;
     })
-    // SVG attribute names
     .replace(/^([\w-]+)(?==)/gm, '<span style="color:#9cdcfe;">$1</span>')
-    // SVG attribute values in quotes
     .replace(/"([^"]+)"/g, '"<span style="color:#ce9178;">$1</span>"');
+}
+
+function highlightSwift(code: string): string {
+  let out = escapeHtml(code);
+  // Keywords
+  out = out.replace(/\b(struct|var|let|func|import|return|if|else|true|false|nil|some|self)\b/g,
+    '<span style="color:#c586c0;">$1</span>');
+  // Types
+  out = out.replace(/\b(Text|Image|Color|Font|Rectangle|Ellipse|RoundedRectangle|LinearGradient|RadialGradient|AsyncImage|ProgressView|View|VStack|HStack|ZStack|Spacer|Modifier|Path|Circle|Shape)\b/g,
+    '<span style="color:#4ec9b0;">$1</span>');
+  // Dot members
+  out = out.replace(/\.(\w+)/g, '.<span style="color:#9cdcfe;">$1</span>');
+  // Numbers
+  out = out.replace(/\b(\d+\.?\d*)\b/g, '<span style="color:#b5cea8;">$1</span>');
+  // Strings
+  out = out.replace(/"([^"]+)"/g, '"<span style="color:#ce9178;">$1</span>"');
+  return out;
+}
+
+function highlightKotlin(code: string): string {
+  let out = escapeHtml(code);
+  // Keywords
+  out = out.replace(/\b(fun|val|var|class|object|import|return|if|else|true|false|null|when|is|in)\b/g,
+    '<span style="color:#c586c0;">$1</span>');
+  // Types / composables
+  out = out.replace(/\b(Text|Box|Column|Row|Image|Modifier|Color|FontWeight|FontStyle|FontFamily|Font|TextAlign|TextDecoration|Brush|RoundedCornerShape|CircleShape|RectangleShape|ContentScale|Arrangement|Alignment|AsyncImage|Dp|Sp)\b/g,
+    '<span style="color:#4ec9b0;">$1</span>');
+  // Dot chains
+  out = out.replace(/\.(\w+)/g, '.<span style="color:#9cdcfe;">$1</span>');
+  // Numbers
+  out = out.replace(/\b(\d+\.?\d*)(\.dp|\.sp|f)?\b/g, '<span style="color:#b5cea8;">$1$2</span>');
+  // Strings
+  out = out.replace(/"([^"]+)"/g, '"<span style="color:#ce9178;">$1</span>"');
+  return out;
 }

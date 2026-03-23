@@ -610,3 +610,11 @@ Frame overflow control and content scrolling.
 - [x] Properties panel: Breakpoints section (under Auto Layout), add/remove/edit breakpoints, label/max_width/direction/gap/wrap overrides
 - [x] Active breakpoint badge indicator
 - [x] Backward-compatible serde (default empty vec)
+
+### Dev Mode Handoff (Multi-language code gen + asset download)
+- [x] Inspect panel language tabs: CSS / SwiftUI / Kotlin Compose / SVG
+- [x] SwiftUI code gen: Text, Image, Rectangle, Ellipse, RoundedRectangle, fill, stroke, frame, position, rotation, opacity, shadow, blur, blend mode, font properties, text decoration
+- [x] Kotlin Compose code gen: Text, Box, Image, Modifier chain (size, offset, clip, background, border, rotate, alpha, shadow, blur), layout (Column/Row), font/text properties
+- [x] Asset download buttons: per-node PNG (2x) and SVG export with one-click download
+- [x] Syntax highlighting for all languages (VS Code-style colors)
+- [x] CSS gen refactored: bitmap filter support via context object (no closure capture)
