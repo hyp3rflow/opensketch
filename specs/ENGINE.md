@@ -31,7 +31,7 @@ Pure Rust crate compiled to WASM via `wasm-pack`. No NAPI — runs entirely in t
 - `GridSizeMode`: `Auto` | `Fixed(f64)` — column/row width mode
 - `LayoutGrid { grid_type, count: u32, size_mode: GridSizeMode, gutter: f64, margin: f64, color: Color, visible: bool }` — Figma-style layout grid overlay
 - `SizingMode`: `Fixed` | `Hug` | `Fill` — auto layout child sizing (Figma-style)
-- `Node` struct: full node with id, name, kind, transform (x/y/w/h/rotation), style (opacity, fills: Vec<Fill>, stroke, corner_radius, shadows: Vec<Shadow>, blur: f64), tree (children, parent), flags (visible, locked), layout_grids: Vec<LayoutGrid>, sizing_h/sizing_v: SizingMode, min_width/max_width/min_height/max_height: Option<f64>, absolute_position: bool
+- `Node` struct: full node with id, name, kind, transform (x/y/w/h/rotation), style (opacity, fills: Vec<Fill>, strokes: Vec<Stroke>, corner_radius, shadows: Vec<Shadow>, blur: f64), tree (children, parent), flags (visible, locked), layout_grids: Vec<LayoutGrid>, sizing_h/sizing_v: SizingMode, min_width/max_width/min_height/max_height: Option<f64>, absolute_position: bool
 
 ### `scene.rs`
 - `Scene`: flat HashMap + root_children ordering
@@ -73,7 +73,8 @@ Pure Rust crate compiled to WASM via `wasm-pack`. No NAPI — runs entirely in t
 - Each `Fill` has `fill_type: FillType` and `visible: bool` toggle
 - Backward compatible: old `"fill": {...}` JSON deserialized into `fills[0]`; `fill` field is `skip_serializing`
 - `Node::normalize_fills()` called on import to migrate old single fill → fills array
-- Rendering: all visible fills rendered in sequence (bottom → top) before stroke
+- Rendering: all visible fills rendered in sequence (bottom → top); strokes rendered per-stroke (outside before fills, center/inside after fills)
+- Multi-stroke: Vec<Stroke> with visible toggle per stroke, add/remove/update API
 - SVG export: uses first visible fill (SVG doesn't natively support stacked fills)
 - WASM API: `add_fill`, `remove_fill`, `update_fill_at`, `set_fill_visible_at`, `get_fills`, `get_fill_count`, `move_fill`, `set_fill_linear_gradient_at`, `set_fill_radial_gradient_at`
 - Legacy `set_fill_color` / `set_fill_linear_gradient` / `set_fill_radial_gradient` update fills[0]

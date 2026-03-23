@@ -1042,134 +1042,116 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
     // --- Stroke ---
     {
       const strokeSection = createSection("Stroke");
-      if (node.stroke) {
-        strokeSection.appendChild(createColorRow(
-          node.stroke.color,
-          (r, g, b, a) => {
-            editor.engine.set_stroke(id, r, g, b, a, node.stroke.width);
+      const strokes: any[] = (() => {
+        try { return JSON.parse(editor.engine.get_strokes_info(id)); } catch { return []; }
+      })();
+      if (strokes.length > 0) {
+        strokes.forEach((stroke: any, idx: number) => {
+          const strokeItem = document.createElement("div");
+          strokeItem.style.cssText = "margin-bottom:8px;padding:6px;background:rgba(255,255,255,0.03);border-radius:6px;";
+
+          // Header row: color + width + visible + remove
+          const headerRow = document.createElement("div");
+          headerRow.className = "prop-row";
+          headerRow.style.gap = "4px";
+
+          // Visible toggle
+          const visBtn = document.createElement("button");
+          visBtn.className = "prop-icon-btn";
+          visBtn.innerHTML = stroke.visible ? icons.eye : icons.eyeOff;
+          visBtn.title = stroke.visible ? "Hide stroke" : "Show stroke";
+          visBtn.addEventListener("click", () => {
+            editor.engine.set_stroke_visible_at(id, idx, !stroke.visible);
+            editor.requestRender(); refresh(ids);
+          });
+          headerRow.appendChild(visBtn);
+
+          headerRow.appendChild(createColorRow(
+            stroke.color,
+            (r: number, g: number, b: number, a: number) => {
+              editor.engine.update_stroke_at(id, idx, r, g, b, a, stroke.width);
+              editor.requestRender();
+            }
+          ));
+
+          const wInput = document.createElement("input");
+          wInput.className = "prop-input";
+          wInput.style.width = "40px";
+          wInput.value = stroke.width.toFixed(0);
+          wInput.addEventListener("change", () => {
+            const w = parseFloat(wInput.value) || 1;
+            editor.engine.update_stroke_at(id, idx, stroke.color.r, stroke.color.g, stroke.color.b, stroke.color.a, w);
+            editor.requestRender(); refresh(ids);
+          });
+          headerRow.appendChild(wInput);
+
+          const removeBtn = document.createElement("button");
+          removeBtn.className = "prop-icon-btn";
+          removeBtn.innerHTML = "×";
+          removeBtn.title = "Remove stroke";
+          removeBtn.addEventListener("click", () => {
+            editor.engine.remove_stroke(id, idx);
+            editor.requestRender(); refresh(ids);
+          });
+          headerRow.appendChild(removeBtn);
+          strokeItem.appendChild(headerRow);
+
+          // Dash pattern
+          const dashRow = document.createElement("div");
+          dashRow.className = "prop-row";
+          dashRow.style.marginTop = "4px";
+          const dashLabel = document.createElement("span");
+          dashLabel.className = "prop-label";
+          dashLabel.textContent = "Dash";
+          dashRow.appendChild(dashLabel);
+          const dashInput = document.createElement("input");
+          dashInput.className = "prop-input";
+          dashInput.placeholder = "e.g. 10,5";
+          dashInput.value = (stroke.dash_array && stroke.dash_array.length > 0) ? stroke.dash_array.join(",") : "";
+          dashInput.addEventListener("change", () => {
+            editor.engine.set_stroke_dash_at(id, idx, dashInput.value, 0);
             editor.requestRender();
+          });
+          dashRow.appendChild(dashInput);
+          strokeItem.appendChild(dashRow);
+
+          // Cap / Join / Align row
+          const optRow = document.createElement("div");
+          optRow.className = "prop-row";
+          optRow.style.cssText = "margin-top:4px;gap:4px;";
+          for (const [label, values, current, setter] of [
+            ["Cap", ["butt", "round", "square"], stroke.line_cap || "butt", (v: string) => editor.engine.set_stroke_cap_at(id, idx, v)],
+            ["Join", ["miter", "round", "bevel"], stroke.line_join || "miter", (v: string) => editor.engine.set_stroke_join_at(id, idx, v)],
+            ["Align", ["Center", "Inside", "Outside"], stroke.align || "Center", (v: string) => editor.engine.set_stroke_align_at(id, idx, v)],
+          ] as [string, string[], string, (v: string) => void][]) {
+            const sel = document.createElement("select");
+            sel.className = "prop-input";
+            sel.title = label;
+            sel.style.flex = "1";
+            for (const v of values) {
+              const opt = document.createElement("option");
+              opt.value = v;
+              opt.textContent = v.charAt(0).toUpperCase() + v.slice(1);
+              if (v === current) opt.selected = true;
+              sel.appendChild(opt);
+            }
+            sel.addEventListener("change", () => { setter(sel.value); editor.requestRender(); });
+            optRow.appendChild(sel);
           }
-        ));
-        const widthRow = document.createElement("div");
-        widthRow.className = "prop-row";
-        widthRow.style.marginTop = "6px";
-        const wLabel = document.createElement("span");
-        wLabel.className = "prop-label";
-        wLabel.innerHTML = icons.strokeWidth;
-        widthRow.appendChild(wLabel);
-        const wInput = document.createElement("input");
-        wInput.className = "prop-input";
-        wInput.value = node.stroke.width.toFixed(0);
-        wInput.addEventListener("change", () => {
-          const w = parseFloat(wInput.value) || 1;
-          editor.engine.set_stroke(id, node.stroke.color.r, node.stroke.color.g, node.stroke.color.b, node.stroke.color.a, w);
-          editor.requestRender();
-        });
-        widthRow.appendChild(wInput);
-        strokeSection.appendChild(widthRow);
+          strokeItem.appendChild(optRow);
 
-        // Dash pattern
-        const dashRow = document.createElement("div");
-        dashRow.className = "prop-row";
-        dashRow.style.marginTop = "4px";
-        const dashLabel = document.createElement("span");
-        dashLabel.className = "prop-label";
-        dashLabel.textContent = "Dash";
-        dashLabel.title = "Dash pattern (comma-separated, e.g. 10,5)";
-        dashRow.appendChild(dashLabel);
-        const dashInput = document.createElement("input");
-        dashInput.className = "prop-input";
-        dashInput.placeholder = "e.g. 10,5";
-        dashInput.value = (node.stroke.dash_array && node.stroke.dash_array.length > 0) ? node.stroke.dash_array.join(",") : "";
-        dashInput.addEventListener("change", () => {
-          editor.engine.set_stroke_dash(id, dashInput.value, 0);
-          editor.requestRender();
+          strokeSection.appendChild(strokeItem);
         });
-        dashRow.appendChild(dashInput);
-        strokeSection.appendChild(dashRow);
-
-        // Line cap
-        const capRow = document.createElement("div");
-        capRow.className = "prop-row";
-        capRow.style.marginTop = "4px";
-        const capLabel = document.createElement("span");
-        capLabel.className = "prop-label";
-        capLabel.textContent = "Cap";
-        capRow.appendChild(capLabel);
-        const capSelect = document.createElement("select");
-        capSelect.className = "prop-input";
-        for (const v of ["Butt", "Round", "Square"]) {
-          const opt = document.createElement("option");
-          opt.value = v.toLowerCase();
-          opt.textContent = v;
-          if ((node.stroke.line_cap || "Butt") === v) opt.selected = true;
-          capSelect.appendChild(opt);
-        }
-        capSelect.addEventListener("change", () => {
-          editor.engine.set_stroke_cap(id, capSelect.value);
-          editor.requestRender();
-        });
-        capRow.appendChild(capSelect);
-        strokeSection.appendChild(capRow);
-
-        // Line join
-        const joinRow = document.createElement("div");
-        joinRow.className = "prop-row";
-        joinRow.style.marginTop = "4px";
-        const joinLabel = document.createElement("span");
-        joinLabel.className = "prop-label";
-        joinLabel.textContent = "Join";
-        joinRow.appendChild(joinLabel);
-        const joinSelect = document.createElement("select");
-        joinSelect.className = "prop-input";
-        for (const v of ["Miter", "Round", "Bevel"]) {
-          const opt = document.createElement("option");
-          opt.value = v.toLowerCase();
-          opt.textContent = v;
-          if ((node.stroke.line_join || "Miter") === v) opt.selected = true;
-          joinSelect.appendChild(opt);
-        }
-        joinSelect.addEventListener("change", () => {
-          editor.engine.set_stroke_join(id, joinSelect.value);
-          editor.requestRender();
-        });
-        joinRow.appendChild(joinSelect);
-        strokeSection.appendChild(joinRow);
-
-        // Stroke align
-        const alignRow = document.createElement("div");
-        alignRow.className = "prop-row";
-        alignRow.style.marginTop = "4px";
-        const alignLabel = document.createElement("span");
-        alignLabel.className = "prop-label";
-        alignLabel.textContent = "Align";
-        alignRow.appendChild(alignLabel);
-        const alignSelect = document.createElement("select");
-        alignSelect.className = "prop-input";
-        for (const v of ["Center", "Inside", "Outside"]) {
-          const opt = document.createElement("option");
-          opt.value = v;
-          opt.textContent = v;
-          if ((node.stroke.align || "Center") === v) opt.selected = true;
-          alignSelect.appendChild(opt);
-        }
-        alignSelect.addEventListener("change", () => {
-          editor.engine.set_stroke_align(id, alignSelect.value);
-          editor.requestRender();
-        });
-        alignRow.appendChild(alignSelect);
-        strokeSection.appendChild(alignRow);
-      } else {
-        const addBtn = document.createElement("button");
-        addBtn.className = "prop-add-btn";
-        addBtn.textContent = "+ Add stroke";
-        addBtn.addEventListener("click", () => {
-          editor.engine.set_stroke(id, 0, 0, 0, 1.0, 1);
-          editor.requestRender();
-          refresh(ids);
-        });
-        strokeSection.appendChild(addBtn);
       }
+      const addBtn = document.createElement("button");
+      addBtn.className = "prop-add-btn";
+      addBtn.textContent = "+ Add stroke";
+      addBtn.addEventListener("click", () => {
+        editor.engine.add_stroke(id, 0, 0, 0, 1.0, 1);
+        editor.requestRender();
+        refresh(ids);
+      });
+      strokeSection.appendChild(addBtn);
       container.appendChild(strokeSection);
     }
 

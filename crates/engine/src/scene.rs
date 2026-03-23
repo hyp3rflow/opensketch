@@ -399,6 +399,7 @@ impl Scene {
                 for node in &page.nodes {
                     let mut n = node.clone();
                     n.normalize_fills();
+                    n.normalize_strokes();
                     nodes.insert(n.id, n);
                 }
                 root_children = page.root_children.clone();
@@ -421,6 +422,7 @@ impl Scene {
                     for page in &mut pages {
                         for node in &mut page.nodes {
                             node.normalize_fills();
+                            node.normalize_strokes();
                         }
                     }
                     pages
@@ -439,6 +441,7 @@ impl Scene {
             for node in &data.nodes {
                 let mut n = node.clone();
                 n.normalize_fills();
+                n.normalize_strokes();
                 nodes.insert(n.id, n);
             }
             let page = Page {
@@ -972,7 +975,7 @@ impl Scene {
                 ("stroke.color", VariableValue::Color(hex)) => {
                     if let Some(node) = self.nodes.get_mut(&node_id) {
                         if let Some(color) = parse_hex_color(hex) {
-                            if let Some(stroke) = &mut node.stroke {
+                            if let Some(stroke) = node.strokes.first_mut() {
                                 stroke.color = color;
                             }
                         }

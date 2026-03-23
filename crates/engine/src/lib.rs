@@ -277,7 +277,7 @@ impl Engine {
         node.x = x; node.y = y; node.width = 0.0; node.height = 0.0;
         node.name = format!("Path {}", self.scene.node_count() + 1);
         node.fills = vec![];
-        node.stroke = Some(Stroke { color: crate::types::Color::white(), width: 2.0, dash_array: vec![], dash_offset: 0.0, line_cap: Default::default(), line_join: Default::default(), align: Default::default() });
+        node.strokes = vec![Stroke::new(crate::types::Color::white(), 2.0)];
         self.scene.add_node(node)
     }
 
@@ -455,15 +455,7 @@ impl Engine {
         node.height = h;
         node.name = format!("Connector {}", self.scene.node_count() + 1);
         node.fills = vec![];
-        node.stroke = Some(Stroke {
-            color: Color::white(),
-            width: 2.0,
-            dash_array: vec![],
-            dash_offset: 0.0,
-            line_cap: Default::default(),
-            line_join: Default::default(),
-            align: Default::default(),
-        });
+        node.strokes = vec![Stroke::new(Color::white(), 2.0)];
         self.scene.add_node(node)
     }
 
@@ -868,25 +860,23 @@ impl Engine {
         }
     }
 
+    /// Set stroke at index 0 (backward compat). Creates if empty.
     pub fn set_stroke(&mut self, id: u64, r: u8, g: u8, b: u8, a: f64, width: f64) {
         if let Some(node) = self.scene.get_node_mut(id) {
-            let existing = node.stroke.take();
-            node.stroke = Some(Stroke {
-                color: Color { r, g, b, a },
-                width,
-                dash_array: existing.as_ref().map(|s| s.dash_array.clone()).unwrap_or_default(),
-                dash_offset: existing.as_ref().map(|s| s.dash_offset).unwrap_or(0.0),
-                line_cap: existing.as_ref().map(|s| s.line_cap.clone()).unwrap_or_default(),
-                line_join: existing.as_ref().map(|s| s.line_join.clone()).unwrap_or_default(),
-                align: existing.as_ref().map(|s| s.align.clone()).unwrap_or_default(),
-            });
+            if node.strokes.is_empty() {
+                node.strokes.push(Stroke::new(Color { r, g, b, a }, width));
+            } else {
+                let s = &mut node.strokes[0];
+                s.color = Color { r, g, b, a };
+                s.width = width;
+            }
         }
     }
 
-    /// Set stroke alignment (Center, Inside, Outside)
+    /// Set stroke alignment (index 0)
     pub fn set_stroke_align(&mut self, id: u64, align: &str) {
         if let Some(node) = self.scene.get_node_mut(id) {
-            if let Some(stroke) = &mut node.stroke {
+            if let Some(stroke) = node.strokes.first_mut() {
                 stroke.align = match align {
                     "Inside" => StrokeAlign::Inside,
                     "Outside" => StrokeAlign::Outside,
@@ -896,54 +886,123 @@ impl Engine {
         }
     }
 
-    /// Get stroke info as JSON
+    fn stroke_to_json(stroke: &Stroke) -> serde_json::Value {
+        let cap = match stroke.line_cap {
+            crate::node::LineCap::Butt => "butt",
+            crate::node::LineCap::Round => "round",
+            crate::node::LineCap::Square => "square",
+        };
+        let join = match stroke.line_join {
+            crate::node::LineJoin::Miter => "miter",
+            crate::node::LineJoin::Round => "round",
+            crate::node::LineJoin::Bevel => "bevel",
+        };
+        let align = match stroke.align {
+            crate::node::StrokeAlign::Center => "Center",
+            crate::node::StrokeAlign::Inside => "Inside",
+            crate::node::StrokeAlign::Outside => "Outside",
+        };
+        serde_json::json!({
+            "color": { "r": stroke.color.r, "g": stroke.color.g, "b": stroke.color.b, "a": stroke.color.a },
+            "width": stroke.width,
+            "dash_array": stroke.dash_array,
+            "dash_offset": stroke.dash_offset,
+            "line_cap": cap,
+            "line_join": join,
+            "align": align,
+            "visible": stroke.visible,
+        })
+    }
+
+    /// Get stroke info as JSON (index 0, backward compat)
     pub fn get_stroke_info(&self, id: u64) -> String {
         if let Some(node) = self.scene.get_node(id) {
-            if let Some(stroke) = &node.stroke {
-                let cap = match stroke.line_cap {
-                    crate::node::LineCap::Butt => "butt",
-                    crate::node::LineCap::Round => "round",
-                    crate::node::LineCap::Square => "square",
-                };
-                let join = match stroke.line_join {
-                    crate::node::LineJoin::Miter => "miter",
-                    crate::node::LineJoin::Round => "round",
-                    crate::node::LineJoin::Bevel => "bevel",
-                };
-                let align = match stroke.align {
-                    crate::node::StrokeAlign::Center => "Center",
-                    crate::node::StrokeAlign::Inside => "Inside",
-                    crate::node::StrokeAlign::Outside => "Outside",
-                };
-                return serde_json::json!({
-                    "color": { "r": stroke.color.r, "g": stroke.color.g, "b": stroke.color.b, "a": stroke.color.a },
-                    "width": stroke.width,
-                    "dash_array": stroke.dash_array,
-                    "dash_offset": stroke.dash_offset,
-                    "line_cap": cap,
-                    "line_join": join,
-                    "align": align,
-                }).to_string();
+            if let Some(stroke) = node.strokes.first() {
+                return Self::stroke_to_json(stroke).to_string();
             }
         }
         "null".to_string()
     }
 
-    pub fn set_stroke_dash(&mut self, id: u64, dash_pattern: &str, dash_offset: f64) {
+    /// Get all strokes as JSON array
+    pub fn get_strokes_info(&self, id: u64) -> String {
+        if let Some(node) = self.scene.get_node(id) {
+            let arr: Vec<serde_json::Value> = node.strokes.iter().map(|s| Self::stroke_to_json(s)).collect();
+            return serde_json::to_string(&arr).unwrap_or_else(|_| "[]".to_string());
+        }
+        "[]".to_string()
+    }
+
+    // =============================================
+    // Multi-stroke API
+    // =============================================
+
+    /// Add a stroke. Returns the index.
+    pub fn add_stroke(&mut self, id: u64, r: u8, g: u8, b: u8, a: f64, width: f64) -> i32 {
         if let Some(node) = self.scene.get_node_mut(id) {
-            if let Some(stroke) = &mut node.stroke {
-                stroke.dash_array = dash_pattern.split(',')
+            node.strokes.push(Stroke::new(Color { r, g, b, a }, width));
+            (node.strokes.len() - 1) as i32
+        } else {
+            -1
+        }
+    }
+
+    /// Remove a stroke by index.
+    pub fn remove_stroke(&mut self, id: u64, index: u32) -> bool {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            let idx = index as usize;
+            if idx < node.strokes.len() {
+                node.strokes.remove(idx);
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Update stroke at index with color and width.
+    pub fn update_stroke_at(&mut self, id: u64, index: u32, r: u8, g: u8, b: u8, a: f64, width: f64) -> bool {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            let idx = index as usize;
+            if idx < node.strokes.len() {
+                node.strokes[idx].color = Color { r, g, b, a };
+                node.strokes[idx].width = width;
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Set stroke visible/hidden at index.
+    pub fn set_stroke_visible_at(&mut self, id: u64, index: u32, visible: bool) -> bool {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            let idx = index as usize;
+            if idx < node.strokes.len() {
+                node.strokes[idx].visible = visible;
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Set stroke dash at index.
+    pub fn set_stroke_dash_at(&mut self, id: u64, index: u32, dash_pattern: &str, dash_offset: f64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            let idx = index as usize;
+            if idx < node.strokes.len() {
+                node.strokes[idx].dash_array = dash_pattern.split(',')
                     .filter_map(|s| s.trim().parse::<f64>().ok())
                     .collect();
-                stroke.dash_offset = dash_offset;
+                node.strokes[idx].dash_offset = dash_offset;
             }
         }
     }
 
-    pub fn set_stroke_cap(&mut self, id: u64, cap: &str) {
+    /// Set stroke cap at index.
+    pub fn set_stroke_cap_at(&mut self, id: u64, index: u32, cap: &str) {
         if let Some(node) = self.scene.get_node_mut(id) {
-            if let Some(stroke) = &mut node.stroke {
-                stroke.line_cap = match cap {
+            let idx = index as usize;
+            if idx < node.strokes.len() {
+                node.strokes[idx].line_cap = match cap {
                     "round" => crate::node::LineCap::Round,
                     "square" => crate::node::LineCap::Square,
                     _ => crate::node::LineCap::Butt,
@@ -952,16 +1011,44 @@ impl Engine {
         }
     }
 
-    pub fn set_stroke_join(&mut self, id: u64, join: &str) {
+    /// Set stroke join at index.
+    pub fn set_stroke_join_at(&mut self, id: u64, index: u32, join: &str) {
         if let Some(node) = self.scene.get_node_mut(id) {
-            if let Some(stroke) = &mut node.stroke {
-                stroke.line_join = match join {
+            let idx = index as usize;
+            if idx < node.strokes.len() {
+                node.strokes[idx].line_join = match join {
                     "round" => crate::node::LineJoin::Round,
                     "bevel" => crate::node::LineJoin::Bevel,
                     _ => crate::node::LineJoin::Miter,
                 };
             }
         }
+    }
+
+    /// Set stroke align at index.
+    pub fn set_stroke_align_at(&mut self, id: u64, index: u32, align: &str) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            let idx = index as usize;
+            if idx < node.strokes.len() {
+                node.strokes[idx].align = match align {
+                    "Inside" => StrokeAlign::Inside,
+                    "Outside" => StrokeAlign::Outside,
+                    _ => StrokeAlign::Center,
+                };
+            }
+        }
+    }
+
+    pub fn set_stroke_dash(&mut self, id: u64, dash_pattern: &str, dash_offset: f64) {
+        self.set_stroke_dash_at(id, 0, dash_pattern, dash_offset);
+    }
+
+    pub fn set_stroke_cap(&mut self, id: u64, cap: &str) {
+        self.set_stroke_cap_at(id, 0, cap);
+    }
+
+    pub fn set_stroke_join(&mut self, id: u64, join: &str) {
+        self.set_stroke_join_at(id, 0, join);
     }
 
     pub fn set_corner_radius(&mut self, id: u64, radius: f64) {
@@ -1692,7 +1779,7 @@ impl Engine {
             instance_root.width = template_root.width;
             instance_root.height = template_root.height;
             instance_root.fills = template_root.fills.clone();
-            instance_root.stroke = template_root.stroke.clone();
+            instance_root.strokes = template_root.strokes.clone();
             instance_root.corner_radius = template_root.corner_radius;
             instance_root.layout = template_root.layout.clone();
         }
@@ -1786,7 +1873,7 @@ impl Engine {
                 node.width = template_root.width;
                 node.height = template_root.height;
                 node.fills = template_root.fills.clone();
-                node.stroke = template_root.stroke.clone();
+                node.strokes = template_root.strokes.clone();
                 node.corner_radius = template_root.corner_radius;
                 node.layout = template_root.layout.clone();
             }
@@ -2051,7 +2138,7 @@ impl Engine {
                 node.width = template_root.width;
                 node.height = template_root.height;
                 node.fills = template_root.fills.clone();
-                node.stroke = template_root.stroke.clone();
+                node.strokes = template_root.strokes.clone();
                 node.corner_radius = template_root.corner_radius;
                 node.layout = template_root.layout.clone();
             }
@@ -2950,12 +3037,12 @@ impl Engine {
 
         // Use first node's fills for the result
         let fills = subject.fills.clone();
-        let stroke = subject.stroke.clone();
+        let strokes = subject.strokes.clone();
 
         // Create result path node
         let mut result_node = Node::new(0, NodeKind::Path { points: result_points, closed: true });
         result_node.fills = fills;
-        result_node.stroke = stroke;
+        result_node.strokes = strokes;
         let op_name = match op {
             "union" => "Union",
             "subtract" => "Subtract",
@@ -3042,7 +3129,7 @@ impl Engine {
                     let mut result_node = Node::new(0, NodeKind::Path { points, closed: true });
                     result_node.name = format!("Flattened {}", node.name);
                     result_node.fills = node.fills.clone();
-                    result_node.stroke = node.stroke.clone();
+                    result_node.strokes = node.strokes.clone();
                     result_node.opacity = node.opacity;
                     result_node.blend_mode = node.blend_mode.clone();
                     recalc_path_bounds(&mut result_node);
@@ -3063,7 +3150,7 @@ impl Engine {
                     let mut result_node = Node::new(0, NodeKind::Path { points, closed });
                     result_node.name = format!("Flattened {}", node.name);
                     result_node.fills = node.fills.clone();
-                    result_node.stroke = node.stroke.clone();
+                    result_node.strokes = node.strokes.clone();
                     result_node.opacity = node.opacity;
                     result_node.corner_radius = 0.0; // path doesn't use corner radius
                     result_node.shadows = node.shadows.clone();

@@ -351,7 +351,7 @@ impl Renderer {
                 NodeKind::Path { ref points, closed } => {
                     if !points.is_empty() {
                         ctx.set_stroke_style_str("rgba(0,0,0,1)");
-                        ctx.set_line_width(node.stroke.as_ref().map(|s| s.width).unwrap_or(2.0));
+                        ctx.set_line_width(node.first_stroke().map(|s| s.width).unwrap_or(2.0));
                         ctx.begin_path();
                         ctx.move_to(points[0].x + far, points[0].y);
                         for i in 1..points.len() {
@@ -563,8 +563,8 @@ impl Renderer {
     }
 
     fn render_frame(&self, ctx: &CanvasRenderingContext2d, node: &Node, scene: &Scene) {
-        // For outside stroke: draw stroke first, then fill on top
-        if let Some(stroke) = &node.stroke {
+        // Outside strokes: draw before fills
+        for stroke in node.visible_strokes() {
             if stroke.align == crate::node::StrokeAlign::Outside {
                 ctx.set_stroke_style_str(&stroke.color.to_css());
                 ctx.set_line_width(stroke.width * 2.0);
@@ -589,7 +589,8 @@ impl Renderer {
                 ctx.fill_rect(node.x, node.y, node.width, node.height);
             }
         }
-        if let Some(stroke) = &node.stroke {
+        // Center/Inside strokes: draw after fills
+        for stroke in node.visible_strokes() {
             if stroke.align != crate::node::StrokeAlign::Outside {
                 ctx.set_stroke_style_str(&stroke.color.to_css());
                 self.apply_stroke_options(ctx, stroke);
@@ -717,7 +718,7 @@ impl Renderer {
                 ctx.fill_rect(node.x, node.y, node.width, node.height);
             }
         }
-        if let Some(stroke) = &node.stroke {
+        for stroke in node.visible_strokes() {
             ctx.set_stroke_style_str(&stroke.color.to_css());
             ctx.set_line_width(stroke.width);
             self.apply_stroke_options(ctx, stroke);
@@ -987,10 +988,10 @@ impl Renderer {
             }
         }
 
-        let stroke_color = node.stroke.as_ref()
+        let stroke_color = node.first_stroke()
             .map(|s| s.color.to_css())
             .unwrap_or_else(|| "rgba(255,255,255,0.8)".to_string());
-        let stroke_width = node.stroke.as_ref().map(|s| s.width).unwrap_or(2.0);
+        let stroke_width = node.first_stroke().map(|s| s.width).unwrap_or(2.0);
 
         ctx.set_stroke_style_str(&stroke_color);
         ctx.set_line_width(stroke_width);
@@ -998,7 +999,7 @@ impl Renderer {
         ctx.set_line_join("round");
 
         // Apply dash if set
-        if let Some(ref stroke) = node.stroke {
+        if let Some(ref stroke) = node.first_stroke() {
             if !stroke.dash_array.is_empty() {
                 let arr = js_sys::Array::new();
                 for &v in &stroke.dash_array { arr.push(&JsValue::from(v)); }
@@ -1160,42 +1161,68 @@ impl Renderer {
     }
 
     fn apply_fill_stroke(&self, ctx: &CanvasRenderingContext2d, node: &Node) {
-        if let Some(stroke) = &node.stroke {
-            if stroke.align == crate::node::StrokeAlign::Outside {
-                // Outside: stroke with 2x width first, then fill on top to mask inner half
-                ctx.save();
-                ctx.set_stroke_style_str(&stroke.color.to_css());
-                ctx.set_line_width(stroke.width * 2.0);
-                self.apply_stroke_options(ctx, stroke);
-                ctx.stroke();
-                if !stroke.dash_array.is_empty() {
-                    ctx.set_line_dash(&js_sys::Array::new()).ok();
-                }
-                ctx.restore();
-                // Fill on top (masks inner half of stroke) — render all visible fills
-                if node.has_fill() {
-                    for fill in node.visible_fills() {
-                        self.apply_single_fill_style(ctx, fill, node);
-                        ctx.fill();
-                    }
-                } else {
+        // Outside strokes first (drawn behind fills)
+        let has_outside = node.visible_strokes().any(|s| s.align == crate::node::StrokeAlign::Outside);
+        if has_outside {
+            for stroke in node.visible_strokes() {
+                if stroke.align == crate::node::StrokeAlign::Outside {
                     ctx.save();
-                    ctx.begin_path();
-                    ctx.rect(-1e6, -1e6, 2e6, 2e6);
-                    ctx.set_fill_style_str("rgba(0,0,0,0)");
-                    ctx.fill();
+                    ctx.set_stroke_style_str(&stroke.color.to_css());
+                    ctx.set_line_width(stroke.width * 2.0);
+                    self.apply_stroke_options(ctx, stroke);
+                    ctx.stroke();
+                    if !stroke.dash_array.is_empty() {
+                        ctx.set_line_dash(&js_sys::Array::new()).ok();
+                    }
                     ctx.restore();
                 }
-                return;
             }
+            // Fill on top (masks inner half of outside strokes)
+            if node.has_fill() {
+                for fill in node.visible_fills() {
+                    self.apply_single_fill_style(ctx, fill, node);
+                    ctx.fill();
+                }
+            } else {
+                ctx.save();
+                ctx.begin_path();
+                ctx.rect(-1e6, -1e6, 2e6, 2e6);
+                ctx.set_fill_style_str("rgba(0,0,0,0)");
+                ctx.fill();
+                ctx.restore();
+            }
+            // Center/Inside strokes after fills
+            for stroke in node.visible_strokes() {
+                if stroke.align != crate::node::StrokeAlign::Outside {
+                    ctx.set_stroke_style_str(&stroke.color.to_css());
+                    self.apply_stroke_options(ctx, stroke);
+                    match stroke.align {
+                        crate::node::StrokeAlign::Inside => {
+                            ctx.save();
+                            ctx.clip();
+                            ctx.set_line_width(stroke.width * 2.0);
+                            ctx.stroke();
+                            ctx.restore();
+                        }
+                        _ => {
+                            ctx.set_line_width(stroke.width);
+                            ctx.stroke();
+                        }
+                    }
+                    if !stroke.dash_array.is_empty() {
+                        ctx.set_line_dash(&js_sys::Array::new()).ok();
+                    }
+                }
+            }
+            return;
         }
 
-        // Render all visible fills (bottom → top)
+        // No outside strokes: fills first, then center/inside strokes
         for fill in node.visible_fills() {
             self.apply_single_fill_style(ctx, fill, node);
             ctx.fill();
         }
-        if let Some(stroke) = &node.stroke {
+        for stroke in node.visible_strokes() {
             ctx.set_stroke_style_str(&stroke.color.to_css());
             self.apply_stroke_options(ctx, stroke);
             match stroke.align {

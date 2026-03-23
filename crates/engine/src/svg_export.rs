@@ -295,13 +295,15 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
                         }
                     }
                 }
-                if let Some(ref stroke) = node.stroke {
+                for stroke in node.visible_strokes() {
                     let c = &stroke.color;
                     rect_attrs.push_str(&format!(r#" stroke="{}" stroke-width="{}""#, color_to_hex(c.r, c.g, c.b), stroke.width));
                     if c.a < 1.0 {
                         rect_attrs.push_str(&format!(r#" stroke-opacity="{}""#, c.a));
                     }
                     append_stroke_options(&mut rect_attrs, stroke);
+                    // SVG only supports one stroke per element; break after first visible
+                    break;
                 }
                 rect_attrs.push_str("/>\n");
                 g.push_str(&rect_attrs);
@@ -461,7 +463,7 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
 
             // Arrow marker defs
             let marker_id = format!("arrow-{}", node.id);
-            let stroke_hex = node.stroke.as_ref()
+            let stroke_hex = node.first_stroke()
                 .map(|s| color_to_hex(s.color.r, s.color.g, s.color.b))
                 .unwrap_or_else(|| "#ffffff".to_string());
             let mut defs = String::new();
@@ -486,7 +488,7 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
                 attrs.push_str(&format!(r#"<line x1="{}" y1="{}" x2="{}" y2="{}""#, sx, sy, ex, ey));
             }
             attrs.push_str(r#" fill="none""#);
-            if let Some(ref stroke) = node.stroke {
+            if let Some(stroke) = node.first_stroke() {
                 attrs.push_str(&format!(r#" stroke="{}" stroke-width="{}""#, color_to_hex(stroke.color.r, stroke.color.g, stroke.color.b), stroke.width));
                 append_stroke_options(&mut attrs, stroke);
             } else {
@@ -692,7 +694,7 @@ fn render_node_svg_adjusted(scene: &Scene, node: &Node, buf: &mut String, parent
                         }
                     }
                 }
-                if let Some(ref stroke) = node.stroke {
+                if let Some(ref stroke) = node.first_stroke() {
                     let c = &stroke.color;
                     rect_attrs.push_str(&format!(r#" stroke="{}" stroke-width="{}""#, color_to_hex(c.r, c.g, c.b), stroke.width));
                     if c.a < 1.0 {
@@ -796,7 +798,7 @@ fn append_fill_stroke(attrs: &mut String, node: &Node) {
     } else {
         attrs.push_str(r#" fill="none""#);
     }
-    if let Some(ref stroke) = node.stroke {
+    if let Some(ref stroke) = node.first_stroke() {
         let c = &stroke.color;
         attrs.push_str(&format!(r#" stroke="{}" stroke-width="{}""#, color_to_hex(c.r, c.g, c.b), stroke.width));
         if c.a < 1.0 {

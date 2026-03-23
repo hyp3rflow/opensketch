@@ -279,6 +279,23 @@ pub struct Stroke {
     pub line_join: LineJoin,
     #[serde(default)]
     pub align: StrokeAlign,
+    #[serde(default = "default_visible")]
+    pub visible: bool,
+}
+
+impl Stroke {
+    pub fn new(color: Color, width: f64) -> Self {
+        Stroke {
+            color,
+            width,
+            dash_array: vec![],
+            dash_offset: 0.0,
+            line_cap: LineCap::default(),
+            line_join: LineJoin::default(),
+            align: StrokeAlign::default(),
+            visible: true,
+        }
+    }
 }
 
 /// Layout mode for container nodes
@@ -811,7 +828,12 @@ pub struct Node {
     /// Multiple fills (rendered bottom → top). Primary storage for fills.
     #[serde(default)]
     pub fills: Vec<Fill>,
+    /// Deprecated single stroke — deserialized from old JSON, not serialized.
+    #[serde(default, skip_serializing)]
     pub stroke: Option<Stroke>,
+    /// Multiple strokes (rendered bottom → top). Primary storage for strokes.
+    #[serde(default)]
+    pub strokes: Vec<Stroke>,
     pub corner_radius: f64,
     pub children: Vec<NodeId>,
     pub parent: Option<NodeId>,
@@ -907,6 +929,7 @@ impl Node {
             fill: None,
             fills: vec![Fill::solid(Color { r: 200, g: 200, b: 200, a: 1.0 })],
             stroke: None,
+            strokes: vec![],
             corner_radius: 0.0,
             children: vec![],
             parent: None,
@@ -975,5 +998,31 @@ impl Node {
     /// Check if node has any fills.
     pub fn has_fill(&self) -> bool {
         !self.fills.is_empty()
+    }
+
+    /// Migrate deprecated `stroke` field into `strokes` (call after deserialization).
+    pub fn normalize_strokes(&mut self) {
+        if self.strokes.is_empty() {
+            if let Some(s) = self.stroke.take() {
+                self.strokes.push(s);
+            }
+        } else {
+            self.stroke = None;
+        }
+    }
+
+    /// Get the first stroke (backward compat helper).
+    pub fn first_stroke(&self) -> Option<&Stroke> {
+        self.strokes.first()
+    }
+
+    /// Get visible strokes (for rendering, bottom→top order).
+    pub fn visible_strokes(&self) -> impl Iterator<Item = &Stroke> {
+        self.strokes.iter().filter(|s| s.visible)
+    }
+
+    /// Check if node has any strokes.
+    pub fn has_stroke(&self) -> bool {
+        !self.strokes.is_empty()
     }
 }

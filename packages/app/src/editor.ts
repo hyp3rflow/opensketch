@@ -2101,7 +2101,15 @@ export class Editor {
     const h = node.height;
     const cr = node.corner_radius || 0;
     const fill = node.fill?.color;
-    const stroke = node.stroke;
+    const strokes: any[] = node.strokes || (node.stroke ? [node.stroke] : []);
+    const drawStrokes = () => {
+      for (const s of strokes) {
+        if (s.visible === false) continue;
+        ctx.strokeStyle = `rgba(${s.color.r},${s.color.g},${s.color.b},${s.color.a})`;
+        ctx.lineWidth = s.width;
+        ctx.stroke();
+      }
+    };
 
     // Draw shape
     if (kind === "Rect" || kind === "Frame") {
@@ -2115,11 +2123,7 @@ export class Editor {
         ctx.fillStyle = `rgba(${fill.r},${fill.g},${fill.b},${fill.a})`;
         ctx.fill();
       }
-      if (stroke) {
-        ctx.strokeStyle = `rgba(${stroke.color.r},${stroke.color.g},${stroke.color.b},${stroke.color.a})`;
-        ctx.lineWidth = stroke.width;
-        ctx.stroke();
-      }
+      drawStrokes();
     } else if (kind === "Ellipse") {
       ctx.beginPath();
       ctx.ellipse(x + w / 2, y + h / 2, w / 2, h / 2, 0, 0, Math.PI * 2);
@@ -2127,11 +2131,7 @@ export class Editor {
         ctx.fillStyle = `rgba(${fill.r},${fill.g},${fill.b},${fill.a})`;
         ctx.fill();
       }
-      if (stroke) {
-        ctx.strokeStyle = `rgba(${stroke.color.r},${stroke.color.g},${stroke.color.b},${stroke.color.a})`;
-        ctx.lineWidth = stroke.width;
-        ctx.stroke();
-      }
+      drawStrokes();
     } else if (typeof kind === "object" && kind.Text) {
       const text = kind.Text;
       const fontSize = text.font_size || 16;
