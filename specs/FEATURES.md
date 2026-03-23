@@ -598,3 +598,13 @@ Frame overflow control and content scrolling.
 - [x] Window config: 1440x900, resizable, CSP disabled for WASM
 - [x] npm scripts: tauri:dev, tauri:build
 - [x] Workspace Cargo.toml includes src-tauri member
+
+### Responsive Breakpoints
+- [x] Breakpoint struct: label, max_width, optional overrides (direction, layout_mode, gap, padding, align_items, justify_content, wrap, grid_columns, hidden_children)
+- [x] Node.breakpoints: Vec<Breakpoint> — per-frame breakpoint rules sorted by max_width
+- [x] Layout engine: resolve_layout_with_breakpoints() applies overrides during layout computation without mutating stored layout
+- [x] Breakpoint-hidden children: temporarily hidden during layout, restored after
+- [x] WASM: add_breakpoint, remove_breakpoint, update_breakpoint, get_breakpoints, get_breakpoint_count, get_active_breakpoint
+- [x] Properties panel: Breakpoints section (under Auto Layout), add/remove/edit breakpoints, label/max_width/direction/gap/wrap overrides
+- [x] Active breakpoint badge indicator
+- [x] Backward-compatible serde (default empty vec)

@@ -1,5 +1,6 @@
 use crate::node::*;
 use crate::scene::Scene;
+// Breakpoint is used from node::*
 
 /// Run layout on all nodes with layout.mode != None.
 /// This repositions children based on the parent's layout settings.
@@ -9,10 +10,64 @@ pub fn compute_layouts(scene: &mut Scene) {
         scene.get_node(id).map(|n| n.layout.mode != LayoutMode::None).unwrap_or(false)
     }).collect();
 
+    // Apply responsive breakpoints before computing layouts
+    for &id in &ids {
+        apply_breakpoints(scene, id);
+    }
+
     for id in ids {
         compute_node_layout(scene, id);
         apply_hug_sizing(scene, id);
     }
+}
+
+/// Resolve the effective layout for a node, applying responsive breakpoint overrides
+/// based on the node's current width. Does NOT mutate the node.
+fn resolve_layout_with_breakpoints(node: &Node) -> Layout {
+    let mut layout = node.layout.clone();
+    if node.breakpoints.is_empty() { return layout; }
+
+    // Find the best matching breakpoint: smallest max_width that is >= node width
+    let mut candidates: Vec<&Breakpoint> = node.breakpoints.iter()
+        .filter(|bp| node.width <= bp.max_width)
+        .collect();
+    candidates.sort_by(|a, b| a.max_width.partial_cmp(&b.max_width).unwrap());
+
+    let bp = match candidates.first() {
+        Some(bp) => *bp,
+        None => return layout,
+    };
+
+    if let Some(ref dir) = bp.direction { layout.direction = dir.clone(); }
+    if let Some(ref mode) = bp.layout_mode { layout.mode = mode.clone(); }
+    if let Some(gap) = bp.gap { layout.gap = gap; }
+    if let Some(ref pad) = bp.padding {
+        layout.padding_top = pad[0];
+        layout.padding_right = pad[1];
+        layout.padding_bottom = pad[2];
+        layout.padding_left = pad[3];
+    }
+    if let Some(ref ai) = bp.align_items { layout.align_items = ai.clone(); }
+    if let Some(ref jc) = bp.justify_content { layout.justify_content = jc.clone(); }
+    if let Some(ref w) = bp.wrap { layout.wrap = w.clone(); }
+    if let Some(cols) = bp.grid_columns { layout.grid_columns = cols; }
+
+    layout
+}
+
+/// Get the active breakpoint's hidden_children indices for a node, if any.
+fn get_active_hidden_children(node: &Node) -> Vec<usize> {
+    if node.breakpoints.is_empty() { return vec![]; }
+    let mut candidates: Vec<&Breakpoint> = node.breakpoints.iter()
+        .filter(|bp| node.width <= bp.max_width)
+        .collect();
+    candidates.sort_by(|a, b| a.max_width.partial_cmp(&b.max_width).unwrap());
+    candidates.first().map(|bp| bp.hidden_children.clone()).unwrap_or_default()
+}
+
+/// Temporarily apply breakpoint overrides, then restore after layout.
+fn apply_breakpoints(scene: &mut Scene, node_id: NodeId) {
+    // Nothing to do here — breakpoints are resolved inline in compute_node_layout
 }
 
 /// After layout, if the parent uses Hug sizing, shrink it to wrap its children tightly.
@@ -62,14 +117,29 @@ fn apply_hug_sizing(scene: &mut Scene, parent_id: NodeId) {
 }
 
 fn compute_node_layout(scene: &mut Scene, parent_id: NodeId) {
-    // Read parent info
-    let (layout, parent_x, parent_y, parent_w, parent_h, children) = {
+    // Read parent info, applying breakpoint overrides
+    let (layout, parent_x, parent_y, parent_w, parent_h, children, hidden_indices) = {
         let node = match scene.get_node(parent_id) {
             Some(n) => n,
             None => return,
         };
-        (node.layout.clone(), node.x, node.y, node.width, node.height, node.children.clone())
+        let layout = resolve_layout_with_breakpoints(node);
+        let hidden = get_active_hidden_children(node);
+        (layout, node.x, node.y, node.width, node.height, node.children.clone(), hidden)
     };
+
+    // Temporarily hide children based on active breakpoint
+    let mut restored_visibility: Vec<(NodeId, bool)> = vec![];
+    for &idx in &hidden_indices {
+        if idx < children.len() {
+            if let Some(child) = scene.get_node_mut(children[idx]) {
+                if child.visible {
+                    restored_visibility.push((children[idx], true));
+                    child.visible = false;
+                }
+            }
+        }
+    }
 
     if children.is_empty() { return; }
 
@@ -77,6 +147,13 @@ fn compute_node_layout(scene: &mut Scene, parent_id: NodeId) {
         LayoutMode::Flex => compute_flex(scene, &layout, parent_x, parent_y, parent_w, parent_h, &children),
         LayoutMode::Grid => compute_grid(scene, &layout, parent_x, parent_y, parent_w, parent_h, &children),
         LayoutMode::None => {}
+    }
+
+    // Restore visibility for breakpoint-hidden children
+    for (cid, was_visible) in restored_visibility {
+        if let Some(child) = scene.get_node_mut(cid) {
+            child.visible = was_visible;
+        }
     }
 }
 

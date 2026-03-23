@@ -747,6 +747,43 @@ impl BitmapFilter {
     }
 }
 
+/// A responsive breakpoint rule: when the parent frame's width
+/// is <= max_width, override layout properties.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Breakpoint {
+    /// Label for UI (e.g. "Mobile", "Tablet")
+    pub label: String,
+    /// Maximum width at which this breakpoint activates (inclusive)
+    pub max_width: f64,
+    /// Override layout direction (None = keep parent's)
+    #[serde(default)]
+    pub direction: Option<FlexDirection>,
+    /// Override layout mode (None = keep parent's)
+    #[serde(default)]
+    pub layout_mode: Option<LayoutMode>,
+    /// Override gap (None = keep parent's)
+    #[serde(default)]
+    pub gap: Option<f64>,
+    /// Override padding [top, right, bottom, left] (None = keep)
+    #[serde(default)]
+    pub padding: Option<[f64; 4]>,
+    /// Override align_items
+    #[serde(default)]
+    pub align_items: Option<Align>,
+    /// Override justify_content
+    #[serde(default)]
+    pub justify_content: Option<Justify>,
+    /// Override wrap
+    #[serde(default)]
+    pub wrap: Option<FlexWrap>,
+    /// Override grid_columns
+    #[serde(default)]
+    pub grid_columns: Option<u32>,
+    /// Hide specific children by index (0-based)
+    #[serde(default)]
+    pub hidden_children: Vec<usize>,
+}
+
 /// Attached note (markdown)
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Note {
@@ -846,6 +883,9 @@ pub struct Node {
     /// Bitmap filter effects (brightness, contrast, saturation, etc.)
     #[serde(default)]
     pub bitmap_filter: Option<BitmapFilter>,
+    /// Responsive breakpoints: layout overrides based on frame width
+    #[serde(default)]
+    pub breakpoints: Vec<Breakpoint>,
 }
 
 impl Node {
@@ -890,6 +930,7 @@ impl Node {
             scroll_x: 0.0,
             scroll_y: 0.0,
             bitmap_filter: None,
+            breakpoints: vec![],
         }
     }
 

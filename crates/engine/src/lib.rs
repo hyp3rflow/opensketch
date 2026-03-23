@@ -16,7 +16,7 @@ use web_sys::CanvasRenderingContext2d;
 use i_overlay::core::fill_rule::FillRule;
 use i_overlay::core::overlay_rule::OverlayRule;
 use i_overlay::float::single::SingleFloatOverlay;
-use crate::node::{Node, NodeKind, Fill, FillType, GradientStop, Stroke, StrokeAlign, LayoutMode, FlexDirection, Align, Justify, FlexWrap, TextSizing, TextAlign, FontStyle, PathPoint, ConstraintH, ConstraintV, BlendMode, LayoutGrid, SizingMode};
+use crate::node::{Node, NodeKind, Fill, FillType, GradientStop, Stroke, StrokeAlign, LayoutMode, FlexDirection, Align, Justify, FlexWrap, TextSizing, TextAlign, FontStyle, PathPoint, ConstraintH, ConstraintV, BlendMode, LayoutGrid, SizingMode, Breakpoint};
 
 fn parse_align(s: &str) -> Align {
     match s {
@@ -3541,5 +3541,75 @@ fn recalc_path_bounds(node: &mut Node) {
         node.y = min_y;
         node.width = (max_x - min_x).max(1.0);
         node.height = (max_y - min_y).max(1.0);
+    }
+}
+
+// ---- Responsive Breakpoints (inside Engine impl) ----
+#[wasm_bindgen]
+impl Engine {
+
+    /// Add a breakpoint to a node. `json` is a JSON-serialized Breakpoint object.
+    /// Returns the index of the added breakpoint.
+    pub fn add_breakpoint(&mut self, id: u64, json: &str) -> i32 {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let Ok(bp) = serde_json::from_str::<Breakpoint>(json) {
+                node.breakpoints.push(bp);
+                // Keep sorted by max_width ascending
+                node.breakpoints.sort_by(|a, b| a.max_width.partial_cmp(&b.max_width).unwrap());
+                return (node.breakpoints.len() - 1) as i32;
+            }
+        }
+        -1
+    }
+
+    /// Remove a breakpoint by index.
+    pub fn remove_breakpoint(&mut self, id: u64, index: u32) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            let idx = index as usize;
+            if idx < node.breakpoints.len() {
+                node.breakpoints.remove(idx);
+            }
+        }
+    }
+
+    /// Update a breakpoint at index. `json` is a JSON-serialized Breakpoint.
+    pub fn update_breakpoint(&mut self, id: u64, index: u32, json: &str) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            let idx = index as usize;
+            if idx < node.breakpoints.len() {
+                if let Ok(bp) = serde_json::from_str::<Breakpoint>(json) {
+                    node.breakpoints[idx] = bp;
+                    node.breakpoints.sort_by(|a, b| a.max_width.partial_cmp(&b.max_width).unwrap());
+                }
+            }
+        }
+    }
+
+    /// Get all breakpoints for a node as JSON array.
+    pub fn get_breakpoints(&self, id: u64) -> String {
+        if let Some(node) = self.scene.get_node(id) {
+            serde_json::to_string(&node.breakpoints).unwrap_or_else(|_| "[]".to_string())
+        } else {
+            "[]".to_string()
+        }
+    }
+
+    /// Get the count of breakpoints for a node.
+    pub fn get_breakpoint_count(&self, id: u64) -> u32 {
+        self.scene.get_node(id).map(|n| n.breakpoints.len() as u32).unwrap_or(0)
+    }
+
+    /// Get the active breakpoint index for a node based on its current width (-1 = none active).
+    pub fn get_active_breakpoint(&self, id: u64) -> i32 {
+        if let Some(node) = self.scene.get_node(id) {
+            if node.breakpoints.is_empty() { return -1; }
+            // Find smallest max_width >= node.width
+            for (i, bp) in node.breakpoints.iter().enumerate() {
+                if node.width <= bp.max_width {
+                    return i as i32;
+                }
+            }
+        }
+        -1
     }
 }

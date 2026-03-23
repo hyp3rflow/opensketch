@@ -2751,6 +2751,180 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       }
 
       container.appendChild(layoutSection);
+
+      // === Responsive Breakpoints Section ===
+      if (hasLayout) {
+        const bpJson = editor.engine.get_breakpoints(BigInt(id));
+        const breakpoints: any[] = JSON.parse(bpJson || "[]");
+        const activeBp = editor.engine.get_active_breakpoint(BigInt(id));
+
+        const bpSection = document.createElement("div");
+        bpSection.className = "prop-section";
+
+        const bpTitleRow = document.createElement("div");
+        bpTitleRow.style.cssText = "display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;";
+        const bpTitle = document.createElement("div");
+        bpTitle.className = "prop-section-title";
+        bpTitle.style.marginBottom = "0";
+        bpTitle.textContent = "Breakpoints";
+        bpTitleRow.appendChild(bpTitle);
+
+        const addBpBtn = document.createElement("button");
+        addBpBtn.style.cssText = "background:none;border:1px solid #4f46e5;border-radius:4px;color:#4f46e5;cursor:pointer;width:22px;height:22px;display:flex;align-items:center;justify-content:center;padding:0;";
+        addBpBtn.innerHTML = icons.plus.replace(/width="\d+"/, 'width="12"').replace(/height="\d+"/, 'height="12"');
+        addBpBtn.title = "Add breakpoint";
+        addBpBtn.addEventListener("click", () => {
+          ensureUndo();
+          const defaultBp = JSON.stringify({
+            label: breakpoints.length === 0 ? "Mobile" : breakpoints.length === 1 ? "Tablet" : `BP ${breakpoints.length + 1}`,
+            max_width: breakpoints.length === 0 ? 375 : breakpoints.length === 1 ? 768 : 1024,
+            direction: layout.direction === "Row" ? "Column" : null,
+            gap: null,
+            padding: null,
+            align_items: null,
+            justify_content: null,
+            wrap: null,
+            grid_columns: null,
+            layout_mode: null,
+            hidden_children: [],
+          });
+          editor.engine.add_breakpoint(BigInt(id), defaultBp);
+          editor.requestRender();
+          refresh(ids);
+        });
+        bpTitleRow.appendChild(addBpBtn);
+        bpSection.appendChild(bpTitleRow);
+
+        if (breakpoints.length > 0) {
+          const infoText = document.createElement("div");
+          infoText.style.cssText = "font-size:10px;color:#666;margin-bottom:8px;";
+          infoText.textContent = "Layout overrides when frame width ≤ max_width";
+          bpSection.appendChild(infoText);
+        }
+
+        breakpoints.forEach((bp: any, idx: number) => {
+          const isActive = activeBp === idx;
+          const bpCard = document.createElement("div");
+          bpCard.style.cssText = `background:${isActive ? "#1a1a3a" : "#1e1e1e"};border:1px solid ${isActive ? "#4f46e5" : "#333"};border-radius:8px;padding:8px;margin-bottom:6px;position:relative;`;
+
+          // Header: label + max_width + delete
+          const hdr = document.createElement("div");
+          hdr.style.cssText = "display:flex;align-items:center;gap:6px;margin-bottom:6px;";
+
+          if (isActive) {
+            const badge = document.createElement("span");
+            badge.style.cssText = "background:#4f46e5;color:white;border-radius:4px;padding:1px 5px;font-size:9px;font-weight:600;";
+            badge.textContent = "ACTIVE";
+            hdr.appendChild(badge);
+          }
+
+          const labelInput = document.createElement("input");
+          labelInput.type = "text";
+          labelInput.value = bp.label || "";
+          labelInput.style.cssText = "flex:1;background:#2a2a2a;border:1px solid #3a3a3a;border-radius:4px;padding:3px 6px;color:#ccc;font-size:11px;outline:none;";
+          labelInput.addEventListener("change", () => {
+            ensureUndo();
+            bp.label = labelInput.value;
+            editor.engine.update_breakpoint(BigInt(id), idx, JSON.stringify(bp));
+            editor.requestRender();
+          });
+          hdr.appendChild(labelInput);
+
+          const mwLabel = document.createElement("span");
+          mwLabel.style.cssText = "color:#666;font-size:10px;white-space:nowrap;";
+          mwLabel.textContent = "≤";
+          hdr.appendChild(mwLabel);
+
+          const mwInput = document.createElement("input");
+          mwInput.type = "number";
+          mwInput.value = String(bp.max_width || 375);
+          mwInput.style.cssText = "width:55px;background:#2a2a2a;border:1px solid #3a3a3a;border-radius:4px;padding:3px 4px;color:#ccc;font-size:11px;text-align:right;outline:none;";
+          mwInput.addEventListener("change", () => {
+            ensureUndo();
+            bp.max_width = parseFloat(mwInput.value) || 375;
+            editor.engine.update_breakpoint(BigInt(id), idx, JSON.stringify(bp));
+            editor.requestRender();
+            refresh(ids);
+          });
+          hdr.appendChild(mwInput);
+
+          const mwUnit = document.createElement("span");
+          mwUnit.style.cssText = "color:#666;font-size:10px;";
+          mwUnit.textContent = "px";
+          hdr.appendChild(mwUnit);
+
+          const delBtn = document.createElement("button");
+          delBtn.style.cssText = "background:none;border:none;color:#666;cursor:pointer;padding:2px;";
+          delBtn.innerHTML = icons.x.replace(/width="\d+"/, 'width="12"').replace(/height="\d+"/, 'height="12"');
+          delBtn.addEventListener("click", () => {
+            ensureUndo();
+            editor.engine.remove_breakpoint(BigInt(id), idx);
+            editor.requestRender();
+            refresh(ids);
+          });
+          hdr.appendChild(delBtn);
+          bpCard.appendChild(hdr);
+
+          // Override controls
+          const overrideRow = document.createElement("div");
+          overrideRow.style.cssText = "display:flex;flex-wrap:wrap;gap:4px;";
+
+          // Direction override
+          const dirSel = document.createElement("select");
+          dirSel.style.cssText = "flex:1;min-width:70px;background:#2a2a2a;border:1px solid #3a3a3a;border-radius:4px;padding:3px;color:#ccc;font-size:10px;";
+          dirSel.innerHTML = `<option value="">Dir: inherit</option><option value="Row">Row</option><option value="Column">Column</option>`;
+          dirSel.value = bp.direction || "";
+          dirSel.addEventListener("change", () => {
+            ensureUndo();
+            bp.direction = dirSel.value || null;
+            editor.engine.update_breakpoint(BigInt(id), idx, JSON.stringify(bp));
+            editor.requestRender();
+            refresh(ids);
+          });
+          overrideRow.appendChild(dirSel);
+
+          // Gap override
+          const gapWrap = document.createElement("div");
+          gapWrap.style.cssText = "display:flex;align-items:center;gap:2px;";
+          const gapLbl = document.createElement("span");
+          gapLbl.style.cssText = "color:#666;font-size:10px;";
+          gapLbl.textContent = "Gap";
+          gapWrap.appendChild(gapLbl);
+          const gapInp = document.createElement("input");
+          gapInp.type = "number";
+          gapInp.value = bp.gap != null ? String(bp.gap) : "";
+          gapInp.placeholder = "—";
+          gapInp.style.cssText = "width:40px;background:#2a2a2a;border:1px solid #3a3a3a;border-radius:4px;padding:3px;color:#ccc;font-size:10px;text-align:right;outline:none;";
+          gapInp.addEventListener("change", () => {
+            ensureUndo();
+            bp.gap = gapInp.value !== "" ? parseFloat(gapInp.value) : null;
+            editor.engine.update_breakpoint(BigInt(id), idx, JSON.stringify(bp));
+            editor.requestRender();
+            refresh(ids);
+          });
+          gapWrap.appendChild(gapInp);
+          overrideRow.appendChild(gapWrap);
+
+          // Wrap override
+          const wrapSel = document.createElement("select");
+          wrapSel.style.cssText = "min-width:60px;background:#2a2a2a;border:1px solid #3a3a3a;border-radius:4px;padding:3px;color:#ccc;font-size:10px;";
+          wrapSel.innerHTML = `<option value="">Wrap: inherit</option><option value="NoWrap">No Wrap</option><option value="Wrap">Wrap</option>`;
+          wrapSel.value = bp.wrap || "";
+          wrapSel.addEventListener("change", () => {
+            ensureUndo();
+            bp.wrap = wrapSel.value || null;
+            editor.engine.update_breakpoint(BigInt(id), idx, JSON.stringify(bp));
+            editor.requestRender();
+            refresh(ids);
+          });
+          overrideRow.appendChild(wrapSel);
+
+          bpCard.appendChild(overrideRow);
+          bpSection.appendChild(bpCard);
+        });
+
+        container.appendChild(bpSection);
+      }
     }
 
     // === Layout Grid Section (Frame only) ===
