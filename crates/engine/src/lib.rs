@@ -1319,6 +1319,27 @@ impl Engine {
         -1
     }
 
+    /// Deep hit test: find the deepest leaf node at screen position (traverses into Frame/Group)
+    pub fn deep_hit_test(&self, screen_x: f64, screen_y: f64) -> Option<u64> {
+        let (sx, sy) = self.renderer.screen_to_scene(screen_x, screen_y);
+        self.scene.deep_hit_test(Point { x: sx, y: sy })
+    }
+
+    /// Select all nodes with the same fill as the given node. Returns selected IDs.
+    pub fn select_same_fill(&mut self, reference_id: u64) -> Vec<u64> {
+        self.scene.select_same_fill(reference_id)
+    }
+
+    /// Select all nodes with the same kind as the given node. Returns selected IDs.
+    pub fn select_same_kind(&mut self, reference_id: u64) -> Vec<u64> {
+        self.scene.select_same_kind(reference_id)
+    }
+
+    /// Select all nodes with the same stroke color as the given node. Returns selected IDs.
+    pub fn select_same_stroke(&mut self, reference_id: u64) -> Vec<u64> {
+        self.scene.select_same_stroke(reference_id)
+    }
+
     pub fn zoom(&mut self, delta: f64, cx: f64, cy: f64) {
         self.renderer.zoom(delta, cx, cy);
     }

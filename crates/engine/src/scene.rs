@@ -1080,6 +1080,95 @@ impl Scene {
         result
     }
 
+    // =============================================
+    // Smart Selection
+    // =============================================
+
+    /// Deep hit test: traverse into Frame/Group children to find the deepest leaf node at point.
+    pub fn deep_hit_test(&self, point: Point) -> Option<NodeId> {
+        self.deep_hit_test_in(&self.root_children, point)
+    }
+
+    fn deep_hit_test_in(&self, ids: &[NodeId], point: Point) -> Option<NodeId> {
+        // Iterate in reverse (top-most first)
+        for &id in ids.iter().rev() {
+            if let Some(node) = self.nodes.get(&id) {
+                if !self.is_effectively_visible(id) || node.locked { continue; }
+                if !node.bounds().contains(point) { continue; }
+                // If container, recurse into children first
+                if !node.children.is_empty() {
+                    if let Some(child_id) = self.deep_hit_test_in(&node.children, point) {
+                        return Some(child_id);
+                    }
+                }
+                // Return this node if no deeper child was hit
+                return Some(id);
+            }
+        }
+        None
+    }
+
+    /// Select all nodes with the same first fill color as the given node.
+    pub fn select_same_fill(&mut self, reference_id: NodeId) -> Vec<NodeId> {
+        let ref_fill = self.nodes.get(&reference_id)
+            .and_then(|n| n.fills.first())
+            .cloned();
+        let ref_fill = match ref_fill {
+            Some(f) => f,
+            None => return vec![],
+        };
+        let mut result = vec![];
+        for node in self.nodes.values() {
+            if !node.visible || node.locked { continue; }
+            if let Some(fill) = node.fills.first() {
+                if fill.fill_type == ref_fill.fill_type {
+                    result.push(node.id);
+                }
+            }
+        }
+        self.selection = result.clone();
+        result
+    }
+
+    /// Select all nodes with the same NodeKind variant as the given node.
+    pub fn select_same_kind(&mut self, reference_id: NodeId) -> Vec<NodeId> {
+        let ref_kind = match self.nodes.get(&reference_id) {
+            Some(n) => std::mem::discriminant(&n.kind),
+            None => return vec![],
+        };
+        let mut result = vec![];
+        for node in self.nodes.values() {
+            if !node.visible || node.locked { continue; }
+            if std::mem::discriminant(&node.kind) == ref_kind {
+                result.push(node.id);
+            }
+        }
+        self.selection = result.clone();
+        result
+    }
+
+    /// Select all nodes with the same first stroke color as the given node.
+    pub fn select_same_stroke(&mut self, reference_id: NodeId) -> Vec<NodeId> {
+        let ref_stroke = self.nodes.get(&reference_id)
+            .and_then(|n| n.strokes.first())
+            .cloned();
+        let ref_stroke = match ref_stroke {
+            Some(s) => s,
+            None => return vec![],
+        };
+        let mut result = vec![];
+        for node in self.nodes.values() {
+            if !node.visible || node.locked { continue; }
+            if let Some(stroke) = node.strokes.first() {
+                if stroke.color == ref_stroke.color {
+                    result.push(node.id);
+                }
+            }
+        }
+        self.selection = result.clone();
+        result
+    }
+
     /// Batch rename nodes by IDs.
     /// pattern: use `{name}` for original name, `{n}` for sequential number, `{N}` for zero-padded number
     /// Example: "{name} - {n}" with ids [a,b,c] starting at 1 → "Rect - 1", "Ellipse - 2", "Text - 3"

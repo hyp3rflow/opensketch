@@ -37,7 +37,7 @@ impl Rect {
     }
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Color {
     pub r: u8,
     pub g: u8,

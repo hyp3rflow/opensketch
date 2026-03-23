@@ -35,6 +35,7 @@
 - **Conditional visibility** — Per-node VisibilityCondition (collection_id + variable_id + operator + value), 8개 연산자 (Eq/NotEq/Gt/Lt/Gte/Lte/IsTrue/IsFalse), Scene.is_effectively_visible()로 render/hit-test 시 자동 평가, WASM 바인딩 (set/get/clear_conditional_visibility, is_effectively_visible), Properties panel "Conditional Visibility" 섹션 UI
 - **Plugin API** — TypeScript Plugin API 시스템: Plugin interface (id/name/version/activate/deactivate), PluginManager (register/unregister/activate/deactivate/list), PluginAPI (scene read/write, UI 확장: panels/toolbar buttons/menu items/commands, event subscription), 샘플 플러그인 2개 (Lorem Ipsum Generator, Color Palette), Right pane Plugins 탭 UI (enable/disable 토글, plugin panels, quick actions)
 - **Tauri desktop build** — Tauri v2 빌드 완성, src-tauri/ 설정 수정 (tauri.conf.json beforeBuildCommand, identifier, app.title 제거), 아이콘 생성, Cargo workspace에 src-tauri 추가, release 바이너리 빌드 확인
+- **Smart Selection** — Cmd+클릭 deep select (Frame/Group 내부 자식 직접 선택), "Select All with Same Fill/Stroke/Kind" 컨텍스트 메뉴 항목, Rust deep_hit_test + select_same_fill/kind/stroke 메서드
 
 ## 📋 Backlog
 - Responsive resize preview (artboard breakpoints, side-by-side view)

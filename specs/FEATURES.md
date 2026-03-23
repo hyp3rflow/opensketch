@@ -11,6 +11,7 @@
 - [x] Viewport: pan, zoom (scroll wheel with rAF batching)
 - [x] Hit testing (reverse render order, respects visibility/lock)
 - [x] Selection (single + multi-select + marquee drag-select, with resize handles)
+- [x] Smart Selection: Cmd+click deep select into Frame/Group, "Select All with Same Fill/Stroke/Kind" via context menu
 - [x] Scene serialization (JSON export/import)
 - [x] Node operations: create, delete, move, resize, duplicate, reparent
 - [x] Name search (partial match, case-insensitive)

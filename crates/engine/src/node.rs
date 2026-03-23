@@ -157,13 +157,13 @@ fn default_line_height() -> f64 { 1.2 }
 fn default_font_weight() -> u16 { 400 }
 fn default_image_fit() -> String { "cover".to_string() }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct GradientStop {
     pub offset: f64,
     pub color: Color,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub enum FillType {
     Solid {
         color: Color,

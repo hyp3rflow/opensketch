@@ -519,7 +519,9 @@ export class Editor {
         }
       }
 
-      const hit = this.engine.hit_test(x, y);
+      // Cmd+click (Meta on Mac, Ctrl on others) → deep select into groups/frames
+      const isMeta = e.metaKey || (e.ctrlKey && !navigator.platform.includes("Mac"));
+      const hit = isMeta ? (this.engine.deep_hit_test(x, y) ?? this.engine.hit_test(x, y)) : this.engine.hit_test(x, y);
       if (hit != null) {
         const currentSel = Array.from(this.engine.get_selection()).map(Number);
         const alreadySelected = currentSel.includes(Number(hit));
@@ -2485,6 +2487,10 @@ export class Editor {
       if (sel.length >= 2) {
         items.push({ label: "Batch Rename…", shortcut: `${mod}⇧R`, enabled: true, action: () => this.showBatchRenameDialog() });
       }
+      items.push({ separator: true, label: "" });
+      items.push({ label: "Select All with Same Fill", enabled: selAfter.length === 1, action: () => this.selectSameFill(selAfter[0]!) });
+      items.push({ label: "Select All with Same Stroke", enabled: selAfter.length === 1, action: () => this.selectSameStroke(selAfter[0]!) });
+      items.push({ label: "Select All with Same Kind", enabled: selAfter.length === 1, action: () => this.selectSameKind(selAfter[0]!) });
     } else {
       // Empty canvas context menu
       items.push({ label: "Paste", shortcut: `${mod}V`, enabled: !!this._clipboard, action: () => this.pasteNodes() });
@@ -2622,6 +2628,24 @@ export class Editor {
     this.engine.select_all();
     const sel = Array.from(this.engine.get_selection()).map(Number);
     this.fireSelectionNow(sel);
+    this.needsRender = true;
+  }
+
+  private selectSameFill(refId: number) {
+    const ids = Array.from(this.engine.select_same_fill(refId)).map(Number);
+    this.fireSelectionNow(ids);
+    this.needsRender = true;
+  }
+
+  private selectSameStroke(refId: number) {
+    const ids = Array.from(this.engine.select_same_stroke(refId)).map(Number);
+    this.fireSelectionNow(ids);
+    this.needsRender = true;
+  }
+
+  private selectSameKind(refId: number) {
+    const ids = Array.from(this.engine.select_same_kind(refId)).map(Number);
+    this.fireSelectionNow(ids);
     this.needsRender = true;
   }
 
