@@ -469,3 +469,24 @@ Quick-access bookmark system for nodes across pages.
 - [x] **Bookmarks panel**: Right pane "Bookmarks" tab, grouped by page, click to navigate
 - [x] **Keyboard shortcut**: ⌘⇧B to toggle bookmark on selected nodes
 - [x] **Navigation**: Click bookmarked node → switch page + pan to center + select
+
+## Export Preset Profiles
+
+Save, manage, and apply named export configurations (format, scale, suffix) for quick batch exports.
+
+### Storage
+- [x] localStorage-based preset storage with default presets (iOS @1x/2x/3x, Android mdpi/xxhdpi, Web @2x, SVG)
+- [x] ExportPreset interface: id, name, format (png/svg), scale (0.5-4x), suffix, quality
+
+### UI
+- [x] **Properties panel**: "Export" section for selected nodes (dropdown + active preset list)
+- [x] **Per-node active presets**: Add/remove presets per node, stored in localStorage
+- [x] **Preset editor modal**: Create/edit presets with name, format, scale, suffix fields
+- [x] **Presets manager modal**: View all presets, delete individual, reset to defaults
+- [x] **Batch export**: "Export N presets" button — downloads all active presets at once
+- [x] **Format badges**: Color-coded PNG (blue) / SVG (purple) indicators
+
+### Export Execution
+- [x] PNG export: Uses editor.exportPng() with configurable scale
+- [x] SVG export: Uses engine.export_node_svg() / export_svg()
+- [x] Auto-naming: node name + suffix + format extension

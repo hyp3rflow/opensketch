@@ -1,5 +1,6 @@
 import type { Editor } from "../editor";
 import { icons } from "./icons";
+import { createExportPresetsSection } from "./export-presets";
 
 // Stage 4: Google Fonts list
 const googleFonts = [
@@ -2610,6 +2611,9 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
     notesSection.appendChild(addNoteBtn);
 
     container.appendChild(notesSection);
+
+    // === Export Presets Section (all node types) ===
+    container.appendChild(createExportPresetsSection(editor, ids[0], () => refresh(ids)));
   }
 
   // Show initial empty state
