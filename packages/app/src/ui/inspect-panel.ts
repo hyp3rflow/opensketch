@@ -103,6 +103,29 @@ export function setupInspectPanel(container: HTMLElement, editor: Editor) {
     assetSection.appendChild(svgBtn);
     wrap.appendChild(assetSection);
 
+    // Design Tokens export section
+    const tokensSection = document.createElement("div");
+    tokensSection.style.cssText = "margin-top:12px;";
+    const tokensLabel = document.createElement("div");
+    tokensLabel.textContent = "Design Tokens";
+    tokensLabel.style.cssText = "color:#aaa;font-size:11px;font-weight:600;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;";
+    tokensSection.appendChild(tokensLabel);
+    const tokensBtns = document.createElement("div");
+    tokensBtns.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;";
+    const tokenFormats: { label: string; key: string }[] = [
+      { label: "W3C DTCG", key: "w3c" },
+      { label: "Style Dictionary", key: "style-dictionary" },
+      { label: "Tailwind", key: "tailwind" },
+    ];
+    for (const fmt of tokenFormats) {
+      const btn = createDownloadBtn(`↓ ${fmt.label}`, () => {
+        editor.downloadDesignTokens(fmt.key);
+      });
+      tokensBtns.appendChild(btn);
+    }
+    tokensSection.appendChild(tokensBtns);
+    wrap.appendChild(tokensSection);
+
     container.appendChild(wrap);
   }
 

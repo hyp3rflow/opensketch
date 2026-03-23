@@ -10,6 +10,7 @@ mod svg_export;
 mod boolean_ops;
 pub mod styles;
 pub mod variable;
+mod design_tokens;
 
 use wasm_bindgen::prelude::*;
 use web_sys::CanvasRenderingContext2d;
@@ -3042,6 +3043,18 @@ impl Engine {
     pub fn import_styles(&mut self, json: &str) -> String {
         let (cc, tc) = self.styles.import_json(json);
         format!("{},{}", cc, tc)
+    }
+
+    /// Export design tokens in the specified format.
+    /// format: "w3c" | "style-dictionary" | "tailwind"
+    /// Returns JSON string.
+    pub fn export_design_tokens(&self, format: &str) -> String {
+        let fmt = match format {
+            "style-dictionary" => design_tokens::TokenFormat::StyleDictionary,
+            "tailwind" => design_tokens::TokenFormat::Tailwind,
+            _ => design_tokens::TokenFormat::W3C,
+        };
+        design_tokens::export_design_tokens(&self.styles, &self.scene.variable_collections, fmt)
     }
 
     /// Perform a boolean operation on selected nodes.

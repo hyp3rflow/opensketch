@@ -2239,6 +2239,39 @@ export class Editor {
   }
 
   // =============================================
+  // Design tokens export
+  // =============================================
+
+  /**
+   * Export design tokens (styles + variables) in the given format.
+   * @param format "w3c" | "style-dictionary" | "tailwind"
+   */
+  exportDesignTokens(format: string = 'w3c'): string {
+    return this.engine.export_design_tokens(format);
+  }
+
+  /**
+   * Download design tokens as a JSON file.
+   */
+  downloadDesignTokens(format: string = 'w3c', filename?: string) {
+    const json = this.exportDesignTokens(format);
+    if (!json || json === '{}') return false;
+    const ext = format === 'tailwind' ? 'js' : 'json';
+    let content = json;
+    if (format === 'tailwind') {
+      content = `/** @type {import('tailwindcss').Config} */\nmodule.exports = ${json};\n`;
+    }
+    const blob = new Blob([content], { type: ext === 'js' ? 'text/javascript' : 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename || `design-tokens.${ext}`;
+    a.click();
+    URL.revokeObjectURL(url);
+    return true;
+  }
+
+  // =============================================
   // Zoom controls
   // =============================================
 

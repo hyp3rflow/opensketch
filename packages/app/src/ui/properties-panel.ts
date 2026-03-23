@@ -128,6 +128,31 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       libSection.appendChild(btnRow);
       emptyDiv.appendChild(libSection);
 
+      // Design Tokens section
+      const tokensSection = document.createElement("div");
+      tokensSection.style.cssText = "width:100%;padding:12px 16px;border-top:1px solid #333;";
+      const tokensTitle = document.createElement("div");
+      tokensTitle.style.cssText = "font-size:11px;font-weight:600;color:#888;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px;";
+      tokensTitle.textContent = "Design Tokens";
+      tokensSection.appendChild(tokensTitle);
+
+      const tokenFormats = [
+        { label: "W3C DTCG", key: "w3c" },
+        { label: "Style Dictionary", key: "style-dictionary" },
+        { label: "Tailwind", key: "tailwind" },
+      ];
+      const tokenBtnRow = document.createElement("div");
+      tokenBtnRow.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;";
+      for (const fmt of tokenFormats) {
+        const btn = document.createElement("button");
+        btn.textContent = fmt.label;
+        btn.style.cssText = btnStyle;
+        btn.onclick = () => editor.downloadDesignTokens(fmt.key);
+        tokenBtnRow.appendChild(btn);
+      }
+      tokensSection.appendChild(tokenBtnRow);
+      emptyDiv.appendChild(tokensSection);
+
       container.appendChild(emptyDiv);
       return;
     }

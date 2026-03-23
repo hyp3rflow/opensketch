@@ -358,6 +358,18 @@
 - [x] **UI**: "Styles Library" section in Properties panel empty state (no selection)
 - Rust StyleStore export_json/import_json + WASM bindings
 
+### Design Tokens Export
+- [x] **Multi-format export**: W3C DTCG, Style Dictionary, Tailwind CSS theme config
+- [x] **Sources**: Color styles, text styles, and variable collections (all modes)
+- [x] **W3C DTCG format**: $type/$value/$description, typography composite values, $extensions.modes for multi-mode variables
+- [x] **Style Dictionary format**: value/type pairs, nested typography tokens (fontFamily/fontSize/fontWeight/lineHeight)
+- [x] **Tailwind format**: theme.extend with colors, fontFamily, fontSize, spacing from number variables
+- [x] **Rust design_tokens.rs**: TokenFormat enum, export_design_tokens() function
+- [x] **WASM**: export_design_tokens(format) binding
+- [x] **TS Editor**: exportDesignTokens(), downloadDesignTokens() methods
+- [x] **UI**: Properties panel empty state "Design Tokens" section (3 format buttons), Inspect panel "Design Tokens" download section
+- [x] **File naming**: .json for W3C/StyleDictionary, .js (module.exports) for Tailwind
+
 ### Comments / Annotations
 - [x] **Comment struct**: id, x, y, author, text, timestamp, resolved, replies[], node_id, page_id
 - [x] **Scene-level storage**: Comments stored at Scene level (not per-node), serialized in SceneData
