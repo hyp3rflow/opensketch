@@ -6,6 +6,7 @@ import { toggleShortcutsPanel, isShortcutsPanelVisible, closeShortcutsPanel } fr
 import { showContextMenu, hideContextMenu, type MenuItem } from "./ui/context-menu";
 import { openResponsivePreview, isResponsivePreviewOpen, closeResponsivePreview } from "./ui/responsive-preview";
 import { CursorPresence } from "./ui/cursor-presence";
+import { openComponentSwapModal } from "./ui/component-swap";
 
 export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "section" | "image" | "pen" | "star" | "polygon" | "slice" | "connector";
 
@@ -330,6 +331,13 @@ export class Editor {
           }
           this.requestRender();
         }
+        return;
+      }
+
+      // Ctrl/Cmd+Shift+K: component search & swap
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "k" || e.key === "K")) {
+        e.preventDefault();
+        this.openComponentSwap();
         return;
       }
 
@@ -2306,6 +2314,13 @@ export class Editor {
       (this as any).onLayersChanges?.forEach?.((fn: any) => fn());
       this.requestRender();
     }
+  }
+
+  // =============================================
+  // Component Search & Swap
+  // =============================================
+  openComponentSwap() {
+    openComponentSwapModal(this);
   }
 
   // =============================================

@@ -165,3 +165,19 @@ override <instance_id> <child_node_id> {"text":"Click Me!"}
 | `slot fill <instance_id> "<name>" <node_id>` | Fill slot |
 | `components` | List all components |
 | `override <instance_id> <node_id> <json>` | Override property |
+
+## Component Search & Swap
+
+Instances can swap their master component to a different one via a search dialog.
+
+### Rust API (ComponentStore)
+- `search_components(query: &str) -> Vec<&Component>` — case-insensitive substring search by name
+- `swap_instance_component(instance_data, new_component_id) -> bool` — updates instance's component_id, resets variants/overrides
+
+### WASM Bindings (Engine)
+- `search_components(query: &str) -> String` — returns JSON `[{id, name, description, variant_count}]`
+- `swap_instance_component(instance_id: u64, new_comp_id: u64) -> bool` — removes old children, re-clones from new component's default variant
+
+### TypeScript UI
+- **component-search.ts**: `openComponentSwapDialog(editor, instanceId)` — modal dialog with search input + component result list + swap buttons
+- **properties-panel.ts**: Instance nodes show a "Swap" button next to "Go to →" in the component info card

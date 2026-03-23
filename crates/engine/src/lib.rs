@@ -1956,6 +1956,111 @@ impl Engine {
     }
 
     // =============================================
+    // Component Search & Swap
+    // =============================================
+
+    /// Search components by name (case-insensitive substring match).
+    /// Returns JSON array of { id, name, description, variant_count }
+    pub fn search_components(&self, query: &str) -> String {
+        let results: Vec<_> = self.components.search_components(query).iter().map(|c| {
+            serde_json::json!({
+                "id": c.id,
+                "name": c.name,
+                "description": c.description,
+                "variant_count": c.variants.len(),
+            })
+        }).collect();
+        serde_json::to_string(&results).unwrap_or_else(|_| "[]".to_string())
+    }
+
+    /// Find all instance nodes in the scene, optionally filtered by component_id.
+    /// Returns JSON array of { node_id, node_name, component_id, component_name }
+    pub fn find_instances(&self, filter_comp_id: u64) -> String {
+        let mut results = vec![];
+        for node in self.scene.all_nodes() {
+            if let NodeKind::Instance(data) = &node.kind {
+                if filter_comp_id == 0 || data.component_id == filter_comp_id {
+                    let comp_name = self.components.get(data.component_id)
+                        .map(|c| c.name.clone())
+                        .unwrap_or_else(|| "Unknown".to_string());
+                    results.push(serde_json::json!({
+                        "node_id": node.id,
+                        "node_name": node.name,
+                        "component_id": data.component_id,
+                        "component_name": comp_name,
+                    }));
+                }
+            }
+        }
+        serde_json::to_string(&results).unwrap_or_else(|_| "[]".to_string())
+    }
+
+    /// Swap an instance's master component to a different component.
+    /// Removes old children, re-clones from new component's default variant.
+    pub fn swap_instance_component(&mut self, instance_id: u64, new_comp_id: u64) -> bool {
+        // Verify instance exists
+        let (x, y) = if let Some(node) = self.scene.get_node(instance_id) {
+            if let NodeKind::Instance(_) = &node.kind {
+                (node.x, node.y)
+            } else {
+                return false;
+            }
+        } else {
+            return false;
+        };
+
+        let comp = match self.components.get(new_comp_id) {
+            Some(c) => c.clone(),
+            None => return false,
+        };
+
+        let default_key = comp.default_key();
+        let variant = match comp.get_variant(&default_key) {
+            Some(v) => v.clone(),
+            None => match comp.variants.values().next() {
+                Some(v) => v.clone(),
+                None => return false,
+            }
+        };
+
+        // Remove old children
+        if let Some(node) = self.scene.get_node(instance_id) {
+            let old_children = node.children.clone();
+            for cid in old_children {
+                self.scene.remove_node(cid);
+            }
+        }
+
+        // Update instance data and geometry
+        if let Some(node) = self.scene.get_node_mut(instance_id) {
+            node.kind = NodeKind::Instance(Box::new(InstanceData {
+                component_id: new_comp_id,
+                variant_values: default_key,
+                slot_fills: std::collections::HashMap::new(),
+                overrides: std::collections::HashMap::new(),
+            }));
+            node.name = format!("[I] {}", comp.name);
+            if let Some(template_root) = variant.nodes.first() {
+                node.width = template_root.width;
+                node.height = template_root.height;
+                node.fills = template_root.fills.clone();
+                node.stroke = template_root.stroke.clone();
+                node.corner_radius = template_root.corner_radius;
+                node.layout = template_root.layout.clone();
+            }
+        }
+
+        // Clone new variant's children
+        if let Some(template_root) = variant.nodes.first() {
+            let dx = x - template_root.x;
+            let dy = y - template_root.y;
+            self.clone_template_children(template_root, &variant.nodes, instance_id, dx, dy);
+        }
+
+        true
+    }
+
+    // =============================================
     // Text Properties (Stage 2 & 3)
     // =============================================
 

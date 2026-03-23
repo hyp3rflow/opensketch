@@ -182,4 +182,33 @@ impl ComponentStore {
             self.components.insert(c.id, c);
         }
     }
+
+    /// Search components by name (case-insensitive substring match)
+    pub fn search_components(&self, query: &str) -> Vec<&Component> {
+        let q = query.to_lowercase();
+        let mut results: Vec<_> = self.components.values()
+            .filter(|c| c.name.to_lowercase().contains(&q))
+            .collect();
+        results.sort_by_key(|c| c.id);
+        results
+    }
+
+    /// Swap an instance's master component. Returns the new component_id on success.
+    /// This updates the instance's component_id, resets variant values to defaults,
+    /// and clears overrides/slot fills.
+    pub fn swap_instance_component(
+        &self,
+        instance_data: &mut crate::component::InstanceData,
+        new_component_id: ComponentId,
+    ) -> bool {
+        if let Some(comp) = self.components.get(&new_component_id) {
+            instance_data.component_id = new_component_id;
+            instance_data.variant_values = comp.default_key();
+            instance_data.slot_fills.clear();
+            instance_data.overrides.clear();
+            true
+        } else {
+            false
+        }
+    }
 }

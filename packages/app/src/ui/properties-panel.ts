@@ -1,6 +1,7 @@
 import type { Editor } from "../editor";
 import { icons } from "./icons";
 import { createExportPresetsSection } from "./export-presets";
+import { openComponentSwapDialog } from "./component-search";
 
 // Stage 4: Google Fonts list
 const googleFonts = [
@@ -259,6 +260,22 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         editor.fireSelectionNow([Number(sourceId)]);
       });
       compCard.appendChild(goBtn);
+
+      const swapBtn = document.createElement("button");
+      swapBtn.style.cssText = `
+        background:rgba(79,70,229,0.15); border:1px solid rgba(79,70,229,0.3);
+        border-radius:6px; padding:4px 10px; color:#818cf8;
+        cursor:pointer; font-size:11px; font-weight:500;
+        transition:all 0.15s; flex-shrink:0;
+      `;
+      swapBtn.textContent = "Swap";
+      swapBtn.title = "Swap to a different component";
+      swapBtn.addEventListener("mouseenter", () => { swapBtn.style.background = "rgba(79,70,229,0.25)"; });
+      swapBtn.addEventListener("mouseleave", () => { swapBtn.style.background = "rgba(79,70,229,0.15)"; });
+      swapBtn.addEventListener("click", () => {
+        openComponentSwapDialog(editor, Number(id));
+      });
+      compCard.appendChild(swapBtn);
       header.appendChild(compCard);
 
       // === Variant Picker ===
