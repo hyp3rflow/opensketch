@@ -3,6 +3,7 @@ import type { Editor } from "../editor";
 /**
  * Prototype presentation mode viewer.
  * Full-screen overlay that renders frames with clickable interaction hotspots.
+ * Supports animated transitions: Dissolve, SmartAnimate, SlideIn, SlideOut, Push.
  */
 export function createPrototypeViewer(editor: Editor): {
   show: (startFrameId?: number) => void;
@@ -14,6 +15,7 @@ export function createPrototypeViewer(editor: Editor): {
   let active = false;
   let currentFrameId: number | null = null;
   let navigationStack: number[] = [];
+  let transitioning = false;
 
   function show(startFrameId?: number) {
     if (active) return;
@@ -78,6 +80,7 @@ export function createPrototypeViewer(editor: Editor): {
   function hide() {
     if (!active || !overlay) return;
     active = false;
+    transitioning = false;
     document.removeEventListener("keydown", onKeyDown);
     overlay.remove();
     overlay = null;
@@ -87,17 +90,27 @@ export function createPrototypeViewer(editor: Editor): {
   }
 
   function onKeyDown(e: KeyboardEvent) {
+    if (transitioning) return;
     if (e.key === "Escape") hide();
     else if (e.key === "ArrowLeft" || e.key === "Backspace") navigateBack();
   }
 
-  function navigateTo(frameId: number) {
+  function navigateTo(frameId: number, transition: string = "Instant", durationMs: number = 300) {
+    if (transitioning) return;
+    const prevFrameId = currentFrameId;
     if (currentFrameId !== null) navigationStack.push(currentFrameId);
     currentFrameId = frameId;
-    renderCurrentView();
+
+    if (transition === "Instant" || !prevFrameId) {
+      renderCurrentView();
+      return;
+    }
+
+    performTransition(prevFrameId, frameId, transition, durationMs);
   }
 
   function navigateBack() {
+    if (transitioning) return;
     if (navigationStack.length > 0) {
       currentFrameId = navigationStack.pop()!;
       renderCurrentView();
@@ -109,6 +122,290 @@ export function createPrototypeViewer(editor: Editor): {
     if (!json) return null;
     const node = JSON.parse(json);
     return { x: node.x, y: node.y, width: node.width, height: node.height };
+  }
+
+  /** Get viewport scale + display dimensions for a frame */
+  function getViewportParams(bounds: { width: number; height: number }) {
+    const maxW = window.innerWidth * 0.9;
+    const maxH = (window.innerHeight - 50) * 0.9;
+    const scale = Math.min(maxW / bounds.width, maxH / bounds.height, 2);
+    return {
+      scale,
+      displayW: bounds.width * scale,
+      displayH: bounds.height * scale,
+    };
+  }
+
+  /** Render a frame to an offscreen canvas and return it */
+  function renderFrameToCanvas(frameId: number): HTMLCanvasElement | null {
+    const fb = getFrameBounds(frameId);
+    if (!fb) return null;
+    const dpr = window.devicePixelRatio || 1;
+    const { scale, displayW, displayH } = getViewportParams(fb);
+
+    const offscreen = document.createElement("canvas");
+    offscreen.width = displayW * dpr;
+    offscreen.height = displayH * dpr;
+    const ctx = offscreen.getContext("2d")!;
+
+    const savedZoom = editor.engine.get_zoom();
+    const savedPanX = editor.engine.get_pan_x();
+    const savedPanY = editor.engine.get_pan_y();
+
+    editor.engine.set_viewport(scale * dpr, -fb.x * scale * dpr, -fb.y * scale * dpr);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, offscreen.width, offscreen.height);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, offscreen.width, offscreen.height);
+    editor.engine.render(ctx as any);
+
+    editor.engine.set_viewport(savedZoom, savedPanX, savedPanY);
+    return offscreen;
+  }
+
+  /** Get all children node info for a frame (for smart animate matching) */
+  function getFrameChildrenInfo(frameId: number): Map<string, { x: number; y: number; width: number; height: number; rotation: number; opacity: number; name: string; id: number }> {
+    const map = new Map();
+    const json = editor.engine.get_node_json(frameId);
+    if (!json) return map;
+    const frame = JSON.parse(json);
+    const frameBounds = { x: frame.x, y: frame.y };
+
+    function collectChildren(parentId: number) {
+      const pjson = editor.engine.get_node_json(parentId);
+      if (!pjson) return;
+      const parent = JSON.parse(pjson);
+      if (!parent.children) return;
+      for (const childId of parent.children) {
+        const cjson = editor.engine.get_node_json(Number(childId));
+        if (!cjson) continue;
+        const child = JSON.parse(cjson);
+        // Store position relative to frame
+        map.set(child.name, {
+          x: child.x - frameBounds.x,
+          y: child.y - frameBounds.y,
+          width: child.width,
+          height: child.height,
+          rotation: child.rotation || 0,
+          opacity: child.opacity ?? 1,
+          name: child.name,
+          id: Number(childId),
+        });
+        collectChildren(Number(childId));
+      }
+    }
+    collectChildren(frameId);
+    return map;
+  }
+
+  /** Perform animated transition between two frames */
+  function performTransition(fromId: number, toId: number, transition: string, durationMs: number) {
+    if (!viewCanvas) return;
+    transitioning = true;
+
+    const fromCanvas = renderFrameToCanvas(fromId);
+    const toCanvas = renderFrameToCanvas(toId);
+    if (!fromCanvas || !toCanvas) {
+      transitioning = false;
+      renderCurrentView();
+      return;
+    }
+
+    const dpr = window.devicePixelRatio || 1;
+    const toBounds = getFrameBounds(toId)!;
+    const { displayW, displayH } = getViewportParams(toBounds);
+
+    // Resize main canvas to target size
+    viewCanvas.width = toCanvas.width;
+    viewCanvas.height = toCanvas.height;
+    viewCanvas.style.width = `${displayW}px`;
+    viewCanvas.style.height = `${displayH}px`;
+
+    const ctx = viewCanvas.getContext("2d")!;
+    const startTime = performance.now();
+
+    // Easing: ease-in-out cubic
+    function ease(t: number): number {
+      return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    }
+
+    if (transition === "SmartAnimate") {
+      performSmartAnimate(fromId, toId, fromCanvas, toCanvas, durationMs);
+      return;
+    }
+
+    function animate() {
+      if (!viewCanvas || !active) { transitioning = false; return; }
+      const elapsed = performance.now() - startTime;
+      const rawT = Math.min(elapsed / durationMs, 1);
+      const t = ease(rawT);
+
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, viewCanvas.width, viewCanvas.height);
+
+      const w = viewCanvas.width;
+      const h = viewCanvas.height;
+
+      switch (transition) {
+        case "Dissolve":
+          // Cross-fade
+          ctx.globalAlpha = 1 - t;
+          ctx.drawImage(fromCanvas, 0, 0, w, h);
+          ctx.globalAlpha = t;
+          ctx.drawImage(toCanvas, 0, 0, w, h);
+          ctx.globalAlpha = 1;
+          break;
+
+        case "SlideIn":
+          // New frame slides in from right
+          ctx.drawImage(fromCanvas, -w * t, 0, w, h);
+          ctx.drawImage(toCanvas, w * (1 - t), 0, w, h);
+          break;
+
+        case "SlideOut":
+          // Old frame slides out to right, new appears underneath
+          ctx.drawImage(toCanvas, 0, 0, w, h);
+          ctx.drawImage(fromCanvas, w * t, 0, w, h);
+          break;
+
+        case "Push":
+          // Both frames move together (push effect)
+          ctx.drawImage(fromCanvas, -w * t, 0, w, h);
+          ctx.drawImage(toCanvas, w - w * t, 0, w, h);
+          break;
+
+        default:
+          ctx.drawImage(toCanvas, 0, 0, w, h);
+          break;
+      }
+
+      if (rawT < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        transitioning = false;
+        renderCurrentView();
+      }
+    }
+
+    requestAnimationFrame(animate);
+  }
+
+  /** Smart Animate: match nodes by name, interpolate properties */
+  function performSmartAnimate(fromId: number, toId: number, fromCanvas: HTMLCanvasElement, toCanvas: HTMLCanvasElement, durationMs: number) {
+    if (!viewCanvas) { transitioning = false; return; }
+
+    const fromChildren = getFrameChildrenInfo(fromId);
+    const toChildren = getFrameChildrenInfo(toId);
+    const fromBounds = getFrameBounds(fromId)!;
+    const toBounds = getFrameBounds(toId)!;
+    const dpr = window.devicePixelRatio || 1;
+    const { scale, displayW, displayH } = getViewportParams(toBounds);
+
+    // Find matched nodes (same name in both frames)
+    const matchedNames: string[] = [];
+    for (const name of fromChildren.keys()) {
+      if (toChildren.has(name)) matchedNames.push(name);
+    }
+
+    // If no matches, fall back to dissolve
+    if (matchedNames.length === 0) {
+      performTransition(fromId, toId, "Dissolve", durationMs);
+      return;
+    }
+
+    const ctx = viewCanvas.getContext("2d")!;
+    const startTime = performance.now();
+
+    function ease(t: number): number {
+      return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    }
+
+    function lerp(a: number, b: number, t: number): number {
+      return a + (b - a) * t;
+    }
+
+    function animate() {
+      if (!viewCanvas || !active) { transitioning = false; return; }
+      const elapsed = performance.now() - startTime;
+      const rawT = Math.min(elapsed / durationMs, 1);
+      const t = ease(rawT);
+
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, viewCanvas.width, viewCanvas.height);
+
+      const w = viewCanvas.width;
+      const h = viewCanvas.height;
+
+      // Cross-fade unmatched content (background)
+      ctx.globalAlpha = 1 - t;
+      ctx.drawImage(fromCanvas, 0, 0, w, h);
+      ctx.globalAlpha = t;
+      ctx.drawImage(toCanvas, 0, 0, w, h);
+      ctx.globalAlpha = 1;
+
+      // For matched nodes: render interpolated by temporarily modifying and re-rendering
+      // We overlay interpolated rectangles as colored hints (visual feedback)
+      // For a proper implementation, we'd need per-node rendering isolation.
+      // Instead, we render the target frame and smoothly interpolate matched node positions
+      // using clip regions for each matched node.
+
+      // Draw matched node transition overlays
+      const totalScale = scale * dpr;
+      for (const name of matchedNames) {
+        const from = fromChildren.get(name)!;
+        const to = toChildren.get(name)!;
+
+        const ix = lerp(from.x, to.x, t) * totalScale;
+        const iy = lerp(from.y, to.y, t) * totalScale;
+        const iw = lerp(from.width, to.width, t) * totalScale;
+        const ih = lerp(from.height, to.height, t) * totalScale;
+
+        // Source position in fromCanvas
+        const sx = from.x * totalScale;
+        const sy = from.y * totalScale;
+        const sw = from.width * totalScale;
+        const sh = from.height * totalScale;
+
+        // Target position in toCanvas
+        const tx = to.x * totalScale;
+        const ty = to.y * totalScale;
+        const tw = to.width * totalScale;
+        const th = to.height * totalScale;
+
+        ctx.save();
+        // Clip to interpolated rect
+        ctx.beginPath();
+        ctx.rect(ix, iy, iw, ih);
+        ctx.clip();
+
+        // Clear clipped area
+        ctx.clearRect(ix, iy, iw, ih);
+
+        // Draw from-node fading out
+        if (sw > 0 && sh > 0) {
+          ctx.globalAlpha = 1 - t;
+          ctx.drawImage(fromCanvas, sx, sy, sw, sh, ix, iy, iw, ih);
+        }
+
+        // Draw to-node fading in
+        if (tw > 0 && th > 0) {
+          ctx.globalAlpha = t;
+          ctx.drawImage(toCanvas, tx, ty, tw, th, ix, iy, iw, ih);
+        }
+
+        ctx.globalAlpha = 1;
+        ctx.restore();
+      }
+
+      if (rawT < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        transitioning = false;
+        renderCurrentView();
+      }
+    }
+
+    requestAnimationFrame(animate);
   }
 
   function renderCurrentView() {
@@ -142,11 +439,7 @@ export function createPrototypeViewer(editor: Editor): {
       }
     }
 
-    const maxW = window.innerWidth * 0.9;
-    const maxH = (window.innerHeight - 50) * 0.9;
-    const scale = Math.min(maxW / bounds.width, maxH / bounds.height, 2);
-    const displayW = bounds.width * scale;
-    const displayH = bounds.height * scale;
+    const { scale, displayW, displayH } = getViewportParams(bounds);
 
     viewCanvas.width = displayW * dpr;
     viewCanvas.height = displayH * dpr;
@@ -199,10 +492,9 @@ export function createPrototypeViewer(editor: Editor): {
   }
 
   function onCanvasClick(e: MouseEvent) {
-    if (!viewCanvas) return;
+    if (!viewCanvas || transitioning) return;
 
     const rect = viewCanvas.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
 
     // Get frame bounds
     let bounds: { x: number; y: number; width: number; height: number };
@@ -210,12 +502,10 @@ export function createPrototypeViewer(editor: Editor): {
       const fb = getFrameBounds(currentFrameId);
       bounds = fb || { x: 0, y: 0, width: 800, height: 600 };
     } else {
-      return; // No frame selected, no interactions
+      return;
     }
 
-    const maxW = window.innerWidth * 0.9;
-    const maxH = (window.innerHeight - 50) * 0.9;
-    const scale = Math.min(maxW / bounds.width, maxH / bounds.height, 2);
+    const { scale } = getViewportParams(bounds);
 
     // Convert click to scene coordinates
     const clickX = (e.clientX - rect.left) / scale + bounds.x;
@@ -245,7 +535,10 @@ export function createPrototypeViewer(editor: Editor): {
             if (targetPageId > 0) {
               editor.engine.set_active_page(BigInt(targetPageId));
             }
-            navigateTo(targetId);
+            // Use transition type and duration from the interaction
+            const transition = clickInter.transition || "Instant";
+            const duration = clickInter.transition_duration_ms || 300;
+            navigateTo(targetId, transition, duration);
             return;
           } else if (clickInter.action === "Back") {
             navigateBack();

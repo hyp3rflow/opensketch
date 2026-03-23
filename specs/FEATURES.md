@@ -220,6 +220,8 @@
   - WASM API: add_interaction, remove_interaction, clear_interactions, get_interactions, get_interaction_count, get_all_interactions
   - Properties panel: "Interactions" section with trigger/action/target/transition/duration editors, add/remove
   - Prototype viewer: full-screen overlay, click navigation, back stack, Esc to close
+  - Animated transitions: Dissolve (cross-fade), SlideIn (from right), SlideOut (old exits right), Push (both move), SmartAnimate (name-matched node interpolation with position/size cross-fade)
+  - SmartAnimate: matches children by node name across frames, interpolates position/size with cubic ease-in-out, unmatched content cross-fades
   - Toolbar: Play button (▶), keyboard shortcut Cmd+Enter
   - Interaction hotspot hints (blue dashed borders in preview)
 
