@@ -228,3 +228,12 @@ select.prop-input { appearance: none; background: #333 url("data:image/svg+xml,%
 .plugin-notification--success { background: #2e7d32; }
 .plugin-notification--warning { background: #e65100; }
 .plugin-notification--error { background: #c62828; }
+
+/* Minimap */
+.minimap-wrapper { position: absolute; bottom: 56px; right: 16px; z-index: 20; background: #1e1e1e; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.06); overflow: hidden; }
+.minimap-wrapper.collapsed { border-radius: 8px; }
+.minimap-header { display: flex; align-items: center; justify-content: space-between; padding: 4px 8px; background: #2a2a2a; font-size: 10px; color: #888; user-select: none; }
+.minimap-header span { font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+.minimap-toggle { border: none; background: transparent; color: #888; cursor: pointer; font-size: 14px; line-height: 1; padding: 0 2px; }
+.minimap-toggle:hover { color: #fff; }
+.minimap-canvas { display: block; cursor: crosshair; }

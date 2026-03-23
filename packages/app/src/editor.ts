@@ -2490,6 +2490,7 @@ export class Editor {
       items.push({ separator: true, label: "" });
       items.push({ label: "Select All with Same Fill", enabled: selAfter.length === 1, action: () => this.selectSameFill(selAfter[0]!) });
       items.push({ label: "Select All with Same Stroke", enabled: selAfter.length === 1, action: () => this.selectSameStroke(selAfter[0]!) });
+      items.push({ label: "Select All with Same Font", enabled: selAfter.length === 1, action: () => this.selectSameFont(selAfter[0]!) });
       items.push({ label: "Select All with Same Kind", enabled: selAfter.length === 1, action: () => this.selectSameKind(selAfter[0]!) });
     } else {
       // Empty canvas context menu
@@ -2645,6 +2646,12 @@ export class Editor {
 
   private selectSameKind(refId: number) {
     const ids = Array.from(this.engine.select_same_kind(refId)).map(Number);
+    this.fireSelectionNow(ids);
+    this.needsRender = true;
+  }
+
+  private selectSameFont(refId: number) {
+    const ids = Array.from(this.engine.select_same_font(refId)).map(Number);
     this.fireSelectionNow(ids);
     this.needsRender = true;
   }

@@ -7,6 +7,7 @@ import { setupDesignSystemPanel } from "./ui/design-system";
 import { setupAgentPanel } from "./ui/agent-panel";
 import { setupNoteOverlay } from "./ui/note-overlay";
 import { setupZoomControls } from "./ui/zoom-controls";
+import { setupMinimap } from "./ui/minimap";
 import { setupRulers } from "./ui/rulers";
 import { setupPageTabs } from "./ui/page-tabs";
 import { AutoSave, setupHistoryPanel } from "./autosave";
@@ -81,6 +82,9 @@ async function main() {
 
   // Zoom controls (bottom-left, next to layers panel)
   setupZoomControls(document.getElementById("workspace")!, editor);
+
+  // Minimap navigator (bottom-right)
+  const minimap = setupMinimap(document.getElementById("workspace")!, editor);
 
   // Rulers & guides
   const rulers = setupRulers(document.getElementById("workspace")!, editor);

@@ -1336,6 +1336,10 @@ impl Engine {
     }
 
     /// Select all nodes with the same stroke color as the given node. Returns selected IDs.
+    pub fn select_same_font(&mut self, reference_id: u64) -> Vec<u64> {
+        self.scene.select_same_font(reference_id)
+    }
+
     pub fn select_same_stroke(&mut self, reference_id: u64) -> Vec<u64> {
         self.scene.select_same_stroke(reference_id)
     }
@@ -1413,6 +1417,42 @@ impl Engine {
 
     pub fn get_node_name(&self, id: u64) -> Option<String> {
         self.scene.get_node(id).map(|n| n.name.clone())
+    }
+
+    /// Returns compact JSON array of node rects for minimap rendering.
+    /// Each entry: [id, x, y, w, h, "fillColor", "kindChar"]
+    /// Only includes visible nodes.
+    pub fn get_minimap_data(&self) -> String {
+        let order = self.scene.render_order();
+        let mut entries = Vec::new();
+        for &id in &order {
+            if let Some(node) = self.scene.get_node(id) {
+                if !node.visible { continue; }
+                let fill_color = if let Some(f) = node.fills.iter().find(|f| f.visible) {
+                    let c = f.color();
+                    format!("rgba({},{},{},{:.2})", c.r, c.g, c.b, c.a as f64 / 255.0)
+                } else {
+                    "rgba(200,200,200,0.5)".to_string()
+                };
+                let kind_char = match &node.kind {
+                    crate::node::NodeKind::Rect => "R",
+                    crate::node::NodeKind::Ellipse => "E",
+                    crate::node::NodeKind::Text { .. } => "T",
+                    crate::node::NodeKind::Frame => "F",
+                    crate::node::NodeKind::Group => "G",
+                    crate::node::NodeKind::Image { .. } => "I",
+                    crate::node::NodeKind::Path { .. } => "P",
+                    crate::node::NodeKind::Star { .. } => "S",
+                    crate::node::NodeKind::Polygon { .. } => "N",
+                    _ => "O",
+                };
+                entries.push(format!(
+                    "[{},{},{},{},{},\"{}\",\"{}\"]",
+                    id, node.x, node.y, node.width, node.height, fill_color, kind_char
+                ));
+            }
+        }
+        format!("[{}]", entries.join(","))
     }
 
     pub fn get_node_json(&self, id: u64) -> Option<String> {

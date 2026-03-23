@@ -1121,7 +1121,7 @@ impl Scene {
         for node in self.nodes.values() {
             if !node.visible || node.locked { continue; }
             if let Some(fill) = node.fills.first() {
-                if fill.fill_type == ref_fill.fill_type {
+                if fill.color() == ref_fill.color() && fill.fill_type == ref_fill.fill_type {
                     result.push(node.id);
                 }
             }
@@ -1161,6 +1161,28 @@ impl Scene {
             if !node.visible || node.locked { continue; }
             if let Some(stroke) = node.strokes.first() {
                 if stroke.color == ref_stroke.color {
+                    result.push(node.id);
+                }
+            }
+        }
+        self.selection = result.clone();
+        result
+    }
+
+    /// Select all text nodes with the same font_family as the given text node.
+    pub fn select_same_font(&mut self, reference_id: NodeId) -> Vec<NodeId> {
+        let ref_font = match self.nodes.get(&reference_id) {
+            Some(n) => match &n.kind {
+                NodeKind::Text { font_family, .. } => font_family.clone(),
+                _ => return vec![],
+            },
+            None => return vec![],
+        };
+        let mut result = vec![];
+        for node in self.nodes.values() {
+            if !node.visible || node.locked { continue; }
+            if let NodeKind::Text { font_family, .. } = &node.kind {
+                if *font_family == ref_font {
                     result.push(node.id);
                 }
             }
