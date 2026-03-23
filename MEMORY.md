@@ -30,6 +30,7 @@
 
 - **Min/Max size constraints** — Node에 min_width/max_width/min_height/max_height: Option<f64>, clamp_size() 헬퍼, Flex/Grid 레이아웃 후 자동 클램핑, WASM 5개 바인딩, Properties panel 4칸 입력 UI, Inspect panel CSS 생성
 - **Asset library panel** — Right pane "Assets" 탭, Components/Color Styles/Text Styles 3개 섹션, 검색/필터, 클릭으로 인스턴스 생성 또는 스타일 적용
+- **Flow diagrams / connectors** — NodeKind::Connector (start/end node IDs, straight/curved path, start/end arrows), Canvas bezier/straight rendering with arrowheads + edge clipping, SVG export with markers, WASM bindings (add/set/get/update), Toolbar button (L shortcut), drag-to-connect UI with preview, Properties panel (path type, arrows), auto-update on connected node move
 
 ## 📋 Backlog
 - Tauri desktop build (scaffolded but not tested)
