@@ -636,8 +636,41 @@ impl Renderer {
                 ctx.fill_text(&node.notes.len().to_string(), cx - fs * 0.25, cy).ok();
             }
         }
+        // Clip children for Hidden/Scroll overflow
+        let needs_clip = node.overflow != crate::node::Overflow::Visible;
+        if needs_clip {
+            ctx.save();
+            ctx.begin_path();
+            if node.corner_radius > 0.0 {
+                self.draw_rounded_rect(ctx, node.x, node.y, node.width, node.height, node.corner_radius);
+            } else {
+                ctx.rect(node.x, node.y, node.width, node.height);
+            }
+            ctx.clip();
+        }
+
+        // Apply scroll offset for Scroll overflow
+        let has_scroll = node.overflow == crate::node::Overflow::Scroll;
+        if has_scroll {
+            ctx.save();
+            ctx.translate(node.scroll_x, node.scroll_y).ok();
+        }
+
         // Render children hierarchically (for mask support)
         self.render_children(ctx, &node.children, scene);
+
+        if has_scroll {
+            ctx.restore();
+        }
+
+        if needs_clip {
+            ctx.restore();
+        }
+
+        // Render scrollbar indicators for scrollable frames
+        if has_scroll {
+            self.render_scrollbars(ctx, node, scene);
+        }
     }
 
     fn render_slot(&self, ctx: &CanvasRenderingContext2d, node: &Node) {
@@ -826,6 +859,61 @@ impl Renderer {
         }
         ctx.close_path();
         self.apply_fill_stroke(ctx, node);
+    }
+
+    fn render_scrollbars(&self, ctx: &CanvasRenderingContext2d, node: &Node, scene: &Scene) {
+        // Calculate content bounds from children
+        let mut min_x = f64::MAX;
+        let mut min_y = f64::MAX;
+        let mut max_x = f64::MIN;
+        let mut max_y = f64::MIN;
+        for &cid in &node.children {
+            if let Some(c) = scene.get_node(cid) {
+                if !c.visible { continue; }
+                min_x = min_x.min(c.x);
+                min_y = min_y.min(c.y);
+                max_x = max_x.max(c.x + c.width);
+                max_y = max_y.max(c.y + c.height);
+            }
+        }
+        if min_x >= max_x || min_y >= max_y { return; }
+
+        let content_w = max_x - min_x;
+        let content_h = max_y - min_y;
+        let bar_thickness = 4.0 / self.viewport.a;
+        let bar_margin = 2.0 / self.viewport.a;
+
+        // Vertical scrollbar
+        if content_h > node.height {
+            let visible_ratio = (node.height / content_h).min(1.0);
+            let scroll_ratio = (-node.scroll_y / (content_h - node.height)).clamp(0.0, 1.0);
+            let track_h = node.height - bar_margin * 2.0;
+            let thumb_h = (track_h * visible_ratio).max(20.0 / self.viewport.a);
+            let thumb_y = node.y + bar_margin + scroll_ratio * (track_h - thumb_h);
+            let thumb_x = node.x + node.width - bar_thickness - bar_margin;
+
+            ctx.set_fill_style_str("rgba(255,255,255,0.3)");
+            ctx.begin_path();
+            let r = bar_thickness / 2.0;
+            self.draw_rounded_rect(ctx, thumb_x, thumb_y, bar_thickness, thumb_h, r);
+            ctx.fill();
+        }
+
+        // Horizontal scrollbar
+        if content_w > node.width {
+            let visible_ratio = (node.width / content_w).min(1.0);
+            let scroll_ratio = (-node.scroll_x / (content_w - node.width)).clamp(0.0, 1.0);
+            let track_w = node.width - bar_margin * 2.0;
+            let thumb_w = (track_w * visible_ratio).max(20.0 / self.viewport.a);
+            let thumb_x = node.x + bar_margin + scroll_ratio * (track_w - thumb_w);
+            let thumb_y = node.y + node.height - bar_thickness - bar_margin;
+
+            ctx.set_fill_style_str("rgba(255,255,255,0.3)");
+            ctx.begin_path();
+            let r = bar_thickness / 2.0;
+            self.draw_rounded_rect(ctx, thumb_x, thumb_y, thumb_w, bar_thickness, r);
+            ctx.fill();
+        }
     }
 
     fn render_section(&self, ctx: &CanvasRenderingContext2d, node: &Node, scene: &Scene) {

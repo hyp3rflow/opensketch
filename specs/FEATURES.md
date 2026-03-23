@@ -543,3 +543,15 @@ Right pane "A11y" tab — automated accessibility audit for design nodes.
 - [x] Severity color-coded (red error, amber warning, blue info)
 - [x] Click issue → select node + zoom to selection
 - [x] Re-check button for manual re-audit
+
+### Scrollable Frames (Overflow Control)
+- [x] Node.overflow: Visible (default), Hidden, Scroll
+- [x] Node.scroll_x / scroll_y: scroll offset for Scroll mode
+- [x] Canvas rendering: clip children to frame bounds (Hidden/Scroll), translate children by scroll offset (Scroll)
+- [x] Scrollbar indicators: thin semi-transparent thumb bars (vertical/horizontal), auto-sized based on content ratio
+- [x] Mouse wheel scroll: intercepts wheel events on scrollable frames, clamps to content bounds
+- [x] SVG export: clipPath for overflow Hidden/Scroll, transform for scroll offset
+- [x] WASM: set_overflow, get_overflow, set_scroll_offset, get_scroll_offset, get_content_bounds
+- [x] Properties panel: Overflow section (Visible/Hidden/Scroll toggle), scroll position display, reset button
+- [x] Inspect panel: overflow CSS generation (hidden/auto)
+- [x] Backward-compatible serde (default Visible, scroll 0,0)

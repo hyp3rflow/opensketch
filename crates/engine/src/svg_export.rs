@@ -252,8 +252,31 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
                 g.push_str(&rect_attrs);
             }
 
+            // Clip children for Hidden/Scroll overflow
+            let clip_overflow = node.overflow != crate::node::Overflow::Visible
+                && matches!(node.kind, NodeKind::Frame | NodeKind::Section);
+            if clip_overflow {
+                let clip_id = format!("clip-overflow-{}", node.id);
+                g.push_str(&format!(
+                    r#"<defs><clipPath id="{}"><rect width="{}" height="{}"{}/></clipPath></defs>"#,
+                    clip_id, node.width, node.height,
+                    if node.corner_radius > 0.0 { format!(r#" rx="{}" ry="{}""#, node.corner_radius, node.corner_radius) } else { String::new() }
+                ));
+                g.push_str(&format!(r#"<g clip-path="url(#{})">"#, clip_id));
+                if node.overflow == crate::node::Overflow::Scroll && (node.scroll_x != 0.0 || node.scroll_y != 0.0) {
+                    g.push_str(&format!(r#"<g transform="translate({},{})">"#, node.scroll_x, node.scroll_y));
+                }
+            }
+
             // Render children with mask/clip support
             render_children_svg(scene, &node.children, &mut g, node.x, node.y, true);
+
+            if clip_overflow {
+                if node.overflow == crate::node::Overflow::Scroll && (node.scroll_x != 0.0 || node.scroll_y != 0.0) {
+                    g.push_str("</g>");
+                }
+                g.push_str("</g>");
+            }
 
             g.push_str("</g>\n");
             buf.push_str(&g);

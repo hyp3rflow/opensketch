@@ -3385,6 +3385,62 @@ impl Engine {
     pub fn is_effectively_visible(&self, node_id: u64) -> bool {
         self.scene.is_effectively_visible(node_id)
     }
+
+    // --- Scrollable frames ---
+
+    pub fn set_overflow(&mut self, node_id: u64, overflow: &str) {
+        if let Some(node) = self.scene.get_node_mut(node_id) {
+            node.overflow = match overflow {
+                "hidden" => crate::node::Overflow::Hidden,
+                "scroll" => crate::node::Overflow::Scroll,
+                _ => crate::node::Overflow::Visible,
+            };
+        }
+    }
+
+    pub fn get_overflow(&self, node_id: u64) -> String {
+        self.scene.get_node(node_id).map(|n| match n.overflow {
+            crate::node::Overflow::Visible => "visible",
+            crate::node::Overflow::Hidden => "hidden",
+            crate::node::Overflow::Scroll => "scroll",
+        }).unwrap_or("visible").to_string()
+    }
+
+    pub fn set_scroll_offset(&mut self, node_id: u64, scroll_x: f64, scroll_y: f64) {
+        if let Some(node) = self.scene.get_node_mut(node_id) {
+            node.scroll_x = scroll_x;
+            node.scroll_y = scroll_y;
+        }
+    }
+
+    pub fn get_scroll_offset(&self, node_id: u64) -> String {
+        self.scene.get_node(node_id).map(|n| {
+            format!("{{\"x\":{},\"y\":{}}}", n.scroll_x, n.scroll_y)
+        }).unwrap_or_else(|| "{\"x\":0,\"y\":0}".to_string())
+    }
+
+    /// Get the content bounds of a frame's children (for scroll limits)
+    pub fn get_content_bounds(&self, node_id: u64) -> String {
+        if let Some(node) = self.scene.get_node(node_id) {
+            let mut min_x = f64::MAX;
+            let mut min_y = f64::MAX;
+            let mut max_x = f64::MIN;
+            let mut max_y = f64::MIN;
+            for &cid in &node.children {
+                if let Some(c) = self.scene.get_node(cid) {
+                    if !c.visible { continue; }
+                    min_x = min_x.min(c.x);
+                    min_y = min_y.min(c.y);
+                    max_x = max_x.max(c.x + c.width);
+                    max_y = max_y.max(c.y + c.height);
+                }
+            }
+            if min_x < max_x && min_y < max_y {
+                return format!("{{\"x\":{},\"y\":{},\"width\":{},\"height\":{}}}", min_x, min_y, max_x - min_x, max_y - min_y);
+            }
+        }
+        format!("{{\"x\":0,\"y\":0,\"width\":0,\"height\":0}}")
+    }
 }
 
 /// Recalculate a path node's bounding box from its points (including bezier handles).

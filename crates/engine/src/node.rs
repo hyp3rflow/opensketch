@@ -339,6 +339,18 @@ impl Default for FlexWrap {
     fn default() -> Self { FlexWrap::NoWrap }
 }
 
+/// Overflow behavior for container nodes
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub enum Overflow {
+    Visible,
+    Hidden,
+    Scroll,
+}
+
+impl Default for Overflow {
+    fn default() -> Self { Overflow::Visible }
+}
+
 /// Text sizing mode
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub enum TextSizing {
@@ -734,6 +746,14 @@ pub struct Node {
     /// Conditional visibility: show/hide based on variable value
     #[serde(default)]
     pub conditional_visibility: Option<VisibilityCondition>,
+    /// Overflow behavior for Frame nodes (clip children)
+    #[serde(default)]
+    pub overflow: Overflow,
+    /// Scroll offset (x, y) for scrollable frames
+    #[serde(default)]
+    pub scroll_x: f64,
+    #[serde(default)]
+    pub scroll_y: f64,
 }
 
 impl Node {
@@ -774,6 +794,9 @@ impl Node {
             max_height: None,
             bookmarked: false,
             conditional_visibility: None,
+            overflow: Overflow::default(),
+            scroll_x: 0.0,
+            scroll_y: 0.0,
         }
     }
 

@@ -2292,8 +2292,66 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       container.appendChild(sliceSection);
     }
 
-    // === Auto Layout Section (Frame/Instance/Group) ===
+    // === Overflow Section (Frame/Section only) ===
     const kindStr = typeof node.kind === "string" ? node.kind : Object.keys(node.kind)[0];
+    if (["Frame", "Section"].includes(kindStr || "")) {
+      const overflowSection = document.createElement("div");
+      overflowSection.className = "prop-section";
+      const overflowTitle = document.createElement("div");
+      overflowTitle.className = "prop-section-title";
+      overflowTitle.textContent = "Overflow";
+      overflowSection.appendChild(overflowTitle);
+
+      const overflowRow = document.createElement("div");
+      overflowRow.style.cssText = "display:flex;gap:4px;";
+
+      const currentOverflow = editor.engine.get_overflow(BigInt(id));
+      for (const mode of ["visible", "hidden", "scroll"] as const) {
+        const btn = document.createElement("button");
+        const isActive = currentOverflow === mode;
+        btn.style.cssText = `
+          flex:1;padding:4px 0;border:1px solid ${isActive ? "#4f46e5" : "#444"};
+          border-radius:4px;background:${isActive ? "rgba(79,70,229,0.15)" : "transparent"};
+          color:${isActive ? "#818cf8" : "#aaa"};cursor:pointer;font-size:11px;text-transform:capitalize;
+        `;
+        btn.textContent = mode;
+        btn.addEventListener("click", () => {
+          editor.engine.push_undo();
+          editor.engine.set_overflow(BigInt(id), mode);
+          if (mode !== "scroll") {
+            editor.engine.set_scroll_offset(BigInt(id), 0, 0);
+          }
+          editor.requestRender();
+          refresh(ids);
+        });
+        overflowRow.appendChild(btn);
+      }
+      overflowSection.appendChild(overflowRow);
+
+      // Show scroll offset if scroll mode
+      if (currentOverflow === "scroll") {
+        const scrollInfo = JSON.parse(editor.engine.get_scroll_offset(BigInt(id)));
+        const scrollLabel = document.createElement("div");
+        scrollLabel.style.cssText = "font-size:10px;color:#666;margin-top:4px;";
+        scrollLabel.textContent = `Scroll: ${Math.round(scrollInfo.x)}px, ${Math.round(scrollInfo.y)}px`;
+        overflowSection.appendChild(scrollLabel);
+
+        const resetBtn = document.createElement("button");
+        resetBtn.style.cssText = "margin-top:4px;padding:2px 8px;border:1px solid #444;border-radius:3px;background:transparent;color:#aaa;cursor:pointer;font-size:10px;";
+        resetBtn.textContent = "Reset scroll";
+        resetBtn.addEventListener("click", () => {
+          editor.engine.push_undo();
+          editor.engine.set_scroll_offset(BigInt(id), 0, 0);
+          editor.requestRender();
+          refresh(ids);
+        });
+        overflowSection.appendChild(resetBtn);
+      }
+
+      panel.appendChild(overflowSection);
+    }
+
+    // === Auto Layout Section (Frame/Instance/Group) ===
     if (["Frame", "Instance", "Group", "Slot"].includes(kindStr || "")) {
       const layoutJson = editor.engine.get_layout(BigInt(id));
       const layout = JSON.parse(layoutJson);

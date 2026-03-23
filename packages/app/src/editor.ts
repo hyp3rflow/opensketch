@@ -121,6 +121,16 @@ export class Editor {
     this.canvas.addEventListener("wheel", (e) => {
       e.preventDefault();
       const isZoom = e.ctrlKey || e.metaKey;
+
+      // Check if hovering over a scrollable frame
+      if (!isZoom) {
+        const scrollableFrame = this.findScrollableFrameAtCursor(e.offsetX, e.offsetY);
+        if (scrollableFrame !== null) {
+          this.scrollFrame(scrollableFrame, e.deltaX, e.deltaY);
+          return;
+        }
+      }
+
       if (!pendingWheel) {
         pendingWheel = { dx: 0, dy: 0, cx: e.offsetX, cy: e.offsetY, isZoom };
         requestAnimationFrame(() => {
@@ -2612,6 +2622,50 @@ export class Editor {
     this.engine.select_all();
     const sel = Array.from(this.engine.get_selection()).map(Number);
     this.fireSelectionNow(sel);
+    this.needsRender = true;
+  }
+
+  /** Find a scrollable frame (overflow=scroll) under the cursor (screen coords) */
+  findScrollableFrameAtCursor(screenX: number, screenY: number): number | null {
+    // Use hit_test (takes scene coords)
+    const hitId = Number(this.engine.hit_test(screenX, screenY));
+    if (!hitId) return null;
+    // Walk up the tree to find a scrollable frame
+    let nodeId = hitId;
+    for (let i = 0; i < 50; i++) {
+      try {
+        const json = this.engine.get_node_json(BigInt(nodeId));
+        if (!json) break;
+        const node = JSON.parse(json);
+        if ((node.kind === "Frame" || node.kind === "Section") && node.overflow === "Scroll") {
+          return nodeId;
+        }
+        if (!node.parent) break;
+        nodeId = node.parent;
+      } catch { break; }
+    }
+    return null;
+  }
+
+  /** Scroll a frame's content by delta, clamping to content bounds */
+  scrollFrame(nodeId: number, dx: number, dy: number) {
+    const id = BigInt(nodeId);
+    const scrollOffset = JSON.parse(this.engine.get_scroll_offset(id));
+    const contentBounds = JSON.parse(this.engine.get_content_bounds(id));
+    const json = this.engine.get_node_json(id);
+    if (!json) return;
+    const node = JSON.parse(json);
+
+    let newScrollX = scrollOffset.x - dx;
+    let newScrollY = scrollOffset.y - dy;
+
+    // Clamp: scroll offset is negative (content moves up/left)
+    const maxScrollX = Math.min(0, -(contentBounds.width - node.width));
+    const maxScrollY = Math.min(0, -(contentBounds.height - node.height));
+    newScrollX = Math.max(maxScrollX, Math.min(0, newScrollX));
+    newScrollY = Math.max(maxScrollY, Math.min(0, newScrollY));
+
+    this.engine.set_scroll_offset(id, newScrollX, newScrollY);
     this.needsRender = true;
   }
 }

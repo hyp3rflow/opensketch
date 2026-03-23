@@ -229,6 +229,11 @@ function generateCSS(
     if (node.fills?.[0]) lines.push(`color: ${rgbaToCSS(node.fills[0])};`);
   }
 
+  // Overflow
+  if (node.overflow && node.overflow !== "Visible") {
+    lines.push(`overflow: ${node.overflow === "Scroll" ? "auto" : "hidden"};`);
+  }
+
   // Layout (Flex/Grid)
   if (layout && layout.mode && layout.mode !== "None") {
     if (layout.mode === "Flex") {
