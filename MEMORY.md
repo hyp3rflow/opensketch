@@ -32,7 +32,7 @@
 - **Min/Max size constraints** — Node에 min_width/max_width/min_height/max_height: Option<f64>, clamp_size() 헬퍼, Flex/Grid 레이아웃 후 자동 클램핑, WASM 5개 바인딩, Properties panel 4칸 입력 UI, Inspect panel CSS 생성
 - **Asset library panel** — Right pane "Assets" 탭, Components/Color Styles/Text Styles 3개 섹션, 검색/필터, 클릭으로 인스턴스 생성 또는 스타일 적용
 - **Flow diagrams / connectors** — NodeKind::Connector (start/end node IDs, straight/curved path, start/end arrows), Canvas bezier/straight rendering with arrowheads + edge clipping, SVG export with markers, WASM bindings (add/set/get/update), Toolbar button (L shortcut), drag-to-connect UI with preview, Properties panel (path type, arrows), auto-update on connected node move
-- **Conditional visibility** — Boolean 변수를 노드 visible 속성에 바인딩, 모드 전환으로 show/hide 토글, Properties panel에서 visible 바인딩 UI
+- **Conditional visibility** — Per-node VisibilityCondition (collection_id + variable_id + operator + value), 8개 연산자 (Eq/NotEq/Gt/Lt/Gte/Lte/IsTrue/IsFalse), Scene.is_effectively_visible()로 render/hit-test 시 자동 평가, WASM 바인딩 (set/get/clear_conditional_visibility, is_effectively_visible), Properties panel "Conditional Visibility" 섹션 UI
 
 ## 📋 Backlog
 - Tauri desktop build (scaffolded but not tested)

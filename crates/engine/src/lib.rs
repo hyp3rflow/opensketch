@@ -1308,6 +1308,7 @@ impl Engine {
         let layers: Vec<_> = self.scene.render_order().iter()
             .filter_map(|&id| {
                 self.scene.get_node(id).map(|n| {
+                    let effectively_visible = self.scene.is_effectively_visible(id);
                     serde_json::json!({
                         "id": n.id,
                         "name": n.name,
@@ -1317,6 +1318,8 @@ impl Engine {
                         "parent": n.parent,
                         "children": n.children,
                         "is_mask": n.is_mask,
+                        "effectively_visible": effectively_visible,
+                        "has_condition": n.conditional_visibility.is_some(),
                     })
                 })
             })

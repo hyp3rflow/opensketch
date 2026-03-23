@@ -1590,6 +1590,123 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       container.appendChild(interSection);
     }
 
+    // --- Conditional Visibility ---
+    {
+      const cvSection = createSection("Conditional Visibility");
+      const cvJson = editor.engine.get_conditional_visibility(id);
+      const cv = JSON.parse(cvJson || "null");
+
+      const collectionsJson = editor.engine.get_variable_collections();
+      const collections: any[] = JSON.parse(collectionsJson || "[]");
+
+      if (cv) {
+        const col = collections.find((c: any) => c.id === cv.collection_id);
+        const varObj = col?.variables?.find((v: any) => v.id === cv.variable_id);
+        const info = document.createElement("div");
+        info.style.cssText = "font-size:11px;color:#ccc;margin-bottom:4px;";
+        const opLabel = cv.operator === "IsTrue" ? "is true" : cv.operator === "IsFalse" ? "is false" :
+          `${cv.operator} ${cv.value ? JSON.stringify(cv.value) : ""}`;
+        info.textContent = `Show when "${varObj?.name || "?"}" ${opLabel}`;
+        cvSection.appendChild(info);
+
+        const clearBtn = document.createElement("button");
+        clearBtn.textContent = "Remove condition";
+        clearBtn.style.cssText = "font-size:11px;padding:2px 8px;cursor:pointer;background:#444;color:#fff;border:1px solid #555;border-radius:4px;";
+        clearBtn.addEventListener("click", () => {
+          editor.engine.clear_conditional_visibility(id);
+          editor.requestRender();
+          refresh(ids);
+        });
+        cvSection.appendChild(clearBtn);
+      } else if (collections.length === 0) {
+        const hint = document.createElement("div");
+        hint.style.cssText = "font-size:11px;color:#888;";
+        hint.textContent = "Create a variable collection first";
+        cvSection.appendChild(hint);
+      } else {
+        const allVars: { col: any; v: any }[] = [];
+        for (const col of collections) {
+          for (const v of col.variables || []) {
+            allVars.push({ col, v });
+          }
+        }
+        if (allVars.length === 0) {
+          const hint = document.createElement("div");
+          hint.style.cssText = "font-size:11px;color:#888;";
+          hint.textContent = "No variables defined";
+          cvSection.appendChild(hint);
+        } else {
+          const row = document.createElement("div");
+          row.style.cssText = "display:flex;flex-direction:column;gap:4px;";
+
+          const varSelect = document.createElement("select");
+          varSelect.style.cssText = "font-size:11px;background:#333;color:#fff;border:1px solid #555;border-radius:4px;padding:2px 4px;";
+          for (const { col, v } of allVars) {
+            const opt = document.createElement("option");
+            opt.value = `${col.id}:${v.id}`;
+            opt.textContent = `${col.name} / ${v.name} (${v.value_type})`;
+            varSelect.appendChild(opt);
+          }
+          row.appendChild(varSelect);
+
+          const opSelect = document.createElement("select");
+          opSelect.style.cssText = "font-size:11px;background:#333;color:#fff;border:1px solid #555;border-radius:4px;padding:2px 4px;";
+          for (const op of [
+            { value: "eq", label: "=" }, { value: "neq", label: "≠" },
+            { value: "gt", label: ">" }, { value: "lt", label: "<" },
+            { value: "gte", label: "≥" }, { value: "lte", label: "≤" },
+            { value: "is_true", label: "is true" }, { value: "is_false", label: "is false" },
+          ]) {
+            const opt = document.createElement("option");
+            opt.value = op.value;
+            opt.textContent = op.label;
+            opSelect.appendChild(opt);
+          }
+          row.appendChild(opSelect);
+
+          const valueInput = document.createElement("input");
+          valueInput.placeholder = "Value";
+          valueInput.style.cssText = "font-size:11px;background:#333;color:#fff;border:1px solid #555;border-radius:4px;padding:2px 4px;width:100%;box-sizing:border-box;";
+          row.appendChild(valueInput);
+
+          const updateValueVis = () => {
+            valueInput.style.display = (opSelect.value === "is_true" || opSelect.value === "is_false") ? "none" : "";
+          };
+          opSelect.addEventListener("change", updateValueVis);
+          updateValueVis();
+
+          const applyBtn = document.createElement("button");
+          applyBtn.textContent = "Set condition";
+          applyBtn.style.cssText = "font-size:11px;padding:2px 8px;cursor:pointer;background:#4a9eff;color:#fff;border:none;border-radius:4px;";
+          applyBtn.addEventListener("click", () => {
+            const [colId, varId] = varSelect.value.split(":").map(Number);
+            const op = opSelect.value;
+            let valueJson = "";
+            if (op !== "is_true" && op !== "is_false") {
+              const raw = valueInput.value.trim();
+              const selVar = allVars.find(av => av.col.id === colId && av.v.id === varId);
+              const vtype = selVar?.v.value_type || "String";
+              if (vtype === "Number" || vtype === "number") {
+                valueJson = JSON.stringify({ Number: parseFloat(raw) || 0 });
+              } else if (vtype === "Boolean" || vtype === "boolean") {
+                valueJson = JSON.stringify({ Boolean: raw === "true" });
+              } else if (vtype === "Color" || vtype === "color") {
+                valueJson = JSON.stringify({ Color: raw });
+              } else {
+                valueJson = JSON.stringify({ String: raw });
+              }
+            }
+            editor.engine.set_conditional_visibility(id, BigInt(colId), BigInt(varId), op, valueJson);
+            editor.requestRender();
+            refresh(ids);
+          });
+          row.appendChild(applyBtn);
+          cvSection.appendChild(row);
+        }
+      }
+      container.appendChild(cvSection);
+    }
+
     // --- Text-specific ---
     if (typeof node.kind === "object" && node.kind.Text) {
       // Text Style dropdown

@@ -382,7 +382,7 @@
 - [x] **Variables panel**: Right pane "Variables" tab with collection CRUD, mode tabs, variable table with type-specific editors
 - [x] **Binding UI**: Properties panel "Variable Bindings" section with bind/unbind per property, variable picker popup
 - [x] **Backward-compatible serde**: Default empty collections/bindings for existing files
-- [x] **Conditional visibility**: Bind Boolean variables to node `visible` property — toggle show/hide via variable mode switching
+- [x] **Conditional visibility**: Per-node `VisibilityCondition` (variable_id + operator + value) — evaluated at render/hit-test time. Operators: Eq/NotEq/Gt/Lt/Gte/Lte/IsTrue/IsFalse. UI in Properties panel "Conditional Visibility" section. Also supports binding Boolean variables to `visible` property via variable mode switching
 
 ### Asset Library Panel
 - [x] **Assets tab**: Right pane "Assets" tab alongside Properties/Agent/History/Inspect/Comments/Variables

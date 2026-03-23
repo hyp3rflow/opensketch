@@ -170,7 +170,7 @@ impl Renderer {
         let mut mask_active = false;
         for &child_id in children {
             if let Some(node) = scene.get_node(child_id) {
-                if !node.visible { continue; }
+                if !scene.is_effectively_visible(child_id) { continue; }
                 if node.is_mask {
                     if mask_active {
                         ctx.restore();
