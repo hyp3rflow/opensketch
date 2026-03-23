@@ -344,6 +344,68 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
             // Slice nodes are export regions — not rendered in SVG
             return;
         }
+        NodeKind::Connector { start_node_id, end_node_id, start_x, end_x, start_y, end_y, ref path_type, end_arrow, start_arrow } => {
+            // Resolve endpoints
+            let mut sx = *start_x;
+            let mut sy = *start_y;
+            let mut ex = *end_x;
+            let mut ey = *end_y;
+            if *start_node_id != 0 {
+                if let Some(n) = scene.get_node(*start_node_id) {
+                    sx = n.x + n.width / 2.0;
+                    sy = n.y + n.height / 2.0;
+                }
+            }
+            if *end_node_id != 0 {
+                if let Some(n) = scene.get_node(*end_node_id) {
+                    ex = n.x + n.width / 2.0;
+                    ey = n.y + n.height / 2.0;
+                }
+            }
+
+            // Arrow marker defs
+            let marker_id = format!("arrow-{}", node.id);
+            let stroke_hex = node.stroke.as_ref()
+                .map(|s| color_to_hex(s.color.r, s.color.g, s.color.b))
+                .unwrap_or_else(|| "#ffffff".to_string());
+            let mut defs = String::new();
+            if *end_arrow || *start_arrow {
+                defs.push_str("<defs>");
+                defs.push_str(&format!(
+                    r#"<marker id="{}" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="{}"/></marker>"#,
+                    marker_id, stroke_hex
+                ));
+                defs.push_str("</defs>\n");
+            }
+            buf.push_str(&defs);
+
+            let mut attrs = String::new();
+            if path_type == "curved" {
+                let cx1 = sx + (ex - sx) * 0.5;
+                let cy1 = sy;
+                let cx2 = sx + (ex - sx) * 0.5;
+                let cy2 = ey;
+                attrs.push_str(&format!(r#"<path d="M{},{} C{},{} {},{} {},{}""#, sx, sy, cx1, cy1, cx2, cy2, ex, ey));
+            } else {
+                attrs.push_str(&format!(r#"<line x1="{}" y1="{}" x2="{}" y2="{}""#, sx, sy, ex, ey));
+            }
+            attrs.push_str(r#" fill="none""#);
+            if let Some(ref stroke) = node.stroke {
+                attrs.push_str(&format!(r#" stroke="{}" stroke-width="{}""#, color_to_hex(stroke.color.r, stroke.color.g, stroke.color.b), stroke.width));
+                append_stroke_options(&mut attrs, stroke);
+            } else {
+                attrs.push_str(r##" stroke="#ffffff" stroke-width="2""##);
+            }
+            if *end_arrow {
+                attrs.push_str(&format!(r#" marker-end="url(#{})""#, marker_id));
+            }
+            if *start_arrow {
+                attrs.push_str(&format!(r#" marker-start="url(#{})""#, marker_id));
+            }
+            if has_opacity { attrs.push_str(&format!(r#" opacity="{}""#, node.opacity)); }
+            attrs.push_str("/>\n");
+            buf.push_str(&attrs);
+        }
         NodeKind::Slot { .. } | NodeKind::Instance(_) => {
             // Render as group with children
             let mut g = String::from("<g");

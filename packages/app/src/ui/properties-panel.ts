@@ -1999,6 +1999,59 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       container.appendChild(polySection);
     }
 
+    // === Connector properties ===
+    if (typeof node.kind === "object" && node.kind.Connector) {
+      const connSection = createSection("Connector");
+      const info = JSON.parse(editor.engine.get_connector_info(BigInt(id)));
+
+      // Path type: straight / curved
+      const typeRow = document.createElement("div");
+      typeRow.style.cssText = "display:flex;gap:6px;align-items:center;margin-bottom:8px;";
+      const typeLabel = document.createElement("span");
+      typeLabel.style.cssText = "font-size:11px;color:#999;width:50px;";
+      typeLabel.textContent = "Type:";
+      typeRow.appendChild(typeLabel);
+      const typeSelect = document.createElement("select");
+      typeSelect.style.cssText = "flex:1;background:#2a2a2a;color:#ccc;border:1px solid #444;border-radius:4px;padding:2px 6px;font-size:11px;";
+      for (const t of ["straight", "curved"]) {
+        const opt = document.createElement("option");
+        opt.value = t; opt.textContent = t.charAt(0).toUpperCase() + t.slice(1);
+        if (t === info.path_type) opt.selected = true;
+        typeSelect.appendChild(opt);
+      }
+      typeSelect.addEventListener("change", () => {
+        editor.engine.push_undo();
+        editor.engine.set_connector_path_type(BigInt(id), typeSelect.value);
+        editor.requestRender();
+      });
+      typeRow.appendChild(typeSelect);
+      connSection.appendChild(typeRow);
+
+      // Arrows
+      const arrowRow = document.createElement("div");
+      arrowRow.style.cssText = "display:flex;gap:12px;align-items:center;margin-bottom:4px;";
+      for (const [label, key, current] of [["Start arrow", "start", info.start_arrow], ["End arrow", "end", info.end_arrow]] as const) {
+        const lbl = document.createElement("label");
+        lbl.style.cssText = "display:flex;align-items:center;gap:4px;font-size:11px;color:#ccc;cursor:pointer;";
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.checked = current as boolean;
+        cb.addEventListener("change", () => {
+          editor.engine.push_undo();
+          const sa = key === "start" ? cb.checked : info.start_arrow;
+          const ea = key === "end" ? cb.checked : info.end_arrow;
+          editor.engine.set_connector_arrows(BigInt(id), sa, ea);
+          editor.requestRender();
+          refresh();
+        });
+        lbl.appendChild(cb);
+        lbl.appendChild(document.createTextNode(label));
+        arrowRow.appendChild(lbl);
+      }
+      connSection.appendChild(arrowRow);
+      container.appendChild(connSection);
+    }
+
     // === Slice export section ===
     if (node.kind === "Slice") {
       const sliceSection = createSection("Export");

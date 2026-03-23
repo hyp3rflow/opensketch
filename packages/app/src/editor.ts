@@ -6,7 +6,7 @@ import { toggleShortcutsPanel, isShortcutsPanelVisible, closeShortcutsPanel } fr
 import { showContextMenu, hideContextMenu, type MenuItem } from "./ui/context-menu";
 import { openResponsivePreview, isResponsivePreviewOpen, closeResponsivePreview } from "./ui/responsive-preview";
 
-export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "section" | "image" | "pen" | "star" | "polygon" | "slice";
+export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "section" | "image" | "pen" | "star" | "polygon" | "slice" | "connector";
 
 /** Snap threshold in screen pixels */
 const SNAP_THRESHOLD_PX = 5;
@@ -58,6 +58,9 @@ export class Editor {
   private _pathEditDragType: 'anchor' | 'handle_in' | 'handle_out' | null = null;
   private _pathEditDragOffsetX = 0;
   private _pathEditDragOffsetY = 0;
+
+  // Connector tool state
+  private _connectorDrag: { startNodeId: number; sx: number; sy: number; ex?: number; ey?: number; endNodeId?: number } | null = null;
   private _pathEditHandleOffsets: { hix: number; hiy: number; hox: number; hoy: number } | null = null;
 
   // Smart guides state
@@ -334,6 +337,8 @@ export class Editor {
       else if (e.key === "s" || e.key === "S") this.setTool("star");
       if (e.key === "g" || e.key === "G") this.setTool("polygon");
       if (e.key === "k" || e.key === "K") this.setTool("slice");
+      if (e.key === "l" || e.key === "L") this.setTool("connector");
+      if (e.key === "l" || e.key === "L") this.setTool("connector");
       if (e.key === "Delete" || e.key === "Backspace") {
         if (this._pathEditMode && this._pathEditNodeId != null && this._pathEditSelectedPoint != null) {
           this.engine.push_undo();
@@ -537,6 +542,17 @@ export class Editor {
       return;
     }
 
+    if (this.currentTool === "connector") {
+      const sx = this.engine.screen_to_scene_x(x, y);
+      const sy = this.engine.screen_to_scene_y(x, y);
+      // Hit test for start node
+      const hit = this.engine.hit_test(x, y);
+      const startNodeId = hit != null ? Number(hit) : 0;
+      this._connectorDrag = { startNodeId, sx, sy };
+      this.canvas.setPointerCapture(e.pointerId);
+      return;
+    }
+
     if (["rect", "ellipse", "text", "frame", "section", "image", "slice"].includes(this.currentTool)) {
       const sx = this.engine.screen_to_scene_x(x, y);
       const sy = this.engine.screen_to_scene_y(x, y);
@@ -607,6 +623,17 @@ export class Editor {
       if (pointCount > 0) {
         this.engine.path_set_handle_out(this._penPathId, pointCount - 1, sx, sy);
       }
+      this.needsRender = true;
+      return;
+    }
+
+    // Connector tool: update preview during drag
+    if (this._connectorDrag) {
+      this._connectorDrag.ex = this.engine.screen_to_scene_x(e.offsetX, e.offsetY);
+      this._connectorDrag.ey = this.engine.screen_to_scene_y(e.offsetX, e.offsetY);
+      // Hit test for end node highlight
+      const hit = this.engine.hit_test(e.offsetX, e.offsetY);
+      this._connectorDrag.endNodeId = hit != null ? Number(hit) : 0;
       this.needsRender = true;
       return;
     }
@@ -702,6 +729,13 @@ export class Editor {
         }
         this.drag.currentX = x;
         this.drag.currentY = y;
+        // Update connector bounds for all moved nodes
+        for (const id of sel) {
+          const connectors = this.engine.get_connectors_for_node(BigInt(id));
+          for (let i = 0; i < connectors.length; i++) {
+            this.engine.update_connector_bounds(connectors[i]!);
+          }
+        }
       }
       this.needsRender = true;
       // Throttle selection updates during drag
@@ -736,9 +770,55 @@ export class Editor {
       return;
     }
 
+    if (this._connectorDrag) {
+      const cd = this._connectorDrag;
+      const ex = cd.ex ?? cd.sx;
+      const ey = cd.ey ?? cd.sy;
+      const dist = Math.hypot(ex - cd.sx, ey - cd.sy);
+      if (dist > 5) {
+        this.engine.push_undo();
+        const endNodeId = cd.endNodeId ?? 0;
+        // Don't connect to same node
+        const startId = cd.startNodeId;
+        const endId = endNodeId !== startId ? endNodeId : 0;
+        const id = Number(this.engine.add_connector(cd.sx, cd.sy, ex, ey, BigInt(startId), BigInt(endId)));
+        if (id > 0) {
+          this.engine.select(id);
+          this.fireSelectionNow([id]);
+          this.onLayersChanges.forEach(fn => fn());
+        }
+      }
+      this._connectorDrag = null;
+      this.setTool("select");
+      this.needsRender = true;
+      return;
+    }
+
     if (this.marquee) {
       this.fireSelectionNow(Array.from(this.engine.get_selection()).map(Number));
       this.marquee = null;
+      this.needsRender = true;
+      return;
+    }
+
+    if (this._connectorDrag) {
+      const ex = this.engine.screen_to_scene_x(_e.offsetX, _e.offsetY);
+      const ey = this.engine.screen_to_scene_y(_e.offsetX, _e.offsetY);
+      const hit = this.engine.hit_test(_e.offsetX, _e.offsetY);
+      const endNodeId = hit != null ? Number(hit) : 0;
+      const { startNodeId, sx, sy } = this._connectorDrag;
+      // Only create if dragged a reasonable distance or connected to different nodes
+      const dist = Math.hypot(ex - sx, ey - sy);
+      if (dist > 5 / this.engine.get_zoom() || (startNodeId !== 0 && endNodeId !== 0 && startNodeId !== endNodeId)) {
+        this.engine.push_undo();
+        const id = Number(this.engine.add_connector(sx, sy, ex, ey, startNodeId, endNodeId));
+        if (id > 0) {
+          this.engine.select(id);
+          this.fireSelectionNow([id]);
+          this.onLayersChanges.forEach(fn => fn());
+        }
+      }
+      this._connectorDrag = null;
       this.needsRender = true;
       return;
     }
@@ -1355,6 +1435,81 @@ export class Editor {
     this.ctx.restore();
   }
 
+  private renderConnectorPreview() {
+    if (!this._connectorDrag || this._connectorDrag.ex == null) return;
+    const cd = this._connectorDrag;
+    const zoom = this.engine.get_zoom();
+    const panX = this.engine.get_pan_x();
+    const panY = this.engine.get_pan_y();
+    // Convert scene to screen
+    const sx = cd.sx * zoom + panX;
+    const sy = cd.sy * zoom + panY;
+    const ex = (cd.ex ?? cd.sx) * zoom + panX;
+    const ey = (cd.ey ?? cd.sy) * zoom + panY;
+
+    this.ctx.save();
+    this.ctx.strokeStyle = "rgba(59, 130, 246, 0.8)";
+    this.ctx.lineWidth = 2;
+    this.ctx.setLineDash([6, 4]);
+    this.ctx.beginPath();
+    this.ctx.moveTo(sx, sy);
+    this.ctx.lineTo(ex, ey);
+    this.ctx.stroke();
+
+    // Arrowhead preview
+    const angle = Math.atan2(ey - sy, ex - sx);
+    const size = 10;
+    this.ctx.setLineDash([]);
+    this.ctx.beginPath();
+    this.ctx.moveTo(ex - size * Math.cos(angle - Math.PI / 6), ey - size * Math.sin(angle - Math.PI / 6));
+    this.ctx.lineTo(ex, ey);
+    this.ctx.lineTo(ex - size * Math.cos(angle + Math.PI / 6), ey - size * Math.sin(angle + Math.PI / 6));
+    this.ctx.fillStyle = "rgba(59, 130, 246, 0.8)";
+    this.ctx.fill();
+
+    // Highlight target node
+    if (cd.endNodeId && cd.endNodeId !== cd.startNodeId) {
+      const nodeJson = this.engine.get_node_json(cd.endNodeId);
+      if (nodeJson) {
+        const node = JSON.parse(nodeJson);
+        const nx = node.x * zoom + panX;
+        const ny = node.y * zoom + panY;
+        const nw = node.width * zoom;
+        const nh = node.height * zoom;
+        this.ctx.strokeStyle = "rgba(59, 130, 246, 0.5)";
+        this.ctx.lineWidth = 2;
+        this.ctx.setLineDash([]);
+        this.ctx.strokeRect(nx, ny, nw, nh);
+
+        // Connection point indicator
+        const cpx = nx + nw / 2;
+        const cpy = ny + nh / 2;
+        this.ctx.beginPath();
+        this.ctx.arc(cpx, cpy, 5, 0, Math.PI * 2);
+        this.ctx.fillStyle = "rgba(59, 130, 246, 0.7)";
+        this.ctx.fill();
+      }
+    }
+
+    // Highlight source node
+    if (cd.startNodeId) {
+      const nodeJson = this.engine.get_node_json(cd.startNodeId);
+      if (nodeJson) {
+        const node = JSON.parse(nodeJson);
+        const nx = node.x * zoom + panX;
+        const ny = node.y * zoom + panY;
+        const nw = node.width * zoom;
+        const nh = node.height * zoom;
+        this.ctx.strokeStyle = "rgba(16, 185, 129, 0.5)";
+        this.ctx.lineWidth = 2;
+        this.ctx.setLineDash([]);
+        this.ctx.strokeRect(nx, ny, nw, nh);
+      }
+    }
+
+    this.ctx.restore();
+  }
+
   /** Word-wrap text to match engine logic */
   private wrapText(text: string, maxWidth?: number): string[] {
     const lines: string[] = [];
@@ -1395,6 +1550,7 @@ export class Editor {
         this.renderPathEditOverlay();
         this.renderCaret();
         this.renderMarquee();
+        this.renderConnectorPreview();
         this.renderSliceOverlays();
         this._rulers?.render();
         this.needsRender = false;
@@ -1439,7 +1595,8 @@ export class Editor {
       select: "default", hand: "grab", rect: "crosshair",
       ellipse: "crosshair", text: "text", frame: "crosshair",
       section: "crosshair", image: "crosshair", pen: "crosshair",
-      slice: "crosshair",
+      star: "crosshair", polygon: "crosshair",
+      slice: "crosshair", connector: "crosshair",
     };
     this.canvas.style.cursor = cursors[this.currentTool] || "default";
   }

@@ -10,6 +10,7 @@ const kindIcons: Record<string, string> = {
   Instance: icons.instance,
   Section: icons.section,
   Slice: icons.slice,
+  Connector: icons.connector,
 };
 
 function iconSized(svg: string, size = 14) {

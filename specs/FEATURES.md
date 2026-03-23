@@ -435,3 +435,15 @@
 - [x] **Layers panel**: Slice icon in node tree
 - [x] **Export**: Crops canvas region at specified scale → PNG download
 - [x] **Render/SVG skip**: Slice nodes excluded from normal rendering and SVG export
+
+### Flow Connectors (Arrow Lines)
+- [x] **NodeKind::Connector**: Arrow/line connecting two nodes or free points
+- [x] **Fields**: start_node_id, end_node_id, start_x/y, end_x/y, path_type (straight/curved), start_arrow, end_arrow
+- [x] **Canvas rendering**: Straight lines or cubic bezier curves, arrowheads, edge clipping to node bounds
+- [x] **SVG export**: `<line>`/`<path>` with marker arrowheads
+- [x] **WASM**: add_connector, set_connector_path_type, set_connector_arrows, set_connector_endpoints, set_connector_nodes, get_connector_info, update_connector_bounds, get_connectors_for_node
+- [x] **Toolbar**: Connector button with L keyboard shortcut, crosshair cursor
+- [x] **Drag to connect**: Click/drag from source to target node, hit-test on both ends
+- [x] **Properties panel**: Path type dropdown (Straight/Curved), start/end arrow checkboxes
+- [x] **Layers panel**: Connector icon in node tree
+- [x] **Stroke support**: Color, width, dash pattern via existing stroke properties

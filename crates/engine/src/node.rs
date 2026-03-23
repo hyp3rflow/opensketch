@@ -110,6 +110,25 @@ pub enum NodeKind {
     Section,
     /// A slice (export region) — not rendered on canvas, defines an area for export
     Slice,
+    /// A connector (arrow/line) between two nodes
+    Connector {
+        /// Source node ID (0 = unconnected, uses start_x/start_y)
+        start_node_id: u64,
+        /// Target node ID (0 = unconnected, uses end_x/end_y)
+        end_node_id: u64,
+        /// Absolute start point (used when start_node_id == 0 or for rendering)
+        start_x: f64,
+        start_y: f64,
+        /// Absolute end point (used when end_node_id == 0 or for rendering)
+        end_x: f64,
+        end_y: f64,
+        /// Path type: "straight" or "curved"
+        path_type: String,
+        /// Show arrowhead at end
+        end_arrow: bool,
+        /// Show arrowhead at start
+        start_arrow: bool,
+    },
 }
 
 fn default_line_height() -> f64 { 1.2 }

@@ -377,6 +377,9 @@ impl Renderer {
             NodeKind::Polygon { sides } => self.render_polygon(ctx, node, *sides),
             NodeKind::Section => self.render_section(ctx, node, scene),
             NodeKind::Slice => {} // Slice nodes are rendered as overlays in TS
+            NodeKind::Connector { start_node_id, end_node_id, start_x, end_x, start_y, end_y, ref path_type, end_arrow, start_arrow } => {
+                self.render_connector(ctx, node, scene, *start_node_id, *end_node_id, *start_x, *start_y, *end_x, *end_y, path_type, *end_arrow, *start_arrow);
+            }
         }
 
         ctx.restore();
@@ -766,6 +769,138 @@ impl Renderer {
 
         // Render children
         self.render_children(ctx, &node.children, scene);
+    }
+
+    fn render_connector(&self, ctx: &CanvasRenderingContext2d, node: &Node, scene: &Scene,
+        start_node_id: u64, end_node_id: u64,
+        mut sx: f64, mut sy: f64, mut ex: f64, mut ey: f64,
+        path_type: &str, end_arrow: bool, start_arrow: bool)
+    {
+        // Resolve endpoints from connected nodes
+        if start_node_id != 0 {
+            if let Some(n) = scene.get_node(start_node_id) {
+                sx = n.x + n.width / 2.0;
+                sy = n.y + n.height / 2.0;
+            }
+        }
+        if end_node_id != 0 {
+            if let Some(n) = scene.get_node(end_node_id) {
+                ex = n.x + n.width / 2.0;
+                ey = n.y + n.height / 2.0;
+            }
+        }
+
+        // Clip to node edge if connected
+        if start_node_id != 0 {
+            if let Some(n) = scene.get_node(start_node_id) {
+                let (cx, cy) = Self::clip_to_rect(sx, sy, ex, ey, n.x, n.y, n.width, n.height);
+                sx = cx; sy = cy;
+            }
+        }
+        if end_node_id != 0 {
+            if let Some(n) = scene.get_node(end_node_id) {
+                let (cx, cy) = Self::clip_to_rect(ex, ey, sx, sy, n.x, n.y, n.width, n.height);
+                ex = cx; ey = cy;
+            }
+        }
+
+        let stroke_color = node.stroke.as_ref()
+            .map(|s| s.color.to_css())
+            .unwrap_or_else(|| "rgba(255,255,255,0.8)".to_string());
+        let stroke_width = node.stroke.as_ref().map(|s| s.width).unwrap_or(2.0);
+
+        ctx.set_stroke_style_str(&stroke_color);
+        ctx.set_line_width(stroke_width);
+        ctx.set_line_cap("round");
+        ctx.set_line_join("round");
+
+        // Apply dash if set
+        if let Some(ref stroke) = node.stroke {
+            if !stroke.dash_array.is_empty() {
+                let arr = js_sys::Array::new();
+                for &v in &stroke.dash_array { arr.push(&JsValue::from(v)); }
+                ctx.set_line_dash(&arr).ok();
+                ctx.set_line_dash_offset(stroke.dash_offset);
+            }
+        }
+
+        ctx.begin_path();
+        ctx.move_to(sx, sy);
+
+        if path_type == "curved" {
+            let dx = ex - sx;
+            let dy = ey - sy;
+            // Use a cubic bezier with control points offset perpendicular
+            let cx1 = sx + dx * 0.5;
+            let cy1 = sy;
+            let cx2 = sx + dx * 0.5;
+            let cy2 = ey;
+            ctx.bezier_curve_to(cx1, cy1, cx2, cy2, ex, ey);
+        } else {
+            ctx.line_to(ex, ey);
+        }
+        ctx.stroke();
+
+        // Reset dash
+        ctx.set_line_dash(&js_sys::Array::new()).ok();
+
+        // Arrowheads
+        let arrow_size = (stroke_width * 4.0).max(8.0);
+        if end_arrow {
+            let angle = if path_type == "curved" {
+                // Tangent at end of bezier
+                let cx2 = sx + (ex - sx) * 0.5;
+                let cy2 = ey;
+                (ey - cy2).atan2(ex - cx2)
+            } else {
+                (ey - sy).atan2(ex - sx)
+            };
+            self.draw_arrowhead(ctx, ex, ey, angle, arrow_size, &stroke_color);
+        }
+        if start_arrow {
+            let angle = if path_type == "curved" {
+                let cx1 = sx + (ex - sx) * 0.5;
+                let cy1 = sy;
+                (sy - cy1).atan2(sx - cx1)
+            } else {
+                (sy - ey).atan2(sx - ex)
+            };
+            self.draw_arrowhead(ctx, sx, sy, angle, arrow_size, &stroke_color);
+        }
+    }
+
+    fn draw_arrowhead(&self, ctx: &CanvasRenderingContext2d, x: f64, y: f64, angle: f64, size: f64, color: &str) {
+        let a1 = angle - std::f64::consts::FRAC_PI_6;
+        let a2 = angle + std::f64::consts::FRAC_PI_6;
+        ctx.begin_path();
+        ctx.move_to(x - size * a1.cos(), y - size * a1.sin());
+        ctx.line_to(x, y);
+        ctx.line_to(x - size * a2.cos(), y - size * a2.sin());
+        ctx.set_fill_style_str(color);
+        ctx.fill();
+    }
+
+    /// Clip a line from center to target through a rectangle edge
+    fn clip_to_rect(cx: f64, cy: f64, tx: f64, ty: f64, rx: f64, ry: f64, rw: f64, rh: f64) -> (f64, f64) {
+        let dx = tx - cx;
+        let dy = ty - cy;
+        if dx.abs() < 0.001 && dy.abs() < 0.001 { return (cx, cy); }
+
+        let hw = rw / 2.0;
+        let hh = rh / 2.0;
+        let mut t = f64::INFINITY;
+
+        // Check each edge
+        if dx.abs() > 0.001 {
+            let t1 = hw / dx.abs();
+            if t1 > 0.0 { t = t.min(t1); }
+        }
+        if dy.abs() > 0.001 {
+            let t2 = hh / dy.abs();
+            if t2 > 0.0 { t = t.min(t2); }
+        }
+        if t == f64::INFINITY { return (cx, cy); }
+        (cx + dx * t, cy + dy * t)
     }
 
     fn render_selection(&self, ctx: &CanvasRenderingContext2d, node: &Node) {

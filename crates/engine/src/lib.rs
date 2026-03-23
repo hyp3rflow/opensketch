@@ -424,6 +424,150 @@ impl Engine {
         self.scene.add_node(node)
     }
 
+    // =============================================
+    // Connector API
+    // =============================================
+
+    /// Create a connector between two points (or nodes).
+    /// start_node_id/end_node_id: 0 means unconnected (use absolute coords).
+    pub fn add_connector(&mut self, sx: f64, sy: f64, ex: f64, ey: f64, start_node_id: u64, end_node_id: u64) -> u64 {
+        let min_x = sx.min(ex);
+        let min_y = sy.min(ey);
+        let w = (ex - sx).abs().max(1.0);
+        let h = (ey - sy).abs().max(1.0);
+        let mut node = Node::new(0, NodeKind::Connector {
+            start_node_id,
+            end_node_id,
+            start_x: sx,
+            start_y: sy,
+            end_x: ex,
+            end_y: ey,
+            path_type: "straight".to_string(),
+            end_arrow: true,
+            start_arrow: false,
+        });
+        node.x = min_x;
+        node.y = min_y;
+        node.width = w;
+        node.height = h;
+        node.name = format!("Connector {}", self.scene.node_count() + 1);
+        node.fills = vec![];
+        node.stroke = Some(Stroke {
+            color: Color::white(),
+            width: 2.0,
+            dash_array: vec![],
+            dash_offset: 0.0,
+            line_cap: Default::default(),
+            line_join: Default::default(),
+            align: Default::default(),
+        });
+        self.scene.add_node(node)
+    }
+
+    pub fn set_connector_path_type(&mut self, id: u64, path_type: &str) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Connector { path_type: ref mut pt, .. } = node.kind {
+                *pt = path_type.to_string();
+            }
+        }
+    }
+
+    pub fn set_connector_arrows(&mut self, id: u64, start_arrow: bool, end_arrow: bool) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Connector { start_arrow: ref mut sa, end_arrow: ref mut ea, .. } = node.kind {
+                *sa = start_arrow;
+                *ea = end_arrow;
+            }
+        }
+    }
+
+    pub fn set_connector_endpoints(&mut self, id: u64, sx: f64, sy: f64, ex: f64, ey: f64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Connector { start_x: ref mut sxr, start_y: ref mut syr, end_x: ref mut exr, end_y: ref mut eyr, .. } = node.kind {
+                *sxr = sx; *syr = sy; *exr = ex; *eyr = ey;
+            }
+            node.x = sx.min(ex);
+            node.y = sy.min(ey);
+            node.width = (ex - sx).abs().max(1.0);
+            node.height = (ey - sy).abs().max(1.0);
+        }
+    }
+
+    pub fn set_connector_nodes(&mut self, id: u64, start_node_id: u64, end_node_id: u64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Connector { start_node_id: ref mut sn, end_node_id: ref mut en, .. } = node.kind {
+                *sn = start_node_id;
+                *en = end_node_id;
+            }
+        }
+    }
+
+    pub fn get_connector_info(&self, id: u64) -> String {
+        if let Some(node) = self.scene.get_node(id) {
+            if let NodeKind::Connector { start_node_id, end_node_id, start_x, start_y, end_x, end_y, ref path_type, end_arrow, start_arrow } = node.kind {
+                return serde_json::json!({
+                    "start_node_id": start_node_id,
+                    "end_node_id": end_node_id,
+                    "start_x": start_x,
+                    "start_y": start_y,
+                    "end_x": end_x,
+                    "end_y": end_y,
+                    "path_type": path_type,
+                    "end_arrow": end_arrow,
+                    "start_arrow": start_arrow,
+                }).to_string();
+            }
+        }
+        "null".to_string()
+    }
+
+    /// Update connector bounds when connected nodes move
+    pub fn update_connector_bounds(&mut self, id: u64) {
+        let (start_node_id, end_node_id, mut sx, mut sy, mut ex, mut ey) = {
+            if let Some(node) = self.scene.get_node(id) {
+                if let NodeKind::Connector { start_node_id, end_node_id, start_x, start_y, end_x, end_y, .. } = node.kind {
+                    (start_node_id, end_node_id, start_x, start_y, end_x, end_y)
+                } else { return; }
+            } else { return; }
+        };
+
+        if start_node_id != 0 {
+            if let Some(n) = self.scene.get_node(start_node_id) {
+                sx = n.x + n.width / 2.0;
+                sy = n.y + n.height / 2.0;
+            }
+        }
+        if end_node_id != 0 {
+            if let Some(n) = self.scene.get_node(end_node_id) {
+                ex = n.x + n.width / 2.0;
+                ey = n.y + n.height / 2.0;
+            }
+        }
+
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Connector { start_x: ref mut sxr, start_y: ref mut syr, end_x: ref mut exr, end_y: ref mut eyr, .. } = node.kind {
+                *sxr = sx; *syr = sy; *exr = ex; *eyr = ey;
+            }
+            node.x = sx.min(ex);
+            node.y = sy.min(ey);
+            node.width = (ex - sx).abs().max(1.0);
+            node.height = (ey - sy).abs().max(1.0);
+        }
+    }
+
+    /// Get all connector IDs that reference a given node
+    pub fn get_connectors_for_node(&self, node_id: u64) -> Vec<u64> {
+        let mut result = vec![];
+        for n in self.scene.all_nodes() {
+            if let NodeKind::Connector { start_node_id, end_node_id, .. } = n.kind {
+                if start_node_id == node_id || end_node_id == node_id {
+                    result.push(n.id);
+                }
+            }
+        }
+        result
+    }
+
     pub fn add_frame(&mut self, x: f64, y: f64, w: f64, h: f64) -> u64 {
         let mut node = Node::new(0, NodeKind::Frame);
         node.x = x; node.y = y; node.width = w; node.height = h;
@@ -3037,5 +3181,4 @@ fn recalc_path_bounds(node: &mut Node) {
         node.width = (max_x - min_x).max(1.0);
         node.height = (max_y - min_y).max(1.0);
     }
-
 }
