@@ -513,3 +513,20 @@ Simulated multi-user cursor display for collaboration readiness.
 - [x] Toolbar toggle button (Users icon)
 - [x] `editor.toggleCursorDemo()` API
 - [x] `editor.cursorPresence` getter for external integration (WebSocket, WebRTC)
+
+## Accessibility Checker
+
+Right pane "A11y" tab — automated accessibility audit for design nodes.
+
+### Checks
+- [x] WCAG 2.1 contrast ratio: Text foreground vs parent fill background, AA (4.5:1 / 3:1 large) and AAA (7:1 / 4.5:1 large) levels
+- [x] Touch target size: Warns leaf nodes smaller than 44×44px (WCAG 2.5.5)
+- [x] Image alt text: Flags Image nodes with generic names ("Image N")
+- [x] Text size minimum: Warns text below 12px
+
+### UI
+- [x] Summary badges: error/warning/info counts
+- [x] Issues grouped by category (Contrast, Alt Text, Touch Target, Text Size)
+- [x] Severity color-coded (red error, amber warning, blue info)
+- [x] Click issue → select node + zoom to selection
+- [x] Re-check button for manual re-audit
