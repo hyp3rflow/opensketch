@@ -16,7 +16,8 @@ Pure Rust crate compiled to WASM via `wasm-pack`. No NAPI — runs entirely in t
 - `NodeId = u64`
 - `TextAlign` enum: `Left`, `Center`, `Right`
 - `FontStyle` enum: `Normal`, `Italic`
-- `NodeKind` enum: `Rect`, `Ellipse`, `Text { content, font_size, font_family, line_height, text_align, font_weight, font_style }`, `Frame`, `Group`, `Path { points: Vec<PathPoint>, closed: bool }`, `Image { src, fit }`, `Star { points: u32, inner_radius: f64 }`, `Polygon { sides: u32 }`
+- `TextDecoration` enum: `None`, `Underline`, `Strikethrough`, `UnderlineStrikethrough`
+- `NodeKind` enum: `Rect`, `Ellipse`, `Text { content, font_size, font_family, line_height, text_align, font_weight, font_style, text_decoration, letter_spacing, paragraph_spacing }`, `Frame`, `Group`, `Path { points: Vec<PathPoint>, closed: bool }`, `Image { src, fit }`, `Star { points: u32, inner_radius: f64 }`, `Polygon { sides: u32 }`
 - `PathPoint { x, y, handle_in_x, handle_in_y, handle_out_x, handle_out_y }` — anchor + bezier control handles (absolute coords)
 - `GradientStop { offset: f64, color: Color }`
 - `FillType`: `Solid { color }` | `LinearGradient { start_x, start_y, end_x, end_y, stops }` | `RadialGradient { center_x, center_y, radius, stops }` — coordinates normalized 0~1
@@ -43,7 +44,7 @@ Pure Rust crate compiled to WASM via `wasm-pack`. No NAPI — runs entirely in t
 - `Renderer`: Canvas2D rendering with viewport transform
 - Grid rendering (zoom-adaptive line density)
 - Node rendering: Rect (with roundRect), Ellipse, Text (multi-line, styled), Frame (white bg + label)
-- Text rendering: HiDPI pixel snap, alphabetic baseline, word wrap, text-align, font-weight, font-style
+- Text rendering: HiDPI pixel snap, alphabetic baseline, word wrap, text-align, font-weight, font-style, text-decoration (underline/strikethrough), letter-spacing, paragraph-spacing
 - `wrap_text()`: word-level wrapping with newline support
 - `measure_text_nodes()`: accurate Fit-mode dimension calculation using canvas measureText
 - `build_font_string()`: CSS font string with weight + italic

@@ -2141,8 +2141,34 @@ export class Editor {
       const content = text.content || "";
       const lines = content.split('\n');
       const lineH = fontSize * lineHeight;
+      const letterSpacing = text.letter_spacing ?? 0;
+      if (letterSpacing !== 0) {
+        (ctx as any).letterSpacing = `${letterSpacing}px`;
+      }
       for (let i = 0; i < lines.length; i++) {
         ctx.fillText(lines[i], x, y + ascent + lineH * i);
+      }
+      // Text decorations
+      const deco = text.text_decoration ?? "None";
+      if (deco !== "None") {
+        const hasU = deco === "Underline" || deco === "UnderlineStrikethrough";
+        const hasS = deco === "Strikethrough" || deco === "UnderlineStrikethrough";
+        ctx.strokeStyle = ctx.fillStyle as string;
+        ctx.lineWidth = Math.max(1, fontSize / 14);
+        for (let i = 0; i < lines.length; i++) {
+          const lw = ctx.measureText(lines[i]).width;
+          if (hasU) {
+            const uy = y + ascent + lineH * i + fontSize * 0.15;
+            ctx.beginPath(); ctx.moveTo(x, uy); ctx.lineTo(x + lw, uy); ctx.stroke();
+          }
+          if (hasS) {
+            const sy = y + ascent * 0.65 + lineH * i;
+            ctx.beginPath(); ctx.moveTo(x, sy); ctx.lineTo(x + lw, sy); ctx.stroke();
+          }
+        }
+      }
+      if (letterSpacing !== 0) {
+        (ctx as any).letterSpacing = "0px";
       }
     }
   }

@@ -219,6 +219,13 @@ function generateCSS(
     if (node.font_style && node.font_style !== "normal") lines.push(`font-style: ${node.font_style};`);
     if (node.line_height && node.line_height !== 1.2) lines.push(`line-height: ${node.line_height};`);
     if (node.text_align && node.text_align !== "left") lines.push(`text-align: ${node.text_align};`);
+    const deco = node.text_decoration;
+    if (deco && deco !== "None") {
+      const cssVal = deco === "Underline" ? "underline" : deco === "Strikethrough" ? "line-through" : "underline line-through";
+      lines.push(`text-decoration: ${cssVal};`);
+    }
+    if (node.letter_spacing && node.letter_spacing !== 0) lines.push(`letter-spacing: ${node.letter_spacing}px;`);
+    if (node.paragraph_spacing && node.paragraph_spacing !== 0) lines.push(`/* paragraph-spacing: ${node.paragraph_spacing}px; */`);
     if (node.fills?.[0]) lines.push(`color: ${rgbaToCSS(node.fills[0])};`);
   }
 

@@ -28,6 +28,19 @@ impl Default for FontStyle {
     fn default() -> Self { FontStyle::Normal }
 }
 
+/// Text decoration
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub enum TextDecoration {
+    None,
+    Underline,
+    Strikethrough,
+    UnderlineStrikethrough,
+}
+
+impl Default for TextDecoration {
+    fn default() -> Self { TextDecoration::None }
+}
+
 /// A point on a vector path with optional bezier control handles.
 /// Handle coordinates are absolute (not relative to the anchor point).
 /// If handle == anchor, the segment is a straight line on that side.
@@ -73,6 +86,14 @@ pub enum NodeKind {
         font_weight: u16,
         #[serde(default)]
         font_style: FontStyle,
+        #[serde(default)]
+        text_decoration: TextDecoration,
+        /// Letter spacing in pixels (0 = normal)
+        #[serde(default)]
+        letter_spacing: f64,
+        /// Paragraph spacing in pixels (extra space after each paragraph/newline)
+        #[serde(default)]
+        paragraph_spacing: f64,
     },
     Frame,
     Group,

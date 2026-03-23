@@ -1899,6 +1899,82 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       lhRow.appendChild(lhInput);
       textSection.appendChild(lhRow);
 
+      // Text decoration (underline / strikethrough)
+      const decoRow = document.createElement("div");
+      decoRow.style.cssText = "display:flex;gap:2px;margin-top:6px;";
+      const curDeco = (node.kind.Text.text_decoration ?? "None") as string;
+      const hasUnderline = curDeco === "Underline" || curDeco === "UnderlineStrikethrough";
+      const hasStrike = curDeco === "Strikethrough" || curDeco === "UnderlineStrikethrough";
+      ([["U", hasUnderline, "underline"], ["S", hasStrike, "strikethrough"]] as const).forEach(([label, active, type]) => {
+        const btn = document.createElement("button");
+        btn.innerHTML = type === "underline" ? "<u>U</u>" : "<s>S</s>";
+        btn.style.cssText = `
+          flex:1;padding:4px 0;border:1px solid ${active ? "#4f46e5" : "#444"};border-radius:4px;
+          background:${active ? "#4f46e520" : "#2a2a2a"};color:${active ? "#818cf8" : "#999"};
+          cursor:pointer;font-size:12px;transition:all 0.15s;
+        `;
+        btn.addEventListener("click", () => {
+          ensureUndo();
+          let u = hasUnderline, s = hasStrike;
+          if (type === "underline") u = !u;
+          else s = !s;
+          const val = u && s ? "underline-strikethrough" : u ? "underline" : s ? "strikethrough" : "none";
+          editor.engine.set_text_decoration(BigInt(id), val);
+          editor.requestRender();
+          refresh(ids);
+        });
+        decoRow.appendChild(btn);
+      });
+      textSection.appendChild(decoRow);
+
+      // Letter spacing
+      const lsRow = document.createElement("div");
+      lsRow.className = "prop-row";
+      lsRow.style.marginTop = "6px";
+      const lsLabel = document.createElement("span");
+      lsLabel.className = "prop-label";
+      lsLabel.style.width = "24px";
+      lsLabel.textContent = "LS";
+      lsLabel.title = "Letter Spacing";
+      lsRow.appendChild(lsLabel);
+      const lsInput = document.createElement("input");
+      lsInput.className = "prop-input";
+      lsInput.type = "number";
+      lsInput.step = "0.1";
+      lsInput.value = String(node.kind.Text.letter_spacing ?? 0);
+      lsInput.addEventListener("change", () => {
+        ensureUndo();
+        editor.engine.set_letter_spacing(BigInt(id), parseFloat(lsInput.value) || 0);
+        editor.requestRender();
+        refresh(ids);
+      });
+      lsRow.appendChild(lsInput);
+      textSection.appendChild(lsRow);
+
+      // Paragraph spacing
+      const psRow = document.createElement("div");
+      psRow.className = "prop-row";
+      psRow.style.marginTop = "6px";
+      const psLabel = document.createElement("span");
+      psLabel.className = "prop-label";
+      psLabel.style.width = "24px";
+      psLabel.textContent = "PS";
+      psLabel.title = "Paragraph Spacing";
+      psRow.appendChild(psLabel);
+      const psInput = document.createElement("input");
+      psInput.className = "prop-input";
+      psInput.type = "number";
+      psInput.step = "1";
+      psInput.value = String(node.kind.Text.paragraph_spacing ?? 0);
+      psInput.addEventListener("change", () => {
+        ensureUndo();
+        editor.engine.set_paragraph_spacing(BigInt(id), parseFloat(psInput.value) || 0);
+        editor.requestRender();
+        refresh(ids);
+      });
+      psRow.appendChild(psInput);
+      textSection.appendChild(psRow);
+
       // Font family
       const fonts = googleFonts;
       const familyRow = document.createElement("div");

@@ -177,6 +177,9 @@ impl Engine {
             text_align: TextAlign::default(),
             font_weight: 400,
             font_style: FontStyle::default(),
+            text_decoration: crate::node::TextDecoration::default(),
+            letter_spacing: 0.0,
+            paragraph_spacing: 0.0,
         });
         node.x = x; node.y = y;
         node.width = content.len() as f64 * font_size * 0.6;
@@ -2099,6 +2102,35 @@ impl Engine {
                     "italic" => FontStyle::Italic,
                     _ => FontStyle::Normal,
                 };
+            }
+        }
+    }
+
+    pub fn set_text_decoration(&mut self, id: u64, decoration: &str) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Text { ref mut text_decoration, .. } = node.kind {
+                *text_decoration = match decoration {
+                    "underline" => crate::node::TextDecoration::Underline,
+                    "strikethrough" => crate::node::TextDecoration::Strikethrough,
+                    "underline-strikethrough" => crate::node::TextDecoration::UnderlineStrikethrough,
+                    _ => crate::node::TextDecoration::None,
+                };
+            }
+        }
+    }
+
+    pub fn set_letter_spacing(&mut self, id: u64, spacing: f64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Text { ref mut letter_spacing, .. } = node.kind {
+                *letter_spacing = spacing.max(-10.0).min(100.0);
+            }
+        }
+    }
+
+    pub fn set_paragraph_spacing(&mut self, id: u64, spacing: f64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Text { ref mut paragraph_spacing, .. } = node.kind {
+                *paragraph_spacing = spacing.max(0.0).min(200.0);
             }
         }
     }

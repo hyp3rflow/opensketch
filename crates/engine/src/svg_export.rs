@@ -106,7 +106,7 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
             attrs.push_str("/>\n");
             buf.push_str(&attrs);
         }
-        NodeKind::Text { content, font_size, font_family, line_height, text_align, font_weight, font_style } => {
+        NodeKind::Text { content, font_size, font_family, line_height, text_align, font_weight, font_style, text_decoration, letter_spacing, paragraph_spacing } => {
             let mut attrs = String::new();
             attrs.push_str("<text");
             // Position at node origin
@@ -134,6 +134,22 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
                 attrs.push_str(r#" font-style="italic""#);
             }
             attrs.push_str(&format!(r#" text-anchor="{}""#, anchor));
+
+            // Text decoration
+            let deco_str = match text_decoration {
+                crate::node::TextDecoration::Underline => "underline",
+                crate::node::TextDecoration::Strikethrough => "line-through",
+                crate::node::TextDecoration::UnderlineStrikethrough => "underline line-through",
+                crate::node::TextDecoration::None => "",
+            };
+            if !deco_str.is_empty() {
+                attrs.push_str(&format!(r#" text-decoration="{}""#, deco_str));
+            }
+
+            // Letter spacing
+            if *letter_spacing != 0.0 {
+                attrs.push_str(&format!(r#" letter-spacing="{}""#, letter_spacing));
+            }
 
             // Fill color for text
             if let Some(fill) = node.visible_fills().next() {
@@ -171,7 +187,9 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
                     if i == 0 {
                         attrs.push_str(&format!(r#"<tspan x="{}">{}</tspan>"#, text_x, escape_xml(line)));
                     } else {
-                        attrs.push_str(&format!(r#"<tspan x="{}" dy="{}">{}</tspan>"#, text_x, line_h, escape_xml(line)));
+                        // Add paragraph_spacing for each newline (since SVG lines = paragraphs here)
+                        let dy = line_h + paragraph_spacing;
+                        attrs.push_str(&format!(r#"<tspan x="{}" dy="{}">{}</tspan>"#, text_x, dy, escape_xml(line)));
                     }
                     attrs.push('\n');
                 }

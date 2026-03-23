@@ -1,5 +1,6 @@
 use wasm_bindgen::JsValue;
 use web_sys::CanvasRenderingContext2d;
+use wasm_bindgen::JsCast;
 use crate::node::{Node, NodeKind, TextSizing, TextAlign, FontStyle, PathPoint};
 use crate::scene::Scene;
 use crate::transform::Transform;
@@ -366,7 +367,7 @@ impl Renderer {
         match &node.kind {
             NodeKind::Rect => self.render_rect(ctx, node),
             NodeKind::Ellipse => self.render_ellipse(ctx, node),
-            NodeKind::Text { content, font_size, font_family, line_height, text_align, font_weight, font_style } => self.render_text(ctx, node, content, *font_size, font_family, *line_height, text_align, *font_weight, font_style),
+            NodeKind::Text { content, font_size, font_family, line_height, text_align, font_weight, font_style, text_decoration, letter_spacing, paragraph_spacing } => self.render_text(ctx, node, content, *font_size, font_family, *line_height, text_align, *font_weight, font_style, text_decoration, *letter_spacing, *paragraph_spacing),
             NodeKind::Frame => self.render_frame(ctx, node, scene),
             NodeKind::Group => { self.render_children(ctx, &node.children, scene); }
             NodeKind::Slot { .. } => self.render_slot(ctx, node),
@@ -415,12 +416,30 @@ impl Renderer {
         self.apply_fill_stroke(ctx, node);
     }
 
-    fn render_text(&self, ctx: &CanvasRenderingContext2d, node: &Node, content: &str, font_size: f64, font_family: &str, line_height: f64, text_align: &TextAlign, font_weight: u16, font_style: &FontStyle) {
+    fn render_text(&self, ctx: &CanvasRenderingContext2d, node: &Node, content: &str, font_size: f64, font_family: &str, line_height: f64, text_align: &TextAlign, font_weight: u16, font_style: &FontStyle, text_decoration: &crate::node::TextDecoration, letter_spacing: f64, paragraph_spacing: f64) {
         if let Some(fill) = node.visible_fills().last() {
-            ctx.set_fill_style_str(&fill.color().to_css());
+            let fill_css = fill.color().to_css();
+            ctx.set_fill_style_str(&fill_css);
             let font_str = Self::build_font_string(font_size, font_family, font_weight, font_style);
             ctx.set_font(&font_str);
             ctx.set_text_baseline("alphabetic");
+
+            // Apply letter-spacing via canvas API
+            if letter_spacing != 0.0 {
+                // Use the letterSpacing property on the canvas context
+                let _ = js_sys::Reflect::set(
+                    ctx.as_ref(),
+                    &JsValue::from_str("letterSpacing"),
+                    &JsValue::from_f64(letter_spacing).into(),
+                );
+                // Also try the CSS format for broader compatibility
+                let ls_str = format!("{}px", letter_spacing);
+                let _ = js_sys::Reflect::set(
+                    ctx.as_ref(),
+                    &JsValue::from_str("letterSpacing"),
+                    &JsValue::from_str(&ls_str),
+                );
+            }
 
             // Get font metrics for baseline positioning
             let (font_ascent, font_descent) = if let Ok(m) = ctx.measure_text("Mg") {
@@ -439,30 +458,94 @@ impl Renderer {
             // Center font within line height
             let half_leading = (line_h - font_height) / 2.0;
 
+            // Track paragraph breaks for paragraph_spacing
+            let paragraphs: Vec<&str> = content.split('\n').collect();
+            let mut para_idx = 0;
+            let mut lines_in_para = 0;
+            // Count expected lines per paragraph for paragraph_spacing tracking
+            let mut para_line_counts: Vec<usize> = Vec::new();
+            {
+                let mut temp_lines_count = 0;
+                for p in &paragraphs {
+                    let p_lines = if p.is_empty() {
+                        vec![String::new()]
+                    } else {
+                        Self::wrap_text(ctx, p, max_width)
+                    };
+                    para_line_counts.push(p_lines.len());
+                    temp_lines_count += p_lines.len();
+                }
+                let _ = temp_lines_count;
+            }
+
+            let has_underline = matches!(text_decoration, crate::node::TextDecoration::Underline | crate::node::TextDecoration::UnderlineStrikethrough);
+            let has_strikethrough = matches!(text_decoration, crate::node::TextDecoration::Strikethrough | crate::node::TextDecoration::UnderlineStrikethrough);
+
+            let mut cumulative_extra_spacing = 0.0;
+
             for (i, line) in lines.iter().enumerate() {
+                // Track paragraph boundaries for extra spacing
+                lines_in_para += 1;
+                if para_idx < para_line_counts.len() && lines_in_para > para_line_counts[para_idx] {
+                    para_idx += 1;
+                    lines_in_para = 1;
+                    cumulative_extra_spacing += paragraph_spacing;
+                }
+
                 // Baseline = top of line + half_leading + font_ascent
-                let raw_y = node.y + half_leading + font_ascent + line_h * i as f64;
+                let raw_y = node.y + half_leading + font_ascent + line_h * i as f64 + cumulative_extra_spacing;
                 let snapped_y = (raw_y * zoom).round() / zoom;
 
                 // text_align x calculation
+                let lw = ctx.measure_text(line).map(|m| m.width()).unwrap_or(0.0);
                 let x = match text_align {
                     TextAlign::Left => {
                         let raw_x = node.x;
                         (raw_x * zoom).round() / zoom
                     }
                     TextAlign::Center => {
-                        let lw = ctx.measure_text(line).map(|m| m.width()).unwrap_or(0.0);
                         let raw_x = node.x + (node.width - lw) / 2.0;
                         (raw_x * zoom).round() / zoom
                     }
                     TextAlign::Right => {
-                        let lw = ctx.measure_text(line).map(|m| m.width()).unwrap_or(0.0);
                         let raw_x = node.x + node.width - lw;
                         (raw_x * zoom).round() / zoom
                     }
                 };
 
                 ctx.fill_text(line, x, snapped_y).ok();
+
+                // Draw text decorations
+                if has_underline || has_strikethrough {
+                    ctx.set_stroke_style_str(&fill_css);
+                    let decoration_thickness = (font_size / 14.0).max(1.0);
+                    ctx.set_line_width(decoration_thickness);
+
+                    if has_underline {
+                        let underline_y = snapped_y + font_descent * 0.4;
+                        ctx.begin_path();
+                        ctx.move_to(x, underline_y);
+                        ctx.line_to(x + lw, underline_y);
+                        ctx.stroke();
+                    }
+
+                    if has_strikethrough {
+                        let strike_y = snapped_y - font_ascent * 0.35;
+                        ctx.begin_path();
+                        ctx.move_to(x, strike_y);
+                        ctx.line_to(x + lw, strike_y);
+                        ctx.stroke();
+                    }
+                }
+            }
+
+            // Reset letter-spacing
+            if letter_spacing != 0.0 {
+                let _ = js_sys::Reflect::set(
+                    ctx.as_ref(),
+                    &JsValue::from_str("letterSpacing"),
+                    &JsValue::from_str("0px"),
+                );
             }
         }
     }
