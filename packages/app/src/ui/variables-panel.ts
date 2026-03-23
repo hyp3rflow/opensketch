@@ -96,6 +96,114 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
 
     const col = collections.find(c => c.id === selectedCollectionId)!;
 
+    // Scope section
+    const scopeSection = document.createElement("div");
+    scopeSection.style.cssText = "margin-bottom:12px;background:#1e1e1e;border-radius:6px;padding:8px;";
+    const scopeLabel = document.createElement("div");
+    scopeLabel.style.cssText = "font-size:10px;color:#888;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;margin-bottom:6px;";
+    scopeLabel.textContent = "Scope";
+    scopeSection.appendChild(scopeLabel);
+
+    const scopeJson = editor.engine.get_collection_scope(BigInt(col.id));
+    let currentScope: string = "Global";
+    let scopeIds: number[] = [];
+    try {
+      const parsed = JSON.parse(scopeJson);
+      if (parsed === "Global") { currentScope = "Global"; }
+      else if (parsed && parsed.Pages) { currentScope = "Pages"; scopeIds = parsed.Pages; }
+      else if (parsed && parsed.Nodes) { currentScope = "Nodes"; scopeIds = parsed.Nodes; }
+    } catch {}
+
+    const scopeSelect = document.createElement("select");
+    scopeSelect.style.cssText = "width:100%;background:#2a2a2a;border:1px solid #444;border-radius:4px;color:#ccc;font-size:11px;padding:4px;margin-bottom:6px;";
+    for (const opt of ["Global", "Pages", "Nodes"]) {
+      const o = document.createElement("option");
+      o.value = opt; o.textContent = opt === "Global" ? "Global (all pages)" : opt === "Pages" ? "Specific pages" : "Specific frames";
+      if (opt === currentScope) o.selected = true;
+      scopeSelect.appendChild(o);
+    }
+    scopeSelect.addEventListener("change", () => {
+      editor.engine.push_undo();
+      const val = scopeSelect.value;
+      if (val === "Global") {
+        editor.engine.set_collection_scope(BigInt(col.id), '"Global"');
+      } else if (val === "Pages") {
+        editor.engine.set_collection_scope(BigInt(col.id), '{"Pages":[]}');
+      } else {
+        editor.engine.set_collection_scope(BigInt(col.id), '{"Nodes":[]}');
+      }
+      refresh();
+    });
+    scopeSection.appendChild(scopeSelect);
+
+    if (currentScope === "Pages") {
+      // Show page checkboxes
+      const pagesJson = JSON.parse(editor.engine.get_pages());
+      const pagesRow = document.createElement("div");
+      pagesRow.style.cssText = "display:flex;flex-direction:column;gap:4px;";
+      for (const pg of pagesJson) {
+        const label = document.createElement("label");
+        label.style.cssText = "display:flex;align-items:center;gap:6px;font-size:11px;color:#aaa;cursor:pointer;";
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.checked = scopeIds.includes(pg.id);
+        cb.addEventListener("change", () => {
+          const newIds = scopeIds.filter(id => id !== pg.id);
+          if (cb.checked) newIds.push(pg.id);
+          scopeIds = newIds;
+          editor.engine.push_undo();
+          editor.engine.set_collection_scope(BigInt(col.id), JSON.stringify({ Pages: scopeIds }));
+        });
+        label.appendChild(cb);
+        label.appendChild(document.createTextNode(pg.name));
+        pagesRow.appendChild(label);
+      }
+      scopeSection.appendChild(pagesRow);
+    } else if (currentScope === "Nodes") {
+      const idsDisplay = document.createElement("div");
+      idsDisplay.style.cssText = "font-size:10px;color:#666;margin-bottom:4px;";
+      idsDisplay.textContent = scopeIds.length > 0 ? `Scoped to ${scopeIds.length} frame(s)` : "No frames selected";
+      scopeSection.appendChild(idsDisplay);
+
+      const addFrameBtn = document.createElement("button");
+      addFrameBtn.style.cssText = "background:#2a2a2a;border:1px solid #444;border-radius:4px;color:#888;cursor:pointer;font-size:10px;padding:3px 8px;";
+      addFrameBtn.textContent = "+ Add selected frame";
+      addFrameBtn.addEventListener("click", () => {
+        const sel = Array.from(editor.engine.get_selection()).map(Number);
+        if (sel.length === 0) { alert("Select a frame first"); return; }
+        editor.engine.push_undo();
+        const newIds = [...new Set([...scopeIds, ...sel])];
+        editor.engine.set_collection_scope(BigInt(col.id), JSON.stringify({ Nodes: newIds }));
+        refresh();
+      });
+      scopeSection.appendChild(addFrameBtn);
+
+      if (scopeIds.length > 0) {
+        const list = document.createElement("div");
+        list.style.cssText = "margin-top:6px;display:flex;flex-direction:column;gap:2px;";
+        for (const nid of scopeIds) {
+          const row = document.createElement("div");
+          row.style.cssText = "display:flex;align-items:center;gap:4px;font-size:10px;color:#aaa;";
+          const nameStr = editor.engine.get_node_name(BigInt(nid)) || `Node ${nid}`;
+          row.textContent = nameStr;
+          const rmBtn = document.createElement("button");
+          rmBtn.style.cssText = "background:none;border:none;color:#f87171;cursor:pointer;font-size:10px;margin-left:auto;";
+          rmBtn.textContent = "✕";
+          rmBtn.addEventListener("click", () => {
+            editor.engine.push_undo();
+            const newIds = scopeIds.filter(id => id !== nid);
+            editor.engine.set_collection_scope(BigInt(col.id), JSON.stringify({ Nodes: newIds }));
+            refresh();
+          });
+          row.appendChild(rmBtn);
+          list.appendChild(row);
+        }
+        scopeSection.appendChild(list);
+      }
+    }
+
+    container.appendChild(scopeSection);
+
     // Modes
     const modesSection = document.createElement("div");
     modesSection.style.cssText = "margin-bottom:12px;";

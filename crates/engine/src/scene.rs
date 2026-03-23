@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use serde::{Serialize, Deserialize};
 use crate::node::{Node, NodeId, NodeKind, ConstraintH, ConstraintV, Comment, CommentReply};
 use crate::types::Point;
-use crate::variable::{VariableCollection, VariableBinding, CollectionId, VariableId, VariableValue};
+use crate::variable::{VariableCollection, VariableBinding, VariableScope, CollectionId, VariableId, VariableValue};
 use crate::types::Color;
 
 fn parse_hex_color(hex: &str) -> Option<Color> {
@@ -847,6 +847,58 @@ impl Scene {
         self.variable_collections.iter().find(|c| c.id == id)
     }
 
+    pub fn set_collection_scope(&mut self, id: CollectionId, scope: VariableScope) {
+        if let Some(c) = self.get_collection_mut(id) {
+            c.scope = scope;
+        }
+    }
+
+    pub fn get_collection_scope(&self, id: CollectionId) -> Option<&VariableScope> {
+        self.get_collection(id).map(|c| &c.scope)
+    }
+
+    /// Get ancestor node IDs (parent chain) for a given node
+    fn get_ancestor_ids(&self, node_id: u64) -> Vec<u64> {
+        let mut ancestors = Vec::new();
+        let mut current = node_id;
+        let mut guard = 0;
+        while guard < 200 {
+            guard += 1;
+            if let Some(node) = self.nodes.get(&current) {
+                if let Some(pid) = node.parent {
+                    ancestors.push(pid);
+                    current = pid;
+                } else {
+                    break;
+                }
+            } else {
+                break;
+            }
+        }
+        ancestors
+    }
+
+    /// Get the active page ID
+    fn active_page_id(&self) -> u64 {
+        self.pages.get(self.active_page_index).map(|p| p.id).unwrap_or(0)
+    }
+
+    /// Check if a binding's collection scope includes the given node
+    fn is_binding_in_scope(&self, collection_id: CollectionId, node_id: u64) -> bool {
+        let collection = match self.get_collection(collection_id) {
+            Some(c) => c,
+            None => return false,
+        };
+        match &collection.scope {
+            VariableScope::Global => true,
+            VariableScope::Pages(pages) => pages.contains(&self.active_page_id()),
+            VariableScope::Nodes(nodes) => {
+                let ancestors = self.get_ancestor_ids(node_id);
+                collection.scope.contains(self.active_page_id(), node_id, &ancestors)
+            }
+        }
+    }
+
     pub fn bind_variable(&mut self, node_id: u64, property: String, collection_id: CollectionId, variable_id: VariableId) {
         let key = format!("{}:{}", node_id, property);
         self.variable_bindings.insert(key, VariableBinding { collection_id, variable_id });
@@ -879,6 +931,19 @@ impl Scene {
             .collect();
 
         for (key, binding) in bindings {
+            // Parse key first to get node_id for scope check
+            let parts: Vec<&str> = key.splitn(2, ':').collect();
+            if parts.len() != 2 { continue; }
+            let node_id: u64 = match parts[0].parse() {
+                Ok(id) => id,
+                Err(_) => continue,
+            };
+
+            // Check scope before resolving
+            if !self.is_binding_in_scope(binding.collection_id, node_id) {
+                continue;
+            }
+
             let value = {
                 let collection = match self.get_collection(binding.collection_id) {
                     Some(c) => c,
@@ -890,13 +955,6 @@ impl Scene {
                 }
             };
 
-            // Parse key: "node_id:property"
-            let parts: Vec<&str> = key.splitn(2, ':').collect();
-            if parts.len() != 2 { continue; }
-            let node_id: u64 = match parts[0].parse() {
-                Ok(id) => id,
-                Err(_) => continue,
-            };
             let property = parts[1];
 
             match (property, &value) {

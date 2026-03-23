@@ -64,6 +64,9 @@ pub struct VariableCollection {
     pub variables: Vec<Variable>,
     pub next_variable_id: VariableId,
     pub next_mode_id: ModeId,
+    /// Scope restriction: which pages/frames can use this collection's variables
+    #[serde(default)]
+    pub scope: VariableScope,
 }
 
 impl VariableCollection {
@@ -77,6 +80,7 @@ impl VariableCollection {
             variables: vec![],
             next_variable_id: 1,
             next_mode_id: 2,
+            scope: VariableScope::Global,
         }
     }
 
@@ -227,6 +231,36 @@ impl VisibilityCondition {
 pub struct VariableBinding {
     pub collection_id: CollectionId,
     pub variable_id: VariableId,
+}
+
+/// Scope restriction for a variable collection
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub enum VariableScope {
+    /// Available everywhere (default)
+    Global,
+    /// Restricted to specific pages (by page id)
+    Pages(Vec<u64>),
+    /// Restricted to specific frames/nodes (by node id)
+    Nodes(Vec<u64>),
+}
+
+impl Default for VariableScope {
+    fn default() -> Self { VariableScope::Global }
+}
+
+impl VariableScope {
+    /// Check if a given (page_id, node_id, ancestor_ids) is within scope.
+    /// For Pages scope: page_id must be in the list.
+    /// For Nodes scope: the node or any of its ancestors must be in the list.
+    pub fn contains(&self, page_id: u64, node_id: u64, ancestor_ids: &[u64]) -> bool {
+        match self {
+            VariableScope::Global => true,
+            VariableScope::Pages(pages) => pages.contains(&page_id),
+            VariableScope::Nodes(nodes) => {
+                nodes.contains(&node_id) || ancestor_ids.iter().any(|a| nodes.contains(a))
+            }
+        }
+    }
 }
 
 /// Store for all variable collections (kept for backward compat, unused in scene currently)

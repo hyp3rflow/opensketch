@@ -1303,6 +1303,10 @@ impl Engine {
         self.renderer.screen_to_scene(x, y).1
     }
 
+    pub fn get_node_name(&self, id: u64) -> Option<String> {
+        self.scene.get_node(id).map(|n| n.name.clone())
+    }
+
     pub fn get_node_json(&self, id: u64) -> Option<String> {
         self.scene.get_node(id).map(|n| serde_json::to_string(n).unwrap_or_default())
     }
@@ -3382,6 +3386,27 @@ impl Engine {
 
     pub fn apply_variables(&mut self) {
         self.scene.apply_variables();
+    }
+
+    /// Set collection scope: "global", "pages:[1,2,3]", or "nodes:[4,5,6]"
+    pub fn set_collection_scope(&mut self, collection_id: u64, scope_json: &str) -> bool {
+        use crate::variable::VariableScope;
+        let scope: Result<VariableScope, _> = serde_json::from_str(scope_json);
+        match scope {
+            Ok(s) => {
+                self.scene.set_collection_scope(collection_id, s);
+                true
+            }
+            Err(_) => false,
+        }
+    }
+
+    /// Get collection scope as JSON
+    pub fn get_collection_scope(&self, collection_id: u64) -> String {
+        match self.scene.get_collection_scope(collection_id) {
+            Some(scope) => serde_json::to_string(scope).unwrap_or_else(|_| "\"Global\"".to_string()),
+            None => "null".to_string(),
+        }
     }
 
     // =============================================

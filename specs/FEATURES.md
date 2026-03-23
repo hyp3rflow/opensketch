@@ -401,6 +401,7 @@
 - [x] **Binding UI**: Properties panel "Variable Bindings" section with bind/unbind per property, variable picker popup
 - [x] **Backward-compatible serde**: Default empty collections/bindings for existing files
 - [x] **Conditional visibility**: Per-node `VisibilityCondition` (variable_id + operator + value) — evaluated at render/hit-test time. Operators: Eq/NotEq/Gt/Lt/Gte/Lte/IsTrue/IsFalse. UI in Properties panel "Conditional Visibility" section. Also supports binding Boolean variables to `visible` property via variable mode switching
+- [x] **Variable scoping**: VariableScope enum (Global/Pages/Nodes) per collection — restricts variable usage to specific pages or frames. apply_variables() skips out-of-scope bindings. Scope UI in Variables panel: dropdown (Global/Pages/Nodes) + page checkboxes or frame picker. WASM: set_collection_scope, get_collection_scope. Backward-compatible serde (default Global).
 
 ### Asset Library Panel
 - [x] **Assets tab**: Right pane "Assets" tab alongside Properties/Agent/History/Inspect/Comments/Variables
