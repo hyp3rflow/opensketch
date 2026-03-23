@@ -6,7 +6,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "wasm": "cd ../../crates/engine && wasm-pack build --target web --out-dir ../../packages/app/src/wasm"
+    "wasm": "cd ../../crates/engine && wasm-pack build --target web --out-dir ../../packages/app/src/wasm",
+    "tauri:dev": "cd ../.. && cargo tauri dev",
+    "tauri:build": "cd ../.. && cargo tauri build --bundles app"
   },
   "devDependencies": {
     "typescript": "^5.7.0",

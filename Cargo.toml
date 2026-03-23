@@ -1,3 +1,7 @@
 [workspace]
-members = ["crates/engine"]
+members = ["crates/engine", "src-tauri"]
 resolver = "2"
+
+[profile.release]
+strip = true
+lto = true

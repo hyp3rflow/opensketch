@@ -157,7 +157,11 @@
 ### Desktop (Tauri v2)
 - [x] Project scaffolded (`src-tauri/`)
 - [x] Config: 1440×900 window, Vite dev server integration
-- [ ] Not yet built/tested (needs `cargo-tauri` CLI)
+- [x] Tauri v2 build working (`npx @tauri-apps/cli build`)
+- [x] Icons generated (512px PNG → all platform icons via `tauri icon`)
+- [x] Workspace Cargo.toml includes `src-tauri` member
+- [x] beforeBuildCommand/beforeDevCommand configured for Vite
+- [x] Release binary: `target/release/opensketch-desktop`
 
 ## Plugin API (Extensible Tool/Panel System)
 
@@ -585,3 +589,11 @@ Frame overflow control and content scrolling.
 - [x] Properties panel: slider + input UI in Effects section
 - [x] Inspect panel: filter CSS output
 - [x] Backward-compatible serde
+
+### Tauri Desktop Build
+- [x] Tauri v2 scaffold (src-tauri/): Cargo.toml, tauri.conf.json, main.rs, build.rs, capabilities
+- [x] macOS .app bundle generation (cargo tauri build --bundles app)
+- [x] Vite frontend integration (devUrl: localhost:5174, frontendDist: packages/app/dist)
+- [x] Window config: 1440x900, resizable, CSP disabled for WASM
+- [x] npm scripts: tauri:dev, tauri:build
+- [x] Workspace Cargo.toml includes src-tauri member
