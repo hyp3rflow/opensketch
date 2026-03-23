@@ -33,10 +33,10 @@
 - **Asset library panel** — Right pane "Assets" 탭, Components/Color Styles/Text Styles 3개 섹션, 검색/필터, 클릭으로 인스턴스 생성 또는 스타일 적용
 - **Flow diagrams / connectors** — NodeKind::Connector (start/end node IDs, straight/curved path, start/end arrows), Canvas bezier/straight rendering with arrowheads + edge clipping, SVG export with markers, WASM bindings (add/set/get/update), Toolbar button (L shortcut), drag-to-connect UI with preview, Properties panel (path type, arrows), auto-update on connected node move
 - **Conditional visibility** — Per-node VisibilityCondition (collection_id + variable_id + operator + value), 8개 연산자 (Eq/NotEq/Gt/Lt/Gte/Lte/IsTrue/IsFalse), Scene.is_effectively_visible()로 render/hit-test 시 자동 평가, WASM 바인딩 (set/get/clear_conditional_visibility, is_effectively_visible), Properties panel "Conditional Visibility" 섹션 UI
+- **Plugin API** — TypeScript Plugin API 시스템: Plugin interface (id/name/version/activate/deactivate), PluginManager (register/unregister/activate/deactivate/list), PluginAPI (scene read/write, UI 확장: panels/toolbar buttons/menu items/commands, event subscription), 샘플 플러그인 2개 (Lorem Ipsum Generator, Color Palette), Right pane Plugins 탭 UI (enable/disable 토글, plugin panels, quick actions)
 
 ## 📋 Backlog
 - Tauri desktop build (scaffolded but not tested)
-- Plugin API (extensible tool/panel system)
 - Responsive resize preview (artboard breakpoints, side-by-side view)
 - Smart animate transitions (prototype viewer에서 매칭 노드 간 interpolation)
 - Section nodes (Figma Section — 페이지 내 구역 그룹핑, 프레젠테이션 순서)

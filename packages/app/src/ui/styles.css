@@ -216,3 +216,15 @@ select.prop-input { appearance: none; background: #333 url("data:image/svg+xml,%
 .os-ctx-shortcut { color: #888; font-size: 11px; margin-left: 24px; white-space: nowrap; }
 .os-ctx-item:not(.disabled):hover .os-ctx-shortcut { color: rgba(255,255,255,0.7); }
 .os-ctx-sep { height: 1px; background: rgba(255,255,255,0.08); margin: 4px 8px; }
+
+/* Plugin notifications */
+.plugin-notification {
+  position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%) translateY(20px);
+  padding: 10px 20px; border-radius: 8px; font-size: 12px; color: #fff; z-index: 10000;
+  opacity: 0; transition: opacity 0.3s, transform 0.3s; pointer-events: none;
+}
+.plugin-notification.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.plugin-notification--info { background: #333; }
+.plugin-notification--success { background: #2e7d32; }
+.plugin-notification--warning { background: #e65100; }
+.plugin-notification--error { background: #c62828; }
