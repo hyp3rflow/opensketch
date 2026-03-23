@@ -6,7 +6,7 @@ import { toggleShortcutsPanel, isShortcutsPanelVisible, closeShortcutsPanel } fr
 import { showContextMenu, hideContextMenu, type MenuItem } from "./ui/context-menu";
 import { openResponsivePreview, isResponsivePreviewOpen, closeResponsivePreview } from "./ui/responsive-preview";
 
-export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "section" | "image" | "pen" | "star" | "polygon";
+export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "section" | "image" | "pen" | "star" | "polygon" | "slice";
 
 /** Snap threshold in screen pixels */
 const SNAP_THRESHOLD_PX = 5;
@@ -333,6 +333,7 @@ export class Editor {
       if ((e.key === "s" || e.key === "S") && e.shiftKey) this.setTool("section");
       else if (e.key === "s" || e.key === "S") this.setTool("star");
       if (e.key === "g" || e.key === "G") this.setTool("polygon");
+      if (e.key === "k" || e.key === "K") this.setTool("slice");
       if (e.key === "Delete" || e.key === "Backspace") {
         if (this._pathEditMode && this._pathEditNodeId != null && this._pathEditSelectedPoint != null) {
           this.engine.push_undo();
@@ -536,7 +537,7 @@ export class Editor {
       return;
     }
 
-    if (["rect", "ellipse", "text", "frame", "section", "image"].includes(this.currentTool)) {
+    if (["rect", "ellipse", "text", "frame", "section", "image", "slice"].includes(this.currentTool)) {
       const sx = this.engine.screen_to_scene_x(x, y);
       const sy = this.engine.screen_to_scene_y(x, y);
       this.drag = { startX: sx, startY: sy, currentX: sx, currentY: sy };
@@ -708,7 +709,7 @@ export class Editor {
       return;
     }
 
-    if (["rect", "ellipse", "text", "frame", "section", "image"].includes(this.currentTool)) {
+    if (["rect", "ellipse", "text", "frame", "section", "image", "slice"].includes(this.currentTool)) {
       this.drag.currentX = this.engine.screen_to_scene_x(x, y);
       this.drag.currentY = this.engine.screen_to_scene_y(x, y);
       this.needsRender = true;
@@ -760,6 +761,7 @@ export class Editor {
           case "image": id = this.engine.add_image(x, y, w, h, ""); this.promptImageSrc(id); break;
           case "star": id = this.engine.add_star(x, y, w, h, 5, 0.4); break;
           case "polygon": id = this.engine.add_polygon(x, y, w, h, 6); break;
+          case "slice": id = this.engine.add_slice("", x, y, w, h); break;
           default: id = 0;
         }
         if (id > 0) {
@@ -1393,6 +1395,7 @@ export class Editor {
         this.renderPathEditOverlay();
         this.renderCaret();
         this.renderMarquee();
+        this.renderSliceOverlays();
         this._rulers?.render();
         this.needsRender = false;
       }
@@ -1436,6 +1439,7 @@ export class Editor {
       select: "default", hand: "grab", rect: "crosshair",
       ellipse: "crosshair", text: "text", frame: "crosshair",
       section: "crosshair", image: "crosshair", pen: "crosshair",
+      slice: "crosshair",
     };
     this.canvas.style.cursor = cursors[this.currentTool] || "default";
   }
@@ -1678,6 +1682,100 @@ export class Editor {
     this._rulers.renderGuideLines(this.ctx, zoom, panX, panY, rect.width, rect.height);
   }
   notifyLayersChanged() { this.onLayersChanges.forEach(fn => fn()); }
+
+  /** Render slice overlays (dashed outlines + labels) on canvas */
+  private renderSliceOverlays() {
+    const slicesJson = this.engine.get_slices();
+    const slices: Array<{id: number; name: string; x: number; y: number; width: number; height: number}> = JSON.parse(slicesJson);
+    if (slices.length === 0) return;
+
+    const zoom = this.engine.get_zoom();
+    const panX = this.engine.get_pan_x();
+    const panY = this.engine.get_pan_y();
+    const ctx = this.ctx;
+
+    for (const s of slices) {
+      const sx = s.x * zoom + panX;
+      const sy = s.y * zoom + panY;
+      const sw = s.width * zoom;
+      const sh = s.height * zoom;
+
+      ctx.save();
+      ctx.strokeStyle = "#36b37e";
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 4]);
+      ctx.strokeRect(sx, sy, sw, sh);
+      ctx.setLineDash([]);
+
+      // Label
+      const label = s.name || "Slice";
+      ctx.font = "10px Inter, sans-serif";
+      const tw = ctx.measureText(label).width;
+      ctx.fillStyle = "#36b37e";
+      ctx.fillRect(sx, sy - 16, tw + 8, 16);
+      ctx.fillStyle = "#fff";
+      ctx.fillText(label, sx + 4, sy - 4);
+      ctx.restore();
+    }
+  }
+
+  /** Export a slice region as PNG (crops the canvas area) */
+  exportSlice(sliceId: number, scale: number = 2): void {
+    const slices: Array<{id: number; name: string; x: number; y: number; width: number; height: number}> = JSON.parse(this.engine.get_slices());
+    const slice = slices.find(s => s.id === sliceId);
+    if (!slice) return;
+
+    const w = Math.ceil(slice.width * scale);
+    const h = Math.ceil(slice.height * scale);
+    const offscreen = document.createElement("canvas");
+    offscreen.width = w;
+    offscreen.height = h;
+    const ctx = offscreen.getContext("2d")!;
+
+    // Set up transform: scale and translate so the slice region fills the canvas
+    ctx.scale(scale, scale);
+    ctx.translate(-slice.x, -slice.y);
+
+    // Render the full scene onto this cropped canvas
+    this.engine.render(ctx as any);
+    // Also render images
+    this.renderImagesToCtx(ctx, -slice.x, -slice.y, scale);
+
+    offscreen.toBlob((blob) => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${slice.name || "slice"}.png`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }, "image/png");
+  }
+
+  /** Render images to an offscreen context (for slice export) */
+  private renderImagesToCtx(ctx: CanvasRenderingContext2D, offsetX: number, offsetY: number, scale: number) {
+    // Re-use existing image rendering logic with offset
+    const scene = this.engine.export_scene();
+    const nodes = JSON.parse(scene);
+    for (const node of nodes) {
+      if (node.kind?.Image && node.visible !== false) {
+        const src = node.kind.Image.src;
+        if (!src) continue;
+        const img = this._imageCache?.get(src);
+        if (!img) continue;
+        ctx.save();
+        if (node.corner_radius > 0) {
+          const r = Math.min(node.corner_radius, node.width / 2, node.height / 2);
+          ctx.beginPath();
+          ctx.roundRect(node.x, node.y, node.width, node.height, r);
+          ctx.clip();
+        }
+        ctx.globalAlpha = node.opacity ?? 1;
+        ctx.drawImage(img, node.x, node.y, node.width, node.height);
+        ctx.restore();
+      }
+    }
+  }
   notifySelectionChanged(ids: number[]) { this.fireSelectionNow(ids); }
   onSave(fn: () => void) { this.onSaveCallbacks.push(fn); }
 

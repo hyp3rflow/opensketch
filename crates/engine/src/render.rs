@@ -278,6 +278,9 @@ impl Renderer {
     }
 
     fn render_node(&self, ctx: &CanvasRenderingContext2d, node: &Node, scene: &Scene) {
+        // Slice nodes are not rendered on canvas (TS draws overlay)
+        if matches!(node.kind, NodeKind::Slice) { return; }
+
         ctx.save();
         ctx.set_global_alpha(node.opacity);
 
@@ -373,6 +376,7 @@ impl Renderer {
             NodeKind::Star { points, inner_radius } => self.render_star(ctx, node, *points, *inner_radius),
             NodeKind::Polygon { sides } => self.render_polygon(ctx, node, *sides),
             NodeKind::Section => self.render_section(ctx, node, scene),
+            NodeKind::Slice => {} // Slice nodes are rendered as overlays in TS
         }
 
         ctx.restore();

@@ -1999,6 +1999,35 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       container.appendChild(polySection);
     }
 
+    // === Slice export section ===
+    if (node.kind === "Slice") {
+      const sliceSection = createSection("Export");
+      const scaleRow = document.createElement("div");
+      scaleRow.style.cssText = "display:flex;gap:6px;align-items:center;margin-bottom:8px;";
+      const scaleLabel = document.createElement("span");
+      scaleLabel.style.cssText = "font-size:11px;color:#999;";
+      scaleLabel.textContent = "Scale:";
+      scaleRow.appendChild(scaleLabel);
+      const scaleSelect = document.createElement("select");
+      scaleSelect.style.cssText = "background:#2a2a2a;color:#ccc;border:1px solid #444;border-radius:4px;padding:2px 6px;font-size:11px;";
+      for (const s of [1, 2, 3, 4]) {
+        const opt = document.createElement("option");
+        opt.value = String(s); opt.textContent = `${s}x`; if (s === 2) opt.selected = true;
+        scaleSelect.appendChild(opt);
+      }
+      scaleRow.appendChild(scaleSelect);
+      sliceSection.appendChild(scaleRow);
+
+      const exportBtn = document.createElement("button");
+      exportBtn.style.cssText = "width:100%;padding:6px;background:#36b37e;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;";
+      exportBtn.textContent = "Export PNG";
+      exportBtn.addEventListener("click", () => {
+        editor.exportSlice(id, parseInt(scaleSelect.value) || 2);
+      });
+      sliceSection.appendChild(exportBtn);
+      container.appendChild(sliceSection);
+    }
+
     // === Auto Layout Section (Frame/Instance/Group) ===
     const kindStr = typeof node.kind === "string" ? node.kind : Object.keys(node.kind)[0];
     if (["Frame", "Instance", "Group", "Slot"].includes(kindStr || "")) {
@@ -2539,7 +2568,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
 
 function getKindLabel(kind: unknown): string {
   if (typeof kind === "string") {
-    const map: Record<string, string> = { Rect: "Rectangle", Ellipse: "Ellipse", Frame: "Frame", Group: "Group" };
+    const map: Record<string, string> = { Rect: "Rectangle", Ellipse: "Ellipse", Frame: "Frame", Group: "Group", Section: "Section", Slice: "Slice" };
     return map[kind] ?? kind;
   }
   if (typeof kind === "object" && kind !== null) {

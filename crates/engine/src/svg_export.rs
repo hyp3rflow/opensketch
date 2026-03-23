@@ -340,6 +340,10 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
             attrs.push_str("/>\n");
             buf.push_str(&attrs);
         }
+        NodeKind::Slice => {
+            // Slice nodes are export regions — not rendered in SVG
+            return;
+        }
         NodeKind::Slot { .. } | NodeKind::Instance(_) => {
             // Render as group with children
             let mut g = String::from("<g");

@@ -13,6 +13,7 @@ const tools: { id: ToolType; icon: string; label: string }[] = [
   { id: "pen", icon: icons.penTool, label: "Pen (P)" },
   { id: "star", icon: icons.star, label: "Star (S)" },
   { id: "polygon", icon: icons.polygon, label: "Polygon (G)" },
+  { id: "slice", icon: icons.slice, label: "Slice (K)" },
 ];
 
 export type AppMode = "edit" | "dev";

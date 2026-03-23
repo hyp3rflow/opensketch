@@ -108,6 +108,8 @@ pub enum NodeKind {
     },
     /// A section container (Figma Section — page organization with title label)
     Section,
+    /// A slice (export region) — not rendered on canvas, defines an area for export
+    Slice,
 }
 
 fn default_line_height() -> f64 { 1.2 }

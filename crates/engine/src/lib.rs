@@ -415,6 +415,15 @@ impl Engine {
         self.scene.add_node(node)
     }
 
+    pub fn add_slice(&mut self, name: &str, x: f64, y: f64, w: f64, h: f64) -> u64 {
+        let mut node = Node::new(0, NodeKind::Slice);
+        node.x = x; node.y = y; node.width = w; node.height = h;
+        node.name = if name.is_empty() { format!("Slice {}", self.scene.node_count() + 1) } else { name.to_string() };
+        node.fills = vec![];
+        node.opacity = 1.0;
+        self.scene.add_node(node)
+    }
+
     pub fn add_frame(&mut self, x: f64, y: f64, w: f64, h: f64) -> u64 {
         let mut node = Node::new(0, NodeKind::Frame);
         node.x = x; node.y = y; node.width = w; node.height = h;
@@ -2092,6 +2101,22 @@ impl Engine {
     /// Export a single node as SVG
     pub fn export_node_svg(&self, node_id: u64) -> String {
         svg_export::export_node_svg(&self.scene, node_id)
+    }
+
+    /// Get all slice nodes as JSON array [{id, name, x, y, width, height}]
+    pub fn get_slices(&self) -> String {
+        let slices: Vec<serde_json::Value> = self.scene.all_nodes()
+            .filter(|n| matches!(n.kind, NodeKind::Slice))
+            .map(|n| serde_json::json!({
+                "id": n.id as f64,
+                "name": &n.name,
+                "x": n.x,
+                "y": n.y,
+                "width": n.width,
+                "height": n.height,
+            }))
+            .collect();
+        serde_json::to_string(&slices).unwrap_or_else(|_| "[]".to_string())
     }
 
     /// Get all notes for a node as JSON
