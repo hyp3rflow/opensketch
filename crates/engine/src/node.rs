@@ -658,6 +658,95 @@ pub struct Comment {
     pub page_id: u64,
 }
 
+/// Bitmap filter effects (CSS filter functions)
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct BitmapFilter {
+    /// Brightness multiplier (1.0 = normal, 0 = black, 2 = double)
+    #[serde(default = "default_one")]
+    pub brightness: f64,
+    /// Contrast multiplier (1.0 = normal)
+    #[serde(default = "default_one")]
+    pub contrast: f64,
+    /// Saturation multiplier (1.0 = normal, 0 = grayscale)
+    #[serde(default = "default_one")]
+    pub saturation: f64,
+    /// Hue rotation in degrees (0 = normal, 0-360)
+    #[serde(default)]
+    pub hue_rotate: f64,
+    /// Invert amount (0.0 = normal, 1.0 = fully inverted)
+    #[serde(default)]
+    pub invert: f64,
+    /// Grayscale amount (0.0 = normal, 1.0 = fully gray)
+    #[serde(default)]
+    pub grayscale: f64,
+    /// Sepia amount (0.0 = normal, 1.0 = fully sepia)
+    #[serde(default)]
+    pub sepia: f64,
+    /// Whether the filter is enabled
+    #[serde(default = "default_visible")]
+    pub enabled: bool,
+}
+
+fn default_one() -> f64 { 1.0 }
+
+impl Default for BitmapFilter {
+    fn default() -> Self {
+        Self {
+            brightness: 1.0,
+            contrast: 1.0,
+            saturation: 1.0,
+            hue_rotate: 0.0,
+            invert: 0.0,
+            grayscale: 0.0,
+            sepia: 0.0,
+            enabled: true,
+        }
+    }
+}
+
+impl BitmapFilter {
+    /// Returns true if the filter has no effect (all defaults)
+    pub fn is_identity(&self) -> bool {
+        (self.brightness - 1.0).abs() < 0.001
+            && (self.contrast - 1.0).abs() < 0.001
+            && (self.saturation - 1.0).abs() < 0.001
+            && self.hue_rotate.abs() < 0.001
+            && self.invert.abs() < 0.001
+            && self.grayscale.abs() < 0.001
+            && self.sepia.abs() < 0.001
+    }
+
+    /// Build a CSS filter string (e.g. "brightness(1.2) contrast(0.8)")
+    pub fn to_css_filter(&self) -> String {
+        if !self.enabled || self.is_identity() {
+            return String::new();
+        }
+        let mut parts = Vec::new();
+        if (self.brightness - 1.0).abs() >= 0.001 {
+            parts.push(format!("brightness({})", self.brightness));
+        }
+        if (self.contrast - 1.0).abs() >= 0.001 {
+            parts.push(format!("contrast({})", self.contrast));
+        }
+        if (self.saturation - 1.0).abs() >= 0.001 {
+            parts.push(format!("saturate({})", self.saturation));
+        }
+        if self.hue_rotate.abs() >= 0.001 {
+            parts.push(format!("hue-rotate({}deg)", self.hue_rotate));
+        }
+        if self.invert.abs() >= 0.001 {
+            parts.push(format!("invert({})", self.invert));
+        }
+        if self.grayscale.abs() >= 0.001 {
+            parts.push(format!("grayscale({})", self.grayscale));
+        }
+        if self.sepia.abs() >= 0.001 {
+            parts.push(format!("sepia({})", self.sepia));
+        }
+        parts.join(" ")
+    }
+}
+
 /// Attached note (markdown)
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Note {
@@ -754,6 +843,9 @@ pub struct Node {
     pub scroll_x: f64,
     #[serde(default)]
     pub scroll_y: f64,
+    /// Bitmap filter effects (brightness, contrast, saturation, etc.)
+    #[serde(default)]
+    pub bitmap_filter: Option<BitmapFilter>,
 }
 
 impl Node {
@@ -797,6 +889,7 @@ impl Node {
             overflow: Overflow::default(),
             scroll_x: 0.0,
             scroll_y: 0.0,
+            bitmap_filter: None,
         }
     }
 

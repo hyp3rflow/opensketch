@@ -576,3 +576,12 @@ Frame overflow control and content scrolling.
 - [x] WASM: set_overflow, get_overflow, set_scroll_offset, get_scroll_offset, get_content_bounds
 - [x] Properties panel: Overflow mode buttons (Visible/Hidden/Scroll), scroll offset display, reset button
 - [x] Backward-compatible serde (default Visible)
+
+### Bitmap Filters (CSS filter effects)
+- [x] BitmapFilter struct (brightness/contrast/saturation/hue_rotate/invert/grayscale/sepia)
+- [x] Canvas rendering via ctx.filter CSS string (combined with existing blur)
+- [x] SVG export with feComponentTransfer + feColorMatrix
+- [x] WASM: set/get/remove bitmap_filter, enable toggle
+- [x] Properties panel: slider + input UI in Effects section
+- [x] Inspect panel: filter CSS output
+- [x] Backward-compatible serde

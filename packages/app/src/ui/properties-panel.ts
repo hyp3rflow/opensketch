@@ -1205,6 +1205,129 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       blendRow.appendChild(blendSelect);
       effectsSection.appendChild(blendRow);
 
+      // Bitmap Filters
+      {
+        const bfJson = editor.engine.get_bitmap_filter(BigInt(id));
+        const bf = bfJson ? JSON.parse(bfJson) : null;
+        const hasBf = bf !== null;
+
+        const bfHeader = document.createElement("div");
+        bfHeader.style.cssText = "display:flex;align-items:center;justify-content:space-between;margin-top:8px;margin-bottom:4px;";
+        const bfLabel = document.createElement("span");
+        bfLabel.style.cssText = "font-size:11px;color:#888;";
+        bfLabel.textContent = "Filters";
+        bfHeader.appendChild(bfLabel);
+
+        if (!hasBf) {
+          const addBtn = document.createElement("button");
+          addBtn.style.cssText = "background:#333;border:none;color:#ccc;font-size:10px;padding:2px 8px;border-radius:4px;cursor:pointer;";
+          addBtn.textContent = "+ Add";
+          addBtn.addEventListener("click", () => {
+            editor.engine.set_bitmap_filter(BigInt(id), 1.0, 1.0, 1.0, 0, 0, 0, 0);
+            editor.requestRender();
+            refresh(ids);
+          });
+          bfHeader.appendChild(addBtn);
+        } else {
+          const rmBtn = document.createElement("button");
+          rmBtn.style.cssText = "background:none;border:none;color:#f87171;font-size:10px;cursor:pointer;padding:2px 4px;";
+          rmBtn.textContent = "✕";
+          rmBtn.addEventListener("click", () => {
+            editor.engine.remove_bitmap_filter(BigInt(id));
+            editor.requestRender();
+            refresh(ids);
+          });
+          bfHeader.appendChild(rmBtn);
+        }
+        effectsSection.appendChild(bfHeader);
+
+        if (hasBf) {
+          const bfWrap = document.createElement("div");
+          bfWrap.style.cssText = "background:#1e1e1e;border-radius:6px;padding:8px;margin-bottom:6px;";
+
+          // Enable toggle
+          const enableRow = document.createElement("div");
+          enableRow.className = "prop-row";
+          const enableCb = document.createElement("input");
+          enableCb.type = "checkbox";
+          enableCb.checked = bf.enabled !== false;
+          enableCb.style.cssText = "margin-right:6px;";
+          enableCb.addEventListener("change", () => {
+            editor.engine.set_bitmap_filter_enabled(BigInt(id), enableCb.checked);
+            editor.requestRender();
+          });
+          const enableLbl = document.createElement("span");
+          enableLbl.style.cssText = "font-size:11px;color:#aaa;";
+          enableLbl.textContent = "Enabled";
+          enableRow.appendChild(enableCb);
+          enableRow.appendChild(enableLbl);
+          bfWrap.appendChild(enableRow);
+
+          const filterProps: [string, string, number, number, number, number][] = [
+            ["brightness", "Brightness", 0, 3, 0.05, bf.brightness],
+            ["contrast", "Contrast", 0, 3, 0.05, bf.contrast],
+            ["saturation", "Saturation", 0, 3, 0.05, bf.saturation],
+            ["hue_rotate", "Hue Rotate", 0, 360, 1, bf.hue_rotate],
+            ["invert", "Invert", 0, 1, 0.05, bf.invert],
+            ["grayscale", "Grayscale", 0, 1, 0.05, bf.grayscale],
+            ["sepia", "Sepia", 0, 1, 0.05, bf.sepia],
+          ];
+
+          const currentVals: Record<string, number> = {
+            brightness: bf.brightness, contrast: bf.contrast, saturation: bf.saturation,
+            hue_rotate: bf.hue_rotate, invert: bf.invert, grayscale: bf.grayscale, sepia: bf.sepia,
+          };
+
+          const applyFilter = () => {
+            editor.engine.set_bitmap_filter(
+              BigInt(id),
+              currentVals.brightness, currentVals.contrast, currentVals.saturation,
+              currentVals.hue_rotate, currentVals.invert, currentVals.grayscale, currentVals.sepia,
+            );
+            editor.requestRender();
+          };
+
+          for (const [key, label, min, max, step, val] of filterProps) {
+            const row = document.createElement("div");
+            row.style.cssText = "display:flex;align-items:center;gap:4px;margin-bottom:4px;";
+            const lbl = document.createElement("span");
+            lbl.style.cssText = "font-size:10px;color:#888;width:60px;flex-shrink:0;";
+            lbl.textContent = label;
+            row.appendChild(lbl);
+
+            const range = document.createElement("input");
+            range.type = "range";
+            range.min = String(min);
+            range.max = String(max);
+            range.step = String(step);
+            range.value = String(val);
+            range.style.cssText = "flex:1;height:4px;accent-color:#818cf8;";
+
+            const numInput = document.createElement("input");
+            numInput.className = "prop-input";
+            numInput.style.cssText = "width:45px;font-size:10px;text-align:right;";
+            numInput.value = key === "hue_rotate" ? String(Math.round(val)) + "°" : String(Math.round(val * 100) / 100);
+
+            range.addEventListener("input", () => {
+              currentVals[key] = parseFloat(range.value);
+              numInput.value = key === "hue_rotate" ? String(Math.round(currentVals[key])) + "°" : String(Math.round(currentVals[key] * 100) / 100);
+              applyFilter();
+            });
+
+            numInput.addEventListener("change", () => {
+              currentVals[key] = parseFloat(numInput.value) || 0;
+              range.value = String(currentVals[key]);
+              applyFilter();
+            });
+
+            row.appendChild(range);
+            row.appendChild(numInput);
+            bfWrap.appendChild(row);
+          }
+          effectsSection.appendChild(bfWrap);
+        }
+      }
+
       // Shadows
       const shadowsJson = editor.engine.get_shadows(BigInt(id));
       const shadows: any[] = JSON.parse(shadowsJson);

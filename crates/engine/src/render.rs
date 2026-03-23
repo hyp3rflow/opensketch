@@ -290,9 +290,21 @@ impl Renderer {
             ctx.set_global_composite_operation(node.blend_mode.to_css()).ok();
         }
 
-        // Layer blur
-        if node.blur > 0.0 {
-            ctx.set_filter(&format!("blur({}px)", node.blur));
+        // Layer blur + bitmap filters
+        {
+            let mut filter_parts = Vec::new();
+            if node.blur > 0.0 {
+                filter_parts.push(format!("blur({}px)", node.blur));
+            }
+            if let Some(ref bf) = node.bitmap_filter {
+                let css = bf.to_css_filter();
+                if !css.is_empty() {
+                    filter_parts.push(css);
+                }
+            }
+            if !filter_parts.is_empty() {
+                ctx.set_filter(&filter_parts.join(" "));
+            }
         }
 
         // Drop shadows: render each visible shadow by drawing the node shape with shadow settings

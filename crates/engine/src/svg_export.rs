@@ -16,12 +16,67 @@ fn escape_xml(s: &str) -> String {
 fn build_filter_defs(node: &Node, filter_id: &str) -> Option<String> {
     let has_shadows = node.shadows.iter().any(|s| s.visible);
     let has_blur = node.blur > 0.0;
-    if !has_shadows && !has_blur {
+    let has_bitmap = node.bitmap_filter.as_ref().map_or(false, |bf| bf.enabled && !bf.is_identity());
+    if !has_shadows && !has_blur && !has_bitmap {
         return None;
     }
     let mut defs = format!(r#"<filter id="{}" x="-50%" y="-50%" width="200%" height="200%">"#, filter_id);
     if has_blur {
         defs.push_str(&format!(r#"<feGaussianBlur in="SourceGraphic" stdDeviation="{}"/>"#, node.blur));
+    }
+    // Bitmap filters as feComponentTransfer + feColorMatrix
+    if let Some(ref bf) = node.bitmap_filter {
+        if bf.enabled && !bf.is_identity() {
+            // Use feComponentTransfer for brightness/contrast
+            if (bf.brightness - 1.0).abs() >= 0.001 || (bf.contrast - 1.0).abs() >= 0.001 {
+                let slope = bf.brightness * bf.contrast;
+                let intercept = -(0.5 * bf.contrast) + 0.5;
+                defs.push_str(&format!(
+                    r#"<feComponentTransfer><feFuncR type="linear" slope="{}" intercept="{}"/><feFuncG type="linear" slope="{}" intercept="{}"/><feFuncB type="linear" slope="{}" intercept="{}"/></feComponentTransfer>"#,
+                    slope, intercept, slope, intercept, slope, intercept
+                ));
+            }
+            if bf.grayscale.abs() >= 0.001 {
+                let g = bf.grayscale.min(1.0);
+                let r1 = 0.2126 + 0.7874 * (1.0 - g);
+                let g1 = 0.7152 * g;
+                let b1 = 0.0722 * g;
+                let r2 = 0.2126 * g;
+                let g2 = 0.7152 + 0.2848 * (1.0 - g);
+                let b2 = 0.0722 * g;
+                let r3 = 0.2126 * g;
+                let g3 = 0.7152 * g;
+                let b3 = 0.0722 + 0.9278 * (1.0 - g);
+                defs.push_str(&format!(
+                    r#"<feColorMatrix type="matrix" values="{} {} {} 0 0 {} {} {} 0 0 {} {} {} 0 0 0 0 0 1 0"/>"#,
+                    r1, g1, b1, r2, g2, b2, r3, g3, b3
+                ));
+            }
+            if bf.sepia.abs() >= 0.001 {
+                let s = bf.sepia.min(1.0);
+                defs.push_str(&format!(
+                    r#"<feColorMatrix type="matrix" values="{} {} {} 0 0 {} {} {} 0 0 {} {} {} 0 0 0 0 0 1 0"/>"#,
+                    0.393 * s + (1.0 - s), 0.769 * s, 0.189 * s,
+                    0.349 * s, 0.686 * s + (1.0 - s), 0.168 * s,
+                    0.272 * s, 0.534 * s, 0.131 * s + (1.0 - s)
+                ));
+            }
+            if (bf.saturation - 1.0).abs() >= 0.001 {
+                defs.push_str(&format!(r#"<feColorMatrix type="saturate" values="{}"/>"#, bf.saturation));
+            }
+            if bf.hue_rotate.abs() >= 0.001 {
+                defs.push_str(&format!(r#"<feColorMatrix type="hueRotate" values="{}"/>"#, bf.hue_rotate));
+            }
+            if bf.invert.abs() >= 0.001 {
+                let inv = bf.invert.min(1.0);
+                let slope = 1.0 - 2.0 * inv;
+                let intercept = inv;
+                defs.push_str(&format!(
+                    r#"<feComponentTransfer><feFuncR type="linear" slope="{}" intercept="{}"/><feFuncG type="linear" slope="{}" intercept="{}"/><feFuncB type="linear" slope="{}" intercept="{}"/></feComponentTransfer>"#,
+                    slope, intercept, slope, intercept, slope, intercept
+                ));
+            }
+        }
     }
     for s in &node.shadows {
         if !s.visible { continue; }

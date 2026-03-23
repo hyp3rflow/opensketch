@@ -2517,6 +2517,54 @@ impl Engine {
     }
 
     // =============================================
+    // Bitmap Filters
+    // =============================================
+
+    /// Set bitmap filter on a node (brightness, contrast, saturation, hue_rotate, invert, grayscale, sepia)
+    pub fn set_bitmap_filter(&mut self, id: u64, brightness: f64, contrast: f64, saturation: f64, hue_rotate: f64, invert: f64, grayscale: f64, sepia: f64) {
+        self.push_undo();
+        if let Some(node) = self.scene.get_node_mut(id) {
+            node.bitmap_filter = Some(crate::node::BitmapFilter {
+                brightness,
+                contrast,
+                saturation,
+                hue_rotate,
+                invert,
+                grayscale,
+                sepia,
+                enabled: true,
+            });
+        }
+    }
+
+    /// Remove bitmap filter from a node
+    pub fn remove_bitmap_filter(&mut self, id: u64) {
+        self.push_undo();
+        if let Some(node) = self.scene.get_node_mut(id) {
+            node.bitmap_filter = None;
+        }
+    }
+
+    /// Set bitmap filter enabled/disabled
+    pub fn set_bitmap_filter_enabled(&mut self, id: u64, enabled: bool) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let Some(ref mut bf) = node.bitmap_filter {
+                bf.enabled = enabled;
+            }
+        }
+    }
+
+    /// Get bitmap filter as JSON string (or empty string if none)
+    pub fn get_bitmap_filter(&self, id: u64) -> String {
+        if let Some(node) = self.scene.get_node(id) {
+            if let Some(ref bf) = node.bitmap_filter {
+                return serde_json::to_string(bf).unwrap_or_default();
+            }
+        }
+        String::new()
+    }
+
+    // =============================================
     // Constraints
     // =============================================
 
@@ -3003,6 +3051,7 @@ impl Engine {
                     result_node.corner_radius = 0.0; // path doesn't use corner radius
                     result_node.shadows = node.shadows.clone();
                     result_node.blur = node.blur;
+                    result_node.bitmap_filter = node.bitmap_filter.clone();
                     result_node.blend_mode = node.blend_mode.clone();
                     recalc_path_bounds(&mut result_node);
                     let new_id = self.scene.add_node(result_node);

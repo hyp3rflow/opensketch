@@ -139,3 +139,14 @@ Output: `packages/app/src/wasm/` (opensketch_engine.js + .wasm + .d.ts)
 - SVG export: emits `<clipPath>` defs and wraps clipped siblings in `<g clip-path="url(#...)">`
 - Supports Rect, Ellipse, Path, and rounded-rect shapes as masks
 - WASM API: `set_mask(id, bool)`, `get_mask(id) -> bool`
+
+
+## Bitmap Filters
+- `BitmapFilter` struct: brightness, contrast, saturation, hue_rotate, invert, grayscale, sepia, enabled
+- `Node.bitmap_filter: Option<BitmapFilter>` — optional per-node filter effects
+- Canvas rendering: combined with blur into single `ctx.filter` CSS string
+- SVG export: `feComponentTransfer`, `feColorMatrix` (saturate/hueRotate), `feDropShadow` integration
+- WASM API: `set_bitmap_filter(id, brightness, contrast, saturation, hue_rotate, invert, grayscale, sepia)`, `remove_bitmap_filter(id)`, `set_bitmap_filter_enabled(id, bool)`, `get_bitmap_filter(id) -> JSON`
+- Properties panel: Effects section — slider + numeric input per filter property, enable toggle, add/remove
+- Inspect panel: CSS `filter:` output with all active filter functions
+- Backward-compatible serde (field defaults to None)

@@ -198,9 +198,28 @@ function generateCSS(
     }
   }
 
-  // Blur → filter
-  if (blur && blur > 0) {
-    lines.push(`filter: blur(${blur}px);`);
+  // Blur + bitmap filters → filter
+  {
+    const filterParts: string[] = [];
+    if (blur && blur > 0) filterParts.push(`blur(${blur}px)`);
+    const bfJson = engine.get_bitmap_filter(BigInt(id));
+    if (bfJson) {
+      try {
+        const bf = JSON.parse(bfJson);
+        if (bf.enabled !== false) {
+          if (Math.abs(bf.brightness - 1) >= 0.001) filterParts.push(`brightness(${bf.brightness})`);
+          if (Math.abs(bf.contrast - 1) >= 0.001) filterParts.push(`contrast(${bf.contrast})`);
+          if (Math.abs(bf.saturation - 1) >= 0.001) filterParts.push(`saturate(${bf.saturation})`);
+          if (Math.abs(bf.hue_rotate) >= 0.001) filterParts.push(`hue-rotate(${bf.hue_rotate}deg)`);
+          if (Math.abs(bf.invert) >= 0.001) filterParts.push(`invert(${bf.invert})`);
+          if (Math.abs(bf.grayscale) >= 0.001) filterParts.push(`grayscale(${bf.grayscale})`);
+          if (Math.abs(bf.sepia) >= 0.001) filterParts.push(`sepia(${bf.sepia})`);
+        }
+      } catch {}
+    }
+    if (filterParts.length > 0) {
+      lines.push(`filter: ${filterParts.join(" ")};`);
+    }
   }
 
   // Blend mode
