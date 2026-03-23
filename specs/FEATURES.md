@@ -159,6 +159,19 @@
 - [x] Config: 1440×900 window, Vite dev server integration
 - [ ] Not yet built/tested (needs `cargo-tauri` CLI)
 
+## Plugin API (Extensible Tool/Panel System)
+
+- [x] **Plugin types**: Plugin, PluginAPI, PluginPanel, PluginToolbarButton, PluginMenuItem, PluginCommand interfaces
+- [x] **PluginManager**: register/activate/deactivate/unregister lifecycle, event bus, UI extension registry
+- [x] **Scene API**: Read (getNodeJson, getSceneJson, getSelection) + Mutate (addRect/Ellipse/Text/Frame, removeNode, setFill/Position/Size/Name, select/deselectAll)
+- [x] **UI extensions**: registerPanel, addToolbarButton, addMenuItem, registerCommand, showNotification
+- [x] **Events**: selection:change, layers:change, node:create, node:delete, tool:change, save
+- [x] **Plugin panel**: Right pane "Plugins" tab with plugin list, enable/disable toggle, plugin sub-panels
+- [x] **Sample: Lorem Ipsum**: Text generation with type/count options, fill selected, toolbar quick button
+- [x] **Sample: Color Palette**: 4 curated palettes (Material/Pastel/Monochrome/Ocean), click-to-apply
+- [x] **External registration**: `window.__pluginManager` for runtime plugin loading
+- [x] **Auto-cleanup**: Deactivation removes all event listeners, panels, buttons, menu items
+
 ## 🔮 Future Ideas
 - [x] Multi-select (shift+click, shift+click deselect, drag-select marquee, multi-node move)
 - [x] Undo/redo

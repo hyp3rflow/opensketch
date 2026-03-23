@@ -1,81 +1,121 @@
-# Plugin API Specification
+# OpenSketch Plugin API
 
 ## Overview
-OpenSketch provides a TypeScript-based Plugin API that allows third-party extensions to add custom tools, panels, toolbar buttons, menu items, and commands.
+
+The Plugin API provides an extensible system for adding custom tools, panels, toolbar buttons, menu items, and commands to OpenSketch. Plugins interact with the editor through a sandboxed `PluginAPI` interface.
+
+## Architecture
+
+```
+Plugin (user code)
+  ↓ activate(api)
+PluginAPI (sandboxed interface)
+  ↓ scene / ui / events
+PluginManager (registry + lifecycle)
+  ↓
+Editor + Engine (core)
+```
 
 ## Plugin Interface
+
 ```typescript
 interface Plugin {
-  id: string;        // unique identifier (e.g., "lorem-ipsum")
-  name: string;      // display name
-  version: string;   // semver
+  id: string;
+  name: string;
+  version: string;
   description?: string;
-  icon?: string;     // SVG string
+  icon?: string; // SVG string
   activate(api: PluginAPI): void | Promise<void>;
   deactivate(): void | Promise<void>;
 }
 ```
 
 ## PluginAPI
-Passed to `activate()`. Provides:
 
 ### Scene Operations (`api.scene`)
-- `getNodeJson(id)` — get node data as JSON
-- `getSceneJson()` — full scene tree
-- `getSelection()` — selected node IDs
-- `addRect/addEllipse/addText/addFrame` — create nodes
-- `removeNode(id)` — delete a node
-- `setFill/setPosition/setSize/setName` — modify nodes
-- `select(id)` / `deselectAll()`
+
+| Method | Description |
+|--------|-------------|
+| `getNodeJson(id)` | Get node data as JSON |
+| `getSceneJson()` | Get full scene data |
+| `getSelection()` | Get selected node IDs |
+| `addRect(x, y, w, h)` | Create rectangle, returns ID |
+| `addEllipse(x, y, w, h)` | Create ellipse |
+| `addText(x, y, content, fontSize)` | Create text node |
+| `addFrame(x, y, w, h, name?)` | Create frame |
+| `removeNode(id)` | Delete a node |
+| `setFill(id, r, g, b, a?)` | Set fill color |
+| `setPosition(id, x, y)` | Move node |
+| `setSize(id, w, h)` | Resize node |
+| `setName(id, name)` | Rename node |
+| `select(id)` | Select a node |
+| `deselectAll()` | Clear selection |
 
 ### UI Extensions (`api.ui`)
-- `registerPanel(panel)` — add a panel in the Plugins tab
-- `unregisterPanel(id)`
-- `addToolbarButton(button)` — add quick-action button
-- `removeToolbarButton(id)`
-- `addMenuItem(item)` / `removeMenuItem(id)`
-- `registerCommand(cmd)`
-- `showNotification(message, type)`
 
-### Events (`api.on/off`)
-- `selection:change` — fires with `number[]` of selected IDs
-- `layers:change` — layer tree updated
-- `node:create` / `node:delete` — node lifecycle
-- `tool:change` — active tool changed
-- `save` — document saved
+| Method | Description |
+|--------|-------------|
+| `registerPanel(panel)` | Add a panel to the Plugins tab |
+| `unregisterPanel(id)` | Remove a panel |
+| `addToolbarButton(button)` | Add toolbar button |
+| `removeToolbarButton(id)` | Remove toolbar button |
+| `addMenuItem(item)` | Add context menu item |
+| `removeMenuItem(id)` | Remove menu item |
+| `registerCommand(cmd)` | Register a command |
+| `showNotification(msg, type?)` | Show toast notification |
 
-## PluginManager
-- `register(plugin)` — register a plugin
-- `activate(id)` / `deactivate(id)` — toggle lifecycle
-- `unregister(id)` — remove completely
-- `list()` — list all plugins with status
+### Events (`api.on` / `api.off`)
 
-## Built-in Sample Plugins
+| Event | Data | Description |
+|-------|------|-------------|
+| `selection:change` | `number[]` | Selection changed |
+| `layers:change` | `void` | Layer tree changed |
+| `node:create` | `number` | New node created |
+| `node:delete` | `number` | Node deleted |
+| `tool:change` | `string` | Active tool changed |
+| `save` | `void` | Document saved |
 
-### Lorem Ipsum Generator
-- Panel with type selection (paragraph/sentence/words/title)
-- Count control
-- Generate new text nodes or fill selected text nodes
-- Quick toolbar button
+## Plugin Lifecycle
 
-### Color Palette
-- Panel with curated palettes (Material, Pastel, Monochrome, Ocean)
-- Click swatch to apply fill to selected nodes
-- Palette switcher dropdown
+1. **Register**: `pluginManager.register(plugin)` — adds to registry
+2. **Activate**: `pluginManager.activate(id)` — calls `plugin.activate(api)`, plugin registers UI extensions
+3. **Deactivate**: `pluginManager.deactivate(id)` — calls `plugin.deactivate()`, cleans up all registrations
+4. **Unregister**: `pluginManager.unregister(id)` — deactivates + removes from registry
 
-## UI
-Plugins tab in the right pane shows:
-- Plugin list with enable/disable toggles
-- Plugin panel tabs (from registered panels)
-- Quick action buttons (from registered toolbar buttons)
+## Sample Plugins
 
-## File Structure
+### Lorem Ipsum Generator (`lorem-ipsum`)
+- Panel with type selector (paragraph/sentence/words/title) and count
+- "Generate Text" creates new text nodes
+- "Fill Selected Node" replaces text in selected text nodes
+- Quick toolbar button for random paragraph
+
+### Color Palette (`color-palette`)
+- Panel with 4 curated palettes (Material, Pastel, Monochrome, Ocean)
+- Click swatch to apply color to selected nodes
+- Palette selector dropdown
+
+## Plugin Panel UI
+
+Right pane "Plugins" tab shows:
+- List of all plugins with active/inactive status (green/gray dot)
+- Enable/Disable toggle per plugin
+- Sub-tabs for plugin-registered panels
+
+## External Plugin Registration
+
+```typescript
+// Access via global
+const pm = (window as any).__pluginManager;
+pm.register(myPlugin);
+pm.activate("my-plugin-id");
 ```
-packages/app/src/plugins/
-├── index.ts              # re-exports
-├── types.ts              # Plugin, PluginAPI interfaces
-├── plugin-manager.ts     # PluginManager + PluginAPIImpl
-└── samples/
-    ├── lorem-ipsum.ts    # Lorem Ipsum Generator plugin
-    └── color-palette.ts  # Color Palette plugin
-```
+
+## Files
+
+- `packages/app/src/plugins/types.ts` — Type definitions
+- `packages/app/src/plugins/plugin-manager.ts` — PluginManager class
+- `packages/app/src/plugins/index.ts` — Barrel exports
+- `packages/app/src/plugins/samples/lorem-ipsum.ts` — Sample plugin
+- `packages/app/src/plugins/samples/color-palette.ts` — Sample plugin
+- `packages/app/src/ui/plugin-panel.ts` — Plugin management UI

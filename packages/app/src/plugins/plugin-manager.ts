@@ -42,7 +42,7 @@ class PluginAPIImpl implements PluginAPI {
         return json ? JSON.parse(json) : null;
       },
       getSceneJson() {
-        return JSON.parse(eng.get_scene_json());
+        return JSON.parse(eng.export_scene());
       },
       getSelection() {
         return Array.from(eng.get_selection()).map(Number);
@@ -95,7 +95,7 @@ class PluginAPIImpl implements PluginAPI {
       },
       select(id) {
         eng.deselect_all();
-        eng.select(BigInt(id));
+        eng.add_to_selection(BigInt(id));
         editor.notifySelectionChanged([id]);
         editor.requestRender();
       },
