@@ -223,7 +223,7 @@ impl Scene {
         let mut result = vec![];
         for &id in &self.render_order() {
             if let Some(node) = self.nodes.get(&id) {
-                if !node.visible || node.locked { continue; }
+                if !self.is_effectively_visible(id) || node.locked { continue; }
                 // Skip Frame/Group containers — only select leaf-like nodes
                 let nx = node.x;
                 let ny = node.y;
@@ -242,7 +242,7 @@ impl Scene {
         let order = self.render_order();
         for &id in order.iter().rev() {
             if let Some(node) = self.nodes.get(&id) {
-                if !node.visible || node.locked { continue; }
+                if !self.is_effectively_visible(id) || node.locked { continue; }
                 if node.bounds().contains(point) {
                     return Some(id);
                 }
@@ -940,9 +940,36 @@ impl Scene {
                         node.height = val.max(1.0);
                     }
                 }
+                ("visible", VariableValue::Boolean(val)) => {
+                    if let Some(node) = self.nodes.get_mut(&node_id) {
+                        node.visible = *val;
+                    }
+                }
                 _ => {}
             }
         }
+    }
+
+    // =============================================
+    // Conditional Visibility
+    // =============================================
+
+    /// Check if a node is effectively visible (considering both `visible` flag and conditional visibility)
+    pub fn is_effectively_visible(&self, node_id: NodeId) -> bool {
+        let node = match self.nodes.get(&node_id) {
+            Some(n) => n,
+            None => return false,
+        };
+        if !node.visible { return false; }
+        if let Some(ref cond) = node.conditional_visibility {
+            if let Some(collection) = self.get_collection(cond.collection_id) {
+                if let Some(resolved) = collection.resolve(cond.variable_id) {
+                    return cond.evaluate(&resolved);
+                }
+            }
+            // If collection/variable not found, treat as visible
+        }
+        true
     }
 
     // =============================================

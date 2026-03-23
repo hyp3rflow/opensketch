@@ -3194,6 +3194,57 @@ impl Engine {
     pub fn apply_variables(&mut self) {
         self.scene.apply_variables();
     }
+
+    // =============================================
+    // Conditional Visibility
+    // =============================================
+
+    pub fn set_conditional_visibility(&mut self, node_id: u64, collection_id: u64, variable_id: u64, operator: &str, value_json: &str) {
+        use crate::variable::{VisibilityOperator, VisibilityCondition, VariableValue};
+        let op = match operator {
+            "eq" => VisibilityOperator::Eq,
+            "neq" => VisibilityOperator::NotEq,
+            "gt" => VisibilityOperator::Gt,
+            "lt" => VisibilityOperator::Lt,
+            "gte" => VisibilityOperator::Gte,
+            "lte" => VisibilityOperator::Lte,
+            "is_true" => VisibilityOperator::IsTrue,
+            "is_false" => VisibilityOperator::IsFalse,
+            _ => VisibilityOperator::Eq,
+        };
+        let value: Option<VariableValue> = if value_json.is_empty() || operator == "is_true" || operator == "is_false" {
+            None
+        } else {
+            serde_json::from_str(value_json).ok()
+        };
+        if let Some(node) = self.scene.get_node_mut(node_id) {
+            node.conditional_visibility = Some(VisibilityCondition {
+                collection_id,
+                variable_id,
+                operator: op,
+                value,
+            });
+        }
+    }
+
+    pub fn get_conditional_visibility(&self, node_id: u64) -> String {
+        if let Some(node) = self.scene.get_node(node_id) {
+            if let Some(ref cond) = node.conditional_visibility {
+                return serde_json::to_string(cond).unwrap_or_else(|_| "null".to_string());
+            }
+        }
+        "null".to_string()
+    }
+
+    pub fn clear_conditional_visibility(&mut self, node_id: u64) {
+        if let Some(node) = self.scene.get_node_mut(node_id) {
+            node.conditional_visibility = None;
+        }
+    }
+
+    pub fn is_effectively_visible(&self, node_id: u64) -> bool {
+        self.scene.is_effectively_visible(node_id)
+    }
 }
 
 /// Recalculate a path node's bounding box from its points (including bezier handles).

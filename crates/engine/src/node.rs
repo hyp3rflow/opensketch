@@ -1,5 +1,6 @@
 use crate::types::{Color, Rect as BBox};
 use crate::component::InstanceData;
+use crate::variable::VisibilityCondition;
 use serde::{Deserialize, Serialize};
 
 pub type NodeId = u64;
@@ -709,6 +710,9 @@ pub struct Node {
     /// Bookmarked for quick access
     #[serde(default)]
     pub bookmarked: bool,
+    /// Conditional visibility: show/hide based on variable value
+    #[serde(default)]
+    pub conditional_visibility: Option<VisibilityCondition>,
 }
 
 impl Node {
@@ -748,6 +752,7 @@ impl Node {
             min_height: None,
             max_height: None,
             bookmarked: false,
+            conditional_visibility: None,
         }
     }
 

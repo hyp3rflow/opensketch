@@ -176,6 +176,52 @@ impl VariableCollection {
     }
 }
 
+/// Comparison operator for conditional visibility
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub enum VisibilityOperator {
+    Eq,
+    NotEq,
+    Gt,
+    Lt,
+    Gte,
+    Lte,
+    IsTrue,
+    IsFalse,
+}
+
+/// Conditional visibility: show/hide a node based on a variable's value
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct VisibilityCondition {
+    pub collection_id: CollectionId,
+    pub variable_id: VariableId,
+    pub operator: VisibilityOperator,
+    /// Comparison value (ignored for IsTrue/IsFalse)
+    #[serde(default)]
+    pub value: Option<VariableValue>,
+}
+
+impl VisibilityCondition {
+    /// Evaluate the condition against a resolved variable value. Returns true if the node should be visible.
+    pub fn evaluate(&self, resolved: &VariableValue) -> bool {
+        match &self.operator {
+            VisibilityOperator::IsTrue => matches!(resolved, VariableValue::Boolean(true)),
+            VisibilityOperator::IsFalse => matches!(resolved, VariableValue::Boolean(false)),
+            _ => {
+                let Some(ref compare_value) = self.value else { return true; };
+                match (&self.operator, resolved, compare_value) {
+                    (VisibilityOperator::Eq, a, b) => a == b,
+                    (VisibilityOperator::NotEq, a, b) => a != b,
+                    (VisibilityOperator::Gt, VariableValue::Number(a), VariableValue::Number(b)) => a > b,
+                    (VisibilityOperator::Lt, VariableValue::Number(a), VariableValue::Number(b)) => a < b,
+                    (VisibilityOperator::Gte, VariableValue::Number(a), VariableValue::Number(b)) => a >= b,
+                    (VisibilityOperator::Lte, VariableValue::Number(a), VariableValue::Number(b)) => a <= b,
+                    _ => true, // type mismatch → visible
+                }
+            }
+        }
+    }
+}
+
 /// Variable binding: links a node property to a variable
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct VariableBinding {

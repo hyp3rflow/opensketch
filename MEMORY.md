@@ -32,6 +32,7 @@
 - **Min/Max size constraints** — Node에 min_width/max_width/min_height/max_height: Option<f64>, clamp_size() 헬퍼, Flex/Grid 레이아웃 후 자동 클램핑, WASM 5개 바인딩, Properties panel 4칸 입력 UI, Inspect panel CSS 생성
 - **Asset library panel** — Right pane "Assets" 탭, Components/Color Styles/Text Styles 3개 섹션, 검색/필터, 클릭으로 인스턴스 생성 또는 스타일 적용
 - **Flow diagrams / connectors** — NodeKind::Connector (start/end node IDs, straight/curved path, start/end arrows), Canvas bezier/straight rendering with arrowheads + edge clipping, SVG export with markers, WASM bindings (add/set/get/update), Toolbar button (L shortcut), drag-to-connect UI with preview, Properties panel (path type, arrows), auto-update on connected node move
+- **Conditional visibility** — Boolean 변수를 노드 visible 속성에 바인딩, 모드 전환으로 show/hide 토글, Properties panel에서 visible 바인딩 UI
 
 ## 📋 Backlog
 - Tauri desktop build (scaffolded but not tested)
@@ -40,6 +41,11 @@
 - Smart animate transitions (prototype viewer에서 매칭 노드 간 interpolation)
 - Section nodes (Figma Section — 페이지 내 구역 그룹핑, 프레젠테이션 순서)
 - Variable scoping (변수 사용 범위 제한: collection → specific frames/pages)
+- Cursor presence indicators (멀티유저 시뮬레이션: 커서 위치 + 이름 표시, collaboration 준비)
+- Text decoration (underline, strikethrough, letter-spacing, paragraph-spacing)
+- Dev mode (Figma Dev Mode — 개발자용 코드/spacing 정보 강화 뷰)
+- Export presets (다양한 해상도/포맷 일괄 내보내기: @1x @2x @3x, PDF, WebP)
+- Scrollable frames (overflow scroll, clip content toggle)
 
 ## 🏗 Architecture Notes
 - Rust WASM engine: `crates/engine/src/`

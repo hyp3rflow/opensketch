@@ -897,7 +897,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       const collectionsJson = editor.engine.get_collections();
       const collections: any[] = JSON.parse(collectionsJson || "[]");
 
-      const bindableProps = ["fill.0.color", "stroke.color", "opacity", "corner_radius", "width", "height"];
+      const bindableProps = ["fill.0.color", "stroke.color", "opacity", "corner_radius", "width", "height", "visible"];
 
       for (const prop of bindableProps) {
         const row = document.createElement("div");
@@ -949,7 +949,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
               colLabel.textContent = col.name;
               popup.appendChild(colLabel);
 
-              const expectedType = (prop === "fill.0.color" || prop === "stroke.color") ? "Color" : "Number";
+              const expectedType = (prop === "fill.0.color" || prop === "stroke.color") ? "Color" : prop === "visible" ? "Boolean" : "Number";
               const matchingVars = col.variables.filter((v: any) => v.value_type === expectedType);
 
               if (matchingVars.length === 0) {
