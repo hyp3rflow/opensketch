@@ -555,3 +555,24 @@ Right pane "A11y" tab — automated accessibility audit for design nodes.
 - [x] Properties panel: Overflow section (Visible/Hidden/Scroll toggle), scroll position display, reset button
 - [x] Inspect panel: overflow CSS generation (hidden/auto)
 - [x] Backward-compatible serde (default Visible, scroll 0,0)
+
+## Scrollable Frames
+
+Frame overflow control and content scrolling.
+
+### Overflow Modes
+- [x] Visible (default): children render outside frame bounds
+- [x] Hidden: children clipped to frame bounds
+- [x] Scroll: children clipped + scroll wheel to pan content
+
+### Implementation
+- [x] Overflow enum (Visible/Hidden/Scroll) on Node
+- [x] scroll_x, scroll_y fields on Node
+- [x] Canvas rendering: clip path for Hidden/Scroll, translate for scroll offset
+- [x] Scrollbar indicators (thin white semi-transparent thumbs)
+- [x] Wheel event: scroll within scrollable frames (non-zoom wheel)
+- [x] Content bounds calculation for scroll clamping
+- [x] SVG export: clipPath + translate for overflow frames
+- [x] WASM: set_overflow, get_overflow, set_scroll_offset, get_scroll_offset, get_content_bounds
+- [x] Properties panel: Overflow mode buttons (Visible/Hidden/Scroll), scroll offset display, reset button
+- [x] Backward-compatible serde (default Visible)
