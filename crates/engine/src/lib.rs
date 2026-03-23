@@ -1001,11 +1001,16 @@ impl Engine {
         self.scene.is_bookmarked(id)
     }
 
-    /// Get bookmarked nodes on current page as JSON: [{id, name}]
+    /// Get bookmarked nodes on current page as JSON: [{id, name, kind}]
     pub fn get_bookmarked_nodes(&self) -> String {
         let nodes: Vec<serde_json::Value> = self.scene.get_bookmarked_nodes()
             .into_iter()
-            .map(|(id, name)| serde_json::json!({"id": id, "name": name}))
+            .map(|(id, name)| {
+                let kind = self.scene.get_node(id).map(|n| format!("{:?}", n.kind)).unwrap_or_default();
+                // Truncate kind to the variant name (e.g. "Text { ... }" -> "Text")
+                let kind_short = kind.split_whitespace().next().unwrap_or(&kind).to_string();
+                serde_json::json!({"id": id, "name": name, "kind": kind_short})
+            })
             .collect();
         serde_json::to_string(&nodes).unwrap_or_else(|_| "[]".to_string())
     }
@@ -3188,27 +3193,6 @@ impl Engine {
 
     pub fn apply_variables(&mut self) {
         self.scene.apply_variables();
-    }
-
-    // =============================================
-    // Bookmarks
-    // =============================================
-
-    pub fn toggle_bookmark(&mut self, id: u64) -> bool {
-        self.scene.toggle_bookmark(id)
-    }
-
-    pub fn is_bookmarked(&self, id: u64) -> bool {
-        self.scene.is_bookmarked(id)
-    }
-
-    pub fn get_bookmarked_nodes(&self) -> String {
-        let bookmarks = self.scene.get_bookmarked_nodes();
-        let result: Vec<serde_json::Value> = bookmarks.iter().map(|(id, name)| {
-            let kind = self.scene.get_node(*id).map(|n| format!("{:?}", n.kind)).unwrap_or_default();
-            serde_json::json!({ "id": id, "name": name, "kind": kind })
-        }).collect();
-        serde_json::to_string(&result).unwrap_or_else(|_| "[]".to_string())
     }
 }
 
