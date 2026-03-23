@@ -425,3 +425,13 @@
 - [x] **Context menu**: "Batch Rename…" option when 2+ nodes selected
 - [x] **Keyboard shortcut**: Cmd/Ctrl+Shift+R
 - [x] **Undo support**: Full undo via push_undo() before rename
+
+### Slice Tool (Export Regions)
+- [x] **NodeKind::Slice**: Non-rendering node that defines a rectangular export region
+- [x] **Canvas overlay**: Green (#36b37e) dashed outline + name label
+- [x] **Toolbar**: Slice button with K keyboard shortcut
+- [x] **Properties panel**: Export section with scale selector (1x–4x) + Export PNG button
+- [x] **WASM**: add_slice(name, x, y, w, h), get_slices() → JSON
+- [x] **Layers panel**: Slice icon in node tree
+- [x] **Export**: Crops canvas region at specified scale → PNG download
+- [x] **Render/SVG skip**: Slice nodes excluded from normal rendering and SVG export
