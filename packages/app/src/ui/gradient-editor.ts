@@ -17,8 +17,8 @@ export class GradientEditor {
   private dragging: GradientHandle | null = null;
   private _undoPushed = false;
 
-  /** Currently active node id (set externally via activate/deactivate). */
-  nodeId: number | null = null;
+  private _nodeId: number | null = null;
+  private _active = false;
 
   constructor(
     engine: Engine,
@@ -32,20 +32,38 @@ export class GradientEditor {
     this.refreshSelection = refreshSelection;
   }
 
-  /** Activate for a node. Called when selection changes. */
-  activate(nodeId: number) {
-    this.nodeId = nodeId;
+  get active() { return this._active; }
+  get nodeId() { return this._nodeId; }
+
+  /** Update from current engine selection. Single node with gradient → active. */
+  updateFromSelection() {
+    try {
+      const sel = Array.from(this.engine.get_selection()).map(Number);
+      if (sel.length === 1) {
+        this._nodeId = sel[0];
+        const fills = this.getGradientFills();
+        this._active = fills.length > 0;
+      } else {
+        this._active = false;
+        this._nodeId = null;
+        this.dragging = null;
+      }
+    } catch {
+      this._active = false;
+      this._nodeId = null;
+    }
   }
 
   deactivate() {
-    this.nodeId = null;
+    this._active = false;
+    this._nodeId = null;
     this.dragging = null;
   }
 
   private getGradientFills(): any[] {
-    if (this.nodeId == null) return [];
+    if (this._nodeId == null) return [];
     try {
-      const json = this.engine.get_fills(BigInt(this.nodeId));
+      const json = this.engine.get_fills(BigInt(this._nodeId));
       const fills: any[] = JSON.parse(json || "[]");
       return fills.filter((f: any) =>
         (f.type === "LinearGradient" || f.type === "RadialGradient") && f.visible !== false
@@ -54,9 +72,9 @@ export class GradientEditor {
   }
 
   private getNodeBounds(): { x: number; y: number; w: number; h: number } | null {
-    if (this.nodeId == null) return null;
+    if (this._nodeId == null) return null;
     try {
-      const json = this.engine.get_node_json(BigInt(this.nodeId));
+      const json = this.engine.get_node_json(BigInt(this._nodeId));
       if (!json) return null;
       const n = JSON.parse(json);
       return { x: n.x, y: n.y, w: n.width, h: n.height };
@@ -73,7 +91,7 @@ export class GradientEditor {
 
   /** Render handles. Called from editor render loop. */
   render(ctx: CanvasRenderingContext2D, zoom: number, panX: number, panY: number) {
-    if (this.nodeId == null) return;
+    if (this._nodeId == null) return;
     const fills = this.getGradientFills();
     const bounds = this.getNodeBounds();
     if (!bounds || fills.length === 0) return;
@@ -207,7 +225,7 @@ export class GradientEditor {
   }
 
   onPointerDown(sx: number, sy: number, zoom: number, panX: number, panY: number): boolean {
-    if (this.nodeId == null) return false;
+    if (this._nodeId == null) return false;
     const handle = this.hitTest(sx, sy, zoom, panX, panY);
     if (handle) {
       this.pushUndo();
@@ -219,7 +237,7 @@ export class GradientEditor {
   }
 
   onPointerMove(sx: number, sy: number, zoom: number, panX: number, panY: number): boolean {
-    if (this.nodeId == null || !this.dragging) return false;
+    if (this._nodeId == null || !this.dragging) return false;
     const b = this.getNodeBounds();
     if (!b) return false;
     const { nx, ny } = this.toNorm(sx, sy, b, zoom, panX, panY);
@@ -240,15 +258,15 @@ export class GradientEditor {
   }
 
   getCursor(sx: number, sy: number, zoom: number, panX: number, panY: number): string | null {
-    if (this.nodeId == null) return null;
+    if (this._nodeId == null) return null;
     if (this.dragging) return "grabbing";
     if (this.hitTest(sx, sy, zoom, panX, panY)) return "grab";
     return null;
   }
 
   private applyDrag(handle: GradientHandle, nx: number, ny: number, b: any, zoom: number, panX: number, panY: number) {
-    if (this.nodeId == null) return;
-    const id = BigInt(this.nodeId);
+    if (this._nodeId == null) return;
+    const id = BigInt(this._nodeId);
     try {
       const fillsJson = this.engine.get_fills(id);
       const fills: any[] = JSON.parse(fillsJson || "[]");
