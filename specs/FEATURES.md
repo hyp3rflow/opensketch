@@ -753,3 +753,11 @@ Frame overflow control and content scrolling.
 - [x] Markdown: emoji headers, summary counts, node kind labels
 - [x] JSON: page names, node names resolved, replies, tags
 - [x] Backward-compatible: export_comments_markdown() delegates to export_annotations_markdown()
+
+### Node Search Spotlight
+- [x] **Quick search panel**: Cmd+P to open/close, Escape to dismiss
+- [x] **Search by name + text**: Uses engine find_text (case-insensitive), matches node names and Text content
+- [x] **Results list**: Scrollable, kind badge, text preview, keyboard navigation (↑↓ + Enter)
+- [x] **Select & zoom**: Selects node and zooms to it on Enter/click
+- [x] **Overlay UI**: Centered floating panel with backdrop, auto-focus input
+- [x] TS: ui/spotlight.ts, integrated in editor.ts Cmd+P shortcut

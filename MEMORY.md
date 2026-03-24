@@ -678,6 +678,16 @@
   - Agent panel 명령: suggest-layout, apply-layout
   - ai-layout-suggest.ts 단일 파일 구현
 
+## 완료된 기능 (추가 65)
+- Node search spotlight (Cmd+P):
+  - 플로팅 검색 패널: Cmd+P 토글, Escape 닫기, backdrop 클릭 닫기
+  - 엔진 find_text 활용: 노드 이름 + Text 콘텐츠 case-insensitive 검색
+  - 결과 리스트: kind badge, text preview, 최대 50개
+  - 키보드 네비게이션: ↑↓ 선택, Enter 확정
+  - 선택 + 줌: 노드 select + zoomToSelection 자동 이동
+  - 80ms 디바운스, auto-focus input
+  - ui/spotlight.ts 단일 파일 구현
+
 ## 다음 할 것
 - Vector network editing (Figma-style vector networks — 포인트 간 다중 연결, fill 영역 자동 감지)
 - Figma → OpenSketch import (.fig 파일 파싱 또는 Figma REST API로 디자인 가져오기)

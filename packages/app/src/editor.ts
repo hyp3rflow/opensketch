@@ -14,6 +14,7 @@ import type { CollabClient } from "./collab";
 import { findSpacingHandles, hitTestSpacingHandle, renderSpacingHandles, type SpacingHandle } from "./tools/spacing-handles";
 import { showLayoutSuggestion, dismissSuggestion } from "./ui/ai-layout-suggest";
 import { toggleFindReplace, closeFindReplace } from "./ui/find-replace-panel";
+import { toggleSpotlight, closeSpotlight, isSpotlightVisible } from "./ui/spotlight";
 
 export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "section" | "image" | "pen" | "star" | "polygon" | "slice" | "connector";
 
@@ -241,6 +242,12 @@ export class Editor {
       if ((e.metaKey || e.ctrlKey) && e.key === "s") {
         e.preventDefault();
         this.onSaveCallbacks.forEach(fn => fn());
+        return;
+      }
+      // Node search spotlight: Cmd+P
+      if ((e.metaKey || e.ctrlKey) && e.key === "p") {
+        e.preventDefault();
+        toggleSpotlight(this);
         return;
       }
       // Find & Replace: Cmd+F
