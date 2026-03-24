@@ -779,3 +779,16 @@ Frame overflow control and content scrolling.
 - [x] **Keyboard shortcut**: Cmd+Shift+E
 - [x] **Editor API**: editor.downloadPDF(options?) async method
 - [x] TS: ui/pdf-export.ts — exportPDF(), buildPDF(), captureCurrentPage()
+
+### Figma Import
+- [x] **REST API import**: Fetch Figma files via personal access token
+- [x] **URL parsing**: Accept figma.com/file/ or figma.com/design/ URLs, or bare file keys
+- [x] **Node conversion**: FRAME, COMPONENT, INSTANCE, GROUP → Frame; RECTANGLE → Rect; ELLIPSE → Ellipse; TEXT → Text; STAR/REGULAR_POLYGON → Star/Polygon; SECTION → Section; SLICE → Slice; VECTOR/BOOLEAN_OPERATION/LINE → Rect fallback
+- [x] **Property mapping**: Fill (solid/linear/radial gradient), Stroke (color/weight/align), Opacity, Visibility, Corner radius, Blend mode, Drop shadow, Layer blur
+- [x] **Text properties**: Font family, size, weight, italic, text-align, line-height
+- [x] **Auto layout**: Flex mode, gap, padding mapping
+- [x] **Hierarchy**: Recursive children conversion with correct reparenting and position offset
+- [x] **Import modal**: Dark floating dialog (URL + token input), progress status, token persistence (localStorage)
+- [x] **Toolbar button**: Figma logo icon next to PDF export
+- [x] **Undo integration**: push_undo before import
+- [x] TS: ui/figma-import.ts — fetchFigmaFile(), convertNode(), openFigmaImportModal()

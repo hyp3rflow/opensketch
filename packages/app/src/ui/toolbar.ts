@@ -1,5 +1,6 @@
 import type { Editor, ToolType } from "../editor";
 import { icons } from "./icons";
+import { openFigmaImportModal } from "./figma-import";
 
 const tools: { id: ToolType; icon: string; label: string }[] = [
   { id: "select", icon: icons.select, label: "Select (V)" },
@@ -162,6 +163,18 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
   pdfBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><text x="7" y="18" font-size="7" font-weight="bold" fill="currentColor" stroke="none" font-family="sans-serif">PDF</text></svg>`;
   pdfBtn.addEventListener("click", () => editor.downloadPDF());
   container.appendChild(pdfBtn);
+
+  // Figma import button
+  const figmaBtn = document.createElement("button");
+  figmaBtn.className = "tool-btn";
+  figmaBtn.title = "Import from Figma";
+  figmaBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5.5A3.5 3.5 0 0 1 8.5 2H12v7H8.5A3.5 3.5 0 0 1 5 5.5z"/><path d="M12 2h3.5a3.5 3.5 0 1 1 0 7H12V2z"/><path d="M12 12.5a3.5 3.5 0 1 1 7 0 3.5 3.5 0 1 1-7 0z"/><path d="M5 19.5A3.5 3.5 0 0 1 8.5 16H12v3.5a3.5 3.5 0 1 1-7 0z"/><path d="M5 12.5A3.5 3.5 0 0 1 8.5 9H12v7H8.5A3.5 3.5 0 0 1 5 12.5z"/></svg>`;
+  figmaBtn.addEventListener("click", () => {
+    openFigmaImportModal(editor.engine, () => {
+      editor.requestRender();
+    });
+  });
+  container.appendChild(figmaBtn);
 
   // Prototype play button
   if (onPrototype) {
