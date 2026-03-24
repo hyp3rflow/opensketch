@@ -15,6 +15,7 @@ pub mod path_utils;
 pub mod animation;
 mod design_lint;
 mod color_palette;
+mod smart_select;
 
 use wasm_bindgen::prelude::*;
 use web_sys::CanvasRenderingContext2d;
@@ -1389,6 +1390,33 @@ impl Engine {
 
     pub fn select_same_stroke(&mut self, reference_id: u64) -> Vec<u64> {
         self.scene.select_same_stroke(reference_id)
+    }
+
+    /// Smart select: find nodes similar to reference based on criteria JSON.
+    /// criteria_json: JSON string of SmartSelectCriteria (or empty for defaults).
+    /// Returns selected node IDs.
+    pub fn smart_select(&mut self, reference_id: u64, criteria_json: &str) -> Vec<u64> {
+        let criteria: smart_select::SmartSelectCriteria = if criteria_json.is_empty() {
+            smart_select::SmartSelectCriteria::default()
+        } else {
+            serde_json::from_str(criteria_json).unwrap_or_default()
+        };
+        let result = smart_select::smart_select(&self.scene.nodes, reference_id, &criteria);
+        self.scene.selection = result.clone();
+        result
+    }
+
+    /// Compute similarity score (0–1) between two nodes.
+    pub fn similarity_score(&self, id_a: u64, id_b: u64) -> f64 {
+        let a = match self.scene.nodes.get(&id_a) { Some(n) => n, None => return 0.0 };
+        let b = match self.scene.nodes.get(&id_b) { Some(n) => n, None => return 0.0 };
+        smart_select::similarity_score(a, b)
+    }
+
+    /// Suggest groups of similar nodes. Returns JSON array of arrays of node IDs.
+    pub fn suggest_groups(&self, threshold: f64) -> String {
+        let groups = smart_select::suggest_groups(&self.scene.nodes, threshold);
+        serde_json::to_string(&groups).unwrap_or_else(|_| "[]".to_string())
     }
 
     pub fn zoom(&mut self, delta: f64, cx: f64, cy: f64) {

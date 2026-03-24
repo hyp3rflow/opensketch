@@ -72,7 +72,7 @@ pub struct SceneData {
 }
 
 pub struct Scene {
-    nodes: HashMap<NodeId, Node>,
+    pub(crate) nodes: HashMap<NodeId, Node>,
     root_children: Vec<NodeId>,
     next_id: NodeId,
     pub selection: Vec<NodeId>,

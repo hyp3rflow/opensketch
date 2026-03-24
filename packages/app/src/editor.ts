@@ -8,6 +8,7 @@ import { openResponsivePreview, isResponsivePreviewOpen, closeResponsivePreview 
 import { CursorPresence } from "./ui/cursor-presence";
 import { openComponentSwapModal } from "./ui/component-swap";
 import { GradientEditor } from "./ui/gradient-editor";
+import { SmartSelectPanel } from "./ui/smart-select";
 import type { CollabClient } from "./collab";
 import { findSpacingHandles, hitTestSpacingHandle, renderSpacingHandles, type SpacingHandle } from "./tools/spacing-handles";
 
@@ -79,6 +80,7 @@ export class Editor {
   // Rulers & guides
   private _rulers: RulersAPI | null = null;
   private _gradientEditor: GradientEditor | null = null;
+  private _smartSelectPanel: SmartSelectPanel;
 
   // Spacing handles (auto-layout gap drag)
   private _spacingHandles: SpacingHandle[] = [];
@@ -107,6 +109,7 @@ export class Editor {
     this.setupCanvas();
     this.setupEvents();
     this.setupDragDrop();
+    this._smartSelectPanel = new SmartSelectPanel(this);
     this._gradientEditor = new GradientEditor(
       engine,
       () => this.requestRender(),
@@ -340,6 +343,15 @@ export class Editor {
           }
           this.onLayersChanges.forEach(fn => fn());
           this.needsRender = true;
+        }
+        return;
+      }
+      // Smart Select: Cmd+Shift+A
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "a" || e.key === "A")) {
+        e.preventDefault();
+        const sel = Array.from(this.engine.get_selection()).map(Number);
+        if (sel.length === 1) {
+          this.openSmartSelect(sel[0]!);
         }
         return;
       }
@@ -2708,6 +2720,7 @@ export class Editor {
       items.push({ label: "Select All with Same Stroke", enabled: selAfter.length === 1, action: () => this.selectSameStroke(selAfter[0]!) });
       items.push({ label: "Select All with Same Font", enabled: selAfter.length === 1, action: () => this.selectSameFont(selAfter[0]!) });
       items.push({ label: "Select All with Same Kind", enabled: selAfter.length === 1, action: () => this.selectSameKind(selAfter[0]!) });
+      items.push({ label: "Select Similar…", shortcut: `${mod}⇧A`, enabled: selAfter.length === 1, action: () => this.openSmartSelect(selAfter[0]!) });
     } else {
       // Empty canvas context menu
       items.push({ label: "Paste", shortcut: `${mod}V`, enabled: !!this._clipboard, action: () => this.pasteNodes() });
@@ -2870,6 +2883,14 @@ export class Editor {
     const ids = Array.from(this.engine.select_same_font(refId)).map(Number);
     this.fireSelectionNow(ids);
     this.needsRender = true;
+  }
+
+  openSmartSelect(refId: number) {
+    this._smartSelectPanel.open(refId);
+  }
+
+  closeSmartSelect() {
+    this._smartSelectPanel.close();
   }
 
   /** Find a scrollable frame (overflow=scroll) under the cursor (screen coords) */
