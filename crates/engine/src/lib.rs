@@ -89,12 +89,12 @@ impl Engine {
 
     /// Get the number of nodes rendered in the last frame (after viewport culling)
     pub fn get_rendered_count(&self) -> u32 {
-        self.renderer.last_rendered_count
+        self.renderer.last_rendered_count.get()
     }
 
     /// Get the number of nodes culled (skipped) in the last frame
     pub fn get_culled_count(&self) -> u32 {
-        self.renderer.last_culled_count
+        self.renderer.last_culled_count.get()
     }
 
     /// Get total node count in the scene

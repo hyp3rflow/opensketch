@@ -155,6 +155,10 @@
 - [x] PointerEvent + setPointerCapture
 - [x] Selection callbacks throttled via rAF
 - [x] Single pointerdown handler (no dual mousedown)
+- [x] **Viewport culling**: Nodes outside visible viewport are skipped during rendering (WASM-side AABB check with 100px margin)
+- [x] **Frame time monitoring**: Per-frame timing with 60-frame rolling average, perf stats overlay (`editor.togglePerfStats()`)
+- [x] **Render stats API**: `get_rendered_count()`, `get_culled_count()`, `get_node_count()` for monitoring
+- [x] **Visible nodes query**: `get_visible_nodes(x, y, w, h)` returns node IDs within viewport for TS-side optimizations
 
 ### Desktop (Tauri v2)
 - [x] Project scaffolded (`src-tauri/`)

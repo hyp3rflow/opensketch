@@ -231,9 +231,11 @@ impl Renderer {
                 // Viewport culling: skip nodes entirely outside visible viewport
                 if let Some(ref vp) = self.current_vp {
                     if !node.is_mask && !Self::is_node_visible_in_viewport(node, vp) {
+                        self.last_culled_count.set(self.last_culled_count.get() + 1);
                         continue;
                     }
                 }
+                self.last_rendered_count.set(self.last_rendered_count.get() + 1);
                 if node.is_mask {
                     if mask_active { ctx.restore(); }
                     self.render_node(ctx, node, scene);

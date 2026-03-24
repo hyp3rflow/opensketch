@@ -1696,9 +1696,16 @@ export class Editor {
     return lines;
   }
 
+  // Performance monitoring
+  private _frameTimeHistory: number[] = [];
+  private _perfStatsEl: HTMLElement | null = null;
+  private _perfStatsVisible = false;
+  private _lastPerfUpdate = 0;
+
   private startLoop() {
     const loop = () => {
       if (this.needsRender) {
+        const frameStart = performance.now();
         const dpr = window.devicePixelRatio || 1;
         this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         this.engine.render(this.ctx);
@@ -1717,10 +1724,59 @@ export class Editor {
         this.renderCursorPresence();
         this._rulers?.render();
         this.needsRender = false;
+
+        // Frame time tracking
+        const frameTime = performance.now() - frameStart;
+        this._frameTimeHistory.push(frameTime);
+        if (this._frameTimeHistory.length > 60) this._frameTimeHistory.shift();
+
+        // Update perf overlay if visible
+        if (this._perfStatsVisible && performance.now() - this._lastPerfUpdate > 500) {
+          this._lastPerfUpdate = performance.now();
+          this.updatePerfStats();
+        }
       }
       this.rafId = requestAnimationFrame(loop);
     };
     this.rafId = requestAnimationFrame(loop);
+  }
+
+  /** Toggle performance stats overlay (Shift+P in dev) */
+  togglePerfStats() {
+    this._perfStatsVisible = !this._perfStatsVisible;
+    if (this._perfStatsVisible) {
+      if (!this._perfStatsEl) {
+        this._perfStatsEl = document.createElement("div");
+        this._perfStatsEl.style.cssText = `
+          position: fixed; top: 8px; right: 8px; z-index: 9999;
+          background: rgba(0,0,0,0.85); color: #0f0; font: 11px monospace;
+          padding: 6px 10px; border-radius: 6px; pointer-events: none;
+          line-height: 1.5;
+        `;
+        document.body.appendChild(this._perfStatsEl);
+      }
+      this._perfStatsEl.style.display = "block";
+    } else if (this._perfStatsEl) {
+      this._perfStatsEl.style.display = "none";
+    }
+  }
+
+  private updatePerfStats() {
+    if (!this._perfStatsEl) return;
+    const avg = this._frameTimeHistory.length > 0
+      ? this._frameTimeHistory.reduce((a, b) => a + b, 0) / this._frameTimeHistory.length
+      : 0;
+    const max = this._frameTimeHistory.length > 0
+      ? Math.max(...this._frameTimeHistory)
+      : 0;
+    const rendered = this.engine.get_rendered_count?.() ?? "?";
+    const culled = this.engine.get_culled_count?.() ?? "?";
+    const total = this.engine.get_node_count?.() ?? "?";
+    this._perfStatsEl.innerHTML = [
+      `Frame: ${avg.toFixed(1)}ms avg / ${max.toFixed(1)}ms max`,
+      `FPS: ~${avg > 0 ? Math.round(1000 / avg) : "∞"}`,
+      `Nodes: ${rendered} rendered / ${culled} culled / ${total} total`,
+    ].join("<br>");
   }
 
   setTool(tool: ToolType) {
