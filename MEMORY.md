@@ -38,17 +38,34 @@
 - **Smart Selection** — Cmd+클릭 deep select (Frame/Group 내부 자식 직접 선택), "Select All with Same Fill/Stroke/Kind" 컨텍스트 메뉴 항목, Rust deep_hit_test + select_same_fill/kind/stroke 메서드
 - **Gradient Editor on Canvas** — 선택 노드의 gradient fill에 대해 캔버스 위 드래그 가능한 핸들 오버레이 (Linear: 시작점/끝점 + 연결선, Radial: 중심점 + 반지름 핸들 + 원 미리보기), 실시간 편집, Properties panel 양방향 동기화, Undo 통합
 - **Auto Layout Spacing Handles** — Auto layout Frame 선택 시 자식 간 핑크/마젠타 gap handle 오버레이, 드래그로 gap 값 실시간 조절, row/column 방향 자동 감지, 최소 6px grab zone, gap 값 라벨 표시, Undo 통합
+- **Text decoration** — underline/strikethrough, letter-spacing, paragraph-spacing, WASM 바인딩, Properties panel UI
+- **Responsive resize preview** — artboard breakpoints, side-by-side 뷰 (Cmd+Alt+R)
+- **Smart animate transitions** — prototype viewer에서 매칭 노드 간 interpolation
+- **Section nodes** — Figma Section 페이지 내 구역 그룹핑
+- **Variable scoping** — collection → specific frames/pages 범위 제한
+- **Cursor presence** — 멀티유저 시뮬레이션 커서 위치 + 이름 표시
+- **Dev mode handoff** — SwiftUI/Kotlin Compose/CSS/SVG 코드 생성 + asset 다운로드
+- **Export presets** — 다양한 해상도/포맷 일괄 내보내기 프로필
+- **Scrollable frames** — overflow hidden/scroll, 휠 스크롤, 스크롤바 인디케이터
+- **Bitmap filters** — brightness/contrast/saturation/hue-rotate/invert/grayscale/sepia
+- **Slice tool** — 영역 기반 PNG export
+- **Batch rename** — 패턴 기반 멀티 노드 이름 변경
+- **Measure tool** — Alt+hover 노드 간 거리 측정
+- **Accessibility checker** — 대비, 터치 타겟, alt text, 텍스트 크기 검사
+- **Component search & swap** — Cmd+Shift+K 인스턴스 교체
+- **Design tokens export** — W3C DTCG, Style Dictionary, Tailwind 포맷
+- **Stroke options** — dash array, line cap/join, stroke alignment (inside/outside/center)
+- **Multi-stroke** — 노드당 여러 stroke 지원
+- **Responsive breakpoints** — Frame별 브레이크포인트 기반 auto layout 자동 전환
+- **Absolute positioning** — auto layout flow에서 제외
+- **Variable collections** — 디자인 토큰 modes/themes
 
 ## 📋 Backlog
-- Responsive resize preview (artboard breakpoints, side-by-side view)
-- Smart animate transitions (prototype viewer에서 매칭 노드 간 interpolation)
-- Section nodes (Figma Section — 페이지 내 구역 그룹핑, 프레젠테이션 순서)
-- Variable scoping (변수 사용 범위 제한: collection → specific frames/pages)
-- Cursor presence indicators (멀티유저 시뮬레이션: 커서 위치 + 이름 표시, collaboration 준비)
-- Text decoration (underline, strikethrough, letter-spacing, paragraph-spacing)
-- Dev mode (Figma Dev Mode — 개발자용 코드/spacing 정보 강화 뷰)
-- Export presets (다양한 해상도/포맷 일괄 내보내기: @1x @2x @3x, PDF, WebP)
-- Scrollable frames (overflow scroll, clip content toggle)
+- Real-time collaboration backend (WebSocket 서버 + CRDT/OT, 멀티유저 동시 편집, cursor presence 실시간 동기화)
+- Animation timeline (keyframe 기반 property 애니메이션 — position/size/opacity/rotation/fill 시간축 편집, 타임라인 UI, easing curves, preview playback)
+- Text on path (Path 노드 위에 텍스트 배치, offset 조절, SVG textPath 렌더링, 캔버스 미리보기)
+- Branching / forking (프로젝트 브랜치 분기, diff 뷰, 머지 지원 — Git-style 디자인 버전 관리)
+- Vector network editing (Figma-style vector network — 노드 간 다중 연결, fill region 자동 감지, 기존 Path보다 유연한 벡터 편집)
 
 ## 🏗 Architecture Notes
 - Rust WASM engine: `crates/engine/src/`
