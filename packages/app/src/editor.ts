@@ -15,6 +15,7 @@ import { findSpacingHandles, hitTestSpacingHandle, renderSpacingHandles, type Sp
 import { showLayoutSuggestion, dismissSuggestion } from "./ui/ai-layout-suggest";
 import { toggleFindReplace, closeFindReplace } from "./ui/find-replace-panel";
 import { toggleSpotlight, closeSpotlight, isSpotlightVisible } from "./ui/spotlight";
+import { exportPDF, type PDFExportOptions } from "./ui/pdf-export";
 
 export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "section" | "image" | "pen" | "star" | "polygon" | "slice" | "connector";
 
@@ -420,6 +421,13 @@ export class Editor {
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "r" || e.key === "R")) {
         e.preventDefault();
         this.showBatchRenameDialog();
+        return;
+      }
+
+      // Ctrl/Cmd+Shift+E: export PDF
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "e" || e.key === "E")) {
+        e.preventDefault();
+        this.downloadPDF();
         return;
       }
 
@@ -2730,6 +2738,13 @@ export class Editor {
     a.download = filename || (nodeId ? `frame-${nodeId}.png` : "opensketch-export.png");
     a.click();
     return true;
+  }
+
+  /**
+   * Export canvas/pages as PDF and trigger download.
+   */
+  async downloadPDF(options?: PDFExportOptions) {
+    await exportPDF(this, options);
   }
 
   // =============================================

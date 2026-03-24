@@ -761,3 +761,14 @@ Frame overflow control and content scrolling.
 - [x] **Select & zoom**: Selects node and zooms to it on Enter/click
 - [x] **Overlay UI**: Centered floating panel with backdrop, auto-focus input
 - [x] TS: ui/spotlight.ts, integrated in editor.ts Cmd+P shortcut
+
+### PDF Export
+- [x] **Zero-dependency PDF builder**: Pure TypeScript, no external libraries
+- [x] **Multi-page support**: Exports all pages or current page only
+- [x] **JPEG-based embedding**: Canvas → JPEG (configurable quality) → DCTDecode in PDF
+- [x] **Per-page sizing**: Each PDF page matches canvas content bounding box
+- [x] **Configurable options**: scale (default 2x), quality (default 0.92), filename
+- [x] **Toolbar button**: PDF icon next to SVG export button
+- [x] **Keyboard shortcut**: Cmd+Shift+E
+- [x] **Editor API**: editor.downloadPDF(options?) async method
+- [x] TS: ui/pdf-export.ts — exportPDF(), buildPDF(), captureCurrentPage()
