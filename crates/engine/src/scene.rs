@@ -4,6 +4,7 @@ use crate::node::{Node, NodeId, NodeKind, ConstraintH, ConstraintV, Comment, Com
 use crate::types::Point;
 use crate::variable::{VariableCollection, VariableBinding, VariableScope, CollectionId, VariableId, VariableValue};
 use crate::types::Color;
+use crate::animation::AnimationStore;
 
 fn parse_hex_color(hex: &str) -> Option<Color> {
     let hex = hex.trim_start_matches('#');
@@ -65,6 +66,9 @@ pub struct SceneData {
     /// Variable bindings: key = "node_id:property", value = binding
     #[serde(default)]
     pub variable_bindings: HashMap<String, VariableBinding>,
+    /// Animation clips
+    #[serde(default)]
+    pub animations: AnimationStore,
 }
 
 pub struct Scene {
@@ -83,6 +87,8 @@ pub struct Scene {
     pub variable_collections: Vec<VariableCollection>,
     next_collection_id: u64,
     pub variable_bindings: HashMap<String, VariableBinding>,
+    // Animations
+    pub animations: AnimationStore,
 }
 
 impl Scene {
@@ -100,6 +106,7 @@ impl Scene {
             variable_collections: vec![],
             next_collection_id: 1,
             variable_bindings: HashMap::new(),
+            animations: AnimationStore::new(),
         }
     }
 
@@ -386,6 +393,7 @@ impl Scene {
             variable_collections: self.variable_collections.clone(),
             next_collection_id: self.next_collection_id,
             variable_bindings: self.variable_bindings.clone(),
+            animations: self.animations.clone(),
         }
     }
 
@@ -434,6 +442,7 @@ impl Scene {
                 variable_collections: data.variable_collections,
                 next_collection_id: if data.next_collection_id > 0 { data.next_collection_id } else { 1 },
                 variable_bindings: data.variable_bindings,
+                animations: data.animations,
             }
         } else {
             // Legacy single-page format
@@ -463,6 +472,7 @@ impl Scene {
                 variable_collections: vec![],
                 next_collection_id: 1,
                 variable_bindings: HashMap::new(),
+                animations: AnimationStore::new(),
             }
         }
     }
@@ -1207,5 +1217,110 @@ impl Scene {
                 node.name = new_name;
             }
         }
+    }
+
+    // ─── Animation methods ───
+
+    pub fn anim_add_clip(&mut self, name: &str) -> u64 {
+        self.animations.add_clip(name)
+    }
+
+    pub fn anim_remove_clip(&mut self, clip_id: u64) -> bool {
+        self.animations.remove_clip(clip_id)
+    }
+
+    pub fn anim_rename_clip(&mut self, clip_id: u64, name: &str) -> bool {
+        if let Some(clip) = self.animations.get_clip_mut(clip_id) {
+            clip.name = name.to_string();
+            true
+        } else { false }
+    }
+
+    pub fn anim_set_looping(&mut self, clip_id: u64, looping: bool) -> bool {
+        if let Some(clip) = self.animations.get_clip_mut(clip_id) {
+            clip.looping = looping;
+            true
+        } else { false }
+    }
+
+    pub fn anim_set_duration(&mut self, clip_id: u64, duration_ms: u32) -> bool {
+        if let Some(clip) = self.animations.get_clip_mut(clip_id) {
+            clip.duration_ms = duration_ms;
+            true
+        } else { false }
+    }
+
+    pub fn anim_add_keyframe(
+        &mut self, clip_id: u64, node_id: NodeId,
+        property: crate::animation::AnimProperty,
+        time_ms: u32, value: f64, easing: crate::animation::Easing,
+    ) -> bool {
+        self.animations.add_keyframe(clip_id, node_id, property, time_ms, value, easing)
+    }
+
+    pub fn anim_remove_keyframe(
+        &mut self, clip_id: u64, node_id: NodeId,
+        property: &crate::animation::AnimProperty,
+        time_ms: u32,
+    ) -> bool {
+        self.animations.remove_keyframe(clip_id, node_id, property, time_ms)
+    }
+
+    /// Apply animation values at a given time, mutating nodes in-place. Returns changed node IDs.
+    pub fn anim_apply(&mut self, clip_id: u64, time_ms: u32) -> Vec<NodeId> {
+        let values = self.animations.evaluate_clip(clip_id, time_ms);
+        let mut changed = Vec::new();
+        for (node_id, prop, val) in values {
+            if let Some(node) = self.nodes.get_mut(&node_id) {
+                use crate::animation::AnimProperty::*;
+                match prop {
+                    X => node.x = val,
+                    Y => node.y = val,
+                    Width => node.width = val.max(0.0),
+                    Height => node.height = val.max(0.0),
+                    Rotation => node.rotation = val,
+                    Opacity => node.opacity = val.clamp(0.0, 1.0),
+                    CornerRadius => node.corner_radius = val.max(0.0),
+                    Blur => node.blur = val.max(0.0),
+                    FillR(idx) => {
+                        if let Some(fill) = node.fills.get_mut(idx) {
+                            fill.set_color_r(val as u8);
+                        }
+                    }
+                    FillG(idx) => {
+                        if let Some(fill) = node.fills.get_mut(idx) {
+                            fill.set_color_g(val as u8);
+                        }
+                    }
+                    FillB(idx) => {
+                        if let Some(fill) = node.fills.get_mut(idx) {
+                            fill.set_color_b(val as u8);
+                        }
+                    }
+                    FillA(idx) => {
+                        if let Some(fill) = node.fills.get_mut(idx) {
+                            fill.set_color_a(val);
+                        }
+                    }
+                    StrokeWidth(idx) => {
+                        if let Some(stroke) = node.strokes.get_mut(idx) {
+                            stroke.width = val.max(0.0);
+                        }
+                    }
+                    ScaleX => { /* handled in TS as width % */ }
+                    ScaleY => { /* handled in TS as height % */ }
+                };
+                if !changed.contains(&node_id) { changed.push(node_id); }
+            }
+        }
+        changed
+    }
+
+    pub fn anim_get_clips_json(&self) -> String {
+        serde_json::to_string(&self.animations.clips).unwrap_or_else(|_| "[]".to_string())
+    }
+
+    pub fn anim_get_clip_json(&self, clip_id: u64) -> Option<String> {
+        self.animations.get_clip(clip_id).map(|c| serde_json::to_string(c).unwrap_or_default())
     }
 }

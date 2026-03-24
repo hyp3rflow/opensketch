@@ -20,6 +20,7 @@ import { setupBookmarksPanel } from "./ui/bookmarks-panel";
 import { setupAccessibilityPanel } from "./ui/accessibility-panel";
 import { PluginManager, loremIpsumPlugin, colorPalettePlugin } from "./plugins";
 import { setupPluginPanel } from "./ui/plugin-panel";
+import { createAnimationTimeline } from "./ui/animation-timeline";
 
 async function main() {
   const wasm = await loadEngine();
@@ -53,6 +54,10 @@ async function main() {
 
   // Prototype viewer
   const prototypeViewer = createPrototypeViewer(editor);
+
+  // Animation timeline (bottom panel)
+  const animTimeline = createAnimationTimeline(editor);
+  document.body.appendChild(animTimeline.getContainer());
 
   // Bottom toolbar (with design system button + mode toggle)
   setupToolbar(document.getElementById("bottom-toolbar")!, editor, toggleDesignSystem, (mode) => {
@@ -142,6 +147,8 @@ async function main() {
   window.addEventListener("keydown", (e) => {
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
     if (e.key === "d" || e.key === "D") toggleDesignSystem();
+    // Alt+T → toggle animation timeline
+    if (e.key === "t" && e.altKey) { e.preventDefault(); animTimeline.toggle(); }
     // Cmd+Enter or Ctrl+Enter → prototype mode
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();

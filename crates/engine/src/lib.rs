@@ -12,6 +12,7 @@ pub mod styles;
 pub mod variable;
 mod design_tokens;
 pub mod path_utils;
+pub mod animation;
 
 use wasm_bindgen::prelude::*;
 use web_sys::CanvasRenderingContext2d;
@@ -3866,5 +3867,165 @@ impl Engine {
             }
         }
         -1
+    }
+
+    // ─── Animation WASM bindings ───
+
+    #[wasm_bindgen]
+    pub fn anim_add_clip(&mut self, name: &str) -> u64 {
+        self.scene.anim_add_clip(name)
+    }
+
+    #[wasm_bindgen]
+    pub fn anim_remove_clip(&mut self, clip_id: u64) -> bool {
+        self.scene.anim_remove_clip(clip_id)
+    }
+
+    #[wasm_bindgen]
+    pub fn anim_rename_clip(&mut self, clip_id: u64, name: &str) -> bool {
+        self.scene.anim_rename_clip(clip_id, name)
+    }
+
+    #[wasm_bindgen]
+    pub fn anim_set_looping(&mut self, clip_id: u64, looping: bool) -> bool {
+        self.scene.anim_set_looping(clip_id, looping)
+    }
+
+    #[wasm_bindgen]
+    pub fn anim_set_duration(&mut self, clip_id: u64, duration_ms: u32) -> bool {
+        self.scene.anim_set_duration(clip_id, duration_ms)
+    }
+
+    /// Add a keyframe. property: "x"|"y"|"width"|"height"|"rotation"|"opacity"|"corner_radius"|"blur"|"fill_r:0"|"fill_g:0"|"fill_b:0"|"fill_a:0"|"stroke_width:0"
+    /// easing: "linear"|"ease_in"|"ease_out"|"ease_in_out"|"cubic_bezier:x1,y1,x2,y2"
+    #[wasm_bindgen]
+    pub fn anim_add_keyframe(&mut self, clip_id: u64, node_id: u64, property: &str, time_ms: u32, value: f64, easing: &str) -> bool {
+        let prop = match parse_anim_property(property) {
+            Some(p) => p,
+            None => return false,
+        };
+        let ease = parse_easing(easing);
+        self.scene.anim_add_keyframe(clip_id, node_id, prop, time_ms, value, ease)
+    }
+
+    #[wasm_bindgen]
+    pub fn anim_remove_keyframe(&mut self, clip_id: u64, node_id: u64, property: &str, time_ms: u32) -> bool {
+        let prop = match parse_anim_property(property) {
+            Some(p) => p,
+            None => return false,
+        };
+        self.scene.anim_remove_keyframe(clip_id, node_id, &prop, time_ms)
+    }
+
+    /// Apply animation at time_ms, returns JSON array of changed node IDs
+    #[wasm_bindgen]
+    pub fn anim_apply(&mut self, clip_id: u64, time_ms: u32) -> String {
+        let changed = self.scene.anim_apply(clip_id, time_ms);
+        serde_json::to_string(&changed).unwrap_or_else(|_| "[]".to_string())
+    }
+
+    #[wasm_bindgen]
+    pub fn anim_get_clips(&self) -> String {
+        self.scene.anim_get_clips_json()
+    }
+
+    #[wasm_bindgen]
+    pub fn anim_get_clip(&self, clip_id: u64) -> String {
+        self.scene.anim_get_clip_json(clip_id).unwrap_or_else(|| "null".to_string())
+    }
+
+    /// Get clip duration in ms
+    #[wasm_bindgen]
+    pub fn anim_get_duration(&self, clip_id: u64) -> u32 {
+        self.scene.animations.get_clip(clip_id).map(|c| c.effective_duration()).unwrap_or(0)
+    }
+
+    /// Record current property values as keyframes for selected nodes
+    #[wasm_bindgen]
+    pub fn anim_record_selected(&mut self, clip_id: u64, time_ms: u32, properties: &str) -> u32 {
+        let sel: Vec<u64> = self.scene.selection.clone();
+        let props: Vec<&str> = properties.split(',').collect();
+        // Collect values first to avoid borrow conflict
+        let mut to_add: Vec<(u64, animation::AnimProperty, f64)> = Vec::new();
+        for &nid in &sel {
+            if let Some(node) = self.scene.get_node(nid) {
+                for prop_str in &props {
+                    let prop_str = prop_str.trim();
+                    if let Some(prop) = parse_anim_property(prop_str) {
+                        if let Some(v) = get_node_property_value(node, &prop) {
+                            to_add.push((nid, prop, v));
+                        }
+                    }
+                }
+            }
+        }
+        let mut count = 0u32;
+        for (nid, prop, v) in to_add {
+            if self.scene.anim_add_keyframe(clip_id, nid, prop, time_ms, v, animation::Easing::EaseInOut) {
+                count += 1;
+            }
+        }
+        count
+    }
+}
+
+fn parse_anim_property(s: &str) -> Option<animation::AnimProperty> {
+    use animation::AnimProperty::*;
+    match s {
+        "x" => Some(X),
+        "y" => Some(Y),
+        "width" => Some(Width),
+        "height" => Some(Height),
+        "rotation" => Some(Rotation),
+        "opacity" => Some(Opacity),
+        "corner_radius" => Some(CornerRadius),
+        "blur" => Some(Blur),
+        "scale_x" => Some(ScaleX),
+        "scale_y" => Some(ScaleY),
+        _ if s.starts_with("fill_r:") => s[7..].parse::<usize>().ok().map(FillR),
+        _ if s.starts_with("fill_g:") => s[7..].parse::<usize>().ok().map(FillG),
+        _ if s.starts_with("fill_b:") => s[7..].parse::<usize>().ok().map(FillB),
+        _ if s.starts_with("fill_a:") => s[7..].parse::<usize>().ok().map(FillA),
+        _ if s.starts_with("stroke_width:") => s[13..].parse::<usize>().ok().map(StrokeWidth),
+        _ => None,
+    }
+}
+
+fn parse_easing(s: &str) -> animation::Easing {
+    match s {
+        "linear" => animation::Easing::Linear,
+        "ease_in" => animation::Easing::EaseIn,
+        "ease_out" => animation::Easing::EaseOut,
+        "ease_in_out" => animation::Easing::EaseInOut,
+        _ if s.starts_with("cubic_bezier:") => {
+            let nums: Vec<f64> = s[13..].split(',').filter_map(|n| n.trim().parse().ok()).collect();
+            if nums.len() == 4 {
+                animation::Easing::CubicBezier(nums[0], nums[1], nums[2], nums[3])
+            } else {
+                animation::Easing::EaseInOut
+            }
+        }
+        _ => animation::Easing::EaseInOut,
+    }
+}
+
+fn get_node_property_value(node: &node::Node, prop: &animation::AnimProperty) -> Option<f64> {
+    use animation::AnimProperty::*;
+    match prop {
+        X => Some(node.x),
+        Y => Some(node.y),
+        Width => Some(node.width),
+        Height => Some(node.height),
+        Rotation => Some(node.rotation),
+        Opacity => Some(node.opacity),
+        CornerRadius => Some(node.corner_radius),
+        Blur => Some(node.blur),
+        FillR(idx) => node.fills.get(*idx).map(|f| f.color().r as f64),
+        FillG(idx) => node.fills.get(*idx).map(|f| f.color().g as f64),
+        FillB(idx) => node.fills.get(*idx).map(|f| f.color().b as f64),
+        FillA(idx) => node.fills.get(*idx).map(|f| f.color().a),
+        StrokeWidth(idx) => node.strokes.get(*idx).map(|s| s.width),
+        ScaleX => Some(node.width),
+        ScaleY => Some(node.height),
     }
 }

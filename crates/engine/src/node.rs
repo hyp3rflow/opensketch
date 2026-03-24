@@ -230,6 +230,19 @@ impl Fill {
             }
         }
     }
+
+    pub fn set_color_r(&mut self, r: u8) {
+        if let FillType::Solid { ref mut color } = self.fill_type { color.r = r; }
+    }
+    pub fn set_color_g(&mut self, g: u8) {
+        if let FillType::Solid { ref mut color } = self.fill_type { color.g = g; }
+    }
+    pub fn set_color_b(&mut self, b: u8) {
+        if let FillType::Solid { ref mut color } = self.fill_type { color.b = b; }
+    }
+    pub fn set_color_a(&mut self, a: f64) {
+        if let FillType::Solid { ref mut color } = self.fill_type { color.a = a; }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]

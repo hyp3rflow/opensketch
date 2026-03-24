@@ -1,0 +1,269 @@
+use serde::{Deserialize, Serialize};
+use crate::node::NodeId;
+
+/// Easing function for keyframe interpolation
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub enum Easing {
+    Linear,
+    EaseIn,
+    EaseOut,
+    EaseInOut,
+    /// Custom cubic-bezier(x1, y1, x2, y2)
+    CubicBezier(f64, f64, f64, f64),
+}
+
+impl Default for Easing {
+    fn default() -> Self { Easing::EaseInOut }
+}
+
+impl Easing {
+    /// Evaluate easing at t ∈ [0, 1] → output ∈ [0, 1]
+    pub fn evaluate(&self, t: f64) -> f64 {
+        let t = t.clamp(0.0, 1.0);
+        match self {
+            Easing::Linear => t,
+            Easing::EaseIn => t * t * t,
+            Easing::EaseOut => 1.0 - (1.0 - t).powi(3),
+            Easing::EaseInOut => {
+                if t < 0.5 { 4.0 * t * t * t }
+                else { 1.0 - (-2.0 * t + 2.0).powi(3) / 2.0 }
+            }
+            Easing::CubicBezier(x1, y1, x2, y2) => {
+                cubic_bezier_eval(*x1, *y1, *x2, *y2, t)
+            }
+        }
+    }
+}
+
+/// Approximate cubic-bezier evaluation using Newton's method
+fn cubic_bezier_eval(x1: f64, y1: f64, x2: f64, y2: f64, x: f64) -> f64 {
+    // Find t for given x using Newton-Raphson
+    let mut t = x;
+    for _ in 0..8 {
+        let cx = 3.0 * x1;
+        let bx = 3.0 * (x2 - x1) - cx;
+        let ax = 1.0 - cx - bx;
+        let x_at_t = ((ax * t + bx) * t + cx) * t;
+        let dx = (3.0 * ax * t + 2.0 * bx) * t + cx;
+        if dx.abs() < 1e-7 { break; }
+        t -= (x_at_t - x) / dx;
+        t = t.clamp(0.0, 1.0);
+    }
+    // Evaluate y at t
+    let cy = 3.0 * y1;
+    let by = 3.0 * (y2 - y1) - cy;
+    let ay = 1.0 - cy - by;
+    ((ay * t + by) * t + cy) * t
+}
+
+/// Which node property is animated
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub enum AnimProperty {
+    X,
+    Y,
+    Width,
+    Height,
+    Rotation,
+    Opacity,
+    CornerRadius,
+    Blur,
+    // Fill[index] color channels
+    FillR(usize),
+    FillG(usize),
+    FillB(usize),
+    FillA(usize),
+    // Stroke width
+    StrokeWidth(usize),
+    // Scale (uniform, encoded as width+height percentage)
+    ScaleX,
+    ScaleY,
+}
+
+/// A single keyframe: a property value at a specific time
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Keyframe {
+    /// Time in milliseconds from animation start
+    pub time_ms: u32,
+    /// Property value at this keyframe
+    pub value: f64,
+    /// Easing to the NEXT keyframe
+    #[serde(default)]
+    pub easing: Easing,
+}
+
+/// A track: one property animation for one node
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct AnimationTrack {
+    pub node_id: NodeId,
+    pub property: AnimProperty,
+    pub keyframes: Vec<Keyframe>,
+}
+
+impl AnimationTrack {
+    /// Get interpolated value at time_ms. Returns None if no keyframes.
+    pub fn value_at(&self, time_ms: u32) -> Option<f64> {
+        if self.keyframes.is_empty() { return None; }
+        if self.keyframes.len() == 1 { return Some(self.keyframes[0].value); }
+
+        // Before first keyframe
+        if time_ms <= self.keyframes[0].time_ms {
+            return Some(self.keyframes[0].value);
+        }
+        // After last keyframe
+        let last = self.keyframes.last().unwrap();
+        if time_ms >= last.time_ms {
+            return Some(last.value);
+        }
+
+        // Find surrounding keyframes
+        for i in 0..self.keyframes.len() - 1 {
+            let a = &self.keyframes[i];
+            let b = &self.keyframes[i + 1];
+            if time_ms >= a.time_ms && time_ms <= b.time_ms {
+                let span = (b.time_ms - a.time_ms) as f64;
+                if span == 0.0 { return Some(b.value); }
+                let linear_t = (time_ms - a.time_ms) as f64 / span;
+                let eased_t = a.easing.evaluate(linear_t);
+                return Some(a.value + (b.value - a.value) * eased_t);
+            }
+        }
+        Some(last.value)
+    }
+
+    /// Duration: max keyframe time
+    pub fn duration_ms(&self) -> u32 {
+        self.keyframes.last().map_or(0, |k| k.time_ms)
+    }
+}
+
+/// An animation clip containing multiple tracks
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct AnimationClip {
+    pub id: u64,
+    pub name: String,
+    pub tracks: Vec<AnimationTrack>,
+    /// Loop mode
+    #[serde(default)]
+    pub looping: bool,
+    /// Total duration override (0 = auto from tracks)
+    #[serde(default)]
+    pub duration_ms: u32,
+}
+
+impl AnimationClip {
+    pub fn effective_duration(&self) -> u32 {
+        if self.duration_ms > 0 { return self.duration_ms; }
+        self.tracks.iter().map(|t| t.duration_ms()).max().unwrap_or(0)
+    }
+}
+
+/// Animation state stored in Scene
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct AnimationStore {
+    pub clips: Vec<AnimationClip>,
+    #[serde(default)]
+    pub next_clip_id: u64,
+}
+
+impl AnimationStore {
+    pub fn new() -> Self {
+        Self { clips: vec![], next_clip_id: 1 }
+    }
+
+    pub fn add_clip(&mut self, name: &str) -> u64 {
+        let id = self.next_clip_id;
+        self.next_clip_id += 1;
+        self.clips.push(AnimationClip {
+            id,
+            name: name.to_string(),
+            tracks: vec![],
+            looping: false,
+            duration_ms: 0,
+        });
+        id
+    }
+
+    pub fn remove_clip(&mut self, clip_id: u64) -> bool {
+        let len = self.clips.len();
+        self.clips.retain(|c| c.id != clip_id);
+        self.clips.len() < len
+    }
+
+    pub fn get_clip(&self, clip_id: u64) -> Option<&AnimationClip> {
+        self.clips.iter().find(|c| c.id == clip_id)
+    }
+
+    pub fn get_clip_mut(&mut self, clip_id: u64) -> Option<&mut AnimationClip> {
+        self.clips.iter_mut().find(|c| c.id == clip_id)
+    }
+
+    pub fn add_keyframe(&mut self, clip_id: u64, node_id: NodeId, property: AnimProperty, time_ms: u32, value: f64, easing: Easing) -> bool {
+        let clip = match self.get_clip_mut(clip_id) {
+            Some(c) => c,
+            None => return false,
+        };
+
+        // Find or create track
+        let track = match clip.tracks.iter_mut().find(|t| t.node_id == node_id && t.property == property) {
+            Some(t) => t,
+            None => {
+                clip.tracks.push(AnimationTrack {
+                    node_id,
+                    property: property.clone(),
+                    keyframes: vec![],
+                });
+                clip.tracks.last_mut().unwrap()
+            }
+        };
+
+        // Insert or update keyframe at time
+        match track.keyframes.iter().position(|k| k.time_ms == time_ms) {
+            Some(idx) => {
+                track.keyframes[idx].value = value;
+                track.keyframes[idx].easing = easing;
+            }
+            None => {
+                track.keyframes.push(Keyframe { time_ms, value, easing });
+                track.keyframes.sort_by_key(|k| k.time_ms);
+            }
+        }
+        true
+    }
+
+    pub fn remove_keyframe(&mut self, clip_id: u64, node_id: NodeId, property: &AnimProperty, time_ms: u32) -> bool {
+        let clip = match self.get_clip_mut(clip_id) {
+            Some(c) => c,
+            None => return false,
+        };
+
+        let track_idx = clip.tracks.iter().position(|t| t.node_id == node_id && &t.property == property);
+        if let Some(idx) = track_idx {
+            let len = clip.tracks[idx].keyframes.len();
+            clip.tracks[idx].keyframes.retain(|k| k.time_ms != time_ms);
+            let removed = clip.tracks[idx].keyframes.len() < len;
+            if clip.tracks[idx].keyframes.is_empty() {
+                clip.tracks.remove(idx);
+            }
+            return removed;
+        }
+        false
+    }
+
+    /// Get all interpolated values for a clip at a given time
+    pub fn evaluate_clip(&self, clip_id: u64, time_ms: u32) -> Vec<(NodeId, AnimProperty, f64)> {
+        let clip = match self.get_clip(clip_id) {
+            Some(c) => c,
+            None => return vec![],
+        };
+
+        let effective_time = if clip.looping && clip.effective_duration() > 0 {
+            time_ms % clip.effective_duration()
+        } else {
+            time_ms.min(clip.effective_duration())
+        };
+
+        clip.tracks.iter().filter_map(|track| {
+            track.value_at(effective_time).map(|v| (track.node_id, track.property.clone(), v))
+        }).collect()
+    }
+}

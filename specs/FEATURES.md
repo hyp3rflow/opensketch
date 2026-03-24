@@ -663,3 +663,19 @@ Frame overflow control and content scrolling.
 - [x] WASM: set_text_path, clear_text_path, set_text_path_offset, get_text_path_info, get_text_on_path_positions, get_path_svg_d
 - [x] Properties panel: Text Path section — attach/detach, offset slider, path name display
 - [x] Backward-compatible serde (default None/0.0)
+
+## Animation Timeline (Keyframe Animation)
+- [x] Rust: animation.rs — Easing (Linear/EaseIn/EaseOut/EaseInOut/CubicBezier), AnimProperty (x/y/width/height/rotation/opacity/corner_radius/blur/fill colors/stroke_width), Keyframe, AnimationTrack, AnimationClip, AnimationStore
+- [x] Keyframe interpolation with easing functions, cubic-bezier support
+- [x] AnimationClip: multiple tracks, looping, duration override
+- [x] Scene integration: AnimationStore in SceneData + Scene, backward-compatible serde
+- [x] Scene methods: anim_add/remove/rename clip, set_looping, set_duration, add/remove keyframe, apply (mutate nodes at time), get_clips_json, get_clip_json
+- [x] WASM bindings: anim_add_clip, anim_remove_clip, anim_rename_clip, anim_set_looping, anim_set_duration, anim_add_keyframe, anim_remove_keyframe, anim_apply, anim_get_clips, anim_get_clip, anim_get_duration, anim_record_selected
+- [x] TS: animation-timeline.ts — bottom dockable panel
+- [x] Clip management: create/delete clips, select active clip
+- [x] Playback: play/pause/stop, loop toggle, time scrubber, real-time playback
+- [x] Track visualization: per-node/property rows, keyframe diamonds, time ruler
+- [x] Record button: record current property values (x,y,w,h,rotation,opacity) as keyframes for selected nodes
+- [x] Scene snapshot save/restore on playback (non-destructive preview)
+- [x] Zoom/scroll on timeline, right-click to delete keyframes
+- [x] Keyboard shortcut: Alt+T to toggle timeline panel

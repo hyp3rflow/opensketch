@@ -151,3 +151,12 @@ Output: `packages/app/src/wasm/` (opensketch_engine.js + .wasm + .d.ts)
 - Properties panel: Effects section — slider + numeric input per filter property, enable toggle, add/remove
 - Inspect panel: CSS `filter:` output with all active filter functions
 - Backward-compatible serde (field defaults to None)
+
+## Animation System (animation.rs)
+- **Easing**: Linear, EaseIn, EaseOut, EaseInOut, CubicBezier(x1,y1,x2,y2)
+- **AnimProperty**: X, Y, Width, Height, Rotation, Opacity, CornerRadius, Blur, FillR/G/B/A(idx), StrokeWidth(idx), ScaleX, ScaleY
+- **Keyframe**: time_ms, value, easing (to next keyframe)
+- **AnimationTrack**: node_id + property + Vec<Keyframe>, value_at(time) interpolation
+- **AnimationClip**: id, name, Vec<AnimationTrack>, looping, duration_ms override
+- **AnimationStore**: Vec<AnimationClip>, CRUD operations, evaluate_clip → Vec<(NodeId, Property, Value)>
+- **Scene.anim_apply(clip_id, time_ms)**: mutates nodes in-place, returns changed IDs
