@@ -717,6 +717,13 @@ Frame overflow control and content scrolling.
 - [x] Diff preview popup: colored sections (green=added, yellow=modified, red=removed) before merge
 - [x] Backward-compatible serde (existing files auto-migrate to single "main" branch)
 - [x] Undo integration for all branch operations
+- [x] **Visual diff overlay**: compare branches with colored canvas overlays
+  - [x] VisualDiff struct: node positions/bounds for added/modified/removed nodes
+  - [x] Modified nodes show previous position as ghost outline
+  - [x] WASM: get_visual_diff(branch_a, branch_b), get_branch_visual_diff(branch_id)
+  - [x] Canvas overlay: green=added, yellow=modified, red=removed (dashed borders + translucent fill)
+  - [x] Diff panel: stats summary, opacity slider, label toggle, clickable node list (pan-to-node)
+  - [x] Branch panel integration: diff button per branch + self-diff button on active branch
 
 ## AI Layout Suggestion
 - [x] Heuristic analysis: detects row/column/grid arrangement of selected nodes

@@ -16,6 +16,7 @@ import { showLayoutSuggestion, dismissSuggestion } from "./ui/ai-layout-suggest"
 import { toggleFindReplace, closeFindReplace } from "./ui/find-replace-panel";
 import { toggleSpotlight, closeSpotlight, isSpotlightVisible } from "./ui/spotlight";
 import { exportPDF, type PDFExportOptions } from "./ui/pdf-export";
+import { setupDiffOverlay } from "./ui/diff-overlay";
 
 export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "section" | "image" | "pen" | "star" | "polygon" | "slice" | "connector";
 
@@ -92,6 +93,7 @@ export class Editor {
 
   // Rulers & guides
   private _rulers: RulersAPI | null = null;
+  private _diffOverlay: ReturnType<typeof setupDiffOverlay> | null = null;
   private _gradientEditor: GradientEditor | null = null;
   private _smartSelectPanel: SmartSelectPanel;
 
@@ -129,6 +131,7 @@ export class Editor {
       () => this.engine.push_undo(),
       () => this.fireSelectionNow(Array.from(this.engine.get_selection()).map(Number)),
     );
+    this._diffOverlay = setupDiffOverlay(this);
     this.startLoop();
   }
 
@@ -2029,6 +2032,7 @@ export class Editor {
         this.renderGradientEditor();
         this.renderSpacingHandles();
         this.renderCursorPresence();
+        this.renderDiffOverlay();
         this._rulers?.render();
         this.needsRender = false;
 
@@ -2391,6 +2395,17 @@ export class Editor {
     if (this._spacingHandles.length === 0) return;
     renderSpacingHandles(this.ctx, this._spacingHandles, this._spacingHovered, this._spacingDragging);
   }
+
+  private renderDiffOverlay() {
+    if (!this._diffOverlay?.isActive()) return;
+    const zoom = this.engine.get_zoom();
+    const panX = this.engine.get_pan_x();
+    const panY = this.engine.get_pan_y();
+    this._diffOverlay.renderOverlay(this.ctx, zoom, panX, panY);
+  }
+
+  /** Get diff overlay for branch panel integration */
+  get diffOverlay() { return this._diffOverlay; }
 
   private renderCursorPresence() {
     const zoom = this.engine.get_zoom();

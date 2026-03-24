@@ -3306,6 +3306,22 @@ impl Engine {
         self.scene.get_active_branch_id()
     }
 
+    /// Get visual diff between two branches (with node positions for canvas overlay)
+    pub fn get_visual_diff(&mut self, branch_a_id: u64, branch_b_id: u64) -> String {
+        match self.scene.get_visual_diff(branch_a_id, branch_b_id) {
+            Some(diff) => serde_json::to_string(&diff).unwrap_or_else(|_| "{}".to_string()),
+            None => "{}".to_string(),
+        }
+    }
+
+    /// Get visual diff of a branch against its base snapshot
+    pub fn get_branch_visual_diff(&mut self, branch_id: u64) -> String {
+        match self.scene.get_branch_visual_diff(branch_id) {
+            Some(diff) => serde_json::to_string(&diff).unwrap_or_else(|_| "{}".to_string()),
+            None => "{}".to_string(),
+        }
+    }
+
     /// Get node JSON enriched with notes (for agent consumption)
     pub fn get_node_with_notes(&self, node_id: u64) -> String {
         if let Some(node) = self.scene.get_node(node_id) {

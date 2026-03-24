@@ -5,7 +5,7 @@ use crate::types::Point;
 use crate::variable::{VariableCollection, VariableBinding, VariableScope, CollectionId, VariableId, VariableValue};
 use crate::types::Color;
 use crate::animation::AnimationStore;
-use crate::branch::{Branch, BranchSnapshot, BranchDiff, compute_diff, merge_snapshots};
+use crate::branch::{Branch, BranchSnapshot, BranchDiff, VisualDiff, compute_diff, compute_visual_diff, merge_snapshots};
 
 fn parse_hex_color(hex: &str) -> Option<Color> {
     let hex = hex.trim_start_matches('#');
@@ -1706,6 +1706,30 @@ impl Scene {
         let branch = self.branches.iter().find(|b| b.id == branch_id)?;
         let current = branch.current_snapshot.as_ref().unwrap_or(&branch.base_snapshot);
         Some(compute_diff(&branch.base_snapshot, current))
+    }
+
+    /// Get visual diff between two branches (with node positions for overlay rendering)
+    pub fn get_visual_diff(&mut self, branch_a_id: u64, branch_b_id: u64) -> Option<VisualDiff> {
+        self.save_current_branch();
+        let snap_a = {
+            let branch = self.branches.iter().find(|b| b.id == branch_a_id)?;
+            branch.current_snapshot.clone().unwrap_or_else(|| branch.base_snapshot.clone())
+        };
+        let snap_b = {
+            let branch = self.branches.iter().find(|b| b.id == branch_b_id)?;
+            branch.current_snapshot.clone().unwrap_or_else(|| branch.base_snapshot.clone())
+        };
+        Some(compute_visual_diff(&snap_a, &snap_b))
+    }
+
+    /// Get visual diff of a branch against its own base snapshot
+    pub fn get_branch_visual_diff(&mut self, branch_id: u64) -> Option<VisualDiff> {
+        if branch_id == self.active_branch_id {
+            self.save_current_branch();
+        }
+        let branch = self.branches.iter().find(|b| b.id == branch_id)?;
+        let current = branch.current_snapshot.as_ref().unwrap_or(&branch.base_snapshot);
+        Some(compute_visual_diff(&branch.base_snapshot, current))
     }
 
     pub fn get_active_branch_id(&self) -> u64 {

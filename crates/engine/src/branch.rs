@@ -38,6 +38,92 @@ pub struct DiffNode {
     pub name: String,
 }
 
+/// Visual diff data with bounding boxes for overlay rendering
+#[derive(Clone, Serialize, Deserialize)]
+pub struct VisualDiff {
+    pub added: Vec<VisualDiffNode>,
+    pub modified: Vec<VisualDiffNode>,
+    pub removed: Vec<VisualDiffNode>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct VisualDiffNode {
+    pub id: NodeId,
+    pub name: String,
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+    /// For modified nodes: previous position/size
+    pub prev_x: Option<f64>,
+    pub prev_y: Option<f64>,
+    pub prev_width: Option<f64>,
+    pub prev_height: Option<f64>,
+}
+
+impl VisualDiffNode {
+    fn from_node(node: &Node, prev: Option<&Node>) -> Self {
+        Self {
+            id: node.id,
+            name: node.name.clone(),
+            x: node.x,
+            y: node.y,
+            width: node.width,
+            height: node.height,
+            prev_x: prev.map(|n| n.x),
+            prev_y: prev.map(|n| n.y),
+            prev_width: prev.map(|n| n.width),
+            prev_height: prev.map(|n| n.height),
+        }
+    }
+
+    fn from_removed(node: &Node) -> Self {
+        Self {
+            id: node.id,
+            name: node.name.clone(),
+            x: node.x,
+            y: node.y,
+            width: node.width,
+            height: node.height,
+            prev_x: None,
+            prev_y: None,
+            prev_width: None,
+            prev_height: None,
+        }
+    }
+}
+
+/// Compute visual diff with node positions for canvas overlay
+pub fn compute_visual_diff(base: &BranchSnapshot, current: &BranchSnapshot) -> VisualDiff {
+    let base_nodes = base.all_node_ids();
+    let current_nodes = current.all_node_ids();
+
+    let mut added = Vec::new();
+    let mut modified = Vec::new();
+    let mut removed = Vec::new();
+
+    for (id, node) in &current_nodes {
+        match base_nodes.get(id) {
+            None => added.push(VisualDiffNode::from_node(node, None)),
+            Some(base_node) => {
+                let cur_json = serde_json::to_string(node).unwrap_or_default();
+                let base_json = serde_json::to_string(base_node).unwrap_or_default();
+                if cur_json != base_json {
+                    modified.push(VisualDiffNode::from_node(node, Some(base_node)));
+                }
+            }
+        }
+    }
+
+    for (id, node) in &base_nodes {
+        if !current_nodes.contains_key(id) {
+            removed.push(VisualDiffNode::from_removed(node));
+        }
+    }
+
+    VisualDiff { added, modified, removed }
+}
+
 impl BranchSnapshot {
     /// Collect all node IDs across all pages
     pub fn all_node_ids(&self) -> HashMap<NodeId, Node> {

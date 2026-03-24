@@ -127,6 +127,40 @@ export function setupBranchPanel(container: HTMLElement, editor: Editor) {
       const actions = document.createElement("div");
       actions.className = "branch-item-actions";
 
+      // Diff overlay button
+      if (branch.id !== activeId) {
+        const diffBtn = document.createElement("button");
+        diffBtn.className = "branch-action-btn";
+        diffBtn.title = `Visual diff "${branch.name}" vs current`;
+        diffBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><path d="M10 7h4M7 10v4"/></svg>`;
+        diffBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const overlay = (editor as any).diffOverlay;
+          if (overlay) {
+            overlay.activate(branch.id, activeId);
+          }
+          closePopups();
+        });
+        actions.appendChild(diffBtn);
+      }
+
+      // Diff against base (own branch changes)
+      if (branch.id === activeId) {
+        const selfDiffBtn = document.createElement("button");
+        selfDiffBtn.className = "branch-action-btn";
+        selfDiffBtn.title = "Show changes since branch base";
+        selfDiffBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><path d="M10 7h4M7 10v4"/></svg>`;
+        selfDiffBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const overlay = (editor as any).diffOverlay;
+          if (overlay) {
+            overlay.activateBranchDiff(branch.id);
+          }
+          closePopups();
+        });
+        actions.appendChild(selfDiffBtn);
+      }
+
       // Merge button (not for active branch)
       if (branch.id !== activeId) {
         const mergeBtn = document.createElement("button");
