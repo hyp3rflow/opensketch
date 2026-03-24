@@ -665,9 +665,21 @@
   - Backward-compatible serde (existing files → single "main" branch)
   - Undo integration for all branch operations
 
+## 완료된 기능 (추가 64)
+- AI layout suggestion:
+  - 선택된 노드들의 공간 배치 분석 (row/column/grid 패턴 감지)
+  - Gap 계산 (평균 간격, nice value 반올림), cross-axis 정렬 감지 (start/center/end/stretch)
+  - Grid 감지: Y좌표 기반 행 그룹핑, 컬럼 수 추론
+  - Confidence score (0-1), 배치 일관성 기반
+  - Floating suggestion card UI: 모드/gap/정렬 표시, Apply/Dismiss 버튼
+  - Apply: 선택 노드를 auto-layout Frame으로 래핑 + 설정 적용
+  - 단축키: Cmd/Ctrl+Shift+L, 컨텍스트 메뉴 "✨ Suggest Layout"
+  - LLM Agent tool: suggest_layout, apply_layout_suggestion
+  - Agent panel 명령: suggest-layout, apply-layout
+  - ai-layout-suggest.ts 단일 파일 구현
+
 ## 다음 할 것
 - Vector network editing (Figma-style vector networks — 포인트 간 다중 연결, fill 영역 자동 감지)
 - Figma → OpenSketch import (.fig 파일 파싱 또는 Figma REST API로 디자인 가져오기)
 - Shared component library (팀 간 공유 가능한 외부 컴포넌트 라이브러리 링크/동기화)
-- AI layout suggestion (선택한 요소들에 대해 AI가 auto-layout 설정 추천)
 - Responsive token system (디자인 토큰 + 브레이크포인트 기반 반응형 프리뷰 자동 전환)

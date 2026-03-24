@@ -3,6 +3,8 @@
  * Connects to OpenAI-compatible APIs with tool calling
  */
 
+import { suggestLayout, suggestLayoutJSON, applyLayoutSuggestion } from "./ai-layout-suggest";
+
 export interface LLMConfig {
   apiKey: string;
   endpoint: string; // e.g. https://api.openai.com/v1
@@ -154,6 +156,10 @@ export function buildToolDefs(): ToolDef[] {
       node_id: num("Node ID"), content: str("Markdown content"), tags: str("Comma-separated tags (optional)"),
     }, ["node_id", "content"]),
     tool("get_notes", "Get all notes on a node", { node_id: num("Node ID") }, ["node_id"]),
+
+    // AI tools
+    tool("suggest_layout", "Analyze selected nodes and suggest auto-layout settings (direction, gap, alignment). Select 2+ nodes first.", {}),
+    tool("apply_layout_suggestion", "Apply AI layout suggestion to selected nodes (wraps in auto-layout frame)", {}),
 
     // Scene tools
     tool("select_node", "Select a node (highlights it)", { node_id: num("Node ID") }, ["node_id"]),
@@ -330,6 +336,17 @@ export function executeTool(name: string, args: Record<string, any>, editor: any
         return engine.get_notes(bi(args.node_id));
 
       // Scene
+      // AI tools
+      case "suggest_layout": {
+        return suggestLayoutJSON(editor);
+      }
+      case "apply_layout_suggestion": {
+        const suggestion = suggestLayout(editor);
+        if (!suggestion) return JSON.stringify({ error: "Select 2+ nodes first" });
+        const frameId = applyLayoutSuggestion(editor, suggestion);
+        return JSON.stringify({ applied: true, frame_id: frameId, ...suggestion });
+      }
+
       case "select_node":
         engine.select(bi(args.node_id));
         editor.requestRender();

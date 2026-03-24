@@ -1,5 +1,6 @@
 import type { Editor } from "../editor";
 import { icons } from "./icons";
+import { suggestLayout, applyLayoutSuggestion, suggestLayoutJSON } from "./ai-layout-suggest";
 
 interface Message {
   role: "user" | "agent" | "system";
@@ -671,6 +672,26 @@ function buildTools(): Tool[] {
         const id = m[1] === "all" ? undefined : +m[1]!;
         const dataUrl = editor.exportPng(id, scale, 10);
         return dataUrl || "Export failed.";
+      },
+    },
+    // === AI Layout ===
+    {
+      name: "suggest-layout",
+      description: "Analyze selected nodes and suggest auto-layout settings",
+      usage: "suggest-layout",
+      pattern: /^suggest-layout$/i,
+      execute: (_m, editor) => suggestLayoutJSON(editor),
+    },
+    {
+      name: "apply-layout",
+      description: "Apply AI-suggested layout to selected nodes (wraps in auto-layout frame)",
+      usage: "apply-layout",
+      pattern: /^apply-layout$/i,
+      execute: (_m, editor) => {
+        const suggestion = suggestLayout(editor);
+        if (!suggestion) return "Select 2+ nodes first.";
+        const frameId = applyLayoutSuggestion(editor, suggestion);
+        return `Applied ${suggestion.mode} layout → frame #${frameId} (${suggestion.reason})`;
       },
     },
     {

@@ -710,3 +710,17 @@ Frame overflow control and content scrolling.
 - [x] Diff preview popup: colored sections (green=added, yellow=modified, red=removed) before merge
 - [x] Backward-compatible serde (existing files auto-migrate to single "main" branch)
 - [x] Undo integration for all branch operations
+
+## AI Layout Suggestion
+- [x] Heuristic analysis: detects row/column/grid arrangement of selected nodes
+- [x] Gap detection: calculates average spacing, rounds to nice values
+- [x] Alignment detection: start/center/end/stretch based on cross-axis position spread
+- [x] Grid detection: groups nodes by rows, detects column count
+- [x] Confidence score: 0-1 based on arrangement consistency
+- [x] Floating suggestion card: shows mode, gap, alignment with Apply/Dismiss buttons
+- [x] Apply: wraps selected nodes in auto-layout Frame with suggested settings
+- [x] Keyboard shortcut: Cmd/Ctrl+Shift+L
+- [x] Context menu: "✨ Suggest Layout" (2+ nodes selected)
+- [x] LLM Agent tools: suggest_layout (analyze), apply_layout_suggestion (execute)
+- [x] Agent panel commands: suggest-layout, apply-layout
+- [x] Auto-dismiss after 15s

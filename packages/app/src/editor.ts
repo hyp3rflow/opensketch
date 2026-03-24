@@ -11,6 +11,7 @@ import { GradientEditor } from "./ui/gradient-editor";
 import { SmartSelectPanel } from "./ui/smart-select";
 import type { CollabClient } from "./collab";
 import { findSpacingHandles, hitTestSpacingHandle, renderSpacingHandles, type SpacingHandle } from "./tools/spacing-handles";
+import { showLayoutSuggestion, dismissSuggestion } from "./ui/ai-layout-suggest";
 
 export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "section" | "image" | "pen" | "star" | "polygon" | "slice" | "connector";
 
@@ -382,6 +383,13 @@ export class Editor {
           }
           this.requestRender();
         }
+        return;
+      }
+
+      // Ctrl/Cmd+Shift+L: AI layout suggestion
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "l" || e.key === "L")) {
+        e.preventDefault();
+        showLayoutSuggestion(this);
         return;
       }
 
@@ -2909,6 +2917,7 @@ export class Editor {
       items.push({ label: "Flatten", shortcut: `${mod}E`, enabled: true, action: () => this.flattenSelection() });
       if (sel.length >= 2) {
         items.push({ label: "Batch Rename…", shortcut: `${mod}⇧R`, enabled: true, action: () => this.showBatchRenameDialog() });
+        items.push({ label: "✨ Suggest Layout", shortcut: `${mod}⇧L`, enabled: true, action: () => showLayoutSuggestion(this) });
       }
       items.push({ separator: true, label: "" });
       items.push({ label: "Select All with Same Fill", enabled: selAfter.length === 1, action: () => this.selectSameFill(selAfter[0]!) });
