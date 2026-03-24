@@ -229,6 +229,13 @@
   - Pure TypeScript implementation (no Rust/WASM changes needed)
   - Snap works with multi-selection (combined bounding box)
   - Guides auto-clear on pointer up
+- [x] **Smart Object Snapping (Point-level)**: Vector/path editing point snapping + angle constraints
+  - Snap anchor points to other path/VN points, node edges/centers, ruler guides
+  - Angle constraint: Shift key → snap to 0°/45°/90° increments (pen tool, anchor drag, handle drag)
+  - Visual feedback: diamond markers (blue=point, green=grid, magenta=edge) + crosshairs
+  - Pen tool: snap new points to existing geometry, Shift+click for angle-constrained placement
+  - VN vertex drag: same snapping behavior as path points
+  - Pure TypeScript implementation (`tools/point-snap.ts`), reuses existing smart-guides infrastructure
 - [x] **Blend modes**: 16 compositing modes (Normal, Multiply, Screen, Overlay, Darken, Lighten, Color Dodge, Color Burn, Hard Light, Soft Light, Difference, Exclusion, Hue, Saturation, Color, Luminosity)
 - [x] **Multi-page support**: multiple pages per document with tab UI
   - Page management: add, remove, rename, duplicate, switch

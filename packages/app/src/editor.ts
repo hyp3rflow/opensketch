@@ -1,5 +1,6 @@
 import type { Engine } from "./wasm/opensketch_engine";
 import { computeSnap, renderGuides, type SnapGuide } from "./tools/smart-guides";
+import { computePointSnap, renderPointSnapIndicators, collectPathPointTargets, addRulerTargets, constrainAngle, type PointSnapIndicator, type PointSnapTarget } from "./tools/point-snap";
 import { computeMeasureLines, renderMeasureLines, renderTargetHighlight, type MeasureLine } from "./tools/measure";
 import type { RulersAPI } from "./ui/rulers";
 import { toggleShortcutsPanel, isShortcutsPanelVisible, closeShortcutsPanel } from "./ui/shortcuts-panel";
@@ -79,6 +80,7 @@ export class Editor {
 
   // Smart guides state
   private _snapGuides: SnapGuide[] = [];
+  private _pointSnapIndicators: PointSnapIndicator[] = [];
   private _measureLines: MeasureLine[] = [];
   private _measureTargetBounds: { x: number; y: number; w: number; h: number } | null = null;
   private _altHeld = false;
@@ -700,8 +702,30 @@ export class Editor {
     }
 
     if (this.currentTool === "pen") {
-      const sx = this.engine.screen_to_scene_x(x, y);
-      const sy = this.engine.screen_to_scene_y(x, y);
+      let sx = this.engine.screen_to_scene_x(x, y);
+      let sy = this.engine.screen_to_scene_y(x, y);
+      // Snap pen point to existing points/edges
+      {
+        const excludeId = this._penPathId ?? -1;
+        const targets = this._collectPointSnapTargets(excludeId, -1);
+        const zoom = this.engine.get_zoom();
+        const threshold = SNAP_THRESHOLD_PX / zoom;
+        // Angle constraint: if shift held and we have previous point, constrain angle
+        let angleOrigin: { x: number; y: number } | undefined;
+        if (e.shiftKey && this._penPathId != null) {
+          const count = this.engine.path_point_count(this._penPathId);
+          if (count > 0) {
+            const data = JSON.parse(this.engine.path_get_data(this._penPathId) || "{}");
+            if (data.points && data.points.length > 0) {
+              const last = data.points[data.points.length - 1];
+              angleOrigin = { x: last.x, y: last.y };
+            }
+          }
+        }
+        const snap = computePointSnap(sx, sy, targets, threshold, e.shiftKey, angleOrigin);
+        sx = snap.x; sy = snap.y;
+        this._pointSnapIndicators = snap.indicators;
+      }
 
       // Check if clicking near the first point to close the path
       if (this._penPathId != null) {
@@ -806,8 +830,14 @@ export class Editor {
 
     // VN edit mode vertex dragging
     if (this._vnEditMode && this._vnDraggingVertex != null && this._vnEditNodeId != null) {
-      const sx = this.engine.screen_to_scene_x(e.offsetX, e.offsetY);
-      const sy = this.engine.screen_to_scene_y(e.offsetX, e.offsetY);
+      let sx = this.engine.screen_to_scene_x(e.offsetX, e.offsetY);
+      let sy = this.engine.screen_to_scene_y(e.offsetX, e.offsetY);
+      // Point snapping
+      const targets = this._collectPointSnapTargets(this._vnEditNodeId, -1);
+      const threshold = SNAP_THRESHOLD_PX / this.engine.get_zoom();
+      const snap = computePointSnap(sx, sy, targets, threshold, e.shiftKey);
+      sx = snap.x; sy = snap.y;
+      this._pointSnapIndicators = snap.indicators;
       this.engine.vn_update_vertex(BigInt(this._vnEditNodeId), BigInt(this._vnDraggingVertex), sx, sy);
       this.needsRender = true;
       return;
@@ -815,12 +845,18 @@ export class Editor {
 
     // Path edit mode dragging
     if (this._pathEditMode && this._pathEditDragType && this._pathEditNodeId != null && this._pathEditSelectedPoint != null) {
-      const sx = this.engine.screen_to_scene_x(e.offsetX, e.offsetY);
-      const sy = this.engine.screen_to_scene_y(e.offsetX, e.offsetY);
+      let sx = this.engine.screen_to_scene_x(e.offsetX, e.offsetY);
+      let sy = this.engine.screen_to_scene_y(e.offsetX, e.offsetY);
       const idx = this._pathEditSelectedPoint;
       const nodeId = this._pathEditNodeId;
 
       if (this._pathEditDragType === 'anchor') {
+        // Point snapping for anchor drag
+        const targets = this._collectPointSnapTargets(nodeId, idx);
+        const threshold = SNAP_THRESHOLD_PX / this.engine.get_zoom();
+        const snap = computePointSnap(sx, sy, targets, threshold, e.shiftKey);
+        sx = snap.x; sy = snap.y;
+        this._pointSnapIndicators = snap.indicators;
         this.engine.path_set_point(nodeId, idx, sx, sy);
         // Move handles along with anchor
         if (this._pathEditHandleOffsets) {
@@ -829,6 +865,18 @@ export class Editor {
           this.engine.path_set_handle_out(nodeId, idx, sx + o.hox, sy + o.hoy);
         }
       } else if (this._pathEditDragType === 'handle_in') {
+        // Angle constraint for handle (Shift)
+        if (e.shiftKey) {
+          const points = this.getPathPoints();
+          if (points) {
+            const p = points[idx];
+            const c = constrainAngle(p.x, p.y, sx, sy);
+            sx = c.x; sy = c.y;
+            this._pointSnapIndicators = [{ x: sx, y: sy, kind: 'angle' }];
+          }
+        } else {
+          this._pointSnapIndicators = [];
+        }
         this.engine.path_set_handle_in(nodeId, idx, sx, sy);
         // Mirror handle_out unless Alt is held
         if (!e.altKey) {
@@ -841,6 +889,18 @@ export class Editor {
           }
         }
       } else if (this._pathEditDragType === 'handle_out') {
+        // Angle constraint for handle (Shift)
+        if (e.shiftKey) {
+          const points = this.getPathPoints();
+          if (points) {
+            const p = points[idx];
+            const c = constrainAngle(p.x, p.y, sx, sy);
+            sx = c.x; sy = c.y;
+            this._pointSnapIndicators = [{ x: sx, y: sy, kind: 'angle' }];
+          }
+        } else {
+          this._pointSnapIndicators = [];
+        }
         this.engine.path_set_handle_out(nodeId, idx, sx, sy);
         if (!e.altKey) {
           const points = this.getPathPoints();
@@ -1122,6 +1182,7 @@ export class Editor {
     }
 
     this._snapGuides = [];
+    this._pointSnapIndicators = [];
     this.drag = null;
   }
 
@@ -1791,6 +1852,14 @@ export class Editor {
     renderGuides(this.ctx, this._snapGuides, zoom, panX, panY);
   }
 
+  private renderPointSnap() {
+    if (this._pointSnapIndicators.length === 0) return;
+    const zoom = this.engine.get_zoom();
+    const panX = this.engine.get_pan_x();
+    const panY = this.engine.get_pan_y();
+    renderPointSnapIndicators(this.ctx, this._pointSnapIndicators, zoom, panX, panY);
+  }
+
   private renderMarquee() {
     if (!this.marquee) return;
     const { startX, startY, currentX, currentY } = this.marquee;
@@ -1927,6 +1996,7 @@ export class Editor {
         this.renderLayoutGrids();
         this.renderGuideLines();
         this.renderSmartGuides();
+        this.renderPointSnap();
         this.renderMeasure();
         this.renderPathEditOverlay();
         this.renderVNEditOverlay();
@@ -2246,6 +2316,18 @@ export class Editor {
     }
     if (!isFinite(minX)) return null;
     return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+  }
+
+  /**
+   * Collect point snap targets for path/VN editing.
+   * Includes other path points, node edges/centers, and ruler guides.
+   */
+  private _collectPointSnapTargets(excludeNodeId: number, excludePointIndex: number): PointSnapTarget[] {
+    const layers = JSON.parse(this.engine.get_layer_list());
+    const nodeIds = layers.map((l: any) => l.id as number);
+    const targets = collectPathPointTargets(this.engine, nodeIds, excludeNodeId, excludePointIndex);
+    addRulerTargets(targets, this._rulers ?? null);
+    return targets;
   }
 
   selectNode(id: number | bigint) {
