@@ -162,6 +162,38 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
             buf.push_str(&attrs);
         }
         NodeKind::Text { content, font_size, font_family, line_height, text_align, font_weight, font_style, text_decoration, letter_spacing, paragraph_spacing } => {
+            // Text-on-path SVG export
+            if let Some(path_id) = node.text_path_id {
+                if let Some(path_node) = scene.get_node(path_id) {
+                    if let NodeKind::Path { ref points, closed } = path_node.kind {
+                        let path_d = crate::path_utils::path_to_svg_d(points, closed);
+                        let def_id = format!("textpath-{}", node.id);
+                        // Emit defs with the path
+                        buf.push_str(&format!("<defs><path id=\"{}\" d=\"{}\"/></defs>\n", def_id, path_d));
+                        let mut attrs = String::from("<text");
+                        attrs.push_str(&format!(r#" font-family="{}""#, escape_xml(font_family)));
+                        attrs.push_str(&format!(r#" font-size="{}""#, font_size));
+                        if *font_weight != 400 {
+                            attrs.push_str(&format!(r#" font-weight="{}""#, font_weight));
+                        }
+                        if *font_style == FontStyle::Italic {
+                            attrs.push_str(r#" font-style="italic""#);
+                        }
+                        if let Some(fill) = node.visible_fills().next() {
+                            let c = fill.color();
+                            attrs.push_str(&format!(r#" fill="{}""#, color_to_hex(c.r, c.g, c.b)));
+                            if c.a < 1.0 { attrs.push_str(&format!(r#" fill-opacity="{}""#, c.a)); }
+                        }
+                        if node.opacity < 1.0 { attrs.push_str(&format!(r#" opacity="{}""#, node.opacity)); }
+                        let offset_pct = (node.text_path_offset * 100.0).round();
+                        attrs.push_str(&format!("><textPath href=\"#{}\" startOffset=\"{}%\">{}</textPath></text>\n",
+                            def_id, offset_pct, escape_xml(content)));
+                        buf.push_str(&attrs);
+                        return;
+                    }
+                }
+            }
+
             let mut attrs = String::new();
             attrs.push_str("<text");
             // Position at node origin

@@ -653,3 +653,13 @@ Frame overflow control and content scrolling.
 - [x] Filters out invisible and absolute-positioned children
 - [x] Integrated into editor select tool (mousedown/mousemove/mouseup + render loop)
 - [x] Undo integration (push_undo before drag starts)
+
+### Text on Path (SVG textPath style)
+- [x] Node.text_path_id: Optional<NodeId> — links a Text node to a Path node
+- [x] Node.text_path_offset: f64 (0.0–1.0) — start offset along the path
+- [x] path_utils.rs: path_length, point_at_length, text_positions_on_path, path_to_svg_d
+- [x] Canvas rendering: per-character positioning along bezier path with tangent rotation
+- [x] SVG export: <defs><path/></defs> + <text><textPath href startOffset>
+- [x] WASM: set_text_path, clear_text_path, set_text_path_offset, get_text_path_info, get_text_on_path_positions, get_path_svg_d
+- [x] Properties panel: Text Path section — attach/detach, offset slider, path name display
+- [x] Backward-compatible serde (default None/0.0)

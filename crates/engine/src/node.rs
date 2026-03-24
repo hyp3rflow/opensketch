@@ -912,6 +912,12 @@ pub struct Node {
     /// but remains a child of the frame (Figma "Absolute position")
     #[serde(default)]
     pub absolute_position: bool,
+    /// Text-on-path: ID of a Path node this Text follows (None = normal text)
+    #[serde(default)]
+    pub text_path_id: Option<NodeId>,
+    /// Text-on-path offset along the path (0.0 = start, 1.0 = end)
+    #[serde(default)]
+    pub text_path_offset: f64,
 }
 
 impl Node {
@@ -959,6 +965,8 @@ impl Node {
             bitmap_filter: None,
             breakpoints: vec![],
             absolute_position: false,
+            text_path_id: None,
+            text_path_offset: 0.0,
         }
     }
 

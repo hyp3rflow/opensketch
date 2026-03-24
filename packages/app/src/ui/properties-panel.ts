@@ -2126,6 +2126,105 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       psRow.appendChild(psInput);
       textSection.appendChild(psRow);
 
+      // Text on Path
+      {
+        const topInfo = editor.engine.get_text_path_info(BigInt(id));
+        const pathInfo = topInfo !== "null" ? JSON.parse(topInfo) : null;
+
+        const topRow = document.createElement("div");
+        topRow.className = "prop-row";
+        topRow.style.marginTop = "6px";
+        const topLabel = document.createElement("span");
+        topLabel.className = "prop-label";
+        topLabel.textContent = "Text Path";
+        topRow.appendChild(topLabel);
+
+        if (pathInfo) {
+          // Show attached path info + offset slider + detach button
+          const pathName = (() => {
+            try {
+              const pj = editor.engine.get_node_json(BigInt(pathInfo.path_id));
+              return pj ? JSON.parse(pj).name : `Path ${pathInfo.path_id}`;
+            } catch { return `Path ${pathInfo.path_id}`; }
+          })();
+          const nameSpan = document.createElement("span");
+          nameSpan.style.cssText = "font-size:11px;color:#8b8fa3;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
+          nameSpan.textContent = pathName;
+          topRow.appendChild(nameSpan);
+
+          const detachBtn = document.createElement("button");
+          detachBtn.className = "prop-btn";
+          detachBtn.textContent = "✕";
+          detachBtn.title = "Detach from path";
+          detachBtn.addEventListener("click", () => {
+            ensureUndo();
+            editor.engine.clear_text_path(BigInt(id));
+            editor.requestRender();
+            refresh(ids);
+          });
+          topRow.appendChild(detachBtn);
+          textSection.appendChild(topRow);
+
+          // Offset slider
+          const offRow = document.createElement("div");
+          offRow.className = "prop-row";
+          const offLabel = document.createElement("span");
+          offLabel.className = "prop-label";
+          offLabel.textContent = "Offset";
+          offRow.appendChild(offLabel);
+          const offSlider = document.createElement("input");
+          offSlider.type = "range";
+          offSlider.min = "0";
+          offSlider.max = "100";
+          offSlider.value = String(Math.round((pathInfo.offset ?? 0) * 100));
+          offSlider.style.cssText = "flex:1;";
+          offSlider.addEventListener("input", () => {
+            editor.engine.set_text_path_offset(BigInt(id), parseInt(offSlider.value) / 100);
+            editor.requestRender();
+          });
+          offSlider.addEventListener("change", () => {
+            ensureUndo();
+          });
+          offRow.appendChild(offSlider);
+          textSection.appendChild(offRow);
+        } else {
+          // Show "Attach to path" button — requires a Path node in selection or scene
+          const attachBtn = document.createElement("button");
+          attachBtn.className = "prop-btn";
+          attachBtn.style.cssText = "font-size:11px;padding:2px 8px;";
+          attachBtn.textContent = "Attach to Path…";
+          attachBtn.title = "Select a Path node, then click to attach text";
+          attachBtn.addEventListener("click", () => {
+            // Find a Path node in the scene to attach to (prefer selected paths)
+            const sel = Array.from(editor.engine.get_selection()).map(Number);
+            let pathId: number | null = null;
+            for (const sid of sel) {
+              if (sid === id) continue;
+              try {
+                const nj = editor.engine.get_node_json(BigInt(sid));
+                if (nj) {
+                  const nd = JSON.parse(nj);
+                  if (nd.kind === "Path" || (nd.kind && typeof nd.kind === "object" && "Path" in nd.kind)) {
+                    pathId = sid;
+                    break;
+                  }
+                }
+              } catch {}
+            }
+            if (pathId) {
+              ensureUndo();
+              editor.engine.set_text_path(BigInt(id), BigInt(pathId));
+              editor.requestRender();
+              refresh(ids);
+            } else {
+              alert("Select both a Text node and a Path node, then click 'Attach to Path'.");
+            }
+          });
+          topRow.appendChild(attachBtn);
+          textSection.appendChild(topRow);
+        }
+      }
+
       // Font family
       const fonts = googleFonts;
       const familyRow = document.createElement("div");

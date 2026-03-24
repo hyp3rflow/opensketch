@@ -11,6 +11,7 @@ mod boolean_ops;
 pub mod styles;
 pub mod variable;
 mod design_tokens;
+pub mod path_utils;
 
 use wasm_bindgen::prelude::*;
 use web_sys::CanvasRenderingContext2d;
@@ -3688,6 +3689,86 @@ impl Engine {
             }
         }
         format!("{{\"x\":0,\"y\":0,\"width\":0,\"height\":0}}")
+    }
+
+    // =============================================
+    // Text on Path
+    // =============================================
+
+    /// Attach a text node to a path node (text follows the path curve).
+    pub fn set_text_path(&mut self, text_id: u64, path_id: u64) {
+        if let Some(node) = self.scene.get_node_mut(text_id) {
+            if let NodeKind::Text { .. } = &node.kind {
+                node.text_path_id = if path_id == 0 { None } else { Some(path_id) };
+            }
+        }
+    }
+
+    /// Detach text from path (revert to normal text).
+    pub fn clear_text_path(&mut self, text_id: u64) {
+        if let Some(node) = self.scene.get_node_mut(text_id) {
+            node.text_path_id = None;
+            node.text_path_offset = 0.0;
+        }
+    }
+
+    /// Set the start offset (0.0–1.0) for text-on-path.
+    pub fn set_text_path_offset(&mut self, text_id: u64, offset: f64) {
+        if let Some(node) = self.scene.get_node_mut(text_id) {
+            node.text_path_offset = offset.clamp(0.0, 1.0);
+        }
+    }
+
+    /// Get text-on-path info as JSON: { path_id, offset } or null.
+    pub fn get_text_path_info(&self, text_id: u64) -> String {
+        if let Some(node) = self.scene.get_node(text_id) {
+            if let Some(pid) = node.text_path_id {
+                return serde_json::json!({
+                    "path_id": pid,
+                    "offset": node.text_path_offset,
+                }).to_string();
+            }
+        }
+        "null".to_string()
+    }
+
+    /// Get glyph positions for text-on-path rendering.
+    /// char_widths_json: JSON array of character widths (measured in TS).
+    /// Returns JSON array of {x, y, angle} for each character.
+    pub fn get_text_on_path_positions(&self, text_id: u64, char_widths_json: &str) -> String {
+        let node = match self.scene.get_node(text_id) {
+            Some(n) => n,
+            None => return "[]".to_string(),
+        };
+        let path_id = match node.text_path_id {
+            Some(id) => id,
+            None => return "[]".to_string(),
+        };
+        let offset = node.text_path_offset;
+        let path_node = match self.scene.get_node(path_id) {
+            Some(n) => n,
+            None => return "[]".to_string(),
+        };
+        let (points, closed) = match &path_node.kind {
+            NodeKind::Path { points, closed } => (points, *closed),
+            _ => return "[]".to_string(),
+        };
+        let widths: Vec<f64> = serde_json::from_str(char_widths_json).unwrap_or_default();
+        let samples = path_utils::text_positions_on_path(points, closed, &widths, offset);
+        let result: Vec<serde_json::Value> = samples.iter().map(|s| {
+            serde_json::json!({"x": s.x, "y": s.y, "angle": s.angle})
+        }).collect();
+        serde_json::to_string(&result).unwrap_or_else(|_| "[]".to_string())
+    }
+
+    /// Get the SVG path d-string for a path node (for SVG textPath).
+    pub fn get_path_svg_d(&self, path_id: u64) -> String {
+        if let Some(node) = self.scene.get_node(path_id) {
+            if let NodeKind::Path { ref points, closed } = node.kind {
+                return path_utils::path_to_svg_d(points, closed);
+            }
+        }
+        String::new()
     }
 }
 

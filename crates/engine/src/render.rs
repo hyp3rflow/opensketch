@@ -379,7 +379,7 @@ impl Renderer {
         match &node.kind {
             NodeKind::Rect => self.render_rect(ctx, node),
             NodeKind::Ellipse => self.render_ellipse(ctx, node),
-            NodeKind::Text { content, font_size, font_family, line_height, text_align, font_weight, font_style, text_decoration, letter_spacing, paragraph_spacing } => self.render_text(ctx, node, content, *font_size, font_family, *line_height, text_align, *font_weight, font_style, text_decoration, *letter_spacing, *paragraph_spacing),
+            NodeKind::Text { content, font_size, font_family, line_height, text_align, font_weight, font_style, text_decoration, letter_spacing, paragraph_spacing } => self.render_text(ctx, node, scene, content, *font_size, font_family, *line_height, text_align, *font_weight, font_style, text_decoration, *letter_spacing, *paragraph_spacing),
             NodeKind::Frame => self.render_frame(ctx, node, scene),
             NodeKind::Group => { self.render_children(ctx, &node.children, scene); }
             NodeKind::Slot { .. } => self.render_slot(ctx, node),
@@ -428,7 +428,17 @@ impl Renderer {
         self.apply_fill_stroke(ctx, node);
     }
 
-    fn render_text(&self, ctx: &CanvasRenderingContext2d, node: &Node, content: &str, font_size: f64, font_family: &str, line_height: f64, text_align: &TextAlign, font_weight: u16, font_style: &FontStyle, text_decoration: &crate::node::TextDecoration, letter_spacing: f64, paragraph_spacing: f64) {
+    fn render_text(&self, ctx: &CanvasRenderingContext2d, node: &Node, scene: &Scene, content: &str, font_size: f64, font_family: &str, line_height: f64, text_align: &TextAlign, font_weight: u16, font_style: &FontStyle, text_decoration: &crate::node::TextDecoration, letter_spacing: f64, paragraph_spacing: f64) {
+        // Text-on-path rendering
+        if let Some(path_id) = node.text_path_id {
+            if let Some(path_node) = scene.get_node(path_id) {
+                if let NodeKind::Path { ref points, closed } = path_node.kind {
+                    self.render_text_on_path(ctx, node, content, font_size, font_family, font_weight, font_style, points, closed);
+                    return;
+                }
+            }
+        }
+
         if let Some(fill) = node.visible_fills().last() {
             let fill_css = fill.color().to_css();
             ctx.set_fill_style_str(&fill_css);
@@ -560,6 +570,40 @@ impl Renderer {
                 );
             }
         }
+    }
+
+    fn render_text_on_path(&self, ctx: &CanvasRenderingContext2d, node: &Node, content: &str, font_size: f64, font_family: &str, font_weight: u16, font_style: &FontStyle, points: &[crate::node::PathPoint], closed: bool) {
+        if content.is_empty() || points.len() < 2 { return; }
+
+        let fill_css = node.visible_fills().last()
+            .map(|f| f.color().to_css())
+            .unwrap_or_else(|| "rgba(0,0,0,1)".to_string());
+        ctx.set_fill_style_str(&fill_css);
+        let font_str = Self::build_font_string(font_size, font_family, font_weight, font_style);
+        ctx.set_font(&font_str);
+        ctx.set_text_baseline("alphabetic");
+        ctx.set_text_align("center");
+
+        // Measure each character width
+        let chars: Vec<char> = content.chars().collect();
+        let widths: Vec<f64> = chars.iter().map(|c| {
+            ctx.measure_text(&c.to_string()).map(|m| m.width()).unwrap_or(font_size * 0.6)
+        }).collect();
+
+        // Get positions along path
+        let samples = crate::path_utils::text_positions_on_path(points, closed, &widths, node.text_path_offset);
+
+        // Render each character rotated along the path
+        for (i, sample) in samples.iter().enumerate() {
+            if i >= chars.len() { break; }
+            ctx.save();
+            ctx.translate(sample.x, sample.y).ok();
+            ctx.rotate(sample.angle).ok();
+            ctx.fill_text(&chars[i].to_string(), 0.0, -font_size * 0.15).ok();
+            ctx.restore();
+        }
+
+        ctx.set_text_align("start");
     }
 
     fn render_frame(&self, ctx: &CanvasRenderingContext2d, node: &Node, scene: &Scene) {
