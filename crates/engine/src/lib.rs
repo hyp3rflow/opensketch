@@ -3729,6 +3729,11 @@ impl Engine {
         self.scene.get_comments_for_page().len() as u32
     }
 
+    /// Export all comments as Markdown report
+    pub fn export_comments_markdown(&self) -> String {
+        self.scene.export_comments_markdown()
+    }
+
     pub fn select_all(&mut self) {
         self.scene.select_all();
     }

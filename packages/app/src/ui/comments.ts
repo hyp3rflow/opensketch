@@ -293,7 +293,10 @@ export function setupCommentsPanel(container: HTMLElement, editor: Editor, overl
       <div style="padding:12px;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
           <span style="font-size:12px;color:#999;">${comments.length} comment${comments.length !== 1 ? "s" : ""}</span>
-          <button id="add-comment-btn" style="padding:4px 10px;border:none;background:#4a90d9;color:white;border-radius:4px;cursor:pointer;font-size:11px;">+ Add</button>
+          <div style="display:flex;gap:4px;">
+            <button id="export-comments-btn" style="padding:4px 10px;border:1px solid #555;background:transparent;color:#aaa;border-radius:4px;cursor:pointer;font-size:11px;" title="Export as Markdown">↓ Export</button>
+            <button id="add-comment-btn" style="padding:4px 10px;border:none;background:#4a90d9;color:white;border-radius:4px;cursor:pointer;font-size:11px;">+ Add</button>
+          </div>
         </div>
         ${unresolved.length === 0 && resolved.length === 0 ? '<div style="color:#666;font-size:12px;text-align:center;padding:20px 0;">No comments yet.<br>Click + Add or press C to add one.</div>' : ""}
         ${unresolved.map((c) => commentCard(c, formatTime)).join("")}
@@ -308,6 +311,17 @@ export function setupCommentsPanel(container: HTMLElement, editor: Editor, overl
 
     container.querySelector("#add-comment-btn")?.addEventListener("click", () => {
       overlay.toggleCommentMode();
+    });
+
+    container.querySelector("#export-comments-btn")?.addEventListener("click", () => {
+      const md = editor.engine.export_comments_markdown();
+      const blob = new Blob([md], { type: "text/markdown" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "comments-report.md";
+      a.click();
+      URL.revokeObjectURL(url);
     });
 
     container.querySelectorAll(".comment-card").forEach((card) => {

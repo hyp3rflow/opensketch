@@ -921,6 +921,172 @@ impl Scene {
         self.comments.iter().find(|c| c.id == comment_id)
     }
 
+    /// Export all comments as a Markdown report
+    pub fn export_comments_markdown(&self) -> String {
+        self.export_annotations_markdown()
+    }
+
+    /// Export all annotations (comments + node notes) as Markdown report
+    pub fn export_annotations_markdown(&self) -> String {
+        let mut md = String::from("# Annotations Report\n\n");
+        md.push_str("_Generated from OpenSketch_\n\n---\n\n");
+
+        // === COMMENTS SECTION ===
+        md.push_str("## 💬 Comments\n\n");
+
+        let mut page_map: std::collections::BTreeMap<u64, (String, Vec<&Comment>)> = std::collections::BTreeMap::new();
+        for page in &self.pages {
+            page_map.insert(page.id, (page.name.clone(), Vec::new()));
+        }
+        for c in &self.comments {
+            page_map.entry(c.page_id).or_insert_with(|| (format!("Page {}", c.page_id), Vec::new())).1.push(c);
+        }
+
+        let mut has_comments = false;
+        let mut total_open = 0usize;
+        let mut total_resolved = 0usize;
+
+        for (_pid, (page_name, comments)) in &page_map {
+            if comments.is_empty() { continue; }
+            has_comments = true;
+            let open: Vec<_> = comments.iter().filter(|c| !c.resolved).collect();
+            let resolved: Vec<_> = comments.iter().filter(|c| c.resolved).collect();
+            total_open += open.len();
+            total_resolved += resolved.len();
+
+            md.push_str(&format!("### 📄 {}\n\n", page_name));
+
+            if !open.is_empty() {
+                md.push_str(&format!("#### Open ({})\n\n", open.len()));
+                for c in &open {
+                    self.format_comment_rich(&mut md, c);
+                }
+            }
+            if !resolved.is_empty() {
+                md.push_str(&format!("#### ✅ Resolved ({})\n\n", resolved.len()));
+                for c in &resolved {
+                    self.format_comment_rich(&mut md, c);
+                }
+            }
+        }
+        if !has_comments {
+            md.push_str("_No comments._\n\n");
+        } else {
+            md.push_str(&format!("> **Summary:** {} open, {} resolved, {} total\n\n", total_open, total_resolved, total_open + total_resolved));
+        }
+
+        // === NODE NOTES SECTION ===
+        md.push_str("---\n\n## 📝 Node Notes\n\n");
+
+        let mut noted_nodes: Vec<&Node> = self.nodes.values()
+            .filter(|n| !n.notes.is_empty())
+            .collect();
+        noted_nodes.sort_by_key(|n| n.id);
+
+        if noted_nodes.is_empty() {
+            md.push_str("_No node notes._\n\n");
+        } else {
+            for node in &noted_nodes {
+                md.push_str(&format!("### {} `{:?}`\n\n", node.name, node.kind_name()));
+                for note in &node.notes {
+                    if !note.tags.is_empty() {
+                        let tags: Vec<String> = note.tags.iter().map(|t| format!("`{}`", t)).collect();
+                        md.push_str(&format!("**Tags:** {}  \n", tags.join(", ")));
+                    }
+                    md.push_str(&note.content);
+                    md.push_str("\n\n");
+                }
+            }
+            md.push_str(&format!("> **Total:** {} nodes with notes\n\n", noted_nodes.len()));
+        }
+
+        md
+    }
+
+    /// Export annotations as JSON (for programmatic use)
+    pub fn export_annotations_json(&self) -> String {
+        #[derive(Serialize)]
+        struct AnnotationExport {
+            comments: Vec<CommentExport>,
+            notes: Vec<NoteExport>,
+        }
+        #[derive(Serialize)]
+        struct CommentExport {
+            id: u64,
+            author: String,
+            text: String,
+            x: f64,
+            y: f64,
+            resolved: bool,
+            page: String,
+            node_name: Option<String>,
+            replies: Vec<ReplyExport>,
+        }
+        #[derive(Serialize)]
+        struct ReplyExport {
+            author: String,
+            text: String,
+        }
+        #[derive(Serialize)]
+        struct NoteExport {
+            node_id: u64,
+            node_name: String,
+            node_kind: String,
+            tags: Vec<String>,
+            content: String,
+        }
+
+        let page_names: HashMap<u64, String> = self.pages.iter().map(|p| (p.id, p.name.clone())).collect();
+
+        let comments: Vec<CommentExport> = self.comments.iter().map(|c| {
+            CommentExport {
+                id: c.id,
+                author: c.author.clone(),
+                text: c.text.clone(),
+                x: c.x,
+                y: c.y,
+                resolved: c.resolved,
+                page: page_names.get(&c.page_id).cloned().unwrap_or_else(|| format!("Page {}", c.page_id)),
+                node_name: c.node_id.and_then(|nid| self.nodes.get(&nid).map(|n| n.name.clone())),
+                replies: c.replies.iter().map(|r| ReplyExport { author: r.author.clone(), text: r.text.clone() }).collect(),
+            }
+        }).collect();
+
+        let notes: Vec<NoteExport> = self.nodes.values()
+            .filter(|n| !n.notes.is_empty())
+            .flat_map(|node| {
+                node.notes.iter().map(move |note| NoteExport {
+                    node_id: node.id,
+                    node_name: node.name.clone(),
+                    node_kind: node.kind_name().to_string(),
+                    tags: note.tags.clone(),
+                    content: note.content.clone(),
+                })
+            }).collect();
+
+        serde_json::to_string_pretty(&AnnotationExport { comments, notes }).unwrap_or_else(|_| "{}".to_string())
+    }
+
+    fn format_comment_rich(&self, md: &mut String, c: &Comment) {
+        let node_ref = match c.node_id {
+            Some(nid) => {
+                if let Some(node) = self.nodes.get(&nid) {
+                    format!(" → **{}**", node.name)
+                } else {
+                    format!(" → Node #{}", nid)
+                }
+            }
+            None => String::new(),
+        };
+
+        md.push_str(&format!("- **{}**{}: {}\n", c.author, node_ref, c.text));
+        md.push_str(&format!("  _at ({:.0}, {:.0})_\n", c.x, c.y));
+        for r in &c.replies {
+            md.push_str(&format!("  - **{}**: {}\n", r.author, r.text));
+        }
+        md.push('\n');
+    }
+
     // =============================================
     // Variable Collections
     // =============================================

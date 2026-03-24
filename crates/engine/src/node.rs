@@ -937,6 +937,26 @@ pub struct Node {
 }
 
 impl Node {
+    pub fn kind_name(&self) -> &str {
+        match &self.kind {
+            NodeKind::Rect => "Rect",
+            NodeKind::Ellipse => "Ellipse",
+            NodeKind::Text { .. } => "Text",
+            NodeKind::Frame => "Frame",
+            NodeKind::Group => "Group",
+            NodeKind::Slot { .. } => "Slot",
+            NodeKind::Instance { .. } => "Instance",
+            NodeKind::Image { .. } => "Image",
+            NodeKind::Star { .. } => "Star",
+            NodeKind::Polygon { .. } => "Polygon",
+            NodeKind::Path { .. } => "Path",
+            NodeKind::Section => "Section",
+            NodeKind::Slice => "Slice",
+            NodeKind::Connector { .. } => "Connector",
+            NodeKind::VectorNetwork { .. } => "VectorNetwork",
+        }
+    }
+
     pub fn new(id: NodeId, kind: NodeKind) -> Self {
         Self {
             id,

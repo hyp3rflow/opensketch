@@ -744,3 +744,8 @@ Frame overflow control and content scrolling.
 - [x] WASM: find_text, replace_text, replace_all_text, find_by_color, replace_color
 - [x] TS: find-replace-panel.ts, Cmd+F shortcut, Esc to close
 - [x] Undo integration (push_undo before replace operations)
+
+### Annotation Export (Markdown report)
+- [x] Rust: Scene.export_comments_markdown() — grouped by page, open/resolved sections, replies
+- [x] WASM: Engine.export_comments_markdown() binding
+- [x] TS: Comments panel "↓ Export" button → downloads `comments-report.md`
