@@ -2441,6 +2441,148 @@ impl Engine {
     }
 
     // =============================================
+    // Component Documentation
+    // =============================================
+
+    /// Get component documentation as JSON
+    pub fn get_component_doc(&self, comp_id: u64) -> String {
+        match self.components.get(comp_id) {
+            Some(comp) => serde_json::to_string(&serde_json::json!({
+                "id": comp.id,
+                "name": comp.name,
+                "description": comp.description,
+                "guidelines": comp.doc.guidelines,
+                "tags": comp.doc.tags,
+                "links": comp.doc.links.iter().map(|(l, u)| serde_json::json!({"label": l, "url": u})).collect::<Vec<_>>(),
+                "prop_docs": comp.doc.prop_docs.iter().map(|p| serde_json::json!({"name": p.name, "description": p.description, "default": p.default_display})).collect::<Vec<_>>(),
+                "examples": comp.doc.examples.iter().map(|e| serde_json::json!({"title": e.title, "description": e.description})).collect::<Vec<_>>(),
+                "changelog": comp.doc.changelog,
+            })).unwrap_or_else(|_| "null".into()),
+            None => "null".into(),
+        }
+    }
+
+    /// Set component description
+    pub fn set_component_description(&mut self, comp_id: u64, desc: &str) -> bool {
+        if let Some(comp) = self.components.get_mut(comp_id) {
+            comp.description = desc.to_string();
+            true
+        } else { false }
+    }
+
+    /// Set component guidelines (markdown)
+    pub fn set_component_guidelines(&mut self, comp_id: u64, guidelines: &str) -> bool {
+        if let Some(comp) = self.components.get_mut(comp_id) {
+            comp.doc.guidelines = guidelines.to_string();
+            true
+        } else { false }
+    }
+
+    /// Set component tags (comma-separated)
+    pub fn set_component_tags(&mut self, comp_id: u64, tags_csv: &str) -> bool {
+        if let Some(comp) = self.components.get_mut(comp_id) {
+            comp.doc.tags = tags_csv.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
+            true
+        } else { false }
+    }
+
+    /// Add a link to component docs
+    pub fn add_component_link(&mut self, comp_id: u64, label: &str, url: &str) -> bool {
+        if let Some(comp) = self.components.get_mut(comp_id) {
+            comp.doc.links.push((label.to_string(), url.to_string()));
+            true
+        } else { false }
+    }
+
+    /// Remove a link by index
+    pub fn remove_component_link(&mut self, comp_id: u64, index: u32) -> bool {
+        if let Some(comp) = self.components.get_mut(comp_id) {
+            let i = index as usize;
+            if i < comp.doc.links.len() {
+                comp.doc.links.remove(i);
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Set property documentation
+    pub fn set_component_prop_doc(&mut self, comp_id: u64, prop_name: &str, description: &str, default_display: &str) -> bool {
+        if let Some(comp) = self.components.get_mut(comp_id) {
+            if let Some(pd) = comp.doc.prop_docs.iter_mut().find(|p| p.name == prop_name) {
+                pd.description = description.to_string();
+                pd.default_display = default_display.to_string();
+            } else {
+                comp.doc.prop_docs.push(crate::component::PropDoc {
+                    name: prop_name.to_string(),
+                    description: description.to_string(),
+                    default_display: default_display.to_string(),
+                });
+            }
+            true
+        } else { false }
+    }
+
+    /// Remove property documentation by name
+    pub fn remove_component_prop_doc(&mut self, comp_id: u64, prop_name: &str) -> bool {
+        if let Some(comp) = self.components.get_mut(comp_id) {
+            let before = comp.doc.prop_docs.len();
+            comp.doc.prop_docs.retain(|p| p.name != prop_name);
+            comp.doc.prop_docs.len() < before
+        } else { false }
+    }
+
+    /// Add a usage example
+    pub fn add_component_example(&mut self, comp_id: u64, title: &str, description: &str) -> bool {
+        if let Some(comp) = self.components.get_mut(comp_id) {
+            comp.doc.examples.push(crate::component::ComponentExample {
+                title: title.to_string(),
+                description: description.to_string(),
+                variant_key: None,
+            });
+            true
+        } else { false }
+    }
+
+    /// Remove an example by index
+    pub fn remove_component_example(&mut self, comp_id: u64, index: u32) -> bool {
+        if let Some(comp) = self.components.get_mut(comp_id) {
+            let i = index as usize;
+            if i < comp.doc.examples.len() {
+                comp.doc.examples.remove(i);
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Add a changelog entry (prepended, newest first)
+    pub fn add_component_changelog(&mut self, comp_id: u64, entry: &str) -> bool {
+        if let Some(comp) = self.components.get_mut(comp_id) {
+            comp.doc.changelog.insert(0, entry.to_string());
+            true
+        } else { false }
+    }
+
+    /// Export all component docs as JSON
+    pub fn export_component_docs(&self) -> String {
+        let docs: Vec<_> = self.components.list().iter().map(|c| {
+            serde_json::json!({
+                "id": c.id,
+                "name": c.name,
+                "description": c.description,
+                "guidelines": c.doc.guidelines,
+                "tags": c.doc.tags,
+                "links": c.doc.links.iter().map(|(l, u)| serde_json::json!({"label": l, "url": u})).collect::<Vec<_>>(),
+                "prop_docs": c.doc.prop_docs.iter().map(|p| serde_json::json!({"name": p.name, "description": p.description, "default": p.default_display})).collect::<Vec<_>>(),
+                "examples": c.doc.examples.iter().map(|e| serde_json::json!({"title": e.title, "description": e.description})).collect::<Vec<_>>(),
+                "changelog": c.doc.changelog,
+            })
+        }).collect();
+        serde_json::to_string(&docs).unwrap_or_else(|_| "[]".into())
+    }
+
+    // =============================================
     // Text Properties (Stage 2 & 3)
     // =============================================
 

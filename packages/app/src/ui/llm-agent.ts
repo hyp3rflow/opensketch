@@ -151,6 +151,30 @@ export function buildToolDefs(): ToolDef[] {
       component_id: num("Component ID"), x: num("X position"), y: num("Y position"),
     }, ["component_id", "x", "y"]),
 
+    // Component doc tools
+    tool("get_component_doc", "Get component documentation", {
+      component_id: num("Component ID"),
+    }, ["component_id"]),
+    tool("set_component_guidelines", "Set component usage guidelines (markdown)", {
+      component_id: num("Component ID"), guidelines: str("Guidelines text"),
+    }, ["component_id", "guidelines"]),
+    tool("set_component_tags", "Set component tags (comma-separated)", {
+      component_id: num("Component ID"), tags: str("Comma-separated tags"),
+    }, ["component_id", "tags"]),
+    tool("add_component_link", "Add external link to component docs", {
+      component_id: num("Component ID"), label: str("Link label"), url: str("URL"),
+    }, ["component_id", "label", "url"]),
+    tool("set_component_prop_doc", "Document a component property", {
+      component_id: num("Component ID"), name: str("Property name"), description: str("Description"), default_display: str("Default value display"),
+    }, ["component_id", "name", "description", "default_display"]),
+    tool("add_component_example", "Add usage example to component", {
+      component_id: num("Component ID"), title: str("Example title"), description: str("Description"),
+    }, ["component_id", "title", "description"]),
+    tool("add_component_changelog", "Add changelog entry to component", {
+      component_id: num("Component ID"), entry: str("Changelog entry"),
+    }, ["component_id", "entry"]),
+    tool("export_component_docs", "Export all component documentation as JSON", {}, []),
+
     // Note tools
     tool("add_note", "Add a markdown note to a node", {
       node_id: num("Node ID"), content: str("Markdown content"), tags: str("Comma-separated tags (optional)"),
@@ -327,6 +351,30 @@ export function executeTool(name: string, args: Record<string, any>, editor: any
         editor.requestRender();
         return JSON.stringify({ instance_id: Number(id) });
       }
+
+      // Component docs
+      case "get_component_doc":
+        return engine.get_component_doc(bi(args.component_id));
+      case "set_component_guidelines":
+        engine.set_component_guidelines(bi(args.component_id), args.guidelines);
+        return "ok";
+      case "set_component_tags":
+        engine.set_component_tags(bi(args.component_id), args.tags);
+        return "ok";
+      case "add_component_link":
+        engine.add_component_link(bi(args.component_id), args.label, args.url);
+        return "ok";
+      case "set_component_prop_doc":
+        engine.set_component_prop_doc(bi(args.component_id), args.name, args.description, args.default_display);
+        return "ok";
+      case "add_component_example":
+        engine.add_component_example(bi(args.component_id), args.title, args.description);
+        return "ok";
+      case "add_component_changelog":
+        engine.add_component_changelog(bi(args.component_id), args.entry);
+        return "ok";
+      case "export_component_docs":
+        return engine.export_component_docs();
 
       // Notes
       case "add_note":

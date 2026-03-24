@@ -23,6 +23,7 @@ import { setupAccessibilityPanel } from "./ui/accessibility-panel";
 import { PluginManager, loremIpsumPlugin, colorPalettePlugin } from "./plugins";
 import { setupPluginPanel } from "./ui/plugin-panel";
 import { createAnimationTimeline } from "./ui/animation-timeline";
+import { createComponentDocsPanel } from "./ui/component-docs-panel";
 import { CollabClient } from "./collab";
 import { initCollabUI, updateCollabUI } from "./ui/collab-ui";
 
@@ -128,6 +129,10 @@ async function main() {
   setupBookmarksPanel(document.getElementById("bookmarks-panel")!, editor);
   setupAccessibilityPanel(document.getElementById("accessibility-panel")!, editor);
 
+  // Component docs panel
+  const componentDocsPanel = createComponentDocsPanel(editor);
+  document.getElementById("docs-panel")!.appendChild(componentDocsPanel.el);
+
   // Plugin system
   const pluginManager = new PluginManager(editor);
   (window as any).__pluginManager = pluginManager; // expose for external plugins
@@ -183,6 +188,7 @@ async function main() {
     if (collabClient.connectionStatus === "connected") {
       collabClient.sendSelectionChange(ids);
     }
+    componentDocsPanel.update();
   });
 
   // Broadcast scene changes on save
@@ -213,7 +219,7 @@ async function main() {
     tab.addEventListener("click", () => {
       const target = (tab as HTMLElement).dataset.tab!;
       rightPaneTabs.forEach((t) => t.classList.toggle("active", (t as HTMLElement).dataset.tab === target));
-      const tabContentMap: Record<string, string> = { agent: "agent-panel", properties: "properties-panel", history: "history-panel", inspect: "inspect-panel", comments: "comments-panel", variables: "variables-panel", assets: "assets-panel", bookmarks: "bookmarks-panel", accessibility: "accessibility-panel", plugins: "plugins-panel", palette: "palette-panel" };
+      const tabContentMap: Record<string, string> = { agent: "agent-panel", properties: "properties-panel", history: "history-panel", inspect: "inspect-panel", comments: "comments-panel", variables: "variables-panel", assets: "assets-panel", bookmarks: "bookmarks-panel", accessibility: "accessibility-panel", plugins: "plugins-panel", palette: "palette-panel", docs: "docs-panel" };
       rightPaneContents.forEach((c) => c.classList.toggle("active", c.id === tabContentMap[target]));
       if (target === "agent") {
         agentPanel.querySelector<HTMLInputElement>(".agent-input")?.focus();

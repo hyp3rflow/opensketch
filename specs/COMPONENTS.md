@@ -181,3 +181,42 @@ Instances can swap their master component to a different one via a search dialog
 ### TypeScript UI
 - **component-search.ts**: `openComponentSwapDialog(editor, instanceId)` — modal dialog with search input + component result list + swap buttons
 - **properties-panel.ts**: Instance nodes show a "Swap" button next to "Go to →" in the component info card
+
+## Component Documentation
+
+Each component carries a `ComponentDoc` struct for design system documentation.
+
+### Data Model
+```rust
+struct ComponentDoc {
+    guidelines: String,                    // Usage guidelines (markdown)
+    tags: Vec<String>,                     // Categorization tags
+    links: Vec<(String, String)>,          // (label, url) external links
+    prop_docs: Vec<PropDoc>,               // Per-property documentation
+    examples: Vec<ComponentExample>,       // Usage examples
+    changelog: Vec<String>,               // Version history (newest first)
+}
+
+struct PropDoc { name, description, default_display }
+struct ComponentExample { title, description, variant_key? }
+```
+
+### WASM API
+- `get_component_doc(comp_id) -> JSON`
+- `set_component_description(comp_id, desc) -> bool`
+- `set_component_guidelines(comp_id, guidelines) -> bool`
+- `set_component_tags(comp_id, tags_csv) -> bool`
+- `add_component_link(comp_id, label, url) / remove_component_link(comp_id, index) -> bool`
+- `set_component_prop_doc(comp_id, name, desc, default) / remove_component_prop_doc(comp_id, name) -> bool`
+- `add_component_example(comp_id, title, desc) / remove_component_example(comp_id, index) -> bool`
+- `add_component_changelog(comp_id, entry) -> bool`
+- `export_component_docs() -> JSON` (all components)
+
+### UI
+- **Right pane "Docs" tab**: Shows documentation for selected component/instance
+- Editable fields: description, guidelines (markdown), tags, property docs, examples, links, changelog
+- Export all docs as JSON
+- **LLM Agent**: 8 tools for reading/writing component documentation
+
+### Backward Compatibility
+- `ComponentDoc` uses `#[serde(default)]` — existing files load with empty docs

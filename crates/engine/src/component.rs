@@ -63,6 +63,40 @@ pub struct VariantData {
     pub nodes: Vec<Node>,
 }
 
+/// Documentation for a component property
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct PropDoc {
+    pub name: String,
+    pub description: String,
+    pub default_display: String,
+}
+
+/// Usage example for a component
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ComponentExample {
+    pub title: String,
+    pub description: String,
+    /// Optional variant key to show for this example
+    pub variant_key: Option<VariantKey>,
+}
+
+/// Full documentation for a component
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct ComponentDoc {
+    /// Detailed usage guidelines (markdown)
+    pub guidelines: String,
+    /// Tags for categorization / search
+    pub tags: Vec<String>,
+    /// External links (e.g. design system docs, Storybook)
+    pub links: Vec<(String, String)>,
+    /// Per-property documentation
+    pub prop_docs: Vec<PropDoc>,
+    /// Usage examples
+    pub examples: Vec<ComponentExample>,
+    /// Changelog entries (newest first)
+    pub changelog: Vec<String>,
+}
+
 /// Component definition
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Component {
@@ -77,6 +111,9 @@ pub struct Component {
     pub variants: HashMap<String, VariantData>,
     /// Default variant key string
     pub default_variant_key: String,
+    /// Documentation
+    #[serde(default)]
+    pub doc: ComponentDoc,
 }
 
 impl Component {
@@ -89,6 +126,7 @@ impl Component {
             slots: vec![],
             variants: HashMap::new(),
             default_variant_key: String::new(),
+            doc: ComponentDoc::default(),
         }
     }
 
