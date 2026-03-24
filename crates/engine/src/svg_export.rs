@@ -384,6 +384,49 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
             attrs.push_str("/>\n");
             buf.push_str(&attrs);
         }
+        NodeKind::VectorNetwork(ref vn) => {
+            let mut group = String::from("<g");
+            if has_opacity { group.push_str(&format!(r#" opacity="{}""#, node.opacity)); }
+            append_blend_mode(&mut group, node);
+            group.push_str(&filter_attr);
+            group.push_str(">\n");
+            // Render regions as filled paths
+            for region in &vn.regions {
+                let d = vn.region_to_svg_d(region);
+                if !d.is_empty() {
+                    let mut attrs = format!(r#"<path d="{}""#, d);
+                    // Use node fill
+                    if let Some(fill) = node.visible_fills().next() {
+                        match &fill.fill_type {
+                            crate::node::FillType::Solid { color } => {
+                                attrs.push_str(&format!(r#" fill="{}""#, color_to_hex(color.r, color.g, color.b)));
+                                if color.a < 1.0 { attrs.push_str(&format!(r#" fill-opacity="{}""#, color.a)); }
+                            }
+                            _ => { attrs.push_str(r#" fill="gray""#); }
+                        }
+                    } else {
+                        attrs.push_str(r#" fill="none""#);
+                    }
+                    attrs.push_str(r#" stroke="none""#);
+                    attrs.push_str("/>\n");
+                    group.push_str(&attrs);
+                }
+            }
+            // Render all segments as stroked paths
+            for seg in &vn.segments {
+                let d = vn.segment_to_svg_d(seg);
+                if !d.is_empty() {
+                    let mut attrs = format!(r#"<path d="{}" fill="none""#, d);
+                    if let Some(stroke) = node.visible_strokes().next() {
+                        attrs.push_str(&format!(r#" stroke="{}" stroke-width="{}""#, color_to_hex(stroke.color.r, stroke.color.g, stroke.color.b), stroke.width));
+                    }
+                    attrs.push_str("/>\n");
+                    group.push_str(&attrs);
+                }
+            }
+            group.push_str("</g>\n");
+            buf.push_str(&group);
+        }
         NodeKind::Image { ref src, ref fit } => {
             let mut attrs = String::new();
             if has_transform || node.rotation != 0.0 {

@@ -69,6 +69,13 @@ export class Editor {
   private _connectorDrag: { startNodeId: number; sx: number; sy: number; ex?: number; ey?: number; endNodeId?: number } | null = null;
   private _pathEditHandleOffsets: { hix: number; hiy: number; hox: number; hoy: number } | null = null;
 
+  // Vector Network edit mode state
+  private _vnEditMode = false;
+  private _vnEditNodeId: number | null = null;
+  private _vnSelectedVertex: number | null = null;
+  private _vnDraggingVertex: number | null = null;
+  private _vnConnectStart: number | null = null;
+
   // Smart guides state
   private _snapGuides: SnapGuide[] = [];
   private _measureLines: MeasureLine[] = [];
@@ -425,6 +432,15 @@ export class Editor {
       if (e.key === "l" || e.key === "L") this.setTool("connector");
       if (e.key === "l" || e.key === "L") this.setTool("connector");
       if (e.key === "Delete" || e.key === "Backspace") {
+        if (this._vnEditMode && this._vnEditNodeId != null && this._vnSelectedVertex != null) {
+          this.engine.push_undo();
+          this.engine.vn_remove_vertex(BigInt(this._vnEditNodeId), BigInt(this._vnSelectedVertex));
+          this._vnSelectedVertex = null;
+          this.engine.vn_detect_regions(BigInt(this._vnEditNodeId));
+          this.needsRender = true;
+          this.fireSelectionNow(Array.from(this.engine.get_selection()).map(Number));
+          return;
+        }
         if (this._pathEditMode && this._pathEditNodeId != null && this._pathEditSelectedPoint != null) {
           this.engine.push_undo();
           this.engine.path_remove_point(this._pathEditNodeId, this._pathEditSelectedPoint);
@@ -450,6 +466,11 @@ export class Editor {
         this.needsRender = true;
       }
       if (e.key === "Escape") {
+        if (this._vnEditMode) {
+          this.exitVNEditMode();
+          this.needsRender = true;
+          return;
+        }
         if (this._pathEditMode) {
           this.exitPathEditMode();
           this.needsRender = true;
@@ -529,6 +550,53 @@ export class Editor {
         // Click outside points → exit path edit mode
         this.exitPathEditMode();
         // Fall through to normal select
+      }
+    }
+
+    if (this.currentTool === "select" && this._vnEditMode && this._vnEditNodeId != null) {
+      const hitV = this.vnHitTestVertex(x, y);
+      if (hitV != null) {
+        if (this._vnConnectStart != null && this._vnConnectStart !== hitV) {
+          // Complete a segment connection
+          this.engine.push_undo();
+          this.engine.vn_add_segment(BigInt(this._vnEditNodeId), BigInt(this._vnConnectStart), BigInt(hitV), 0, 0, 0, 0);
+          this._vnConnectStart = null;
+          this.engine.vn_detect_regions(BigInt(this._vnEditNodeId));
+          this.needsRender = true;
+          this.fireSelectionNow(Array.from(this.engine.get_selection()).map(Number));
+          this.canvas.setPointerCapture(e.pointerId);
+          return;
+        }
+        if (e.shiftKey && this._vnSelectedVertex != null && this._vnSelectedVertex !== hitV) {
+          // Shift+click: connect selected vertex to clicked vertex
+          this.engine.push_undo();
+          this.engine.vn_add_segment(BigInt(this._vnEditNodeId), BigInt(this._vnSelectedVertex), BigInt(hitV), 0, 0, 0, 0);
+          this.engine.vn_detect_regions(BigInt(this._vnEditNodeId));
+          this._vnSelectedVertex = hitV;
+          this.needsRender = true;
+          this.fireSelectionNow(Array.from(this.engine.get_selection()).map(Number));
+          this.canvas.setPointerCapture(e.pointerId);
+          return;
+        }
+        this._vnSelectedVertex = hitV;
+        this._vnDraggingVertex = hitV;
+        this._vnConnectStart = null;
+        this.engine.push_undo();
+        this.needsRender = true;
+        this.canvas.setPointerCapture(e.pointerId);
+        return;
+      } else {
+        // Click on empty space in VN edit mode → add new vertex
+        const sx = this.engine.screen_to_scene_x(x, y);
+        const sy = this.engine.screen_to_scene_y(x, y);
+        this.engine.push_undo();
+        const vid = Number(this.engine.vn_add_vertex(BigInt(this._vnEditNodeId), sx, sy));
+        this._vnSelectedVertex = vid;
+        // If there was a selected vertex before, auto-connect
+        this.needsRender = true;
+        this.fireSelectionNow(Array.from(this.engine.get_selection()).map(Number));
+        this.canvas.setPointerCapture(e.pointerId);
+        return;
       }
     }
 
@@ -728,6 +796,15 @@ export class Editor {
       }
     }
 
+    // VN edit mode vertex dragging
+    if (this._vnEditMode && this._vnDraggingVertex != null && this._vnEditNodeId != null) {
+      const sx = this.engine.screen_to_scene_x(e.offsetX, e.offsetY);
+      const sy = this.engine.screen_to_scene_y(e.offsetX, e.offsetY);
+      this.engine.vn_update_vertex(BigInt(this._vnEditNodeId), BigInt(this._vnDraggingVertex), sx, sy);
+      this.needsRender = true;
+      return;
+    }
+
     // Path edit mode dragging
     if (this._pathEditMode && this._pathEditDragType && this._pathEditNodeId != null && this._pathEditSelectedPoint != null) {
       const sx = this.engine.screen_to_scene_x(e.offsetX, e.offsetY);
@@ -924,6 +1001,13 @@ export class Editor {
 
     // Gradient handle release
     if (this._gradientEditor?.onPointerUp()) {
+      return;
+    }
+
+    if (this._vnDraggingVertex != null) {
+      this._vnDraggingVertex = null;
+      this.needsRender = true;
+      this.fireSelectionNow(Array.from(this.engine.get_selection()).map(Number));
       return;
     }
 
@@ -1181,6 +1265,110 @@ export class Editor {
     this.ctx.restore();
   }
 
+  // === Vector Network Edit Mode ===
+
+  private enterVNEditMode(nodeId: number) {
+    this._vnEditMode = true;
+    this._vnEditNodeId = nodeId;
+    this._vnSelectedVertex = null;
+    this._vnDraggingVertex = null;
+    this._vnConnectStart = null;
+    this.engine.select(BigInt(nodeId));
+    this.canvas.style.cursor = "crosshair";
+    this.needsRender = true;
+  }
+
+  private exitVNEditMode() {
+    this._vnEditMode = false;
+    this._vnEditNodeId = null;
+    this._vnSelectedVertex = null;
+    this._vnDraggingVertex = null;
+    this._vnConnectStart = null;
+    this.updateCursor();
+    this.needsRender = true;
+  }
+
+  private getVNData(): any | null {
+    if (this._vnEditNodeId == null) return null;
+    try {
+      const data = this.engine.vn_get_data(BigInt(this._vnEditNodeId));
+      return data ? JSON.parse(data) : null;
+    } catch { return null; }
+  }
+
+  private vnHitTestVertex(screenX: number, screenY: number): number | null {
+    const vn = this.getVNData();
+    if (!vn || !vn.vertices) return null;
+    const zoom = this.engine.get_zoom();
+    const panX = this.engine.get_pan_x();
+    const panY = this.engine.get_pan_y();
+    const threshold = 8;
+    for (const v of vn.vertices) {
+      const sx = v.x * zoom + panX;
+      const sy = v.y * zoom + panY;
+      if (Math.abs(screenX - sx) < threshold && Math.abs(screenY - sy) < threshold) {
+        return v.id;
+      }
+    }
+    return null;
+  }
+
+  private renderVNEditOverlay() {
+    if (!this._vnEditMode || this._vnEditNodeId == null) return;
+    const vn = this.getVNData();
+    if (!vn) return;
+    const zoom = this.engine.get_zoom();
+    const panX = this.engine.get_pan_x();
+    const panY = this.engine.get_pan_y();
+
+    this.ctx.save();
+
+    // Draw segments
+    if (vn.segments) {
+      for (const seg of vn.segments) {
+        const sv = vn.vertices?.find((v: any) => v.id === seg.start_vertex_id);
+        const ev = vn.vertices?.find((v: any) => v.id === seg.end_vertex_id);
+        if (!sv || !ev) continue;
+        this.ctx.beginPath();
+        this.ctx.moveTo(sv.x * zoom + panX, sv.y * zoom + panY);
+        if (seg.handle_start && seg.handle_end) {
+          this.ctx.bezierCurveTo(
+            seg.handle_start[0] * zoom + panX, seg.handle_start[1] * zoom + panY,
+            seg.handle_end[0] * zoom + panX, seg.handle_end[1] * zoom + panY,
+            ev.x * zoom + panX, ev.y * zoom + panY
+          );
+        } else {
+          this.ctx.lineTo(ev.x * zoom + panX, ev.y * zoom + panY);
+        }
+        this.ctx.strokeStyle = "rgba(59, 130, 246, 0.6)";
+        this.ctx.lineWidth = 1;
+        this.ctx.stroke();
+      }
+    }
+
+    // Draw vertices
+    if (vn.vertices) {
+      for (const v of vn.vertices) {
+        const sx = v.x * zoom + panX;
+        const sy = v.y * zoom + panY;
+        const isSelected = v.id === this._vnSelectedVertex;
+        const s = 4;
+        this.ctx.fillStyle = isSelected ? "#3b82f6" : "#ffffff";
+        this.ctx.strokeStyle = "#3b82f6";
+        this.ctx.lineWidth = 1.5;
+        this.ctx.fillRect(sx - s, sy - s, s * 2, s * 2);
+        this.ctx.strokeRect(sx - s, sy - s, s * 2, s * 2);
+      }
+    }
+
+    // Draw connection line preview
+    if (this._vnConnectStart != null && this._vnDraggingVertex == null) {
+      // (handled in pointer move)
+    }
+
+    this.ctx.restore();
+  }
+
   private editingOverlay: HTMLElement | null = null;
 
   private onDoubleClick(e: MouseEvent) {
@@ -1205,6 +1393,12 @@ export class Editor {
     // Path node → enter path edit mode
     if (typeof node.kind === "object" && node.kind.Path) {
       this.enterPathEditMode(Number(hit));
+      return;
+    }
+
+    // VectorNetwork node → enter vector network edit mode
+    if (typeof node.kind === "object" && node.kind.VectorNetwork) {
+      this.enterVNEditMode(Number(hit));
       return;
     }
 
@@ -1727,6 +1921,7 @@ export class Editor {
         this.renderSmartGuides();
         this.renderMeasure();
         this.renderPathEditOverlay();
+        this.renderVNEditOverlay();
         this.renderCaret();
         this.renderMarquee();
         this.renderConnectorPreview();

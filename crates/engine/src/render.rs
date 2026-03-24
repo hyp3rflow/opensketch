@@ -330,6 +330,27 @@ impl Renderer {
                 }
                 ctx.close_path();
             }
+            NodeKind::VectorNetwork(ref vn) => {
+                // For shadow/clip purposes, draw all segments as a single path
+                for seg in &vn.segments {
+                    let sv = vn.get_vertex(seg.start_vertex_id);
+                    let ev = vn.get_vertex(seg.end_vertex_id);
+                    if let (Some(sv), Some(ev)) = (sv, ev) {
+                        ctx.move_to(sv.x, sv.y);
+                        match (seg.handle_start, seg.handle_end) {
+                            (Some((hsx, hsy)), Some((hex, hey))) => {
+                                ctx.bezier_curve_to(hsx, hsy, hex, hey, ev.x, ev.y);
+                            }
+                            (Some((hx, hy)), None) | (None, Some((hx, hy))) => {
+                                ctx.quadratic_curve_to(hx, hy, ev.x, ev.y);
+                            }
+                            (None, None) => {
+                                ctx.line_to(ev.x, ev.y);
+                            }
+                        }
+                    }
+                }
+            }
             _ => {
                 ctx.rect(node.x, node.y, node.width, node.height);
             }
@@ -443,6 +464,7 @@ impl Renderer {
             NodeKind::Slot { .. } => self.render_slot(ctx, node),
             NodeKind::Instance(_) => self.render_instance(ctx, node, scene),
             NodeKind::Path { ref points, closed } => self.render_path(ctx, node, points, *closed),
+            NodeKind::VectorNetwork(ref vn) => self.render_vector_network(ctx, node, vn),
             NodeKind::Image { .. } => self.render_image_placeholder(ctx, node),
             NodeKind::Star { points, inner_radius } => self.render_star(ctx, node, *points, *inner_radius),
             NodeKind::Polygon { sides } => self.render_polygon(ctx, node, *sides),
@@ -933,6 +955,73 @@ impl Renderer {
             }
         }
         self.apply_fill_stroke(ctx, node);
+    }
+
+    fn render_vector_network(&self, ctx: &CanvasRenderingContext2d, node: &Node, vn: &crate::vector_network::VectorNetwork) {
+        // Render filled regions
+        for region in &vn.regions {
+            ctx.begin_path();
+            let mut first = true;
+            for &seg_id in &region.segment_ids {
+                if let Some(seg) = vn.segments.iter().find(|s| s.id == seg_id) {
+                    let sv = vn.get_vertex(seg.start_vertex_id);
+                    let ev = vn.get_vertex(seg.end_vertex_id);
+                    if let (Some(sv), Some(ev)) = (sv, ev) {
+                        if first {
+                            ctx.move_to(sv.x, sv.y);
+                            first = false;
+                        }
+                        match (seg.handle_start, seg.handle_end) {
+                            (Some((hsx, hsy)), Some((hex, hey))) => {
+                                ctx.bezier_curve_to(hsx, hsy, hex, hey, ev.x, ev.y);
+                            }
+                            (Some((hx, hy)), None) | (None, Some((hx, hy))) => {
+                                ctx.quadratic_curve_to(hx, hy, ev.x, ev.y);
+                            }
+                            (None, None) => {
+                                ctx.line_to(ev.x, ev.y);
+                            }
+                        }
+                    }
+                }
+            }
+            ctx.close_path();
+            // Fill the region
+            for fill in node.visible_fills() {
+                let css = match &fill.fill_type {
+                    crate::node::FillType::Solid { color } => color.to_css(),
+                    _ => "rgba(200,200,200,1)".to_string(),
+                };
+                ctx.set_fill_style_str(&css);
+                ctx.fill();
+            }
+        }
+
+        // Render all segments as strokes
+        for seg in &vn.segments {
+            let sv = vn.get_vertex(seg.start_vertex_id);
+            let ev = vn.get_vertex(seg.end_vertex_id);
+            if let (Some(sv), Some(ev)) = (sv, ev) {
+                ctx.begin_path();
+                ctx.move_to(sv.x, sv.y);
+                match (seg.handle_start, seg.handle_end) {
+                    (Some((hsx, hsy)), Some((hex, hey))) => {
+                        ctx.bezier_curve_to(hsx, hsy, hex, hey, ev.x, ev.y);
+                    }
+                    (Some((hx, hy)), None) | (None, Some((hx, hy))) => {
+                        ctx.quadratic_curve_to(hx, hy, ev.x, ev.y);
+                    }
+                    (None, None) => {
+                        ctx.line_to(ev.x, ev.y);
+                    }
+                }
+                for stroke in node.visible_strokes() {
+                    ctx.set_stroke_style_str(&stroke.color.to_css());
+                    ctx.set_line_width(stroke.width);
+                    ctx.stroke();
+                }
+            }
+        }
     }
 
     fn render_star(&self, ctx: &CanvasRenderingContext2d, node: &Node, points: u32, inner_radius: f64) {

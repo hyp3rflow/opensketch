@@ -17,8 +17,12 @@ Pure Rust crate compiled to WASM via `wasm-pack`. No NAPI — runs entirely in t
 - `TextAlign` enum: `Left`, `Center`, `Right`
 - `FontStyle` enum: `Normal`, `Italic`
 - `TextDecoration` enum: `None`, `Underline`, `Strikethrough`, `UnderlineStrikethrough`
-- `NodeKind` enum: `Rect`, `Ellipse`, `Text { content, font_size, font_family, line_height, text_align, font_weight, font_style, text_decoration, letter_spacing, paragraph_spacing }`, `Frame`, `Group`, `Path { points: Vec<PathPoint>, closed: bool }`, `Image { src, fit }`, `Star { points: u32, inner_radius: f64 }`, `Polygon { sides: u32 }`
+- `NodeKind` enum: `Rect`, `Ellipse`, `Text { ... }`, `Frame`, `Group`, `Path { points, closed }`, `VectorNetwork(Box<VectorNetwork>)`, `Image { src, fit }`, `Star { points, inner_radius }`, `Polygon { sides }`
 - `PathPoint { x, y, handle_in_x, handle_in_y, handle_out_x, handle_out_y }` — anchor + bezier control handles (absolute coords)
+- `VectorNetwork { vertices, segments, regions }` — Figma-style vector network with multi-connection vertices
+- `VectorVertex { id, x, y }`, `VectorSegment { id, start_vertex_id, end_vertex_id, handle_start, handle_end }`, `VectorRegion { segment_ids }`
+- Region detection: planar face algorithm finds minimal closed cycles for fill regions
+- Path → VectorNetwork conversion supported
 - `GradientStop { offset: f64, color: Color }`
 - `FillType`: `Solid { color }` | `LinearGradient { start_x, start_y, end_x, end_y, stops }` | `RadialGradient { center_x, center_y, radius, stops }` — coordinates normalized 0~1
 - `Fill { fill_type: FillType, visible: bool }` (backward-compatible deserialization from old `{ color }` format; visible defaults to true)

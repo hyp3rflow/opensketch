@@ -2426,6 +2426,61 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       container.appendChild(pathSection);
     }
 
+    // === Convert Path to VectorNetwork button ===
+    if (typeof node.kind === "object" && node.kind.Path) {
+      const convertBtn = document.createElement("button");
+      convertBtn.textContent = "Convert to Vector Network";
+      convertBtn.style.cssText = "width:100%;padding:6px;background:#4f46e520;color:#818cf8;border:1px solid #4f46e5;border-radius:6px;cursor:pointer;font-size:11px;margin-bottom:8px;";
+      convertBtn.addEventListener("click", () => {
+        ensureUndo();
+        const ok = editor.engine.convert_path_to_vector_network(BigInt(id));
+        if (ok) {
+          editor.requestRender();
+          refresh(ids);
+        }
+      });
+      container.appendChild(convertBtn);
+    }
+
+    // === Vector Network Section ===
+    if (typeof node.kind === "object" && node.kind.VectorNetwork) {
+      const vnSection = createSection("Vector Network");
+      const vnData = node.kind.VectorNetwork;
+
+      const infoRow = document.createElement("div");
+      infoRow.style.cssText = "display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap;";
+
+      const vLabel = document.createElement("span");
+      vLabel.style.cssText = "font-size:11px;color:#999;";
+      vLabel.textContent = `${vnData.vertices?.length || 0} vertices`;
+      infoRow.appendChild(vLabel);
+
+      const sLabel = document.createElement("span");
+      sLabel.style.cssText = "font-size:11px;color:#999;";
+      sLabel.textContent = `${vnData.segments?.length || 0} segments`;
+      infoRow.appendChild(sLabel);
+
+      const rLabel = document.createElement("span");
+      rLabel.style.cssText = "font-size:11px;color:#999;";
+      rLabel.textContent = `${vnData.regions?.length || 0} regions`;
+      infoRow.appendChild(rLabel);
+
+      vnSection.appendChild(infoRow);
+
+      const detectBtn = document.createElement("button");
+      detectBtn.textContent = "Detect Regions";
+      detectBtn.style.cssText = "width:100%;padding:5px;background:#2a2a2a;color:#ccc;border:1px solid #444;border-radius:4px;cursor:pointer;font-size:11px;margin-top:4px;";
+      detectBtn.addEventListener("click", () => {
+        ensureUndo();
+        const count = editor.engine.vn_detect_regions(BigInt(id));
+        editor.requestRender();
+        refresh(ids);
+      });
+      vnSection.appendChild(detectBtn);
+
+      container.appendChild(vnSection);
+    }
+
     // === Star properties ===
     if (typeof node.kind === "object" && node.kind.Star) {
       const starSection = createSection("Star");
@@ -3326,6 +3381,7 @@ function getKindLabel(kind: unknown): string {
     if ("Instance" in kind) return "Instance";
     if ("Slot" in kind) return "Slot";
     if ("Path" in kind) return "Path";
+    if ("VectorNetwork" in kind) return "Vector Network";
     if ("Star" in kind) return "Star";
     if ("Polygon" in kind) return "Polygon";
   }

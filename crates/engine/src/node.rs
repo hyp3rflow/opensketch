@@ -1,6 +1,7 @@
 use crate::types::{Color, Rect as BBox};
 use crate::component::InstanceData;
 use crate::variable::VisibilityCondition;
+use crate::vector_network::VectorNetwork;
 use serde::{Deserialize, Serialize};
 
 pub type NodeId = u64;
@@ -132,6 +133,8 @@ pub enum NodeKind {
     Section,
     /// A slice (export region) — not rendered on canvas, defines an area for export
     Slice,
+    /// A vector network (Figma-style: vertices + segments + fill regions)
+    VectorNetwork(Box<VectorNetwork>),
     /// A connector (arrow/line) between two nodes
     Connector {
         /// Source node ID (0 = unconnected, uses start_x/start_y)

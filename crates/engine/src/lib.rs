@@ -16,6 +16,7 @@ pub mod animation;
 mod design_lint;
 mod color_palette;
 mod smart_select;
+pub mod vector_network;
 pub mod branch;
 
 use wasm_bindgen::prelude::*;
@@ -430,6 +431,117 @@ impl Engine {
             }
         }
         0
+    }
+
+    // =============================================
+    // Vector Network
+    // =============================================
+
+    /// Create a new vector network node
+    pub fn add_vector_network(&mut self, x: f64, y: f64, w: f64, h: f64) -> u64 {
+        let mut node = Node::new(0, NodeKind::VectorNetwork(Box::new(crate::vector_network::VectorNetwork::new())));
+        node.x = x; node.y = y; node.width = w; node.height = h;
+        node.name = format!("Vector {}", self.scene.node_count() + 1);
+        node.fills = vec![Fill::solid(Color { r: 200, g: 200, b: 200, a: 1.0 })];
+        node.strokes = vec![Stroke::new(Color::white(), 2.0)];
+        self.scene.add_node(node)
+    }
+
+    /// Add a vertex to a vector network node, returns vertex id
+    pub fn vn_add_vertex(&mut self, node_id: u64, x: f64, y: f64) -> u64 {
+        if let Some(node) = self.scene.get_node_mut(node_id) {
+            if let NodeKind::VectorNetwork(ref mut vn) = node.kind {
+                let vid = vn.add_vertex(x, y);
+                recalc_vn_bounds(node);
+                return vid;
+            }
+        }
+        0
+    }
+
+    /// Remove a vertex from a vector network
+    pub fn vn_remove_vertex(&mut self, node_id: u64, vertex_id: u64) {
+        if let Some(node) = self.scene.get_node_mut(node_id) {
+            if let NodeKind::VectorNetwork(ref mut vn) = node.kind {
+                vn.remove_vertex(vertex_id);
+                recalc_vn_bounds(node);
+            }
+        }
+    }
+
+    /// Add a segment between two vertices. handle coords are 0,0 for no handle.
+    pub fn vn_add_segment(&mut self, node_id: u64, start_v: u64, end_v: u64, hs_x: f64, hs_y: f64, he_x: f64, he_y: f64) -> u64 {
+        if let Some(node) = self.scene.get_node_mut(node_id) {
+            if let NodeKind::VectorNetwork(ref mut vn) = node.kind {
+                let hs = if hs_x == 0.0 && hs_y == 0.0 { None } else { Some((hs_x, hs_y)) };
+                let he = if he_x == 0.0 && he_y == 0.0 { None } else { Some((he_x, he_y)) };
+                let sid = vn.add_segment(start_v, end_v, hs, he);
+                return sid;
+            }
+        }
+        0
+    }
+
+    /// Remove a segment from a vector network
+    pub fn vn_remove_segment(&mut self, node_id: u64, segment_id: u64) {
+        if let Some(node) = self.scene.get_node_mut(node_id) {
+            if let NodeKind::VectorNetwork(ref mut vn) = node.kind {
+                vn.remove_segment(segment_id);
+            }
+        }
+    }
+
+    /// Get vector network data as JSON
+    pub fn vn_get_data(&self, node_id: u64) -> String {
+        if let Some(node) = self.scene.get_node(node_id) {
+            if let NodeKind::VectorNetwork(ref vn) = node.kind {
+                return serde_json::to_string(vn.as_ref()).unwrap_or_else(|_| "{}".to_string());
+            }
+        }
+        "{}".to_string()
+    }
+
+    /// Update a vertex position
+    pub fn vn_update_vertex(&mut self, node_id: u64, vertex_id: u64, x: f64, y: f64) {
+        if let Some(node) = self.scene.get_node_mut(node_id) {
+            if let NodeKind::VectorNetwork(ref mut vn) = node.kind {
+                vn.update_vertex(vertex_id, x, y);
+                recalc_vn_bounds(node);
+            }
+        }
+    }
+
+    /// Update segment handles
+    pub fn vn_update_segment_handles(&mut self, node_id: u64, seg_id: u64, hs_x: f64, hs_y: f64, he_x: f64, he_y: f64) {
+        if let Some(node) = self.scene.get_node_mut(node_id) {
+            if let NodeKind::VectorNetwork(ref mut vn) = node.kind {
+                let hs = if hs_x == 0.0 && hs_y == 0.0 { None } else { Some((hs_x, hs_y)) };
+                let he = if he_x == 0.0 && he_y == 0.0 { None } else { Some((he_x, he_y)) };
+                vn.update_segment_handles(seg_id, hs, he);
+            }
+        }
+    }
+
+    /// Detect regions (closed loops) in a vector network. Returns region count.
+    pub fn vn_detect_regions(&mut self, node_id: u64) -> u32 {
+        if let Some(node) = self.scene.get_node_mut(node_id) {
+            if let NodeKind::VectorNetwork(ref mut vn) = node.kind {
+                return vn.detect_regions() as u32;
+            }
+        }
+        0
+    }
+
+    /// Convert a Path node to VectorNetwork. Returns true on success.
+    pub fn convert_path_to_vector_network(&mut self, node_id: u64) -> bool {
+        if let Some(node) = self.scene.get_node_mut(node_id) {
+            if let NodeKind::Path { ref points, closed } = node.kind {
+                let vn = crate::vector_network::VectorNetwork::from_path(points, closed);
+                node.kind = NodeKind::VectorNetwork(Box::new(vn));
+                return true;
+            }
+        }
+        false
     }
 
     pub fn set_image_fit(&mut self, id: u64, fit: &str) {
@@ -3961,6 +4073,18 @@ fn recalc_path_bounds(node: &mut Node) {
         node.y = min_y;
         node.width = (max_x - min_x).max(1.0);
         node.height = (max_y - min_y).max(1.0);
+    }
+}
+
+fn recalc_vn_bounds(node: &mut Node) {
+    if let NodeKind::VectorNetwork(ref vn) = node.kind {
+        let (bx, by, bw, bh) = vn.bounds();
+        if bw > 0.0 || bh > 0.0 {
+            node.x = bx;
+            node.y = by;
+            node.width = bw.max(1.0);
+            node.height = bh.max(1.0);
+        }
     }
 }
 

@@ -11,6 +11,7 @@ const kindIcons: Record<string, string> = {
   Section: icons.section,
   Slice: icons.slice,
   Connector: icons.connector,
+  VectorNetwork: icons.pen || icons.rect,
 };
 
 function iconSized(svg: string, size = 14) {
@@ -88,6 +89,7 @@ export function setupLayersPanel(container: HTMLElement, editor: Editor) {
       // Detect Instance/Slot from kind string
       if (node.kind.startsWith("Instance")) kindKey = "Instance";
       else if (node.kind.startsWith("Slot")) kindKey = "Slot";
+      else if (node.kind.startsWith("VectorNetwork")) kindKey = "VectorNetwork";
       // Detect component source frames
       const isComponentSource = node.name.startsWith("[C] ");
       if (isComponentSource) icon.classList.add("layer-icon--component");
