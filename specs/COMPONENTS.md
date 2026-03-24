@@ -139,7 +139,7 @@ Deep-clones the default variant's template at the given position.
 ```
 variant <instance_id> {"size":"lg","disabled":"false"}
 ```
-Removes old children, clones new variant's template.
+Removes old children, clones new variant's template. The instance's width/height are updated to match the new variant's root node dimensions. If the instance's parent has auto-layout (Flex/Grid) or Hug sizing, the parent layout is automatically recomputed to accommodate the size change (recursive up the ancestor chain).
 
 ### 7. Fill Slots
 ```

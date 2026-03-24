@@ -1864,6 +1864,38 @@ impl Engine {
         root_id
     }
 
+    /// Walk up the ancestor chain from `node_id`, recomputing auto-layout
+    /// and hug sizing for each ancestor that has layout enabled.
+    fn reflow_ancestors(&mut self, node_id: u64) {
+        let mut current = node_id;
+        loop {
+            let parent_id = match self.scene.get_node(current) {
+                Some(n) => n.parent,
+                None => break,
+            };
+            let pid = match parent_id {
+                Some(p) => p,
+                None => break,
+            };
+            let has_layout = self.scene.get_node(pid)
+                .map(|n| n.layout.mode != crate::node::LayoutMode::None)
+                .unwrap_or(false);
+            if has_layout {
+                crate::layout::compute_layouts(&mut self.scene);
+                break;
+            }
+            // Even without layout, check hug sizing
+            let is_hug = self.scene.get_node(pid)
+                .map(|n| n.sizing_h == crate::node::SizingMode::Hug || n.sizing_v == crate::node::SizingMode::Hug)
+                .unwrap_or(false);
+            if is_hug {
+                crate::layout::compute_layouts(&mut self.scene);
+                break;
+            }
+            current = pid;
+        }
+    }
+
     fn clone_template_children(&mut self, template_parent: &Node, all_nodes: &[Node], scene_parent: u64, dx: f64, dy: f64) {
         for &child_id in &template_parent.children {
             if let Some(template_child) = all_nodes.iter().find(|n| n.id == child_id) {
@@ -1950,6 +1982,9 @@ impl Engine {
             let dy = y - template_root.y;
             self.clone_template_children(template_root, &variant.nodes, instance_id, dx, dy);
         }
+
+        // Trigger parent auto-layout reflow after variant size change
+        self.reflow_ancestors(instance_id);
 
         true
     }
