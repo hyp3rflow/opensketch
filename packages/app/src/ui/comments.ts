@@ -294,7 +294,8 @@ export function setupCommentsPanel(container: HTMLElement, editor: Editor, overl
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
           <span style="font-size:12px;color:#999;">${comments.length} comment${comments.length !== 1 ? "s" : ""}</span>
           <div style="display:flex;gap:4px;">
-            <button id="export-comments-btn" style="padding:4px 10px;border:1px solid #555;background:transparent;color:#aaa;border-radius:4px;cursor:pointer;font-size:11px;" title="Export as Markdown">↓ Export</button>
+            <button id="export-comments-btn" style="padding:4px 10px;border:1px solid #555;background:transparent;color:#aaa;border-radius:4px;cursor:pointer;font-size:11px;" title="Export annotations as Markdown">↓ MD</button>
+            <button id="export-annotations-json-btn" style="padding:4px 10px;border:1px solid #555;background:transparent;color:#aaa;border-radius:4px;cursor:pointer;font-size:11px;" title="Export annotations as JSON">↓ JSON</button>
             <button id="add-comment-btn" style="padding:4px 10px;border:none;background:#4a90d9;color:white;border-radius:4px;cursor:pointer;font-size:11px;">+ Add</button>
           </div>
         </div>
@@ -314,12 +315,23 @@ export function setupCommentsPanel(container: HTMLElement, editor: Editor, overl
     });
 
     container.querySelector("#export-comments-btn")?.addEventListener("click", () => {
-      const md = editor.engine.export_comments_markdown();
+      const md = editor.engine.export_annotations_markdown();
       const blob = new Blob([md], { type: "text/markdown" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "comments-report.md";
+      a.download = "annotations-report.md";
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    container.querySelector("#export-annotations-json-btn")?.addEventListener("click", () => {
+      const json = editor.engine.export_annotations_json();
+      const blob = new Blob([json], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "annotations-report.json";
       a.click();
       URL.revokeObjectURL(url);
     });

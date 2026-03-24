@@ -745,7 +745,11 @@ Frame overflow control and content scrolling.
 - [x] TS: find-replace-panel.ts, Cmd+F shortcut, Esc to close
 - [x] Undo integration (push_undo before replace operations)
 
-### Annotation Export (Markdown report)
-- [x] Rust: Scene.export_comments_markdown() — grouped by page, open/resolved sections, replies
-- [x] WASM: Engine.export_comments_markdown() binding
-- [x] TS: Comments panel "↓ Export" button → downloads `comments-report.md`
+### Annotation Export (Markdown + JSON)
+- [x] Rust: Scene.export_annotations_markdown() — comments (grouped by page, open/resolved, node name resolution) + node notes (tags, content)
+- [x] Rust: Scene.export_annotations_json() — structured JSON with comments + node notes for programmatic use
+- [x] WASM: export_annotations_markdown(), export_annotations_json() bindings
+- [x] TS: Comments panel "↓ MD" + "↓ JSON" export buttons
+- [x] Markdown: emoji headers, summary counts, node kind labels
+- [x] JSON: page names, node names resolved, replies, tags
+- [x] Backward-compatible: export_comments_markdown() delegates to export_annotations_markdown()

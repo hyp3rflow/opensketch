@@ -3734,6 +3734,14 @@ impl Engine {
         self.scene.export_comments_markdown()
     }
 
+    pub fn export_annotations_markdown(&self) -> String {
+        self.scene.export_annotations_markdown()
+    }
+
+    pub fn export_annotations_json(&self) -> String {
+        self.scene.export_annotations_json()
+    }
+
     pub fn select_all(&mut self) {
         self.scene.select_all();
     }
