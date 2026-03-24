@@ -249,6 +249,26 @@ impl Scene {
         result
     }
 
+    /// Returns IDs of nodes whose bounds intersect the given viewport rectangle.
+    pub fn get_visible_node_ids(&self, vx: f64, vy: f64, vw: f64, vh: f64) -> Vec<NodeId> {
+        let vx2 = vx + vw;
+        let vy2 = vy + vh;
+        let mut result = vec![];
+        for &id in &self.render_order() {
+            if let Some(node) = self.nodes.get(&id) {
+                if !self.is_effectively_visible(id) { continue; }
+                let nx = node.x;
+                let ny = node.y;
+                let nx2 = node.x + node.width;
+                let ny2 = node.y + node.height;
+                if nx < vx2 && nx2 > vx && ny < vy2 && ny2 > vy {
+                    result.push(id);
+                }
+            }
+        }
+        result
+    }
+
     pub fn hit_test(&self, point: Point) -> Option<NodeId> {
         let order = self.render_order();
         for &id in order.iter().rev() {

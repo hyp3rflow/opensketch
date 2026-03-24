@@ -84,6 +84,43 @@ impl Engine {
     }
 
     // =============================================
+    // Performance Stats
+    // =============================================
+
+    /// Get the number of nodes rendered in the last frame (after viewport culling)
+    pub fn get_rendered_count(&self) -> u32 {
+        self.renderer.last_rendered_count
+    }
+
+    /// Get the number of nodes culled (skipped) in the last frame
+    pub fn get_culled_count(&self) -> u32 {
+        self.renderer.last_culled_count
+    }
+
+    /// Get total node count in the scene
+    pub fn get_node_count(&self) -> u32 {
+        self.scene.node_count() as u32
+    }
+
+    /// Get IDs of nodes visible in the given viewport rectangle (scene coordinates).
+    /// Useful for TS-side optimizations.
+    pub fn get_visible_nodes(&self, vp_x: f64, vp_y: f64, vp_w: f64, vp_h: f64) -> Vec<u64> {
+        let vp = render::ViewportBounds {
+            min_x: vp_x,
+            min_y: vp_y,
+            max_x: vp_x + vp_w,
+            max_y: vp_y + vp_h,
+        };
+        let mut result = vec![];
+        for node in self.scene.all_nodes() {
+            if node.visible && render::Renderer::is_node_visible_in_viewport(node, &vp) {
+                result.push(node.id);
+            }
+        }
+        result
+    }
+
+    // =============================================
     // Undo / Redo
     // =============================================
 
@@ -1311,6 +1348,11 @@ impl Engine {
         let rw = (x2 - x1).abs();
         let rh = (y2 - y1).abs();
         self.scene.hit_test_rect(rx, ry, rw, rh)
+    }
+
+    /// Get node IDs visible within a viewport rectangle (scene coordinates).
+    pub fn get_visible_node_ids(&self, vx: f64, vy: f64, vw: f64, vh: f64) -> Vec<u64> {
+        self.scene.get_visible_node_ids(vx, vy, vw, vh)
     }
 
     pub fn hit_test_handle(&self, screen_x: f64, screen_y: f64) -> i32 {

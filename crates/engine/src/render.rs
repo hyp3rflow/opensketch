@@ -1,3 +1,4 @@
+use std::cell::Cell;
 use wasm_bindgen::JsValue;
 use web_sys::CanvasRenderingContext2d;
 use wasm_bindgen::JsCast;
@@ -6,10 +7,24 @@ use crate::scene::Scene;
 use crate::transform::Transform;
 use crate::types::Color;
 
+/// Axis-aligned bounding box in scene coordinates for viewport culling
+#[derive(Clone, Copy)]
+pub struct ViewportBounds {
+    pub min_x: f64,
+    pub min_y: f64,
+    pub max_x: f64,
+    pub max_y: f64,
+}
+
 pub struct Renderer {
     pub viewport: Transform,
     pub canvas_width: f64,
     pub canvas_height: f64,
+    /// Number of nodes actually rendered in the last frame (for perf monitoring)
+    pub last_rendered_count: Cell<u32>,
+    /// Number of nodes culled in the last frame
+    pub last_culled_count: Cell<u32>,
+    current_vp: Option<ViewportBounds>,
 }
 
 impl Renderer {
@@ -18,7 +33,42 @@ impl Renderer {
             viewport: Transform::identity(),
             canvas_width: width,
             canvas_height: height,
+            last_rendered_count: Cell::new(0),
+            last_culled_count: Cell::new(0),
+            current_vp: None,
         }
+    }
+
+    /// Compute the visible viewport bounds in scene coordinates.
+    /// Adds a margin to avoid popping at edges.
+    pub fn get_viewport_bounds(&self) -> ViewportBounds {
+        let zoom = self.viewport.a; // uniform scale
+        if zoom <= 0.0 {
+            return ViewportBounds {
+                min_x: f64::NEG_INFINITY, min_y: f64::NEG_INFINITY,
+                max_x: f64::INFINITY, max_y: f64::INFINITY,
+            };
+        }
+        let inv_zoom = 1.0 / zoom;
+        let margin = 100.0 * inv_zoom; // 100px margin in screen space
+        let min_x = -self.viewport.tx * inv_zoom - margin;
+        let min_y = -self.viewport.ty * inv_zoom - margin;
+        let max_x = (self.canvas_width - self.viewport.tx) * inv_zoom + margin;
+        let max_y = (self.canvas_height - self.viewport.ty) * inv_zoom + margin;
+        ViewportBounds { min_x, min_y, max_x, max_y }
+    }
+
+    /// Check if a node's AABB intersects the viewport bounds.
+    #[inline]
+    pub fn is_node_visible_in_viewport(node: &Node, vp: &ViewportBounds) -> bool {
+        // Nodes with zero or negative size are always rendered (e.g. connectors, paths)
+        if node.width <= 0.0 || node.height <= 0.0 {
+            return true;
+        }
+        node.x + node.width >= vp.min_x
+            && node.x <= vp.max_x
+            && node.y + node.height >= vp.min_y
+            && node.y <= vp.max_y
     }
 
     /// Build CSS font string from text properties
@@ -132,7 +182,11 @@ impl Renderer {
         }
     }
 
-    pub fn render(&self, ctx: &CanvasRenderingContext2d, scene: &Scene, _editing_node: Option<u64>) {
+    pub fn render(&mut self, ctx: &CanvasRenderingContext2d, scene: &Scene, _editing_node: Option<u64>) {
+        self.last_rendered_count.set(0);
+        self.last_culled_count.set(0);
+        let vp = self.get_viewport_bounds();
+
         ctx.set_fill_style_str("#1a1a1a");
         ctx.fill_rect(0.0, 0.0, self.canvas_width, self.canvas_height);
         self.draw_grid(ctx);
@@ -144,7 +198,9 @@ impl Renderer {
             self.viewport.tx, self.viewport.ty,
         ).ok();
 
+        self.current_vp = Some(vp);
         self.render_children(ctx, &scene.get_root_children(), scene);
+        self.current_vp = None;
 
         for &id in &scene.selection {
             if let Some(node) = scene.get_node(id) {
@@ -172,13 +228,15 @@ impl Renderer {
         for &child_id in children {
             if let Some(node) = scene.get_node(child_id) {
                 if !scene.is_effectively_visible(child_id) { continue; }
-                if node.is_mask {
-                    if mask_active {
-                        ctx.restore();
+                // Viewport culling: skip nodes entirely outside visible viewport
+                if let Some(ref vp) = self.current_vp {
+                    if !node.is_mask && !Self::is_node_visible_in_viewport(node, vp) {
+                        continue;
                     }
-                    // Render the mask node itself
+                }
+                if node.is_mask {
+                    if mask_active { ctx.restore(); }
                     self.render_node(ctx, node, scene);
-                    // Now set up clipping from the mask shape
                     ctx.save();
                     self.build_clip_path(ctx, node);
                     ctx.clip();
@@ -188,9 +246,7 @@ impl Renderer {
                 }
             }
         }
-        if mask_active {
-            ctx.restore();
-        }
+        if mask_active { ctx.restore(); }
     }
 
     fn build_clip_path(&self, ctx: &CanvasRenderingContext2d, node: &Node) {
