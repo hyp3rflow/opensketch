@@ -168,11 +168,23 @@ pub struct NodeOverrides {
     pub visible: Option<bool>,
 }
 
+/// A shared component library (importable/exportable bundle)
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ComponentLibrary {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub version: String,
+    pub components: HashMap<ComponentId, Component>,
+}
+
 /// The component store
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ComponentStore {
     components: HashMap<ComponentId, Component>,
     next_id: ComponentId,
+    #[serde(default)]
+    pub linked_libraries: Vec<ComponentLibrary>,
 }
 
 impl ComponentStore {
@@ -180,6 +192,7 @@ impl ComponentStore {
         Self {
             components: HashMap::new(),
             next_id: 1,
+            linked_libraries: Vec::new(),
         }
     }
 
@@ -229,6 +242,70 @@ impl ComponentStore {
             .collect();
         results.sort_by_key(|c| c.id);
         results
+    }
+
+    /// Export selected components as a ComponentLibrary JSON string
+    pub fn export_library(&self, name: &str, version: &str, component_ids: &[ComponentId]) -> ComponentLibrary {
+        let mut comps = HashMap::new();
+        for &id in component_ids {
+            if let Some(c) = self.components.get(&id) {
+                comps.insert(id, c.clone());
+            }
+        }
+        ComponentLibrary {
+            id: format!("lib-{}", self.next_id.wrapping_add(9999)),
+            name: name.to_string(),
+            version: version.to_string(),
+            components: comps,
+        }
+    }
+
+    /// Import a component library: merge components, add to linked_libraries
+    pub fn import_library(&mut self, lib: ComponentLibrary) {
+        for (_, comp) in &lib.components {
+            let new_id = self.next_id;
+            self.next_id += 1;
+            let mut new_comp = comp.clone();
+            new_comp.id = new_id;
+            self.components.insert(new_id, new_comp);
+        }
+        self.linked_libraries.push(lib);
+    }
+
+    /// Get linked libraries info
+    pub fn get_linked_libraries_info(&self) -> Vec<(&str, &str, &str, usize)> {
+        self.linked_libraries.iter()
+            .map(|l| (l.id.as_str(), l.name.as_str(), l.version.as_str(), l.components.len()))
+            .collect()
+    }
+
+    /// Unlink a library by id
+    pub fn unlink_library(&mut self, library_id: &str) -> bool {
+        let before = self.linked_libraries.len();
+        self.linked_libraries.retain(|l| l.id != library_id);
+        self.linked_libraries.len() < before
+    }
+
+    /// Sync a linked library: update its components, refresh matching components in store
+    pub fn sync_library(&mut self, library_id: &str, updated_lib: ComponentLibrary) -> u32 {
+        let mut synced = 0u32;
+        // Update components in store that match by name
+        for (_, lib_comp) in &updated_lib.components {
+            let existing_id = self.components.iter()
+                .find(|(_, c)| c.name == lib_comp.name)
+                .map(|(&id, _)| id);
+            if let Some(eid) = existing_id {
+                let mut updated_comp = lib_comp.clone();
+                updated_comp.id = eid;
+                self.components.insert(eid, updated_comp);
+                synced += 1;
+            }
+        }
+        // Update the linked library entry
+        if let Some(lib) = self.linked_libraries.iter_mut().find(|l| l.id.as_str() == library_id) {
+            *lib = updated_lib;
+        }
+        synced
     }
 
     /// Swap an instance's master component. Returns the new component_id on success.

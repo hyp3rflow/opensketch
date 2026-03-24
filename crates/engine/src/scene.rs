@@ -6,6 +6,7 @@ use crate::variable::{VariableCollection, VariableBinding, VariableScope, Collec
 use crate::types::Color;
 use crate::animation::AnimationStore;
 use crate::branch::{Branch, BranchSnapshot, BranchDiff, VisualDiff, compute_diff, compute_visual_diff, merge_snapshots};
+use crate::component::ComponentLibrary;
 
 fn parse_hex_color(hex: &str) -> Option<Color> {
     let hex = hex.trim_start_matches('#');
@@ -77,6 +78,9 @@ pub struct SceneData {
     pub active_branch_id: u64,
     #[serde(default)]
     pub next_branch_id: u64,
+    /// Linked component libraries
+    #[serde(default)]
+    pub linked_libraries: Vec<ComponentLibrary>,
 }
 
 pub struct Scene {
@@ -101,6 +105,8 @@ pub struct Scene {
     pub(crate) branches: Vec<Branch>,
     pub(crate) active_branch_id: u64,
     next_branch_id: u64,
+    // Linked component libraries
+    pub linked_libraries: Vec<ComponentLibrary>,
 }
 
 impl Scene {
@@ -134,6 +140,7 @@ impl Scene {
             }],
             active_branch_id: 1,
             next_branch_id: 2,
+            linked_libraries: vec![],
         }
     }
 
@@ -448,6 +455,7 @@ impl Scene {
             branches: self.branches.clone(),
             active_branch_id: self.active_branch_id,
             next_branch_id: self.next_branch_id,
+            linked_libraries: self.linked_libraries.clone(),
         }
     }
 
@@ -516,6 +524,7 @@ impl Scene {
                 },
                 active_branch_id: if data.active_branch_id > 0 { data.active_branch_id } else { 1 },
                 next_branch_id: if data.next_branch_id > 0 { data.next_branch_id } else { 2 },
+                linked_libraries: data.linked_libraries,
             }
         } else {
             // Legacy single-page format
@@ -561,6 +570,7 @@ impl Scene {
                 }],
                 active_branch_id: 1,
                 next_branch_id: 2,
+                linked_libraries: vec![],
             }
         }
     }

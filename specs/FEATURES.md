@@ -792,3 +792,12 @@ Frame overflow control and content scrolling.
 - [x] **Toolbar button**: Figma logo icon next to PDF export
 - [x] **Undo integration**: push_undo before import
 - [x] TS: ui/figma-import.ts — fetchFigmaFile(), convertNode(), openFigmaImportModal()
+
+### Shared Component Library
+- [x] **ComponentLibrary struct**: id (String), name, version, components HashMap
+- [x] **ComponentStore extensions**: linked_libraries Vec, export_library, import_library, get_linked_libraries_info, unlink_library, sync_library
+- [x] **WASM bindings**: export_component_library, import_component_library, get_linked_libraries, unlink_library, sync_library
+- [x] **Library panel UI**: Modal with export (select components → JSON download), import (file picker → merge), linked libraries list (name/version/count, Sync/Unlink buttons)
+- [x] **Keyboard shortcut**: Cmd/Ctrl+Alt+L
+- [x] **Backward-compatible serde**: #[serde(default)] on linked_libraries
+- [x] TS: ui/component-library.ts — openComponentLibraryPanel(), export/import/sync/unlink

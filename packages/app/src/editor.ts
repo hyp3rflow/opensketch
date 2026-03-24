@@ -8,6 +8,7 @@ import { showContextMenu, hideContextMenu, type MenuItem } from "./ui/context-me
 import { openResponsivePreview, isResponsivePreviewOpen, closeResponsivePreview } from "./ui/responsive-preview";
 import { CursorPresence } from "./ui/cursor-presence";
 import { openComponentSwapModal } from "./ui/component-swap";
+import { openComponentLibraryPanel } from "./ui/component-library";
 import { GradientEditor } from "./ui/gradient-editor";
 import { SmartSelectPanel } from "./ui/smart-select";
 import type { CollabClient } from "./collab";
@@ -410,6 +411,13 @@ export class Editor {
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "l" || e.key === "L")) {
         e.preventDefault();
         showLayoutSuggestion(this);
+        return;
+      }
+
+      // Ctrl/Cmd+Alt+L: component library
+      if ((e.metaKey || e.ctrlKey) && e.altKey && (e.key === "l" || e.key === "L")) {
+        e.preventDefault();
+        this.openComponentLibrary();
         return;
       }
 
@@ -2914,6 +2922,10 @@ export class Editor {
   // =============================================
   // Component Search & Swap
   // =============================================
+  openComponentLibrary() {
+    openComponentLibraryPanel(this.engine, () => this.requestRender());
+  }
+
   openComponentSwap() {
     openComponentSwapModal(this);
   }

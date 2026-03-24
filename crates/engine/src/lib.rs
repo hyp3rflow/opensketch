@@ -2583,6 +2583,54 @@ impl Engine {
     }
 
     // =============================================
+    // Component Library (shared libraries)
+    // =============================================
+
+    /// Export selected components as a library JSON string
+    pub fn export_component_library(&self, name: &str, version: &str, component_ids_json: &str) -> String {
+        let ids: Vec<u64> = serde_json::from_str(component_ids_json).unwrap_or_default();
+        let lib = self.components.export_library(name, version, &ids);
+        serde_json::to_string(&lib).unwrap_or_else(|_| "{}".into())
+    }
+
+    /// Import a component library from JSON string
+    pub fn import_component_library(&mut self, json: &str) -> bool {
+        match serde_json::from_str::<crate::component::ComponentLibrary>(json) {
+            Ok(lib) => {
+                self.components.import_library(lib);
+                true
+            }
+            Err(_) => false,
+        }
+    }
+
+    /// Get linked libraries as JSON array
+    pub fn get_linked_libraries(&self) -> String {
+        let libs: Vec<_> = self.components.get_linked_libraries_info().iter().map(|(id, name, version, count)| {
+            serde_json::json!({
+                "id": id,
+                "name": name,
+                "version": version,
+                "component_count": count,
+            })
+        }).collect();
+        serde_json::to_string(&libs).unwrap_or_else(|_| "[]".into())
+    }
+
+    /// Unlink a library by id
+    pub fn unlink_library(&mut self, library_id: &str) -> bool {
+        self.components.unlink_library(library_id)
+    }
+
+    /// Sync a linked library with updated JSON data
+    pub fn sync_library(&mut self, library_id: &str, json: &str) -> u32 {
+        match serde_json::from_str::<crate::component::ComponentLibrary>(json) {
+            Ok(lib) => self.components.sync_library(library_id, lib),
+            Err(_) => 0,
+        }
+    }
+
+    // =============================================
     // Text Properties (Stage 2 & 3)
     // =============================================
 
