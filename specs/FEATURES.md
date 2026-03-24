@@ -731,3 +731,16 @@ Frame overflow control and content scrolling.
 - [x] LLM Agent tools: suggest_layout (analyze), apply_layout_suggestion (execute)
 - [x] Agent panel commands: suggest-layout, apply-layout
 - [x] Auto-dismiss after 15s
+
+## Find & Replace
+- [x] **Text search**: Find all Text nodes + node names matching query (case-sensitive toggle)
+- [x] **Text replace**: Replace in single node or all matching nodes
+- [x] **Color search**: Find nodes by fill color (hex, with tolerance ±2)
+- [x] **Color replace**: Replace fill + stroke colors across all matching nodes
+- [x] **Floating panel**: Cmd+F toggle, Text/Color mode tabs
+- [x] **Result navigation**: Previous/Next with auto-select + pan-to-node
+- [x] **Result list**: Scrollable results with kind badge, name, matched text/color preview
+- [x] Rust: find_replace.rs (Scene methods: find_text, replace_text_in_node, replace_all_text, find_by_color, replace_color)
+- [x] WASM: find_text, replace_text, replace_all_text, find_by_color, replace_color
+- [x] TS: find-replace-panel.ts, Cmd+F shortcut, Esc to close
+- [x] Undo integration (push_undo before replace operations)

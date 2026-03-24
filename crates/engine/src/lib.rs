@@ -19,6 +19,7 @@ mod color_palette;
 mod smart_select;
 pub mod vector_network;
 pub mod branch;
+mod find_replace;
 
 use wasm_bindgen::prelude::*;
 use web_sys::CanvasRenderingContext2d;
@@ -4349,6 +4350,38 @@ impl Engine {
             }
         }
         count
+    }
+
+    // ── Find & Replace ──────────────────────────────────────────
+
+    #[wasm_bindgen]
+    pub fn find_text(&self, query: &str, case_sensitive: bool) -> String {
+        let results = self.scene.find_text(query, case_sensitive);
+        serde_json::to_string(&results).unwrap_or_default()
+    }
+
+    #[wasm_bindgen]
+    pub fn replace_text(&mut self, node_id: u64, search: &str, replacement: &str, case_sensitive: bool) -> bool {
+        self.push_undo();
+        self.scene.replace_text_in_node(node_id, search, replacement, case_sensitive)
+    }
+
+    #[wasm_bindgen]
+    pub fn replace_all_text(&mut self, search: &str, replacement: &str, case_sensitive: bool) -> u32 {
+        self.push_undo();
+        self.scene.replace_all_text(search, replacement, case_sensitive)
+    }
+
+    #[wasm_bindgen]
+    pub fn find_by_color(&self, hex: &str) -> String {
+        let results = self.scene.find_by_color(hex);
+        serde_json::to_string(&results).unwrap_or_default()
+    }
+
+    #[wasm_bindgen]
+    pub fn replace_color(&mut self, from_hex: &str, to_hex: &str) -> u32 {
+        self.push_undo();
+        self.scene.replace_color(from_hex, to_hex)
     }
 }
 

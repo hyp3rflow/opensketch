@@ -13,6 +13,7 @@ import { SmartSelectPanel } from "./ui/smart-select";
 import type { CollabClient } from "./collab";
 import { findSpacingHandles, hitTestSpacingHandle, renderSpacingHandles, type SpacingHandle } from "./tools/spacing-handles";
 import { showLayoutSuggestion, dismissSuggestion } from "./ui/ai-layout-suggest";
+import { toggleFindReplace, closeFindReplace } from "./ui/find-replace-panel";
 
 export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "section" | "image" | "pen" | "star" | "polygon" | "slice" | "connector";
 
@@ -240,6 +241,12 @@ export class Editor {
       if ((e.metaKey || e.ctrlKey) && e.key === "s") {
         e.preventDefault();
         this.onSaveCallbacks.forEach(fn => fn());
+        return;
+      }
+      // Find & Replace: Cmd+F
+      if ((e.metaKey || e.ctrlKey) && e.key === "f") {
+        e.preventDefault();
+        toggleFindReplace(this);
         return;
       }
       // Copy: Cmd+C
