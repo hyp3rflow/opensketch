@@ -650,8 +650,22 @@
   - Harmonies: hex 입력 + 5개 팔레트, 클릭으로 적용 또는 복사
   - Contrast: 모든 색상 쌍 대비 비율 + AA/AAA 배지, 컬러 코딩
 
+## 완료된 기능 (추가 66)
+- Branching / Forking (design version control):
+  - Rust branch.rs: Branch struct (id, name, parent_branch_id, created_at, base_snapshot, current_snapshot)
+  - BranchSnapshot: pages/active_page_index/next_page_id/next_id — frozen scene state
+  - compute_diff: base vs current → added/modified/removed nodes (JSON comparison)
+  - merge_snapshots: source→target node merge (add new, update existing, reconcile IDs)
+  - Scene: branches Vec + active_branch_id, create/switch/merge/delete/list/rename/get_diff
+  - WASM: 8 bindings (create_branch, switch_branch, merge_branch, delete_branch, list_branches, rename_branch, get_branch_diff, get_active_branch_id)
+  - UI: branch-panel.ts — bottom-left bar with branch icon+name, click→popup with branch list
+  - Branch popup: create (+), switch (click), rename (dblclick), delete (✕), merge (↓↓)
+  - Diff preview popup: colored sections (green=added, yellow=modified, red=removed) + Cancel/Merge buttons
+  - Main branch (id=1) protected from deletion
+  - Backward-compatible serde (existing files → single "main" branch)
+  - Undo integration for all branch operations
+
 ## 다음 할 것
-- Branching / forking (프로젝트 브랜치 분기, 머지 지원 — 디자인 버전 관리)
 - Vector network editing (Figma-style vector networks — 포인트 간 다중 연결, fill 영역 자동 감지)
 - Smart selection / magic wand (색상/스타일 유사도 기반 자동 선택, AI 기반 그룹 추천)
 - Figma → OpenSketch import (.fig 파일 파싱 또는 Figma REST API로 디자인 가져오기)

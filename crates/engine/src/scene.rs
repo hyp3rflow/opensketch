@@ -5,6 +5,7 @@ use crate::types::Point;
 use crate::variable::{VariableCollection, VariableBinding, VariableScope, CollectionId, VariableId, VariableValue};
 use crate::types::Color;
 use crate::animation::AnimationStore;
+use crate::branch::{Branch, BranchSnapshot, BranchDiff, compute_diff, merge_snapshots};
 
 fn parse_hex_color(hex: &str) -> Option<Color> {
     let hex = hex.trim_start_matches('#');
@@ -69,6 +70,13 @@ pub struct SceneData {
     /// Animation clips
     #[serde(default)]
     pub animations: AnimationStore,
+    /// Branches
+    #[serde(default)]
+    pub branches: Vec<Branch>,
+    #[serde(default)]
+    pub active_branch_id: u64,
+    #[serde(default)]
+    pub next_branch_id: u64,
 }
 
 pub struct Scene {
@@ -89,6 +97,10 @@ pub struct Scene {
     pub variable_bindings: HashMap<String, VariableBinding>,
     // Animations
     pub animations: AnimationStore,
+    // Branches
+    pub(crate) branches: Vec<Branch>,
+    pub(crate) active_branch_id: u64,
+    next_branch_id: u64,
 }
 
 impl Scene {
@@ -107,6 +119,21 @@ impl Scene {
             next_collection_id: 1,
             variable_bindings: HashMap::new(),
             animations: AnimationStore::new(),
+            branches: vec![Branch {
+                id: 1,
+                name: "main".to_string(),
+                parent_branch_id: None,
+                created_at: 0.0,
+                base_snapshot: BranchSnapshot {
+                    pages: vec![Page { id: 1, name: "Page 1".to_string(), nodes: vec![], root_children: vec![] }],
+                    active_page_index: 0,
+                    next_page_id: 2,
+                    next_id: 1,
+                },
+                current_snapshot: None,
+            }],
+            active_branch_id: 1,
+            next_branch_id: 2,
         }
     }
 
@@ -418,6 +445,9 @@ impl Scene {
             next_collection_id: self.next_collection_id,
             variable_bindings: self.variable_bindings.clone(),
             animations: self.animations.clone(),
+            branches: self.branches.clone(),
+            active_branch_id: self.active_branch_id,
+            next_branch_id: self.next_branch_id,
         }
     }
 
@@ -467,6 +497,25 @@ impl Scene {
                 next_collection_id: if data.next_collection_id > 0 { data.next_collection_id } else { 1 },
                 variable_bindings: data.variable_bindings,
                 animations: data.animations,
+                branches: if data.branches.is_empty() {
+                    vec![Branch {
+                        id: 1,
+                        name: "main".to_string(),
+                        parent_branch_id: None,
+                        created_at: 0.0,
+                        base_snapshot: BranchSnapshot {
+                            pages: vec![],
+                            active_page_index: 0,
+                            next_page_id: 1,
+                            next_id: 1,
+                        },
+                        current_snapshot: None,
+                    }]
+                } else {
+                    data.branches
+                },
+                active_branch_id: if data.active_branch_id > 0 { data.active_branch_id } else { 1 },
+                next_branch_id: if data.next_branch_id > 0 { data.next_branch_id } else { 2 },
             }
         } else {
             // Legacy single-page format
@@ -497,6 +546,21 @@ impl Scene {
                 next_collection_id: 1,
                 variable_bindings: HashMap::new(),
                 animations: AnimationStore::new(),
+                branches: vec![Branch {
+                    id: 1,
+                    name: "main".to_string(),
+                    parent_branch_id: None,
+                    created_at: 0.0,
+                    base_snapshot: BranchSnapshot {
+                        pages: vec![],
+                        active_page_index: 0,
+                        next_page_id: 1,
+                        next_id: 1,
+                    },
+                    current_snapshot: None,
+                }],
+                active_branch_id: 1,
+                next_branch_id: 2,
             }
         }
     }
@@ -1346,5 +1410,139 @@ impl Scene {
 
     pub fn anim_get_clip_json(&self, clip_id: u64) -> Option<String> {
         self.animations.get_clip(clip_id).map(|c| serde_json::to_string(c).unwrap_or_default())
+    }
+
+    // =============================================
+    // Branching
+    // =============================================
+
+    fn make_snapshot(&mut self) -> BranchSnapshot {
+        self.save_active_page();
+        BranchSnapshot {
+            pages: self.pages.clone(),
+            active_page_index: self.active_page_index,
+            next_page_id: self.next_page_id,
+            next_id: self.next_id,
+        }
+    }
+
+    fn restore_snapshot(&mut self, snap: &BranchSnapshot) {
+        self.pages = snap.pages.clone();
+        self.active_page_index = snap.active_page_index.min(self.pages.len().saturating_sub(1));
+        self.next_page_id = snap.next_page_id;
+        self.next_id = snap.next_id;
+        self.load_page(self.active_page_index);
+        self.selection.clear();
+    }
+
+    pub fn create_branch(&mut self, name: &str) -> u64 {
+        let snapshot = self.make_snapshot();
+        let id = self.next_branch_id;
+        self.next_branch_id += 1;
+        let branch = Branch {
+            id,
+            name: name.to_string(),
+            parent_branch_id: Some(self.active_branch_id),
+            created_at: js_sys::Date::now(),
+            base_snapshot: snapshot.clone(),
+            current_snapshot: Some(snapshot),
+        };
+        self.branches.push(branch);
+        // Switch to new branch
+        self.save_current_branch();
+        self.active_branch_id = id;
+        id
+    }
+
+    fn save_current_branch(&mut self) {
+        let snapshot = self.make_snapshot();
+        if let Some(branch) = self.branches.iter_mut().find(|b| b.id == self.active_branch_id) {
+            branch.current_snapshot = Some(snapshot);
+        }
+    }
+
+    pub fn switch_branch(&mut self, target_id: u64) -> bool {
+        if target_id == self.active_branch_id { return true; }
+        if !self.branches.iter().any(|b| b.id == target_id) { return false; }
+        
+        // Save current branch state
+        self.save_current_branch();
+        
+        // Restore target branch state
+        let snap = {
+            let branch = self.branches.iter().find(|b| b.id == target_id).unwrap();
+            branch.current_snapshot.clone().unwrap_or_else(|| branch.base_snapshot.clone())
+        };
+        self.restore_snapshot(&snap);
+        self.active_branch_id = target_id;
+        true
+    }
+
+    pub fn merge_branch(&mut self, source_id: u64, target_id: u64) -> bool {
+        if source_id == target_id { return false; }
+        
+        // Save current state first
+        self.save_current_branch();
+        
+        let source_snap = {
+            let branch = match self.branches.iter().find(|b| b.id == source_id) {
+                Some(b) => b,
+                None => return false,
+            };
+            branch.current_snapshot.clone().unwrap_or_else(|| branch.base_snapshot.clone())
+        };
+        
+        let target_idx = match self.branches.iter().position(|b| b.id == target_id) {
+            Some(i) => i,
+            None => return false,
+        };
+        
+        // Merge source into target's current snapshot
+        let mut target_snap = self.branches[target_idx].current_snapshot.clone()
+            .unwrap_or_else(|| self.branches[target_idx].base_snapshot.clone());
+        merge_snapshots(&source_snap, &mut target_snap);
+        self.branches[target_idx].current_snapshot = Some(target_snap.clone());
+        
+        // If we're on the target branch, restore
+        if self.active_branch_id == target_id {
+            self.restore_snapshot(&target_snap);
+        }
+        true
+    }
+
+    pub fn delete_branch(&mut self, id: u64) -> bool {
+        // Can't delete main (id=1) or active branch
+        if id == 1 { return false; }
+        if id == self.active_branch_id { return false; }
+        let len = self.branches.len();
+        self.branches.retain(|b| b.id != id);
+        self.branches.len() < len
+    }
+
+    pub fn list_branches(&self) -> Vec<(u64, String, bool)> {
+        self.branches.iter().map(|b| (b.id, b.name.clone(), b.id == self.active_branch_id)).collect()
+    }
+
+    pub fn rename_branch(&mut self, id: u64, name: &str) -> bool {
+        if let Some(branch) = self.branches.iter_mut().find(|b| b.id == id) {
+            branch.name = name.to_string();
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn get_branch_diff(&mut self, branch_id: u64) -> Option<BranchDiff> {
+        // Save current if it's the active branch
+        if branch_id == self.active_branch_id {
+            self.save_current_branch();
+        }
+        let branch = self.branches.iter().find(|b| b.id == branch_id)?;
+        let current = branch.current_snapshot.as_ref().unwrap_or(&branch.base_snapshot);
+        Some(compute_diff(&branch.base_snapshot, current))
+    }
+
+    pub fn get_active_branch_id(&self) -> u64 {
+        self.active_branch_id
     }
 }

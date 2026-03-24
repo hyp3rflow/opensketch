@@ -323,3 +323,39 @@ select.prop-input { appearance: none; background: #333 url("data:image/svg+xml,%
 .ssp-btn-apply:hover { background: #5a9fe9; }
 .ssp-btn-suggest { background: rgba(255,255,255,0.08); color: #ccc; }
 .ssp-btn-suggest:hover { background: rgba(255,255,255,0.14); }
+
+/* Branch Panel */
+.branch-panel { position: absolute; bottom: 16px; left: 16px; z-index: 19; display: flex; align-items: center; gap: 6px; background: #2a2a2a; border-radius: 8px; padding: 4px 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.2), 0 0 0 1px rgba(255,255,255,0.06); margin-bottom: 44px; height: 28px; }
+.branch-icon { display: flex; align-items: center; color: #888; }
+.branch-name { color: #ccc; font-size: 11px; font-weight: 600; white-space: nowrap; }
+.branch-arrow { color: #666; font-size: 10px; margin-left: 2px; }
+.branch-trigger { position: absolute; inset: 0; cursor: pointer; }
+.branch-popup { background: #2a2a2a; border-radius: 10px; padding: 6px; box-shadow: 0 4px 16px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.08); min-width: 200px; z-index: 1000; }
+.branch-popup-header { display: flex; justify-content: space-between; align-items: center; padding: 6px 8px; color: #aaa; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+.branch-add-btn { border: none; background: rgba(255,255,255,0.08); color: #aaa; width: 22px; height: 22px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.branch-add-btn:hover { background: #4a4af5; color: #fff; }
+.branch-list { display: flex; flex-direction: column; gap: 1px; }
+.branch-item { display: flex; justify-content: space-between; align-items: center; padding: 6px 8px; border-radius: 6px; cursor: pointer; color: #ccc; font-size: 12px; }
+.branch-item:hover { background: rgba(255,255,255,0.06); }
+.branch-item.active { background: rgba(74,74,245,0.15); color: #fff; cursor: default; }
+.branch-item-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.branch-item-actions { display: flex; gap: 4px; opacity: 0; transition: opacity 0.15s; }
+.branch-item:hover .branch-item-actions { opacity: 1; }
+.branch-action-btn { border: none; background: rgba(255,255,255,0.08); color: #aaa; width: 20px; height: 20px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; }
+.branch-action-btn:hover { background: #4a4af5; color: #fff; }
+.branch-delete-btn:hover { background: #e53935; }
+.branch-rename-input { background: #1a1a2e; border: 1px solid #4a4af5; color: #fff; font-size: 12px; padding: 2px 6px; border-radius: 4px; outline: none; width: 120px; }
+.branch-diff-popup { background: #2a2a2a; border-radius: 10px; padding: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.08); min-width: 240px; max-width: 320px; z-index: 1001; }
+.branch-diff-title { color: #fff; font-size: 12px; font-weight: 600; margin-bottom: 10px; }
+.branch-diff-empty { color: #888; font-size: 11px; padding: 8px 0; }
+.branch-diff-section { margin-bottom: 8px; }
+.branch-diff-section-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; padding: 2px 0; }
+.diff-added .branch-diff-section-label { color: #4caf50; }
+.diff-modified .branch-diff-section-label { color: #ffc107; }
+.diff-removed .branch-diff-section-label { color: #f44336; }
+.branch-diff-node { color: #ccc; font-size: 11px; padding: 2px 8px; }
+.branch-diff-actions { display: flex; gap: 8px; margin-top: 12px; justify-content: flex-end; }
+.branch-diff-cancel { border: none; background: rgba(255,255,255,0.08); color: #aaa; padding: 5px 14px; border-radius: 6px; cursor: pointer; font-size: 11px; }
+.branch-diff-cancel:hover { background: rgba(255,255,255,0.14); }
+.branch-diff-merge { border: none; background: #4a4af5; color: #fff; padding: 5px 14px; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 600; }
+.branch-diff-merge:hover { background: #5a5af7; }

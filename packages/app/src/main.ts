@@ -13,6 +13,7 @@ import { setupPageTabs } from "./ui/page-tabs";
 import { AutoSave, setupHistoryPanel } from "./autosave";
 import { setupInspectPanel } from "./ui/inspect-panel";
 import { setupColorPalettePanel } from "./ui/color-palette-panel";
+import { setupBranchPanel } from "./ui/branch-panel";
 import { createPrototypeViewer } from "./ui/prototype-viewer";
 import { CommentOverlay, setupCommentsPanel } from "./ui/comments";
 import { setupVariablesPanel } from "./ui/variables-panel";
@@ -100,6 +101,7 @@ async function main() {
 
   // Page tabs (bottom center, above toolbar)
   const pageTabs = setupPageTabs(document.getElementById("workspace")!, editor);
+  const branchPanel = setupBranchPanel(document.getElementById("workspace")!, editor);
 
   // Note overlay (positioned over canvas)
   const noteOverlay = setupNoteOverlay(document.getElementById("workspace")!, editor);

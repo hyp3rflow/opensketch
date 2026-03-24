@@ -179,3 +179,11 @@ Output: `packages/app/src/wasm/` (opensketch_engine.js + .wasm + .d.ts)
   - Inconsistent spacing gaps
   - Near-miss colors (similar but not identical)
 - **WASM**: `run_design_lint()` → JSON array of LintIssue
+
+## Branch System (branch.rs)
+- **Branch**: id, name, parent_branch_id, created_at, base_snapshot (BranchSnapshot), current_snapshot
+- **BranchSnapshot**: pages Vec, active_page_index, next_page_id, next_id — frozen scene state
+- **BranchDiff**: added/modified/removed Vec<DiffNode> — computed by JSON comparison
+- **merge_snapshots**: add new nodes, update existing, merge pages by id, reconcile next_id/next_page_id
+- **Scene fields**: branches Vec<Branch>, active_branch_id, next_branch_id
+- **Default**: new scenes start with "main" branch (id=1), backward-compatible serde

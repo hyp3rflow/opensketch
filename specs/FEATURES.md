@@ -694,3 +694,19 @@ Frame overflow control and content scrolling.
 - [x] Scene Colors view: grid of all used colors, click to generate harmonies, right-click to apply
 - [x] Harmonies view: hex input + 5 generated palettes, click to apply or copy
 - [x] Contrast view: all color pairs with ratio + AA/AAA badges, color-coded pass/fail
+
+## Branching / Forking (Design Version Control)
+- [x] Branch struct: id, name, parent_branch_id, created_at, base_snapshot, current_snapshot
+- [x] Scene integration: branches Vec, active_branch_id, next_branch_id
+- [x] create_branch(name): snapshot current state as base, create new branch and switch to it
+- [x] switch_branch(id): save current branch state, restore target branch state
+- [x] merge_branch(source, target): merge source nodes into target (add new, update modified)
+- [x] delete_branch(id): remove branch (main branch protected)
+- [x] list_branches(): all branches with active flag
+- [x] rename_branch(id, name): rename any branch
+- [x] get_branch_diff(id): compute added/modified/removed nodes vs base snapshot
+- [x] WASM bindings: all 8 branch APIs with BigInt conversion
+- [x] UI: branch-panel.ts — bottom-left dropdown, branch list popup, create/switch/delete/rename/merge
+- [x] Diff preview popup: colored sections (green=added, yellow=modified, red=removed) before merge
+- [x] Backward-compatible serde (existing files auto-migrate to single "main" branch)
+- [x] Undo integration for all branch operations

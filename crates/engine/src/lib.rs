@@ -16,6 +16,7 @@ pub mod animation;
 mod design_lint;
 mod color_palette;
 mod smart_select;
+pub mod branch;
 
 use wasm_bindgen::prelude::*;
 use web_sys::CanvasRenderingContext2d;
@@ -2929,6 +2930,53 @@ impl Engine {
 
     pub fn get_page_count(&self) -> usize {
         self.scene.get_page_count()
+    }
+
+    // =============================================
+    // Branching
+    // =============================================
+
+    pub fn create_branch(&mut self, name: &str) -> u64 {
+        self.push_undo();
+        self.scene.create_branch(name)
+    }
+
+    pub fn switch_branch(&mut self, id: u64) -> bool {
+        self.push_undo();
+        self.scene.switch_branch(id)
+    }
+
+    pub fn merge_branch(&mut self, source_id: u64, target_id: u64) -> bool {
+        self.push_undo();
+        self.scene.merge_branch(source_id, target_id)
+    }
+
+    pub fn delete_branch(&mut self, id: u64) -> bool {
+        self.push_undo();
+        self.scene.delete_branch(id)
+    }
+
+    pub fn list_branches(&self) -> String {
+        let branches = self.scene.list_branches();
+        let items: Vec<serde_json::Value> = branches.iter().map(|(id, name, active)| {
+            serde_json::json!({ "id": *id, "name": name, "active": *active })
+        }).collect();
+        serde_json::to_string(&items).unwrap_or_else(|_| "[]".to_string())
+    }
+
+    pub fn rename_branch(&mut self, id: u64, name: &str) -> bool {
+        self.scene.rename_branch(id, name)
+    }
+
+    pub fn get_branch_diff(&mut self, branch_id: u64) -> String {
+        match self.scene.get_branch_diff(branch_id) {
+            Some(diff) => serde_json::to_string(&diff).unwrap_or_else(|_| "{}".to_string()),
+            None => "{}".to_string(),
+        }
+    }
+
+    pub fn get_active_branch_id(&self) -> u64 {
+        self.scene.get_active_branch_id()
     }
 
     /// Get node JSON enriched with notes (for agent consumption)
