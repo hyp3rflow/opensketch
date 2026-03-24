@@ -6,6 +6,7 @@ mod render;
 mod hit_test;
 pub mod component;
 mod layout;
+pub mod layout_suggest;
 mod svg_export;
 mod boolean_ops;
 pub mod styles;
@@ -2607,6 +2608,77 @@ impl Engine {
                 _ => FlexWrap::NoWrap,
             };
         }
+    }
+
+    /// Suggest auto-layout settings for selected nodes (heuristic-based).
+    /// Returns JSON: { direction, gap, padding_*, align_items, justify_content, wrap, confidence, pattern }
+    pub fn suggest_auto_layout(&self, ids: &[u64]) -> String {
+        let suggestion = layout_suggest::suggest_auto_layout(&self.scene, ids);
+        serde_json::to_string(&suggestion).unwrap_or_else(|_| "null".to_string())
+    }
+
+    /// Wrap selected nodes in a Frame and apply suggested auto-layout.
+    /// Returns the new frame's ID, or 0 on failure.
+    pub fn apply_auto_layout_suggestion(&mut self, ids: &[u64]) -> u64 {
+        if ids.len() < 2 { return 0; }
+
+        let suggestion = layout_suggest::suggest_auto_layout(&self.scene, ids);
+
+        // Compute bounding box of selected nodes
+        let bounds = match self.scene.get_bounds_of(ids) {
+            Some(b) => b,
+            None => return 0,
+        };
+        let (min_x, min_y, max_x, max_y) = bounds;
+
+        // Create a Frame at the bounding box
+        let mut frame = crate::node::Node::new(0, NodeKind::Frame);
+        frame.x = min_x;
+        frame.y = min_y;
+        frame.width = max_x - min_x;
+        frame.height = max_y - min_y;
+        frame.name = format!("Auto Layout {}", self.scene.node_count() + 1);
+        frame.fills = vec![crate::node::Fill::solid(crate::types::Color { r: 30, g: 30, b: 30, a: 0.0 })];
+
+        // Set layout properties
+        frame.layout.mode = LayoutMode::Flex;
+        frame.layout.direction = if suggestion.direction == "row" { FlexDirection::Row } else { FlexDirection::Column };
+        frame.layout.gap = suggestion.gap;
+        frame.layout.padding_top = suggestion.padding_top;
+        frame.layout.padding_right = suggestion.padding_right;
+        frame.layout.padding_bottom = suggestion.padding_bottom;
+        frame.layout.padding_left = suggestion.padding_left;
+        frame.layout.align_items = parse_align(&suggestion.align_items);
+        frame.layout.justify_content = parse_justify(&suggestion.justify_content);
+        frame.layout.wrap = if suggestion.wrap == "wrap" { FlexWrap::Wrap } else { FlexWrap::NoWrap };
+
+        let frame_id = self.scene.add_node(frame);
+
+        // Reparent selected nodes into the frame
+        let mut sorted_ids: Vec<u64> = ids.to_vec();
+        // Sort by position to maintain visual order
+        if suggestion.direction == "row" {
+            sorted_ids.sort_by(|a, b| {
+                let ax = self.scene.get_node(*a).map(|n| n.x).unwrap_or(0.0);
+                let bx = self.scene.get_node(*b).map(|n| n.x).unwrap_or(0.0);
+                ax.partial_cmp(&bx).unwrap()
+            });
+        } else {
+            sorted_ids.sort_by(|a, b| {
+                let ay = self.scene.get_node(*a).map(|n| n.y).unwrap_or(0.0);
+                let by = self.scene.get_node(*b).map(|n| n.y).unwrap_or(0.0);
+                ay.partial_cmp(&by).unwrap()
+            });
+        }
+
+        for &child_id in &sorted_ids {
+            self.scene.reparent(child_id, Some(frame_id));
+        }
+
+        // Select the new frame
+        self.scene.selection = vec![frame_id];
+
+        frame_id
     }
 
     /// Get layout as JSON

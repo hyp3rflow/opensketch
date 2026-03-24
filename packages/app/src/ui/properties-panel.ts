@@ -213,6 +213,86 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       }
 
       wrap.appendChild(alignSection);
+
+      // Auto-suggest Layout section (2+ nodes)
+      const suggestSection = createSection("AI Layout");
+      const suggestBtn = document.createElement("button");
+      suggestBtn.style.cssText = `
+        width:100%; padding:8px 12px; border:1px solid rgba(79,70,229,0.3);
+        border-radius:8px; background:rgba(79,70,229,0.1); color:#818cf8;
+        cursor:pointer; font-size:12px; font-weight:500;
+        display:flex; align-items:center; justify-content:center; gap:6px;
+        transition:all 0.15s;
+      `;
+      suggestBtn.innerHTML = `${icons.layout ? icons.layout.replace(/width="\d+"/, 'width="16"').replace(/height="\d+"/, 'height="16"') : "✨"} <span>Auto-suggest Layout</span>`;
+      suggestBtn.addEventListener("mouseenter", () => { suggestBtn.style.background = "rgba(79,70,229,0.2)"; suggestBtn.style.borderColor = "rgba(79,70,229,0.5)"; });
+      suggestBtn.addEventListener("mouseleave", () => { suggestBtn.style.background = "rgba(79,70,229,0.1)"; suggestBtn.style.borderColor = "rgba(79,70,229,0.3)"; });
+      suggestBtn.addEventListener("click", () => {
+        const idsArr = new BigUint64Array(ids.map((i) => BigInt(i)));
+        // Preview suggestion first
+        const suggestionJson = editor.engine.suggest_auto_layout(idsArr);
+        const suggestion = JSON.parse(suggestionJson);
+
+        // Show suggestion preview
+        const previewDiv = document.createElement("div");
+        previewDiv.style.cssText = `
+          margin-top:8px; padding:10px; background:#1e1e1e;
+          border:1px solid #333; border-radius:8px; font-size:11px; color:#aaa;
+        `;
+
+        const patternLabel = document.createElement("div");
+        patternLabel.style.cssText = "font-size:10px;color:#818cf8;font-weight:600;text-transform:uppercase;letter-spacing:0.3px;margin-bottom:6px;";
+        patternLabel.textContent = `Detected: ${suggestion.pattern} (${Math.round(suggestion.confidence * 100)}% confidence)`;
+        previewDiv.appendChild(patternLabel);
+
+        const details = [
+          `Direction: ${suggestion.direction}`,
+          `Gap: ${suggestion.gap}px`,
+          `Align: ${suggestion.align_items}`,
+          `Justify: ${suggestion.justify_content}`,
+          suggestion.wrap !== "nowrap" ? `Wrap: ${suggestion.wrap}` : null,
+        ].filter(Boolean);
+
+        const detailsDiv = document.createElement("div");
+        detailsDiv.style.cssText = "display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px;";
+        for (const d of details) {
+          const chip = document.createElement("span");
+          chip.style.cssText = "padding:2px 6px;background:#2a2a2a;border-radius:4px;font-size:10px;color:#ccc;";
+          chip.textContent = d!;
+          detailsDiv.appendChild(chip);
+        }
+        previewDiv.appendChild(detailsDiv);
+
+        const applyBtn = document.createElement("button");
+        applyBtn.style.cssText = `
+          width:100%; padding:6px; border:none; border-radius:6px;
+          background:#4f46e5; color:#fff; cursor:pointer; font-size:11px; font-weight:500;
+          transition:background 0.15s;
+        `;
+        applyBtn.textContent = "Apply — Wrap in Frame with Auto-Layout";
+        applyBtn.addEventListener("mouseenter", () => { applyBtn.style.background = "#6366f1"; });
+        applyBtn.addEventListener("mouseleave", () => { applyBtn.style.background = "#4f46e5"; });
+        applyBtn.addEventListener("click", () => {
+          editor.engine.push_undo();
+          const frameId = editor.engine.apply_auto_layout_suggestion(idsArr);
+          if (frameId) {
+            editor.requestRender();
+            editor.notifyLayers();
+            refresh([Number(frameId)]);
+            editor.fireSelectionNow([Number(frameId)]);
+          }
+        });
+        previewDiv.appendChild(applyBtn);
+
+        // Remove previous preview if exists
+        const existingPreview = suggestSection.querySelector(".ai-layout-preview");
+        if (existingPreview) existingPreview.remove();
+        previewDiv.className = "ai-layout-preview";
+        suggestSection.appendChild(previewDiv);
+      });
+      suggestSection.appendChild(suggestBtn);
+      wrap.appendChild(suggestSection);
+
       container.appendChild(wrap);
       return;
     }
