@@ -679,3 +679,14 @@ Frame overflow control and content scrolling.
 - [x] Scene snapshot save/restore on playback (non-destructive preview)
 - [x] Zoom/scroll on timeline, right-click to delete keyframes
 - [x] Keyboard shortcut: Alt+T to toggle timeline panel
+
+## Color Palette Generator
+- [x] Rust: color_palette.rs — extract scene colors, HSL conversion, harmony generation, WCAG contrast
+- [x] Color extraction: all fills (solid + gradient stops), strokes, shadows with usage count
+- [x] Harmony palettes: Complementary, Analogous, Triadic, Tetradic, Shades (from any base color)
+- [x] WCAG contrast checking: AA/AAA normal/large text, relative luminance calculation
+- [x] WASM: extract_colors, generate_palettes, check_color_contrast
+- [x] TS: color-palette-panel.ts — right pane "Palette" tab
+- [x] Scene Colors view: grid of all used colors, click to generate harmonies, right-click to apply
+- [x] Harmonies view: hex input + 5 generated palettes, click to apply or copy
+- [x] Contrast view: all color pairs with ratio + AA/AAA badges, color-coded pass/fail

@@ -14,6 +14,7 @@ mod design_tokens;
 pub mod path_utils;
 pub mod animation;
 mod design_lint;
+mod color_palette;
 
 use wasm_bindgen::prelude::*;
 use web_sys::CanvasRenderingContext2d;
@@ -3986,6 +3987,29 @@ impl Engine {
     }
 
     /// Record current property values as keyframes for selected nodes
+    #[wasm_bindgen]
+    /// Extract all unique colors used in the scene
+    #[wasm_bindgen]
+    pub fn extract_colors(&self) -> String {
+        let entries = color_palette::extract_colors(self.scene.all_nodes());
+        serde_json::to_string(&entries).unwrap_or_else(|_| "[]".into())
+    }
+
+    /// Generate harmony palettes from a base hex color (e.g. "#ff6600")
+    #[wasm_bindgen]
+    pub fn generate_palettes(&self, base_hex: &str) -> String {
+        let palettes = color_palette::generate_palettes(base_hex);
+        serde_json::to_string(&palettes).unwrap_or_else(|_| "[]".into())
+    }
+
+    /// Check contrast between extracted scene colors (WCAG AA/AAA)
+    #[wasm_bindgen]
+    pub fn check_color_contrast(&self) -> String {
+        let entries = color_palette::extract_colors(self.scene.all_nodes());
+        let pairs = color_palette::check_contrast_pairs(&entries);
+        serde_json::to_string(&pairs).unwrap_or_else(|_| "[]".into())
+    }
+
     #[wasm_bindgen]
     pub fn anim_record_selected(&mut self, clip_id: u64, time_ms: u32, properties: &str) -> u32 {
         let sel: Vec<u64> = self.scene.selection.clone();

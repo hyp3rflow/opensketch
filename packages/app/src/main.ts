@@ -12,6 +12,7 @@ import { setupRulers } from "./ui/rulers";
 import { setupPageTabs } from "./ui/page-tabs";
 import { AutoSave, setupHistoryPanel } from "./autosave";
 import { setupInspectPanel } from "./ui/inspect-panel";
+import { setupColorPalettePanel } from "./ui/color-palette-panel";
 import { createPrototypeViewer } from "./ui/prototype-viewer";
 import { CommentOverlay, setupCommentsPanel } from "./ui/comments";
 import { setupVariablesPanel } from "./ui/variables-panel";
@@ -113,6 +114,10 @@ async function main() {
   // Inspect panel (inside right pane)
   setupInspectPanel(document.getElementById("inspect-panel")!, editor);
 
+  // Color palette panel
+  const palettePanel = setupColorPalettePanel(document.getElementById("palette-panel")!, editor);
+  palettePanel.refresh();
+
   // Comments overlay + panel
   const commentOverlay = new CommentOverlay(document.getElementById("canvas-container") || editor.canvas.parentElement!, editor);
   setupCommentsPanel(document.getElementById("comments-panel")!, editor, commentOverlay);
@@ -206,7 +211,7 @@ async function main() {
     tab.addEventListener("click", () => {
       const target = (tab as HTMLElement).dataset.tab!;
       rightPaneTabs.forEach((t) => t.classList.toggle("active", (t as HTMLElement).dataset.tab === target));
-      const tabContentMap: Record<string, string> = { agent: "agent-panel", properties: "properties-panel", history: "history-panel", inspect: "inspect-panel", comments: "comments-panel", variables: "variables-panel", assets: "assets-panel", bookmarks: "bookmarks-panel", accessibility: "accessibility-panel", plugins: "plugins-panel" };
+      const tabContentMap: Record<string, string> = { agent: "agent-panel", properties: "properties-panel", history: "history-panel", inspect: "inspect-panel", comments: "comments-panel", variables: "variables-panel", assets: "assets-panel", bookmarks: "bookmarks-panel", accessibility: "accessibility-panel", plugins: "plugins-panel", palette: "palette-panel" };
       rightPaneContents.forEach((c) => c.classList.toggle("active", c.id === tabContentMap[target]));
       if (target === "agent") {
         agentPanel.querySelector<HTMLInputElement>(".agent-input")?.focus();

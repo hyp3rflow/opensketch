@@ -639,8 +639,23 @@
   - Backward-compatible: 서버 없이도 기존 기능 정상 동작
   - specs/COLLABORATION.md 문서화
 
+## 완료된 기능 (추가 65)
+- Color palette generator:
+  - Rust color_palette.rs: 씬 내 모든 색상 추출 (fills/strokes/shadows), HSL 변환, harmony 생성, WCAG 대비 검사
+  - 5종 하모니 팔레트: Complementary, Analogous, Triadic, Tetradic, Shades
+  - WCAG AA/AAA 대비 체크: relative luminance, normal/large text 기준
+  - WASM: extract_colors, generate_palettes, check_color_contrast
+  - TS: color-palette-panel.ts — right pane "Palette" 탭 (Scene Colors / Harmonies / Contrast 3개 뷰)
+  - Scene Colors: 사용 횟수 배지, 클릭→하모니 생성, 우클릭→선택 노드에 적용
+  - Harmonies: hex 입력 + 5개 팔레트, 클릭으로 적용 또는 복사
+  - Contrast: 모든 색상 쌍 대비 비율 + AA/AAA 배지, 컬러 코딩
+
 ## 다음 할 것
 - Branching / forking (프로젝트 브랜치 분기, 머지 지원 — 디자인 버전 관리)
 - Vector network editing (Figma-style vector networks — 포인트 간 다중 연결, fill 영역 자동 감지)
 - Smart selection / magic wand (색상/스타일 유사도 기반 자동 선택, AI 기반 그룹 추천)
-- Component variants auto-layout (variant 전환 시 부모 auto-layout 자동 리사이즈/리플로우)
+- Figma → OpenSketch import (.fig 파일 파싱 또는 Figma REST API로 디자인 가져오기)
+- Shared component library (팀 간 공유 가능한 외부 컴포넌트 라이브러리 링크/동기화)
+- Canvas performance optimization (가상화, 오프스크린 캔버스, 대규모 씬 60fps 유지)
+- AI layout suggestion (선택한 요소들에 대해 AI가 auto-layout 설정 추천)
+- Responsive token system (디자인 토큰 + 브레이크포인트 기반 반응형 프리뷰 자동 전환)
