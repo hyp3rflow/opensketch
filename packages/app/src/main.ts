@@ -20,6 +20,7 @@ import { setupVariablesPanel } from "./ui/variables-panel";
 import { setupAssetPanel } from "./ui/asset-panel";
 import { setupBookmarksPanel } from "./ui/bookmarks-panel";
 import { setupAccessibilityPanel } from "./ui/accessibility-panel";
+import { initComponentLibrary, renderComponentLibraryPanel } from "./ui/component-library";
 import { PluginManager, loremIpsumPlugin, colorPalettePlugin } from "./plugins";
 import { setupPluginPanel } from "./ui/plugin-panel";
 import { createAnimationTimeline } from "./ui/animation-timeline";
@@ -128,6 +129,12 @@ async function main() {
   setupAssetPanel(document.getElementById("assets-panel")!, editor);
   setupBookmarksPanel(document.getElementById("bookmarks-panel")!, editor);
   setupAccessibilityPanel(document.getElementById("accessibility-panel")!, editor);
+
+  // Component libraries panel
+  initComponentLibrary(editor.engine, () => {
+    renderComponentLibraryPanel(document.getElementById("libraries-panel")!);
+  });
+  renderComponentLibraryPanel(document.getElementById("libraries-panel")!);
 
   // Component docs panel
   const componentDocsPanel = createComponentDocsPanel(editor);

@@ -9,6 +9,13 @@ let panelEl: HTMLElement | null = null;
 let engine: Engine | null = null;
 let onUpdate: (() => void) | null = null;
 
+export function openComponentLibraryPanel(eng: Engine, updateCb?: () => void) {
+  initComponentLibrary(eng, updateCb);
+  // Switch to Libraries tab if available
+  const tab = document.querySelector('[data-tab="libraries"]') as HTMLElement;
+  if (tab) tab.click();
+}
+
 export function initComponentLibrary(eng: Engine, updateCb?: () => void) {
   engine = eng;
   onUpdate = updateCb || null;
