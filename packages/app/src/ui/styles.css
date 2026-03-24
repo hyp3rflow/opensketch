@@ -237,3 +237,58 @@ select.prop-input { appearance: none; background: #333 url("data:image/svg+xml,%
 .minimap-toggle { border: none; background: transparent; color: #888; cursor: pointer; font-size: 14px; line-height: 1; padding: 0 2px; }
 .minimap-toggle:hover { color: #fff; }
 .minimap-canvas { display: block; cursor: crosshair; }
+
+/* ── Collaboration Panel ──────────────────────────────────────── */
+.collab-panel {
+  position: absolute; top: 12px; right: 16px; z-index: 50;
+  background: #1e1e2e; border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.06);
+  padding: 8px 12px; min-width: 180px;
+  font-size: 12px; color: #ccc;
+}
+.collab-status-row {
+  display: flex; align-items: center; gap: 8px;
+}
+.collab-status-dot {
+  width: 8px; height: 8px; border-radius: 50%; background: #636e72; flex-shrink: 0;
+}
+.collab-status-label { flex: 1; font-size: 11px; color: #999; }
+.collab-toggle-btn {
+  border: none; background: rgba(255,255,255,0.08); color: #ccc; font-size: 11px;
+  padding: 3px 10px; border-radius: 6px; cursor: pointer; white-space: nowrap;
+}
+.collab-toggle-btn:hover { background: rgba(255,255,255,0.14); color: #fff; }
+.collab-users {
+  display: flex; align-items: center; gap: 4px; margin-top: 8px; flex-wrap: wrap;
+}
+.collab-user-badge {
+  width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center;
+  justify-content: center; font-size: 11px; font-weight: 600; color: #fff;
+  border: 2px solid #1e1e2e;
+}
+.collab-user-count { font-size: 10px; color: #888; margin-left: 4px; }
+.collab-share-row { margin-top: 6px; }
+.collab-share-btn {
+  border: none; background: rgba(255,255,255,0.06); color: #aaa; font-size: 11px;
+  padding: 4px 10px; border-radius: 6px; cursor: pointer; width: 100%;
+}
+.collab-share-btn:hover { background: rgba(255,255,255,0.12); color: #fff; }
+.collab-connect-form {
+  margin-top: 8px; display: flex; flex-direction: column; gap: 6px;
+}
+.collab-input {
+  border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.3); color: #ddd;
+  font-size: 12px; padding: 5px 8px; border-radius: 6px; outline: none;
+}
+.collab-input:focus { border-color: rgba(79,70,229,0.6); }
+.collab-form-actions { display: flex; gap: 6px; }
+.collab-join-btn {
+  flex: 1; border: none; background: #4f46e5; color: #fff; font-size: 11px;
+  padding: 5px 0; border-radius: 6px; cursor: pointer; font-weight: 600;
+}
+.collab-join-btn:hover { background: #6366f1; }
+.collab-cancel-btn {
+  border: none; background: rgba(255,255,255,0.08); color: #aaa; font-size: 11px;
+  padding: 5px 10px; border-radius: 6px; cursor: pointer;
+}
+.collab-cancel-btn:hover { background: rgba(255,255,255,0.14); }

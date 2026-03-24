@@ -21,6 +21,8 @@ import { setupAccessibilityPanel } from "./ui/accessibility-panel";
 import { PluginManager, loremIpsumPlugin, colorPalettePlugin } from "./plugins";
 import { setupPluginPanel } from "./ui/plugin-panel";
 import { createAnimationTimeline } from "./ui/animation-timeline";
+import { CollabClient } from "./collab";
+import { initCollabUI, updateCollabUI } from "./ui/collab-ui";
 
 async function main() {
   const wasm = await loadEngine();
@@ -127,6 +129,75 @@ async function main() {
   pluginManager.register(colorPalettePlugin);
   pluginManager.activate("lorem-ipsum");
   pluginManager.activate("color-palette");
+
+  // ── Collaboration ──────────────────────────────────────────────
+  const collabClient = new CollabClient();
+  collabClient.setCursorPresence(editor.cursorPresence);
+
+  // Handle remote scene ops
+  collabClient.setCallbacks({
+    onRemoteSceneOp: (_userId, op) => {
+      if (op.kind === "full_replace" && op.sceneData) {
+        engine.import_scene(op.sceneData);
+        editor.requestRender();
+        editor.notifyLayersChanged();
+      }
+    },
+    onFullSync: (sceneData) => {
+      engine.import_scene(sceneData);
+      editor.requestRender();
+      editor.notifyLayersChanged();
+    },
+    onStatusChange: (status) => {
+      updateCollabUI(status, collabClient.connectedUsers);
+      if (status === "connected") {
+        const data = engine.export_scene();
+        if (data && data !== "{}") {
+          collabClient.sendFullSync(data);
+        }
+      }
+    },
+    onUsersChange: (users) => {
+      updateCollabUI(collabClient.connectionStatus, users);
+    },
+  });
+
+  // Send cursor position on pointer move over canvas
+  canvas.addEventListener("pointermove", (e) => {
+    if (collabClient.connectionStatus === "connected") {
+      const sx = engine.screen_to_scene_x(e.offsetX, e.offsetY);
+      const sy = engine.screen_to_scene_y(e.offsetX, e.offsetY);
+      collabClient.sendCursorMove(sx, sy, editor.currentTool);
+    }
+  });
+
+  // Send selection changes
+  editor.onSelection((ids) => {
+    if (collabClient.connectionStatus === "connected") {
+      collabClient.sendSelectionChange(ids);
+    }
+  });
+
+  // Broadcast scene changes on save
+  editor.onSave(() => {
+    if (collabClient.connectionStatus === "connected") {
+      const data = engine.export_scene();
+      if (data && data !== "{}") {
+        collabClient.sendSceneOp({ kind: "full_replace", sceneData: data });
+      }
+    }
+  });
+
+  // Init collab UI
+  initCollabUI(collabClient, {
+    onConnect: (roomId, userName) => {
+      collabClient.connect(roomId, userName);
+    },
+    onDisconnect: () => {
+      collabClient.disconnect();
+      updateCollabUI("disconnected", []);
+    },
+  });
 
   // Right pane tab switching
   const rightPaneTabs = document.querySelectorAll(".right-pane-tab");

@@ -8,6 +8,7 @@ import { openResponsivePreview, isResponsivePreviewOpen, closeResponsivePreview 
 import { CursorPresence } from "./ui/cursor-presence";
 import { openComponentSwapModal } from "./ui/component-swap";
 import { GradientEditor } from "./ui/gradient-editor";
+import type { CollabClient } from "./collab";
 import { findSpacingHandles, hitTestSpacingHandle, renderSpacingHandles, type SpacingHandle } from "./tools/spacing-handles";
 
 export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "section" | "image" | "pen" | "star" | "polygon" | "slice" | "connector";
@@ -90,6 +91,10 @@ export class Editor {
   // Cursor presence
   private _cursorPresence = new CursorPresence();
   private _cursorDemoCleanup: (() => void) | null = null;
+
+  // Collaboration
+  private _collabClient: CollabClient | null = null;
+  private _collabIgnoreRemote = false;
 
   // Throttle selection callbacks during drag
   private selectionDirty = false;
@@ -2025,6 +2030,11 @@ export class Editor {
 
   /** Get cursor presence instance for external integration */
   get cursorPresence() { return this._cursorPresence; }
+
+  /** Set external collab client for broadcasting */
+  setCollabClient(client: CollabClient) {
+    this._collabClient = client;
+  }
 
   /** Toggle cursor presence demo simulation */
   toggleCursorDemo(): boolean {
