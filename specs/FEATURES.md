@@ -630,3 +630,14 @@ Frame overflow control and content scrolling.
 - [x] Asset download buttons: per-node PNG (2x) and SVG export with one-click download
 - [x] Syntax highlighting for all languages (VS Code-style colors)
 - [x] CSS gen refactored: bitmap filter support via context object (no closure capture)
+
+### Gradient Editor on Canvas
+- [x] GradientEditor class (packages/app/src/ui/gradient-editor.ts)
+- [x] Linear gradient: start/end point handles with connecting line overlay
+- [x] Radial gradient: center point + radius handle with circle preview
+- [x] Drag handles to edit gradient direction/position/size in real-time
+- [x] Normalized coordinates (0-1) mapped to node bounds
+- [x] Bidirectional sync with Properties panel
+- [x] Undo integration (push_undo on first drag move)
+- [x] Integrated into editor render loop and pointer event pipeline
+- [x] Visual: colored handles (indigo start, emerald end), white outline for visibility

@@ -7,6 +7,7 @@ import { showContextMenu, hideContextMenu, type MenuItem } from "./ui/context-me
 import { openResponsivePreview, isResponsivePreviewOpen, closeResponsivePreview } from "./ui/responsive-preview";
 import { CursorPresence } from "./ui/cursor-presence";
 import { openComponentSwapModal } from "./ui/component-swap";
+import { GradientEditor } from "./ui/gradient-editor";
 
 export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "section" | "image" | "pen" | "star" | "polygon" | "slice" | "connector";
 
@@ -75,6 +76,7 @@ export class Editor {
 
   // Rulers & guides
   private _rulers: RulersAPI | null = null;
+  private _gradientEditor: GradientEditor | null = null;
 
   // Cursor presence
   private _cursorPresence = new CursorPresence();
@@ -91,6 +93,12 @@ export class Editor {
     this.setupCanvas();
     this.setupEvents();
     this.setupDragDrop();
+    this._gradientEditor = new GradientEditor(
+      engine,
+      () => this.requestRender(),
+      () => this.engine.push_undo(),
+      () => this.fireSelectionNow(Array.from(this.engine.get_selection()).map(Number)),
+    );
     this.startLoop();
   }
 
@@ -498,6 +506,17 @@ export class Editor {
       }
     }
 
+    // Gradient handle drag
+    if (this.currentTool === "select" && this._gradientEditor) {
+      const zoom = this.engine.get_zoom();
+      const panX = this.engine.get_pan_x();
+      const panY = this.engine.get_pan_y();
+      if (this._gradientEditor.onPointerDown(x, y, zoom, panX, panY)) {
+        this.canvas.setPointerCapture(e.pointerId);
+        return;
+      }
+    }
+
     if (this.currentTool === "select") {
       const handle = this.engine.hit_test_handle(x, y);
       if (handle >= 0) {
@@ -623,6 +642,21 @@ export class Editor {
       this.lastPanY = e.clientY;
       this.needsRender = true;
       return;
+    }
+
+    // Gradient handle dragging
+    if (this._gradientEditor) {
+      const zoom = this.engine.get_zoom();
+      const panX = this.engine.get_pan_x();
+      const panY = this.engine.get_pan_y();
+      if (this._gradientEditor.onPointerMove(e.offsetX, e.offsetY, zoom, panX, panY)) {
+        return;
+      }
+      // Update cursor for gradient handles
+      const gc = this._gradientEditor.getCursor(e.offsetX, e.offsetY, zoom, panX, panY);
+      if (gc && this.currentTool === "select") {
+        this.canvas.style.cursor = gc;
+      }
     }
 
     // Path edit mode dragging
@@ -810,6 +844,11 @@ export class Editor {
       return;
     }
 
+    // Gradient handle release
+    if (this._gradientEditor?.onPointerUp()) {
+      return;
+    }
+
     if (this._pathEditDragType) {
       this._pathEditDragType = null;
       this._pathEditHandleOffsets = null;
@@ -921,6 +960,7 @@ export class Editor {
       cancelAnimationFrame(this.selectionThrottleId);
       this.selectionThrottleId = 0;
     }
+    this._gradientEditor?.updateFromSelection();
     this.onSelectionChanges.forEach(fn => fn(ids));
   }
 
@@ -1605,6 +1645,7 @@ export class Editor {
         this.renderMarquee();
         this.renderConnectorPreview();
         this.renderSliceOverlays();
+        this.renderGradientEditor();
         this.renderCursorPresence();
         this._rulers?.render();
         this.needsRender = false;
@@ -1895,6 +1936,14 @@ export class Editor {
   notifyLayersChanged() { this.onLayersChanges.forEach(fn => fn()); }
 
   /** Render slice overlays (dashed outlines + labels) on canvas */
+  private renderGradientEditor() {
+    if (!this._gradientEditor?.active) return;
+    const zoom = this.engine.get_zoom();
+    const panX = this.engine.get_pan_x();
+    const panY = this.engine.get_pan_y();
+    this._gradientEditor.render(this.ctx, zoom, panX, panY);
+  }
+
   private renderCursorPresence() {
     const zoom = this.engine.get_zoom();
     const panX = this.engine.get_pan_x();
