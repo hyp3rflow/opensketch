@@ -667,9 +667,7 @@
 
 ## 다음 할 것
 - Vector network editing (Figma-style vector networks — 포인트 간 다중 연결, fill 영역 자동 감지)
-- Smart selection / magic wand (색상/스타일 유사도 기반 자동 선택, AI 기반 그룹 추천)
 - Figma → OpenSketch import (.fig 파일 파싱 또는 Figma REST API로 디자인 가져오기)
 - Shared component library (팀 간 공유 가능한 외부 컴포넌트 라이브러리 링크/동기화)
-- Canvas performance optimization (가상화, 오프스크린 캔버스, 대규모 씬 60fps 유지)
 - AI layout suggestion (선택한 요소들에 대해 AI가 auto-layout 설정 추천)
 - Responsive token system (디자인 토큰 + 브레이크포인트 기반 반응형 프리뷰 자동 전환)
