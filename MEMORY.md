@@ -37,6 +37,7 @@
 - **Tauri desktop build** — Tauri v2 빌드 완성, src-tauri/ 설정 수정 (tauri.conf.json beforeBuildCommand, identifier, app.title 제거), 아이콘 생성, Cargo workspace에 src-tauri 추가, release 바이너리 빌드 확인
 - **Smart Selection** — Cmd+클릭 deep select (Frame/Group 내부 자식 직접 선택), "Select All with Same Fill/Stroke/Kind" 컨텍스트 메뉴 항목, Rust deep_hit_test + select_same_fill/kind/stroke 메서드
 - **Gradient Editor on Canvas** — 선택 노드의 gradient fill에 대해 캔버스 위 드래그 가능한 핸들 오버레이 (Linear: 시작점/끝점 + 연결선, Radial: 중심점 + 반지름 핸들 + 원 미리보기), 실시간 편집, Properties panel 양방향 동기화, Undo 통합
+- **Auto Layout Spacing Handles** — Auto layout Frame 선택 시 자식 간 핑크/마젠타 gap handle 오버레이, 드래그로 gap 값 실시간 조절, row/column 방향 자동 감지, 최소 6px grab zone, gap 값 라벨 표시, Undo 통합
 
 ## 📋 Backlog
 - Responsive resize preview (artboard breakpoints, side-by-side view)

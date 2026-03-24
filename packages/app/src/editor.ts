@@ -8,6 +8,7 @@ import { openResponsivePreview, isResponsivePreviewOpen, closeResponsivePreview 
 import { CursorPresence } from "./ui/cursor-presence";
 import { openComponentSwapModal } from "./ui/component-swap";
 import { GradientEditor } from "./ui/gradient-editor";
+import { findSpacingHandles, hitTestSpacingHandle, renderSpacingHandles, type SpacingHandle } from "./tools/spacing-handles";
 
 export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "section" | "image" | "pen" | "star" | "polygon" | "slice" | "connector";
 
@@ -77,6 +78,14 @@ export class Editor {
   // Rulers & guides
   private _rulers: RulersAPI | null = null;
   private _gradientEditor: GradientEditor | null = null;
+
+  // Spacing handles (auto-layout gap drag)
+  private _spacingHandles: SpacingHandle[] = [];
+  private _spacingHovered: SpacingHandle | null = null;
+  private _spacingDragging: SpacingHandle | null = null;
+  private _spacingDragStartY = 0;
+  private _spacingDragStartX = 0;
+  private _spacingDragStartGap = 0;
 
   // Cursor presence
   private _cursorPresence = new CursorPresence();
@@ -506,6 +515,23 @@ export class Editor {
       }
     }
 
+    // Spacing handle drag (auto-layout gap)
+    if (this.currentTool === "select" && this._spacingHandles.length > 0) {
+      const hit = hitTestSpacingHandle(this._spacingHandles, x, y);
+      if (hit) {
+        this.engine.push_undo();
+        this._spacingDragging = hit;
+        this._spacingDragStartX = x;
+        this._spacingDragStartY = y;
+        try {
+          const pj = this.engine.get_node_json(BigInt(hit.parentId));
+          if (pj) this._spacingDragStartGap = JSON.parse(pj).layout?.gap ?? 0;
+        } catch { this._spacingDragStartGap = 0; }
+        this.canvas.setPointerCapture(e.pointerId);
+        return;
+      }
+    }
+
     // Gradient handle drag
     if (this.currentTool === "select" && this._gradientEditor) {
       const zoom = this.engine.get_zoom();
@@ -642,6 +668,32 @@ export class Editor {
       this.lastPanY = e.clientY;
       this.needsRender = true;
       return;
+    }
+
+    // Spacing handle dragging
+    if (this._spacingDragging) {
+      const zoom = this.engine.get_zoom();
+      const delta = this._spacingDragging.direction === "row"
+        ? (e.offsetX - this._spacingDragStartX) / zoom
+        : (e.offsetY - this._spacingDragStartY) / zoom;
+      const newGap = Math.max(0, Math.round(this._spacingDragStartGap + delta));
+      this.engine.set_layout_gap(BigInt(this._spacingDragging.parentId), newGap);
+      this.engine.compute_layout();
+      this._spacingHandles = findSpacingHandles(this.engine);
+      this.needsRender = true;
+      return;
+    }
+
+    // Spacing handle hover
+    if (this.currentTool === "select" && this._spacingHandles.length > 0 && !this.engine.is_dragging()) {
+      const prev = this._spacingHovered;
+      this._spacingHovered = hitTestSpacingHandle(this._spacingHandles, e.offsetX, e.offsetY);
+      if (this._spacingHovered) {
+        this.canvas.style.cursor = this._spacingHovered.direction === "row" ? "col-resize" : "row-resize";
+        if (prev !== this._spacingHovered) this.needsRender = true;
+      } else if (prev) {
+        this.needsRender = true;
+      }
     }
 
     // Gradient handle dragging
@@ -844,6 +896,15 @@ export class Editor {
       return;
     }
 
+    // Spacing handle release
+    if (this._spacingDragging) {
+      this._spacingDragging = null;
+      this._spacingHandles = findSpacingHandles(this.engine);
+      this.fireSelectionNow(Array.from(this.engine.get_selection()).map(Number));
+      this.needsRender = true;
+      return;
+    }
+
     // Gradient handle release
     if (this._gradientEditor?.onPointerUp()) {
       return;
@@ -961,6 +1022,7 @@ export class Editor {
       this.selectionThrottleId = 0;
     }
     this._gradientEditor?.updateFromSelection();
+    this._spacingHandles = findSpacingHandles(this.engine);
     this.onSelectionChanges.forEach(fn => fn(ids));
   }
 
@@ -1646,6 +1708,7 @@ export class Editor {
         this.renderConnectorPreview();
         this.renderSliceOverlays();
         this.renderGradientEditor();
+        this.renderSpacingHandles();
         this.renderCursorPresence();
         this._rulers?.render();
         this.needsRender = false;
@@ -1942,6 +2005,11 @@ export class Editor {
     const panX = this.engine.get_pan_x();
     const panY = this.engine.get_pan_y();
     this._gradientEditor.render(this.ctx, zoom, panX, panY);
+  }
+
+  private renderSpacingHandles() {
+    if (this._spacingHandles.length === 0) return;
+    renderSpacingHandles(this.ctx, this._spacingHandles, this._spacingHovered, this._spacingDragging);
   }
 
   private renderCursorPresence() {

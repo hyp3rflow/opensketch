@@ -641,3 +641,15 @@ Frame overflow control and content scrolling.
 - [x] Undo integration (push_undo on first drag move)
 - [x] Integrated into editor render loop and pointer event pipeline
 - [x] Visual: colored handles (indigo start, emerald end), white outline for visibility
+
+### Auto Layout Spacing Handles
+- [x] SpacingHandle interface (packages/app/src/tools/spacing-handles.ts)
+- [x] findSpacingHandles(): detects gap regions between auto-layout children
+- [x] hitTestSpacingHandle(): hit-test with min 6px grab zone for thin gaps
+- [x] renderSpacingHandles(): pink/magenta overlay with opacity variation (active vs idle)
+- [x] Gap value label on hover/drag (pill badge with rounded rect)
+- [x] Drag to adjust gap: row (col-resize cursor) / column (row-resize cursor)
+- [x] Real-time gap update via engine.set_layout_gap() WASM binding
+- [x] Filters out invisible and absolute-positioned children
+- [x] Integrated into editor select tool (mousedown/mousemove/mouseup + render loop)
+- [x] Undo integration (push_undo before drag starts)
