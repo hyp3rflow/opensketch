@@ -133,6 +133,10 @@ impl Scene {
         self.nodes.get_mut(&id)
     }
 
+    pub fn nodes_map(&self) -> &HashMap<NodeId, Node> {
+        &self.nodes
+    }
+
     pub fn all_nodes(&self) -> impl Iterator<Item = &Node> {
         self.nodes.values()
     }

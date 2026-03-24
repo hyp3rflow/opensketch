@@ -13,6 +13,7 @@ pub mod variable;
 mod design_tokens;
 pub mod path_utils;
 pub mod animation;
+mod design_lint;
 
 use wasm_bindgen::prelude::*;
 use web_sys::CanvasRenderingContext2d;
@@ -3057,6 +3058,15 @@ impl Engine {
             _ => design_tokens::TokenFormat::W3C,
         };
         design_tokens::export_design_tokens(&self.styles, &self.scene.variable_collections, fmt)
+    }
+
+    /// Run design lint on all visible nodes in the active page.
+    /// Returns JSON array of lint issues.
+    #[wasm_bindgen]
+    pub fn run_design_lint(&self) -> String {
+        let config = design_lint::LintConfig::default();
+        let issues = design_lint::run_lint(self.scene.nodes_map(), &config);
+        serde_json::to_string(&issues).unwrap_or_else(|_| "[]".to_string())
     }
 
     /// Perform a boolean operation on selected nodes.

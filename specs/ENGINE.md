@@ -160,3 +160,22 @@ Output: `packages/app/src/wasm/` (opensketch_engine.js + .wasm + .d.ts)
 - **AnimationClip**: id, name, Vec<AnimationTrack>, looping, duration_ms override
 - **AnimationStore**: Vec<AnimationClip>, CRUD operations, evaluate_clip → Vec<(NodeId, Property, Value)>
 - **Scene.anim_apply(clip_id, time_ms)**: mutates nodes in-place, returns changed IDs
+
+## Design Lint (design_lint.rs)
+- **LintSeverity**: Error, Warning, Info
+- **LintCategory**: Contrast, TouchTarget, TextSize, AltText, Spacing, CornerRadius, Color, Naming, Alignment, Opacity, Stroke
+- **LintIssue**: node_id, node_name, severity, category, rule, message, detail, suggestion
+- **LintConfig**: min_touch_target(44), min_font_size(12), min_contrast_aa(4.5), min_contrast_aaa(7.0), spacing_tolerance(1.0), near_miss_threshold(2.0)
+- **Rules**:
+  - WCAG AA/AAA contrast check (text vs parent fill, luminance-based)
+  - Touch target minimum size (44×44px)
+  - Image alt text (generic name detection)
+  - Font size minimum (12px)
+  - Near-invisible opacity (<10%)
+  - Empty text nodes
+  - Default container names
+  - Zero-size nodes
+  - Inconsistent corner radii (near-miss detection)
+  - Inconsistent spacing gaps
+  - Near-miss colors (similar but not identical)
+- **WASM**: `run_design_lint()` → JSON array of LintIssue

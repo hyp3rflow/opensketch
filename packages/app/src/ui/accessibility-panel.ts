@@ -9,9 +9,10 @@ interface A11yIssue {
   nodeId: number;
   nodeName: string;
   severity: "error" | "warning" | "info";
-  category: "contrast" | "touch-target" | "alt-text" | "text-size";
+  category: "contrast" | "touch-target" | "alt-text" | "text-size" | "spacing" | "corner-radius" | "color" | "naming" | "alignment" | "opacity" | "stroke";
   message: string;
   detail?: string;
+  suggestion?: string;
 }
 
 // WCAG 2.1 relative luminance
@@ -78,112 +79,45 @@ const CATEGORY_LABELS: Record<string, string> = {
   "touch-target": "Touch Target",
   "alt-text": "Alt Text",
   "text-size": "Text Size",
+  spacing: "Spacing",
+  "corner-radius": "Corner Radius",
+  color: "Color",
+  naming: "Naming",
+  alignment: "Alignment",
+  opacity: "Opacity",
+  stroke: "Stroke",
 };
 
 export function setupAccessibilityPanel(container: HTMLElement, editor: Editor) {
   let lastIssues: A11yIssue[] = [];
 
   function runAudit(): A11yIssue[] {
-    const issues: A11yIssue[] = [];
-    const layersJson = editor.engine.get_layer_list();
-    const layers: any[] = JSON.parse(layersJson);
-
-    for (const layer of layers) {
-      const id = Number(layer.id);
-      const bid = BigInt(id);
-      const nodeJsonStr = editor.engine.get_node_json(bid);
-      if (!nodeJsonStr) continue;
-      const node = JSON.parse(nodeJsonStr);
-      const kind = typeof node.kind === "string" ? node.kind : (node.kind ? Object.keys(node.kind)[0] : "");
-
-      // Skip invisible, slices, connectors
-      if (!node.visible) continue;
-      if (kind === "Slice" || kind === "Connector" || kind === "Section") continue;
-
-      // 1. Text contrast check
-      if (kind === "Text") {
-        const textColor = node.fill?.color || (node.fills?.[0]?.color);
-        const tc = parseColor(textColor);
-        if (tc) {
-          // Try to find parent fill for background
-          let bgColor: [number, number, number] | null = null;
-          if (node.parent) {
-            const parentJson = editor.engine.get_node_json(BigInt(node.parent));
-            if (parentJson) {
-              const parent = JSON.parse(parentJson);
-              const pfInfo = JSON.parse(editor.engine.get_fill_info(BigInt(node.parent)));
-              bgColor = getFillColor(pfInfo);
-            }
-          }
-          if (!bgColor) bgColor = [255, 255, 255]; // assume white bg
-
-          const fgLum = relativeLuminance(...tc);
-          const bgLum = relativeLuminance(...bgColor);
-          const ratio = contrastRatio(fgLum, bgLum);
-          const fontSize = node.font_size || 16;
-          const isLarge = fontSize >= 24 || (fontSize >= 18.66 && (node.font_weight || 400) >= 700);
-          const minRatio = isLarge ? 3.0 : 4.5;
-          const aaMinRatio = isLarge ? 4.5 : 7.0;
-
-          if (ratio < minRatio) {
-            issues.push({
-              nodeId: id, nodeName: node.name || "Text",
-              severity: "error", category: "contrast",
-              message: `Contrast ratio ${ratio.toFixed(1)}:1 fails WCAG AA (needs ≥${minRatio}:1)`,
-              detail: `Text: ${textColor}, Background: #${bgColor.map(c => c.toString(16).padStart(2, "0")).join("")}`,
-            });
-          } else if (ratio < aaMinRatio) {
-            issues.push({
-              nodeId: id, nodeName: node.name || "Text",
-              severity: "warning", category: "contrast",
-              message: `Contrast ratio ${ratio.toFixed(1)}:1 passes AA but fails AAA (needs ≥${aaMinRatio}:1)`,
-            });
-          }
-        }
-
-        // Text size check
-        const fontSize = node.font_size || 16;
-        if (fontSize < 12) {
-          issues.push({
-            nodeId: id, nodeName: node.name || "Text",
-            severity: "warning", category: "text-size",
-            message: `Font size ${fontSize}px is below recommended minimum (12px)`,
-          });
-        }
-      }
-
-      // 2. Touch target size (interactive elements — all non-frame leaf nodes)
-      if (kind !== "Frame" && kind !== "Group" && (!node.children || node.children.length === 0)) {
-        const w = node.width || 0;
-        const h = node.height || 0;
-        if (w > 0 && h > 0 && (w < 44 || h < 44)) {
-          // Only warn for reasonably sized elements (not tiny decorations < 8px)
-          if (w >= 8 && h >= 8) {
-            issues.push({
-              nodeId: id, nodeName: node.name || kind,
-              severity: "warning", category: "touch-target",
-              message: `Size ${Math.round(w)}×${Math.round(h)}px is below 44×44px touch target`,
-            });
-          }
-        }
-      }
-
-      // 3. Image alt text
-      if (kind === "Image") {
-        const name = node.name || "";
-        const isGeneric = /^Image \d+$/.test(name);
-        if (isGeneric || !name) {
-          issues.push({
-            nodeId: id, nodeName: name || "Image",
-            severity: "error", category: "alt-text",
-            message: "Image lacks descriptive name (used as alt text)",
-            detail: "Rename this image node to describe its content",
-          });
-        }
-      }
+    // Use Rust engine design lint (covers contrast, touch-target, alt-text, text-size,
+    // plus design lint: spacing, corner-radius, color, naming, alignment, opacity)
+    try {
+      const lintJson = (editor.engine as any).run_design_lint();
+      const rustIssues: any[] = JSON.parse(lintJson);
+      return rustIssues.map((ri: any) => {
+        const severityMap: Record<string, A11yIssue["severity"]> = { Error: "error", Warning: "warning", Info: "info" };
+        const categoryMap: Record<string, A11yIssue["category"]> = {
+          Contrast: "contrast", TouchTarget: "touch-target", TextSize: "text-size",
+          AltText: "alt-text", Spacing: "spacing", CornerRadius: "corner-radius",
+          Color: "color", Naming: "naming", Alignment: "alignment", Opacity: "opacity", Stroke: "stroke",
+        };
+        return {
+          nodeId: Number(ri.node_id),
+          nodeName: ri.node_name || "",
+          severity: severityMap[ri.severity] || "info",
+          category: categoryMap[ri.category] || "naming",
+          message: ri.message || "",
+          detail: ri.detail || undefined,
+          suggestion: ri.suggestion || undefined,
+        };
+      });
+    } catch {
+      // Fallback: empty
+      return [];
     }
-
-    return issues;
   }
 
   function render() {
@@ -204,7 +138,7 @@ export function setupAccessibilityPanel(container: HTMLElement, editor: Editor) 
     titleArea.appendChild(titleIcon);
     const title = document.createElement("span");
     title.style.cssText = "font-size:13px;font-weight:600;color:#e0e0e0;";
-    title.textContent = "Accessibility";
+    title.textContent = "Design Lint";
     titleArea.appendChild(title);
     header.appendChild(titleArea);
 
@@ -247,7 +181,7 @@ export function setupAccessibilityPanel(container: HTMLElement, editor: Editor) 
       list.appendChild(empty);
     } else {
       // Group by category
-      const categories = ["contrast", "alt-text", "touch-target", "text-size"] as const;
+      const categories = ["contrast", "alt-text", "touch-target", "text-size", "spacing", "corner-radius", "color", "naming", "alignment", "opacity", "stroke"] as const;
       for (const cat of categories) {
         const catIssues = lastIssues.filter(i => i.category === cat);
         if (catIssues.length === 0) continue;
@@ -291,6 +225,13 @@ export function setupAccessibilityPanel(container: HTMLElement, editor: Editor) 
             det.style.cssText = "font-size:10px;color:#666;margin-top:2px;";
             det.textContent = issue.detail;
             row.appendChild(det);
+          }
+
+          if (issue.suggestion) {
+            const sug = document.createElement("div");
+            sug.style.cssText = "font-size:10px;color:#818cf8;margin-top:2px;font-style:italic;";
+            sug.textContent = `💡 ${issue.suggestion}`;
+            row.appendChild(sug);
           }
 
           list.appendChild(row);
