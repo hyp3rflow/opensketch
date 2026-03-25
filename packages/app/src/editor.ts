@@ -3127,6 +3127,24 @@ export class Editor {
     openResponsivePreview(this.engine);
   }
 
+  private _presentationMode: ReturnType<typeof import("./ui/presentation-mode").createPresentationMode> | null = null;
+
+  openPresentationMode() {
+    if (this._presentationMode?.isActive()) return;
+    import("./ui/presentation-mode").then(({ createPresentationMode }) => {
+      this._presentationMode = createPresentationMode(this);
+      this._presentationMode.show();
+    });
+  }
+
+  closePresentationMode() {
+    this._presentationMode?.hide();
+  }
+
+  isPresentationActive(): boolean {
+    return this._presentationMode?.isActive() ?? false;
+  }
+
   openResponsiveTokens() {
     openResponsiveTokensPanel(this.engine, () => this.render());
   }

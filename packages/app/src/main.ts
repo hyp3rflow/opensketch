@@ -252,6 +252,12 @@ async function main() {
     if (e.key === "d" || e.key === "D") toggleDesignSystem();
     // Alt+T → toggle animation timeline
     if (e.key === "t" && e.altKey) { e.preventDefault(); animTimeline.toggle(); }
+    // Cmd+Shift+Enter → presentation mode
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && e.shiftKey) {
+      e.preventDefault();
+      editor.openPresentationMode();
+      return;
+    }
     // Cmd+Enter or Ctrl+Enter → prototype mode
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();

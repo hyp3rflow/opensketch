@@ -849,3 +849,14 @@ Frame overflow control and content scrolling.
 - [x] **WASM bindings**: 14 bindings (set_current_user, perm_add/remove_user, perm_set_role, perm_get_role, perm_get_users, perm_can_edit_node/page, perm_lock/unlock_node/page, perm_get_locks, perm_get_node/page_lock, perm_cleanup_expired)
 - [x] **UI**: Right pane "Perms" tab — team members list, role management, lock visualization, lock/unlock selected node button
 - [x] **Backward-compatible**: Default "local" owner user, no-op when no permissions configured
+
+### Canvas Presentation Mode
+- [x] **Fullscreen slideshow**: Page-based presentation with black background, auto-scaled rendering
+- [x] **Transitions**: None, Fade, Slide Left/Right/Up, Zoom — eased animations (400ms)
+- [x] **Navigation**: Arrow keys, Space, PageUp/Down, Home/End, click left/right halves
+- [x] **Presenter notes**: Toggle with N key — collects notes from top-level nodes on each page
+- [x] **Controls**: Bottom bar (auto-hide), progress bar with click-to-seek, slide counter
+- [x] **Fullscreen**: F key toggles browser fullscreen API
+- [x] **Toolbar button**: Presentation icon, Cmd+Shift+Enter shortcut
+- [x] **Dynamic import**: Code-split for zero impact on initial load
+- [x] **Viewport restore**: Saves/restores zoom, pan, and active page on exit

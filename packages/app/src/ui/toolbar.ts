@@ -190,6 +190,16 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
     container.appendChild(protoBtn);
   }
 
+  // Presentation mode button
+  {
+    const presBtn = document.createElement("button");
+    presBtn.className = "tool-btn";
+    presBtn.title = "Presentation Mode (⌘⇧⏎)";
+    presBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/><polygon points="10,7 10,13 15,10" fill="currentColor" stroke="none"/></svg>`;
+    presBtn.addEventListener("click", () => editor.openPresentationMode());
+    container.appendChild(presBtn);
+  }
+
   // Responsive preview button
   const respBtn = document.createElement("button");
   respBtn.className = "tool-btn";
