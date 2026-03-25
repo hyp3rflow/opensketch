@@ -716,6 +716,11 @@
 - Properties panel: Transform dropdown + Text Indent number input
 - Handoff panel: text-transform, text-indent in CSS/Tailwind codegen + Design Specs
 - Backward-compatible serde (default values)
+- OpenType features: ligatures, small caps, old-style numerals, tabular numerals (OpenTypeFeatures struct in node.rs)
+- OpenType WASM bindings: set_opentype_ligatures/small_caps/old_style_numerals/tabular_numerals + get_opentype_features (JSON)
+- OpenType Properties panel: 4 checkbox toggles in text section
+- OpenType SVG export: font-feature-settings + font-variant-caps style attributes
+- OpenType Handoff: font-feature-settings CSS codegen + spec row display
 
 ## 다음 할 것
 - Pattern fills (repeating image/SVG pattern fills, scale/rotation control, tile/brick/hex pattern presets)

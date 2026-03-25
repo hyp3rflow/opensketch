@@ -2320,6 +2320,46 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       textIndentRow.appendChild(textIndentInput);
       textSection.appendChild(textIndentRow);
 
+      // OpenType Features
+      {
+        const otRaw = editor.engine.get_opentype_features(BigInt(id));
+        const ot = JSON.parse(otRaw || "{}");
+        const otRow = document.createElement("div");
+        otRow.className = "prop-row";
+        otRow.style.cssText = "flex-wrap:wrap;gap:4px;";
+        const otLabel = document.createElement("span");
+        otLabel.className = "prop-label";
+        otLabel.textContent = "OpenType";
+        otRow.appendChild(otLabel);
+        const otGrid = document.createElement("div");
+        otGrid.style.cssText = "display:grid;grid-template-columns:1fr 1fr;gap:3px 8px;flex:1;";
+        const features: [string, string, boolean, (v: boolean) => void][] = [
+          ["Ligatures", "liga", ot.ligatures !== false, (v) => editor.engine.set_opentype_ligatures(BigInt(id), v)],
+          ["Small Caps", "smcp", !!ot.small_caps, (v) => editor.engine.set_opentype_small_caps(BigInt(id), v)],
+          ["Old-style Nums", "onum", !!ot.old_style_numerals, (v) => editor.engine.set_opentype_old_style_numerals(BigInt(id), v)],
+          ["Tabular Nums", "tnum", !!ot.tabular_numerals, (v) => editor.engine.set_opentype_tabular_numerals(BigInt(id), v)],
+        ];
+        for (const [label, _tag, checked, setter] of features) {
+          const wrap = document.createElement("label");
+          wrap.style.cssText = "display:flex;align-items:center;gap:4px;font-size:10px;color:#aaa;cursor:pointer;";
+          const cb = document.createElement("input");
+          cb.type = "checkbox";
+          cb.checked = checked;
+          cb.style.cssText = "accent-color:#7c3aed;width:12px;height:12px;";
+          cb.addEventListener("change", () => {
+            ensureUndo();
+            setter(cb.checked);
+            editor.requestRender();
+            refresh(ids);
+          });
+          wrap.appendChild(cb);
+          wrap.appendChild(document.createTextNode(label));
+          otGrid.appendChild(wrap);
+        }
+        otRow.appendChild(otGrid);
+        textSection.appendChild(otRow);
+      }
+
       // Text on Path
       {
         const topInfo = editor.engine.get_text_path_info(BigInt(id));

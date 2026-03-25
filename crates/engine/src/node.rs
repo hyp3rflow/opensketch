@@ -99,6 +99,42 @@ impl TextTransform {
     }
 }
 
+/// OpenType feature settings for advanced typography
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct OpenTypeFeatures {
+    #[serde(default = "default_true")]
+    pub ligatures: bool,
+    #[serde(default)]
+    pub old_style_numerals: bool,
+    #[serde(default)]
+    pub small_caps: bool,
+    #[serde(default)]
+    pub tabular_numerals: bool,
+}
+
+fn default_true() -> bool { true }
+
+impl Default for OpenTypeFeatures {
+    fn default() -> Self {
+        Self { ligatures: true, old_style_numerals: false, small_caps: false, tabular_numerals: false }
+    }
+}
+
+impl OpenTypeFeatures {
+    pub fn to_css(&self) -> String {
+        let mut parts = Vec::new();
+        if !self.ligatures { parts.push("\"liga\" 0"); }
+        if self.old_style_numerals { parts.push("\"onum\" 1"); }
+        if self.small_caps { parts.push("\"smcp\" 1"); }
+        if self.tabular_numerals { parts.push("\"tnum\" 1"); }
+        parts.join(", ")
+    }
+
+    pub fn has_any(&self) -> bool {
+        !self.ligatures || self.old_style_numerals || self.small_caps || self.tabular_numerals
+    }
+}
+
 /// List style for text nodes
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub enum ListStyle {
@@ -179,6 +215,9 @@ pub enum NodeKind {
         /// Text indent for first line (pixels)
         #[serde(default)]
         text_indent: f64,
+        /// OpenType feature settings
+        #[serde(default)]
+        opentype_features: OpenTypeFeatures,
     },
     Frame,
     Group,

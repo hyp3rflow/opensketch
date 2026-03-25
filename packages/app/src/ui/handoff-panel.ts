@@ -177,6 +177,15 @@ export function setupHandoffPanel(container: HTMLElement, editor: Editor) {
       if (node.letter_spacing) addSpecRow(section, "Tracking", `${node.letter_spacing}px`);
       if (node.text_transform && node.text_transform !== "None") addSpecRow(section, "Transform", node.text_transform);
       if (node.text_indent && node.text_indent !== 0) addSpecRow(section, "Text Indent", `${node.text_indent}px`);
+      if (node.opentype_features) {
+        const ot = node.opentype_features;
+        const feats: string[] = [];
+        if (!ot.ligatures) feats.push("No Ligatures");
+        if (ot.small_caps) feats.push("Small Caps");
+        if (ot.old_style_numerals) feats.push("Old-style Nums");
+        if (ot.tabular_numerals) feats.push("Tabular Nums");
+        if (feats.length > 0) addSpecRow(section, "OpenType", feats.join(", "));
+      }
     }
 
     // Layout / padding
@@ -578,6 +587,16 @@ function generateCSS(ctx: CodeCtx): string {
     if (node.indent_level && node.indent_level > 0) lines.push(`padding-left: ${node.indent_level * 1.5}em;`);
     if (node.text_transform && node.text_transform !== "None" && node.text_transform !== "none") lines.push(`text-transform: ${node.text_transform.toLowerCase()};`);
     if (node.text_indent && node.text_indent !== 0) lines.push(`text-indent: ${node.text_indent}px;`);
+    if (node.opentype_features) {
+      const ot = node.opentype_features;
+      const parts: string[] = [];
+      if (!ot.ligatures) parts.push('"liga" 0');
+      if (ot.old_style_numerals) parts.push('"onum" 1');
+      if (ot.small_caps) parts.push('"smcp" 1');
+      if (ot.tabular_numerals) parts.push('"tnum" 1');
+      if (parts.length > 0) lines.push(`font-feature-settings: ${parts.join(", ")};`);
+      if (ot.small_caps) lines.push(`font-variant-caps: small-caps;`);
+    }
     if (node.fills?.[0]) lines.push(`color: ${rgbaToCSS(node.fills[0])};`);
   }
 

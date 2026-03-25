@@ -920,3 +920,8 @@ Frame overflow control and content scrolling.
 - [x] **Properties panel**: Transform dropdown + indent number input
 - [x] **Handoff panel**: CSS code gen for text-transform & text-indent
 - [x] **WASM bindings**: set/get_text_transform, set/get_text_indent
+- [x] **OpenType features**: ligatures, small caps, old-style numerals, tabular numerals
+- [x] **OpenType WASM bindings**: set_opentype_ligatures/small_caps/old_style_numerals/tabular_numerals, get_opentype_features
+- [x] **OpenType Properties panel**: checkbox toggles for all 4 features
+- [x] **OpenType SVG export**: font-feature-settings + font-variant-caps style attributes
+- [x] **OpenType Handoff**: CSS codegen for font-feature-settings in CSS & spec rows

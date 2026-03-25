@@ -458,7 +458,7 @@ impl Renderer {
         match &node.kind {
             NodeKind::Rect => self.render_rect(ctx, node),
             NodeKind::Ellipse => self.render_ellipse(ctx, node),
-            NodeKind::Text { content, font_size, font_family, line_height, text_align, font_weight, font_style, text_decoration, letter_spacing, paragraph_spacing, list_style, indent_level, text_transform, text_indent } => self.render_text(ctx, node, scene, content, *font_size, font_family, *line_height, text_align, *font_weight, font_style, text_decoration, *letter_spacing, *paragraph_spacing, list_style, *indent_level, text_transform, *text_indent),
+            NodeKind::Text { content, font_size, font_family, line_height, text_align, font_weight, font_style, text_decoration, letter_spacing, paragraph_spacing, list_style, indent_level, text_transform, text_indent, .. } => self.render_text(ctx, node, scene, content, *font_size, font_family, *line_height, text_align, *font_weight, font_style, text_decoration, *letter_spacing, *paragraph_spacing, list_style, *indent_level, text_transform, *text_indent),
             NodeKind::Frame => self.render_frame(ctx, node, scene),
             NodeKind::Group => { self.render_children(ctx, &node.children, scene); }
             NodeKind::Slot { .. } => self.render_slot(ctx, node),

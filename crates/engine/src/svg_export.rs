@@ -161,7 +161,7 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
             attrs.push_str("/>\n");
             buf.push_str(&attrs);
         }
-        NodeKind::Text { content, font_size, font_family, line_height, text_align, font_weight, font_style, text_decoration, letter_spacing, paragraph_spacing, list_style, indent_level, text_transform, text_indent } => {
+        NodeKind::Text { content, font_size, font_family, line_height, text_align, font_weight, font_style, text_decoration, letter_spacing, paragraph_spacing, list_style, indent_level, text_transform, text_indent, opentype_features } => {
             // Apply text transform for display
             let display_content = text_transform.apply(content);
             let content = &display_content;
@@ -263,6 +263,28 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
                 attrs.push_str(&format!(r#" opacity="{}""#, node.opacity));
             }
             append_blend_mode(&mut attrs, node);
+
+            // Style attribute for text-transform, text-indent, font-feature-settings
+            {
+                let mut style_parts = Vec::new();
+                let tt_css = text_transform.to_css();
+                if tt_css != "none" {
+                    style_parts.push(format!("text-transform:{}", tt_css));
+                }
+                if *text_indent != 0.0 {
+                    style_parts.push(format!("text-indent:{}px", text_indent));
+                }
+                let ot_css = opentype_features.to_css();
+                if !ot_css.is_empty() {
+                    style_parts.push(format!("font-feature-settings:{}", ot_css));
+                }
+                if opentype_features.small_caps {
+                    style_parts.push("font-variant-caps:small-caps".to_string());
+                }
+                if !style_parts.is_empty() {
+                    attrs.push_str(&format!(r#" style="{}""#, style_parts.join(";")));
+                }
+            }
 
             // Indent offset
             let indent_px = *indent_level as f64 * font_size * 1.5;

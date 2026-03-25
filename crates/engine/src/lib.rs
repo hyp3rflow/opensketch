@@ -243,6 +243,7 @@ impl Engine {
             indent_level: 0,
             text_transform: crate::node::TextTransform::default(),
             text_indent: 0.0,
+            opentype_features: crate::node::OpenTypeFeatures::default(),
         });
         node.x = x; node.y = y;
         node.width = content.len() as f64 * font_size * 0.6;
@@ -2922,6 +2923,56 @@ impl Engine {
         self.scene.get_node(id).map(|n| {
             if let NodeKind::Text { text_indent, .. } = &n.kind { *text_indent } else { 0.0 }
         }).unwrap_or(0.0)
+    }
+
+    // =============================================
+    // OpenType Features
+    // =============================================
+
+    pub fn set_opentype_ligatures(&mut self, id: u64, enabled: bool) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Text { ref mut opentype_features, .. } = node.kind {
+                opentype_features.ligatures = enabled;
+            }
+        }
+    }
+
+    pub fn set_opentype_old_style_numerals(&mut self, id: u64, enabled: bool) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Text { ref mut opentype_features, .. } = node.kind {
+                opentype_features.old_style_numerals = enabled;
+            }
+        }
+    }
+
+    pub fn set_opentype_small_caps(&mut self, id: u64, enabled: bool) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Text { ref mut opentype_features, .. } = node.kind {
+                opentype_features.small_caps = enabled;
+            }
+        }
+    }
+
+    pub fn set_opentype_tabular_numerals(&mut self, id: u64, enabled: bool) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Text { ref mut opentype_features, .. } = node.kind {
+                opentype_features.tabular_numerals = enabled;
+            }
+        }
+    }
+
+    pub fn get_opentype_features(&self, id: u64) -> String {
+        if let Some(n) = self.scene.get_node(id) {
+            if let NodeKind::Text { ref opentype_features, .. } = n.kind {
+                return serde_json::json!({
+                    "ligatures": opentype_features.ligatures,
+                    "old_style_numerals": opentype_features.old_style_numerals,
+                    "small_caps": opentype_features.small_caps,
+                    "tabular_numerals": opentype_features.tabular_numerals,
+                }).to_string();
+            }
+        }
+        "{}".to_string()
     }
 
     // =============================================
