@@ -27,6 +27,7 @@ import { createAnimationTimeline } from "./ui/animation-timeline";
 import { createComponentDocsPanel } from "./ui/component-docs-panel";
 import { CollabClient } from "./collab";
 import { initCollabUI, updateCollabUI } from "./ui/collab-ui";
+import { renderPermissionsPanel } from "./ui/permissions-panel";
 
 async function main() {
   const wasm = await loadEngine();
@@ -130,6 +131,14 @@ async function main() {
   setupBookmarksPanel(document.getElementById("bookmarks-panel")!, editor);
   setupAccessibilityPanel(document.getElementById("accessibility-panel")!, editor);
 
+  // Permissions panel — init default owner user
+  (editor as any).engine.perm_add_user("local", "Local User", "owner");
+  const permPanel = document.getElementById("permissions-panel")!;
+  renderPermissionsPanel(permPanel, editor);
+
+  // Re-render permissions panel on selection change
+  editor.onSelection(() => renderPermissionsPanel(permPanel, editor));
+
   // Component libraries panel
   initComponentLibrary(editor.engine, () => {
     renderComponentLibraryPanel(document.getElementById("libraries-panel")!);
@@ -226,10 +235,13 @@ async function main() {
     tab.addEventListener("click", () => {
       const target = (tab as HTMLElement).dataset.tab!;
       rightPaneTabs.forEach((t) => t.classList.toggle("active", (t as HTMLElement).dataset.tab === target));
-      const tabContentMap: Record<string, string> = { agent: "agent-panel", properties: "properties-panel", history: "history-panel", inspect: "inspect-panel", comments: "comments-panel", variables: "variables-panel", assets: "assets-panel", bookmarks: "bookmarks-panel", accessibility: "accessibility-panel", plugins: "plugins-panel", palette: "palette-panel", docs: "docs-panel" };
+      const tabContentMap: Record<string, string> = { agent: "agent-panel", properties: "properties-panel", history: "history-panel", inspect: "inspect-panel", comments: "comments-panel", variables: "variables-panel", assets: "assets-panel", bookmarks: "bookmarks-panel", accessibility: "accessibility-panel", plugins: "plugins-panel", palette: "palette-panel", docs: "docs-panel", permissions: "permissions-panel" };
       rightPaneContents.forEach((c) => c.classList.toggle("active", c.id === tabContentMap[target]));
       if (target === "agent") {
         agentPanel.querySelector<HTMLInputElement>(".agent-input")?.focus();
+      }
+      if (target === "permissions") {
+        renderPermissionsPanel(permPanel, editor);
       }
     });
   });

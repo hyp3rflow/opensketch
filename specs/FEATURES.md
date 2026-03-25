@@ -838,3 +838,14 @@ Frame overflow control and content scrolling.
 - [x] **Properties panel**: Vertex/segment/region counts, Detect Regions button, Convert Path to VN button
 - [x] **Point snapping**: Integrated with existing point-snap system during vertex drag
 - [x] **Undo integration**: All operations push_undo
+
+### Multi-user Permissions
+- [x] **Role-based access**: Owner / Editor / Viewer roles
+- [x] **Permission store**: Rust `permissions.rs` — user management, role checks, node/page locking
+- [x] **Node locking**: Lock/unlock individual nodes (prevents other users from editing)
+- [x] **Page locking**: Lock/unlock entire pages
+- [x] **Expiry support**: Locks can have optional expiry timestamps, auto-cleanup
+- [x] **Owner privileges**: Can manage users, change roles, override any lock
+- [x] **WASM bindings**: 14 bindings (set_current_user, perm_add/remove_user, perm_set_role, perm_get_role, perm_get_users, perm_can_edit_node/page, perm_lock/unlock_node/page, perm_get_locks, perm_get_node/page_lock, perm_cleanup_expired)
+- [x] **UI**: Right pane "Perms" tab — team members list, role management, lock visualization, lock/unlock selected node button
+- [x] **Backward-compatible**: Default "local" owner user, no-op when no permissions configured

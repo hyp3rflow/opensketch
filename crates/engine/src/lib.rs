@@ -20,6 +20,7 @@ mod smart_select;
 pub mod vector_network;
 pub mod branch;
 mod find_replace;
+pub mod permissions;
 
 use wasm_bindgen::prelude::*;
 use web_sys::CanvasRenderingContext2d;
@@ -53,6 +54,7 @@ use crate::types::{Color, Point};
 use crate::component::{ComponentStore, VariantProp, VariantPropType, VariantValue, VariantData, VariantKey, SlotDef, InstanceData, NodeOverrides};
 use crate::node::{Note, Shadow, Interaction, InteractionTrigger, InteractionAction, TransitionType};
 use crate::styles::StyleStore;
+use crate::permissions::PermissionStore;
 
 #[wasm_bindgen]
 pub struct Engine {
@@ -63,6 +65,9 @@ pub struct Engine {
     styles: StyleStore,
     undo_stack: Vec<String>,
     redo_stack: Vec<String>,
+    permissions: PermissionStore,
+    /// Current user ID for permission checks
+    current_user_id: String,
 }
 
 #[wasm_bindgen]
@@ -78,6 +83,8 @@ impl Engine {
             styles: StyleStore::new(),
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
+            permissions: PermissionStore::new(),
+            current_user_id: String::from("local"),
         }
     }
 
@@ -4685,6 +4692,103 @@ impl Engine {
     pub fn replace_color(&mut self, from_hex: &str, to_hex: &str) -> u32 {
         self.push_undo();
         self.scene.replace_color(from_hex, to_hex)
+    }
+
+    // ── Permissions ─────────────────────────────────────────────
+
+    #[wasm_bindgen]
+    pub fn set_current_user(&mut self, user_id: &str) {
+        self.current_user_id = user_id.to_string();
+    }
+
+    #[wasm_bindgen]
+    pub fn get_current_user(&self) -> String {
+        self.current_user_id.clone()
+    }
+
+    #[wasm_bindgen]
+    pub fn perm_add_user(&mut self, user_id: &str, name: &str, role: &str) {
+        self.permissions.add_user(
+            user_id.to_string(),
+            name.to_string(),
+            permissions::Role::from_str(role),
+        );
+    }
+
+    #[wasm_bindgen]
+    pub fn perm_remove_user(&mut self, user_id: &str) {
+        self.permissions.remove_user(user_id);
+    }
+
+    #[wasm_bindgen]
+    pub fn perm_set_role(&mut self, user_id: &str, role: &str) -> bool {
+        self.permissions.set_role(user_id, permissions::Role::from_str(role))
+    }
+
+    #[wasm_bindgen]
+    pub fn perm_get_role(&self, user_id: &str) -> String {
+        self.permissions.get_role(user_id).to_str().to_string()
+    }
+
+    #[wasm_bindgen]
+    pub fn perm_get_users(&self) -> String {
+        self.permissions.get_users_json()
+    }
+
+    #[wasm_bindgen]
+    pub fn perm_can_edit_node(&self, node_id: u64) -> bool {
+        self.permissions.can_edit_node(&self.current_user_id, node_id)
+    }
+
+    #[wasm_bindgen]
+    pub fn perm_can_edit_page(&self, page_id: u64) -> bool {
+        self.permissions.can_edit_page(&self.current_user_id, page_id)
+    }
+
+    #[wasm_bindgen]
+    pub fn perm_lock_node(&mut self, node_id: u64, timestamp: u64) -> bool {
+        self.permissions.lock_node(&self.current_user_id, node_id, timestamp)
+    }
+
+    #[wasm_bindgen]
+    pub fn perm_unlock_node(&mut self, node_id: u64) -> bool {
+        self.permissions.unlock_node(&self.current_user_id, node_id)
+    }
+
+    #[wasm_bindgen]
+    pub fn perm_lock_page(&mut self, page_id: u64, timestamp: u64) -> bool {
+        self.permissions.lock_page(&self.current_user_id, page_id, timestamp)
+    }
+
+    #[wasm_bindgen]
+    pub fn perm_unlock_page(&mut self, page_id: u64) -> bool {
+        self.permissions.unlock_page(&self.current_user_id, page_id)
+    }
+
+    #[wasm_bindgen]
+    pub fn perm_get_locks(&self) -> String {
+        self.permissions.get_locks_json()
+    }
+
+    #[wasm_bindgen]
+    pub fn perm_get_node_lock(&self, node_id: u64) -> String {
+        match self.permissions.get_node_lock(node_id) {
+            Some(lock) => serde_json::to_string(lock).unwrap_or_default(),
+            None => String::new(),
+        }
+    }
+
+    #[wasm_bindgen]
+    pub fn perm_get_page_lock(&self, page_id: u64) -> String {
+        match self.permissions.get_page_lock(page_id) {
+            Some(lock) => serde_json::to_string(lock).unwrap_or_default(),
+            None => String::new(),
+        }
+    }
+
+    #[wasm_bindgen]
+    pub fn perm_cleanup_expired(&mut self, now: u64) {
+        self.permissions.cleanup_expired(now);
     }
 }
 
