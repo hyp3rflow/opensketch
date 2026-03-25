@@ -530,6 +530,7 @@ Quick-access bookmark system for nodes across pages.
 
 ### UI
 - [x] **Layers panel**: ⭐ bookmark toggle per node (star icon, yellow when active)
+- [x] **Layers panel search**: 🔍 filter layers by name/kind, highlight matches, auto-expand tree, match count
 - [x] **Bookmarks panel**: Right pane "Bookmarks" tab, grouped by page, click to navigate
 - [x] **Keyboard shortcut**: ⌘⇧B to toggle bookmark on selected nodes
 - [x] **Navigation**: Click bookmarked node → switch page + pan to center + select
