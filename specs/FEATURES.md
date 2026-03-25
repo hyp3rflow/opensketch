@@ -860,3 +860,14 @@ Frame overflow control and content scrolling.
 - [x] **Toolbar button**: Presentation icon, Cmd+Shift+Enter shortcut
 - [x] **Dynamic import**: Code-split for zero impact on initial load
 - [x] **Viewport restore**: Saves/restores zoom, pan, and active page on exit
+
+### Component Analytics
+- [x] **Usage statistics**: Count instances per component across all pages
+- [x] **Usage locations**: Track which nodes/pages use each component, click-to-navigate
+- [x] **Variant usage**: Breakdown of variant combination usage per component
+- [x] **Unused detection**: Identify components with zero instances, suggest removal
+- [x] **Summary dashboard**: Total components, instances, unused count
+- [x] **Rust engine**: `Scene::get_component_analytics()` — cross-page traversal
+- [x] **WASM binding**: `component_analytics()` → JSON
+- [x] **UI**: Floating modal panel (Cmd/Ctrl+Alt+A shortcut)
+- [x] **Navigation**: Click instance location to jump to that node/page

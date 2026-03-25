@@ -1896,4 +1896,110 @@ impl Scene {
     pub fn get_active_branch_id(&self) -> u64 {
         self.active_branch_id
     }
+
+    /// Component analytics: count instances per component, find usage locations, detect unused
+    pub fn get_component_analytics(&self, component_store: &crate::component::ComponentStore) -> String {
+        use std::collections::HashMap;
+
+        #[derive(serde::Serialize)]
+        struct InstanceLocation {
+            node_id: u64,
+            node_name: String,
+            page_id: u64,
+            page_name: String,
+        }
+
+        #[derive(serde::Serialize)]
+        struct ComponentStat {
+            component_id: u64,
+            component_name: String,
+            instance_count: usize,
+            locations: Vec<InstanceLocation>,
+            variant_usage: HashMap<String, usize>,
+        }
+
+        #[derive(serde::Serialize)]
+        struct Analytics {
+            stats: Vec<ComponentStat>,
+            unused_components: Vec<(u64, String)>,
+            total_instances: usize,
+            total_components: usize,
+        }
+
+        let mut usage: HashMap<u64, (usize, Vec<InstanceLocation>, HashMap<String, usize>)> = HashMap::new();
+
+        // Collect all nodes across all pages
+        // Active page nodes are in self.nodes, inactive pages in self.pages[i].nodes
+        let mut page_nodes: Vec<(u64, &str, Vec<&Node>)> = Vec::new();
+
+        for (i, page) in self.pages.iter().enumerate() {
+            if i == self.active_page_index {
+                // Active page: use self.nodes
+                let nodes: Vec<&Node> = self.nodes.values().collect();
+                page_nodes.push((page.id, &page.name, nodes));
+            } else {
+                let nodes: Vec<&Node> = page.nodes.iter().collect();
+                page_nodes.push((page.id, &page.name, nodes));
+            }
+        }
+
+        for (page_id, page_name, nodes) in &page_nodes {
+            for node in nodes {
+                if let crate::node::NodeKind::Instance(ref instance_data) = node.kind {
+                    let comp_id = instance_data.component_id;
+                    let entry = usage.entry(comp_id).or_insert_with(|| (0, Vec::new(), HashMap::new()));
+                    entry.0 += 1;
+                    entry.1.push(InstanceLocation {
+                        node_id: node.id,
+                        node_name: node.name.clone(),
+                        page_id: *page_id,
+                        page_name: page_name.to_string(),
+                    });
+                    // Track variant usage
+                    let variant_key: Vec<String> = {
+                        let mut parts: Vec<_> = instance_data.variant_values.iter()
+                            .map(|(k, v)| format!("{}={}", k, v.to_display()))
+                            .collect();
+                        parts.sort();
+                        parts
+                    };
+                    let key_str = if variant_key.is_empty() { "default".to_string() } else { variant_key.join(",") };
+                    *entry.2.entry(key_str).or_insert(0) += 1;
+                }
+            }
+        }
+
+        let all_components = component_store.list();
+        let total_components = all_components.len();
+
+        let mut stats: Vec<ComponentStat> = Vec::new();
+        let mut unused: Vec<(u64, String)> = Vec::new();
+
+        for comp in &all_components {
+            if let Some((count, locations, variant_usage)) = usage.remove(&comp.id) {
+                stats.push(ComponentStat {
+                    component_id: comp.id,
+                    component_name: comp.name.clone(),
+                    instance_count: count,
+                    locations,
+                    variant_usage,
+                });
+            } else {
+                unused.push((comp.id, comp.name.clone()));
+            }
+        }
+
+        stats.sort_by(|a, b| b.instance_count.cmp(&a.instance_count));
+
+        let total_instances: usize = stats.iter().map(|s| s.instance_count).sum();
+
+        let analytics = Analytics {
+            stats,
+            unused_components: unused,
+            total_instances,
+            total_components,
+        };
+
+        serde_json::to_string(&analytics).unwrap_or_default()
+    }
 }

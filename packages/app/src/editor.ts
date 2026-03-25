@@ -10,6 +10,7 @@ import { openResponsiveTokensPanel, closeResponsiveTokensPanel, isResponsiveToke
 import { CursorPresence } from "./ui/cursor-presence";
 import { openComponentSwapModal } from "./ui/component-swap";
 import { openComponentLibraryPanel } from "./ui/component-library";
+import { openComponentAnalytics, closeComponentAnalytics, isComponentAnalyticsOpen } from "./ui/component-analytics";
 import { GradientEditor } from "./ui/gradient-editor";
 import { SmartSelectPanel } from "./ui/smart-select";
 import type { CollabClient } from "./collab";
@@ -423,6 +424,13 @@ export class Editor {
       if ((e.metaKey || e.ctrlKey) && e.altKey && (e.key === "l" || e.key === "L")) {
         e.preventDefault();
         this.openComponentLibrary();
+        return;
+      }
+
+      // Ctrl/Cmd+Alt+A: component analytics
+      if ((e.metaKey || e.ctrlKey) && e.altKey && (e.key === "a" || e.key === "A")) {
+        e.preventDefault();
+        this.openComponentAnalytics();
         return;
       }
 
@@ -3170,6 +3178,21 @@ export class Editor {
 
   openComponentSwap() {
     openComponentSwapModal(this);
+  }
+
+  openComponentAnalytics() {
+    openComponentAnalytics(this.engine, (nodeId, pageId) => {
+      // Navigate to page and select node
+      const pages = JSON.parse(this.engine.get_pages());
+      const pageIdx = pages.findIndex((p: any) => p.id === pageId);
+      if (pageIdx >= 0) {
+        this.engine.set_active_page(BigInt(pageId));
+      }
+      this.engine.set_selection(new BigUint64Array([BigInt(nodeId)]));
+      this.requestRender();
+      this.fireSelectionNow([nodeId]);
+      closeComponentAnalytics();
+    });
   }
 
   // =============================================

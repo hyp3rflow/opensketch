@@ -4790,6 +4790,12 @@ impl Engine {
     pub fn perm_cleanup_expired(&mut self, now: u64) {
         self.permissions.cleanup_expired(now);
     }
+
+    /// Get component usage analytics as JSON
+    #[wasm_bindgen]
+    pub fn component_analytics(&self) -> String {
+        self.scene.get_component_analytics(&self.components)
+    }
 }
 
 fn parse_anim_property(s: &str) -> Option<animation::AnimProperty> {
