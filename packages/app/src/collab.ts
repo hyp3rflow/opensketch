@@ -25,6 +25,15 @@ export interface CollabUser {
 
 export type ConnectionStatus = "disconnected" | "connecting" | "connected" | "reconnecting";
 
+export interface ChatMessage {
+  userId: string;
+  userName: string;
+  text: string;
+  /** Canvas (world) coordinates where the message was sent */
+  x: number;
+  y: number;
+}
+
 export interface CollabCallbacks {
   /** Called when remote scene operation received */
   onRemoteSceneOp?: (userId: string, op: SceneOperation) => void;
@@ -34,6 +43,10 @@ export interface CollabCallbacks {
   onStatusChange?: (status: ConnectionStatus) => void;
   /** Called when user list changes */
   onUsersChange?: (users: CollabUser[]) => void;
+  /** Called when remote chat message received */
+  onChat?: (msg: ChatMessage) => void;
+  /** Called when remote user starts/stops typing */
+  onTyping?: (userId: string, isTyping: boolean) => void;
 }
 
 // ── Collab Client ───────────────────────────────────────────────
@@ -154,6 +167,18 @@ export class CollabClient {
     this.send({ type: "full_sync", sceneData });
   }
 
+  /** Send a chat message at the given canvas position */
+  sendChat(text: string, x: number, y: number) {
+    if (this.status !== "connected") return;
+    this.send({ type: "chat", text, x, y });
+  }
+
+  /** Send typing indicator */
+  sendTyping(isTyping: boolean) {
+    if (this.status !== "connected") return;
+    this.send({ type: "typing", isTyping });
+  }
+
   // ── Internal ────────────────────────────────────────────────
 
   private doConnect() {
@@ -243,6 +268,20 @@ export class CollabClient {
 
       case "full_sync":
         this.callbacks.onFullSync?.(msg.sceneData);
+        break;
+
+      case "remote_chat":
+        this.callbacks.onChat?.({
+          userId: msg.userId,
+          userName: msg.userName,
+          text: msg.text,
+          x: msg.x,
+          y: msg.y,
+        });
+        break;
+
+      case "remote_typing":
+        this.callbacks.onTyping?.(msg.userId, msg.isTyping);
         break;
     }
   }

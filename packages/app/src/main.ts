@@ -11,7 +11,7 @@ import { setupMinimap } from "./ui/minimap";
 import { setupRulers } from "./ui/rulers";
 import { setupPageTabs } from "./ui/page-tabs";
 import { AutoSave, setupHistoryPanel } from "./autosave";
-import { setupInspectPanel } from "./ui/inspect-panel";
+import { setupHandoffPanel } from "./ui/handoff-panel";
 import { setupColorPalettePanel } from "./ui/color-palette-panel";
 import { setupBranchPanel } from "./ui/branch-panel";
 import { createPrototypeViewer } from "./ui/prototype-viewer";
@@ -116,8 +116,8 @@ async function main() {
   const agentPanel = document.getElementById("agent-panel")!;
   setupAgentPanel(agentPanel, editor);
 
-  // Inspect panel (inside right pane)
-  setupInspectPanel(document.getElementById("inspect-panel")!, editor);
+  // Handoff panel (inside right pane) — design specs, code gen, asset export
+  setupHandoffPanel(document.getElementById("handoff-panel")!, editor);
 
   // Color palette panel
   const palettePanel = setupColorPalettePanel(document.getElementById("palette-panel")!, editor);
@@ -188,6 +188,12 @@ async function main() {
     onUsersChange: (users) => {
       updateCollabUI(collabClient.connectionStatus, users);
     },
+    onChat: (msg) => {
+      editor.handleRemoteChat(msg.userId, msg.userName, msg.text, msg.x, msg.y);
+    },
+    onTyping: (userId, isTyping) => {
+      editor.handleRemoteTyping(userId, isTyping);
+    },
   });
 
   // Send cursor position on pointer move over canvas
@@ -235,7 +241,7 @@ async function main() {
     tab.addEventListener("click", () => {
       const target = (tab as HTMLElement).dataset.tab!;
       rightPaneTabs.forEach((t) => t.classList.toggle("active", (t as HTMLElement).dataset.tab === target));
-      const tabContentMap: Record<string, string> = { agent: "agent-panel", properties: "properties-panel", history: "history-panel", inspect: "inspect-panel", comments: "comments-panel", variables: "variables-panel", assets: "assets-panel", bookmarks: "bookmarks-panel", accessibility: "accessibility-panel", plugins: "plugins-panel", palette: "palette-panel", docs: "docs-panel", permissions: "permissions-panel" };
+      const tabContentMap: Record<string, string> = { agent: "agent-panel", properties: "properties-panel", history: "history-panel", handoff: "handoff-panel", comments: "comments-panel", variables: "variables-panel", assets: "assets-panel", bookmarks: "bookmarks-panel", accessibility: "accessibility-panel", plugins: "plugins-panel", palette: "palette-panel", docs: "docs-panel", permissions: "permissions-panel" };
       rightPaneContents.forEach((c) => c.classList.toggle("active", c.id === tabContentMap[target]));
       if (target === "agent") {
         agentPanel.querySelector<HTMLInputElement>(".agent-input")?.focus();

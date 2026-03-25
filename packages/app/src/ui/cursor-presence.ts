@@ -4,6 +4,15 @@
  * Each remote cursor shows: colored arrow + name label + optional selection highlight.
  */
 
+export interface ChatBubble {
+  text: string;
+  /** Timestamp when the message was sent */
+  sentAt: number;
+  /** Canvas (world) coordinates of the message */
+  x: number;
+  y: number;
+}
+
 export interface RemoteCursor {
   id: string;
   name: string;
@@ -17,6 +26,10 @@ export interface RemoteCursor {
   lastSeen: number;
   /** Active tool name */
   tool?: string;
+  /** Current chat bubble */
+  chatBubble?: ChatBubble;
+  /** Whether this user is currently typing */
+  isTyping?: boolean;
 }
 
 const CURSOR_COLORS = [
@@ -26,6 +39,8 @@ const CURSOR_COLORS = [
 
 const CURSOR_TIMEOUT_MS = 10_000; // fade out after 10s inactivity
 const FADE_DURATION_MS = 2_000;
+const CHAT_DISPLAY_MS = 4_000; // chat bubble visible for 4s
+const CHAT_FADE_MS = 500; // fade out duration
 
 export class CursorPresence {
   private cursors: Map<string, RemoteCursor> = new Map();
@@ -59,6 +74,54 @@ export class CursorPresence {
 
   removeCursor(id: string) {
     this.cursors.delete(id);
+  }
+
+  /** Set a chat bubble on a cursor (or local pseudo-cursor) */
+  setChatBubble(id: string, name: string, text: string, x: number, y: number) {
+    let cursor = this.cursors.get(id);
+    if (!cursor) {
+      cursor = {
+        id, name,
+        color: CURSOR_COLORS[this.colorIndex++ % CURSOR_COLORS.length],
+        x, y, lastSeen: Date.now(),
+      };
+      this.cursors.set(id, cursor);
+    }
+    cursor.chatBubble = { text, sentAt: Date.now(), x, y };
+    cursor.lastSeen = Date.now();
+  }
+
+  /** Set typing indicator for a cursor */
+  setTyping(id: string, isTyping: boolean) {
+    const cursor = this.cursors.get(id);
+    if (cursor) cursor.isTyping = isTyping;
+  }
+
+  /** Set a local chat bubble (shown on own cursor position) */
+  setLocalChat(text: string, x: number, y: number) {
+    this.setChatBubble(this.localUserId, this.localUserName, text, x, y);
+  }
+
+  /** Set local typing indicator */
+  setLocalTyping(isTyping: boolean, x: number, y: number) {
+    if (isTyping) {
+      let cursor = this.cursors.get(this.localUserId);
+      if (!cursor) {
+        cursor = {
+          id: this.localUserId, name: this.localUserName,
+          color: CURSOR_COLORS[this.colorIndex++ % CURSOR_COLORS.length],
+          x, y, lastSeen: Date.now(),
+        };
+        this.cursors.set(this.localUserId, cursor);
+      }
+      cursor.x = x;
+      cursor.y = y;
+      cursor.isTyping = true;
+      cursor.lastSeen = Date.now();
+    } else {
+      const cursor = this.cursors.get(this.localUserId);
+      if (cursor) cursor.isTyping = false;
+    }
   }
 
   getCursors(): RemoteCursor[] {
@@ -100,6 +163,25 @@ export class CursorPresence {
 
       // Draw name label
       this.drawNameLabel(ctx, sx, sy, cursor.name, cursor.color);
+
+      // Draw typing indicator
+      if (cursor.isTyping && !cursor.chatBubble) {
+        this.drawChatBubble(ctx, sx, sy, '···', cursor.color, 1);
+      }
+
+      // Draw chat bubble
+      if (cursor.chatBubble) {
+        const chatAge = now - cursor.chatBubble.sentAt;
+        if (chatAge < CHAT_DISPLAY_MS + CHAT_FADE_MS) {
+          let chatAlpha = 1;
+          if (chatAge > CHAT_DISPLAY_MS) {
+            chatAlpha = 1 - (chatAge - CHAT_DISPLAY_MS) / CHAT_FADE_MS;
+          }
+          this.drawChatBubble(ctx, sx, sy, cursor.chatBubble.text, cursor.color, chatAlpha * alpha);
+        } else {
+          cursor.chatBubble = undefined;
+        }
+      }
 
       ctx.restore();
     }
@@ -200,6 +282,71 @@ export class CursorPresence {
     ctx.textBaseline = 'top';
     ctx.textAlign = 'left';
     ctx.fillText(name, labelX + paddingH, labelY + paddingV);
+  }
+
+  private drawChatBubble(ctx: CanvasRenderingContext2D, x: number, y: number, text: string, color: string, alpha: number) {
+    if (alpha <= 0) return;
+    const bubbleX = x + 14;
+    const bubbleY = y + 34; // below name label
+    const fontSize = 12;
+    const paddingH = 8;
+    const paddingV = 5;
+    const maxWidth = 200;
+    const radius = 6;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.font = `400 ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+
+    // Word wrap
+    const lines = this.wrapText(ctx, text, maxWidth - paddingH * 2);
+    const lineHeight = fontSize + 3;
+    const tw = Math.min(maxWidth - paddingH * 2, Math.max(...lines.map(l => ctx.measureText(l).width)));
+    const bgW = tw + paddingH * 2;
+    const bgH = lines.length * lineHeight + paddingV * 2;
+
+    // Bubble background
+    ctx.beginPath();
+    ctx.roundRect(bubbleX, bubbleY, bgW, bgH, radius);
+    ctx.fillStyle = '#fff';
+    ctx.shadowColor = 'rgba(0,0,0,0.15)';
+    ctx.shadowBlur = 8;
+    ctx.shadowOffsetY = 2;
+    ctx.fill();
+
+    // Color accent line on top
+    ctx.shadowColor = 'transparent';
+    ctx.beginPath();
+    ctx.roundRect(bubbleX, bubbleY, bgW, 3, [radius, radius, 0, 0]);
+    ctx.fillStyle = color;
+    ctx.fill();
+
+    // Text
+    ctx.fillStyle = '#1a1a1a';
+    ctx.textBaseline = 'top';
+    ctx.textAlign = 'left';
+    for (let i = 0; i < lines.length; i++) {
+      ctx.fillText(lines[i], bubbleX + paddingH, bubbleY + paddingV + 3 + i * lineHeight);
+    }
+
+    ctx.restore();
+  }
+
+  private wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
+    const words = text.split(' ');
+    const lines: string[] = [];
+    let current = '';
+    for (const word of words) {
+      const test = current ? current + ' ' + word : word;
+      if (ctx.measureText(test).width > maxWidth && current) {
+        lines.push(current);
+        current = word;
+      } else {
+        current = test;
+      }
+    }
+    if (current) lines.push(current);
+    return lines.length ? lines : [''];
   }
 
   // --- Demo simulation helpers ---

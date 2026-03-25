@@ -651,13 +651,18 @@ Frame overflow control and content scrolling.
 - [x] Active breakpoint badge indicator
 - [x] Backward-compatible serde (default empty vec)
 
-### Dev Mode Handoff (Multi-language code gen + asset download)
-- [x] Inspect panel language tabs: CSS / SwiftUI / Kotlin Compose / SVG
+### Design Handoff Mode
+- [x] Dedicated "Handoff" tab in right pane (replaces old Inspect tab)
+- [x] **Design Spec Summary**: dimensions, position, rotation, opacity, border-radius, fill color (hex+RGB swatch), stroke, font properties (family/size/weight/line-height/tracking), layout info (mode/gap/padding) — Zeplin/Figma Inspect style
+- [x] **Code generation tabs**: CSS / Tailwind / SwiftUI / Kotlin Compose / SVG
+- [x] **Tailwind code gen**: utility classes for size, position, radius, rotation, opacity, bg color, border, shadow, blur, text (size/weight/style/align/decoration/color/font-family), layout (flex/grid/gap/padding), overflow
 - [x] SwiftUI code gen: Text, Image, Rectangle, Ellipse, RoundedRectangle, fill, stroke, frame, position, rotation, opacity, shadow, blur, blend mode, font properties, text decoration
 - [x] Kotlin Compose code gen: Text, Box, Image, Modifier chain (size, offset, clip, background, border, rotate, alpha, shadow, blur), layout (Column/Row), font/text properties
-- [x] Asset download buttons: per-node PNG (2x) and SVG export with one-click download
+- [x] **Asset export**: PNG @1x, PNG @2x, SVG — per-node one-click download
+- [x] **Spacing overlay toggle**: enables Alt+Hover measurement mode from within handoff panel
+- [x] Design tokens export: W3C DTCG, Style Dictionary, Tailwind Config
 - [x] Syntax highlighting for all languages (VS Code-style colors)
-- [x] CSS gen refactored: bitmap filter support via context object (no closure capture)
+- [x] CSS gen: bitmap filter support, gradients, blend modes, layout, text properties
 
 ### Gradient Editor on Canvas
 - [x] GradientEditor class (packages/app/src/ui/gradient-editor.ts)

@@ -121,6 +121,13 @@ export class Editor {
   private _collabClient: CollabClient | null = null;
   private _collabIgnoreRemote = false;
 
+  // Cursor chat state
+  private _chatInputActive = false;
+  private _chatInputEl: HTMLInputElement | null = null;
+  private _chatInputContainer: HTMLDivElement | null = null;
+  private _lastPointerScreenX = 0;
+  private _lastPointerScreenY = 0;
+
   // Throttle selection callbacks during drag
   private selectionDirty = false;
   private selectionThrottleId = 0;
@@ -490,6 +497,12 @@ export class Editor {
         e.preventDefault();
         this._layoutGridsVisible = !this._layoutGridsVisible;
         this.needsRender = true;
+        return;
+      }
+      // Cursor chat: / key opens chat input at cursor position
+      if (e.key === "/" && !e.metaKey && !e.ctrlKey && !e.shiftKey) {
+        e.preventDefault();
+        this.openCursorChat();
         return;
       }
       if (e.key === "v" || e.key === "V") this.setTool("select");
@@ -880,6 +893,8 @@ export class Editor {
   }
 
   private onPointerMove(e: PointerEvent) {
+    this._lastPointerScreenX = e.offsetX;
+    this._lastPointerScreenY = e.offsetY;
     if (this.isPanning) {
       const dx = e.clientX - this.lastPanX;
       const dy = e.clientY - this.lastPanY;
@@ -2668,6 +2683,117 @@ export class Editor {
   /** Set external collab client for broadcasting */
   setCollabClient(client: CollabClient) {
     this._collabClient = client;
+  }
+
+  // ── Cursor Chat ───────────────────────────────────────────
+
+  private openCursorChat() {
+    if (this._chatInputActive) return;
+    this._chatInputActive = true;
+
+    const sx = this._lastPointerScreenX;
+    const sy = this._lastPointerScreenY;
+
+    // Create container
+    const container = document.createElement('div');
+    container.style.cssText = `
+      position: absolute; left: ${sx + 16}px; top: ${sy + 20}px; z-index: 9999;
+      display: flex; align-items: center; gap: 4px;
+      background: #fff; border-radius: 8px; padding: 4px 8px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.15); border: 2px solid #4ecdc4;
+      min-width: 120px;
+    `;
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.placeholder = 'Say something…';
+    input.style.cssText = `
+      border: none; outline: none; font-size: 12px; background: transparent;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      width: 160px; color: #1a1a1a;
+    `;
+
+    container.appendChild(input);
+    this.canvas.parentElement!.appendChild(container);
+    input.focus();
+
+    this._chatInputEl = input;
+    this._chatInputContainer = container;
+
+    // Notify typing
+    const zoom = this.engine.get_zoom();
+    const panX = this.engine.get_pan_x();
+    const panY = this.engine.get_pan_y();
+    const worldX = (sx - panX) / zoom;
+    const worldY = (sy - panY) / zoom;
+
+    this._cursorPresence.setLocalTyping(true, worldX, worldY);
+    this._collabClient?.sendTyping(true);
+    this.needsRender = true;
+
+    let typingTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    input.addEventListener('input', () => {
+      // Re-broadcast typing on input
+      if (typingTimeout) clearTimeout(typingTimeout);
+      this._collabClient?.sendTyping(true);
+      typingTimeout = setTimeout(() => {
+        this._collabClient?.sendTyping(false);
+      }, 2000);
+    });
+
+    input.addEventListener('keydown', (e) => {
+      e.stopPropagation(); // prevent editor shortcuts
+      if (e.key === 'Enter' && input.value.trim()) {
+        const text = input.value.trim();
+        // Show locally
+        this._cursorPresence.setLocalChat(text, worldX, worldY);
+        this._cursorPresence.setLocalTyping(false, worldX, worldY);
+        // Broadcast
+        this._collabClient?.sendChat(text, worldX, worldY);
+        this._collabClient?.sendTyping(false);
+        this.closeCursorChat();
+        this.needsRender = true;
+      } else if (e.key === 'Escape') {
+        this._cursorPresence.setLocalTyping(false, worldX, worldY);
+        this._collabClient?.sendTyping(false);
+        this.closeCursorChat();
+        this.needsRender = true;
+      }
+    });
+
+    input.addEventListener('blur', () => {
+      // Close on blur (clicking elsewhere)
+      setTimeout(() => {
+        if (this._chatInputActive) {
+          this._cursorPresence.setLocalTyping(false, worldX, worldY);
+          this._collabClient?.sendTyping(false);
+          this.closeCursorChat();
+          this.needsRender = true;
+        }
+      }, 100);
+    });
+  }
+
+  private closeCursorChat() {
+    if (this._chatInputContainer) {
+      this._chatInputContainer.remove();
+      this._chatInputContainer = null;
+    }
+    this._chatInputEl = null;
+    this._chatInputActive = false;
+  }
+
+  /** Handle incoming chat message from collab */
+  handleRemoteChat(userId: string, userName: string, text: string, x: number, y: number) {
+    this._cursorPresence.setChatBubble(userId, userName, text, x, y);
+    this.needsRender = true;
+  }
+
+  /** Handle incoming typing indicator from collab */
+  handleRemoteTyping(userId: string, isTyping: boolean) {
+    this._cursorPresence.setTyping(userId, isTyping);
+    this.needsRender = true;
   }
 
   /** Toggle cursor presence demo simulation */
