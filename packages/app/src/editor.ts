@@ -2285,6 +2285,7 @@ export class Editor {
         this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         this.engine.render(this.ctx);
         this.renderImages();
+        this.renderPatternFills();
         this.renderLayoutGrids();
         this.renderGuideLines();
         this.renderSmartGuides();
@@ -2596,6 +2597,115 @@ export class Editor {
   }
 
   /** Get combined bounding box of selected nodes */
+  private _patternCache = new Map<string, HTMLImageElement>();
+
+  private renderPatternFills() {
+    const layers = JSON.parse(this.engine.get_layer_list());
+    const zoom = this.engine.get_zoom();
+    const panX = this.engine.get_pan_x();
+    const panY = this.engine.get_pan_y();
+
+    for (const layer of layers) {
+      if (!layer.visible) continue;
+      const fillsJson = this.engine.get_fills(BigInt(layer.id));
+      if (!fillsJson || fillsJson === "[]") continue;
+      const fills: any[] = JSON.parse(fillsJson);
+      const patternFills = fills.filter((f: any) => f.type === "Pattern" && f.visible !== false && f.src);
+      if (patternFills.length === 0) continue;
+
+      const nj = this.engine.get_node_json(BigInt(layer.id));
+      if (!nj) continue;
+      const node = JSON.parse(nj);
+
+      const x = node.x * zoom + panX;
+      const y = node.y * zoom + panY;
+      const w = node.width * zoom;
+      const h = node.height * zoom;
+
+      for (const pf of patternFills) {
+        let img = this._patternCache.get(pf.src);
+        if (!img) {
+          img = new Image();
+          img.crossOrigin = "anonymous";
+          img.src = pf.src;
+          this._patternCache.set(pf.src, img);
+          img.onload = () => this.requestRender();
+          continue;
+        }
+        if (!img.complete || img.naturalWidth === 0) continue;
+
+        const scale = (pf.scale ?? 1) * zoom;
+        const tw = (pf.tile_width > 0 ? pf.tile_width : img.naturalWidth) * scale;
+        const th = (pf.tile_height > 0 ? pf.tile_height : img.naturalHeight) * scale;
+        if (tw <= 0 || th <= 0) continue;
+
+        // Create offscreen tile for brick/hex patterns
+        const patType = pf.pattern_type ?? "Tile";
+        let tileCanvas: HTMLCanvasElement;
+        if (patType === "Brick") {
+          tileCanvas = document.createElement("canvas");
+          tileCanvas.width = tw * 2;
+          tileCanvas.height = th * 2;
+          const tc = tileCanvas.getContext("2d")!;
+          tc.drawImage(img, 0, 0, tw, th);
+          tc.drawImage(img, tw, 0, tw, th);
+          tc.drawImage(img, tw / 2, th, tw, th);
+          tc.drawImage(img, tw / 2 - tw, th, tw, th);
+          tc.drawImage(img, tw / 2 + tw, th, tw, th);
+        } else if (patType === "Hex") {
+          const hh = th * 0.75;
+          tileCanvas = document.createElement("canvas");
+          tileCanvas.width = tw * 2;
+          tileCanvas.height = Math.ceil(hh * 2);
+          const tc = tileCanvas.getContext("2d")!;
+          tc.drawImage(img, 0, 0, tw, th);
+          tc.drawImage(img, tw, 0, tw, th);
+          tc.drawImage(img, tw / 2, hh, tw, th);
+          tc.drawImage(img, tw / 2 - tw, hh, tw, th);
+          tc.drawImage(img, tw / 2 + tw, hh, tw, th);
+        } else {
+          tileCanvas = document.createElement("canvas");
+          tileCanvas.width = tw;
+          tileCanvas.height = th;
+          const tc = tileCanvas.getContext("2d")!;
+          tc.drawImage(img, 0, 0, tw, th);
+        }
+
+        const pattern = this.ctx.createPattern(tileCanvas, "repeat");
+        if (!pattern) continue;
+
+        this.ctx.save();
+        this.ctx.globalAlpha = node.opacity ?? 1;
+
+        // Clip to node bounds
+        if (node.corner_radius > 0) {
+          const r = node.corner_radius * zoom;
+          this.ctx.beginPath();
+          this.ctx.roundRect(x, y, w, h, r);
+          this.ctx.clip();
+        } else {
+          this.ctx.beginPath();
+          this.ctx.rect(x, y, w, h);
+          this.ctx.clip();
+        }
+
+        // Apply rotation
+        if (pf.rotation) {
+          const cx = x + w / 2;
+          const cy = y + h / 2;
+          this.ctx.translate(cx, cy);
+          this.ctx.rotate((pf.rotation * Math.PI) / 180);
+          this.ctx.translate(-cx, -cy);
+        }
+
+        pattern.setTransform(new DOMMatrix().translateSelf(x, y));
+        this.ctx.fillStyle = pattern;
+        this.ctx.fillRect(x - w, y - h, w * 3, h * 3); // overdraw for rotation
+        this.ctx.restore();
+      }
+    }
+  }
+
   private getSelectionBBox(sel: number[]): { x: number; y: number; w: number; h: number } | null {
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     for (const id of sel) {

@@ -925,3 +925,12 @@ Frame overflow control and content scrolling.
 - [x] **OpenType Properties panel**: checkbox toggles for all 4 features
 - [x] **OpenType SVG export**: font-feature-settings + font-variant-caps style attributes
 - [x] **OpenType Handoff**: CSS codegen for font-feature-settings in CSS & spec rows
+
+## Pattern Fills
+- [x] **FillType::Pattern**: src (image URL/data URI), scale, rotation, pattern_type (Tile/Brick/Hex), tile_width, tile_height
+- [x] **Canvas rendering**: JS createPattern with tile compositing (brick offset, hex offset), rotation transform, node clipping
+- [x] **SVG export**: `<pattern>` defs with `<image>` tiles, patternTransform rotation, patternUnits=userSpaceOnUse
+- [x] **WASM**: set_fill_pattern_at(id, index, src, scale, rotation, pattern_type, tile_width, tile_height)
+- [x] **Properties panel**: Pattern option in fill type dropdown, image file picker, scale/rotation/type/tile size controls
+- [x] **Inspect panel**: CSS background-image/background-size/background-repeat codegen
+- [x] **Backward-compatible serde**: existing files without Pattern fills work unchanged

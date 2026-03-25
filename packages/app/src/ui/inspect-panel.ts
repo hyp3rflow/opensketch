@@ -282,7 +282,12 @@ function generateCSS(ctx: CodeCtx): string {
 
   // Fill
   if (fill) {
-    if (fill.type === "Solid" || fill.color) {
+    if (fill.type === "Pattern" && fill.src) {
+      lines.push(`background-image: url("${fill.src.substring(0, 60)}…");`);
+      lines.push(`background-size: ${fill.tile_width || "auto"}px ${fill.tile_height || "auto"}px;`);
+      lines.push(`background-repeat: repeat;`);
+      if (fill.rotation) lines.push(`/* pattern rotation: ${fill.rotation}deg */`);
+    } else if (fill.type === "Solid" || fill.color) {
       lines.push(`background-color: ${rgbaToCSS(fill.color || fill)};`);
     } else if (fill.type === "LinearGradient" && fill.stops) {
       const stops = fill.stops.map((s: any) => `${rgbaToCSS(s.color)} ${(s.offset * 100).toFixed(0)}%`).join(", ");

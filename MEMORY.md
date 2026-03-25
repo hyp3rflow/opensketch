@@ -722,8 +722,18 @@
 - OpenType SVG export: font-feature-settings + font-variant-caps style attributes
 - OpenType Handoff: font-feature-settings CSS codegen + spec row display
 
+## 완료된 기능 (추가 — Pattern Fills)
+- Pattern fills: FillType::Pattern variant (src, scale, rotation, pattern_type, tile_width, tile_height)
+- PatternType enum: Tile / Brick / Hex (offset tile layouts)
+- Canvas rendering: JS createPattern with tile canvas compositing (brick/hex offset), rotation, clipping
+- SVG export: <pattern> defs with <image> tiles, patternTransform rotation
+- WASM: set_fill_pattern_at(id, index, src, scale, rotation, pattern_type, tile_width, tile_height)
+- get_fills / get_fill_info: Pattern type JSON output
+- Properties panel: Pattern fill type in dropdown, image file picker, scale/rotation/type/tile size controls
+- Inspect panel: CSS background-image/background-size/background-repeat codegen
+- Backward-compatible serde (기존 파일 호환)
+
 ## 다음 할 것
-- Pattern fills (repeating image/SVG pattern fills, scale/rotation control, tile/brick/hex pattern presets)
 - Figma-style Dev Mode (measurement overlays on hover between any two nodes, copy CSS/token on click, asset export quick actions)
 - Canvas annotations / sticky notes (FigJam-style sticky notes with color themes, resizable, connectable, voting dots)
 - AI auto-layout detection (선택한 노드들의 시각적 패턴 분석 → auto layout 자동 설정 제안, gap/padding 추론)

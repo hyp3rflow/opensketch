@@ -290,6 +290,17 @@ pub struct GradientStop {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub enum PatternType {
+    Tile,
+    Brick,
+    Hex,
+}
+
+impl Default for PatternType {
+    fn default() -> Self { PatternType::Tile }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub enum FillType {
     Solid {
         color: Color,
@@ -306,6 +317,20 @@ pub enum FillType {
         center_y: f64,
         radius: f64,
         stops: Vec<GradientStop>,
+    },
+    Pattern {
+        /// Image URL or data URI for the pattern tile
+        src: String,
+        /// Scale factor (1.0 = original size)
+        scale: f64,
+        /// Rotation in degrees
+        rotation: f64,
+        /// Pattern layout type
+        pattern_type: PatternType,
+        /// Tile width override (0 = use image natural size)
+        tile_width: f64,
+        /// Tile height override (0 = use image natural size)
+        tile_height: f64,
     },
 }
 
@@ -354,6 +379,7 @@ impl Fill {
             FillType::LinearGradient { stops, .. } | FillType::RadialGradient { stops, .. } => {
                 stops.first().map(|s| s.color).unwrap_or(Color::white())
             }
+            FillType::Pattern { .. } => Color::white(),
         }
     }
 

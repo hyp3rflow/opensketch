@@ -887,6 +887,17 @@ impl Engine {
                             })).collect::<Vec<_>>()
                         }).to_string()
                     }
+                    FillType::Pattern { src, scale, rotation, pattern_type, tile_width, tile_height } => {
+                        serde_json::json!({
+                            "type": "Pattern",
+                            "src": src,
+                            "scale": scale,
+                            "rotation": rotation,
+                            "pattern_type": format!("{:?}", pattern_type),
+                            "tile_width": tile_width,
+                            "tile_height": tile_height,
+                        }).to_string()
+                    }
                 };
             }
         }
@@ -979,6 +990,19 @@ impl Engine {
                             })).collect::<Vec<_>>()
                         })
                     }
+                    FillType::Pattern { src, scale, rotation, pattern_type, tile_width, tile_height } => {
+                        serde_json::json!({
+                            "index": i,
+                            "type": "Pattern",
+                            "visible": fill.visible,
+                            "src": src,
+                            "scale": scale,
+                            "rotation": rotation,
+                            "pattern_type": format!("{:?}", pattern_type),
+                            "tile_width": tile_width,
+                            "tile_height": tile_height,
+                        })
+                    }
                 };
                 base
             }).collect();
@@ -1054,6 +1078,31 @@ impl Engine {
                     fill_type: FillType::RadialGradient {
                         center_x, center_y, radius,
                         stops: gradient_stops,
+                    },
+                    visible: node.fills[idx].visible,
+                };
+            }
+        }
+    }
+
+    /// Set fill at index to pattern.
+    pub fn set_fill_pattern_at(&mut self, id: u64, index: u32, src: &str, scale: f64, rotation: f64, pattern_type: &str, tile_width: f64, tile_height: f64) {
+        let pt = match pattern_type {
+            "Brick" => crate::node::PatternType::Brick,
+            "Hex" => crate::node::PatternType::Hex,
+            _ => crate::node::PatternType::Tile,
+        };
+        if let Some(node) = self.scene.get_node_mut(id) {
+            let idx = index as usize;
+            if idx < node.fills.len() {
+                node.fills[idx] = Fill {
+                    fill_type: FillType::Pattern {
+                        src: src.to_string(),
+                        scale: scale.max(0.1).min(10.0),
+                        rotation,
+                        pattern_type: pt,
+                        tile_width: tile_width.max(0.0),
+                        tile_height: tile_height.max(0.0),
                     },
                     visible: node.fills[idx].visible,
                 };

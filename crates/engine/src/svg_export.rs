@@ -361,18 +361,7 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
                     rect_attrs.push_str(&format!(r#" rx="{}" ry="{}""#, node.corner_radius, node.corner_radius));
                 }
                 if let Some(fill) = node.visible_fills().next() {
-                    match &fill.fill_type {
-                        FillType::Solid { color: c } => {
-                            rect_attrs.push_str(&format!(r#" fill="{}""#, color_to_hex(c.r, c.g, c.b)));
-                            if c.a < 1.0 {
-                                rect_attrs.push_str(&format!(r#" fill-opacity="{}""#, c.a));
-                            }
-                        }
-                        _ => {
-                            // Gradient defs already emitted; reference by id
-                            rect_attrs.push_str(&format!(r#" fill="url(#grad-{})""#, node.id));
-                        }
-                    }
+                    append_fill_ref(&mut rect_attrs, &fill.fill_type, node.id);
                 }
                 for stroke in node.visible_strokes() {
                     let c = &stroke.color;
@@ -803,18 +792,7 @@ fn render_node_svg_adjusted(scene: &Scene, node: &Node, buf: &mut String, parent
                     rect_attrs.push_str(&format!(r#" rx="{}" ry="{}""#, node.corner_radius, node.corner_radius));
                 }
                 if let Some(fill) = node.visible_fills().next() {
-                    match &fill.fill_type {
-                        FillType::Solid { color: c } => {
-                            rect_attrs.push_str(&format!(r#" fill="{}""#, color_to_hex(c.r, c.g, c.b)));
-                            if c.a < 1.0 {
-                                rect_attrs.push_str(&format!(r#" fill-opacity="{}""#, c.a));
-                            }
-                        }
-                        _ => {
-                            // Gradient defs already emitted; reference by id
-                            rect_attrs.push_str(&format!(r#" fill="url(#grad-{})""#, node.id));
-                        }
-                    }
+                    append_fill_ref(&mut rect_attrs, &fill.fill_type, node.id);
                 }
                 if let Some(ref stroke) = node.first_stroke() {
                     let c = &stroke.color;
@@ -867,6 +845,23 @@ fn append_transform(attrs: &mut String, node: &Node) {
     }
 }
 
+fn append_fill_ref(attrs: &mut String, fill_type: &FillType, node_id: u64) {
+    match fill_type {
+        FillType::Solid { color: c } => {
+            attrs.push_str(&format!(r#" fill="{}""#, color_to_hex(c.r, c.g, c.b)));
+            if c.a < 1.0 {
+                attrs.push_str(&format!(r#" fill-opacity="{}""#, c.a));
+            }
+        }
+        FillType::LinearGradient { .. } | FillType::RadialGradient { .. } => {
+            attrs.push_str(&format!(r#" fill="url(#grad-{})""#, node_id));
+        }
+        FillType::Pattern { .. } => {
+            attrs.push_str(&format!(r#" fill="url(#pat-{})""#, node_id));
+        }
+    }
+}
+
 fn build_gradient_defs(node: &Node) -> Option<String> {
     let fill = node.first_fill()?;
     match &fill.fill_type {
@@ -901,6 +896,39 @@ fn build_gradient_defs(node: &Node) -> Option<String> {
             Some(defs)
         }
         FillType::Solid { .. } => None,
+        FillType::Pattern { src, scale, rotation, pattern_type, tile_width, tile_height } => {
+            let pat_id = format!("pat-{}", node.id);
+            let tw = if *tile_width > 0.0 { *tile_width * scale } else { 50.0 * scale };
+            let th = if *tile_height > 0.0 { *tile_height * scale } else { 50.0 * scale };
+            let offset_y = match pattern_type {
+                crate::node::PatternType::Brick => th / 2.0,
+                crate::node::PatternType::Hex => th * 0.75,
+                _ => 0.0,
+            };
+            let mut defs = format!(
+                r#"<pattern id="{}" patternUnits="userSpaceOnUse" width="{}" height="{}"{}>"#,
+                pat_id, tw, th,
+                if *rotation != 0.0 { format!(r#" patternTransform="rotate({})""#, rotation) } else { String::new() }
+            );
+            if offset_y > 0.0 {
+                // For brick/hex, add a second offset tile
+                defs.push_str(&format!(
+                    r#"<image href="{}" width="{}" height="{}" />"#,
+                    src, tw, th
+                ));
+                defs.push_str(&format!(
+                    r#"<image href="{}" x="{}" y="{}" width="{}" height="{}" />"#,
+                    src, tw / 2.0, offset_y, tw, th
+                ));
+            } else {
+                defs.push_str(&format!(
+                    r#"<image href="{}" width="{}" height="{}" />"#,
+                    src, tw, th
+                ));
+            }
+            defs.push_str("</pattern>");
+            Some(defs)
+        }
     }
 }
 
@@ -915,6 +943,9 @@ fn append_fill_stroke(attrs: &mut String, node: &Node) {
             }
             FillType::LinearGradient { .. } | FillType::RadialGradient { .. } => {
                 attrs.push_str(&format!(r#" fill="url(#grad-{})""#, node.id));
+            }
+            FillType::Pattern { .. } => {
+                attrs.push_str(&format!(r#" fill="url(#pat-{})""#, node.id));
             }
         }
     } else {

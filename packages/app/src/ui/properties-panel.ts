@@ -904,10 +904,10 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         const typeSelect = document.createElement("select");
         typeSelect.className = "prop-input";
         typeSelect.style.cssText = "flex:1;font-size:11px;";
-        for (const t of ["Solid", "LinearGradient", "RadialGradient"]) {
+        for (const t of ["Solid", "LinearGradient", "RadialGradient", "Pattern"]) {
           const opt = document.createElement("option");
           opt.value = t;
-          opt.textContent = t === "LinearGradient" ? "Linear" : t === "RadialGradient" ? "Radial" : "Solid";
+          opt.textContent = t === "LinearGradient" ? "Linear" : t === "RadialGradient" ? "Radial" : t;
           if (fill.type === t) opt.selected = true;
           typeSelect.appendChild(opt);
         }
@@ -922,12 +922,14 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
               { offset: 1, r: 16, g: 185, b: 129, a: 1 },
             ];
             editor.engine.set_fill_linear_gradient_at(id, idx, 0, 0, 1, 1, JSON.stringify(stops));
-          } else {
+          } else if (typeSelect.value === "RadialGradient") {
             const stops = fill.stops || [
               { offset: 0, r: 79, g: 70, b: 229, a: 1 },
               { offset: 1, r: 16, g: 185, b: 129, a: 1 },
             ];
             editor.engine.set_fill_radial_gradient_at(id, idx, 0.5, 0.5, 0.5, JSON.stringify(stops));
+          } else if (typeSelect.value === "Pattern") {
+            editor.engine.set_fill_pattern_at(id, idx, "", 1.0, 0, "Tile", 50, 50);
           }
           editor.requestRender();
           refresh(ids);
@@ -962,7 +964,174 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         fillWrap.appendChild(hdr);
 
         // Fill content based on type
-        if (fill.type === "Solid") {
+        if (fill.type === "Pattern") {
+          // Pattern fill UI
+          const patWrap = document.createElement("div");
+          patWrap.style.cssText = "display:flex;flex-direction:column;gap:4px;";
+
+          // Image source (file picker)
+          const srcRow = document.createElement("div");
+          srcRow.style.cssText = "display:flex;align-items:center;gap:4px;";
+          const srcLabel = document.createElement("span");
+          srcLabel.style.cssText = "font-size:10px;color:#888;width:32px;";
+          srcLabel.textContent = "Src";
+          srcRow.appendChild(srcLabel);
+          const srcBtn = document.createElement("button");
+          srcBtn.className = "prop-add-btn";
+          srcBtn.style.cssText = "flex:1;font-size:10px;padding:3px 6px;text-overflow:ellipsis;overflow:hidden;white-space:nowrap;";
+          srcBtn.textContent = fill.src ? "Change image…" : "Choose image…";
+          srcBtn.addEventListener("click", () => {
+            const inp = document.createElement("input");
+            inp.type = "file";
+            inp.accept = "image/*";
+            inp.addEventListener("change", () => {
+              const file = inp.files?.[0];
+              if (!file) return;
+              const reader = new FileReader();
+              reader.onload = () => {
+                ensureUndo();
+                const dataUrl = reader.result as string;
+                editor.engine.set_fill_pattern_at(
+                  id, idx, dataUrl,
+                  fill.scale ?? 1, fill.rotation ?? 0,
+                  fill.pattern_type ?? "Tile",
+                  fill.tile_width ?? 0, fill.tile_height ?? 0
+                );
+                editor.requestRender();
+                refresh(ids);
+              };
+              reader.readAsDataURL(file);
+            });
+            inp.click();
+          });
+          srcRow.appendChild(srcBtn);
+          patWrap.appendChild(srcRow);
+
+          // Scale
+          const scaleRow = document.createElement("div");
+          scaleRow.style.cssText = "display:flex;align-items:center;gap:4px;";
+          const scaleLabel = document.createElement("span");
+          scaleLabel.style.cssText = "font-size:10px;color:#888;width:32px;";
+          scaleLabel.textContent = "Scale";
+          scaleRow.appendChild(scaleLabel);
+          const scaleInput = document.createElement("input");
+          scaleInput.className = "prop-input";
+          scaleInput.style.cssText = "flex:1;font-size:11px;";
+          scaleInput.type = "number";
+          scaleInput.step = "0.1";
+          scaleInput.min = "0.1";
+          scaleInput.max = "10";
+          scaleInput.value = String(fill.scale ?? 1);
+          scaleInput.addEventListener("change", () => {
+            ensureUndo();
+            editor.engine.set_fill_pattern_at(
+              id, idx, fill.src ?? "",
+              parseFloat(scaleInput.value) || 1, fill.rotation ?? 0,
+              fill.pattern_type ?? "Tile",
+              fill.tile_width ?? 0, fill.tile_height ?? 0
+            );
+            editor.requestRender();
+            refresh(ids);
+          });
+          scaleRow.appendChild(scaleInput);
+          patWrap.appendChild(scaleRow);
+
+          // Rotation
+          const rotRow = document.createElement("div");
+          rotRow.style.cssText = "display:flex;align-items:center;gap:4px;";
+          const rotLabel = document.createElement("span");
+          rotLabel.style.cssText = "font-size:10px;color:#888;width:32px;";
+          rotLabel.textContent = "Rot";
+          rotRow.appendChild(rotLabel);
+          const rotInput = document.createElement("input");
+          rotInput.className = "prop-input";
+          rotInput.style.cssText = "flex:1;font-size:11px;";
+          rotInput.type = "number";
+          rotInput.value = String(fill.rotation ?? 0);
+          rotInput.addEventListener("change", () => {
+            ensureUndo();
+            editor.engine.set_fill_pattern_at(
+              id, idx, fill.src ?? "",
+              fill.scale ?? 1, parseFloat(rotInput.value) || 0,
+              fill.pattern_type ?? "Tile",
+              fill.tile_width ?? 0, fill.tile_height ?? 0
+            );
+            editor.requestRender();
+            refresh(ids);
+          });
+          rotRow.appendChild(rotInput);
+          rotRow.appendChild(document.createTextNode("°"));
+          patWrap.appendChild(rotRow);
+
+          // Pattern type
+          const ptRow = document.createElement("div");
+          ptRow.style.cssText = "display:flex;align-items:center;gap:4px;";
+          const ptLabel = document.createElement("span");
+          ptLabel.style.cssText = "font-size:10px;color:#888;width:32px;";
+          ptLabel.textContent = "Type";
+          ptRow.appendChild(ptLabel);
+          const ptSelect = document.createElement("select");
+          ptSelect.className = "prop-input";
+          ptSelect.style.cssText = "flex:1;font-size:11px;";
+          for (const pt of ["Tile", "Brick", "Hex"]) {
+            const opt = document.createElement("option");
+            opt.value = pt;
+            opt.textContent = pt;
+            if ((fill.pattern_type ?? "Tile") === pt) opt.selected = true;
+            ptSelect.appendChild(opt);
+          }
+          ptSelect.addEventListener("change", () => {
+            ensureUndo();
+            editor.engine.set_fill_pattern_at(
+              id, idx, fill.src ?? "",
+              fill.scale ?? 1, fill.rotation ?? 0,
+              ptSelect.value,
+              fill.tile_width ?? 0, fill.tile_height ?? 0
+            );
+            editor.requestRender();
+            refresh(ids);
+          });
+          ptRow.appendChild(ptSelect);
+          patWrap.appendChild(ptRow);
+
+          // Tile size
+          const tileRow = document.createElement("div");
+          tileRow.style.cssText = "display:flex;align-items:center;gap:4px;";
+          const tileLabel = document.createElement("span");
+          tileLabel.style.cssText = "font-size:10px;color:#888;width:32px;";
+          tileLabel.textContent = "Tile";
+          tileRow.appendChild(tileLabel);
+          const twInput = document.createElement("input");
+          twInput.className = "prop-input";
+          twInput.style.cssText = "flex:1;font-size:11px;";
+          twInput.type = "number";
+          twInput.placeholder = "W";
+          twInput.value = String(fill.tile_width ?? 0);
+          const thInput = document.createElement("input");
+          thInput.className = "prop-input";
+          thInput.style.cssText = "flex:1;font-size:11px;";
+          thInput.type = "number";
+          thInput.placeholder = "H";
+          thInput.value = String(fill.tile_height ?? 0);
+          const updateTile = () => {
+            ensureUndo();
+            editor.engine.set_fill_pattern_at(
+              id, idx, fill.src ?? "",
+              fill.scale ?? 1, fill.rotation ?? 0,
+              fill.pattern_type ?? "Tile",
+              parseFloat(twInput.value) || 0, parseFloat(thInput.value) || 0
+            );
+            editor.requestRender();
+            refresh(ids);
+          };
+          twInput.addEventListener("change", updateTile);
+          thInput.addEventListener("change", updateTile);
+          tileRow.appendChild(twInput);
+          tileRow.appendChild(thInput);
+          patWrap.appendChild(tileRow);
+
+          fillWrap.appendChild(patWrap);
+        } else if (fill.type === "Solid") {
           const color = fill.color || { r: 200, g: 200, b: 200, a: 1 };
           fillWrap.appendChild(createColorRow(color, (r, g, b, a) => {
             editor.engine.update_fill_at(id, idx, r, g, b, a);

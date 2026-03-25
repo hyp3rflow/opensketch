@@ -1389,6 +1389,13 @@ impl Renderer {
                     ctx.set_fill_style(&grad);
                 }
             }
+            crate::node::FillType::Pattern { src, scale, rotation, pattern_type, tile_width, tile_height } => {
+                // Pattern fills are rendered via JS createPattern — here we set a placeholder.
+                // The actual pattern rendering is done in TypeScript via the pattern_fill_info.
+                // For fallback, use a light crosshatch color.
+                let _ = (src, scale, rotation, pattern_type, tile_width, tile_height);
+                ctx.set_fill_style_str("rgba(200,200,200,0.5)");
+            }
         }
     }
 
