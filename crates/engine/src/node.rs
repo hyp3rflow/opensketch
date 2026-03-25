@@ -272,6 +272,19 @@ pub enum NodeKind {
         #[serde(default)]
         votes: Vec<StickyVote>,
     },
+    /// A table with rows, columns, and cells
+    Table {
+        #[serde(default = "default_table_rows")]
+        rows: u32,
+        #[serde(default = "default_table_cols")]
+        cols: u32,
+        #[serde(default)]
+        cells: Vec<TableCell>,
+        #[serde(default)]
+        col_widths: Vec<f64>,
+        #[serde(default)]
+        row_heights: Vec<f64>,
+    },
     /// A connector (arrow/line) between two nodes
     Connector {
         /// Source node ID (0 = unconnected, uses start_x/start_y)
@@ -293,6 +306,47 @@ pub enum NodeKind {
     },
 }
 
+/// Table cell alignment
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub enum TableCellAlign {
+    Left,
+    Center,
+    Right,
+}
+
+impl Default for TableCellAlign {
+    fn default() -> Self { TableCellAlign::Left }
+}
+
+/// A cell in a Table node
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TableCell {
+    pub row: u32,
+    pub col: u32,
+    #[serde(default = "default_row_span")]
+    pub row_span: u32,
+    #[serde(default = "default_col_span")]
+    pub col_span: u32,
+    #[serde(default)]
+    pub content: String,
+    #[serde(default)]
+    pub fill: Option<Color>,
+    #[serde(default)]
+    pub text_align: TableCellAlign,
+}
+
+fn default_row_span() -> u32 { 1 }
+fn default_col_span() -> u32 { 1 }
+
+impl TableCell {
+    pub fn new(row: u32, col: u32) -> Self {
+        Self {
+            row, col, row_span: 1, col_span: 1,
+            content: String::new(), fill: None, text_align: TableCellAlign::default(),
+        }
+    }
+}
+
 fn default_sticky_font_size() -> f64 { 16.0 }
 fn default_sticky_theme() -> String { "yellow".to_string() }
 
@@ -302,6 +356,9 @@ pub struct StickyVote {
     pub user_id: String,
     pub count: u32,
 }
+
+fn default_table_rows() -> u32 { 3 }
+fn default_table_cols() -> u32 { 3 }
 
 fn default_line_height() -> f64 { 1.2 }
 fn default_font_weight() -> u16 { 400 }
@@ -1133,6 +1190,7 @@ impl Node {
             NodeKind::Section => "Section",
             NodeKind::Slice => "Slice",
             NodeKind::StickyNote { .. } => "StickyNote",
+            NodeKind::Table { .. } => "Table",
             NodeKind::Connector { .. } => "Connector",
             NodeKind::VectorNetwork { .. } => "VectorNetwork",
         }

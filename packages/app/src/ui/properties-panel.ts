@@ -2918,6 +2918,162 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       container.appendChild(polySection);
     }
 
+    // === Table properties ===
+    if (typeof node.kind === "object" && node.kind.Table) {
+      const tableSection = createSection("Table");
+      const infoStr = editor.engine.table_get_info(BigInt(id));
+      if (infoStr) {
+        const info = JSON.parse(infoStr);
+        const gridRow = document.createElement("div");
+        gridRow.style.cssText = "display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;";
+        const rowsLabel = document.createElement("span");
+        rowsLabel.style.cssText = "font-size:11px;color:#999;";
+        rowsLabel.textContent = `Rows: ${info.rows}`;
+        const colsLabel = document.createElement("span");
+        colsLabel.style.cssText = "font-size:11px;color:#999;";
+        colsLabel.textContent = `Cols: ${info.cols}`;
+        gridRow.appendChild(rowsLabel);
+        gridRow.appendChild(colsLabel);
+        tableSection.appendChild(gridRow);
+
+        // Add/Remove row/col buttons
+        const btnStyle = "padding:4px 8px;font-size:10px;border:1px solid #444;border-radius:4px;background:#2a2a2a;color:#ccc;cursor:pointer;";
+        const btnRow = document.createElement("div");
+        btnRow.style.cssText = "display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:8px;";
+        for (const [label, action] of [
+          ["+Row", () => { editor.engine.table_add_row(BigInt(id)); }],
+          ["+Col", () => { editor.engine.table_add_col(BigInt(id)); }],
+          ["-Row", () => { editor.engine.table_remove_row(BigInt(id), info.rows - 1); }],
+          ["-Col", () => { editor.engine.table_remove_col(BigInt(id), info.cols - 1); }],
+        ] as [string, () => void][]) {
+          const btn = document.createElement("button");
+          btn.style.cssText = btnStyle;
+          btn.textContent = label;
+          btn.onclick = () => { ensureUndo(); (action as () => void)(); editor.requestRender(); refresh(ids); };
+          btnRow.appendChild(btn);
+        }
+        tableSection.appendChild(btnRow);
+
+        // CSV import
+        const csvBtn = document.createElement("button");
+        csvBtn.style.cssText = btnStyle + "width:100%;margin-bottom:8px;";
+        csvBtn.textContent = "Import CSV";
+        csvBtn.onclick = () => {
+          const input = document.createElement("input");
+          input.type = "file";
+          input.accept = ".csv,text/csv";
+          input.onchange = () => {
+            const file = input.files?.[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = () => {
+              ensureUndo();
+              editor.engine.table_import_csv(BigInt(id), reader.result as string);
+              editor.requestRender();
+              refresh(ids);
+            };
+            reader.readAsText(file);
+          };
+          input.click();
+        };
+        tableSection.appendChild(csvBtn);
+
+        // Sort buttons
+        if (info.cols > 0) {
+          const sortRow = document.createElement("div");
+          sortRow.style.cssText = "display:flex;gap:4px;";
+          const sortLabel = document.createElement("span");
+          sortLabel.style.cssText = "font-size:10px;color:#666;";
+          sortLabel.textContent = "Sort col 0:";
+          sortRow.appendChild(sortLabel);
+          for (const [label, asc] of [["A↓", true], ["Z↓", false]] as [string, boolean][]) {
+            const btn = document.createElement("button");
+            btn.style.cssText = btnStyle;
+            btn.textContent = label;
+            btn.onclick = () => { ensureUndo(); editor.engine.table_sort(BigInt(id), 0, asc); editor.requestRender(); refresh(ids); };
+            sortRow.appendChild(btn);
+          }
+          tableSection.appendChild(sortRow);
+        }
+      }
+      container.appendChild(tableSection);
+    }
+
+    // === Table properties ===
+    if (typeof node.kind === "object" && node.kind.Table) {
+      const tableSection = createSection("Table");
+      const tInfo = JSON.parse(editor.engine.table_get_info(BigInt(id)) || "{}");
+      const tRows = tInfo.rows ?? 3;
+      const tCols = tInfo.cols ?? 3;
+
+      // Rows x Cols display
+      const dimRow = document.createElement("div");
+      dimRow.style.cssText = "display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px;";
+      dimRow.appendChild(createLabeledInput("Rows", String(tRows), () => {}, true));
+      dimRow.appendChild(createLabeledInput("Cols", String(tCols), () => {}, true));
+      tableSection.appendChild(dimRow);
+
+      // Add/Remove row/col buttons
+      const btnRow = document.createElement("div");
+      btnRow.style.cssText = "display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:6px;";
+      for (const [label, action] of [
+        ["+ Row", () => { editor.engine.push_undo(); editor.engine.table_add_row(BigInt(id)); }],
+        ["+ Col", () => { editor.engine.push_undo(); editor.engine.table_add_col(BigInt(id)); }],
+        ["− Row", () => { if (tRows > 1) { editor.engine.push_undo(); editor.engine.table_remove_row(BigInt(id), tRows - 1); } }],
+        ["− Col", () => { if (tCols > 1) { editor.engine.push_undo(); editor.engine.table_remove_col(BigInt(id), tCols - 1); } }],
+      ] as [string, () => void][]) {
+        const btn = document.createElement("button");
+        btn.textContent = label;
+        btn.style.cssText = "background:#2a2a2a;color:#ccc;border:1px solid #444;border-radius:4px;padding:4px 8px;font-size:11px;cursor:pointer;";
+        btn.onclick = () => { action(); editor.requestRender(); refresh(ids); };
+        btnRow.appendChild(btn);
+      }
+      tableSection.appendChild(btnRow);
+
+      // CSV Import button
+      const csvBtn = document.createElement("button");
+      csvBtn.textContent = "Import CSV";
+      csvBtn.style.cssText = "width:100%;background:#2a2a2a;color:#ccc;border:1px solid #444;border-radius:4px;padding:4px 8px;font-size:11px;cursor:pointer;margin-bottom:6px;";
+      csvBtn.onclick = () => {
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = ".csv,text/csv";
+        input.onchange = () => {
+          const file = input.files?.[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = () => {
+            editor.engine.push_undo();
+            editor.engine.table_import_csv(BigInt(id), reader.result as string);
+            editor.requestRender();
+            refresh(ids);
+          };
+          reader.readAsText(file);
+        };
+        input.click();
+      };
+      tableSection.appendChild(csvBtn);
+
+      // Sort buttons (by first col)
+      const sortRow = document.createElement("div");
+      sortRow.style.cssText = "display:grid;grid-template-columns:1fr 1fr;gap:4px;";
+      for (const [label, asc] of [["Sort ↑", true], ["Sort ↓", false]] as [string, boolean][]) {
+        const btn = document.createElement("button");
+        btn.textContent = label;
+        btn.style.cssText = "background:#2a2a2a;color:#ccc;border:1px solid #444;border-radius:4px;padding:4px 8px;font-size:11px;cursor:pointer;";
+        btn.onclick = () => {
+          editor.engine.push_undo();
+          editor.engine.table_sort(BigInt(id), 0, asc);
+          editor.requestRender();
+          refresh(ids);
+        };
+        sortRow.appendChild(btn);
+      }
+      tableSection.appendChild(sortRow);
+
+      container.appendChild(tableSection);
+    }
+
     // === Connector properties ===
     if (typeof node.kind === "object" && node.kind.Connector) {
       const connSection = createSection("Connector");
@@ -3787,6 +3943,7 @@ function getKindLabel(kind: unknown): string {
     if ("VectorNetwork" in kind) return "Vector Network";
     if ("Star" in kind) return "Star";
     if ("Polygon" in kind) return "Polygon";
+    if ("Table" in kind) return "Table";
   }
   return "Unknown";
 }

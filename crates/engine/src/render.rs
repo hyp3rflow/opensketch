@@ -330,6 +330,9 @@ impl Renderer {
                 }
                 ctx.close_path();
             }
+            NodeKind::Table { .. } => {
+                ctx.rect(node.x, node.y, node.width, node.height);
+            }
             NodeKind::VectorNetwork(ref vn) => {
                 // For shadow/clip purposes, draw all segments as a single path
                 for seg in &vn.segments {
@@ -470,6 +473,9 @@ impl Renderer {
             NodeKind::Polygon { sides } => self.render_polygon(ctx, node, *sides),
             NodeKind::Section => self.render_section(ctx, node, scene),
             NodeKind::StickyNote { ref content, font_size, ref theme, ref votes } => self.render_sticky_note(ctx, node, content, *font_size, theme, votes),
+            NodeKind::Table { rows, cols, ref cells, ref col_widths, ref row_heights } => {
+                self.render_table(ctx, node, *rows, *cols, cells, col_widths, row_heights);
+            }
             NodeKind::Slice => {} // Slice nodes are rendered as overlays in TS
             NodeKind::Connector { start_node_id, end_node_id, start_x, end_x, start_y, end_y, ref path_type, end_arrow, start_arrow } => {
                 self.render_connector(ctx, node, scene, *start_node_id, *end_node_id, *start_x, *start_y, *end_x, *end_y, path_type, *end_arrow, *start_arrow);
@@ -1112,6 +1118,90 @@ impl Renderer {
         }
         ctx.close_path();
         self.apply_fill_stroke(ctx, node);
+    }
+
+    fn render_table(&self, ctx: &CanvasRenderingContext2d, node: &Node, rows: u32, cols: u32, cells: &[crate::node::TableCell], col_widths: &[f64], row_heights: &[f64]) {
+        if rows == 0 || cols == 0 { return; }
+
+        // Compute cell positions
+        let default_cw = node.width / cols as f64;
+        let default_rh = node.height / rows as f64;
+        let cw = |c: usize| -> f64 { col_widths.get(c).copied().unwrap_or(default_cw) };
+        let rh = |r: usize| -> f64 { row_heights.get(r).copied().unwrap_or(default_rh) };
+
+        // Cumulative positions
+        let mut col_x: Vec<f64> = vec![0.0; cols as usize + 1];
+        for c in 0..cols as usize { col_x[c + 1] = col_x[c] + cw(c); }
+        let mut row_y: Vec<f64> = vec![0.0; rows as usize + 1];
+        for r in 0..rows as usize { row_y[r + 1] = row_y[r] + rh(r); }
+
+        // Background
+        for fill in node.visible_fills() {
+            self.apply_single_fill_style(ctx, fill, node);
+            ctx.fill_rect(node.x, node.y, col_x[cols as usize], row_y[rows as usize]);
+        }
+
+        // Cell fills
+        for cell in cells {
+            if let Some(color) = &cell.fill {
+                let cx = node.x + col_x.get(cell.col as usize).copied().unwrap_or(0.0);
+                let cy = node.y + row_y.get(cell.row as usize).copied().unwrap_or(0.0);
+                let cw_span: f64 = (cell.col..cell.col + cell.col_span).map(|c| col_widths.get(c as usize).copied().unwrap_or(default_cw)).sum();
+                let ch_span: f64 = (cell.row..cell.row + cell.row_span).map(|r| row_heights.get(r as usize).copied().unwrap_or(default_rh)).sum();
+                ctx.set_fill_style_str(&color.to_css());
+                ctx.fill_rect(cx, cy, cw_span, ch_span);
+            }
+        }
+
+        // Grid lines
+        let stroke_color = node.first_stroke().map(|s| s.color.to_css()).unwrap_or_else(|| "rgba(255,255,255,0.3)".to_string());
+        let stroke_width = node.first_stroke().map(|s| s.width).unwrap_or(1.0);
+        ctx.set_stroke_style_str(&stroke_color);
+        ctx.set_line_width(stroke_width);
+
+        // Horizontal lines
+        for r in 0..=rows as usize {
+            let y = node.y + row_y[r];
+            ctx.begin_path();
+            ctx.move_to(node.x, y);
+            ctx.line_to(node.x + col_x[cols as usize], y);
+            ctx.stroke();
+        }
+        // Vertical lines
+        for c in 0..=cols as usize {
+            let x = node.x + col_x[c];
+            ctx.begin_path();
+            ctx.move_to(x, node.y);
+            ctx.line_to(x, node.y + row_y[rows as usize]);
+            ctx.stroke();
+        }
+
+        // Cell text
+        let font_size = 12.0;
+        ctx.set_font(&format!("{}px Inter, system-ui, sans-serif", font_size));
+        ctx.set_text_baseline("middle");
+        let text_color = node.visible_fills().last().map(|f| {
+            let c = f.color();
+            // Use contrasting text color
+            if (c.r as u16 + c.g as u16 + c.b as u16) > 384 { "rgba(0,0,0,0.85)".to_string() } else { "rgba(255,255,255,0.85)".to_string() }
+        }).unwrap_or_else(|| "rgba(255,255,255,0.85)".to_string());
+        ctx.set_fill_style_str(&text_color);
+
+        for cell in cells {
+            if cell.content.is_empty() { continue; }
+            let cx = node.x + col_x.get(cell.col as usize).copied().unwrap_or(0.0);
+            let cy = node.y + row_y.get(cell.row as usize).copied().unwrap_or(0.0);
+            let cw_span: f64 = (cell.col..cell.col + cell.col_span).map(|c| col_widths.get(c as usize).copied().unwrap_or(default_cw)).sum();
+            let ch_span: f64 = (cell.row..cell.row + cell.row_span).map(|r| row_heights.get(r as usize).copied().unwrap_or(default_rh)).sum();
+            let padding = 4.0;
+            let text_x = match cell.text_align {
+                crate::node::TableCellAlign::Left => { ctx.set_text_align("left"); cx + padding }
+                crate::node::TableCellAlign::Center => { ctx.set_text_align("center"); cx + cw_span / 2.0 }
+                crate::node::TableCellAlign::Right => { ctx.set_text_align("right"); cx + cw_span - padding }
+            };
+            ctx.fill_text(&cell.content, text_x, cy + ch_span / 2.0).ok();
+        }
+        ctx.set_text_align("start");
     }
 
     fn render_scrollbars(&self, ctx: &CanvasRenderingContext2d, node: &Node, scene: &Scene) {

@@ -514,6 +514,15 @@
 - [x] **Layers panel**: Connector icon in node tree
 - [x] **Stroke support**: Color, width, dash pattern via existing stroke properties
 
+## Table Node
+- [x] **NodeKind::Table**: Row/column/cell structure with `rows`, `cols`, `cells: Vec<TableCell>`, `col_widths`, `row_heights`
+- [x] **TableCell**: row, col, row_span, col_span, content, fill, text_align
+- [x] **WASM bindings**: add_table, table_set_cell, table_get_cell, table_set_cell_fill, table_merge_cells, table_add_row/col, table_remove_row/col, table_set_col_width/row_height, table_import_csv, table_sort, table_get_info
+- [x] **Canvas rendering**: Grid lines, cell fills, cell text with alignment
+- [x] **SVG export**: Table → `<g>` with `<rect>`, `<line>`, `<text>` elements
+- [x] **Toolbar**: Table button (B keyboard shortcut)
+- [x] **Properties panel**: Rows/Cols display, +/- row/col buttons, CSV import, sort
+
 ## Bookmarks / Favorites
 
 Quick-access bookmark system for nodes across pages.
@@ -950,3 +959,16 @@ Frame overflow control and content scrolling.
 - [x] **Context menu**: "Edit All Matching Layers" (name+kind match)
 - [x] **Context menu**: "Select All with Same Name"
 - [x] **Bulk editing**: Selected nodes editable via Properties panel (existing multi-selection support)
+
+## 91. Table Node
+- [x] **NodeKind::Table**: rows, cols, cells (Vec<TableCell>), col_widths, row_heights
+- [x] **TableCell**: row, col, row_span, col_span, content, fill, text_align
+- [x] **WASM bindings**: add_table, table_set_cell, table_get_cell, table_set_cell_fill, table_merge_cells, table_add_row, table_add_col, table_remove_row, table_remove_col, table_set_col_width, table_set_row_height, table_import_csv, table_sort, table_get_info
+- [x] **Canvas rendering**: Grid lines, cell backgrounds, text rendering with alignment
+- [x] **SVG export**: Table as <rect>/<text> groups with proper positioning
+- [x] **CSV import**: Parse CSV text, auto-resize rows/cols, populate cells
+- [x] **Sort**: Stable sort by column (ascending/descending), numeric-aware
+- [x] **Cell merge**: Merge rectangular cell ranges, remove covered cells
+- [x] **Toolbar**: Table button (B shortcut)
+- [x] **Properties panel**: Rows/Cols display, add/remove row/col, CSV import, sort buttons
+- [x] **Backward-compatible serde**: Default values for all Table fields

@@ -549,6 +549,66 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
             attrs.push_str("/>\n");
             buf.push_str(&attrs);
         }
+        NodeKind::Table { rows, cols, ref cells, ref col_widths, ref row_heights } => {
+            let mut g = format!(r#"<g transform="translate({},{})">"#, node.x, node.y);
+            if has_opacity { g = format!(r#"<g transform="translate({},{})" opacity="{}">"#, node.x, node.y, node.opacity); }
+
+            let default_cw = node.width / (*cols).max(1) as f64;
+            let default_rh = node.height / (*rows).max(1) as f64;
+
+            let mut cx_arr: Vec<f64> = vec![0.0; *cols as usize + 1];
+            for c in 0..*cols as usize { cx_arr[c + 1] = cx_arr[c] + col_widths.get(c).copied().unwrap_or(default_cw); }
+            let mut ry_arr: Vec<f64> = vec![0.0; *rows as usize + 1];
+            for r in 0..*rows as usize { ry_arr[r + 1] = ry_arr[r] + row_heights.get(r).copied().unwrap_or(default_rh); }
+
+            // Background
+            if let Some(fill) = node.visible_fills().next() {
+                let c = fill.color();
+                g.push_str(&format!(r#"<rect width="{}" height="{}" fill="{}" fill-opacity="{}"/>"#,
+                    cx_arr[*cols as usize], ry_arr[*rows as usize], color_to_hex(c.r, c.g, c.b), c.a));
+            }
+
+            // Cell fills & text
+            for cell in cells {
+                let x = cx_arr.get(cell.col as usize).copied().unwrap_or(0.0);
+                let y = ry_arr.get(cell.row as usize).copied().unwrap_or(0.0);
+                let w: f64 = (cell.col..cell.col + cell.col_span).map(|c| col_widths.get(c as usize).copied().unwrap_or(default_cw)).sum();
+                let h: f64 = (cell.row..cell.row + cell.row_span).map(|r| row_heights.get(r as usize).copied().unwrap_or(default_rh)).sum();
+                if let Some(ref color) = cell.fill {
+                    g.push_str(&format!(r#"<rect x="{}" y="{}" width="{}" height="{}" fill="{}" fill-opacity="{}"/>"#,
+                        x, y, w, h, color_to_hex(color.r, color.g, color.b), color.a));
+                }
+                if !cell.content.is_empty() {
+                    let anchor = match cell.text_align {
+                        crate::node::TableCellAlign::Left => "start",
+                        crate::node::TableCellAlign::Center => "middle",
+                        crate::node::TableCellAlign::Right => "end",
+                    };
+                    let tx = match cell.text_align {
+                        crate::node::TableCellAlign::Left => x + 4.0,
+                        crate::node::TableCellAlign::Center => x + w / 2.0,
+                        crate::node::TableCellAlign::Right => x + w - 4.0,
+                    };
+                    g.push_str(&format!(r#"<text x="{}" y="{}" font-size="12" text-anchor="{}" dominant-baseline="central">{}</text>"#,
+                        tx, y + h / 2.0, anchor, escape_xml(&cell.content)));
+                }
+            }
+
+            // Grid lines
+            let stroke_hex = node.first_stroke().map(|s| color_to_hex(s.color.r, s.color.g, s.color.b)).unwrap_or_else(|| "#cccccc".to_string());
+            let sw = node.first_stroke().map(|s| s.width).unwrap_or(1.0);
+            for r in 0..=*rows as usize {
+                g.push_str(&format!(r#"<line x1="0" y1="{}" x2="{}" y2="{}" stroke="{}" stroke-width="{}"/>"#,
+                    ry_arr[r], cx_arr[*cols as usize], ry_arr[r], stroke_hex, sw));
+            }
+            for c in 0..=*cols as usize {
+                g.push_str(&format!(r#"<line x1="{}" y1="0" x2="{}" y2="{}" stroke="{}" stroke-width="{}"/>"#,
+                    cx_arr[c], cx_arr[c], ry_arr[*rows as usize], stroke_hex, sw));
+            }
+
+            g.push_str("</g>\n");
+            buf.push_str(&g);
+        }
         NodeKind::StickyNote { ref content, font_size, ref theme, .. } => {
             let (bg, text_color) = match theme.as_str() {
                 "green" => ("#c6f6d5", "#1a4731"),

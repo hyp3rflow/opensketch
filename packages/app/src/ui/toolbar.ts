@@ -17,6 +17,7 @@ const tools: { id: ToolType; icon: string; label: string }[] = [
   { id: "polygon", icon: icons.polygon, label: "Polygon (G)" },
   { id: "slice", icon: icons.slice, label: "Slice (K)" },
   { id: "connector", icon: icons.connector, label: "Connector (L)" },
+  { id: "table", icon: icons.table, label: "Table (B)" },
 ];
 
 export type AppMode = "edit" | "dev";

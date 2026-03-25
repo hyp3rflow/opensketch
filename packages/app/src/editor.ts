@@ -23,7 +23,7 @@ import { toggleSpotlight, closeSpotlight, isSpotlightVisible } from "./ui/spotli
 import { exportPDF, type PDFExportOptions } from "./ui/pdf-export";
 import { setupDiffOverlay } from "./ui/diff-overlay";
 
-export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "section" | "image" | "pen" | "star" | "polygon" | "slice" | "connector" | "sticky";
+export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "section" | "image" | "pen" | "star" | "polygon" | "slice" | "connector" | "sticky" | "table";
 
 /** Snap threshold in screen pixels */
 const SNAP_THRESHOLD_PX = 5;
@@ -544,6 +544,7 @@ export class Editor {
       if ((e.key === "s" || e.key === "S") && e.shiftKey) this.setTool("section");
       else if (e.key === "s" || e.key === "S") this.setTool("star");
       if (e.key === "g" || e.key === "G") this.setTool("polygon");
+      if (e.key === "b" || e.key === "B") this.setTool("table");
       if (e.key === "k" || e.key === "K") this.setTool("slice");
       if (e.key === "l" || e.key === "L") this.setTool("connector");
       if (e.key === "l" || e.key === "L") this.setTool("connector");
@@ -1375,6 +1376,7 @@ export class Editor {
           case "polygon": id = this.engine.add_polygon(x, y, w, h, 6); break;
           case "slice": id = this.engine.add_slice("", x, y, w, h); break;
           case "sticky": id = this.engine.add_sticky_note(x, y, Math.max(w, 150), Math.max(h, 150), "", "yellow"); break;
+          case "table": id = this.engine.add_table(x, y, 3, 3, Math.max(w / 3, 80), Math.max(h / 3, 32)); break;
           default: id = 0;
         }
         if (id > 0) {

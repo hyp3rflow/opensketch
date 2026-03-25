@@ -83,6 +83,7 @@ export const icons = {
   responsive: s('<rect x="2" y="4" width="8" height="14" rx="1" fill="none"/><rect x="12" y="6" width="10" height="12" rx="1" fill="none"/><line x1="4" y1="16" x2="8" y2="16" stroke-linecap="round"/><line x1="15" y1="16" x2="19" y2="16" stroke-linecap="round"/>'),
   slice: s('<rect x="4" y="4" width="16" height="16" rx="1" stroke-dasharray="3 2" fill="none"/><path d="M2 8 L4 8 M2 12 L4 12 M2 16 L4 16 M20 8 L22 8 M20 12 L22 12 M20 16 L22 16 M8 2 L8 4 M12 2 L12 4 M16 2 L16 4 M8 20 L8 22 M12 20 L12 22 M16 20 L16 22" stroke-linecap="round"/>'),
   connector: s('<circle cx="5" cy="5" r="2" fill="currentColor" stroke="none"/><circle cx="19" cy="19" r="2" fill="currentColor" stroke="none"/><path d="M7 7 L17 17"/><path d="M14 17 L17 17 L17 14"/>'),
+  table: s('<rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/>'),
   stickyNote: s('<rect x="3" y="3" width="18" height="18" rx="2" fill="none"/><path d="M15 3v6h6" fill="none"/><line x1="7" y1="9" x2="13" y2="9"/><line x1="7" y1="13" x2="11" y2="13"/>'),
   users: s('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'),
   tokens: s('<circle cx="12" cy="12" r="3"/><path d="M12 2v4m0 12v4M2 12h4m12 0h4"/><path d="M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83" opacity="0.5"/>'),

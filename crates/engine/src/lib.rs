@@ -312,6 +312,240 @@ impl Engine {
         6
     }
 
+    // === Table methods ===
+
+    pub fn add_table(&mut self, x: f64, y: f64, rows: u32, cols: u32, cell_w: f64, cell_h: f64) -> u64 {
+        let rows = rows.max(1);
+        let cols = cols.max(1);
+        let col_widths = vec![cell_w; cols as usize];
+        let row_heights = vec![cell_h; rows as usize];
+        let mut cells = Vec::new();
+        for r in 0..rows {
+            for c in 0..cols {
+                cells.push(crate::node::TableCell::new(r, c));
+            }
+        }
+        let w = cell_w * cols as f64;
+        let h = cell_h * rows as f64;
+        let mut node = Node::new(0, NodeKind::Table { rows, cols, cells, col_widths, row_heights });
+        node.x = x; node.y = y; node.width = w; node.height = h;
+        node.name = format!("Table {}", self.scene.node_count() + 1);
+        node.fills = vec![crate::node::Fill::solid(crate::types::Color { r: 45, g: 45, b: 45, a: 1.0 })];
+        node.strokes = vec![crate::node::Stroke::new(crate::types::Color { r: 100, g: 100, b: 100, a: 1.0 }, 1.0)];
+        self.scene.add_node(node)
+    }
+
+    pub fn table_set_cell(&mut self, id: u64, row: u32, col: u32, content: &str) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Table { ref mut cells, .. } = node.kind {
+                if let Some(cell) = cells.iter_mut().find(|c| c.row == row && c.col == col) {
+                    cell.content = content.to_string();
+                }
+            }
+        }
+    }
+
+    pub fn table_get_cell(&self, id: u64, row: u32, col: u32) -> String {
+        if let Some(node) = self.scene.get_node(id) {
+            if let NodeKind::Table { ref cells, .. } = node.kind {
+                if let Some(cell) = cells.iter().find(|c| c.row == row && c.col == col) {
+                    return serde_json::to_string(cell).unwrap_or_default();
+                }
+            }
+        }
+        String::new()
+    }
+
+    pub fn table_set_cell_fill(&mut self, id: u64, row: u32, col: u32, r: u8, g: u8, b: u8, a: f64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Table { ref mut cells, .. } = node.kind {
+                if let Some(cell) = cells.iter_mut().find(|c| c.row == row && c.col == col) {
+                    cell.fill = Some(crate::types::Color { r, g, b, a });
+                }
+            }
+        }
+    }
+
+    pub fn table_merge_cells(&mut self, id: u64, row: u32, col: u32, row_span: u32, col_span: u32) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Table { ref mut cells, rows, cols, .. } = node.kind {
+                let rs = row_span.max(1).min(rows - row);
+                let cs = col_span.max(1).min(cols - col);
+                // Remove cells covered by the merge (except anchor)
+                cells.retain(|c| {
+                    if c.row == row && c.col == col { return true; }
+                    !(c.row >= row && c.row < row + rs && c.col >= col && c.col < col + cs)
+                });
+                if let Some(cell) = cells.iter_mut().find(|c| c.row == row && c.col == col) {
+                    cell.row_span = rs;
+                    cell.col_span = cs;
+                }
+            }
+        }
+    }
+
+    pub fn table_add_row(&mut self, id: u64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Table { ref mut rows, cols, ref mut cells, ref mut row_heights, .. } = node.kind {
+                let new_row = *rows;
+                for c in 0..cols {
+                    cells.push(crate::node::TableCell::new(new_row, c));
+                }
+                let h = row_heights.last().copied().unwrap_or(36.0);
+                row_heights.push(h);
+                *rows += 1;
+                node.height += h;
+            }
+        }
+    }
+
+    pub fn table_add_col(&mut self, id: u64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Table { rows, ref mut cols, ref mut cells, ref mut col_widths, .. } = node.kind {
+                let new_col = *cols;
+                for r in 0..rows {
+                    cells.push(crate::node::TableCell::new(r, new_col));
+                }
+                let w = col_widths.last().copied().unwrap_or(100.0);
+                col_widths.push(w);
+                *cols += 1;
+                node.width += w;
+            }
+        }
+    }
+
+    pub fn table_remove_row(&mut self, id: u64, row: u32) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Table { ref mut rows, ref mut cells, ref mut row_heights, .. } = node.kind {
+                if *rows <= 1 { return; }
+                let h = row_heights.get(row as usize).copied().unwrap_or(36.0);
+                cells.retain(|c| c.row != row);
+                for c in cells.iter_mut() { if c.row > row { c.row -= 1; } }
+                if (row as usize) < row_heights.len() { row_heights.remove(row as usize); }
+                *rows -= 1;
+                node.height -= h;
+            }
+        }
+    }
+
+    pub fn table_remove_col(&mut self, id: u64, col: u32) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Table { ref mut cols, ref mut cells, ref mut col_widths, .. } = node.kind {
+                if *cols <= 1 { return; }
+                let w = col_widths.get(col as usize).copied().unwrap_or(100.0);
+                cells.retain(|c| c.col != col);
+                for c in cells.iter_mut() { if c.col > col { c.col -= 1; } }
+                if (col as usize) < col_widths.len() { col_widths.remove(col as usize); }
+                *cols -= 1;
+                node.width -= w;
+            }
+        }
+    }
+
+    pub fn table_set_col_width(&mut self, id: u64, col: u32, w: f64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Table { ref mut col_widths, .. } = node.kind {
+                let w = w.max(20.0);
+                if (col as usize) < col_widths.len() {
+                    let old = col_widths[col as usize];
+                    col_widths[col as usize] = w;
+                    node.width += w - old;
+                }
+            }
+        }
+    }
+
+    pub fn table_set_row_height(&mut self, id: u64, row: u32, h: f64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Table { ref mut row_heights, .. } = node.kind {
+                let h = h.max(16.0);
+                if (row as usize) < row_heights.len() {
+                    let old = row_heights[row as usize];
+                    row_heights[row as usize] = h;
+                    node.height += h - old;
+                }
+            }
+        }
+    }
+
+    pub fn table_import_csv(&mut self, id: u64, csv_text: &str) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Table { ref mut rows, ref mut cols, ref mut cells, ref mut col_widths, ref mut row_heights } = node.kind {
+                let lines: Vec<&str> = csv_text.lines().collect();
+                if lines.is_empty() { return; }
+                let parsed: Vec<Vec<String>> = lines.iter().map(|line| {
+                    line.split(',').map(|s| s.trim().trim_matches('"').to_string()).collect()
+                }).collect();
+                let new_rows = parsed.len() as u32;
+                let new_cols = parsed.iter().map(|r| r.len()).max().unwrap_or(1) as u32;
+                let cw = col_widths.first().copied().unwrap_or(100.0);
+                let rh = row_heights.first().copied().unwrap_or(36.0);
+                *rows = new_rows;
+                *cols = new_cols;
+                *col_widths = vec![cw; new_cols as usize];
+                *row_heights = vec![rh; new_rows as usize];
+                cells.clear();
+                for (r, row_data) in parsed.iter().enumerate() {
+                    for (c, val) in row_data.iter().enumerate() {
+                        let mut cell = crate::node::TableCell::new(r as u32, c as u32);
+                        cell.content = val.clone();
+                        cells.push(cell);
+                    }
+                    // Fill remaining cols with empty cells
+                    for c in row_data.len()..new_cols as usize {
+                        cells.push(crate::node::TableCell::new(r as u32, c as u32));
+                    }
+                }
+                node.width = cw * new_cols as f64;
+                node.height = rh * new_rows as f64;
+            }
+        }
+    }
+
+    pub fn table_sort(&mut self, id: u64, col: u32, ascending: bool) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Table { rows, cols, ref mut cells, .. } = node.kind {
+                // Build row data
+                let mut row_contents: Vec<(u32, String)> = (0..rows).map(|r| {
+                    let val = cells.iter().find(|c| c.row == r && c.col == col)
+                        .map(|c| c.content.clone()).unwrap_or_default();
+                    (r, val)
+                }).collect();
+                row_contents.sort_by(|a, b| {
+                    let cmp = a.1.cmp(&b.1);
+                    if ascending { cmp } else { cmp.reverse() }
+                });
+                // Remap rows
+                let row_map: Vec<u32> = row_contents.iter().map(|(r, _)| *r).collect();
+                let old_cells = cells.clone();
+                cells.clear();
+                for (new_r, &old_r) in row_map.iter().enumerate() {
+                    for c in old_cells.iter().filter(|c| c.row == old_r) {
+                        let mut nc = c.clone();
+                        nc.row = new_r as u32;
+                        cells.push(nc);
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn table_get_info(&self, id: u64) -> String {
+        if let Some(node) = self.scene.get_node(id) {
+            if let NodeKind::Table { rows, cols, ref cells, ref col_widths, ref row_heights } = node.kind {
+                let obj = serde_json::json!({
+                    "rows": rows,
+                    "cols": cols,
+                    "col_widths": col_widths,
+                    "row_heights": row_heights,
+                    "cells": cells,
+                });
+                return serde_json::to_string(&obj).unwrap_or_default();
+            }
+        }
+        String::new()
+    }
+
     pub fn add_image(&mut self, x: f64, y: f64, w: f64, h: f64, src: &str) -> u64 {
         let mut node = Node::new(0, NodeKind::Image {
             src: src.to_string(),

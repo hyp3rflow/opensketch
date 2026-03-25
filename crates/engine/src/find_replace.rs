@@ -177,6 +177,8 @@ fn kind_str(kind: &NodeKind) -> String {
         NodeKind::Connector { .. } => "Connector".into(),
         NodeKind::VectorNetwork { .. } => "VectorNetwork".into(),
         NodeKind::StickyNote { .. } => "StickyNote".into(),
+        NodeKind::Table { .. } => "Table".into(),
+        NodeKind::Table { .. } => "Table".into(),
     }
 }
 
