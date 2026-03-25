@@ -736,9 +736,10 @@
 ## 다음 할 것
 - Figma-style Dev Mode (measurement overlays on hover between any two nodes, copy CSS/token on click, asset export quick actions)
 - Canvas annotations / sticky notes (FigJam-style sticky notes with color themes, resizable, connectable, voting dots)
-- AI auto-layout detection (선택한 노드들의 시각적 패턴 분석 → auto layout 자동 설정 제안, gap/padding 추론)
 - Figma file diff / merge (Figma 파일 간 노드 비교, 변경사항 시각화, 선택적 머지)
 - Plugin marketplace (커뮤니티 플러그인 브라우저, 설치/제거, 버전 관리)
 - Pen tool pressure sensitivity (스타일러스 펜 필압 지원, 가변 선 두께)
 - Smart component variants (조건부 variant 전환 — hover/press/focus state 자동 교체)
 - Shared component library (팀 간 컴포넌트 라이브러리 퍼블리싱/구독, 버전 동기화)
+- Canvas minimap (우하단 미니맵 오버레이, 현재 뷰포트 표시, 클릭/드래그로 네비게이션)
+- Auto-documentation generator (컴포넌트/스타일 기반 디자인 시스템 문서 자동 생성, Markdown/HTML export)
