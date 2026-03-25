@@ -161,7 +161,7 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
             attrs.push_str("/>\n");
             buf.push_str(&attrs);
         }
-        NodeKind::Text { content, font_size, font_family, line_height, text_align, font_weight, font_style, text_decoration, letter_spacing, paragraph_spacing } => {
+        NodeKind::Text { content, font_size, font_family, line_height, text_align, font_weight, font_style, text_decoration, letter_spacing, paragraph_spacing, list_style, indent_level } => {
             // Text-on-path SVG export
             if let Some(path_id) = node.text_path_id {
                 if let Some(path_node) = scene.get_node(path_id) {
@@ -261,22 +261,44 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
             }
             append_blend_mode(&mut attrs, node);
 
+            // Indent offset
+            let indent_px = *indent_level as f64 * font_size * 1.5;
+            let text_x_indented = text_x + indent_px;
+
+            // List prefix helper
+            let get_list_prefix = |idx: usize| -> String {
+                match list_style {
+                    crate::node::ListStyle::None => String::new(),
+                    crate::node::ListStyle::Bullet => match indent_level {
+                        0 => "• ".to_string(),
+                        1 => "◦ ".to_string(),
+                        _ => "▪ ".to_string(),
+                    },
+                    crate::node::ListStyle::Numbered => format!("{}. ", idx + 1),
+                    crate::node::ListStyle::Dash => "– ".to_string(),
+                    crate::node::ListStyle::Checkbox => "☐ ".to_string(),
+                    crate::node::ListStyle::CheckboxChecked => "☑ ".to_string(),
+                }
+            };
+
             // Multi-line: split by newline
             let lines: Vec<&str> = content.split('\n').collect();
             if lines.len() <= 1 {
                 attrs.push('>');
-                attrs.push_str(&escape_xml(content));
+                let prefix = get_list_prefix(0);
+                attrs.push_str(&escape_xml(&format!("{}{}", prefix, content)));
                 attrs.push_str("</text>\n");
             } else {
                 attrs.push_str(">\n");
                 let line_h = font_size * line_height;
                 for (i, line) in lines.iter().enumerate() {
+                    let prefix = get_list_prefix(i);
+                    let prefixed = format!("{}{}", prefix, escape_xml(line));
                     if i == 0 {
-                        attrs.push_str(&format!(r#"<tspan x="{}">{}</tspan>"#, text_x, escape_xml(line)));
+                        attrs.push_str(&format!(r#"<tspan x="{}">{}</tspan>"#, text_x_indented, prefixed));
                     } else {
-                        // Add paragraph_spacing for each newline (since SVG lines = paragraphs here)
                         let dy = line_h + paragraph_spacing;
-                        attrs.push_str(&format!(r#"<tspan x="{}" dy="{}">{}</tspan>"#, text_x, dy, escape_xml(line)));
+                        attrs.push_str(&format!(r#"<tspan x="{}" dy="{}">{}</tspan>"#, text_x_indented, dy, prefixed));
                     }
                     attrs.push('\n');
                 }

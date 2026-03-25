@@ -42,6 +42,21 @@ impl Default for TextDecoration {
     fn default() -> Self { TextDecoration::None }
 }
 
+/// List style for text nodes
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub enum ListStyle {
+    None,
+    Bullet,
+    Numbered,
+    Dash,
+    Checkbox,
+    CheckboxChecked,
+}
+
+impl Default for ListStyle {
+    fn default() -> Self { ListStyle::None }
+}
+
 /// A point on a vector path with optional bezier control handles.
 /// Handle coordinates are absolute (not relative to the anchor point).
 /// If handle == anchor, the segment is a straight line on that side.
@@ -95,6 +110,12 @@ pub enum NodeKind {
         /// Paragraph spacing in pixels (extra space after each paragraph/newline)
         #[serde(default)]
         paragraph_spacing: f64,
+        /// List style (bullet, numbered, etc.)
+        #[serde(default)]
+        list_style: ListStyle,
+        /// Indent level (0 = no indent)
+        #[serde(default)]
+        indent_level: u8,
     },
     Frame,
     Group,

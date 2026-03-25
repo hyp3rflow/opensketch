@@ -564,6 +564,11 @@ function generateCSS(ctx: CodeCtx): string {
       lines.push(`text-decoration: ${cssVal};`);
     }
     if (node.letter_spacing && node.letter_spacing !== 0) lines.push(`letter-spacing: ${node.letter_spacing}px;`);
+    if (node.list_style && node.list_style !== "None") {
+      const listMap: Record<string, string> = { Bullet: "disc", Numbered: "decimal", Dash: '"-  "', Checkbox: "none", CheckboxChecked: "none" };
+      lines.push(`list-style-type: ${listMap[node.list_style] || "none"};`);
+    }
+    if (node.indent_level && node.indent_level > 0) lines.push(`padding-left: ${node.indent_level * 1.5}em;`);
     if (node.fills?.[0]) lines.push(`color: ${rgbaToCSS(node.fills[0])};`);
   }
 

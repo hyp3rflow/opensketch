@@ -458,7 +458,7 @@ impl Renderer {
         match &node.kind {
             NodeKind::Rect => self.render_rect(ctx, node),
             NodeKind::Ellipse => self.render_ellipse(ctx, node),
-            NodeKind::Text { content, font_size, font_family, line_height, text_align, font_weight, font_style, text_decoration, letter_spacing, paragraph_spacing } => self.render_text(ctx, node, scene, content, *font_size, font_family, *line_height, text_align, *font_weight, font_style, text_decoration, *letter_spacing, *paragraph_spacing),
+            NodeKind::Text { content, font_size, font_family, line_height, text_align, font_weight, font_style, text_decoration, letter_spacing, paragraph_spacing, list_style, indent_level } => self.render_text(ctx, node, scene, content, *font_size, font_family, *line_height, text_align, *font_weight, font_style, text_decoration, *letter_spacing, *paragraph_spacing, list_style, *indent_level),
             NodeKind::Frame => self.render_frame(ctx, node, scene),
             NodeKind::Group => { self.render_children(ctx, &node.children, scene); }
             NodeKind::Slot { .. } => self.render_slot(ctx, node),
@@ -508,7 +508,7 @@ impl Renderer {
         self.apply_fill_stroke(ctx, node);
     }
 
-    fn render_text(&self, ctx: &CanvasRenderingContext2d, node: &Node, scene: &Scene, content: &str, font_size: f64, font_family: &str, line_height: f64, text_align: &TextAlign, font_weight: u16, font_style: &FontStyle, text_decoration: &crate::node::TextDecoration, letter_spacing: f64, paragraph_spacing: f64) {
+    fn render_text(&self, ctx: &CanvasRenderingContext2d, node: &Node, scene: &Scene, content: &str, font_size: f64, font_family: &str, line_height: f64, text_align: &TextAlign, font_weight: u16, font_style: &FontStyle, text_decoration: &crate::node::TextDecoration, letter_spacing: f64, paragraph_spacing: f64, list_style: &crate::node::ListStyle, indent_level: u8) {
         // Text-on-path rendering
         if let Some(path_id) = node.text_path_id {
             if let Some(path_node) = scene.get_node(path_id) {
@@ -598,24 +598,66 @@ impl Renderer {
                 let raw_y = node.y + half_leading + font_ascent + line_h * i as f64 + cumulative_extra_spacing;
                 let snapped_y = (raw_y * zoom).round() / zoom;
 
-                // text_align x calculation
+                // Indent offset
+                let indent_px = indent_level as f64 * font_size * 1.5;
+
+                // List prefix
+                let list_prefix = match list_style {
+                    crate::node::ListStyle::None => String::new(),
+                    crate::node::ListStyle::Bullet => {
+                        match indent_level {
+                            0 => "• ".to_string(),
+                            1 => "◦ ".to_string(),
+                            _ => "▪ ".to_string(),
+                        }
+                    }
+                    crate::node::ListStyle::Numbered => {
+                        // Use paragraph index for numbering (1-based)
+                        format!("{}. ", para_idx + 1)
+                    }
+                    crate::node::ListStyle::Dash => "– ".to_string(),
+                    crate::node::ListStyle::Checkbox => "☐ ".to_string(),
+                    crate::node::ListStyle::CheckboxChecked => "☑ ".to_string(),
+                };
+
+                // Only show prefix on first line of each paragraph
+                let show_prefix = lines_in_para == 1 && *list_style != crate::node::ListStyle::None;
+                let prefix_width = if show_prefix {
+                    ctx.measure_text(&list_prefix).map(|m| m.width()).unwrap_or(0.0)
+                } else {
+                    0.0
+                };
+
+                // text_align x calculation (with indent)
                 let lw = ctx.measure_text(line).map(|m| m.width()).unwrap_or(0.0);
+                let total_lw = lw + if show_prefix { prefix_width } else { 0.0 };
                 let x = match text_align {
                     TextAlign::Left => {
-                        let raw_x = node.x;
+                        let raw_x = node.x + indent_px;
                         (raw_x * zoom).round() / zoom
                     }
                     TextAlign::Center => {
-                        let raw_x = node.x + (node.width - lw) / 2.0;
+                        let raw_x = node.x + (node.width - total_lw) / 2.0;
                         (raw_x * zoom).round() / zoom
                     }
                     TextAlign::Right => {
-                        let raw_x = node.x + node.width - lw;
+                        let raw_x = node.x + node.width - total_lw;
                         (raw_x * zoom).round() / zoom
                     }
                 };
 
-                ctx.fill_text(line, x, snapped_y).ok();
+                // Render list prefix
+                if show_prefix {
+                    ctx.fill_text(&list_prefix, x, snapped_y).ok();
+                    ctx.fill_text(line, x + prefix_width, snapped_y).ok();
+                } else {
+                    let text_x = if *list_style != crate::node::ListStyle::None && indent_level > 0 {
+                        x + prefix_width.max(font_size) // hanging indent for wrapped lines
+                    } else {
+                        x
+                    };
+                    ctx.fill_text(line, text_x, snapped_y).ok();
+                }
 
                 // Draw text decorations
                 if has_underline || has_strikethrough {

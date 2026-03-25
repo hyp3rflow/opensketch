@@ -2224,6 +2224,54 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       psRow.appendChild(psInput);
       textSection.appendChild(psRow);
 
+      // List Style
+      const listRow = document.createElement("div");
+      listRow.className = "prop-row";
+      const listLabel = document.createElement("span");
+      listLabel.className = "prop-label";
+      listLabel.textContent = "List";
+      listRow.appendChild(listLabel);
+      const listSelect = document.createElement("select");
+      listSelect.style.cssText = "flex:1;background:#2a2a2a;border:1px solid #333;border-radius:4px;color:#ccc;font-size:11px;padding:3px 4px;";
+      const curList = editor.engine.get_list_style(BigInt(id));
+      for (const [val, label] of [["none","None"],["bullet","Bullet •"],["numbered","Numbered 1."],["dash","Dash –"],["checkbox","Checkbox ☐"],["checkbox-checked","Checked ☑"]] as const) {
+        const opt = document.createElement("option");
+        opt.value = val; opt.textContent = label;
+        if (val === curList) opt.selected = true;
+        listSelect.appendChild(opt);
+      }
+      listSelect.addEventListener("change", () => {
+        ensureUndo();
+        editor.engine.set_list_style(BigInt(id), listSelect.value);
+        editor.requestRender();
+        refresh(ids);
+      });
+      listRow.appendChild(listSelect);
+      textSection.appendChild(listRow);
+
+      // Indent Level
+      const indentRow = document.createElement("div");
+      indentRow.className = "prop-row";
+      const indentLabel = document.createElement("span");
+      indentLabel.className = "prop-label";
+      indentLabel.textContent = "Indent";
+      indentRow.appendChild(indentLabel);
+      const indentInput = document.createElement("input");
+      indentInput.className = "prop-input";
+      indentInput.type = "number";
+      indentInput.min = "0";
+      indentInput.max = "10";
+      indentInput.step = "1";
+      indentInput.value = String(editor.engine.get_indent_level(BigInt(id)));
+      indentInput.addEventListener("change", () => {
+        ensureUndo();
+        editor.engine.set_indent_level(BigInt(id), Math.max(0, Math.min(10, parseInt(indentInput.value) || 0)));
+        editor.requestRender();
+        refresh(ids);
+      });
+      indentRow.appendChild(indentInput);
+      textSection.appendChild(indentRow);
+
       // Text on Path
       {
         const topInfo = editor.engine.get_text_path_info(BigInt(id));

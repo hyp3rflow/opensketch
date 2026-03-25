@@ -239,6 +239,8 @@ impl Engine {
             text_decoration: crate::node::TextDecoration::default(),
             letter_spacing: 0.0,
             paragraph_spacing: 0.0,
+            list_style: crate::node::ListStyle::default(),
+            indent_level: 0,
         });
         node.x = x; node.y = y;
         node.width = content.len() as f64 * font_size * 0.6;
@@ -2840,6 +2842,50 @@ impl Engine {
                 *paragraph_spacing = spacing.max(0.0).min(200.0);
             }
         }
+    }
+
+    pub fn set_list_style(&mut self, id: u64, style: &str) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Text { ref mut list_style, .. } = node.kind {
+                *list_style = match style {
+                    "bullet" | "Bullet" => crate::node::ListStyle::Bullet,
+                    "numbered" | "Numbered" => crate::node::ListStyle::Numbered,
+                    "dash" | "Dash" => crate::node::ListStyle::Dash,
+                    "checkbox" | "Checkbox" => crate::node::ListStyle::Checkbox,
+                    "checkbox-checked" | "CheckboxChecked" => crate::node::ListStyle::CheckboxChecked,
+                    _ => crate::node::ListStyle::None,
+                };
+            }
+        }
+    }
+
+    pub fn get_list_style(&self, id: u64) -> String {
+        self.scene.get_node(id).map(|n| {
+            if let NodeKind::Text { ref list_style, .. } = n.kind {
+                match list_style {
+                    crate::node::ListStyle::None => "none",
+                    crate::node::ListStyle::Bullet => "bullet",
+                    crate::node::ListStyle::Numbered => "numbered",
+                    crate::node::ListStyle::Dash => "dash",
+                    crate::node::ListStyle::Checkbox => "checkbox",
+                    crate::node::ListStyle::CheckboxChecked => "checkbox-checked",
+                }
+            } else { "none" }
+        }).unwrap_or("none").to_string()
+    }
+
+    pub fn set_indent_level(&mut self, id: u64, level: u8) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Text { ref mut indent_level, .. } = node.kind {
+                *indent_level = level.min(10);
+            }
+        }
+    }
+
+    pub fn get_indent_level(&self, id: u64) -> u8 {
+        self.scene.get_node(id).map(|n| {
+            if let NodeKind::Text { indent_level, .. } = &n.kind { *indent_level } else { 0 }
+        }).unwrap_or(0)
     }
 
     // =============================================
