@@ -818,3 +818,23 @@ Frame overflow control and content scrolling.
 - [x] **Keyboard shortcut**: Cmd/Ctrl+Alt+L
 - [x] **Backward-compatible serde**: #[serde(default)] on linked_libraries
 - [x] TS: ui/component-library.ts — openComponentLibraryPanel(), export/import/sync/unlink
+
+### Vector Network Editing (Enhanced)
+- [x] **NodeKind::VectorNetwork**: Multi-connected vertex/segment/region graph (not linear path chain)
+- [x] **VectorNetwork data model**: VectorVertex, VectorSegment (bezier handles), VectorRegion (closed loops)
+- [x] **Region detection**: Planar face detection via directed-edge traversal (minimal cycles)
+- [x] **Path → VectorNetwork conversion**: from_path() preserving bezier handles
+- [x] **Canvas rendering**: Fill regions + stroke all segments, bezier support
+- [x] **SVG export**: region_to_svg_d / segment_to_svg_d
+- [x] **WASM bindings**: add_vector_network, vn_add/remove/update_vertex, vn_add/remove_segment, vn_update_segment_handles, vn_detect_regions, vn_get_data, vn_split_segment, vn_hit_test_segment, convert_path_to_vector_network
+- [x] **Edit mode**: Double-click VectorNetwork node → crosshair editing mode
+- [x] **Vertex operations**: Click to add, drag to move, Delete to remove, Shift+click to connect
+- [x] **Segment operations**: Click to select, Delete to remove, hover highlight
+- [x] **Segment splitting**: Double-click on segment → de Casteljau split at click point (preserves bezier curves)
+- [x] **Segment hit-testing**: Rust closest-point-on-cubic/line with ternary search refinement
+- [x] **Bezier handle editing**: Drag handle control points on segments, visual handle lines + dots
+- [x] **Connection preview**: Dashed line from selected vertex to mouse cursor
+- [x] **Auto-connect**: Click empty space → add vertex + auto-connect from previously selected vertex
+- [x] **Properties panel**: Vertex/segment/region counts, Detect Regions button, Convert Path to VN button
+- [x] **Point snapping**: Integrated with existing point-snap system during vertex drag
+- [x] **Undo integration**: All operations push_undo

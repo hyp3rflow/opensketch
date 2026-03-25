@@ -688,8 +688,20 @@
   - 80ms 디바운스, auto-focus input
   - ui/spotlight.ts 단일 파일 구현
 
+## 완료된 기능 (추가 79)
+- Vector network editing (enhanced):
+  - Segment hit-testing: Rust closest_point_on_cubic/line + ternary search refinement
+  - Segment splitting: de Casteljau split at click point (double-click on segment)
+  - Bezier handle editing: drag handle control points, visual handle lines + dots overlay
+  - Segment selection: click to select, Delete to remove, hover highlight
+  - Connection preview: dashed line from selected vertex to mouse cursor
+  - Auto-connect: click empty space → add vertex + auto-connect from selected vertex
+  - WASM: vn_split_segment, vn_hit_test_segment 바인딩 추가
+  - renderVNEditOverlay 개선: segment highlight/hover, handle visualization, connection preview
+
 ## 다음 할 것
-- Vector network editing (Figma-style vector networks — 포인트 간 다중 연결, fill 영역 자동 감지)
-- Figma → OpenSketch import (.fig 파일 파싱 또는 Figma REST API로 디자인 가져오기)
-- Shared component library (팀 간 공유 가능한 외부 컴포넌트 라이브러리 링크/동기화)
-- Responsive token system (디자인 토큰 + 브레이크포인트 기반 반응형 프리뷰 자동 전환)
+- Multi-user permissions (역할 기반 접근 제어: Owner/Editor/Viewer, 컴포넌트/페이지별 잠금)
+- Smart animate transitions (프로토타입: 매칭 레이어 간 자동 트윈 애니메이션)
+- Design handoff mode (개발자용: spacing overlay, asset download, CSS/Swift/Kotlin 코드 생성)
+- Cursor chat / multiplayer cursors (WebSocket 기반 실시간 커서 위치 공유, 이름 라벨, 색상 구분)
+- Scroll overflow prototype (프로토타입 뷰어에서 Frame overflow:scroll 콘텐츠 스크롤 지원)

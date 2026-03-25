@@ -534,6 +534,32 @@ impl Engine {
         0
     }
 
+    /// Split a segment at t (0..1), returning JSON {vertex_id, seg_a_id, seg_b_id}
+    pub fn vn_split_segment(&mut self, node_id: u64, segment_id: u64, t: f64) -> String {
+        if let Some(node) = self.scene.get_node_mut(node_id) {
+            if let NodeKind::VectorNetwork(ref mut vn) = node.kind {
+                if let Some((vid, sa, sb)) = vn.split_segment(segment_id, t) {
+                    vn.detect_regions();
+                    recalc_vn_bounds(node);
+                    return format!(r#"{{"vertex_id":{},"seg_a_id":{},"seg_b_id":{}}}"#, vid, sa, sb);
+                }
+            }
+        }
+        "{}".to_string()
+    }
+
+    /// Hit-test segments in a vector network. Returns JSON {segment_id, t} or "{}"
+    pub fn vn_hit_test_segment(&self, node_id: u64, scene_x: f64, scene_y: f64, threshold: f64) -> String {
+        if let Some(node) = self.scene.get_node(node_id) {
+            if let NodeKind::VectorNetwork(ref vn) = node.kind {
+                if let Some((seg_id, t)) = vn.hit_test_segment(scene_x, scene_y, threshold) {
+                    return format!(r#"{{"segment_id":{},"t":{:.4}}}"#, seg_id, t);
+                }
+            }
+        }
+        "{}".to_string()
+    }
+
     /// Convert a Path node to VectorNetwork. Returns true on success.
     pub fn convert_path_to_vector_network(&mut self, node_id: u64) -> bool {
         if let Some(node) = self.scene.get_node_mut(node_id) {

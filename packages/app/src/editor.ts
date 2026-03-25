@@ -83,6 +83,10 @@ export class Editor {
   private _vnSelectedVertex: number | null = null;
   private _vnDraggingVertex: number | null = null;
   private _vnConnectStart: number | null = null;
+  private _vnSelectedSegment: number | null = null;
+  private _vnHoverSegment: { id: number; t: number } | null = null;
+  private _vnDraggingHandle: { segId: number; which: "start" | "end" } | null = null;
+  private _vnConnectPreview: { x: number; y: number } | null = null;
 
   // Smart guides state
   private _snapGuides: SnapGuide[] = [];
@@ -487,14 +491,25 @@ export class Editor {
       if (e.key === "l" || e.key === "L") this.setTool("connector");
       if (e.key === "l" || e.key === "L") this.setTool("connector");
       if (e.key === "Delete" || e.key === "Backspace") {
-        if (this._vnEditMode && this._vnEditNodeId != null && this._vnSelectedVertex != null) {
-          this.engine.push_undo();
-          this.engine.vn_remove_vertex(BigInt(this._vnEditNodeId), BigInt(this._vnSelectedVertex));
-          this._vnSelectedVertex = null;
-          this.engine.vn_detect_regions(BigInt(this._vnEditNodeId));
-          this.needsRender = true;
-          this.fireSelectionNow(Array.from(this.engine.get_selection()).map(Number));
-          return;
+        if (this._vnEditMode && this._vnEditNodeId != null) {
+          if (this._vnSelectedVertex != null) {
+            this.engine.push_undo();
+            this.engine.vn_remove_vertex(BigInt(this._vnEditNodeId), BigInt(this._vnSelectedVertex));
+            this._vnSelectedVertex = null;
+            this.engine.vn_detect_regions(BigInt(this._vnEditNodeId));
+            this.needsRender = true;
+            this.fireSelectionNow(Array.from(this.engine.get_selection()).map(Number));
+            return;
+          }
+          if (this._vnSelectedSegment != null) {
+            this.engine.push_undo();
+            this.engine.vn_remove_segment(BigInt(this._vnEditNodeId), BigInt(this._vnSelectedSegment));
+            this._vnSelectedSegment = null;
+            this.engine.vn_detect_regions(BigInt(this._vnEditNodeId));
+            this.needsRender = true;
+            this.fireSelectionNow(Array.from(this.engine.get_selection()).map(Number));
+            return;
+          }
         }
         if (this._pathEditMode && this._pathEditNodeId != null && this._pathEditSelectedPoint != null) {
           this.engine.push_undo();
@@ -641,13 +656,40 @@ export class Editor {
         this.canvas.setPointerCapture(e.pointerId);
         return;
       } else {
-        // Click on empty space in VN edit mode → add new vertex
+        // Check handle hit test
+        const handleHit = this.vnHitTestHandle(x, y);
+        if (handleHit) {
+          this._vnDraggingHandle = handleHit;
+          this._vnSelectedSegment = handleHit.segId;
+          this.engine.push_undo();
+          this.needsRender = true;
+          this.canvas.setPointerCapture(e.pointerId);
+          return;
+        }
+        // Check segment hit test
         const sx = this.engine.screen_to_scene_x(x, y);
         const sy = this.engine.screen_to_scene_y(x, y);
+        const zoom = this.engine.get_zoom();
+        const segHitJson = this.engine.vn_hit_test_segment(BigInt(this._vnEditNodeId), sx, sy, 6 / zoom);
+        try {
+          const segHit = JSON.parse(segHitJson);
+          if (segHit.segment_id != null) {
+            this._vnSelectedSegment = segHit.segment_id;
+            this._vnSelectedVertex = null;
+            this.needsRender = true;
+            this.canvas.setPointerCapture(e.pointerId);
+            return;
+          }
+        } catch {}
+        // Click on empty space → add new vertex, auto-connect if vertex was selected
         this.engine.push_undo();
         const vid = Number(this.engine.vn_add_vertex(BigInt(this._vnEditNodeId), sx, sy));
+        if (this._vnSelectedVertex != null) {
+          this.engine.vn_add_segment(BigInt(this._vnEditNodeId), BigInt(this._vnSelectedVertex), BigInt(vid), 0, 0, 0, 0);
+          this.engine.vn_detect_regions(BigInt(this._vnEditNodeId));
+        }
         this._vnSelectedVertex = vid;
-        // If there was a selected vertex before, auto-connect
+        this._vnSelectedSegment = null;
         this.needsRender = true;
         this.fireSelectionNow(Array.from(this.engine.get_selection()).map(Number));
         this.canvas.setPointerCapture(e.pointerId);
@@ -888,6 +930,64 @@ export class Editor {
       return;
     }
 
+    // VN edit mode handle dragging
+    if (this._vnEditMode && this._vnDraggingHandle != null && this._vnEditNodeId != null) {
+      const sx = this.engine.screen_to_scene_x(e.offsetX, e.offsetY);
+      const sy = this.engine.screen_to_scene_y(e.offsetX, e.offsetY);
+      const vn = this.getVNData();
+      if (vn) {
+        const seg = vn.segments?.find((s: any) => s.id === this._vnDraggingHandle!.segId);
+        if (seg) {
+          let hs = seg.handle_start ? [seg.handle_start[0], seg.handle_start[1]] : [0, 0];
+          let he = seg.handle_end ? [seg.handle_end[0], seg.handle_end[1]] : [0, 0];
+          if (this._vnDraggingHandle.which === "start") {
+            hs = [sx, sy];
+            // If no handle existed, initialize end handle too
+            if (!seg.handle_end) {
+              const ev = vn.vertices?.find((v: any) => v.id === seg.end_vertex_id);
+              if (ev) he = [ev.x, ev.y];
+            }
+          } else {
+            he = [sx, sy];
+            if (!seg.handle_start) {
+              const sv = vn.vertices?.find((v: any) => v.id === seg.start_vertex_id);
+              if (sv) hs = [sv.x, sv.y];
+            }
+          }
+          this.engine.vn_update_segment_handles(BigInt(this._vnEditNodeId), BigInt(this._vnDraggingHandle.segId), hs[0], hs[1], he[0], he[1]);
+          this.needsRender = true;
+        }
+      }
+      return;
+    }
+
+    // VN edit mode: hover segment highlight + connection preview
+    if (this._vnEditMode && this._vnEditNodeId != null && !this.engine.is_dragging()) {
+      const sx = this.engine.screen_to_scene_x(e.offsetX, e.offsetY);
+      const sy = this.engine.screen_to_scene_y(e.offsetX, e.offsetY);
+      const zoom = this.engine.get_zoom();
+      // Connection preview
+      if (this._vnSelectedVertex != null && !(e.buttons & 1)) {
+        this._vnConnectPreview = { x: e.offsetX, y: e.offsetY };
+        this.needsRender = true;
+      } else {
+        this._vnConnectPreview = null;
+      }
+      // Segment hover
+      try {
+        const segHit = JSON.parse(this.engine.vn_hit_test_segment(BigInt(this._vnEditNodeId), sx, sy, 6 / zoom));
+        const prev = this._vnHoverSegment;
+        if (segHit.segment_id != null) {
+          this._vnHoverSegment = { id: segHit.segment_id, t: segHit.t };
+        } else {
+          this._vnHoverSegment = null;
+        }
+        if ((prev?.id ?? null) !== (this._vnHoverSegment?.id ?? null)) this.needsRender = true;
+      } catch {
+        this._vnHoverSegment = null;
+      }
+    }
+
     // Path edit mode dragging
     if (this._pathEditMode && this._pathEditDragType && this._pathEditNodeId != null && this._pathEditSelectedPoint != null) {
       let sx = this.engine.screen_to_scene_x(e.offsetX, e.offsetY);
@@ -1121,6 +1221,12 @@ export class Editor {
       this._vnDraggingVertex = null;
       this.needsRender = true;
       this.fireSelectionNow(Array.from(this.engine.get_selection()).map(Number));
+      return;
+    }
+
+    if (this._vnDraggingHandle != null) {
+      this._vnDraggingHandle = null;
+      this.needsRender = true;
       return;
     }
 
@@ -1387,6 +1493,10 @@ export class Editor {
     this._vnSelectedVertex = null;
     this._vnDraggingVertex = null;
     this._vnConnectStart = null;
+    this._vnSelectedSegment = null;
+    this._vnHoverSegment = null;
+    this._vnDraggingHandle = null;
+    this._vnConnectPreview = null;
     this.engine.select(BigInt(nodeId));
     this.canvas.style.cursor = "crosshair";
     this.needsRender = true;
@@ -1398,6 +1508,10 @@ export class Editor {
     this._vnSelectedVertex = null;
     this._vnDraggingVertex = null;
     this._vnConnectStart = null;
+    this._vnSelectedSegment = null;
+    this._vnHoverSegment = null;
+    this._vnDraggingHandle = null;
+    this._vnConnectPreview = null;
     this.updateCursor();
     this.needsRender = true;
   }
@@ -1427,6 +1541,32 @@ export class Editor {
     return null;
   }
 
+  private vnHitTestHandle(screenX: number, screenY: number): { segId: number; which: "start" | "end" } | null {
+    const vn = this.getVNData();
+    if (!vn || !vn.segments) return null;
+    const zoom = this.engine.get_zoom();
+    const panX = this.engine.get_pan_x();
+    const panY = this.engine.get_pan_y();
+    const threshold = 6;
+    for (const seg of vn.segments) {
+      if (seg.handle_start) {
+        const hx = seg.handle_start[0] * zoom + panX;
+        const hy = seg.handle_start[1] * zoom + panY;
+        if (Math.abs(screenX - hx) < threshold && Math.abs(screenY - hy) < threshold) {
+          return { segId: seg.id, which: "start" };
+        }
+      }
+      if (seg.handle_end) {
+        const hx = seg.handle_end[0] * zoom + panX;
+        const hy = seg.handle_end[1] * zoom + panY;
+        if (Math.abs(screenX - hx) < threshold && Math.abs(screenY - hy) < threshold) {
+          return { segId: seg.id, which: "end" };
+        }
+      }
+    }
+    return null;
+  }
+
   private renderVNEditOverlay() {
     if (!this._vnEditMode || this._vnEditNodeId == null) return;
     const vn = this.getVNData();
@@ -1451,12 +1591,49 @@ export class Editor {
             seg.handle_end[0] * zoom + panX, seg.handle_end[1] * zoom + panY,
             ev.x * zoom + panX, ev.y * zoom + panY
           );
+        } else if (seg.handle_start || seg.handle_end) {
+          const h = seg.handle_start || seg.handle_end;
+          this.ctx.quadraticCurveTo(h[0] * zoom + panX, h[1] * zoom + panY, ev.x * zoom + panX, ev.y * zoom + panY);
         } else {
           this.ctx.lineTo(ev.x * zoom + panX, ev.y * zoom + panY);
         }
-        this.ctx.strokeStyle = "rgba(59, 130, 246, 0.6)";
-        this.ctx.lineWidth = 1;
+        const isSelected = seg.id === this._vnSelectedSegment;
+        const isHovered = seg.id === this._vnHoverSegment?.id;
+        this.ctx.strokeStyle = isSelected ? "#3b82f6" : isHovered ? "rgba(59, 130, 246, 0.8)" : "rgba(59, 130, 246, 0.4)";
+        this.ctx.lineWidth = isSelected ? 2.5 : isHovered ? 2 : 1;
         this.ctx.stroke();
+
+        // Draw bezier handles
+        if (seg.handle_start) {
+          const hx = seg.handle_start[0] * zoom + panX;
+          const hy = seg.handle_start[1] * zoom + panY;
+          // Handle line
+          this.ctx.beginPath();
+          this.ctx.moveTo(sv.x * zoom + panX, sv.y * zoom + panY);
+          this.ctx.lineTo(hx, hy);
+          this.ctx.strokeStyle = "rgba(59, 130, 246, 0.4)";
+          this.ctx.lineWidth = 1;
+          this.ctx.stroke();
+          // Handle dot
+          this.ctx.beginPath();
+          this.ctx.arc(hx, hy, 3, 0, Math.PI * 2);
+          this.ctx.fillStyle = "#3b82f6";
+          this.ctx.fill();
+        }
+        if (seg.handle_end) {
+          const hx = seg.handle_end[0] * zoom + panX;
+          const hy = seg.handle_end[1] * zoom + panY;
+          this.ctx.beginPath();
+          this.ctx.moveTo(ev.x * zoom + panX, ev.y * zoom + panY);
+          this.ctx.lineTo(hx, hy);
+          this.ctx.strokeStyle = "rgba(59, 130, 246, 0.4)";
+          this.ctx.lineWidth = 1;
+          this.ctx.stroke();
+          this.ctx.beginPath();
+          this.ctx.arc(hx, hy, 3, 0, Math.PI * 2);
+          this.ctx.fillStyle = "#3b82f6";
+          this.ctx.fill();
+        }
       }
     }
 
@@ -1475,9 +1652,19 @@ export class Editor {
       }
     }
 
-    // Draw connection line preview
-    if (this._vnConnectStart != null && this._vnDraggingVertex == null) {
-      // (handled in pointer move)
+    // Connection preview line (from selected vertex to mouse)
+    if (this._vnSelectedVertex != null && this._vnConnectPreview && this._vnDraggingVertex == null) {
+      const sv = vn.vertices?.find((v: any) => v.id === this._vnSelectedVertex);
+      if (sv) {
+        this.ctx.beginPath();
+        this.ctx.moveTo(sv.x * zoom + panX, sv.y * zoom + panY);
+        this.ctx.lineTo(this._vnConnectPreview.x, this._vnConnectPreview.y);
+        this.ctx.strokeStyle = "rgba(59, 130, 246, 0.3)";
+        this.ctx.lineWidth = 1;
+        this.ctx.setLineDash([4, 4]);
+        this.ctx.stroke();
+        this.ctx.setLineDash([]);
+      }
     }
 
     this.ctx.restore();
@@ -1497,6 +1684,27 @@ export class Editor {
         return;
       }
     }
+    // Double-click on a segment in VN edit mode → split it
+    if (this._vnEditMode && this._vnEditNodeId != null) {
+      const sx = this.engine.screen_to_scene_x(e.offsetX, e.offsetY);
+      const sy = this.engine.screen_to_scene_y(e.offsetX, e.offsetY);
+      const zoom = this.engine.get_zoom();
+      try {
+        const segHit = JSON.parse(this.engine.vn_hit_test_segment(BigInt(this._vnEditNodeId), sx, sy, 8 / zoom));
+        if (segHit.segment_id != null) {
+          this.engine.push_undo();
+          const result = JSON.parse(this.engine.vn_split_segment(BigInt(this._vnEditNodeId), BigInt(segHit.segment_id), segHit.t));
+          if (result.vertex_id != null) {
+            this._vnSelectedVertex = result.vertex_id;
+            this._vnSelectedSegment = null;
+          }
+          this.needsRender = true;
+          this.fireSelectionNow(Array.from(this.engine.get_selection()).map(Number));
+          return;
+        }
+      } catch {}
+    }
+
     const hit = this.engine.hit_test(e.offsetX, e.offsetY);
     if (hit == null) return;
 

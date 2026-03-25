@@ -255,6 +255,72 @@ impl VectorNetwork {
         self.regions.len()
     }
 
+    /// Split a segment at parameter t (0..1), inserting a new vertex and replacing
+    /// the segment with two new segments. Returns (new_vertex_id, seg_a_id, seg_b_id).
+    pub fn split_segment(&mut self, segment_id: SegmentId, t: f64) -> Option<(VertexId, SegmentId, SegmentId)> {
+        let seg = self.segments.iter().find(|s| s.id == segment_id)?.clone();
+        let sv = self.get_vertex(seg.start_vertex_id)?.clone();
+        let ev = self.get_vertex(seg.end_vertex_id)?.clone();
+
+        // Compute split point (and handles for the two sub-segments via de Casteljau)
+        let (mid, hs_a, he_a, hs_b, he_b) = match (seg.handle_start, seg.handle_end) {
+            (Some((h1x, h1y)), Some((h2x, h2y))) => {
+                // Cubic bezier de Casteljau split
+                let p0 = (sv.x, sv.y);
+                let p1 = (h1x, h1y);
+                let p2 = (h2x, h2y);
+                let p3 = (ev.x, ev.y);
+                let q0 = lerp2(p0, p1, t);
+                let q1 = lerp2(p1, p2, t);
+                let q2 = lerp2(p2, p3, t);
+                let r0 = lerp2(q0, q1, t);
+                let r1 = lerp2(q1, q2, t);
+                let mid = lerp2(r0, r1, t);
+                (mid, Some(q0), Some(r0), Some(r1), Some(q2))
+            }
+            _ => {
+                // Linear — just lerp
+                let mx = sv.x + (ev.x - sv.x) * t;
+                let my = sv.y + (ev.y - sv.y) * t;
+                ((mx, my), None, None, None, None)
+            }
+        };
+
+        // Remove original segment
+        self.remove_segment(segment_id);
+        // Restore regions since remove_segment clears them
+        let mid_id = self.add_vertex(mid.0, mid.1);
+        let sa = self.add_segment(seg.start_vertex_id, mid_id, hs_a, he_a);
+        let sb = self.add_segment(mid_id, seg.end_vertex_id, hs_b, he_b);
+
+        Some((mid_id, sa, sb))
+    }
+
+    /// Hit-test a point against segments. Returns (segment_id, t) if within threshold (in scene coords).
+    pub fn hit_test_segment(&self, px: f64, py: f64, threshold: f64) -> Option<(SegmentId, f64)> {
+        let mut best: Option<(SegmentId, f64, f64)> = None; // (id, t, dist)
+        for seg in &self.segments {
+            let sv = self.get_vertex(seg.start_vertex_id);
+            let ev = self.get_vertex(seg.end_vertex_id);
+            if let (Some(sv), Some(ev)) = (sv, ev) {
+                let (dist, t) = match (seg.handle_start, seg.handle_end) {
+                    (Some((h1x, h1y)), Some((h2x, h2y))) => {
+                        closest_point_on_cubic(sv.x, sv.y, h1x, h1y, h2x, h2y, ev.x, ev.y, px, py)
+                    }
+                    _ => {
+                        closest_point_on_line(sv.x, sv.y, ev.x, ev.y, px, py)
+                    }
+                };
+                if dist <= threshold {
+                    if best.is_none() || dist < best.as_ref().unwrap().2 {
+                        best = Some((seg.id, t, dist));
+                    }
+                }
+            }
+        }
+        best.map(|(id, t, _)| (id, t))
+    }
+
     /// Calculate bounding box from all vertices.
     pub fn bounds(&self) -> (f64, f64, f64, f64) {
         if self.vertices.is_empty() {
@@ -402,4 +468,68 @@ impl VectorNetwork {
             String::new()
         }
     }
+}
+
+fn lerp2(a: (f64, f64), b: (f64, f64), t: f64) -> (f64, f64) {
+    (a.0 + (b.0 - a.0) * t, a.1 + (b.1 - a.1) * t)
+}
+
+fn closest_point_on_line(x0: f64, y0: f64, x1: f64, y1: f64, px: f64, py: f64) -> (f64, f64) {
+    let dx = x1 - x0;
+    let dy = y1 - y0;
+    let len_sq = dx * dx + dy * dy;
+    if len_sq < 1e-12 {
+        let d = ((px - x0).powi(2) + (py - y0).powi(2)).sqrt();
+        return (d, 0.5);
+    }
+    let t = ((px - x0) * dx + (py - y0) * dy) / len_sq;
+    let t = t.clamp(0.0, 1.0);
+    let cx = x0 + t * dx;
+    let cy = y0 + t * dy;
+    let d = ((px - cx).powi(2) + (py - cy).powi(2)).sqrt();
+    (d, t)
+}
+
+fn closest_point_on_cubic(
+    x0: f64, y0: f64, h1x: f64, h1y: f64, h2x: f64, h2y: f64, x3: f64, y3: f64,
+    px: f64, py: f64,
+) -> (f64, f64) {
+    // Sample 20 points along the curve, find closest
+    let steps = 20;
+    let mut best_dist = f64::INFINITY;
+    let mut best_t = 0.0;
+    for i in 0..=steps {
+        let t = i as f64 / steps as f64;
+        let it = 1.0 - t;
+        let cx = it * it * it * x0 + 3.0 * it * it * t * h1x + 3.0 * it * t * t * h2x + t * t * t * x3;
+        let cy = it * it * it * y0 + 3.0 * it * it * t * h1y + 3.0 * it * t * t * h2y + t * t * t * y3;
+        let d = ((px - cx).powi(2) + (py - cy).powi(2)).sqrt();
+        if d < best_dist {
+            best_dist = d;
+            best_t = t;
+        }
+    }
+    // Refine with binary-search-like approach
+    let mut lo = (best_t - 1.0 / steps as f64).max(0.0);
+    let mut hi = (best_t + 1.0 / steps as f64).min(1.0);
+    for _ in 0..10 {
+        let m1 = lo + (hi - lo) / 3.0;
+        let m2 = hi - (hi - lo) / 3.0;
+        let d1 = eval_cubic_dist(x0, y0, h1x, h1y, h2x, h2y, x3, y3, px, py, m1);
+        let d2 = eval_cubic_dist(x0, y0, h1x, h1y, h2x, h2y, x3, y3, px, py, m2);
+        if d1 < d2 { hi = m2; } else { lo = m1; }
+    }
+    let t = (lo + hi) / 2.0;
+    let d = eval_cubic_dist(x0, y0, h1x, h1y, h2x, h2y, x3, y3, px, py, t);
+    (d, t)
+}
+
+fn eval_cubic_dist(
+    x0: f64, y0: f64, h1x: f64, h1y: f64, h2x: f64, h2y: f64, x3: f64, y3: f64,
+    px: f64, py: f64, t: f64,
+) -> f64 {
+    let it = 1.0 - t;
+    let cx = it * it * it * x0 + 3.0 * it * it * t * h1x + 3.0 * it * t * t * h2x + t * t * t * x3;
+    let cy = it * it * it * y0 + 3.0 * it * it * t * h1y + 3.0 * it * t * t * h2y + t * t * t * y3;
+    ((px - cx).powi(2) + (py - cy).powi(2)).sqrt()
 }
