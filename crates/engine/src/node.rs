@@ -258,6 +258,20 @@ pub enum NodeKind {
     Slice,
     /// A vector network (Figma-style: vertices + segments + fill regions)
     VectorNetwork(Box<VectorNetwork>),
+    /// A FigJam-style sticky note with color theme
+    StickyNote {
+        /// Text content
+        content: String,
+        /// Font size
+        #[serde(default = "default_sticky_font_size")]
+        font_size: f64,
+        /// Color theme: "yellow", "green", "blue", "pink", "orange", "purple", "gray"
+        #[serde(default = "default_sticky_theme")]
+        theme: String,
+        /// Voting dots (user_id -> count)
+        #[serde(default)]
+        votes: Vec<StickyVote>,
+    },
     /// A connector (arrow/line) between two nodes
     Connector {
         /// Source node ID (0 = unconnected, uses start_x/start_y)
@@ -277,6 +291,16 @@ pub enum NodeKind {
         /// Show arrowhead at start
         start_arrow: bool,
     },
+}
+
+fn default_sticky_font_size() -> f64 { 16.0 }
+fn default_sticky_theme() -> String { "yellow".to_string() }
+
+/// A vote on a sticky note
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct StickyVote {
+    pub user_id: String,
+    pub count: u32,
 }
 
 fn default_line_height() -> f64 { 1.2 }
@@ -1108,6 +1132,7 @@ impl Node {
             NodeKind::Path { .. } => "Path",
             NodeKind::Section => "Section",
             NodeKind::Slice => "Slice",
+            NodeKind::StickyNote { .. } => "StickyNote",
             NodeKind::Connector { .. } => "Connector",
             NodeKind::VectorNetwork { .. } => "VectorNetwork",
         }

@@ -469,6 +469,7 @@ impl Renderer {
             NodeKind::Star { points, inner_radius } => self.render_star(ctx, node, *points, *inner_radius),
             NodeKind::Polygon { sides } => self.render_polygon(ctx, node, *sides),
             NodeKind::Section => self.render_section(ctx, node, scene),
+            NodeKind::StickyNote { ref content, font_size, ref theme, ref votes } => self.render_sticky_note(ctx, node, content, *font_size, theme, votes),
             NodeKind::Slice => {} // Slice nodes are rendered as overlays in TS
             NodeKind::Connector { start_node_id, end_node_id, start_x, end_x, start_y, end_y, ref path_type, end_arrow, start_arrow } => {
                 self.render_connector(ctx, node, scene, *start_node_id, *end_node_id, *start_x, *start_y, *end_x, *end_y, path_type, *end_arrow, *start_arrow);
