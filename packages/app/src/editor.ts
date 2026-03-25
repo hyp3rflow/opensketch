@@ -11,6 +11,7 @@ import { CursorPresence } from "./ui/cursor-presence";
 import { openComponentSwapModal } from "./ui/component-swap";
 import { openComponentLibraryPanel } from "./ui/component-library";
 import { openComponentAnalytics, closeComponentAnalytics, isComponentAnalyticsOpen } from "./ui/component-analytics";
+import { openSmartSuggestions, closeSmartSuggestions, isSmartSuggestionsOpen } from "./ui/smart-suggestions";
 import { GradientEditor } from "./ui/gradient-editor";
 import { SmartSelectPanel } from "./ui/smart-select";
 import type { CollabClient } from "./collab";
@@ -431,6 +432,13 @@ export class Editor {
       if ((e.metaKey || e.ctrlKey) && e.altKey && (e.key === "a" || e.key === "A")) {
         e.preventDefault();
         this.openComponentAnalytics();
+        return;
+      }
+
+      // Ctrl/Cmd+Alt+S: smart component suggestions
+      if ((e.metaKey || e.ctrlKey) && e.altKey && (e.key === "s" || e.key === "S")) {
+        e.preventDefault();
+        this.openSmartSuggestions();
         return;
       }
 
@@ -3192,6 +3200,16 @@ export class Editor {
       this.requestRender();
       this.fireSelectionNow([nodeId]);
       closeComponentAnalytics();
+    });
+  }
+
+  // =============================================
+  // Smart Component Suggestions
+  openSmartSuggestions() {
+    openSmartSuggestions(this.engine, (nodeId) => {
+      this.engine.set_selection(new BigUint64Array([BigInt(nodeId)]));
+      this.requestRender();
+      this.fireSelectionNow([nodeId]);
     });
   }
 

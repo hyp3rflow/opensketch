@@ -871,3 +871,14 @@ Frame overflow control and content scrolling.
 - [x] **WASM binding**: `component_analytics()` → JSON
 - [x] **UI**: Floating modal panel (Cmd/Ctrl+Alt+A shortcut)
 - [x] **Navigation**: Click instance location to jump to that node/page
+
+### Smart Component Suggestions
+- [x] **Structural duplicate detection**: Identical subtree fingerprinting
+- [x] **Sibling pattern detection**: Repeated children in Frames (list/grid items)
+- [x] **Visual clone detection**: Same kind + similar size + same fill bucketing
+- [x] **Confidence scoring**: Multi-factor (count, depth, fill match)
+- [x] **Deduplication**: Higher-confidence suggestions subsume lower ones
+- [x] **Rust engine**: `Scene::suggest_components()` in `smart_component.rs`
+- [x] **WASM binding**: `suggest_components()` → JSON
+- [x] **UI**: Floating modal (Cmd/Ctrl+Alt+S shortcut), suggestion cards with confidence
+- [x] **Actions**: Select all instances, navigate to nodes

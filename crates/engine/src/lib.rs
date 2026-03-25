@@ -21,6 +21,7 @@ pub mod vector_network;
 pub mod branch;
 mod find_replace;
 pub mod permissions;
+mod smart_component;
 
 use wasm_bindgen::prelude::*;
 use web_sys::CanvasRenderingContext2d;
@@ -4795,6 +4796,13 @@ impl Engine {
     #[wasm_bindgen]
     pub fn component_analytics(&self) -> String {
         self.scene.get_component_analytics(&self.components)
+    }
+
+    /// Smart component suggestions — detect repeating patterns and suggest extraction
+    #[wasm_bindgen]
+    pub fn suggest_components(&self) -> String {
+        let suggestions = self.scene.suggest_components();
+        serde_json::to_string(&suggestions).unwrap_or_else(|_| "[]".to_string())
     }
 }
 
