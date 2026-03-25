@@ -1169,6 +1169,104 @@ impl Renderer {
         }
     }
 
+    fn render_sticky_note(&self, ctx: &CanvasRenderingContext2d, node: &Node, content: &str, font_size: f64, theme: &str, votes: &[crate::node::StickyVote]) {
+        let (bg, text_color, border) = match theme {
+            "green" => ("#c6f6d5", "#1a4731", "#9ae6b4"),
+            "blue" => ("#bee3f8", "#1a365d", "#90cdf4"),
+            "pink" => ("#fed7e2", "#521b41", "#fbb6ce"),
+            "orange" => ("#feebc8", "#652b19", "#fbd38d"),
+            "purple" => ("#e9d8fd", "#322659", "#d6bcfa"),
+            "gray" => ("#e2e8f0", "#1a202c", "#cbd5e0"),
+            _ => ("#fefcbf", "#744210", "#f6e05e"), // yellow default
+        };
+
+        // Shadow
+        ctx.save();
+        ctx.set_shadow_color("rgba(0,0,0,0.15)");
+        ctx.set_shadow_blur(8.0);
+        ctx.set_shadow_offset_x(0.0);
+        ctx.set_shadow_offset_y(2.0);
+
+        let r = 4.0;
+        // Background
+        ctx.set_fill_style_str(bg);
+        self.draw_rounded_rect(ctx, node.x, node.y, node.width, node.height, r);
+        ctx.fill();
+        ctx.restore();
+
+        // Border
+        ctx.set_stroke_style_str(border);
+        ctx.set_line_width(1.0);
+        self.draw_rounded_rect(ctx, node.x, node.y, node.width, node.height, r);
+        ctx.stroke();
+
+        // Folded corner
+        let fold = 12.0;
+        ctx.begin_path();
+        ctx.move_to(node.x + node.width - fold, node.y);
+        ctx.line_to(node.x + node.width, node.y + fold);
+        ctx.line_to(node.x + node.width - fold, node.y + fold);
+        ctx.close_path();
+        ctx.set_fill_style_str(border);
+        ctx.fill();
+
+        // Text content
+        let padding = 12.0;
+        ctx.set_fill_style_str(text_color);
+        ctx.set_font(&format!("{}px Inter, system-ui, sans-serif", font_size));
+        ctx.set_text_baseline("top");
+
+        let max_w = node.width - padding * 2.0;
+        let line_h = font_size * 1.4;
+        let mut y = node.y + padding;
+        // Simple word wrap
+        for paragraph in content.split('\n') {
+            let words: Vec<&str> = paragraph.split_whitespace().collect();
+            if words.is_empty() {
+                y += line_h;
+                continue;
+            }
+            let mut line = String::new();
+            for word in words {
+                let test = if line.is_empty() { word.to_string() } else { format!("{} {}", line, word) };
+                let tw = ctx.measure_text(&test).map(|m| m.width()).unwrap_or(0.0);
+                if tw > max_w && !line.is_empty() {
+                    ctx.fill_text(&line, node.x + padding, y).ok();
+                    y += line_h;
+                    line = word.to_string();
+                } else {
+                    line = test;
+                }
+            }
+            if !line.is_empty() {
+                ctx.fill_text(&line, node.x + padding, y).ok();
+                y += line_h;
+            }
+        }
+
+        // Voting dots
+        if !votes.is_empty() {
+            let total: u32 = votes.iter().map(|v| v.count).sum();
+            if total > 0 {
+                let dot_y = node.y + node.height - 16.0;
+                let dot_x = node.x + padding;
+                let dot_r = 5.0;
+                let colors = ["#e53e3e", "#dd6b20", "#d69e2e", "#38a169", "#3182ce", "#805ad5"];
+                let mut dx = 0.0;
+                for (i, vote) in votes.iter().enumerate() {
+                    let color = colors[i % colors.len()];
+                    for _ in 0..vote.count.min(5) {
+                        ctx.begin_path();
+                        ctx.arc(dot_x + dx + dot_r, dot_y, dot_r, 0.0, std::f64::consts::PI * 2.0).ok();
+                        ctx.set_fill_style_str(color);
+                        ctx.fill();
+                        dx += dot_r * 2.5;
+                    }
+                }
+            }
+        }
+    }
+
     fn render_section(&self, ctx: &CanvasRenderingContext2d, node: &Node, scene: &Scene) {
         let r = 8.0; // rounded corners
         // Background

@@ -549,6 +549,30 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
             attrs.push_str("/>\n");
             buf.push_str(&attrs);
         }
+        NodeKind::StickyNote { ref content, font_size, ref theme, .. } => {
+            let (bg, text_color) = match theme.as_str() {
+                "green" => ("#c6f6d5", "#1a4731"),
+                "blue" => ("#bee3f8", "#1a365d"),
+                "pink" => ("#fed7e2", "#521b41"),
+                "orange" => ("#feebc8", "#652b19"),
+                "purple" => ("#e9d8fd", "#322659"),
+                "gray" => ("#e2e8f0", "#1a202c"),
+                _ => ("#fefcbf", "#744210"),
+            };
+            buf.push_str(&format!(
+                r#"<g><rect x="{}" y="{}" width="{}" height="{}" rx="4" fill="{}" stroke="{}" stroke-width="1""#,
+                node.x, node.y, node.width, node.height, bg, bg
+            ));
+            if has_opacity { buf.push_str(&format!(r#" opacity="{}""#, node.opacity)); }
+            buf.push_str("/>\n");
+            // Text
+            let padding = 12.0;
+            buf.push_str(&format!(
+                r#"<text x="{}" y="{}" font-size="{}" fill="{}" font-family="Inter, system-ui, sans-serif"><tspan>{}</tspan></text>"#,
+                node.x + padding, node.y + padding + *font_size, font_size, text_color, escape_xml(content)
+            ));
+            buf.push_str("</g>\n");
+        }
         NodeKind::Slice => {
             // Slice nodes are export regions — not rendered in SVG
             return;
@@ -614,6 +638,38 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
             if has_opacity { attrs.push_str(&format!(r#" opacity="{}""#, node.opacity)); }
             attrs.push_str("/>\n");
             buf.push_str(&attrs);
+        }
+        NodeKind::StickyNote { ref content, font_size, ref theme, .. } => {
+            // Render sticky note as a colored rect with text
+            let bg = match theme.as_str() {
+                "green" => "#dcfce7",
+                "blue" => "#dbeafe",
+                "pink" => "#fce7f3",
+                "orange" => "#ffedd5",
+                "purple" => "#f3e8ff",
+                "gray" => "#f3f4f6",
+                _ => "#fef9c3", // yellow
+            };
+            let mut attrs = format!(
+                r#"<rect width="{}" height="{}" rx="4" ry="4" fill="{}""#,
+                node.width, node.height, bg
+            );
+            append_transform(&mut attrs, node);
+            if has_opacity {
+                attrs.push_str(&format!(r#" opacity="{}""#, node.opacity));
+            }
+            attrs.push_str("/>\n");
+            buf.push_str(&attrs);
+            // Text
+            if !content.is_empty() {
+                let tx = node.x + 8.0;
+                let ty = node.y + font_size + 8.0;
+                buf.push_str(&format!(
+                    "<text x=\"{}\" y=\"{}\" font-size=\"{}\" fill=\"#333\">{}</text>",
+                    tx, ty, font_size, escape_xml(content)
+                ));
+                buf.push('\n');
+            }
         }
         NodeKind::Slot { .. } | NodeKind::Instance(_) => {
             // Render as group with children

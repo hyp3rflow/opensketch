@@ -629,6 +629,96 @@ impl Engine {
     }
 
     // =============================================
+    // Sticky Note API
+    // =============================================
+
+    /// Create a FigJam-style sticky note
+    pub fn add_sticky_note(&mut self, x: f64, y: f64, w: f64, h: f64, content: &str, theme: &str) -> u64 {
+        let valid_theme = match theme {
+            "yellow" | "green" | "blue" | "pink" | "orange" | "purple" | "gray" => theme.to_string(),
+            _ => "yellow".to_string(),
+        };
+        let mut node = Node::new(0, NodeKind::StickyNote {
+            content: content.to_string(),
+            font_size: 16.0,
+            theme: valid_theme,
+            votes: vec![],
+        });
+        node.x = x; node.y = y;
+        node.width = w.max(100.0);
+        node.height = h.max(100.0);
+        node.name = format!("Sticky {}", self.scene.node_count() + 1);
+        node.fills = vec![];
+        self.scene.add_node(node)
+    }
+
+    pub fn set_sticky_content(&mut self, id: u64, content: &str) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::StickyNote { content: ref mut c, .. } = node.kind {
+                *c = content.to_string();
+            }
+        }
+    }
+
+    pub fn set_sticky_theme(&mut self, id: u64, theme: &str) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::StickyNote { theme: ref mut t, .. } = node.kind {
+                *t = match theme {
+                    "yellow" | "green" | "blue" | "pink" | "orange" | "purple" | "gray" => theme.to_string(),
+                    _ => "yellow".to_string(),
+                };
+            }
+        }
+    }
+
+    pub fn set_sticky_font_size(&mut self, id: u64, size: f64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::StickyNote { ref mut font_size, .. } = node.kind {
+                *font_size = size.clamp(8.0, 72.0);
+            }
+        }
+    }
+
+    pub fn sticky_add_vote(&mut self, id: u64, user_id: &str) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::StickyNote { ref mut votes, .. } = node.kind {
+                if let Some(v) = votes.iter_mut().find(|v| v.user_id == user_id) {
+                    v.count += 1;
+                } else {
+                    votes.push(crate::node::StickyVote { user_id: user_id.to_string(), count: 1 });
+                }
+            }
+        }
+    }
+
+    pub fn sticky_remove_vote(&mut self, id: u64, user_id: &str) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::StickyNote { ref mut votes, .. } = node.kind {
+                if let Some(v) = votes.iter_mut().find(|v| v.user_id == user_id) {
+                    if v.count > 1 { v.count -= 1; } else {
+                        votes.retain(|v| v.user_id != user_id);
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn get_sticky_info(&self, id: u64) -> String {
+        if let Some(node) = self.scene.get_node(id) {
+            if let NodeKind::StickyNote { ref content, font_size, ref theme, ref votes } = node.kind {
+                return serde_json::json!({
+                    "content": content,
+                    "font_size": font_size,
+                    "theme": theme,
+                    "votes": votes.iter().map(|v| serde_json::json!({"user_id": v.user_id, "count": v.count})).collect::<Vec<_>>(),
+                    "total_votes": votes.iter().map(|v| v.count).sum::<u32>(),
+                }).to_string();
+            }
+        }
+        "null".to_string()
+    }
+
+    // =============================================
     // Connector API
     // =============================================
 
