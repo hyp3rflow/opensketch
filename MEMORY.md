@@ -707,7 +707,21 @@
   - 툴바 ⏺ 버튼 + Shift+Alt+R 단축키
   - 녹화 중 빨간 펄스 인디케이터, 재생 시 자동 프레임 진행, 재생 전 장면 스냅샷 보존/복원
 
+## 완료된 기능 (추가 — Text Transform & Typography)
+- TextTransform enum: None/Uppercase/Lowercase/Capitalize (Rust node.rs)
+- text_indent: f64 first-line indent (pixels, per paragraph)
+- Canvas rendering: text_transform.apply() before display, text_indent on first line of each paragraph
+- SVG export: transformed text content, text-transform attribute support
+- WASM bindings: set_text_transform/get_text_transform, set_text_indent/get_text_indent
+- Properties panel: Transform dropdown + Text Indent number input
+- Handoff panel: text-transform, text-indent in CSS/Tailwind codegen + Design Specs
+- Backward-compatible serde (default values)
+
 ## 다음 할 것
+- Pattern fills (repeating image/SVG pattern fills, scale/rotation control, tile/brick/hex pattern presets)
+- Figma-style Dev Mode (measurement overlays on hover between any two nodes, copy CSS/token on click, asset export quick actions)
+- Canvas annotations / sticky notes (FigJam-style sticky notes with color themes, resizable, connectable, voting dots)
+- AI auto-layout detection (선택한 노드들의 시각적 패턴 분석 → auto layout 자동 설정 제안, gap/padding 추론)
 - Figma file diff / merge (Figma 파일 간 노드 비교, 변경사항 시각화, 선택적 머지)
 - Plugin marketplace (커뮤니티 플러그인 브라우저, 설치/제거, 버전 관리)
 - Pen tool pressure sensitivity (스타일러스 펜 필압 지원, 가변 선 두께)

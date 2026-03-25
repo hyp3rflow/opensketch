@@ -65,6 +65,8 @@
 - [x] Font family support (14 fonts)
 - [x] Enter to commit, Escape to cancel
 - [x] Default text fill: black
+- [x] Text transform: None/Uppercase/Lowercase/Capitalize (visual + SVG export + CSS codegen)
+- [x] Text indent: first-line pixel offset (per-paragraph), properties panel number input
 
 ### Notes System
 - [x] **Markdown notes**: attach multiple notes to any node
@@ -909,3 +911,12 @@ Frame overflow control and content scrolling.
 - [x] **JSON export/import**: Download/upload recording data
 - [x] **Toolbar integration**: ⏺ button + Shift+Alt+R shortcut
 - [x] **Files**: `recording.rs` (engine), `canvas-recorder.ts` (UI)
+
+### Text Transform & Advanced Typography (추가 87)
+- [x] **TextTransform enum**: None, Uppercase, Lowercase, Capitalize
+- [x] **text_indent**: First-line indent in pixels (-500 to 500)
+- [x] **Render pipeline**: Transform applied before rendering & measurement
+- [x] **SVG export**: text-transform applied to exported content
+- [x] **Properties panel**: Transform dropdown + indent number input
+- [x] **Handoff panel**: CSS code gen for text-transform & text-indent
+- [x] **WASM bindings**: set/get_text_transform, set/get_text_indent

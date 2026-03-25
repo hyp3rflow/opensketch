@@ -175,6 +175,8 @@ export function setupHandoffPanel(container: HTMLElement, editor: Editor) {
       if (node.font_weight && node.font_weight !== 400) addSpecRow(section, "Weight", `${node.font_weight}`);
       if (node.line_height) addSpecRow(section, "Line Height", `${node.line_height}`);
       if (node.letter_spacing) addSpecRow(section, "Tracking", `${node.letter_spacing}px`);
+      if (node.text_transform && node.text_transform !== "None") addSpecRow(section, "Transform", node.text_transform);
+      if (node.text_indent && node.text_indent !== 0) addSpecRow(section, "Text Indent", `${node.text_indent}px`);
     }
 
     // Layout / padding
@@ -431,6 +433,11 @@ function generateTailwind(ctx: CodeCtx): string {
     if (node.letter_spacing) classes.push(`tracking-[${node.letter_spacing}px]`);
     if (node.text_decoration === "Underline") classes.push("underline");
     else if (node.text_decoration === "Strikethrough") classes.push("line-through");
+    if (node.text_transform) {
+      const twMap: Record<string, string> = { Uppercase: "uppercase", Lowercase: "lowercase", Capitalize: "capitalize" };
+      if (twMap[node.text_transform]) classes.push(twMap[node.text_transform]);
+    }
+    if (node.text_indent && node.text_indent !== 0) classes.push(`indent-[${node.text_indent}px]`);
     if (node.fills?.[0]) classes.push(`text-[${colorToHex(node.fills[0])}]`);
     if (node.font_family) classes.push(`font-['${node.font_family.replace(/\s+/g, "_")}']`);
   }
@@ -569,6 +576,8 @@ function generateCSS(ctx: CodeCtx): string {
       lines.push(`list-style-type: ${listMap[node.list_style] || "none"};`);
     }
     if (node.indent_level && node.indent_level > 0) lines.push(`padding-left: ${node.indent_level * 1.5}em;`);
+    if (node.text_transform && node.text_transform !== "None" && node.text_transform !== "none") lines.push(`text-transform: ${node.text_transform.toLowerCase()};`);
+    if (node.text_indent && node.text_indent !== 0) lines.push(`text-indent: ${node.text_indent}px;`);
     if (node.fills?.[0]) lines.push(`color: ${rgbaToCSS(node.fills[0])};`);
   }
 

@@ -42,6 +42,63 @@ impl Default for TextDecoration {
     fn default() -> Self { TextDecoration::None }
 }
 
+/// Text transform
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub enum TextTransform {
+    None,
+    Uppercase,
+    Lowercase,
+    Capitalize,
+}
+
+impl Default for TextTransform {
+    fn default() -> Self { TextTransform::None }
+}
+
+impl TextTransform {
+    /// Apply the transform to a string
+    pub fn apply(&self, s: &str) -> String {
+        match self {
+            TextTransform::None => s.to_string(),
+            TextTransform::Uppercase => s.to_uppercase(),
+            TextTransform::Lowercase => s.to_lowercase(),
+            TextTransform::Capitalize => {
+                s.split_whitespace()
+                    .map(|word| {
+                        let mut chars = word.chars();
+                        match chars.next() {
+                            Some(c) => {
+                                let upper: String = c.to_uppercase().collect();
+                                format!("{}{}", upper, chars.collect::<String>())
+                            }
+                            None => String::new(),
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            }
+        }
+    }
+
+    pub fn to_css(&self) -> &'static str {
+        match self {
+            TextTransform::None => "none",
+            TextTransform::Uppercase => "uppercase",
+            TextTransform::Lowercase => "lowercase",
+            TextTransform::Capitalize => "capitalize",
+        }
+    }
+
+    pub fn from_str(s: &str) -> Self {
+        match s {
+            "uppercase" | "Uppercase" => TextTransform::Uppercase,
+            "lowercase" | "Lowercase" => TextTransform::Lowercase,
+            "capitalize" | "Capitalize" => TextTransform::Capitalize,
+            _ => TextTransform::None,
+        }
+    }
+}
+
 /// List style for text nodes
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub enum ListStyle {
@@ -116,6 +173,12 @@ pub enum NodeKind {
         /// Indent level (0 = no indent)
         #[serde(default)]
         indent_level: u8,
+        /// Text transform (uppercase/lowercase/capitalize)
+        #[serde(default)]
+        text_transform: TextTransform,
+        /// Text indent for first line (pixels)
+        #[serde(default)]
+        text_indent: f64,
     },
     Frame,
     Group,

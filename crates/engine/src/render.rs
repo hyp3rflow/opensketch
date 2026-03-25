@@ -134,8 +134,8 @@ impl Renderer {
                     None => continue,
                 };
                 match &node.kind {
-                    NodeKind::Text { content, font_size, font_family, line_height, font_weight, font_style, .. } => {
-                        (content.clone(), *font_size, font_family.clone(), *line_height, *font_weight, font_style.clone(),
+                    NodeKind::Text { content, font_size, font_family, line_height, font_weight, font_style, text_transform, .. } => {
+                        (text_transform.apply(content), *font_size, font_family.clone(), *line_height, *font_weight, font_style.clone(),
                          node.text_sizing == TextSizing::Fit, node.width)
                     }
                     _ => continue,
@@ -458,7 +458,7 @@ impl Renderer {
         match &node.kind {
             NodeKind::Rect => self.render_rect(ctx, node),
             NodeKind::Ellipse => self.render_ellipse(ctx, node),
-            NodeKind::Text { content, font_size, font_family, line_height, text_align, font_weight, font_style, text_decoration, letter_spacing, paragraph_spacing, list_style, indent_level } => self.render_text(ctx, node, scene, content, *font_size, font_family, *line_height, text_align, *font_weight, font_style, text_decoration, *letter_spacing, *paragraph_spacing, list_style, *indent_level),
+            NodeKind::Text { content, font_size, font_family, line_height, text_align, font_weight, font_style, text_decoration, letter_spacing, paragraph_spacing, list_style, indent_level, text_transform, text_indent } => self.render_text(ctx, node, scene, content, *font_size, font_family, *line_height, text_align, *font_weight, font_style, text_decoration, *letter_spacing, *paragraph_spacing, list_style, *indent_level, text_transform, *text_indent),
             NodeKind::Frame => self.render_frame(ctx, node, scene),
             NodeKind::Group => { self.render_children(ctx, &node.children, scene); }
             NodeKind::Slot { .. } => self.render_slot(ctx, node),
@@ -508,7 +508,11 @@ impl Renderer {
         self.apply_fill_stroke(ctx, node);
     }
 
-    fn render_text(&self, ctx: &CanvasRenderingContext2d, node: &Node, scene: &Scene, content: &str, font_size: f64, font_family: &str, line_height: f64, text_align: &TextAlign, font_weight: u16, font_style: &FontStyle, text_decoration: &crate::node::TextDecoration, letter_spacing: f64, paragraph_spacing: f64, list_style: &crate::node::ListStyle, indent_level: u8) {
+    fn render_text(&self, ctx: &CanvasRenderingContext2d, node: &Node, scene: &Scene, content: &str, font_size: f64, font_family: &str, line_height: f64, text_align: &TextAlign, font_weight: u16, font_style: &FontStyle, text_decoration: &crate::node::TextDecoration, letter_spacing: f64, paragraph_spacing: f64, list_style: &crate::node::ListStyle, indent_level: u8, text_transform: &crate::node::TextTransform, text_indent: f64) {
+        // Apply text transform
+        let display_content = text_transform.apply(content);
+        let content = &display_content;
+
         // Text-on-path rendering
         if let Some(path_id) = node.text_path_id {
             if let Some(path_node) = scene.get_node(path_id) {
@@ -600,6 +604,8 @@ impl Renderer {
 
                 // Indent offset
                 let indent_px = indent_level as f64 * font_size * 1.5;
+                // First-line text indent
+                let first_line_indent = if i == 0 || (para_idx > 0 && lines_in_para == 1) { text_indent } else { 0.0 };
 
                 // List prefix
                 let list_prefix = match list_style {
@@ -633,11 +639,11 @@ impl Renderer {
                 let total_lw = lw + if show_prefix { prefix_width } else { 0.0 };
                 let x = match text_align {
                     TextAlign::Left => {
-                        let raw_x = node.x + indent_px;
+                        let raw_x = node.x + indent_px + first_line_indent;
                         (raw_x * zoom).round() / zoom
                     }
                     TextAlign::Center => {
-                        let raw_x = node.x + (node.width - total_lw) / 2.0;
+                        let raw_x = node.x + (node.width - total_lw) / 2.0 + first_line_indent;
                         (raw_x * zoom).round() / zoom
                     }
                     TextAlign::Right => {

@@ -241,6 +241,8 @@ impl Engine {
             paragraph_spacing: 0.0,
             list_style: crate::node::ListStyle::default(),
             indent_level: 0,
+            text_transform: crate::node::TextTransform::default(),
+            text_indent: 0.0,
         });
         node.x = x; node.y = y;
         node.width = content.len() as f64 * font_size * 0.6;
@@ -2886,6 +2888,40 @@ impl Engine {
         self.scene.get_node(id).map(|n| {
             if let NodeKind::Text { indent_level, .. } = &n.kind { *indent_level } else { 0 }
         }).unwrap_or(0)
+    }
+
+    // =============================================
+    // Text Transform & Indent
+    // =============================================
+
+    pub fn set_text_transform(&mut self, id: u64, transform: &str) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Text { ref mut text_transform, .. } = node.kind {
+                *text_transform = crate::node::TextTransform::from_str(transform);
+            }
+        }
+    }
+
+    pub fn get_text_transform(&self, id: u64) -> String {
+        self.scene.get_node(id).map(|n| {
+            if let NodeKind::Text { ref text_transform, .. } = n.kind {
+                text_transform.to_css().to_string()
+            } else { "none".to_string() }
+        }).unwrap_or_else(|| "none".to_string())
+    }
+
+    pub fn set_text_indent(&mut self, id: u64, indent: f64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Text { ref mut text_indent, .. } = node.kind {
+                *text_indent = indent.max(-500.0).min(500.0);
+            }
+        }
+    }
+
+    pub fn get_text_indent(&self, id: u64) -> f64 {
+        self.scene.get_node(id).map(|n| {
+            if let NodeKind::Text { text_indent, .. } = &n.kind { *text_indent } else { 0.0 }
+        }).unwrap_or(0.0)
     }
 
     // =============================================

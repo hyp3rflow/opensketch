@@ -2272,6 +2272,54 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       indentRow.appendChild(indentInput);
       textSection.appendChild(indentRow);
 
+      // Text Transform
+      const transformRow = document.createElement("div");
+      transformRow.className = "prop-row";
+      const transformLabel = document.createElement("span");
+      transformLabel.className = "prop-label";
+      transformLabel.textContent = "Transform";
+      transformRow.appendChild(transformLabel);
+      const transformSelect = document.createElement("select");
+      transformSelect.style.cssText = "flex:1;background:#2a2a2a;border:1px solid #333;border-radius:4px;color:#ccc;font-size:11px;padding:3px 4px;";
+      const curTransform = editor.engine.get_text_transform(BigInt(id));
+      for (const [val, label] of [["none","None"],["uppercase","Uppercase"],["lowercase","Lowercase"],["capitalize","Capitalize"]] as const) {
+        const opt = document.createElement("option");
+        opt.value = val; opt.textContent = label;
+        if (val === curTransform) opt.selected = true;
+        transformSelect.appendChild(opt);
+      }
+      transformSelect.addEventListener("change", () => {
+        ensureUndo();
+        editor.engine.set_text_transform(BigInt(id), transformSelect.value);
+        editor.requestRender();
+        refresh(ids);
+      });
+      transformRow.appendChild(transformSelect);
+      textSection.appendChild(transformRow);
+
+      // Text Indent
+      const textIndentRow = document.createElement("div");
+      textIndentRow.className = "prop-row";
+      const textIndentLabel = document.createElement("span");
+      textIndentLabel.className = "prop-label";
+      textIndentLabel.textContent = "Text Indent";
+      textIndentRow.appendChild(textIndentLabel);
+      const textIndentInput = document.createElement("input");
+      textIndentInput.className = "prop-input";
+      textIndentInput.type = "number";
+      textIndentInput.min = "-500";
+      textIndentInput.max = "500";
+      textIndentInput.step = "1";
+      textIndentInput.value = String(editor.engine.get_text_indent(BigInt(id)));
+      textIndentInput.addEventListener("change", () => {
+        ensureUndo();
+        editor.engine.set_text_indent(BigInt(id), parseFloat(textIndentInput.value) || 0);
+        editor.requestRender();
+        refresh(ids);
+      });
+      textIndentRow.appendChild(textIndentInput);
+      textSection.appendChild(textIndentRow);
+
       // Text on Path
       {
         const topInfo = editor.engine.get_text_path_info(BigInt(id));

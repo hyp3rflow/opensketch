@@ -19,6 +19,7 @@ Pure Rust crate compiled to WASM via `wasm-pack`. No NAPI — runs entirely in t
 - `TextDecoration` enum: `None`, `Underline`, `Strikethrough`, `UnderlineStrikethrough`
 - `ListStyle` enum: `None`, `Bullet`, `Numbered`, `Dash`, `Checkbox`, `CheckboxChecked`
 - Text node fields: `list_style: ListStyle`, `indent_level: u8` (0-10)
+- Text node fields: `text_transform: TextTransform` (None/Uppercase/Lowercase/Capitalize), `text_indent: f64` (px)
 - `NodeKind` enum: `Rect`, `Ellipse`, `Text { ... }`, `Frame`, `Group`, `Path { points, closed }`, `VectorNetwork(Box<VectorNetwork>)`, `Image { src, fit }`, `Star { points, inner_radius }`, `Polygon { sides }`
 - `PathPoint { x, y, handle_in_x, handle_in_y, handle_out_x, handle_out_y }` — anchor + bezier control handles (absolute coords)
 - `VectorNetwork { vertices, segments, regions }` — Figma-style vector network with multi-connection vertices

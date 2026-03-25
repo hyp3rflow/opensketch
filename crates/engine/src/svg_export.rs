@@ -161,7 +161,10 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
             attrs.push_str("/>\n");
             buf.push_str(&attrs);
         }
-        NodeKind::Text { content, font_size, font_family, line_height, text_align, font_weight, font_style, text_decoration, letter_spacing, paragraph_spacing, list_style, indent_level } => {
+        NodeKind::Text { content, font_size, font_family, line_height, text_align, font_weight, font_style, text_decoration, letter_spacing, paragraph_spacing, list_style, indent_level, text_transform, text_indent } => {
+            // Apply text transform for display
+            let display_content = text_transform.apply(content);
+            let content = &display_content;
             // Text-on-path SVG export
             if let Some(path_id) = node.text_path_id {
                 if let Some(path_node) = scene.get_node(path_id) {
