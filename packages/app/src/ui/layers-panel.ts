@@ -35,8 +35,66 @@ interface LayerNode {
 export function setupLayersPanel(container: HTMLElement, editor: Editor) {
   const header = document.createElement("div");
   header.className = "layers-header";
-  header.textContent = "Layers";
+  header.style.cssText = "display:flex;align-items:center;justify-content:space-between;padding-right:4px;";
+  
+  const headerTitle = document.createElement("span");
+  headerTitle.textContent = "Layers";
+  header.appendChild(headerTitle);
+
+  const searchToggle = document.createElement("button");
+  searchToggle.className = "layers-search-toggle";
+  searchToggle.title = "Search layers (Ctrl+F)";
+  searchToggle.style.cssText = "background:none;border:none;cursor:pointer;padding:2px 4px;border-radius:4px;opacity:0.5;display:flex;align-items:center;";
+  searchToggle.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`;
+  searchToggle.addEventListener("mouseenter", () => { searchToggle.style.opacity = "1"; });
+  searchToggle.addEventListener("mouseleave", () => { if (!searchActive) searchToggle.style.opacity = "0.5"; });
+  header.appendChild(searchToggle);
+
   container.appendChild(header);
+
+  let searchActive = false;
+  let searchQuery = "";
+
+  const searchBar = document.createElement("div");
+  searchBar.className = "layers-search-bar";
+  searchBar.style.cssText = "display:none;padding:4px 8px 6px;";
+  const searchInput = document.createElement("input");
+  searchInput.type = "text";
+  searchInput.placeholder = "Filter layers…";
+  searchInput.style.cssText = "width:100%;box-sizing:border-box;padding:5px 8px;background:#1a1a1a;border:1px solid #444;border-radius:6px;color:#eee;font-size:12px;outline:none;";
+  searchInput.addEventListener("input", () => {
+    searchQuery = searchInput.value.toLowerCase();
+    refresh();
+  });
+  searchInput.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") { toggleSearch(false); e.stopPropagation(); }
+  });
+  searchBar.appendChild(searchInput);
+  container.appendChild(searchBar);
+
+  function toggleSearch(force?: boolean) {
+    searchActive = force ?? !searchActive;
+    searchBar.style.display = searchActive ? "block" : "none";
+    searchToggle.style.opacity = searchActive ? "1" : "0.5";
+    if (searchActive) {
+      searchInput.focus();
+    } else {
+      searchInput.value = "";
+      searchQuery = "";
+      refresh();
+    }
+  }
+
+  searchToggle.addEventListener("click", () => toggleSearch());
+
+  // Ctrl+F / Cmd+F within layers panel
+  container.addEventListener("keydown", (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === "f") {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleSearch(true);
+    }
+  });
 
   const list = document.createElement("div");
   list.id = "layers-list";
@@ -48,6 +106,22 @@ export function setupLayersPanel(container: HTMLElement, editor: Editor) {
     const nodeMap = new Map<number, LayerNode>();
     for (const l of layers) nodeMap.set(l.id, l);
 
+    // Build set of matching nodes + their ancestors for search filter
+    let matchSet: Set<number> | null = null;
+    if (searchQuery) {
+      matchSet = new Set<number>();
+      for (const l of layers) {
+        if (l.name.toLowerCase().includes(searchQuery) || l.kind.toLowerCase().includes(searchQuery)) {
+          // Add this node and all ancestors
+          let cur: LayerNode | undefined = l;
+          while (cur) {
+            matchSet.add(cur.id);
+            cur = cur.parent != null ? nodeMap.get(cur.parent) : undefined;
+          }
+        }
+      }
+    }
+
     // Find root nodes (no parent)
     const roots = layers.filter((l) => l.parent == null);
     // Deduplicate — render_order lists children too, but we'll walk the tree ourselves
@@ -55,9 +129,21 @@ export function setupLayersPanel(container: HTMLElement, editor: Editor) {
 
     list.innerHTML = "";
 
+    // Show match count when searching
+    if (searchQuery && matchSet) {
+      const directMatches = layers.filter(l => l.name.toLowerCase().includes(searchQuery) || l.kind.toLowerCase().includes(searchQuery)).length;
+      const countEl = document.createElement("div");
+      countEl.style.cssText = "padding:2px 12px 4px;font-size:11px;color:#888;";
+      countEl.textContent = directMatches === 0 ? "No matches" : `${directMatches} match${directMatches > 1 ? "es" : ""}`;
+      list.appendChild(countEl);
+    }
+
     function renderNode(node: LayerNode, depth: number) {
+      // Filter: skip nodes not matching search
+      if (matchSet && !matchSet.has(node.id)) return;
+
       const hasChildren = node.children.length > 0;
-      const isCollapsed = collapsed.has(node.id);
+      const isCollapsed = !searchQuery && collapsed.has(node.id); // auto-expand when searching
       const isFrame = node.kind === "Frame" || node.kind === "Group" || node.kind === "Section";
 
       const item = document.createElement("div");
@@ -100,7 +186,15 @@ export function setupLayersPanel(container: HTMLElement, editor: Editor) {
       const name = document.createElement("span");
       name.className = "layer-name";
       const displayName = node.name.replace(/^\[(C|I|S)\] /, "");
-      name.textContent = displayName;
+      if (searchQuery && displayName.toLowerCase().includes(searchQuery)) {
+        const idx = displayName.toLowerCase().indexOf(searchQuery);
+        const before = displayName.slice(0, idx);
+        const match = displayName.slice(idx, idx + searchQuery.length);
+        const after = displayName.slice(idx + searchQuery.length);
+        name.innerHTML = `${before}<mark style="background:#4a90d9;color:#fff;border-radius:2px;padding:0 1px">${match}</mark>${after}`;
+      } else {
+        name.textContent = displayName;
+      }
       if (isFrame) name.style.fontWeight = "600";
 
       const vis = document.createElement("span");
