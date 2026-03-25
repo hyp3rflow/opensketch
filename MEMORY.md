@@ -733,6 +733,17 @@
 - Inspect panel: CSS background-image/background-size/background-repeat codegen
 - Backward-compatible serde (기존 파일 호환)
 
+## 완료된 기능 (추가 — Table Node)
+- NodeKind::Table { rows, cols, cells, col_widths, row_heights }
+- TableCell: row, col, row_span, col_span, content, fill, text_align
+- WASM: add_table, table_set_cell, table_get_cell, table_set_cell_fill, table_merge_cells
+- WASM: table_add_row/col, table_remove_row/col, table_set_col_width/row_height
+- WASM: table_import_csv (CSV 파싱), table_sort (열 기준 정렬), table_get_info
+- Canvas 렌더링: 그리드 라인, 셀 fill, 셀 텍스트 (text_align 지원)
+- SVG export: <g> + <rect>/<line>/<text> 구조
+- Toolbar: Table 버튼 (B 키 단축키)
+- Properties panel: Rows/Cols 표시, +/- Row/Col, CSV import, Sort 버튼
+
 ## 다음 할 것
 - Figma-style Dev Mode (measurement overlays on hover between any two nodes, copy CSS/token on click, asset export quick actions)
 - Canvas annotations / sticky notes (FigJam-style sticky notes with color themes, resizable, connectable, voting dots)
