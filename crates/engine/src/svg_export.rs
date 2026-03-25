@@ -639,38 +639,6 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
             attrs.push_str("/>\n");
             buf.push_str(&attrs);
         }
-        NodeKind::StickyNote { ref content, font_size, ref theme, .. } => {
-            // Render sticky note as a colored rect with text
-            let bg = match theme.as_str() {
-                "green" => "#dcfce7",
-                "blue" => "#dbeafe",
-                "pink" => "#fce7f3",
-                "orange" => "#ffedd5",
-                "purple" => "#f3e8ff",
-                "gray" => "#f3f4f6",
-                _ => "#fef9c3", // yellow
-            };
-            let mut attrs = format!(
-                r#"<rect width="{}" height="{}" rx="4" ry="4" fill="{}""#,
-                node.width, node.height, bg
-            );
-            append_transform(&mut attrs, node);
-            if has_opacity {
-                attrs.push_str(&format!(r#" opacity="{}""#, node.opacity));
-            }
-            attrs.push_str("/>\n");
-            buf.push_str(&attrs);
-            // Text
-            if !content.is_empty() {
-                let tx = node.x + 8.0;
-                let ty = node.y + font_size + 8.0;
-                buf.push_str(&format!(
-                    "<text x=\"{}\" y=\"{}\" font-size=\"{}\" fill=\"#333\">{}</text>",
-                    tx, ty, font_size, escape_xml(content)
-                ));
-                buf.push('\n');
-            }
-        }
         NodeKind::Slot { .. } | NodeKind::Instance(_) => {
             // Render as group with children
             let mut g = String::from("<g");

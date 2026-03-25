@@ -935,3 +935,10 @@ Frame overflow control and content scrolling.
 - [x] **Properties panel**: Pattern option in fill type dropdown, image file picker, scale/rotation/type/tile size controls
 - [x] **Inspect panel**: CSS background-image/background-size/background-repeat codegen
 - [x] **Backward-compatible serde**: existing files without Pattern fills work unchanged
+
+## 89. Keyboard-driven Node Nudge
+- [x] **Arrow keys**: Move selected nodes by 1px
+- [x] **Shift+Arrow**: Move by 10px
+- [x] **Alt+Arrow**: Sub-pixel nudge by 0.1px
+- [x] **Multi-selection**: All selected nodes move together
+- [x] **Undo integration**: Each nudge action is undoable

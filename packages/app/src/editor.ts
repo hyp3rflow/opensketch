@@ -23,7 +23,7 @@ import { toggleSpotlight, closeSpotlight, isSpotlightVisible } from "./ui/spotli
 import { exportPDF, type PDFExportOptions } from "./ui/pdf-export";
 import { setupDiffOverlay } from "./ui/diff-overlay";
 
-export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "section" | "image" | "pen" | "star" | "polygon" | "slice" | "connector";
+export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "section" | "image" | "pen" | "star" | "polygon" | "slice" | "connector" | "sticky";
 
 /** Snap threshold in screen pixels */
 const SNAP_THRESHOLD_PX = 5;
@@ -513,6 +513,26 @@ export class Editor {
         this.openCursorChat();
         return;
       }
+      // Arrow key nudge: move selected nodes
+      if (e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === "ArrowLeft" || e.key === "ArrowRight") {
+        const sel = Array.from(this.engine.get_selection()).map(Number);
+        if (sel.length > 0) {
+          e.preventDefault();
+          let amount = e.altKey ? 0.1 : e.shiftKey ? 10 : 1;
+          let dx = 0, dy = 0;
+          if (e.key === "ArrowLeft") dx = -amount;
+          if (e.key === "ArrowRight") dx = amount;
+          if (e.key === "ArrowUp") dy = -amount;
+          if (e.key === "ArrowDown") dy = amount;
+          this.engine.push_undo();
+          for (const id of sel) {
+            this.engine.move_node(BigInt(id), dx, dy);
+          }
+          this.needsRender = true;
+          this.fireSelectionNow(sel);
+        }
+        return;
+      }
       if (e.key === "v" || e.key === "V") this.setTool("select");
       if (e.key === "h" || e.key === "H") this.setTool("hand");
       if (e.key === "r" || e.key === "R") this.setTool("rect");
@@ -571,6 +591,23 @@ export class Editor {
         this.onLayersChanges.forEach(fn => fn());
         this.fireSelectionNow([]);
         this.needsRender = true;
+      }
+      // Arrow key nudge: 1px default, Shift+Arrow 10px, Alt+Arrow 0.1px
+      if (e.key === "ArrowLeft" || e.key === "ArrowRight" || e.key === "ArrowUp" || e.key === "ArrowDown") {
+        const sel = Array.from(this.engine.get_selection()).map(Number);
+        if (sel.length > 0 && this.currentTool === "select" && !this._pathEditMode && !this._vnEditMode && !this._penPathId) {
+          e.preventDefault();
+          const amount = e.altKey ? 0.1 : e.shiftKey ? 10 : 1;
+          const dx = e.key === "ArrowLeft" ? -amount : e.key === "ArrowRight" ? amount : 0;
+          const dy = e.key === "ArrowUp" ? -amount : e.key === "ArrowDown" ? amount : 0;
+          this.engine.push_undo();
+          for (const id of sel) {
+            this.engine.move_node(BigInt(id), dx, dy);
+          }
+          this.needsRender = true;
+          this.fireSelectionNow(sel);
+          return;
+        }
       }
       if (e.key === "Escape") {
         if (this._vnEditMode) {
@@ -1354,6 +1391,7 @@ export class Editor {
           case "star": id = this.engine.add_star(x, y, w, h, 5, 0.4); break;
           case "polygon": id = this.engine.add_polygon(x, y, w, h, 6); break;
           case "slice": id = this.engine.add_slice("", x, y, w, h); break;
+          case "sticky": id = this.engine.add_sticky_note(x, y, Math.max(w, 150), Math.max(h, 150), "", "yellow"); break;
           default: id = 0;
         }
         if (id > 0) {
@@ -2394,7 +2432,7 @@ export class Editor {
       ellipse: "crosshair", text: "text", frame: "crosshair",
       section: "crosshair", image: "crosshair", pen: "crosshair",
       star: "crosshair", polygon: "crosshair",
-      slice: "crosshair", connector: "crosshair",
+      slice: "crosshair", connector: "crosshair", sticky: "crosshair",
     };
     this.canvas.style.cursor = cursors[this.currentTool] || "default";
   }
