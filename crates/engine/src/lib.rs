@@ -1811,6 +1811,30 @@ impl Engine {
         self.recording.max_frames = max as usize;
     }
 
+    /// Export recording as JSON string.
+    pub fn recording_export_json(&self) -> String {
+        self.recording.export_json()
+    }
+
+    /// Import recording from JSON string. Returns true on success.
+    pub fn recording_import_json(&mut self, json: &str) -> bool {
+        match serde_json::from_str::<Vec<crate::recording::RecordEntry>>(json) {
+            Ok(entries) => {
+                self.recording.entries = entries;
+                self.recording.is_recording = false;
+                true
+            }
+            Err(_) => false,
+        }
+    }
+
+    /// Get a specific recording frame's snapshot by index.
+    pub fn recording_get_frame(&self, index: u32) -> String {
+        self.recording.entries.get(index as usize)
+            .map(|e| e.snapshot.clone())
+            .unwrap_or_default()
+    }
+
     // === Copy / Paste ===
 
     /// Serialize selected nodes (with subtrees) as JSON for clipboard.

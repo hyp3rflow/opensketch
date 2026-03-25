@@ -898,3 +898,14 @@ Frame overflow control and content scrolling.
 - [x] **Collab integration**: `sendChat()`, `sendTyping()`, `onChat`/`onTyping` callbacks
 - [x] **Local-only mode**: Works without collab server (own messages shown immediately)
 - [x] **Files**: `collab.ts` (protocol), `cursor-presence.ts` (rendering), `editor.ts` (input UI)
+
+### Canvas Recording / Replay
+- [x] **Rust RecordingStore**: Frame capture (scene snapshot per frame), seek by time (binary search)
+- [x] **Deduplication**: Skips frames identical to previous snapshot
+- [x] **WASM bindings**: recording_start, recording_stop, recording_capture, recording_seek, recording_clear, recording_frame_count, recording_duration_ms, recording_has_data, recording_is_active, recording_set_max_frames, recording_export_json, recording_import_json, recording_get_frame
+- [x] **Floating recorder bar UI**: Record start/stop, play/pause/stop, timeline slider, time display, speed selector (0.5×/1×/2×/4×)
+- [x] **Recording indicator**: Red blinking "● REC" during capture
+- [x] **Scene restoration**: Saves pre-playback scene, restores on stop
+- [x] **JSON export/import**: Download/upload recording data
+- [x] **Toolbar integration**: ⏺ button + Shift+Alt+R shortcut
+- [x] **Files**: `recording.rs` (engine), `canvas-recorder.ts` (UI)

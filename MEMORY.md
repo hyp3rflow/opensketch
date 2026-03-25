@@ -702,10 +702,10 @@
 ## 완료된 기능 (추가 86)
 - Canvas recording / replay:
   - Rust RecordingStore: 프레임 캡처 (scene snapshot per frame), 재생/탐색 (seek by index)
-  - WASM: recording_start, recording_stop, recording_capture_frame, recording_seek, recording_clear, recording_frame_count, recording_is_recording
-  - Floating recorder bar UI (canvas-recorder.ts): 녹화 시작/정지, 재생/일시정지, 프레임 탐색 슬라이더, 프레임 카운터
+  - WASM: recording_start, recording_stop, recording_capture, recording_seek, recording_clear, recording_frame_count, recording_duration_ms, recording_has_data, recording_is_active, recording_set_max_frames, recording_export_json, recording_import_json, recording_get_frame
+  - Floating recorder bar UI (canvas-recorder.ts): 녹화 시작/정지, 재생/일시정지/정지, 타임라인 슬라이더, 속도 조절(0.5x/1x/2x/4x), JSON export/import
   - 툴바 ⏺ 버튼 + Shift+Alt+R 단축키
-  - 녹화 중 빨간 펄스 인디케이터, 재생 시 자동 프레임 진행
+  - 녹화 중 빨간 펄스 인디케이터, 재생 시 자동 프레임 진행, 재생 전 장면 스냅샷 보존/복원
 
 ## 다음 할 것
 - Figma file diff / merge (Figma 파일 간 노드 비교, 변경사항 시각화, 선택적 머지)

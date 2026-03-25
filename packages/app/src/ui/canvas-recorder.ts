@@ -165,6 +165,48 @@ function render(): void {
       render();
     };
     container.appendChild(clearBtn);
+
+    // Export JSON button
+    const exportBtn = document.createElement("button");
+    exportBtn.title = "Export Recording JSON";
+    exportBtn.style.cssText = btnStyle();
+    exportBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`;
+    exportBtn.onclick = () => {
+      const json = (editor.engine as any).recording_export_json?.();
+      if (!json) return;
+      const blob = new Blob([json], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `opensketch-recording-${Date.now()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    };
+    container.appendChild(exportBtn);
+
+    // Import JSON button
+    const importBtn = document.createElement("button");
+    importBtn.title = "Import Recording JSON";
+    importBtn.style.cssText = btnStyle();
+    importBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>`;
+    importBtn.onclick = () => {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = ".json";
+      input.onchange = () => {
+        const file = input.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          const json = reader.result as string;
+          (editor.engine as any).recording_import_json?.(json);
+          render();
+        };
+        reader.readAsText(file);
+      };
+      input.click();
+    };
+    container.appendChild(importBtn);
   }
 }
 
