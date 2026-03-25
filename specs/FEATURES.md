@@ -247,14 +247,17 @@
 - [x] Boolean operations (Union, Subtract, Intersect, Exclude)
 - [x] Constraints (responsive resizing) — Horizontal: Left/Right/LeftAndRight/Center/Scale, Vertical: Top/Bottom/TopAndBottom/Center/Scale
 - [x] Prototyping (interactions/transitions)
-  - Interaction struct: trigger (OnClick/OnHover/OnPress/OnDrag), action (NavigateTo/Back/ScrollTo/OpenOverlay/CloseOverlay), target node/page ID, transition type (Instant/Dissolve/SmartAnimate/SlideIn/SlideOut/Push), duration
+  - Interaction struct: trigger (OnClick/OnHover/OnPress/OnDrag/OnSwipeLeft/OnSwipeRight/OnSwipeUp/OnSwipeDown/OnLongPress/OnPinchIn/OnPinchOut), action (NavigateTo/Back/ScrollTo/OpenOverlay/CloseOverlay), target node/page ID, transition type (Instant/Dissolve/SmartAnimate/SlideIn/SlideOut/Push), duration
   - WASM API: add_interaction, remove_interaction, clear_interactions, get_interactions, get_interaction_count, get_all_interactions
   - Properties panel: "Interactions" section with trigger/action/target/transition/duration editors, add/remove
   - Prototype viewer: full-screen overlay, click navigation, back stack, Esc to close
   - Animated transitions: Dissolve (cross-fade), SlideIn (from right), SlideOut (old exits right), Push (both move), SmartAnimate (name-matched node interpolation with position/size cross-fade)
   - SmartAnimate: matches children by node name across frames, interpolates position/size with cubic ease-in-out, unmatched content cross-fades
   - Toolbar: Play button (▶), keyboard shortcut Cmd+Enter
-  - Interaction hotspot hints (blue dashed borders in preview)
+  - Interaction hotspot hints (color-coded: blue=click, green=gesture, orange=hover)
+  - Gesture-based interactions: swipe (left/right/up/down), long-press (500ms), pinch in/out
+  - Touch event handling in prototype viewer: swipe detection (>50px, <500ms), long-press timer, two-finger pinch distance ratio
+  - Gesture trigger labels shown on hotspot hints in preview
 
 ### Styles Library (Shared Color & Text Styles)
 - [x] **ColorStyle**: name + RGBA fill color, CRUD via StyleStore

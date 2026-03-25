@@ -1697,12 +1697,30 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         const trigSelect = document.createElement("select");
         trigSelect.className = "prop-input";
         trigSelect.style.flex = "1";
-        for (const t of ["click", "hover", "press", "drag"]) {
+        const triggers = [
+          { value: "click", label: "Click" },
+          { value: "hover", label: "Hover" },
+          { value: "press", label: "Press" },
+          { value: "drag", label: "Drag" },
+          { value: "swipe-left", label: "Swipe Left" },
+          { value: "swipe-right", label: "Swipe Right" },
+          { value: "swipe-up", label: "Swipe Up" },
+          { value: "swipe-down", label: "Swipe Down" },
+          { value: "long-press", label: "Long Press" },
+          { value: "pinch-in", label: "Pinch In" },
+          { value: "pinch-out", label: "Pinch Out" },
+        ];
+        const trigMap: Record<string, string> = {
+          OnClick: "click", OnHover: "hover", OnPress: "press", OnDrag: "drag",
+          OnSwipeLeft: "swipe-left", OnSwipeRight: "swipe-right",
+          OnSwipeUp: "swipe-up", OnSwipeDown: "swipe-down",
+          OnLongPress: "long-press", OnPinchIn: "pinch-in", OnPinchOut: "pinch-out",
+        };
+        for (const t of triggers) {
           const opt = document.createElement("option");
-          opt.value = t;
-          opt.textContent = t.charAt(0).toUpperCase() + t.slice(1);
-          const trigMap: Record<string, string> = { OnClick: "click", OnHover: "hover", OnPress: "press", OnDrag: "drag" };
-          if ((trigMap[inter.trigger] || "click") === t) opt.selected = true;
+          opt.value = t.value;
+          opt.textContent = t.label;
+          if ((trigMap[inter.trigger] || "click") === t.value) opt.selected = true;
           trigSelect.appendChild(opt);
         }
         trigSelect.addEventListener("change", () => {

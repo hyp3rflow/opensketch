@@ -75,6 +75,9 @@ export function createPrototypeViewer(editor: Editor): {
 
     renderCurrentView();
     viewCanvas.addEventListener("click", onCanvasClick);
+    viewCanvas.addEventListener("touchstart", onTouchStart, { passive: false });
+    viewCanvas.addEventListener("touchmove", onTouchMove, { passive: false });
+    viewCanvas.addEventListener("touchend", onTouchEnd, { passive: false });
   }
 
   function hide() {
@@ -483,35 +486,46 @@ export function createPrototypeViewer(editor: Editor): {
       const w = node.width * totalScale;
       const h = node.height * totalScale;
 
-      ctx.strokeStyle = "rgba(59, 130, 246, 0.5)";
+      // Color-code by trigger type: blue=click, green=gesture, orange=hover
+      const triggers = (nwi.interactions as any[]).map((i: any) => i.trigger);
+      const hasGesture = triggers.some((t: string) =>
+        t.startsWith("OnSwipe") || t === "OnLongPress" || t.startsWith("OnPinch")
+      );
+      const hasHover = triggers.includes("OnHover");
+      ctx.strokeStyle = hasGesture ? "rgba(16, 185, 129, 0.6)" :
+                         hasHover ? "rgba(245, 158, 11, 0.5)" :
+                         "rgba(59, 130, 246, 0.5)";
       ctx.lineWidth = 2;
       ctx.setLineDash([4, 4]);
       ctx.strokeRect(x, y, w, h);
+
+      // Show gesture icon hint for touch triggers
+      if (hasGesture) {
+        ctx.font = `${10 * (1 / (totalScale / (window.devicePixelRatio || 1)))}px sans-serif`;
+        ctx.fillStyle = "rgba(16, 185, 129, 0.8)";
+        const gestureLabel = triggers.find((t: string) => t.startsWith("OnSwipe"))?.replace("On", "")
+          || triggers.find((t: string) => t === "OnLongPress")?.replace("On", "")
+          || triggers.find((t: string) => t.startsWith("OnPinch"))?.replace("On", "") || "";
+        if (gestureLabel) {
+          ctx.fillText("👆 " + gestureLabel, x + 4, y + 14);
+        }
+      }
     }
     ctx.restore();
   }
 
-  function onCanvasClick(e: MouseEvent) {
-    if (!viewCanvas || transitioning) return;
-
+  /** Convert screen coords to scene coords and find matching interaction */
+  function findInteractionAtPoint(
+    clientX: number, clientY: number, triggerFilter: string
+  ): { interaction: any; node: any } | null {
+    if (!viewCanvas || !currentFrameId) return null;
     const rect = viewCanvas.getBoundingClientRect();
-
-    // Get frame bounds
-    let bounds: { x: number; y: number; width: number; height: number };
-    if (currentFrameId !== null) {
-      const fb = getFrameBounds(currentFrameId);
-      bounds = fb || { x: 0, y: 0, width: 800, height: 600 };
-    } else {
-      return;
-    }
-
+    const fb = getFrameBounds(currentFrameId);
+    const bounds = fb || { x: 0, y: 0, width: 800, height: 600 };
     const { scale } = getViewportParams(bounds);
+    const sceneX = (clientX - rect.left) / scale + bounds.x;
+    const sceneY = (clientY - rect.top) / scale + bounds.y;
 
-    // Convert click to scene coordinates
-    const clickX = (e.clientX - rect.left) / scale + bounds.x;
-    const clickY = (e.clientY - rect.top) / scale + bounds.y;
-
-    // Check all nodes with interactions
     const allInterJson = editor.engine.get_all_interactions();
     const nodesWithInter: any[] = JSON.parse(allInterJson || "[]");
 
@@ -519,34 +533,156 @@ export function createPrototypeViewer(editor: Editor): {
       const nj = editor.engine.get_node_json(Number(nwi.id));
       if (!nj) continue;
       const node = JSON.parse(nj);
-
-      if (
-        clickX >= node.x && clickX <= node.x + node.width &&
-        clickY >= node.y && clickY <= node.y + node.height
-      ) {
-        // Find OnClick interaction
-        const clickInter = nwi.interactions.find(
-          (i: any) => i.trigger === "OnClick"
-        );
-        if (clickInter) {
-          const targetId = Number(clickInter.target_node_id);
-          if (clickInter.action === "NavigateTo" && targetId > 0) {
-            const targetPageId = Number(clickInter.target_page_id);
-            if (targetPageId > 0) {
-              editor.engine.set_active_page(BigInt(targetPageId));
-            }
-            // Use transition type and duration from the interaction
-            const transition = clickInter.transition || "Instant";
-            const duration = clickInter.transition_duration_ms || 300;
-            navigateTo(targetId, transition, duration);
-            return;
-          } else if (clickInter.action === "Back") {
-            navigateBack();
-            return;
-          }
-        }
+      if (sceneX >= node.x && sceneX <= node.x + node.width &&
+          sceneY >= node.y && sceneY <= node.y + node.height) {
+        const inter = nwi.interactions.find((i: any) => i.trigger === triggerFilter);
+        if (inter) return { interaction: inter, node };
       }
     }
+    return null;
+  }
+
+  /** Execute a matched interaction */
+  function executeInteraction(inter: any) {
+    const targetId = Number(inter.target_node_id);
+    if (inter.action === "NavigateTo" && targetId > 0) {
+      const targetPageId = Number(inter.target_page_id);
+      if (targetPageId > 0) editor.engine.set_active_page(BigInt(targetPageId));
+      navigateTo(targetId, inter.transition || "Instant", inter.transition_duration_ms || 300);
+    } else if (inter.action === "Back") {
+      navigateBack();
+    }
+  }
+
+  function onCanvasClick(e: MouseEvent) {
+    if (!viewCanvas || transitioning) return;
+    const match = findInteractionAtPoint(e.clientX, e.clientY, "OnClick");
+    if (match) executeInteraction(match.interaction);
+  }
+
+  // ─── Touch / Gesture handling ───────────────────────
+  let touchStartX = 0;
+  let touchStartY = 0;
+  let touchStartTime = 0;
+  let longPressTimer: ReturnType<typeof setTimeout> | null = null;
+  let longPressFired = false;
+  let initialPinchDist = 0;
+  let pinchActive = false;
+
+  function onTouchStart(e: TouchEvent) {
+    if (!viewCanvas || transitioning) return;
+    e.preventDefault();
+    longPressFired = false;
+    pinchActive = false;
+
+    if (e.touches.length === 2) {
+      // Pinch start
+      pinchActive = true;
+      initialPinchDist = getTouchDistance(e.touches[0]!, e.touches[1]!);
+      if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+      return;
+    }
+
+    const touch = e.touches[0]!;
+    touchStartX = touch.clientX;
+    touchStartY = touch.clientY;
+    touchStartTime = performance.now();
+
+    // Long press detection (500ms)
+    longPressTimer = setTimeout(() => {
+      longPressFired = true;
+      const match = findInteractionAtPoint(touchStartX, touchStartY, "OnLongPress");
+      if (match) executeInteraction(match.interaction);
+    }, 500);
+  }
+
+  function onTouchMove(e: TouchEvent) {
+    if (!viewCanvas || transitioning) return;
+    e.preventDefault();
+
+    if (e.touches.length === 2) {
+      pinchActive = true;
+      if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+      return;
+    }
+
+    // Cancel long press if finger moves > 10px
+    if (longPressTimer) {
+      const touch = e.touches[0]!;
+      const dx = touch.clientX - touchStartX;
+      const dy = touch.clientY - touchStartY;
+      if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
+        clearTimeout(longPressTimer);
+        longPressTimer = null;
+      }
+    }
+  }
+
+  function onTouchEnd(e: TouchEvent) {
+    if (!viewCanvas || transitioning) return;
+    e.preventDefault();
+
+    if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+    if (longPressFired) return;
+
+    // Pinch end
+    if (pinchActive && e.changedTouches.length > 0) {
+      // Compare final distance to initial
+      // For pinch, we need the last two-finger state — use changedTouches + remaining
+      // Since touchend fires when fingers lift, use the distance from last touchmove
+      // Simple approach: check if we had a pinch and determine direction
+      const lastTouch = e.changedTouches[0]!;
+      // We'll calculate from the last known state — for simplicity, check remaining touches
+      if (e.touches.length === 1) {
+        const remaining = e.touches[0]!;
+        const finalDist = getTouchDistance(lastTouch, remaining);
+        const ratio = finalDist / (initialPinchDist || 1);
+        const trigger = ratio < 0.8 ? "OnPinchIn" : ratio > 1.2 ? "OnPinchOut" : null;
+        if (trigger) {
+          const midX = (lastTouch.clientX + remaining.clientX) / 2;
+          const midY = (lastTouch.clientY + remaining.clientY) / 2;
+          const match = findInteractionAtPoint(midX, midY, trigger);
+          if (match) executeInteraction(match.interaction);
+        }
+      }
+      pinchActive = false;
+      return;
+    }
+
+    // Swipe detection
+    if (e.changedTouches.length === 0) return;
+    const touch = e.changedTouches[0]!;
+    const dx = touch.clientX - touchStartX;
+    const dy = touch.clientY - touchStartY;
+    const elapsed = performance.now() - touchStartTime;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    // Swipe: >50px distance, <500ms, and direction > 45°
+    if (dist > 50 && elapsed < 500) {
+      let trigger: string | null = null;
+      if (Math.abs(dx) > Math.abs(dy)) {
+        trigger = dx < 0 ? "OnSwipeLeft" : "OnSwipeRight";
+      } else {
+        trigger = dy < 0 ? "OnSwipeUp" : "OnSwipeDown";
+      }
+      const match = findInteractionAtPoint(touchStartX, touchStartY, trigger);
+      if (match) {
+        executeInteraction(match.interaction);
+        return;
+      }
+    }
+
+    // If no swipe, treat as tap (OnClick) for short taps
+    if (dist < 10 && elapsed < 300) {
+      const match = findInteractionAtPoint(touch.clientX, touch.clientY, "OnClick");
+      if (match) executeInteraction(match.interaction);
+    }
+  }
+
+  function getTouchDistance(a: Touch, b: Touch): number {
+    const dx = a.clientX - b.clientX;
+    const dy = a.clientY - b.clientY;
+    return Math.sqrt(dx * dx + dy * dy);
   }
 
   return { show, hide, isActive: () => active };

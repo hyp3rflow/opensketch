@@ -1348,6 +1348,13 @@ impl Engine {
             "hover" => InteractionTrigger::OnHover,
             "press" => InteractionTrigger::OnPress,
             "drag" => InteractionTrigger::OnDrag,
+            "swipe-left" => InteractionTrigger::OnSwipeLeft,
+            "swipe-right" => InteractionTrigger::OnSwipeRight,
+            "swipe-up" => InteractionTrigger::OnSwipeUp,
+            "swipe-down" => InteractionTrigger::OnSwipeDown,
+            "long-press" => InteractionTrigger::OnLongPress,
+            "pinch-in" => InteractionTrigger::OnPinchIn,
+            "pinch-out" => InteractionTrigger::OnPinchOut,
             _ => InteractionTrigger::OnClick,
         };
         let act = match action {

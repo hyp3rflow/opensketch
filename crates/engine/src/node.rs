@@ -600,6 +600,13 @@ pub enum InteractionTrigger {
     OnHover,
     OnPress,
     OnDrag,
+    OnSwipeLeft,
+    OnSwipeRight,
+    OnSwipeUp,
+    OnSwipeDown,
+    OnLongPress,
+    OnPinchIn,
+    OnPinchOut,
 }
 
 impl Default for InteractionTrigger {
