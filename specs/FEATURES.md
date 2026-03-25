@@ -887,3 +887,14 @@ Frame overflow control and content scrolling.
 - [x] **WASM binding**: `suggest_components()` → JSON
 - [x] **UI**: Floating modal (Cmd/Ctrl+Alt+S shortcut), suggestion cards with confidence
 - [x] **Actions**: Select all instances, navigate to nodes
+
+### Cursor Chat Bubbles
+- [x] **Chat input**: `/` key opens inline text input at cursor position
+- [x] **Send message**: Enter to broadcast via collab WebSocket + local display
+- [x] **Cancel**: Escape or blur to dismiss input
+- [x] **Chat bubble rendering**: White bubble with user color accent bar, word wrap
+- [x] **Typing indicator**: "···" bubble shown while user is typing
+- [x] **Auto-dismiss**: 4s display + 0.5s fade out animation
+- [x] **Collab integration**: `sendChat()`, `sendTyping()`, `onChat`/`onTyping` callbacks
+- [x] **Local-only mode**: Works without collab server (own messages shown immediately)
+- [x] **Files**: `collab.ts` (protocol), `cursor-presence.ts` (rendering), `editor.ts` (input UI)

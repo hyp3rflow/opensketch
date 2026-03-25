@@ -28,6 +28,7 @@ import { createComponentDocsPanel } from "./ui/component-docs-panel";
 import { CollabClient } from "./collab";
 import { initCollabUI, updateCollabUI } from "./ui/collab-ui";
 import { renderPermissionsPanel } from "./ui/permissions-panel";
+import { setupCanvasRecorder, toggleRecorderBar } from "./ui/canvas-recorder";
 
 async function main() {
   const wasm = await loadEngine();
@@ -65,6 +66,9 @@ async function main() {
   // Animation timeline (bottom panel)
   const animTimeline = createAnimationTimeline(editor);
   document.body.appendChild(animTimeline.getContainer());
+
+  // Canvas recorder (floating bar)
+  setupCanvasRecorder(editor);
 
   // Bottom toolbar (with design system button + mode toggle)
   setupToolbar(document.getElementById("bottom-toolbar")!, editor, toggleDesignSystem, (mode) => {

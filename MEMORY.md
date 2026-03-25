@@ -699,9 +699,17 @@
   - WASM: vn_split_segment, vn_hit_test_segment 바인딩 추가
   - renderVNEditOverlay 개선: segment highlight/hover, handle visualization, connection preview
 
+## 완료된 기능 (추가 86)
+- Canvas recording / replay:
+  - Rust RecordingStore: 프레임 캡처 (scene snapshot per frame), 재생/탐색 (seek by index)
+  - WASM: recording_start, recording_stop, recording_capture_frame, recording_seek, recording_clear, recording_frame_count, recording_is_recording
+  - Floating recorder bar UI (canvas-recorder.ts): 녹화 시작/정지, 재생/일시정지, 프레임 탐색 슬라이더, 프레임 카운터
+  - 툴바 ⏺ 버튼 + Shift+Alt+R 단축키
+  - 녹화 중 빨간 펄스 인디케이터, 재생 시 자동 프레임 진행
+
 ## 다음 할 것
-- Multi-user permissions (역할 기반 접근 제어: Owner/Editor/Viewer, 컴포넌트/페이지별 잠금)
-- Smart animate transitions (프로토타입: 매칭 레이어 간 자동 트윈 애니메이션)
-- Design handoff mode (개발자용: spacing overlay, asset download, CSS/Swift/Kotlin 코드 생성)
-- Cursor chat / multiplayer cursors (WebSocket 기반 실시간 커서 위치 공유, 이름 라벨, 색상 구분)
-- Scroll overflow prototype (프로토타입 뷰어에서 Frame overflow:scroll 콘텐츠 스크롤 지원)
+- Figma file diff / merge (Figma 파일 간 노드 비교, 변경사항 시각화, 선택적 머지)
+- Plugin marketplace (커뮤니티 플러그인 브라우저, 설치/제거, 버전 관리)
+- Pen tool pressure sensitivity (스타일러스 펜 필압 지원, 가변 선 두께)
+- Smart component variants (조건부 variant 전환 — hover/press/focus state 자동 교체)
+- Shared component library (팀 간 컴포넌트 라이브러리 퍼블리싱/구독, 버전 동기화)

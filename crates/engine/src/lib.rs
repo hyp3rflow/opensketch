@@ -22,6 +22,7 @@ pub mod branch;
 mod find_replace;
 pub mod permissions;
 mod smart_component;
+pub mod recording;
 
 use wasm_bindgen::prelude::*;
 use web_sys::CanvasRenderingContext2d;
@@ -56,6 +57,7 @@ use crate::component::{ComponentStore, VariantProp, VariantPropType, VariantValu
 use crate::node::{Note, Shadow, Interaction, InteractionTrigger, InteractionAction, TransitionType};
 use crate::styles::StyleStore;
 use crate::permissions::PermissionStore;
+use crate::recording::RecordingStore;
 
 #[wasm_bindgen]
 pub struct Engine {
@@ -69,6 +71,7 @@ pub struct Engine {
     permissions: PermissionStore,
     /// Current user ID for permission checks
     current_user_id: String,
+    recording: RecordingStore,
 }
 
 #[wasm_bindgen]
@@ -86,6 +89,7 @@ impl Engine {
             redo_stack: Vec::new(),
             permissions: PermissionStore::new(),
             current_user_id: String::from("local"),
+            recording: RecordingStore::new(),
         }
     }
 
@@ -1734,6 +1738,77 @@ impl Engine {
             }
             Err(_) => false,
         }
+    }
+
+    // === Recording / Replay ===
+
+    /// Start recording canvas history. Clears previous recording.
+    pub fn recording_start(&mut self, now_ms: u64) {
+        self.recording.start(now_ms);
+        // Capture initial frame
+        let snapshot = self.export_scene();
+        self.recording.add_frame(now_ms, snapshot);
+    }
+
+    /// Stop recording.
+    pub fn recording_stop(&mut self) {
+        self.recording.stop();
+    }
+
+    /// Capture a frame during recording. Call periodically (e.g. on scene change).
+    pub fn recording_capture(&mut self, now_ms: u64) -> bool {
+        if !self.recording.is_recording {
+            return false;
+        }
+        let snapshot = self.export_scene();
+        self.recording.add_frame(now_ms, snapshot)
+    }
+
+    /// Is currently recording?
+    pub fn recording_is_active(&self) -> bool {
+        self.recording.is_recording
+    }
+
+    /// Get recording frame count.
+    pub fn recording_frame_count(&self) -> u32 {
+        self.recording.frame_count() as u32
+    }
+
+    /// Get recording duration in ms.
+    pub fn recording_duration_ms(&self) -> u64 {
+        self.recording.duration_ms()
+    }
+
+    /// Seek to a specific time in the recording. Restores the scene snapshot.
+    /// Returns true if a snapshot was found and applied.
+    pub fn recording_seek(&mut self, time_ms: u64) -> bool {
+        if let Some(snapshot) = self.recording.snapshot_at(time_ms) {
+            let snapshot = snapshot.to_string();
+            match serde_json::from_str::<crate::scene::SceneData>(&snapshot) {
+                Ok(data) => {
+                    self.scene = crate::scene::Scene::import(data);
+                    true
+                }
+                Err(_) => false,
+            }
+        } else {
+            false
+        }
+    }
+
+    /// Clear recording data.
+    pub fn recording_clear(&mut self) {
+        self.recording.clear();
+    }
+
+    /// Has any recording data?
+    pub fn recording_has_data(&self) -> bool {
+        self.recording.frame_count() > 0
+    }
+
+    /// Set max frames limit (default 600).
+    pub fn recording_set_max_frames(&mut self, max: u32) {
+        self.recording.max_frames = max as usize;
     }
 
     // === Copy / Paste ===

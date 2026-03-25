@@ -18,6 +18,7 @@ import type { CollabClient } from "./collab";
 import { findSpacingHandles, hitTestSpacingHandle, renderSpacingHandles, type SpacingHandle } from "./tools/spacing-handles";
 import { showLayoutSuggestion, dismissSuggestion } from "./ui/ai-layout-suggest";
 import { toggleFindReplace, closeFindReplace } from "./ui/find-replace-panel";
+import { toggleRecorderBar } from "./ui/canvas-recorder";
 import { toggleSpotlight, closeSpotlight, isSpotlightVisible } from "./ui/spotlight";
 import { exportPDF, type PDFExportOptions } from "./ui/pdf-export";
 import { setupDiffOverlay } from "./ui/diff-overlay";
@@ -467,6 +468,13 @@ export class Editor {
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "e" || e.key === "E")) {
         e.preventDefault();
         this.downloadPDF();
+        return;
+      }
+
+      // Shift+Alt+R: toggle canvas recorder bar
+      if (e.shiftKey && e.altKey && (e.key === "R" || e.key === "r") && !(e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        toggleRecorderBar();
         return;
       }
 

@@ -1,6 +1,7 @@
 import type { Editor, ToolType } from "../editor";
 import { icons } from "./icons";
 import { openFigmaImportModal } from "./figma-import";
+import { toggleRecorderBar } from "./canvas-recorder";
 
 const tools: { id: ToolType; icon: string; label: string }[] = [
   { id: "select", icon: icons.select, label: "Select (V)" },
@@ -215,6 +216,16 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
   rtBtn.innerHTML = icons.tokens || '⚡';
   rtBtn.addEventListener("click", () => editor.openResponsiveTokens());
   container.appendChild(rtBtn);
+
+  // Canvas recorder toggle
+  const recBtn = document.createElement("button");
+  recBtn.className = "tool-btn";
+  recBtn.title = "Canvas Recorder (⇧⌥R)";
+  recBtn.innerHTML = '⏺';
+  recBtn.addEventListener("click", () => {
+    toggleRecorderBar();
+  });
+  container.appendChild(recBtn);
 
   // Cursor presence demo toggle
   const cursorBtn = document.createElement("button");
