@@ -455,6 +455,20 @@
 - [x] **Toolbar button**: Responsive icon + Cmd+Alt+R shortcut
 - [x] **Keyboard**: Cmd+Alt+R toggle, Escape to close
 
+### Responsive Token System
+- [x] **Global breakpoint presets**: Scene-level responsive presets (id, label, width, height)
+- [x] **Variable-mode mapping**: Each preset maps variable collections to specific modes
+- [x] **Auto-switching**: `set_preview_width(w)` finds matching preset and switches all mapped collection modes
+- [x] **Activate/deactivate**: Manual preset activation via UI chips or activate_preset()
+- [x] **Default device presets**: Mobile S/Mobile/Tablet/Laptop/Desktop/Wide
+- [x] **Custom presets**: Add via prompt dialog
+- [x] **UI panel**: Modal panel (⌘⌥T) with preset chips, cards, mode mapping dropdowns
+- [x] **Preview integration**: Responsive preview auto-switches token modes per breakpoint
+- [x] **Rust**: Scene fields (ResponsiveState, ResponsivePreset), CRUD + activate + set_preview_width
+- [x] **WASM**: 8 bindings (add/remove/update preset, set/remove mode mapping, activate, set_preview_width, get presets, get active)
+- [x] **Backward-compatible**: serde(default) on new fields
+- [x] **Toolbar**: Tokens button (⚡ icon) + ⌘⌥T shortcut
+
 ### Measure Tool
 - [x] **Alt+hover**: Hold Alt with selection → hover over another node to show distances
 - [x] **Distance lines**: Red dashed lines (#ff3366) with px distance labels (pink pills)

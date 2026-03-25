@@ -4449,6 +4449,57 @@ impl Engine {
         -1
     }
 
+    // ─── Responsive Token System WASM bindings ───
+
+    #[wasm_bindgen]
+    pub fn add_responsive_preset(&mut self, label: &str, width: f64, height: f64) -> u64 {
+        let h = if height > 0.0 { Some(height) } else { None };
+        self.scene.add_responsive_preset(label.to_string(), width, h)
+    }
+
+    #[wasm_bindgen]
+    pub fn remove_responsive_preset(&mut self, preset_id: u64) -> bool {
+        self.scene.remove_responsive_preset(preset_id)
+    }
+
+    #[wasm_bindgen]
+    pub fn update_responsive_preset(&mut self, preset_id: u64, label: &str, width: f64, height: f64) -> bool {
+        let l = if label.is_empty() { None } else { Some(label.to_string()) };
+        let w = if width > 0.0 { Some(width) } else { None };
+        let h = if height > 0.0 { Some(Some(height)) } else if height == 0.0 { None } else { Some(None) };
+        self.scene.update_responsive_preset(preset_id, l, w, h)
+    }
+
+    #[wasm_bindgen]
+    pub fn set_preset_mode_mapping(&mut self, preset_id: u64, collection_id: u64, mode_id: u64) -> bool {
+        self.scene.set_preset_mode_mapping(preset_id, collection_id, mode_id)
+    }
+
+    #[wasm_bindgen]
+    pub fn remove_preset_mode_mapping(&mut self, preset_id: u64, collection_id: u64) -> bool {
+        self.scene.remove_preset_mode_mapping(preset_id, collection_id)
+    }
+
+    #[wasm_bindgen]
+    pub fn activate_responsive_preset(&mut self, preset_id: u64) -> bool {
+        self.scene.activate_preset(preset_id)
+    }
+
+    #[wasm_bindgen]
+    pub fn set_preview_width(&mut self, width: f64) -> u64 {
+        self.scene.set_preview_width(width)
+    }
+
+    #[wasm_bindgen]
+    pub fn get_responsive_presets(&self) -> String {
+        self.scene.get_responsive_presets_json()
+    }
+
+    #[wasm_bindgen]
+    pub fn get_active_preset_id(&self) -> u64 {
+        self.scene.get_active_preset_id()
+    }
+
     // ─── Animation WASM bindings ───
 
     #[wasm_bindgen]

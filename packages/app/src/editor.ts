@@ -6,6 +6,7 @@ import type { RulersAPI } from "./ui/rulers";
 import { toggleShortcutsPanel, isShortcutsPanelVisible, closeShortcutsPanel } from "./ui/shortcuts-panel";
 import { showContextMenu, hideContextMenu, type MenuItem } from "./ui/context-menu";
 import { openResponsivePreview, isResponsivePreviewOpen, closeResponsivePreview } from "./ui/responsive-preview";
+import { openResponsiveTokensPanel, closeResponsiveTokensPanel, isResponsiveTokensPanelOpen } from "./ui/responsive-tokens";
 import { CursorPresence } from "./ui/cursor-presence";
 import { openComponentSwapModal } from "./ui/component-swap";
 import { openComponentLibraryPanel } from "./ui/component-library";
@@ -449,6 +450,17 @@ export class Editor {
           closeResponsivePreview();
         } else {
           openResponsivePreview(this.engine);
+        }
+        return;
+      }
+
+      // Ctrl/Cmd+Alt+T: responsive tokens panel
+      if ((e.metaKey || e.ctrlKey) && e.altKey && (e.key === "t" || e.key === "†")) {
+        e.preventDefault();
+        if (isResponsiveTokensPanelOpen()) {
+          closeResponsiveTokensPanel();
+        } else {
+          this.openResponsiveTokens();
         }
         return;
       }
@@ -2905,6 +2917,10 @@ export class Editor {
 
   openResponsivePreview() {
     openResponsivePreview(this.engine);
+  }
+
+  openResponsiveTokens() {
+    openResponsiveTokensPanel(this.engine, () => this.render());
   }
 
   flattenSelection() {

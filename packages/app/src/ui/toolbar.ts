@@ -198,6 +198,14 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
   respBtn.addEventListener("click", () => editor.openResponsivePreview());
   container.appendChild(respBtn);
 
+  // Responsive Tokens button
+  const rtBtn = document.createElement("button");
+  rtBtn.className = "tool-btn";
+  rtBtn.title = "Responsive Tokens (⌘⌥T)";
+  rtBtn.innerHTML = icons.tokens || '⚡';
+  rtBtn.addEventListener("click", () => editor.openResponsiveTokens());
+  container.appendChild(rtBtn);
+
   // Cursor presence demo toggle
   const cursorBtn = document.createElement("button");
   cursorBtn.className = "tool-btn";

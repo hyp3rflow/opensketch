@@ -2,7 +2,38 @@ use std::collections::HashMap;
 use serde::{Serialize, Deserialize};
 use crate::node::{Node, NodeId, NodeKind, ConstraintH, ConstraintV, Comment, CommentReply};
 use crate::types::Point;
-use crate::variable::{VariableCollection, VariableBinding, VariableScope, CollectionId, VariableId, VariableValue};
+use crate::variable::{VariableCollection, VariableBinding, VariableScope, CollectionId, ModeId, VariableId, VariableValue};
+
+/// A responsive breakpoint preset with variable-mode mappings.
+/// When the preview width matches this preset, variable collections
+/// switch to their mapped modes automatically.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ResponsivePreset {
+    pub id: u64,
+    pub label: String,
+    /// Viewport width for this preset
+    pub width: f64,
+    /// Optional viewport height (for preview)
+    #[serde(default)]
+    pub height: Option<f64>,
+    /// Collection ID → Mode ID mapping: when this preset is active,
+    /// switch each collection to the specified mode.
+    #[serde(default)]
+    pub mode_mappings: HashMap<u64, u64>,
+}
+
+/// Tracks the responsive preview state
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct ResponsiveState {
+    /// Global breakpoint presets sorted by width ascending
+    #[serde(default)]
+    pub presets: Vec<ResponsivePreset>,
+    #[serde(default)]
+    pub next_preset_id: u64,
+    /// Currently active preset id (0 = none / default)
+    #[serde(default)]
+    pub active_preset_id: u64,
+}
 use crate::types::Color;
 use crate::animation::AnimationStore;
 use crate::branch::{Branch, BranchSnapshot, BranchDiff, VisualDiff, compute_diff, compute_visual_diff, merge_snapshots};
@@ -81,6 +112,9 @@ pub struct SceneData {
     /// Linked component libraries
     #[serde(default)]
     pub linked_libraries: Vec<ComponentLibrary>,
+    /// Responsive token presets
+    #[serde(default)]
+    pub responsive: ResponsiveState,
 }
 
 pub struct Scene {
@@ -107,6 +141,8 @@ pub struct Scene {
     next_branch_id: u64,
     // Linked component libraries
     pub linked_libraries: Vec<ComponentLibrary>,
+    // Responsive token presets
+    pub responsive: ResponsiveState,
 }
 
 impl Scene {
@@ -141,6 +177,7 @@ impl Scene {
             active_branch_id: 1,
             next_branch_id: 2,
             linked_libraries: vec![],
+            responsive: ResponsiveState::default(),
         }
     }
 
@@ -456,6 +493,7 @@ impl Scene {
             active_branch_id: self.active_branch_id,
             next_branch_id: self.next_branch_id,
             linked_libraries: self.linked_libraries.clone(),
+            responsive: self.responsive.clone(),
         }
     }
 
@@ -525,6 +563,7 @@ impl Scene {
                 active_branch_id: if data.active_branch_id > 0 { data.active_branch_id } else { 1 },
                 next_branch_id: if data.next_branch_id > 0 { data.next_branch_id } else { 2 },
                 linked_libraries: data.linked_libraries,
+                responsive: data.responsive,
             }
         } else {
             // Legacy single-page format
@@ -571,6 +610,7 @@ impl Scene {
                 active_branch_id: 1,
                 next_branch_id: 2,
                 linked_libraries: vec![],
+                responsive: ResponsiveState::default(),
             }
         }
     }
@@ -1352,6 +1392,117 @@ impl Scene {
             }
         }
         result
+    }
+
+    // =============================================
+    // Responsive Token System
+    // =============================================
+
+    pub fn add_responsive_preset(&mut self, label: String, width: f64, height: Option<f64>) -> u64 {
+        let id = self.responsive.next_preset_id + 1;
+        self.responsive.next_preset_id = id;
+        self.responsive.presets.push(ResponsivePreset {
+            id,
+            label,
+            width,
+            height,
+            mode_mappings: HashMap::new(),
+        });
+        self.responsive.presets.sort_by(|a, b| a.width.partial_cmp(&b.width).unwrap());
+        id
+    }
+
+    pub fn remove_responsive_preset(&mut self, preset_id: u64) -> bool {
+        let len = self.responsive.presets.len();
+        self.responsive.presets.retain(|p| p.id != preset_id);
+        if self.responsive.active_preset_id == preset_id {
+            self.responsive.active_preset_id = 0;
+        }
+        self.responsive.presets.len() < len
+    }
+
+    pub fn update_responsive_preset(&mut self, preset_id: u64, label: Option<String>, width: Option<f64>, height: Option<Option<f64>>) -> bool {
+        if let Some(p) = self.responsive.presets.iter_mut().find(|p| p.id == preset_id) {
+            if let Some(l) = label { p.label = l; }
+            if let Some(w) = width { p.width = w; }
+            if let Some(h) = height { p.height = h; }
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Set a mode mapping: when this preset is active, switch collection to the given mode.
+    pub fn set_preset_mode_mapping(&mut self, preset_id: u64, collection_id: CollectionId, mode_id: ModeId) -> bool {
+        if let Some(p) = self.responsive.presets.iter_mut().find(|p| p.id == preset_id) {
+            p.mode_mappings.insert(collection_id, mode_id);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Remove a mode mapping from a preset.
+    pub fn remove_preset_mode_mapping(&mut self, preset_id: u64, collection_id: CollectionId) -> bool {
+        if let Some(p) = self.responsive.presets.iter_mut().find(|p| p.id == preset_id) {
+            p.mode_mappings.remove(&collection_id).is_some()
+        } else {
+            false
+        }
+    }
+
+    /// Activate a preset: switch all mapped collections to their mapped modes, then apply variables.
+    pub fn activate_preset(&mut self, preset_id: u64) -> bool {
+        let mappings = if preset_id == 0 {
+            self.responsive.active_preset_id = 0;
+            return true;
+        } else if let Some(p) = self.responsive.presets.iter().find(|p| p.id == preset_id) {
+            p.mode_mappings.clone()
+        } else {
+            return false;
+        };
+
+        self.responsive.active_preset_id = preset_id;
+
+        // Switch collection modes
+        for (col_id, mode_id) in &mappings {
+            if let Some(col) = self.variable_collections.iter_mut().find(|c| c.id == *col_id) {
+                if col.modes.iter().any(|m| m.id == *mode_id) {
+                    col.active_mode_id = *mode_id;
+                }
+            }
+        }
+
+        // Re-apply variable bindings
+        self.apply_variables();
+        true
+    }
+
+    /// Find and activate the preset matching a given viewport width (closest ≤ width, or smallest if none).
+    pub fn set_preview_width(&mut self, width: f64) -> u64 {
+        if self.responsive.presets.is_empty() {
+            return 0;
+        }
+        // Find the preset with the largest width ≤ given width
+        let preset_id = self.responsive.presets.iter()
+            .rev()
+            .find(|p| p.width <= width)
+            .or_else(|| self.responsive.presets.first())
+            .map(|p| p.id)
+            .unwrap_or(0);
+
+        if preset_id != self.responsive.active_preset_id {
+            self.activate_preset(preset_id);
+        }
+        preset_id
+    }
+
+    pub fn get_responsive_presets_json(&self) -> String {
+        serde_json::to_string(&self.responsive.presets).unwrap_or_else(|_| "[]".to_string())
+    }
+
+    pub fn get_active_preset_id(&self) -> u64 {
+        self.responsive.active_preset_id
     }
 
     // =============================================

@@ -75,6 +75,9 @@ export function openResponsivePreview(engine: any) {
     const scale = bp.width / originalWidth;
     const newHeight = originalHeight * scale;
 
+    // Auto-switch variable modes via responsive token system
+    try { engine.set_preview_width(bp.width); } catch (_) {}
+
     // Resize with constraints
     engine.resize_node_with_constraints(BigInt(nodeId), bp.width, newHeight);
 
