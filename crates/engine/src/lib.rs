@@ -1677,6 +1677,16 @@ impl Engine {
         self.scene.deep_hit_test(Point { x: sx, y: sy })
     }
 
+    /// Select all nodes with the same name as the given node. Returns selected IDs.
+    pub fn select_same_name(&mut self, reference_id: u64) -> Vec<u64> {
+        self.scene.select_same_name(reference_id)
+    }
+
+    /// Select all nodes with the same name AND kind as the given node. Returns selected IDs.
+    pub fn select_same_name_and_kind(&mut self, reference_id: u64) -> Vec<u64> {
+        self.scene.select_same_name_and_kind(reference_id)
+    }
+
     /// Select all nodes with the same fill as the given node. Returns selected IDs.
     pub fn select_same_fill(&mut self, reference_id: u64) -> Vec<u64> {
         self.scene.select_same_fill(reference_id)

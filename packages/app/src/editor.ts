@@ -592,23 +592,6 @@ export class Editor {
         this.fireSelectionNow([]);
         this.needsRender = true;
       }
-      // Arrow key nudge: 1px default, Shift+Arrow 10px, Alt+Arrow 0.1px
-      if (e.key === "ArrowLeft" || e.key === "ArrowRight" || e.key === "ArrowUp" || e.key === "ArrowDown") {
-        const sel = Array.from(this.engine.get_selection()).map(Number);
-        if (sel.length > 0 && this.currentTool === "select" && !this._pathEditMode && !this._vnEditMode && !this._penPathId) {
-          e.preventDefault();
-          const amount = e.altKey ? 0.1 : e.shiftKey ? 10 : 1;
-          const dx = e.key === "ArrowLeft" ? -amount : e.key === "ArrowRight" ? amount : 0;
-          const dy = e.key === "ArrowUp" ? -amount : e.key === "ArrowDown" ? amount : 0;
-          this.engine.push_undo();
-          for (const id of sel) {
-            this.engine.move_node(BigInt(id), dx, dy);
-          }
-          this.needsRender = true;
-          this.fireSelectionNow(sel);
-          return;
-        }
-      }
       if (e.key === "Escape") {
         if (this._vnEditMode) {
           this.exitVNEditMode();
@@ -3623,6 +3606,8 @@ export class Editor {
         items.push({ label: "✨ Suggest Layout", shortcut: `${mod}⇧L`, enabled: true, action: () => showLayoutSuggestion(this) });
       }
       items.push({ separator: true, label: "" });
+      items.push({ label: "Edit All Matching Layers", enabled: selAfter.length === 1, action: () => this.selectSameNameAndKind(selAfter[0]!) });
+      items.push({ label: "Select All with Same Name", enabled: selAfter.length === 1, action: () => this.selectSameName(selAfter[0]!) });
       items.push({ label: "Select All with Same Fill", enabled: selAfter.length === 1, action: () => this.selectSameFill(selAfter[0]!) });
       items.push({ label: "Select All with Same Stroke", enabled: selAfter.length === 1, action: () => this.selectSameStroke(selAfter[0]!) });
       items.push({ label: "Select All with Same Font", enabled: selAfter.length === 1, action: () => this.selectSameFont(selAfter[0]!) });
@@ -3765,6 +3750,18 @@ export class Editor {
     this.engine.select_all();
     const sel = Array.from(this.engine.get_selection()).map(Number);
     this.fireSelectionNow(sel);
+    this.needsRender = true;
+  }
+
+  selectSameName(refId: number) {
+    const ids = Array.from(this.engine.select_same_name(BigInt(refId))).map(Number);
+    this.fireSelectionNow(ids);
+    this.needsRender = true;
+  }
+
+  selectSameNameAndKind(refId: number) {
+    const ids = Array.from(this.engine.select_same_name_and_kind(BigInt(refId))).map(Number);
+    this.fireSelectionNow(ids);
     this.needsRender = true;
   }
 

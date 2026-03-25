@@ -942,3 +942,11 @@ Frame overflow control and content scrolling.
 - [x] **Alt+Arrow**: Sub-pixel nudge by 0.1px
 - [x] **Multi-selection**: All selected nodes move together
 - [x] **Undo integration**: Each nudge action is undoable
+
+## 90. Multi-edit Mode (Edit All Matching Layers)
+- [x] **select_same_name**: Select all nodes with identical name
+- [x] **select_same_name_and_kind**: Select all nodes with same name AND NodeKind
+- [x] **WASM bindings**: select_same_name, select_same_name_and_kind
+- [x] **Context menu**: "Edit All Matching Layers" (name+kind match)
+- [x] **Context menu**: "Select All with Same Name"
+- [x] **Bulk editing**: Selected nodes editable via Properties panel (existing multi-selection support)

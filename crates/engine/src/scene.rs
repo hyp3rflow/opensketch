@@ -1534,6 +1534,40 @@ impl Scene {
     }
 
     /// Select all nodes with the same first fill color as the given node.
+    /// Select all nodes with the same name as the given node.
+    pub fn select_same_name(&mut self, reference_id: NodeId) -> Vec<NodeId> {
+        let ref_name = match self.nodes.get(&reference_id) {
+            Some(n) => n.name.clone(),
+            None => return vec![],
+        };
+        let mut result = vec![];
+        for node in self.nodes.values() {
+            if !node.visible || node.locked { continue; }
+            if node.name == ref_name {
+                result.push(node.id);
+            }
+        }
+        self.selection = result.clone();
+        result
+    }
+
+    /// Select all nodes with the same name AND kind as the given node.
+    pub fn select_same_name_and_kind(&mut self, reference_id: NodeId) -> Vec<NodeId> {
+        let (ref_name, ref_kind) = match self.nodes.get(&reference_id) {
+            Some(n) => (n.name.clone(), std::mem::discriminant(&n.kind)),
+            None => return vec![],
+        };
+        let mut result = vec![];
+        for node in self.nodes.values() {
+            if !node.visible || node.locked { continue; }
+            if node.name == ref_name && std::mem::discriminant(&node.kind) == ref_kind {
+                result.push(node.id);
+            }
+        }
+        self.selection = result.clone();
+        result
+    }
+
     pub fn select_same_fill(&mut self, reference_id: NodeId) -> Vec<NodeId> {
         let ref_fill = self.nodes.get(&reference_id)
             .and_then(|n| n.fills.first())
