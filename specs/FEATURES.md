@@ -987,6 +987,16 @@ Frame overflow control and content scrolling.
 - [x] **Toolbar integration**: ⏺ button + Shift+Alt+R shortcut
 - [x] **Files**: `recording.rs` (engine), `canvas-recorder.ts` (UI)
 
+### Video Export (WebM & GIF)
+- [x] **WebM export**: MediaRecorder + captureStream API, configurable bitrate (quality 0-1 → 0.5-5.5 Mbps)
+- [x] **GIF export**: Custom GIF89a encoder — median-cut color quantization (256 colors), LZW compression, Netscape looping extension
+- [x] **Offscreen rendering**: Each recorded frame → seek engine → render to offscreen canvas (1280×720 default)
+- [x] **Auto viewport fitting**: Scene bounds → zoom/pan calculated for optimal framing with padding
+- [x] **Progress modal**: Full-screen overlay with progress bar, phase labels (rendering/encoding/done)
+- [x] **UI**: "WebM" and "GIF" buttons in recorder bar (visible when recording data exists)
+- [x] **State preservation**: Saves/restores scene state and viewport before/after export
+- [x] **Files**: `video-export.ts` (encoder + export logic), `canvas-recorder.ts` (UI integration)
+
 ### Text Transform & Advanced Typography (추가 87)
 - [x] **TextTransform enum**: None, Uppercase, Lowercase, Capitalize
 - [x] **text_indent**: First-line indent in pixels (-500 to 500)

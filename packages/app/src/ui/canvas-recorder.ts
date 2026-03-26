@@ -1,4 +1,5 @@
 import type { Editor } from "../editor";
+import { exportWebM, exportGIF, type VideoExportOptions } from "./video-export";
 
 /**
  * Canvas Recording / Replay — floating bottom bar UI
@@ -207,6 +208,102 @@ function render(): void {
       input.click();
     };
     container.appendChild(importBtn);
+
+    // Separator before video export
+    const sep2 = document.createElement("div");
+    sep2.style.cssText = "width: 1px; height: 20px; background: rgba(255,255,255,0.15);";
+    container.appendChild(sep2);
+
+    // Export WebM button
+    const webmBtn = document.createElement("button");
+    webmBtn.title = "Export as WebM Video";
+    webmBtn.style.cssText = btnStyle() + "font-size: 10px; font-weight: 600; color: #7c5cfc;";
+    webmBtn.textContent = "WebM";
+    webmBtn.onclick = () => doVideoExport("webm");
+    container.appendChild(webmBtn);
+
+    // Export GIF button
+    const gifBtn = document.createElement("button");
+    gifBtn.title = "Export as GIF";
+    gifBtn.style.cssText = btnStyle() + "font-size: 10px; font-weight: 600; color: #ff9f43;";
+    gifBtn.textContent = "GIF";
+    gifBtn.onclick = () => doVideoExport("gif");
+    container.appendChild(gifBtn);
+  }
+}
+
+let exportInProgress = false;
+let progressEl: HTMLDivElement | null = null;
+
+async function doVideoExport(format: "webm" | "gif") {
+  if (exportInProgress) return;
+  exportInProgress = true;
+
+  // Show progress overlay
+  progressEl = document.createElement("div");
+  progressEl.style.cssText = `
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.7); z-index: 10000;
+    display: flex; align-items: center; justify-content: center;
+    font-family: Inter, system-ui, sans-serif;
+  `;
+  const progressBox = document.createElement("div");
+  progressBox.style.cssText = `
+    background: #1e1e2e; border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 16px; padding: 32px 40px; text-align: center;
+    color: #ccc; min-width: 300px;
+  `;
+  const title = document.createElement("div");
+  title.style.cssText = "font-size: 16px; font-weight: 600; margin-bottom: 16px;";
+  title.textContent = `Exporting ${format.toUpperCase()}...`;
+  const bar = document.createElement("div");
+  bar.style.cssText = "width: 100%; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; margin-bottom: 12px;";
+  const barFill = document.createElement("div");
+  barFill.style.cssText = `width: 0%; height: 100%; background: ${format === "webm" ? "#7c5cfc" : "#ff9f43"}; border-radius: 3px; transition: width 0.2s;`;
+  bar.appendChild(barFill);
+  const msg = document.createElement("div");
+  msg.style.cssText = "font-size: 12px; color: rgba(255,255,255,0.5);";
+  msg.textContent = "Preparing...";
+  progressBox.appendChild(title);
+  progressBox.appendChild(bar);
+  progressBox.appendChild(msg);
+  progressEl.appendChild(progressBox);
+  document.body.appendChild(progressEl);
+
+  const opts: VideoExportOptions = {
+    format,
+    fps: 10,
+    width: 1280,
+    height: 720,
+    quality: 0.8,
+  };
+
+  try {
+    const exportFn = format === "webm" ? exportWebM : exportGIF;
+    const blob = await exportFn(editor, opts, (p) => {
+      const pct = p.total > 0 ? Math.round((p.current / p.total) * 100) : 0;
+      barFill.style.width = `${pct}%`;
+      msg.textContent = p.message;
+    });
+
+    // Download
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `opensketch-recording-${Date.now()}.${format}`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (e) {
+    console.error("Video export failed:", e);
+    msg.textContent = `Export failed: ${(e as Error).message}`;
+    msg.style.color = "#ff4444";
+    await new Promise(r => setTimeout(r, 2000));
+  } finally {
+    if (progressEl) {
+      document.body.removeChild(progressEl);
+      progressEl = null;
+    }
+    exportInProgress = false;
   }
 }
 
