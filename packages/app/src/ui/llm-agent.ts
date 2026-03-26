@@ -184,6 +184,10 @@ export function buildToolDefs(): ToolDef[] {
     // AI tools
     tool("suggest_layout", "Analyze selected nodes and suggest auto-layout settings (direction, gap, alignment). Select 2+ nodes first.", {}),
     tool("apply_layout_suggestion", "Apply AI layout suggestion to selected nodes (wraps in auto-layout frame)", {}),
+    tool("analyze_polish", "Analyze the design for inconsistencies (spacing, colors, radii, alignment) and return suggested fixes", {}),
+    tool("apply_polish", "Apply design polish fixes. Pass fix_ids (array of fix IDs from analyze_polish) or omit for all.", {
+      fix_ids: { type: "array", items: { type: "number" }, description: "Fix IDs to apply (omit for all)" },
+    }, []),
 
     // Scene tools
     tool("select_node", "Select a node (highlights it)", { node_id: num("Node ID") }, ["node_id"]),
@@ -393,6 +397,18 @@ export function executeTool(name: string, args: Record<string, any>, editor: any
         if (!suggestion) return JSON.stringify({ error: "Select 2+ nodes first" });
         const frameId = applyLayoutSuggestion(editor, suggestion);
         return JSON.stringify({ applied: true, frame_id: frameId, ...suggestion });
+      }
+
+      case "analyze_polish":
+        return engine.analyze_polish();
+      case "apply_polish": {
+        const ids = args.fix_ids ? JSON.stringify(args.fix_ids) : (() => {
+          const fixes = JSON.parse(engine.analyze_polish());
+          return JSON.stringify(fixes.map((f: any) => f.id));
+        })();
+        const count = engine.apply_polish(ids);
+        editor.requestRender();
+        return JSON.stringify({ applied: count });
       }
 
       case "select_node":

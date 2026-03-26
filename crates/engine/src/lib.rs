@@ -15,6 +15,7 @@ mod design_tokens;
 pub mod path_utils;
 pub mod animation;
 mod design_lint;
+mod design_polish;
 mod color_palette;
 mod smart_select;
 pub mod vector_network;
@@ -4708,6 +4709,24 @@ impl Engine {
         let config = design_lint::LintConfig::default();
         let issues = design_lint::run_lint(self.scene.nodes_map(), &config);
         serde_json::to_string(&issues).unwrap_or_else(|_| "[]".to_string())
+    }
+
+    /// Analyze design and return polish suggestions as JSON
+    #[wasm_bindgen]
+    pub fn analyze_polish(&self) -> String {
+        let result = design_polish::analyze(self.scene.nodes_map());
+        serde_json::to_string(&result.fixes).unwrap_or_else(|_| "[]".to_string())
+    }
+
+    /// Apply polish fixes by their IDs (JSON array of u32)
+    #[wasm_bindgen]
+    pub fn apply_polish(&mut self, fix_ids_json: &str) -> u32 {
+        let fix_ids: Vec<u32> = serde_json::from_str(fix_ids_json).unwrap_or_default();
+        if fix_ids.is_empty() { return 0; }
+        self.push_undo();
+        let result = design_polish::analyze(self.scene.nodes_map());
+        let nodes = self.scene.nodes_map_mut();
+        design_polish::apply_fixes(nodes, &result, &fix_ids)
     }
 
     /// Perform a boolean operation on selected nodes.

@@ -1123,3 +1123,18 @@ Frame overflow control and content scrolling.
 - [x] **Toolbar button**: Code icon (⌘⇧D shortcut)
 - [x] **Undo integration**: push_undo before conversion
 - [x] **Implementation**: `crates/engine/src/code_to_design.rs` (Rust engine) + `ui/code-to-design.ts` (modal UI)
+
+## 107. AI-Powered Design Polish
+- [x] **Rust analysis engine**: `design_polish.rs` — heuristic analysis for spacing, alignment, color, corner radius, size inconsistencies
+- [x] **Spacing normalization**: Detect near-identical layout gaps (±2px) and standardize to most common value
+- [x] **Corner radius standardization**: Cluster near-miss radii and unify
+- [x] **Near-miss color merge**: Colors within distance ≤12 merged to more common variant
+- [x] **Padding symmetrization**: Nearly symmetric H/V padding → exact symmetric
+- [x] **4px grid snap**: Sizes close to 4px grid snapped for crispness
+- [x] **Pixel position snap**: Sub-pixel positions rounded for sharp rendering
+- [x] **WASM bindings**: `analyze_polish()` → JSON fixes, `apply_polish(fix_ids_json)` → apply selected
+- [x] **Modal UI**: Categorized fix cards with checkboxes, before/after preview, select all/none, node selection link
+- [x] **LLM agent tools**: `analyze_polish` + `apply_polish` for AI-driven usage
+- [x] **Toolbar button**: Sparkle icon, opens modal
+- [x] **Undo integration**: push_undo before applying fixes
+- [x] **Implementation**: `crates/engine/src/design_polish.rs` (Rust) + `ui/design-polish.ts` (modal)

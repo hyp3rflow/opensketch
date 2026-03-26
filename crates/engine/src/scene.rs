@@ -208,6 +208,10 @@ impl Scene {
         &self.nodes
     }
 
+    pub fn nodes_map_mut(&mut self) -> &mut HashMap<NodeId, Node> {
+        &mut self.nodes
+    }
+
     pub fn all_nodes(&self) -> impl Iterator<Item = &Node> {
         self.nodes.values()
     }
