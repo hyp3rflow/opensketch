@@ -1038,3 +1038,12 @@ Frame overflow control and content scrolling.
 - [x] **Auto-layout mode**: Single frame selected → gap handles for auto-layout children (existing)
 - [x] **Rust engine**: `distribute_with_spacing(ids, axis, spacing)`, `get_spacing_between(ids, axis)`
 - [x] **WASM**: `distribute_selection_with_spacing(axis, spacing)`, `get_selection_spacing(axis)`
+
+## 94. Dev Mode Enhancement
+- [x] **Auto-measurement**: In Dev mode, hover over any node → red measurement lines appear automatically (no Alt needed)
+- [x] **CSS tooltip**: After 400ms hover delay, shows CSS snippet tooltip with syntax highlighting
+- [x] **Quick export**: PNG/SVG export buttons in tooltip (one-click download at 2x)
+- [x] **Copy CSS**: Click code or "Copy CSS" button → clipboard copy with toast notification
+- [x] **Node info**: Tooltip header shows node name + kind
+- [x] **Integration**: `editor.setDevMode(true/false)` from toolbar Edit/Dev mode toggle
+- [x] **Implementation**: `ui/dev-mode-overlay.ts` — DevModeOverlay class

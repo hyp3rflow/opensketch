@@ -775,8 +775,16 @@
 - Properties panel: Fill type dropdown에 Noise/Dots/Crosshatch 옵션 추가, 각 타입별 파라미터 편집 UI (scale/density/angle/colors)
 - Backward-compatible serde (기존 파일 호환)
 
+## 완료된 기능 (추가 98)
+- Dev Mode Enhancement:
+  - Dev 모드에서 Alt 없이 호버만으로 자동 측정 가이드라인 표시
+  - 400ms 딜레이 후 CSS 스니펫 툴팁 (syntax highlighting, Catppuccin Mocha 테마)
+  - 원클릭 PNG/SVG export 버튼 (2x 스케일)
+  - Copy CSS 버튼 + 코드 클릭 → 클립보드 복사 + 토스트
+  - 노드 이름/종류 헤더, fill/stroke/shadow/blur/layout CSS 생성
+  - editor.setDevMode(true/false), DevModeOverlay 클래스 (ui/dev-mode-overlay.ts)
+
 ## 다음 할 것
-- Figma-style Dev Mode (measurement overlays on hover between any two nodes, copy CSS/token on click, asset export quick actions)
 - Canvas annotations / sticky notes (FigJam-style sticky notes with color themes, resizable, connectable, voting dots)
 - Figma file diff / merge (Figma 파일 간 노드 비교, 변경사항 시각화, 선택적 머지)
 - Plugin marketplace (커뮤니티 플러그인 브라우저, 설치/제거, 버전 관리)

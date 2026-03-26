@@ -23,6 +23,7 @@ import { toggleRecorderBar } from "./ui/canvas-recorder";
 import { toggleSpotlight, closeSpotlight, isSpotlightVisible } from "./ui/spotlight";
 import { exportPDF, type PDFExportOptions } from "./ui/pdf-export";
 import { setupDiffOverlay } from "./ui/diff-overlay";
+import { DevModeOverlay } from "./ui/dev-mode-overlay";
 
 export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "section" | "image" | "pen" | "star" | "polygon" | "slice" | "connector" | "sticky" | "table";
 
@@ -105,6 +106,10 @@ export class Editor {
   private _measureLines: MeasureLine[] = [];
   private _measureTargetBounds: { x: number; y: number; w: number; h: number } | null = null;
   private _altHeld = false;
+  private _devMode = false;
+  private _devModeOverlay: DevModeOverlay;
+  private _devHoverNodeId: number | null = null;
+  private _devHoverTimer: ReturnType<typeof setTimeout> | null = null;
   private onSaveCallbacks: (() => void)[] = [];
   private _layoutGridsVisible = true;
 
@@ -156,6 +161,7 @@ export class Editor {
       () => this.fireSelectionNow(Array.from(this.engine.get_selection()).map(Number)),
     );
     this._diffOverlay = setupDiffOverlay(this);
+    this._devModeOverlay = new DevModeOverlay(this);
     this.startLoop();
   }
 
@@ -1243,9 +1249,28 @@ export class Editor {
       return;
     }
 
-    // Measure tool: Alt + hover with selection
-    if (this._altHeld || e.altKey) {
+    // Measure tool: Alt + hover with selection, or auto in Dev Mode
+    if (this._altHeld || e.altKey || this._devMode) {
       this.updateMeasure(e.offsetX, e.offsetY);
+      // Dev Mode: show CSS tooltip on hover with delay
+      if (this._devMode) {
+        const hitBigInt = this.engine.hit_test(e.offsetX, e.offsetY);
+        const hitId = hitBigInt != null ? Number(hitBigInt) : 0;
+        if (hitId && hitId !== this._devHoverNodeId) {
+          this._devHoverNodeId = hitId;
+          if (this._devHoverTimer) clearTimeout(this._devHoverTimer);
+          this._devModeOverlay.hide();
+          this._devHoverTimer = setTimeout(() => {
+            if (this._devHoverNodeId === hitId) {
+              this._devModeOverlay.show(hitId, e.offsetX, e.offsetY);
+            }
+          }, 400);
+        } else if (!hitId) {
+          this._devHoverNodeId = null;
+          if (this._devHoverTimer) { clearTimeout(this._devHoverTimer); this._devHoverTimer = null; }
+          this._devModeOverlay.hide();
+        }
+      }
     } else if (this._measureLines.length > 0) {
       this._measureLines = [];
       this._measureTargetBounds = null;
@@ -2654,6 +2679,19 @@ export class Editor {
       `FPS: ~${avg > 0 ? Math.round(1000 / avg) : "∞"}`,
       `Nodes: ${rendered} rendered / ${culled} culled / ${total} total`,
     ].join("<br>");
+  }
+
+  get devMode() { return this._devMode; }
+  setDevMode(v: boolean) {
+    this._devMode = v;
+    this._devModeOverlay.setEnabled(v);
+    if (!v) {
+      this._devHoverNodeId = null;
+      if (this._devHoverTimer) { clearTimeout(this._devHoverTimer); this._devHoverTimer = null; }
+      this._measureLines = [];
+      this._measureTargetBounds = null;
+      this.needsRender = true;
+    }
   }
 
   setTool(tool: ToolType) {

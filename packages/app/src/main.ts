@@ -85,6 +85,7 @@ async function main() {
       }
     });
     // Switch to select tool when entering dev mode
+    editor.setDevMode(mode === "dev");
     if (mode === "dev") editor.setTool("select");
     // Toggle note overlay
     noteOverlay.setEnabled(mode === "dev");
