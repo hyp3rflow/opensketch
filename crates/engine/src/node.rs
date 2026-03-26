@@ -416,6 +416,47 @@ pub enum FillType {
         /// Tile height override (0 = use image natural size)
         tile_height: f64,
     },
+    /// Perlin noise procedural fill
+    NoiseFill {
+        /// Scale of the noise (higher = more zoomed in)
+        scale: f64,
+        /// Primary color
+        color1: Color,
+        /// Secondary color
+        color2: Color,
+        /// Noise intensity/contrast (0.0–1.0)
+        intensity: f64,
+        /// Seed for reproducible noise
+        seed: u32,
+    },
+    /// Regular dot pattern fill
+    DotPattern {
+        /// Dot radius in pixels
+        dot_radius: f64,
+        /// Spacing between dot centers
+        spacing: f64,
+        /// Dot color
+        color: Color,
+        /// Background color
+        bg_color: Color,
+        /// Rotation angle in degrees
+        angle: f64,
+    },
+    /// Crosshatch line pattern fill
+    CrosshatchFill {
+        /// Line spacing in pixels
+        spacing: f64,
+        /// Line width in pixels
+        line_width: f64,
+        /// Line color
+        color: Color,
+        /// Background color
+        bg_color: Color,
+        /// Primary angle in degrees (default 45)
+        angle: f64,
+        /// Density: 1 = single direction, 2 = crosshatch (two directions)
+        density: u8,
+    },
 }
 
 fn default_visible() -> bool { true }
@@ -464,6 +505,9 @@ impl Fill {
                 stops.first().map(|s| s.color).unwrap_or(Color::white())
             }
             FillType::Pattern { .. } => Color::white(),
+            FillType::NoiseFill { color1, .. } => *color1,
+            FillType::DotPattern { color, .. } => *color,
+            FillType::CrosshatchFill { color, .. } => *color,
         }
     }
 

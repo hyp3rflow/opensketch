@@ -764,6 +764,17 @@
   - 기존 auto-layout 간격 핸들과 통합 (mode: autolayout | selection)
   - Undo 통합
 
+## 완료된 기능 (추가 — Noise/Texture Fills)
+- FillType에 NoiseFill, DotPattern, CrosshatchFill 3개 텍스처 fill 추가
+- NoiseFill: scale, color1, color2, intensity(0–1), seed — hash-based procedural noise
+- DotPattern: dot_radius, spacing, color, bg_color, angle — regular dot grid pattern
+- CrosshatchFill: spacing, line_width, color, bg_color, angle, density(1=단방향, 2=교차) — hatching lines
+- Canvas 렌더링: 각 텍스처 타입별 절차적 생성 (clip to bounds, rotation 지원)
+- SVG export: NoiseFill → feTurbulence+feColorMatrix, DotPattern → <pattern>+<circle>, CrosshatchFill → <pattern>+<line>
+- WASM: set_fill_noise_at, set_fill_dot_pattern_at, set_fill_crosshatch_at + get_fills/get_fill_info 확장
+- Properties panel: Fill type dropdown에 Noise/Dots/Crosshatch 옵션 추가, 각 타입별 파라미터 편집 UI (scale/density/angle/colors)
+- Backward-compatible serde (기존 파일 호환)
+
 ## 다음 할 것
 - Figma-style Dev Mode (measurement overlays on hover between any two nodes, copy CSS/token on click, asset export quick actions)
 - Canvas annotations / sticky notes (FigJam-style sticky notes with color themes, resizable, connectable, voting dots)

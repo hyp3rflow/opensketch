@@ -137,7 +137,7 @@ pub fn extract_colors<'a>(nodes: impl Iterator<Item = &'a Node>) -> Vec<ColorEnt
                         }
                     }
                 }
-                FillType::Pattern { .. } => {}
+                FillType::Pattern { .. } | FillType::NoiseFill { .. } | FillType::DotPattern { .. } | FillType::CrosshatchFill { .. } => {}
             }
         }
 

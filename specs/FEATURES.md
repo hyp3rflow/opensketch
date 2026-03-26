@@ -967,6 +967,17 @@ Frame overflow control and content scrolling.
 - [x] **Inspect panel**: CSS background-image/background-size/background-repeat codegen
 - [x] **Backward-compatible serde**: existing files without Pattern fills work unchanged
 
+## 88b. Noise/Texture Fills
+- [x] **FillType variants**: NoiseFill (Perlin-style hash noise), DotPattern (regular dot grid), CrosshatchFill (hatching lines)
+- [x] **NoiseFill params**: scale, color1, color2, intensity (0–1), seed
+- [x] **DotPattern params**: dot_radius, spacing, color, bg_color, angle
+- [x] **CrosshatchFill params**: spacing, line_width, color, bg_color, angle, density (1=single, 2=cross)
+- [x] **Canvas rendering**: Procedural generation via Canvas2D (clip + draw), rotation support
+- [x] **SVG export**: feTurbulence (noise), `<pattern>` with circles (dots) / lines (crosshatch)
+- [x] **WASM**: set_fill_noise_at, set_fill_dot_pattern_at, set_fill_crosshatch_at
+- [x] **Properties panel**: Texture fill types in dropdown (Noise/Dots/Crosshatch), parameter editors (scale/density/angle/colors)
+- [x] **Backward-compatible serde**: existing files work unchanged
+
 ## 89. Keyboard-driven Node Nudge
 - [x] **Arrow keys**: Move selected nodes by 1px
 - [x] **Shift+Arrow**: Move by 10px

@@ -1682,10 +1682,118 @@ impl Renderer {
             }
             crate::node::FillType::Pattern { src, scale, rotation, pattern_type, tile_width, tile_height } => {
                 // Pattern fills are rendered via JS createPattern — here we set a placeholder.
-                // The actual pattern rendering is done in TypeScript via the pattern_fill_info.
-                // For fallback, use a light crosshatch color.
                 let _ = (src, scale, rotation, pattern_type, tile_width, tile_height);
                 ctx.set_fill_style_str("rgba(200,200,200,0.5)");
+            }
+            crate::node::FillType::NoiseFill { scale, color1, color2, intensity, seed } => {
+                // Render noise fill as a grid of small rectangles with pseudo-random colors
+                // Uses a simple hash-based noise for WASM compatibility
+                let cell_size = (*scale).max(2.0);
+                let cols = (node.width / cell_size).ceil() as u32;
+                let rows = (node.height / cell_size).ceil() as u32;
+                // Limit to avoid perf issues
+                let max_cells = 10000u32;
+                let (cols, rows, cs) = if cols * rows > max_cells {
+                    let factor = ((cols * rows) as f64 / max_cells as f64).sqrt();
+                    let new_cs = cell_size * factor;
+                    ((node.width / new_cs).ceil() as u32, (node.height / new_cs).ceil() as u32, new_cs)
+                } else {
+                    (cols, rows, cell_size)
+                };
+                ctx.save();
+                ctx.begin_path();
+                ctx.rect(node.x, node.y, node.width, node.height);
+                ctx.clip();
+                for ry in 0..rows {
+                    for cx in 0..cols {
+                        // Simple hash noise
+                        let hash = Self::noise_hash(cx, ry, *seed);
+                        let t = (hash as f64 / 255.0) * intensity;
+                        let r = (color1.r as f64 * (1.0 - t) + color2.r as f64 * t) as u8;
+                        let g = (color1.g as f64 * (1.0 - t) + color2.g as f64 * t) as u8;
+                        let b = (color1.b as f64 * (1.0 - t) + color2.b as f64 * t) as u8;
+                        let a = color1.a * (1.0 - t) + color2.a * t;
+                        ctx.set_fill_style_str(&format!("rgba({},{},{},{})", r, g, b, a));
+                        ctx.fill_rect(node.x + cx as f64 * cs, node.y + ry as f64 * cs, cs, cs);
+                    }
+                }
+                ctx.restore();
+                return; // Already filled
+            }
+            crate::node::FillType::DotPattern { dot_radius, spacing, color, bg_color, angle } => {
+                // Fill background
+                ctx.set_fill_style_str(&bg_color.to_css());
+                ctx.fill_rect(node.x, node.y, node.width, node.height);
+                // Draw dots
+                ctx.save();
+                ctx.begin_path();
+                ctx.rect(node.x, node.y, node.width, node.height);
+                ctx.clip();
+                let sp = (*spacing).max(2.0);
+                let rad = *dot_radius;
+                let angle_rad = angle.to_radians();
+                let cx_center = node.x + node.width / 2.0;
+                let cy_center = node.y + node.height / 2.0;
+                ctx.translate(cx_center, cy_center).ok();
+                ctx.rotate(angle_rad).ok();
+                ctx.translate(-cx_center, -cy_center).ok();
+                // Expand range to cover rotated area
+                let diag = (node.width * node.width + node.height * node.height).sqrt();
+                let start_x = node.x + node.width / 2.0 - diag / 2.0;
+                let start_y = node.y + node.height / 2.0 - diag / 2.0;
+                ctx.set_fill_style_str(&color.to_css());
+                let mut py = start_y;
+                while py < start_y + diag {
+                    let mut px = start_x;
+                    while px < start_x + diag {
+                        ctx.begin_path();
+                        ctx.arc(px, py, rad, 0.0, std::f64::consts::TAU).ok();
+                        ctx.fill();
+                        px += sp;
+                    }
+                    py += sp;
+                }
+                ctx.restore();
+                return;
+            }
+            crate::node::FillType::CrosshatchFill { spacing, line_width, color, bg_color, angle, density } => {
+                // Fill background
+                ctx.set_fill_style_str(&bg_color.to_css());
+                ctx.fill_rect(node.x, node.y, node.width, node.height);
+                ctx.save();
+                ctx.begin_path();
+                ctx.rect(node.x, node.y, node.width, node.height);
+                ctx.clip();
+                let sp = (*spacing).max(2.0);
+                let lw = *line_width;
+                let angle_rad = angle.to_radians();
+                ctx.set_stroke_style_str(&color.to_css());
+                ctx.set_line_width(lw);
+                let diag = (node.width * node.width + node.height * node.height).sqrt();
+                let cx_center = node.x + node.width / 2.0;
+                let cy_center = node.y + node.height / 2.0;
+                // Draw lines at primary angle
+                let draw_lines = |ctx: &CanvasRenderingContext2d, ang: f64| {
+                    ctx.save();
+                    ctx.translate(cx_center, cy_center).ok();
+                    ctx.rotate(ang).ok();
+                    let half = diag / 2.0;
+                    let mut offset = -half;
+                    while offset <= half {
+                        ctx.begin_path();
+                        ctx.move_to(-half, offset);
+                        ctx.line_to(half, offset);
+                        ctx.stroke();
+                        offset += sp;
+                    }
+                    ctx.restore();
+                };
+                draw_lines(ctx, angle_rad);
+                if *density >= 2 {
+                    draw_lines(ctx, angle_rad + std::f64::consts::FRAC_PI_2);
+                }
+                ctx.restore();
+                return;
             }
         }
     }
@@ -1803,6 +1911,16 @@ impl Renderer {
             crate::node::LineJoin::Round => "round",
             crate::node::LineJoin::Bevel => "bevel",
         });
+    }
+
+    /// Simple hash-based pseudo-random noise for procedural fills
+    fn noise_hash(x: u32, y: u32, seed: u32) -> u8 {
+        let mut h = seed.wrapping_mul(374761393)
+            .wrapping_add(x.wrapping_mul(668265263))
+            .wrapping_add(y.wrapping_mul(2654435761));
+        h = (h ^ (h >> 13)).wrapping_mul(1274126177);
+        h = h ^ (h >> 16);
+        (h & 0xFF) as u8
     }
 
     fn draw_grid(&self, ctx: &CanvasRenderingContext2d) {

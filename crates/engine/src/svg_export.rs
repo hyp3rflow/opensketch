@@ -981,6 +981,9 @@ fn append_fill_ref(attrs: &mut String, fill_type: &FillType, node_id: u64) {
         FillType::Pattern { .. } => {
             attrs.push_str(&format!(r#" fill="url(#pat-{})""#, node_id));
         }
+        FillType::NoiseFill { .. } | FillType::DotPattern { .. } | FillType::CrosshatchFill { .. } => {
+            attrs.push_str(&format!(r#" fill="url(#tex-{})""#, node_id));
+        }
     }
 }
 
@@ -1018,6 +1021,60 @@ fn build_gradient_defs(node: &Node) -> Option<String> {
             Some(defs)
         }
         FillType::Solid { .. } => None,
+        FillType::NoiseFill { scale, color1, color2, intensity, seed } => {
+            // SVG noise via feTurbulence filter
+            let filter_id = format!("tex-filter-{}", node.id);
+            let pat_id = format!("tex-{}", node.id);
+            let base_freq = 1.0 / scale.max(1.0);
+            Some(format!(
+                r#"<filter id="{fid}" x="0%" y="0%" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="{bf}" numOctaves="4" seed="{seed}" result="noise"/><feColorMatrix type="matrix" values="{r1} 0 0 0 {r0n} 0 {g1} 0 0 {g0n} 0 0 {b1} 0 {b0n} 0 0 0 {int} {a0}" in="noise"/></filter><rect id="{pid}" width="100%" height="100%" filter="url(#{fid})"/>"#,
+                fid = filter_id, pid = pat_id, bf = base_freq, seed = seed,
+                int = intensity,
+                r1 = (color2.r as f64 - color1.r as f64) / 255.0,
+                g1 = (color2.g as f64 - color1.g as f64) / 255.0,
+                b1 = (color2.b as f64 - color1.b as f64) / 255.0,
+                r0n = color1.r as f64 / 255.0,
+                g0n = color1.g as f64 / 255.0,
+                b0n = color1.b as f64 / 255.0,
+                a0 = color1.a,
+            ))
+        }
+        FillType::DotPattern { dot_radius, spacing, color, bg_color, angle } => {
+            let pat_id = format!("tex-{}", node.id);
+            let sp = spacing.max(2.0);
+            let r = *dot_radius;
+            let transform = if *angle != 0.0 { format!(r#" patternTransform="rotate({})""#, angle) } else { String::new() };
+            Some(format!(
+                r#"<pattern id="{id}" patternUnits="userSpaceOnUse" width="{sp}" height="{sp}"{tr}><rect width="{sp}" height="{sp}" fill="{bg}"/><circle cx="{half}" cy="{half}" r="{r}" fill="{fg}"/></pattern>"#,
+                id = pat_id, sp = sp, r = r,
+                half = sp / 2.0,
+                bg = color_to_hex(bg_color.r, bg_color.g, bg_color.b),
+                fg = color_to_hex(color.r, color.g, color.b),
+                tr = transform,
+            ))
+        }
+        FillType::CrosshatchFill { spacing, line_width, color, bg_color, angle, density } => {
+            let pat_id = format!("tex-{}", node.id);
+            let sp = spacing.max(2.0);
+            let lw = *line_width;
+            let transform = if *angle != 0.0 { format!(r#" patternTransform="rotate({})""#, angle) } else { String::new() };
+            let fg = color_to_hex(color.r, color.g, color.b);
+            let bg = color_to_hex(bg_color.r, bg_color.g, bg_color.b);
+            let mut lines = format!(
+                r#"<line x1="0" y1="{half}" x2="{sp}" y2="{half}" stroke="{fg}" stroke-width="{lw}"/>"#,
+                half = sp / 2.0, sp = sp, fg = fg, lw = lw,
+            );
+            if *density >= 2 {
+                lines.push_str(&format!(
+                    r#"<line x1="{half}" y1="0" x2="{half}" y2="{sp}" stroke="{fg}" stroke-width="{lw}"/>"#,
+                    half = sp / 2.0, sp = sp, fg = fg, lw = lw,
+                ));
+            }
+            Some(format!(
+                r#"<pattern id="{id}" patternUnits="userSpaceOnUse" width="{sp}" height="{sp}"{tr}><rect width="{sp}" height="{sp}" fill="{bg}"/>{lines}</pattern>"#,
+                id = pat_id, sp = sp, bg = bg, lines = lines, tr = transform,
+            ))
+        }
         FillType::Pattern { src, scale, rotation, pattern_type, tile_width, tile_height } => {
             let pat_id = format!("pat-{}", node.id);
             let tw = if *tile_width > 0.0 { *tile_width * scale } else { 50.0 * scale };
@@ -1068,6 +1125,9 @@ fn append_fill_stroke(attrs: &mut String, node: &Node) {
             }
             FillType::Pattern { .. } => {
                 attrs.push_str(&format!(r#" fill="url(#pat-{})""#, node.id));
+            }
+            FillType::NoiseFill { .. } | FillType::DotPattern { .. } | FillType::CrosshatchFill { .. } => {
+                attrs.push_str(&format!(r#" fill="url(#tex-{})""#, node.id));
             }
         }
     } else {

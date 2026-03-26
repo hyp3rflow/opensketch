@@ -904,10 +904,10 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         const typeSelect = document.createElement("select");
         typeSelect.className = "prop-input";
         typeSelect.style.cssText = "flex:1;font-size:11px;";
-        for (const t of ["Solid", "LinearGradient", "RadialGradient", "Pattern"]) {
+        for (const t of ["Solid", "LinearGradient", "RadialGradient", "Pattern", "NoiseFill", "DotPattern", "CrosshatchFill"]) {
           const opt = document.createElement("option");
           opt.value = t;
-          opt.textContent = t === "LinearGradient" ? "Linear" : t === "RadialGradient" ? "Radial" : t;
+          opt.textContent = t === "LinearGradient" ? "Linear" : t === "RadialGradient" ? "Radial" : t === "NoiseFill" ? "Noise" : t === "DotPattern" ? "Dots" : t === "CrosshatchFill" ? "Crosshatch" : t;
           if (fill.type === t) opt.selected = true;
           typeSelect.appendChild(opt);
         }
@@ -930,6 +930,12 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             editor.engine.set_fill_radial_gradient_at(id, idx, 0.5, 0.5, 0.5, JSON.stringify(stops));
           } else if (typeSelect.value === "Pattern") {
             editor.engine.set_fill_pattern_at(id, idx, "", 1.0, 0, "Tile", 50, 50);
+          } else if (typeSelect.value === "NoiseFill") {
+            editor.engine.set_fill_noise_at(id, idx, 8.0, 40, 40, 60, 1.0, 200, 200, 220, 1.0, 0.7, 42);
+          } else if (typeSelect.value === "DotPattern") {
+            editor.engine.set_fill_dot_pattern_at(id, idx, 3.0, 12.0, 100, 100, 120, 1.0, 30, 30, 40, 1.0, 0.0);
+          } else if (typeSelect.value === "CrosshatchFill") {
+            editor.engine.set_fill_crosshatch_at(id, idx, 10.0, 1.0, 100, 100, 120, 1.0, 30, 30, 40, 1.0, 45.0, 2);
           }
           editor.requestRender();
           refresh(ids);
@@ -1131,6 +1137,167 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           patWrap.appendChild(tileRow);
 
           fillWrap.appendChild(patWrap);
+        } else if (fill.type === "NoiseFill") {
+          // Noise fill UI
+          const nw = document.createElement("div");
+          nw.style.cssText = "display:flex;flex-direction:column;gap:4px;";
+          const makeRow = (label: string, val: string, onChange: (v: string) => void, props?: any) => {
+            const row = document.createElement("div");
+            row.style.cssText = "display:flex;align-items:center;gap:4px;";
+            const lbl = document.createElement("span");
+            lbl.style.cssText = "font-size:10px;color:#888;width:42px;";
+            lbl.textContent = label;
+            row.appendChild(lbl);
+            const inp = document.createElement("input");
+            inp.className = "prop-input";
+            inp.style.cssText = "flex:1;font-size:11px;";
+            inp.type = "number";
+            inp.value = val;
+            if (props) Object.assign(inp, props);
+            inp.addEventListener("change", () => { ensureUndo(); onChange(inp.value); editor.requestRender(); refresh(ids); });
+            row.appendChild(inp);
+            return row;
+          };
+          const c1 = fill.color1 || { r: 40, g: 40, b: 60, a: 1 };
+          const c2 = fill.color2 || { r: 200, g: 200, b: 220, a: 1 };
+          const applyNoise = () => {
+            editor.engine.set_fill_noise_at(id, idx, parseFloat((nw.querySelector('[data-p="scale"]') as any)?.value) || 8, c1.r, c1.g, c1.b, c1.a, c2.r, c2.g, c2.b, c2.a, parseFloat((nw.querySelector('[data-p="intensity"]') as any)?.value) || 0.7, parseInt((nw.querySelector('[data-p="seed"]') as any)?.value) || 42);
+          };
+          const scaleR = makeRow("Scale", String(fill.scale ?? 8), () => applyNoise());
+          (scaleR.querySelector("input") as any).dataset.p = "scale";
+          (scaleR.querySelector("input") as any).step = "1"; (scaleR.querySelector("input") as any).min = "2";
+          nw.appendChild(scaleR);
+          const intR = makeRow("Intensity", String(fill.intensity ?? 0.7), () => applyNoise());
+          (intR.querySelector("input") as any).dataset.p = "intensity";
+          (intR.querySelector("input") as any).step = "0.05"; (intR.querySelector("input") as any).min = "0"; (intR.querySelector("input") as any).max = "1";
+          nw.appendChild(intR);
+          const seedR = makeRow("Seed", String(fill.seed ?? 42), () => applyNoise());
+          (seedR.querySelector("input") as any).dataset.p = "seed";
+          nw.appendChild(seedR);
+          // Color 1
+          const c1Label = document.createElement("span");
+          c1Label.style.cssText = "font-size:10px;color:#888;";
+          c1Label.textContent = "Color 1";
+          nw.appendChild(c1Label);
+          nw.appendChild(createColorRow(c1, (r, g, b, a) => {
+            c1.r = r; c1.g = g; c1.b = b; c1.a = a;
+            ensureUndo(); applyNoise(); editor.requestRender(); refresh(ids);
+          }));
+          const c2Label = document.createElement("span");
+          c2Label.style.cssText = "font-size:10px;color:#888;";
+          c2Label.textContent = "Color 2";
+          nw.appendChild(c2Label);
+          nw.appendChild(createColorRow(c2, (r, g, b, a) => {
+            c2.r = r; c2.g = g; c2.b = b; c2.a = a;
+            ensureUndo(); applyNoise(); editor.requestRender(); refresh(ids);
+          }));
+          fillWrap.appendChild(nw);
+        } else if (fill.type === "DotPattern") {
+          // Dot pattern fill UI
+          const dw = document.createElement("div");
+          dw.style.cssText = "display:flex;flex-direction:column;gap:4px;";
+          const dc = fill.color || { r: 100, g: 100, b: 120, a: 1 };
+          const dbg = fill.bg_color || { r: 30, g: 30, b: 40, a: 1 };
+          const applyDot = (dotR?: number, sp?: number, ang?: number) => {
+            editor.engine.set_fill_dot_pattern_at(id, idx, dotR ?? fill.dot_radius ?? 3, sp ?? fill.spacing ?? 12, dc.r, dc.g, dc.b, dc.a, dbg.r, dbg.g, dbg.b, dbg.a, ang ?? fill.angle ?? 0);
+          };
+          const mkRow = (label: string, val: string, key: string, props?: any) => {
+            const row = document.createElement("div");
+            row.style.cssText = "display:flex;align-items:center;gap:4px;";
+            const lbl = document.createElement("span");
+            lbl.style.cssText = "font-size:10px;color:#888;width:42px;";
+            lbl.textContent = label;
+            row.appendChild(lbl);
+            const inp = document.createElement("input");
+            inp.className = "prop-input";
+            inp.style.cssText = "flex:1;font-size:11px;";
+            inp.type = "number";
+            inp.value = val;
+            inp.dataset.p = key;
+            if (props) Object.assign(inp, props);
+            inp.addEventListener("change", () => {
+              ensureUndo();
+              const dr = parseFloat((dw.querySelector('[data-p="radius"]') as any)?.value) || 3;
+              const sp = parseFloat((dw.querySelector('[data-p="spacing"]') as any)?.value) || 12;
+              const ang = parseFloat((dw.querySelector('[data-p="angle"]') as any)?.value) || 0;
+              applyDot(dr, sp, ang);
+              editor.requestRender(); refresh(ids);
+            });
+            row.appendChild(inp);
+            return row;
+          };
+          dw.appendChild(mkRow("Radius", String(fill.dot_radius ?? 3), "radius", { step: "0.5", min: "0.5" }));
+          dw.appendChild(mkRow("Spacing", String(fill.spacing ?? 12), "spacing", { step: "1", min: "2" }));
+          dw.appendChild(mkRow("Angle", String(fill.angle ?? 0), "angle", { step: "5" }));
+          const dcLabel = document.createElement("span");
+          dcLabel.style.cssText = "font-size:10px;color:#888;";
+          dcLabel.textContent = "Dot Color";
+          dw.appendChild(dcLabel);
+          dw.appendChild(createColorRow(dc, (r, g, b, a) => {
+            dc.r = r; dc.g = g; dc.b = b; dc.a = a;
+            ensureUndo(); applyDot(); editor.requestRender(); refresh(ids);
+          }));
+          const dbgLabel = document.createElement("span");
+          dbgLabel.style.cssText = "font-size:10px;color:#888;";
+          dbgLabel.textContent = "Background";
+          dw.appendChild(dbgLabel);
+          dw.appendChild(createColorRow(dbg, (r, g, b, a) => {
+            dbg.r = r; dbg.g = g; dbg.b = b; dbg.a = a;
+            ensureUndo(); applyDot(); editor.requestRender(); refresh(ids);
+          }));
+          fillWrap.appendChild(dw);
+        } else if (fill.type === "CrosshatchFill") {
+          // Crosshatch fill UI
+          const cw = document.createElement("div");
+          cw.style.cssText = "display:flex;flex-direction:column;gap:4px;";
+          const cc = fill.color || { r: 100, g: 100, b: 120, a: 1 };
+          const cbg = fill.bg_color || { r: 30, g: 30, b: 40, a: 1 };
+          const applyCross = () => {
+            const sp = parseFloat((cw.querySelector('[data-p="spacing"]') as any)?.value) || 10;
+            const lw = parseFloat((cw.querySelector('[data-p="lineWidth"]') as any)?.value) || 1;
+            const ang = parseFloat((cw.querySelector('[data-p="angle"]') as any)?.value) || 45;
+            const den = parseInt((cw.querySelector('[data-p="density"]') as any)?.value) || 2;
+            editor.engine.set_fill_crosshatch_at(id, idx, sp, lw, cc.r, cc.g, cc.b, cc.a, cbg.r, cbg.g, cbg.b, cbg.a, ang, den);
+          };
+          const mkCRow = (label: string, val: string, key: string, props?: any) => {
+            const row = document.createElement("div");
+            row.style.cssText = "display:flex;align-items:center;gap:4px;";
+            const lbl = document.createElement("span");
+            lbl.style.cssText = "font-size:10px;color:#888;width:48px;";
+            lbl.textContent = label;
+            row.appendChild(lbl);
+            const inp = document.createElement("input");
+            inp.className = "prop-input";
+            inp.style.cssText = "flex:1;font-size:11px;";
+            inp.type = "number";
+            inp.value = val;
+            inp.dataset.p = key;
+            if (props) Object.assign(inp, props);
+            inp.addEventListener("change", () => { ensureUndo(); applyCross(); editor.requestRender(); refresh(ids); });
+            row.appendChild(inp);
+            return row;
+          };
+          cw.appendChild(mkCRow("Spacing", String(fill.spacing ?? 10), "spacing", { step: "1", min: "2" }));
+          cw.appendChild(mkCRow("Width", String(fill.line_width ?? 1), "lineWidth", { step: "0.5", min: "0.5" }));
+          cw.appendChild(mkCRow("Angle", String(fill.angle ?? 45), "angle", { step: "5" }));
+          cw.appendChild(mkCRow("Density", String(fill.density ?? 2), "density", { step: "1", min: "1", max: "2" }));
+          const ccLabel = document.createElement("span");
+          ccLabel.style.cssText = "font-size:10px;color:#888;";
+          ccLabel.textContent = "Line Color";
+          cw.appendChild(ccLabel);
+          cw.appendChild(createColorRow(cc, (r, g, b, a) => {
+            cc.r = r; cc.g = g; cc.b = b; cc.a = a;
+            ensureUndo(); applyCross(); editor.requestRender(); refresh(ids);
+          }));
+          const cbgLabel = document.createElement("span");
+          cbgLabel.style.cssText = "font-size:10px;color:#888;";
+          cbgLabel.textContent = "Background";
+          cw.appendChild(cbgLabel);
+          cw.appendChild(createColorRow(cbg, (r, g, b, a) => {
+            cbg.r = r; cbg.g = g; cbg.b = b; cbg.a = a;
+            ensureUndo(); applyCross(); editor.requestRender(); refresh(ids);
+          }));
+          fillWrap.appendChild(cw);
         } else if (fill.type === "Solid") {
           const color = fill.color || { r: 200, g: 200, b: 200, a: 1 };
           fillWrap.appendChild(createColorRow(color, (r, g, b, a) => {

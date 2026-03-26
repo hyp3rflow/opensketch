@@ -1272,6 +1272,37 @@ impl Engine {
                             "tile_height": tile_height,
                         }).to_string()
                     }
+                    FillType::NoiseFill { scale, color1, color2, intensity, seed } => {
+                        serde_json::json!({
+                            "type": "NoiseFill",
+                            "scale": scale,
+                            "color1": { "r": color1.r, "g": color1.g, "b": color1.b, "a": color1.a },
+                            "color2": { "r": color2.r, "g": color2.g, "b": color2.b, "a": color2.a },
+                            "intensity": intensity,
+                            "seed": seed,
+                        }).to_string()
+                    }
+                    FillType::DotPattern { dot_radius, spacing, color, bg_color, angle } => {
+                        serde_json::json!({
+                            "type": "DotPattern",
+                            "dot_radius": dot_radius,
+                            "spacing": spacing,
+                            "color": { "r": color.r, "g": color.g, "b": color.b, "a": color.a },
+                            "bg_color": { "r": bg_color.r, "g": bg_color.g, "b": bg_color.b, "a": bg_color.a },
+                            "angle": angle,
+                        }).to_string()
+                    }
+                    FillType::CrosshatchFill { spacing, line_width, color, bg_color, angle, density } => {
+                        serde_json::json!({
+                            "type": "CrosshatchFill",
+                            "spacing": spacing,
+                            "line_width": line_width,
+                            "color": { "r": color.r, "g": color.g, "b": color.b, "a": color.a },
+                            "bg_color": { "r": bg_color.r, "g": bg_color.g, "b": bg_color.b, "a": bg_color.a },
+                            "angle": angle,
+                            "density": density,
+                        }).to_string()
+                    }
                 };
             }
         }
@@ -1377,6 +1408,43 @@ impl Engine {
                             "tile_height": tile_height,
                         })
                     }
+                    FillType::NoiseFill { scale, color1, color2, intensity, seed } => {
+                        serde_json::json!({
+                            "index": i,
+                            "type": "NoiseFill",
+                            "visible": fill.visible,
+                            "scale": scale,
+                            "color1": { "r": color1.r, "g": color1.g, "b": color1.b, "a": color1.a },
+                            "color2": { "r": color2.r, "g": color2.g, "b": color2.b, "a": color2.a },
+                            "intensity": intensity,
+                            "seed": seed,
+                        })
+                    }
+                    FillType::DotPattern { dot_radius, spacing, color, bg_color, angle } => {
+                        serde_json::json!({
+                            "index": i,
+                            "type": "DotPattern",
+                            "visible": fill.visible,
+                            "dot_radius": dot_radius,
+                            "spacing": spacing,
+                            "color": { "r": color.r, "g": color.g, "b": color.b, "a": color.a },
+                            "bg_color": { "r": bg_color.r, "g": bg_color.g, "b": bg_color.b, "a": bg_color.a },
+                            "angle": angle,
+                        })
+                    }
+                    FillType::CrosshatchFill { spacing, line_width, color, bg_color, angle, density } => {
+                        serde_json::json!({
+                            "index": i,
+                            "type": "CrosshatchFill",
+                            "visible": fill.visible,
+                            "spacing": spacing,
+                            "line_width": line_width,
+                            "color": { "r": color.r, "g": color.g, "b": color.b, "a": color.a },
+                            "bg_color": { "r": bg_color.r, "g": bg_color.g, "b": bg_color.b, "a": bg_color.a },
+                            "angle": angle,
+                            "density": density,
+                        })
+                    }
                 };
                 base
             }).collect();
@@ -1477,6 +1545,64 @@ impl Engine {
                         pattern_type: pt,
                         tile_width: tile_width.max(0.0),
                         tile_height: tile_height.max(0.0),
+                    },
+                    visible: node.fills[idx].visible,
+                };
+            }
+        }
+    }
+
+    /// Set fill at index to noise fill.
+    pub fn set_fill_noise_at(&mut self, id: u64, index: u32, scale: f64, c1r: u8, c1g: u8, c1b: u8, c1a: f64, c2r: u8, c2g: u8, c2b: u8, c2a: f64, intensity: f64, seed: u32) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            let idx = index as usize;
+            if idx < node.fills.len() {
+                node.fills[idx] = Fill {
+                    fill_type: FillType::NoiseFill {
+                        scale: scale.max(2.0),
+                        color1: Color { r: c1r, g: c1g, b: c1b, a: c1a },
+                        color2: Color { r: c2r, g: c2g, b: c2b, a: c2a },
+                        intensity: intensity.max(0.0).min(1.0),
+                        seed,
+                    },
+                    visible: node.fills[idx].visible,
+                };
+            }
+        }
+    }
+
+    /// Set fill at index to dot pattern.
+    pub fn set_fill_dot_pattern_at(&mut self, id: u64, index: u32, dot_radius: f64, spacing: f64, cr: u8, cg: u8, cb: u8, ca: f64, bgr: u8, bgg: u8, bgb: u8, bga: f64, angle: f64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            let idx = index as usize;
+            if idx < node.fills.len() {
+                node.fills[idx] = Fill {
+                    fill_type: FillType::DotPattern {
+                        dot_radius: dot_radius.max(0.5),
+                        spacing: spacing.max(2.0),
+                        color: Color { r: cr, g: cg, b: cb, a: ca },
+                        bg_color: Color { r: bgr, g: bgg, b: bgb, a: bga },
+                        angle,
+                    },
+                    visible: node.fills[idx].visible,
+                };
+            }
+        }
+    }
+
+    /// Set fill at index to crosshatch fill.
+    pub fn set_fill_crosshatch_at(&mut self, id: u64, index: u32, spacing: f64, line_width: f64, cr: u8, cg: u8, cb: u8, ca: f64, bgr: u8, bgg: u8, bgb: u8, bga: f64, angle: f64, density: u8) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            let idx = index as usize;
+            if idx < node.fills.len() {
+                node.fills[idx] = Fill {
+                    fill_type: FillType::CrosshatchFill {
+                        spacing: spacing.max(2.0),
+                        line_width: line_width.max(0.5),
+                        color: Color { r: cr, g: cg, b: cb, a: ca },
+                        bg_color: Color { r: bgr, g: bgg, b: bgb, a: bga },
+                        angle,
+                        density: density.max(1).min(2),
                     },
                     visible: node.fills[idx].visible,
                 };

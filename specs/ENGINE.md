@@ -27,7 +27,7 @@ Pure Rust crate compiled to WASM via `wasm-pack`. No NAPI — runs entirely in t
 - Region detection: planar face algorithm finds minimal closed cycles for fill regions
 - Path → VectorNetwork conversion supported
 - `GradientStop { offset: f64, color: Color }`
-- `FillType`: `Solid { color }` | `LinearGradient { start_x, start_y, end_x, end_y, stops }` | `RadialGradient { center_x, center_y, radius, stops }` — coordinates normalized 0~1
+- `FillType`: `Solid { color }` | `LinearGradient { start_x, start_y, end_x, end_y, stops }` | `RadialGradient { center_x, center_y, radius, stops }` | `Pattern { src, scale, rotation, pattern_type, tile_width, tile_height }` | `NoiseFill { scale, color1, color2, intensity, seed }` | `DotPattern { dot_radius, spacing, color, bg_color, angle }` | `CrosshatchFill { spacing, line_width, color, bg_color, angle, density }` — coordinates normalized 0~1
 - `Fill { fill_type: FillType, visible: bool }` (backward-compatible deserialization from old `{ color }` format; visible defaults to true)
 - `Stroke { color: Color, width: f64, dash_array: Vec<f64>, dash_offset: f64, line_cap: LineCap, line_join: LineJoin, align: StrokeAlign }`
 - `StrokeAlign { Center, Inside, Outside }` — stroke alignment (Figma-style)
