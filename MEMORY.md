@@ -752,6 +752,18 @@
 - TS: spacing-handles.ts 확장 (multiselect mode), editor.ts 드래그 핸들링 통합
 - Auto-layout frame gap 핸들도 기존대로 동작 (backward compatible)
 
+## 완료된 기능 (추가 — Smart Spacing Distribution)
+- Smart spacing distribution (Figma-style):
+  - 3+ 노드 멀티 셀렉션 시 노드 사이 핑크 간격 핸들 자동 표시
+  - 주축 자동 감지 (수평/수직 spread 비교), 겹침 시 스킵
+  - 핸들 드래그로 간격 실시간 균등 조절 (distribute_selection_with_spacing)
+  - 균등 간격 시 초록 "= Equal spacing" 배지 표시
+  - 각 갭에 px 값 라벨 pill, 대시 테두리 라인
+  - Rust: Scene.distribute_with_spacing(ids, axis, spacing), get_spacing_between(ids, axis)
+  - WASM: distribute_selection_with_spacing(axis, spacing), get_selection_spacing(axis) → JSON
+  - 기존 auto-layout 간격 핸들과 통합 (mode: autolayout | selection)
+  - Undo 통합
+
 ## 다음 할 것
 - Figma-style Dev Mode (measurement overlays on hover between any two nodes, copy CSS/token on click, asset export quick actions)
 - Canvas annotations / sticky notes (FigJam-style sticky notes with color themes, resizable, connectable, voting dots)
