@@ -15,7 +15,7 @@ import { setupHandoffPanel } from "./ui/handoff-panel";
 import { setupColorPalettePanel } from "./ui/color-palette-panel";
 import { setupBranchPanel } from "./ui/branch-panel";
 import { createPrototypeViewer } from "./ui/prototype-viewer";
-import { CommentOverlay, setupCommentsPanel } from "./ui/comments";
+import { CommentOverlay, setupCommentsPanel, updateCommentsBadge } from "./ui/comments";
 import { setupVariablesPanel } from "./ui/variables-panel";
 import { setupAssetPanel } from "./ui/asset-panel";
 import { setupBookmarksPanel } from "./ui/bookmarks-panel";
@@ -131,6 +131,8 @@ async function main() {
   // Comments overlay + panel
   const commentOverlay = new CommentOverlay(document.getElementById("canvas-container") || editor.canvas.parentElement!, editor);
   setupCommentsPanel(document.getElementById("comments-panel")!, editor, commentOverlay);
+  updateCommentsBadge(editor);
+  window.addEventListener("comments-changed", () => updateCommentsBadge(editor));
   setupVariablesPanel(document.getElementById("variables-panel")!, editor);
   setupAssetPanel(document.getElementById("assets-panel")!, editor);
   setupBookmarksPanel(document.getElementById("bookmarks-panel")!, editor);

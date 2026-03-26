@@ -499,3 +499,24 @@ export function setupCommentsPanel(container: HTMLElement, editor: Editor, overl
   // Also re-render on selection changes for context
   editor.onSelection(() => render());
 }
+
+/**
+ * Update the Comments tab button with an unresolved-count badge.
+ * Call after any comments change and on init.
+ */
+export function updateCommentsBadge(editor: Editor) {
+  const tab = document.querySelector<HTMLButtonElement>('.right-pane-tab[data-tab="comments"]');
+  if (!tab) return;
+  let comments: CommentData[] = [];
+  try { comments = JSON.parse(editor.engine.get_all_comments()); } catch { /* */ }
+  const unresolved = comments.filter(c => !c.resolved).length;
+  // Remove existing badge
+  tab.querySelector('.comments-badge')?.remove();
+  if (unresolved > 0) {
+    const badge = document.createElement('span');
+    badge.className = 'comments-badge';
+    badge.textContent = String(unresolved > 99 ? '99+' : unresolved);
+    badge.style.cssText = 'display:inline-block;margin-left:4px;background:#e74c3c;color:white;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;min-width:14px;text-align:center;line-height:14px;vertical-align:middle;';
+    tab.appendChild(badge);
+  }
+}

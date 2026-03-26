@@ -413,6 +413,7 @@
 - [x] **Mentions extraction**: Rust-side parse_mentions() extracts all @mentions, stored in Comment.mentions[]
 - [x] **Comment filters**: Panel filter tabs — All / Unresolved (with count) / @Me (mentions + assigned)
 - [x] **WASM bindings**: set_comment_assignee, get_comments_by_mention, get_unresolved_comment_count
+- [x] **Notification badge**: Comments tab shows red unresolved-count badge, auto-updates on changes
 
 ### Keyboard Shortcuts Panel
 - [x] **Modal overlay**: Toggled via ⌘/ or ? key
