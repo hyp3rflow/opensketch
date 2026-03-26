@@ -943,6 +943,12 @@ Frame overflow control and content scrolling.
 - [x] **Toolbar button**: Presentation icon, Cmd+Shift+Enter shortcut
 - [x] **Dynamic import**: Code-split for zero impact on initial load
 - [x] **Viewport restore**: Saves/restores zoom, pan, and active page on exit
+- [x] **Annotations overlay**: Real-time drawing tools during presentation
+  - Tools: Laser pointer (1), Pen (2), Highlighter (3), Arrow (4), Eraser (5)
+  - 7 color swatches, smooth quadratic curve rendering
+  - Undo (Cmd+Z), Clear (C), toggle with A key or ✏️ button
+  - Per-slide auto-clear, HiDPI support
+  - Floating toolbar with tool/color selection
 
 ### Component Analytics
 - [x] **Usage statistics**: Count instances per component across all pages

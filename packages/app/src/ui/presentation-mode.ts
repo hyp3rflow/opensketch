@@ -3,6 +3,7 @@
  * Navigate pages with arrow keys, supports transitions and presenter notes.
  */
 import type { Editor } from "../editor";
+import { createPresentationAnnotations } from "./presentation-annotations";
 
 type TransitionType = "none" | "fade" | "slide-left" | "slide-right" | "slide-up" | "zoom";
 
@@ -35,6 +36,7 @@ export function createPresentationMode(editor: Editor) {
   let savedPageId: number | null = null;
   let progressBar: HTMLDivElement | null = null;
   let slideCounter: HTMLSpanElement | null = null;
+  let annotations: ReturnType<typeof createPresentationAnnotations> | null = null;
 
   function show(opts?: PresentationOptions) {
     if (active) return;
@@ -71,6 +73,10 @@ export function createPresentationMode(editor: Editor) {
       try { editor.engine.set_active_page(BigInt(savedPageId)); } catch {}
       savedPageId = null;
     }
+
+    annotations?.destroy();
+    annotations = null;
+    annotationsActive = false;
 
     overlay?.remove();
     overlay = null;
@@ -157,6 +163,11 @@ export function createPresentationMode(editor: Editor) {
     transSelect.addEventListener("change", () => { options.transition = transSelect.value as TransitionType; });
     controlBar.appendChild(transSelect);
 
+    // Annotations toggle
+    const annotateBtn = makeBtn("✏️", () => toggleAnnotations());
+    annotateBtn.title = "Toggle annotations (A)";
+    controlBar.appendChild(annotateBtn);
+
     // Notes toggle
     const notesBtn = makeBtn("📝", () => toggleNotes());
     notesBtn.title = "Toggle presenter notes (N)";
@@ -184,6 +195,21 @@ export function createPresentationMode(editor: Editor) {
     document.body.appendChild(overlay);
 
     if (options.showNotes) notesPanel.style.display = "block";
+
+    // Initialize annotations overlay (on the canvas area)
+    const canvasAreaEl = overlay.querySelector("div")! as HTMLDivElement;
+    annotations = createPresentationAnnotations(canvasAreaEl);
+  }
+
+  let annotationsActive = false;
+  function toggleAnnotations() {
+    if (!annotations) return;
+    annotationsActive = !annotationsActive;
+    if (annotationsActive) {
+      annotations.enable();
+    } else {
+      annotations.disable();
+    }
   }
 
   function makeBtn(text: string, onClick: () => void): HTMLButtonElement {
@@ -257,6 +283,9 @@ export function createPresentationMode(editor: Editor) {
     if (!slideCanvas || !overlay) return;
     const page = pages[currentIndex];
     if (!page) return;
+
+    // Clear annotations on slide change
+    annotations?.clear();
 
     // Switch engine to this page
     try { editor.engine.set_active_page(BigInt(page.id)); } catch {}
@@ -443,6 +472,7 @@ export function createPresentationMode(editor: Editor) {
       case "ArrowLeft": case "Backspace": case "PageUp": e.preventDefault(); goPrev(); break;
       case "Home": e.preventDefault(); goToSlide(0); break;
       case "End": e.preventDefault(); goToSlide(pages.length - 1); break;
+      case "a": case "A": if (!annotationsActive || !e.shiftKey) toggleAnnotations(); break;
       case "n": case "N": toggleNotes(); break;
       case "f": case "F":
         if (!document.fullscreenElement) overlay?.requestFullscreen?.();
