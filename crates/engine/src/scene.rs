@@ -715,6 +715,63 @@ impl Scene {
         }
     }
 
+    /// Distribute nodes with a specific spacing value along an axis.
+    /// Sorts by position, places first node at its current position, then spaces others by `spacing`.
+    pub fn distribute_with_spacing(&mut self, ids: &[NodeId], axis: &str, spacing: f64) {
+        if ids.len() < 2 { return; }
+        let spacing = spacing.max(0.0);
+        match axis {
+            "horizontal" => {
+                let mut items: Vec<(NodeId, f64, f64)> = ids.iter()
+                    .filter_map(|&id| self.nodes.get(&id).map(|n| (id, n.x, n.width)))
+                    .collect();
+                items.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+                let mut cursor = items[0].1;
+                for (id, _, w) in &items {
+                    if let Some(node) = self.nodes.get_mut(id) { node.x = cursor; }
+                    cursor += w + spacing;
+                }
+            }
+            "vertical" => {
+                let mut items: Vec<(NodeId, f64, f64)> = ids.iter()
+                    .filter_map(|&id| self.nodes.get(&id).map(|n| (id, n.y, n.height)))
+                    .collect();
+                items.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+                let mut cursor = items[0].1;
+                for (id, _, h) in &items {
+                    if let Some(node) = self.nodes.get_mut(id) { node.y = cursor; }
+                    cursor += h + spacing;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// Get spacing info between sorted nodes. Returns JSON: { axis, gaps: [f64], uniform: bool, avg_gap: f64 }
+    pub fn get_spacing_between(&self, ids: &[NodeId], axis: &str) -> String {
+        if ids.len() < 2 { return "{}".to_string(); }
+        let gaps: Vec<f64> = match axis {
+            "horizontal" => {
+                let mut items: Vec<(f64, f64)> = ids.iter()
+                    .filter_map(|&id| self.nodes.get(&id).map(|n| (n.x, n.width)))
+                    .collect();
+                items.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+                items.windows(2).map(|w| w[1].0 - (w[0].0 + w[0].1)).collect()
+            }
+            "vertical" => {
+                let mut items: Vec<(f64, f64)> = ids.iter()
+                    .filter_map(|&id| self.nodes.get(&id).map(|n| (n.y, n.height)))
+                    .collect();
+                items.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+                items.windows(2).map(|w| w[1].0 - (w[0].0 + w[0].1)).collect()
+            }
+            _ => vec![],
+        };
+        let avg = if gaps.is_empty() { 0.0 } else { gaps.iter().sum::<f64>() / gaps.len() as f64 };
+        let uniform = gaps.iter().all(|g| (g - avg).abs() < 0.5);
+        format!("{{\"axis\":\"{}\",\"gaps\":{:?},\"uniform\":{},\"avg_gap\":{:.1}}}", axis, gaps, uniform, avg)
+    }
+
     /// Returns (min_x, min_y, max_x, max_y) bounding box of all nodes, or None if empty.
     pub fn get_bounds(&self) -> Option<(f64, f64, f64, f64)> {
         let mut min_x = f64::INFINITY;

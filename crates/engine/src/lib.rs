@@ -3712,6 +3712,17 @@ impl Engine {
         }
     }
 
+    pub fn distribute_selection_with_spacing(&mut self, axis: &str, spacing: f64) {
+        let ids: Vec<u64> = self.scene.selection.iter().copied().collect();
+        self.push_undo();
+        self.scene.distribute_with_spacing(&ids, axis, spacing);
+    }
+
+    pub fn get_selection_spacing(&self, axis: &str) -> String {
+        let ids: Vec<u64> = self.scene.selection.iter().copied().collect();
+        self.scene.get_spacing_between(&ids, axis)
+    }
+
     // =============================================
     // SVG Export
     // =============================================

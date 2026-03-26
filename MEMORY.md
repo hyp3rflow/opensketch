@@ -744,6 +744,14 @@
 - Toolbar: Table 버튼 (B 키 단축키)
 - Properties panel: Rows/Cols 표시, +/- Row/Col, CSV import, Sort 버튼
 
+## 완료된 기능 (추가 — Smart Spacing Distribution)
+- Multi-selection (3+) spacing distribution: 노드 간 gap 시각화 + 드래그로 uniform spacing 조절
+- Auto-detect primary axis (horizontal/vertical), gap handles with pink overlay + dashed border
+- Uniform indicator: gaps turn green when evenly spaced, pill labels show px values
+- Rust: distribute_with_spacing, get_spacing_between (이미 존재), WASM: distribute_selection_with_spacing, get_selection_spacing
+- TS: spacing-handles.ts 확장 (multiselect mode), editor.ts 드래그 핸들링 통합
+- Auto-layout frame gap 핸들도 기존대로 동작 (backward compatible)
+
 ## 다음 할 것
 - Figma-style Dev Mode (measurement overlays on hover between any two nodes, copy CSS/token on click, asset export quick actions)
 - Canvas annotations / sticky notes (FigJam-style sticky notes with color themes, resizable, connectable, voting dots)

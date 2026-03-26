@@ -777,10 +777,19 @@ export class Editor {
         this._spacingDragging = hit;
         this._spacingDragStartX = x;
         this._spacingDragStartY = y;
-        try {
-          const pj = this.engine.get_node_json(BigInt(hit.parentId));
-          if (pj) this._spacingDragStartGap = JSON.parse(pj).layout?.gap ?? 0;
-        } catch { this._spacingDragStartGap = 0; }
+        if (hit.mode === "selection") {
+          // For selection mode, compute average gap from engine
+          try {
+            const axis = hit.axis || (hit.direction === "row" ? "horizontal" : "vertical");
+            const info = JSON.parse(this.engine.get_selection_spacing(axis));
+            this._spacingDragStartGap = info.avg_gap || 0;
+          } catch { this._spacingDragStartGap = 0; }
+        } else {
+          try {
+            const pj = this.engine.get_node_json(BigInt(hit.parentId));
+            if (pj) this._spacingDragStartGap = JSON.parse(pj).layout?.gap ?? 0;
+          } catch { this._spacingDragStartGap = 0; }
+        }
         this.canvas.setPointerCapture(e.pointerId);
         return;
       }
@@ -955,8 +964,16 @@ export class Editor {
         ? (e.offsetX - this._spacingDragStartX) / zoom
         : (e.offsetY - this._spacingDragStartY) / zoom;
       const newGap = Math.max(0, Math.round(this._spacingDragStartGap + delta));
-      this.engine.set_layout_gap(BigInt(this._spacingDragging.parentId), newGap);
-      this.engine.compute_layout();
+
+      if (this._spacingDragging.mode === "selection") {
+        // Smart spacing: distribute all selected nodes with uniform spacing
+        const axis = this._spacingDragging.axis || (this._spacingDragging.direction === "row" ? "horizontal" : "vertical");
+        this.engine.distribute_selection_with_spacing(axis, newGap);
+      } else {
+        // Auto-layout: adjust frame gap
+        this.engine.set_layout_gap(BigInt(this._spacingDragging.parentId), newGap);
+        this.engine.compute_layout();
+      }
       this._spacingHandles = findSpacingHandles(this.engine);
       this.needsRender = true;
       return;

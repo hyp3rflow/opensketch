@@ -1000,3 +1000,13 @@ Frame overflow control and content scrolling.
 - [x] **DPR display**: Physical resolution info shown below device frame
 - [x] **Dimmed surround**: Area outside device viewport dimmed at 40% black
 - [x] **UI smoothing preserved**: Re-enables imageSmoothingEnabled for rulers/overlays
+
+## 93. Smart Spacing Distribution
+- [x] **Multi-selection handles**: 3+ nodes selected → pink gap indicators between sorted nodes
+- [x] **Axis detection**: Auto-detect primary axis (horizontal/vertical) based on spread
+- [x] **Drag to adjust**: Drag any gap handle to uniformly redistribute spacing
+- [x] **Uniform indicator**: Gaps turn green when evenly spaced
+- [x] **Gap labels**: Show pixel value in pill badges on each gap
+- [x] **Auto-layout mode**: Single frame selected → gap handles for auto-layout children (existing)
+- [x] **Rust engine**: `distribute_with_spacing(ids, axis, spacing)`, `get_spacing_between(ids, axis)`
+- [x] **WASM**: `distribute_selection_with_spacing(axis, spacing)`, `get_selection_spacing(axis)`

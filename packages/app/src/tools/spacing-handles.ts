@@ -1,32 +1,50 @@
 /**
- * Auto-layout spacing handles — drag-to-adjust gap between children.
- * Shows pink/magenta gap indicators between auto-layout children.
- * Drag to resize the gap value in real time.
+ * Smart spacing handles — Figma-style gap indicators for:
+ * 1. Auto-layout frames: drag to adjust gap value
+ * 2. Multi-selection (3+ nodes): show spacing between free nodes, drag to set uniform spacing
  */
 import type { Engine } from "../wasm/opensketch_engine";
 
 export interface SpacingHandle {
-  /** Parent frame ID */
+  /** Parent frame ID (auto-layout) or -1 for free selection */
   parentId: number;
-  /** Index of gap (between child[i] and child[i+1]) */
+  /** Index of gap (between sorted node[i] and node[i+1]) */
   gapIndex: number;
   /** Screen-space bounds of the gap region */
   sx: number; sy: number; sw: number; sh: number;
   /** Layout direction */
   direction: "row" | "column";
+  /** "autolayout" or "selection" mode */
+  mode: "autolayout" | "selection";
+  /** For selection mode: the axis */
+  axis?: "horizontal" | "vertical";
 }
 
-/** Find all gap regions for auto-layout frames in the current selection. */
+/** Find all gap regions for auto-layout frames OR multi-selected free nodes. */
 export function findSpacingHandles(engine: Engine): SpacingHandle[] {
   const handles: SpacingHandle[] = [];
   try {
     const sel = Array.from(engine.get_selection()).map(Number);
-    if (sel.length !== 1) return handles;
-    const id = sel[0];
+
+    // Case 1: Single auto-layout frame selected — show child gaps
+    if (sel.length === 1) {
+      return findAutoLayoutHandles(engine, sel[0]);
+    }
+
+    // Case 2: 3+ nodes selected — show spacing between them
+    if (sel.length >= 3) {
+      return findSelectionSpacingHandles(engine, sel);
+    }
+  } catch { /* ignore */ }
+  return handles;
+}
+
+function findAutoLayoutHandles(engine: Engine, id: number): SpacingHandle[] {
+  const handles: SpacingHandle[] = [];
+  try {
     const json = engine.get_node_json(BigInt(id));
     if (!json) return handles;
     const node = JSON.parse(json);
-    // Must be a frame/group with auto layout
     if (node.kind !== "Frame" && node.kind !== "Group" && node.kind !== "Section") return handles;
     const layout = node.layout;
     if (!layout || layout.mode === "None") return handles;
@@ -35,9 +53,7 @@ export function findSpacingHandles(engine: Engine): SpacingHandle[] {
     const panX = engine.get_pan_x();
     const panY = engine.get_pan_y();
     const isRow = layout.direction === "Row";
-    const gap = layout.gap || 0;
 
-    // Get visible, non-absolute children
     const children: any[] = (node.children || [])
       .map((cid: number) => {
         try {
@@ -49,40 +65,125 @@ export function findSpacingHandles(engine: Engine): SpacingHandle[] {
 
     if (children.length < 2) return handles;
 
-    // Build gap regions between consecutive children
     for (let i = 0; i < children.length - 1; i++) {
       const a = children[i];
       const b = children[i + 1];
 
       let gx: number, gy: number, gw: number, gh: number;
       if (isRow) {
-        // Gap is horizontal between a.right and b.left
         const aRight = a.x + a.width;
-        gx = aRight;
-        gy = Math.min(a.y, b.y);
+        gx = aRight; gy = Math.min(a.y, b.y);
         gw = b.x - aRight;
         gh = Math.max(a.y + a.height, b.y + b.height) - gy;
       } else {
-        // Gap is vertical between a.bottom and b.top
         const aBottom = a.y + a.height;
-        gx = Math.min(a.x, b.x);
-        gy = aBottom;
+        gx = Math.min(a.x, b.x); gy = aBottom;
         gw = Math.max(a.x + a.width, b.x + b.width) - gx;
         gh = b.y - aBottom;
       }
 
-      // Convert to screen coords
-      const sx = gx * zoom + panX;
-      const sy = gy * zoom + panY;
-      const sw = gw * zoom;
-      const sh = gh * zoom;
-
       handles.push({
         parentId: id,
         gapIndex: i,
-        sx, sy, sw, sh,
+        sx: gx * zoom + panX, sy: gy * zoom + panY,
+        sw: gw * zoom, sh: gh * zoom,
         direction: isRow ? "row" : "column",
+        mode: "autolayout",
       });
+    }
+  } catch { /* ignore */ }
+  return handles;
+}
+
+function findSelectionSpacingHandles(engine: Engine, sel: number[]): SpacingHandle[] {
+  const handles: SpacingHandle[] = [];
+  try {
+    const zoom = engine.get_zoom();
+    const panX = engine.get_pan_x();
+    const panY = engine.get_pan_y();
+
+    // Get node bounds
+    const nodes = sel.map(id => {
+      try {
+        const j = engine.get_node_json(BigInt(id));
+        if (!j) return null;
+        const n = JSON.parse(j);
+        return { id, x: n.x, y: n.y, w: n.width, h: n.height };
+      } catch { return null; }
+    }).filter(Boolean) as { id: number; x: number; y: number; w: number; h: number }[];
+
+    if (nodes.length < 3) return handles;
+
+    // Determine dominant axis: check horizontal vs vertical spread
+    const xs = nodes.map(n => n.x);
+    const ys = nodes.map(n => n.y);
+    const xSpread = Math.max(...xs) - Math.min(...xs);
+    const ySpread = Math.max(...ys) - Math.min(...ys);
+
+    // Check if nodes are roughly aligned on one axis
+    const hSorted = [...nodes].sort((a, b) => a.x - b.x);
+    const vSorted = [...nodes].sort((a, b) => a.y - b.y);
+
+    // Horizontal gaps
+    if (xSpread > 0) {
+      const hGaps = [];
+      let allPositive = true;
+      for (let i = 0; i < hSorted.length - 1; i++) {
+        const gap = hSorted[i + 1].x - (hSorted[i].x + hSorted[i].w);
+        hGaps.push(gap);
+        if (gap < -1) allPositive = false; // overlapping
+      }
+
+      if (allPositive || hGaps.some(g => g >= 0)) {
+        for (let i = 0; i < hSorted.length - 1; i++) {
+          const a = hSorted[i];
+          const b = hSorted[i + 1];
+          const gx = a.x + a.w;
+          const gw = b.x - gx;
+          if (gw < 0) continue; // skip overlapping
+          const gy = Math.min(a.y, b.y);
+          const gh = Math.max(a.y + a.h, b.y + b.h) - gy;
+
+          handles.push({
+            parentId: -1,
+            gapIndex: i,
+            sx: gx * zoom + panX, sy: gy * zoom + panY,
+            sw: gw * zoom, sh: gh * zoom,
+            direction: "row",
+            mode: "selection",
+            axis: "horizontal",
+          });
+        }
+      }
+    }
+
+    // Vertical gaps (only if no horizontal handles or if vertical is dominant)
+    if (ySpread > 0 && (handles.length === 0 || ySpread > xSpread * 1.5)) {
+      // If we already have horizontal handles and vertical isn't dominant, skip
+      if (handles.length > 0 && ySpread <= xSpread * 1.5) return handles;
+
+      // Clear horizontal if vertical is dominant
+      if (ySpread > xSpread * 1.5) handles.length = 0;
+
+      for (let i = 0; i < vSorted.length - 1; i++) {
+        const a = vSorted[i];
+        const b = vSorted[i + 1];
+        const gy = a.y + a.h;
+        const gh = b.y - gy;
+        if (gh < 0) continue;
+        const gx = Math.min(a.x, b.x);
+        const gw = Math.max(a.x + a.w, b.x + b.w) - gx;
+
+        handles.push({
+          parentId: -1,
+          gapIndex: i,
+          sx: gx * zoom + panX, sy: gy * zoom + panY,
+          sw: gw * zoom, sh: gh * zoom,
+          direction: "column",
+          mode: "selection",
+          axis: "vertical",
+        });
+      }
     }
   } catch { /* ignore */ }
   return handles;
@@ -91,7 +192,6 @@ export function findSpacingHandles(engine: Engine): SpacingHandle[] {
 /** Hit test: is (screenX, screenY) over a spacing handle? */
 export function hitTestSpacingHandle(handles: SpacingHandle[], sx: number, sy: number): SpacingHandle | null {
   for (const h of handles) {
-    // Expand thin gaps for easier grabbing (min 6px)
     const minSize = 6;
     let hx = h.sx, hy = h.sy, hw = h.sw, hh = h.sh;
     if (h.direction === "row" && hw < minSize) {
@@ -116,29 +216,66 @@ export function renderSpacingHandles(
   hovered: SpacingHandle | null,
   dragging: SpacingHandle | null,
 ) {
-  for (const h of handles) {
-    const isActive = (dragging && dragging.gapIndex === h.gapIndex) || (hovered && hovered.gapIndex === h.gapIndex);
-    const alpha = isActive ? 0.4 : 0.15;
-    ctx.fillStyle = `rgba(236, 72, 153, ${alpha})`;
+  // Check if spacing is uniform
+  const gapValues = handles.map(h => h.direction === "row" ? h.sw : h.sh);
+  const avg = gapValues.length > 0 ? gapValues.reduce((a, b) => a + b, 0) / gapValues.length : 0;
+  const isUniform = gapValues.every(g => Math.abs(g - avg) < 1.5);
 
-    // Don't render if gap is essentially 0
+  for (const h of handles) {
+    const isActive = (dragging && dragging.gapIndex === h.gapIndex && dragging.mode === h.mode) ||
+                     (hovered && hovered.gapIndex === h.gapIndex && hovered.mode === h.mode);
+
+    // Pink for selection mode, slightly different for uniform
+    const baseColor = h.mode === "selection"
+      ? (isUniform ? "rgba(236, 72, 153," : "rgba(255, 100, 100,")
+      : "rgba(236, 72, 153,";
+
+    const alpha = isActive ? 0.45 : 0.2;
+    ctx.fillStyle = baseColor + alpha + ")";
+
     if (Math.abs(h.sw) < 0.5 && Math.abs(h.sh) < 0.5) continue;
 
     ctx.fillRect(h.sx, h.sy, h.sw, h.sh);
 
-    // Draw gap value label
-    if (isActive) {
-      const gap = h.direction === "row" ? h.sw : h.sh;
-      const zoom = 1; // already in screen space
-      const label = Math.round(h.direction === "row" ? h.sw : h.sh).toString();
+    // Dashed border lines at edges
+    ctx.save();
+    ctx.strokeStyle = baseColor + "0.6)";
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    if (h.direction === "row") {
+      // Left and right edges
+      ctx.beginPath();
+      ctx.moveTo(h.sx, h.sy); ctx.lineTo(h.sx, h.sy + h.sh);
+      ctx.moveTo(h.sx + h.sw, h.sy); ctx.lineTo(h.sx + h.sw, h.sy + h.sh);
+      ctx.stroke();
+    } else {
+      // Top and bottom edges
+      ctx.beginPath();
+      ctx.moveTo(h.sx, h.sy); ctx.lineTo(h.sx + h.sw, h.sy);
+      ctx.moveTo(h.sx, h.sy + h.sh); ctx.lineTo(h.sx + h.sw, h.sy + h.sh);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // Gap value label
+    if (isActive || h.mode === "selection") {
+      const gapPx = h.direction === "row" ? h.sw : h.sh;
+      const zoom = 1; // already screen space
+      const label = Math.round(gapPx / (h.mode === "selection" ? 1 : 1)).toString();
       const mx = h.sx + h.sw / 2;
       const my = h.sy + h.sh / 2;
       ctx.font = "10px Inter, system-ui, sans-serif";
       const tw = ctx.measureText(label).width;
-      ctx.fillStyle = "rgba(236, 72, 153, 0.9)";
+
+      // Pill background
+      const pillColor = isUniform && h.mode === "selection"
+        ? "rgba(236, 72, 153, 0.9)"
+        : "rgba(236, 72, 153, 0.75)";
+      ctx.fillStyle = pillColor;
       ctx.beginPath();
       ctx.roundRect(mx - tw / 2 - 4, my - 7, tw + 8, 14, 3);
       ctx.fill();
+
       ctx.fillStyle = "#fff";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
@@ -146,5 +283,25 @@ export function renderSpacingHandles(
       ctx.textAlign = "start";
       ctx.textBaseline = "alphabetic";
     }
+  }
+
+  // Uniform indicator badge
+  if (isUniform && handles.length >= 2 && handles[0]?.mode === "selection") {
+    const lastH = handles[handles.length - 1];
+    const bx = lastH.sx + lastH.sw / 2;
+    const by = lastH.direction === "row" ? lastH.sy - 18 : lastH.sy + lastH.sh + 6;
+    ctx.font = "9px Inter, system-ui, sans-serif";
+    ctx.fillStyle = "rgba(34, 197, 94, 0.85)";
+    const txt = "= Equal spacing";
+    const tw = ctx.measureText(txt).width;
+    ctx.beginPath();
+    ctx.roundRect(bx - tw / 2 - 5, by - 6, tw + 10, 14, 4);
+    ctx.fill();
+    ctx.fillStyle = "#fff";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(txt, bx, by + 1);
+    ctx.textAlign = "start";
+    ctx.textBaseline = "alphabetic";
   }
 }
