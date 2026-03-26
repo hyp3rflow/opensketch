@@ -131,6 +131,21 @@
 - [x] TypeScript: `Editor.exportSVG()`, `exportSelectionSVG()`, `downloadSVG()` (Blob + download link)
 - [x] Toolbar: download button (exports selection if any, otherwise full canvas)
 
+### SVG Import
+- [x] Full SVG parser: `svg_import.rs` using `roxmltree` crate
+- [x] Supported elements: `<rect>`, `<circle>`, `<ellipse>`, `<line>`, `<polyline>`, `<polygon>`, `<path>`, `<text>`, `<g>` (group), `<image>`
+- [x] Path commands: M/m, L/l, H/h, V/v, C/c, S/s, Q/q, A/a (arc simplified to lineto), Z/z
+- [x] Style parsing: fill (solid + gradient url(#id)), stroke (color, width, dash, cap, join), opacity
+- [x] Gradient defs: `<linearGradient>`, `<radialGradient>` with stops
+- [x] Color parsing: hex (#rgb/#rrggbb/#rrggbbaa), rgb()/rgba(), named colors
+- [x] Transform: translate() and rotate() (applied to x/y/rotation)
+- [x] Inline style attribute parsing (style="fill:red; stroke:blue")
+- [x] WASM binding: `import_svg(svg_text, offset_x, offset_y)` → JSON array of created node IDs
+- [x] TypeScript: `Editor.importSVG(text)`, `Editor.importSVGFile()` (file picker)
+- [x] Toolbar: Import SVG button (file picker)
+- [x] Drag & drop: SVG files dropped onto canvas are imported as nodes (not as image)
+- [x] Auto-select imported nodes, undo support
+
 ### Image Nodes
 - [x] **NodeKind::Image**: src (URL/data URI) + fit mode (cover/contain/fill)
 - [x] **WASM bindings**: `add_image()`, `set_image_src()`, `set_image_fit()`

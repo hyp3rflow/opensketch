@@ -2819,6 +2819,24 @@ export class Editor {
       const files = e.dataTransfer?.files;
       if (!files || files.length === 0) return;
       for (const file of Array.from(files)) {
+        // Handle SVG files as import (not as image)
+        if (file.type === "image/svg+xml" || file.name.endsWith(".svg")) {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const svgText = reader.result as string;
+            const sx = this.engine.screen_to_scene_x(e.offsetX, e.offsetY);
+            const sy = this.engine.screen_to_scene_y(e.offsetX, e.offsetY);
+            const json = this.engine.import_svg(svgText, sx, sy);
+            const ids: number[] = JSON.parse(json);
+            if (ids.length > 0) {
+              this.render();
+              this.emit('selectionChanged');
+              this.onLayersChanges.forEach(fn => fn());
+            }
+          };
+          reader.readAsText(file);
+          continue;
+        }
         if (!file.type.startsWith("image/")) continue;
         const reader = new FileReader();
         reader.onload = () => {
@@ -3664,6 +3682,44 @@ export class Editor {
   /**
    * Export entire scene as SVG string
    */
+  /**
+   * Import SVG markup into the scene at the current viewport center.
+   * Returns array of created top-level node IDs.
+   */
+  importSVG(svgText: string): number[] {
+    // Place at viewport center
+    const cx = (-this.panX + this.canvas.width / 2 / this.dpr) / this.zoom;
+    const cy = (-this.panY + this.canvas.height / 2 / this.dpr) / this.zoom;
+    const json = this.engine.import_svg(svgText, cx, cy);
+    const ids: number[] = JSON.parse(json);
+    this.render();
+    this.emit('selectionChanged');
+    return ids;
+  }
+
+  /**
+   * Open file picker to import an SVG file.
+   */
+  importSVGFile() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.svg,image/svg+xml';
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const text = reader.result as string;
+        const ids = this.importSVG(text);
+        if (ids.length === 0) {
+          console.warn('SVG import: no nodes created');
+        }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
+  }
+
   exportSVG(): string {
     return this.engine.export_svg();
   }

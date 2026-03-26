@@ -86,6 +86,14 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
     imgBtn.innerHTML = icons.image;
     imgBtn.addEventListener("click", () => addImageFromFile(editor));
     container.appendChild(imgBtn);
+
+    // SVG Import button
+    const svgBtn = document.createElement("button");
+    svgBtn.className = "tool-btn";
+    svgBtn.title = "Import SVG";
+    svgBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 12 15 15"/></svg>`;
+    svgBtn.addEventListener("click", () => editor.importSVGFile());
+    container.appendChild(svgBtn);
   }
 
   // Design system button (after separator)
