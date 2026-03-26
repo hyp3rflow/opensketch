@@ -1105,3 +1105,18 @@ Frame overflow control and content scrolling.
   - Properties panel: "3D Transform" section with enable checkbox, rotation sliders, distance, origin controls, reset button
   - SVG export: CSS transform with perspective() rotateX/Y/Z() + transform-origin
   - Inspect panel: CSS code generation for perspective transforms
+
+## 106. AI Code-to-Design (HTML/CSS → Nodes)
+- [x] **HTML parser**: DOMParser-based, extracts element tree + `<style>` blocks + inline styles
+- [x] **CSS parser**: Property declarations, class/id/tag selectors, inline style merging
+- [x] **Color parsing**: hex (#rgb/#rrggbb/#rrggbbaa), rgb()/rgba(), 30+ named colors
+- [x] **Node creation**: HTML elements → Frame (container), Text (text-only), Image (img), Rect (hr), Frame+children (input/button/form)
+- [x] **Style mapping**: background-color, color, border-radius, border, opacity, font-size/weight/family/style, text-align, line-height, letter-spacing, padding
+- [x] **Flexbox support**: display:flex, flex-direction, gap, align-items, justify-content → auto-layout
+- [x] **Auto-sizing**: Containers auto-size based on children when width/height not explicit
+- [x] **Hierarchical creation**: Recursive children → reparent into parent Frame
+- [x] **Example snippets**: Card, Nav, Form, Hero templates built into modal
+- [x] **Modal UI**: Code editor (textarea with Tab support), live node count preview, example buttons
+- [x] **Toolbar button**: Code icon (⌘⇧D shortcut)
+- [x] **Undo integration**: push_undo before conversion
+- [x] **Implementation**: `ui/code-to-design.ts` (single file, ~450 lines)

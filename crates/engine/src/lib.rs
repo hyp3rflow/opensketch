@@ -25,6 +25,7 @@ pub mod permissions;
 mod smart_component;
 pub mod recording;
 mod svg_import;
+pub mod code_to_design;
 
 use wasm_bindgen::prelude::*;
 use web_sys::CanvasRenderingContext2d;
@@ -4102,6 +4103,16 @@ impl Engine {
     }
 
     /// Import SVG markup into the scene. Returns JSON array of created top-level node IDs.
+    /// Convert HTML/CSS code to OpenSketch design nodes.
+    /// Returns JSON: { "root_id": number, "node_count": number }
+    pub fn code_to_design(&mut self, html: &str, offset_x: f64, offset_y: f64) -> String {
+        self.push_undo();
+        let result = code_to_design::code_to_design(&mut self.scene, html, offset_x, offset_y);
+        // Select the root node
+        self.scene.selection = vec![result.root_id];
+        serde_json::to_string(&result).unwrap_or_else(|_| "{}".into())
+    }
+
     pub fn import_svg(&mut self, svg_text: &str, offset_x: f64, offset_y: f64) -> String {
         self.push_undo();
         let ids = svg_import::import_svg(&mut self.scene, svg_text, offset_x, offset_y);

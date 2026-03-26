@@ -404,6 +404,12 @@ export class Editor {
         }
         return;
       }
+      // Code to Design: Cmd+Shift+D
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "d" || e.key === "D")) {
+        e.preventDefault();
+        import("./ui/code-to-design").then(m => m.openCodeToDesignModal(this.engine, () => this.requestRender()));
+        return;
+      }
       // Batch Export: Cmd+Shift+E
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "e" || e.key === "E")) {
         e.preventDefault();

@@ -4,6 +4,7 @@ import { openFigmaImportModal } from "./figma-import";
 import { toggleRecorderBar } from "./canvas-recorder";
 import { openBatchExport } from "./batch-export";
 import { toggleDesignTokenExport } from "./design-token-export";
+import { openCodeToDesignModal } from "./code-to-design";
 
 const tools: { id: ToolType; icon: string; label: string }[] = [
   { id: "select", icon: icons.select, label: "Select (V)" },
@@ -203,6 +204,18 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
     });
   });
   container.appendChild(figmaBtn);
+
+  // Code-to-Design button
+  const codeBtn = document.createElement("button");
+  codeBtn.className = "tool-btn";
+  codeBtn.title = "Code to Design (⌘⇧D)";
+  codeBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/><line x1="14" y1="4" x2="10" y2="20"/></svg>`;
+  codeBtn.addEventListener("click", () => {
+    openCodeToDesignModal(editor.engine, () => {
+      editor.requestRender();
+    });
+  });
+  container.appendChild(codeBtn);
 
   // Prototype play button
   if (onPrototype) {
