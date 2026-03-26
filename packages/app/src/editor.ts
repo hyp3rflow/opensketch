@@ -265,8 +265,8 @@ export class Editor {
         this.onSaveCallbacks.forEach(fn => fn());
         return;
       }
-      // Node search spotlight: Cmd+P
-      if ((e.metaKey || e.ctrlKey) && e.key === "p") {
+      // Node search spotlight: Cmd+K or Cmd+P
+      if ((e.metaKey || e.ctrlKey) && (e.key === "p" || e.key === "k")) {
         e.preventDefault();
         toggleSpotlight(this);
         return;

@@ -24,6 +24,38 @@ export function isSpotlightVisible(): boolean {
   return overlay !== null;
 }
 
+type SpotlightCategory = 'node' | 'page' | 'component' | 'variable';
+
+interface SpotlightItem {
+  category: SpotlightCategory;
+  id: number;
+  name: string;
+  detail: string;      // kind badge text
+  subtext?: string;     // secondary line
+  collectionId?: number; // for variables
+}
+
+const CATEGORY_COLORS: Record<SpotlightCategory, string> = {
+  node: '#4a90d9',
+  page: '#d9a34a',
+  component: '#9b59b6',
+  variable: '#27ae60',
+};
+
+const CATEGORY_LABELS: Record<SpotlightCategory, string> = {
+  node: 'Node',
+  page: 'Page',
+  component: 'Component',
+  variable: 'Variable',
+};
+
+const CATEGORY_ICONS: Record<SpotlightCategory, string> = {
+  node: '<circle cx="6" cy="6" r="4" fill="none" stroke="currentColor" stroke-width="1.5"/>',
+  page: '<rect x="2" y="1" width="8" height="10" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/>',
+  component: '<path d="M6 1L11 6L6 11L1 6Z" fill="none" stroke="currentColor" stroke-width="1.5"/>',
+  variable: '<path d="M2 3C4 3 4 9 6 9S8 3 10 3" fill="none" stroke="currentColor" stroke-width="1.5"/>',
+};
+
 function openSpotlight() {
   if (!editorRef) return;
 
@@ -35,10 +67,11 @@ function openSpotlight() {
         <svg class="spotlight-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
         </svg>
-        <input class="spotlight-input" type="text" placeholder="Search nodes by name, text, or type…" autocomplete="off" spellcheck="false"/>
+        <input class="spotlight-input" type="text" placeholder="Search nodes, pages, components, variables…" autocomplete="off" spellcheck="false"/>
       </div>
+      <div class="spotlight-filters"></div>
       <div class="spotlight-results"></div>
-      <div class="spotlight-hint">↑↓ Navigate · Enter Select · Esc Close</div>
+      <div class="spotlight-hint">↑↓ Navigate · Enter Select · Tab Filter · Esc Close</div>
     </div>
   `;
 
@@ -51,7 +84,7 @@ function openSpotlight() {
 
   const panel = overlay.querySelector('.spotlight-panel') as HTMLDivElement;
   Object.assign(panel.style, {
-    width: '480px', maxHeight: '420px', background: '#2a2a2a', borderRadius: '12px',
+    width: '520px', maxHeight: '480px', background: '#2a2a2a', borderRadius: '12px',
     boxShadow: '0 16px 48px rgba(0,0,0,0.5)', overflow: 'hidden', display: 'flex',
     flexDirection: 'column',
   });
@@ -71,6 +104,12 @@ function openSpotlight() {
     color: '#eee', fontSize: '16px', fontFamily: 'inherit',
   });
 
+  const filtersRow = overlay.querySelector('.spotlight-filters') as HTMLDivElement;
+  Object.assign(filtersRow.style, {
+    display: 'flex', gap: '6px', padding: '8px 16px',
+    borderBottom: '1px solid #3a3a3a',
+  });
+
   const results = overlay.querySelector('.spotlight-results') as HTMLDivElement;
   Object.assign(results.style, {
     flex: '1', overflowY: 'auto', padding: '4px 0',
@@ -86,7 +125,33 @@ function openSpotlight() {
   input.focus();
 
   let selectedIdx = 0;
-  let items: { id: number; name: string; kind: string; text?: string }[] = [];
+  let items: SpotlightItem[] = [];
+  let activeFilter: SpotlightCategory | null = null;
+
+  // Render filter chips
+  function renderFilters() {
+    const cats: (SpotlightCategory | null)[] = [null, 'node', 'page', 'component', 'variable'];
+    filtersRow.innerHTML = cats.map(cat => {
+      const label = cat ? CATEGORY_LABELS[cat] : 'All';
+      const isActive = cat === activeFilter;
+      const bg = isActive ? (cat ? CATEGORY_COLORS[cat] : '#555') : '#3a3a3a';
+      const color = isActive ? '#fff' : '#aaa';
+      return `<span class="spotlight-filter" data-cat="${cat ?? ''}" style="
+        padding:3px 10px;border-radius:10px;font-size:11px;cursor:pointer;
+        background:${bg};color:${color};transition:all .15s;user-select:none;
+      ">${label}</span>`;
+    }).join('');
+    filtersRow.querySelectorAll('.spotlight-filter').forEach(el => {
+      el.addEventListener('click', () => {
+        const c = (el as HTMLElement).dataset.cat;
+        activeFilter = c ? c as SpotlightCategory : null;
+        renderFilters();
+        doSearch();
+        input.focus();
+      });
+    });
+  }
+  renderFilters();
 
   function doSearch() {
     const q = input.value.trim();
@@ -97,22 +162,83 @@ function openSpotlight() {
       return;
     }
 
-    // Use engine find_text for text+name matches
-    const raw = editorRef.engine.find_text(q, false);
-    const found: any[] = JSON.parse(raw);
+    const allItems: SpotlightItem[] = [];
+    const ql = q.toLowerCase();
 
-    // Also search by node kind (type:rect, type:frame, etc.)
-    const kindQuery = q.toLowerCase();
-    
-    items = found.map((r: any) => ({
-      id: Number(r.node_id),
-      name: r.node_name,
-      kind: r.node_kind,
-      text: r.matched_text || undefined,
-    }));
+    // 1. Nodes (via engine find_text)
+    if (!activeFilter || activeFilter === 'node') {
+      try {
+        const raw = editorRef.engine.find_text(q, false);
+        const found: any[] = JSON.parse(raw);
+        for (const r of found.slice(0, 30)) {
+          allItems.push({
+            category: 'node',
+            id: Number(r.node_id),
+            name: r.node_name,
+            detail: r.node_kind,
+            subtext: r.matched_text || undefined,
+          });
+        }
+      } catch { /* ignore */ }
+    }
 
-    // Limit results
-    items = items.slice(0, 50);
+    // 2. Pages
+    if (!activeFilter || activeFilter === 'page') {
+      try {
+        const pages: any[] = JSON.parse(editorRef.engine.get_pages());
+        for (const p of pages) {
+          if (p.name.toLowerCase().includes(ql)) {
+            allItems.push({
+              category: 'page',
+              id: Number(p.id),
+              name: p.name,
+              detail: 'Page',
+            });
+          }
+        }
+      } catch { /* ignore */ }
+    }
+
+    // 3. Components
+    if (!activeFilter || activeFilter === 'component') {
+      try {
+        const comps: any[] = JSON.parse(editorRef.engine.search_components(q));
+        for (const c of comps.slice(0, 20)) {
+          allItems.push({
+            category: 'component',
+            id: Number(c.id),
+            name: c.name,
+            detail: `${c.variant_count} variant${c.variant_count !== 1 ? 's' : ''}`,
+            subtext: c.description || undefined,
+          });
+        }
+      } catch { /* ignore */ }
+    }
+
+    // 4. Variables
+    if (!activeFilter || activeFilter === 'variable') {
+      try {
+        const collections: any[] = JSON.parse(editorRef.engine.get_collections());
+        for (const col of collections) {
+          if (col.variables) {
+            for (const v of col.variables) {
+              if (v.name.toLowerCase().includes(ql) || col.name.toLowerCase().includes(ql)) {
+                allItems.push({
+                  category: 'variable',
+                  id: Number(v.id),
+                  name: v.name,
+                  detail: v.var_type || 'Variable',
+                  subtext: col.name,
+                  collectionId: Number(col.id),
+                });
+              }
+            }
+          }
+        }
+      } catch { /* ignore */ }
+    }
+
+    items = allItems.slice(0, 50);
     selectedIdx = 0;
     renderResults();
   }
@@ -122,22 +248,40 @@ function openSpotlight() {
       results.innerHTML = '<div style="padding:24px;text-align:center;color:#666">No results found</div>';
       return;
     }
-    results.innerHTML = items.map((item, i) => {
-      const sel = i === selectedIdx ? 'background:#3a3a3a;' : '';
-      const kindBadge = `<span style="background:#444;color:#aaa;padding:1px 6px;border-radius:4px;font-size:10px;margin-left:8px">${item.kind}</span>`;
-      const textPreview = item.text
-        ? `<div style="font-size:11px;color:#777;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:400px">${escapeHtml(item.text)}</div>`
-        : '';
-      return `<div class="spotlight-item" data-idx="${i}" style="padding:8px 16px;cursor:pointer;${sel}">
-        <div style="display:flex;align-items:center">
-          <span style="color:#ddd;font-size:13px">${escapeHtml(item.name)}</span>${kindBadge}
-        </div>
-        ${textPreview}
-      </div>`;
-    }).join('');
 
-    // Click handlers
-    results.querySelectorAll('.spotlight-item').forEach((el) => {
+    // Group by category for display
+    let lastCat: SpotlightCategory | null = null;
+    let html = '';
+    let globalIdx = 0;
+
+    for (const item of items) {
+      if (item.category !== lastCat) {
+        lastCat = item.category;
+        html += `<div style="padding:4px 16px 2px;font-size:10px;font-weight:600;color:${CATEGORY_COLORS[item.category]};text-transform:uppercase;letter-spacing:0.5px;margin-top:4px">${CATEGORY_LABELS[item.category]}s</div>`;
+      }
+
+      const sel = globalIdx === selectedIdx ? 'background:#3a3a3a;' : '';
+      const iconSvg = `<svg width="12" height="12" viewBox="0 0 12 12" style="color:${CATEGORY_COLORS[item.category]};flex-shrink:0">${CATEGORY_ICONS[item.category]}</svg>`;
+      const detailBadge = `<span style="background:#444;color:#aaa;padding:1px 6px;border-radius:4px;font-size:10px;margin-left:8px">${escapeHtml(item.detail)}</span>`;
+      const subLine = item.subtext
+        ? `<div style="font-size:11px;color:#666;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:420px">${escapeHtml(item.subtext)}</div>`
+        : '';
+
+      html += `<div class="spotlight-item" data-idx="${globalIdx}" style="padding:6px 16px;cursor:pointer;${sel};display:flex;align-items:flex-start;gap:8px">
+        <div style="margin-top:3px">${iconSvg}</div>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center">
+            <span style="color:#ddd;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(item.name)}</span>${detailBadge}
+          </div>
+          ${subLine}
+        </div>
+      </div>`;
+      globalIdx++;
+    }
+
+    results.innerHTML = html;
+
+    results.querySelectorAll('.spotlight-item').forEach(el => {
       el.addEventListener('click', () => {
         const idx = parseInt((el as HTMLElement).dataset.idx || '0');
         selectItem(idx);
@@ -152,11 +296,37 @@ function openSpotlight() {
   function selectItem(idx: number) {
     const item = items[idx];
     if (!item || !editorRef) return;
-    // Select + zoom to node
-    editorRef.engine.select(BigInt(item.id));
-    editorRef.notifySelectionChanged([item.id]);
-    // Zoom to selection
-    editorRef.zoomToSelection();
+
+    switch (item.category) {
+      case 'node':
+        editorRef.engine.select(BigInt(item.id));
+        editorRef.notifySelectionChanged([item.id]);
+        editorRef.zoomToSelection();
+        break;
+      case 'page':
+        editorRef.engine.set_active_page(BigInt(item.id));
+        editorRef.zoomToFit();
+        // Dispatch event so page tabs UI updates
+        window.dispatchEvent(new CustomEvent('opensketch-page-changed'));
+        break;
+      case 'component': {
+        // Find instance or component master node and select it
+        try {
+          const instances: any[] = JSON.parse(editorRef.engine.find_instances(BigInt(item.id) as any));
+          if (instances.length > 0) {
+            const nodeId = Number(instances[0].node_id);
+            editorRef.engine.select(BigInt(nodeId));
+            editorRef.notifySelectionChanged([nodeId]);
+            editorRef.zoomToSelection();
+          }
+        } catch { /* ignore */ }
+        break;
+      }
+      case 'variable':
+        // No spatial location — just show info or open variables panel if available
+        break;
+    }
+
     editorRef.requestRender();
     closeSpotlight();
   }
@@ -189,13 +359,20 @@ function openSpotlight() {
     } else if (e.key === 'Enter') {
       e.preventDefault();
       if (items.length > 0) selectItem(selectedIdx);
+    } else if (e.key === 'Tab') {
+      e.preventDefault();
+      // Cycle filter
+      const cats: (SpotlightCategory | null)[] = [null, 'node', 'page', 'component', 'variable'];
+      const curIdx = cats.indexOf(activeFilter);
+      activeFilter = cats[(curIdx + 1) % cats.length];
+      renderFilters();
+      doSearch();
     } else if (e.key === 'Escape') {
       e.preventDefault();
       closeSpotlight();
     }
   });
 
-  // Click overlay to close
   overlay.addEventListener('mousedown', (e) => {
     if (e.target === overlay) closeSpotlight();
   });

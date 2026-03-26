@@ -797,11 +797,14 @@ Frame overflow control and content scrolling.
 
 ### Node Search Spotlight
 - [x] **Quick search panel**: Cmd+P to open/close, Escape to dismiss
-- [x] **Search by name + text**: Uses engine find_text (case-insensitive), matches node names and Text content
-- [x] **Results list**: Scrollable, kind badge, text preview, keyboard navigation (↑↓ + Enter)
-- [x] **Select & zoom**: Selects node and zooms to it on Enter/click
-- [x] **Overlay UI**: Centered floating panel with backdrop, auto-focus input
-- [x] TS: ui/spotlight.ts, integrated in editor.ts Cmd+P shortcut
+- [x] **Unified search**: Nodes (find_text), Pages (get_pages), Components (search_components), Variables (get_collections)
+- [x] **Category filters**: Tab key or click to filter by All/Node/Page/Component/Variable
+- [x] **Category badges**: Color-coded icons + labels per category (blue/gold/purple/green)
+- [x] **Results grouping**: Results grouped by category with section headers
+- [x] **Smart actions**: Node → select+zoom, Page → switch+zoom-to-fit, Component → find first instance+zoom
+- [x] **Keyboard**: ↑↓ navigate, Enter select, Tab cycle filter, Escape close
+- [x] **Shortcuts**: Cmd+K or Cmd+P
+- [x] TS: ui/spotlight.ts, integrated in editor.ts
 
 ### PDF Export
 - [x] **Zero-dependency PDF builder**: Pure TypeScript, no external libraries
