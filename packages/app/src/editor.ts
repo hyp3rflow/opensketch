@@ -92,6 +92,13 @@ export class Editor {
   private _vnDraggingHandle: { segId: number; which: "start" | "end" } | null = null;
   private _vnConnectPreview: { x: number; y: number } | null = null;
 
+  // Mesh edit mode state
+  private _meshEditMode = false;
+  private _meshEditNodeId: number | null = null;
+  private _meshEditFillIndex = 0;
+  private _meshEditSelectedPoint: number | null = null;
+  private _meshEditDragging = false;
+
   // Smart guides state
   private _snapGuides: SnapGuide[] = [];
   private _pointSnapIndicators: PointSnapIndicator[] = [];
@@ -608,6 +615,11 @@ export class Editor {
         this.needsRender = true;
       }
       if (e.key === "Escape") {
+        if (this._meshEditMode) {
+          this.exitMeshEditMode();
+          this.needsRender = true;
+          return;
+        }
         if (this._vnEditMode) {
           this.exitVNEditMode();
           this.needsRender = true;
@@ -666,6 +678,28 @@ export class Editor {
       this.canvas.style.cursor = "grabbing";
       this.canvas.setPointerCapture(e.pointerId);
       return;
+    }
+
+    // Mesh edit mode pointer handling
+    if (this.currentTool === "select" && this._meshEditMode) {
+      const ptIdx = this.meshHitTestPoint(x, y);
+      if (ptIdx != null) {
+        if (this._meshEditSelectedPoint === ptIdx) {
+          // Already selected → open color picker
+          this.openMeshPointColorPicker(ptIdx, x, y);
+          return;
+        }
+        this._meshEditSelectedPoint = ptIdx;
+        this._meshEditDragging = true;
+        this.engine.push_undo();
+        this.needsRender = true;
+        this.canvas.setPointerCapture(e.pointerId);
+        return;
+      } else {
+        // Click outside points → exit mesh edit
+        this.exitMeshEditMode();
+        return;
+      }
     }
 
     if (this.currentTool === "select" && this._pathEditMode) {
@@ -1079,6 +1113,20 @@ export class Editor {
       }
     }
 
+    // Mesh edit mode dragging
+    if (this._meshEditMode && this._meshEditDragging && this._meshEditNodeId != null && this._meshEditSelectedPoint != null) {
+      const nodeJson = this.engine.get_node_json(BigInt(this._meshEditNodeId));
+      if (nodeJson) {
+        const node = JSON.parse(nodeJson);
+        const sx = this.engine.screen_to_scene_x(e.offsetX, e.offsetY);
+        const sy = this.engine.screen_to_scene_y(e.offsetX, e.offsetY);
+        const nx = ((sx - node.x) / node.width);
+        const ny = ((sy - node.y) / node.height);
+        this.engine.mesh_set_point_position(BigInt(this._meshEditNodeId), this._meshEditFillIndex, this._meshEditSelectedPoint, nx, ny);
+        this.needsRender = true;
+      }
+    }
+
     // Path edit mode dragging
     if (this._pathEditMode && this._pathEditDragType && this._pathEditNodeId != null && this._pathEditSelectedPoint != null) {
       let sx = this.engine.screen_to_scene_x(e.offsetX, e.offsetY);
@@ -1318,6 +1366,13 @@ export class Editor {
     if (this._vnDraggingHandle != null) {
       this._vnDraggingHandle = null;
       this.needsRender = true;
+      return;
+    }
+
+    if (this._meshEditDragging) {
+      this._meshEditDragging = false;
+      this.needsRender = true;
+      this.fireSelectionNow(Array.from(this.engine.get_selection()).map(Number));
       return;
     }
 
@@ -1763,6 +1818,168 @@ export class Editor {
     this.ctx.restore();
   }
 
+  // === Mesh Edit Mode ===
+
+  private enterMeshEditMode(nodeId: number, fillIndex: number) {
+    this._meshEditMode = true;
+    this._meshEditNodeId = nodeId;
+    this._meshEditFillIndex = fillIndex;
+    this._meshEditSelectedPoint = null;
+    this._meshEditDragging = false;
+    this.engine.select(BigInt(nodeId));
+    this.canvas.style.cursor = "crosshair";
+    this.needsRender = true;
+  }
+
+  private exitMeshEditMode() {
+    this._meshEditMode = false;
+    this._meshEditNodeId = null;
+    this._meshEditSelectedPoint = null;
+    this._meshEditDragging = false;
+    this.updateCursor();
+    this.needsRender = true;
+  }
+
+  private getMeshInfo(): { rows: number; cols: number; points: { index: number; x: number; y: number; r: number; g: number; b: number; a: number }[] } | null {
+    if (this._meshEditNodeId == null) return null;
+    try {
+      const info = this.engine.mesh_get_info(BigInt(this._meshEditNodeId), this._meshEditFillIndex);
+      if (!info || info === "null") return null;
+      return JSON.parse(info);
+    } catch { return null; }
+  }
+
+  private renderMeshEditOverlay() {
+    if (!this._meshEditMode || this._meshEditNodeId == null) return;
+    const mesh = this.getMeshInfo();
+    if (!mesh) return;
+    const zoom = this.engine.get_zoom();
+    const panX = this.engine.get_pan_x();
+    const panY = this.engine.get_pan_y();
+    const nodeJson = this.engine.get_node_json(BigInt(this._meshEditNodeId));
+    if (!nodeJson) return;
+    const node = JSON.parse(nodeJson);
+
+    const toScreen = (nx: number, ny: number) => ({
+      x: (node.x + nx * node.width) * zoom + panX,
+      y: (node.y + ny * node.height) * zoom + panY,
+    });
+
+    this.ctx.save();
+
+    // Draw grid lines
+    this.ctx.strokeStyle = "rgba(255,255,255,0.3)";
+    this.ctx.lineWidth = 1;
+    this.ctx.setLineDash([4, 4]);
+
+    for (let r = 0; r < mesh.rows; r++) {
+      for (let c = 0; c < mesh.cols - 1; c++) {
+        const p1 = mesh.points[r * mesh.cols + c];
+        const p2 = mesh.points[r * mesh.cols + c + 1];
+        if (!p1 || !p2) continue;
+        const s1 = toScreen(p1.x, p1.y);
+        const s2 = toScreen(p2.x, p2.y);
+        this.ctx.beginPath();
+        this.ctx.moveTo(s1.x, s1.y);
+        this.ctx.lineTo(s2.x, s2.y);
+        this.ctx.stroke();
+      }
+    }
+    for (let c = 0; c < mesh.cols; c++) {
+      for (let r = 0; r < mesh.rows - 1; r++) {
+        const p1 = mesh.points[r * mesh.cols + c];
+        const p2 = mesh.points[(r + 1) * mesh.cols + c];
+        if (!p1 || !p2) continue;
+        const s1 = toScreen(p1.x, p1.y);
+        const s2 = toScreen(p2.x, p2.y);
+        this.ctx.beginPath();
+        this.ctx.moveTo(s1.x, s1.y);
+        this.ctx.lineTo(s2.x, s2.y);
+        this.ctx.stroke();
+      }
+    }
+    this.ctx.setLineDash([]);
+
+    // Draw point handles
+    for (const pt of mesh.points) {
+      const s = toScreen(pt.x, pt.y);
+      const isSelected = pt.index === this._meshEditSelectedPoint;
+      const radius = isSelected ? 7 : 5;
+
+      this.ctx.beginPath();
+      this.ctx.arc(s.x, s.y, radius, 0, Math.PI * 2);
+      this.ctx.fillStyle = `rgba(${pt.r},${pt.g},${pt.b},${pt.a})`;
+      this.ctx.fill();
+      this.ctx.strokeStyle = isSelected ? "#4f46e5" : "white";
+      this.ctx.lineWidth = isSelected ? 2.5 : 1.5;
+      this.ctx.stroke();
+    }
+
+    // Label
+    this.ctx.fillStyle = "rgba(255,255,255,0.6)";
+    this.ctx.font = "11px Inter, system-ui, sans-serif";
+    this.ctx.fillText(`Mesh Edit (${mesh.rows}\u00d7${mesh.cols}) \u2014 Esc to exit, click point to select, drag to move`, 10, this.canvas.height - 10);
+
+    this.ctx.restore();
+  }
+
+  private openMeshPointColorPicker(ptIdx: number, screenX: number, screenY: number) {
+    if (this._meshEditNodeId == null) return;
+    const mesh = this.getMeshInfo();
+    if (!mesh) return;
+    const pt = mesh.points.find((p: any) => p.index === ptIdx);
+    if (!pt) return;
+
+    // Remove existing picker
+    document.querySelector('.mesh-color-picker')?.remove();
+
+    const picker = document.createElement('input');
+    picker.type = 'color';
+    picker.className = 'mesh-color-picker';
+    picker.value = `#${pt.r.toString(16).padStart(2, '0')}${pt.g.toString(16).padStart(2, '0')}${pt.b.toString(16).padStart(2, '0')}`;
+    picker.style.cssText = `position:fixed;left:${screenX}px;top:${screenY}px;width:0;height:0;opacity:0;pointer-events:auto;`;
+    document.body.appendChild(picker);
+    const nodeId = this._meshEditNodeId;
+    const fillIdx = this._meshEditFillIndex;
+    picker.addEventListener('input', () => {
+      const hex = picker.value;
+      const r = parseInt(hex.slice(1, 3), 16);
+      const g = parseInt(hex.slice(3, 5), 16);
+      const b = parseInt(hex.slice(5, 7), 16);
+      this.engine.push_undo();
+      this.engine.mesh_set_point_color(BigInt(nodeId), fillIdx, ptIdx, r, g, b, 1.0);
+      this.needsRender = true;
+    });
+    picker.addEventListener('change', () => {
+      picker.remove();
+    });
+    picker.click();
+  }
+
+  private meshHitTestPoint(screenX: number, screenY: number): number | null {
+    if (this._meshEditNodeId == null) return null;
+    const mesh = this.getMeshInfo();
+    if (!mesh) return null;
+    const zoom = this.engine.get_zoom();
+    const panX = this.engine.get_pan_x();
+    const panY = this.engine.get_pan_y();
+    const nodeJson = this.engine.get_node_json(BigInt(this._meshEditNodeId));
+    if (!nodeJson) return null;
+    const node = JSON.parse(nodeJson);
+
+    const threshold = 10;
+    for (const pt of mesh.points) {
+      const sx = (node.x + pt.x * node.width) * zoom + panX;
+      const sy = (node.y + pt.y * node.height) * zoom + panY;
+      const dx = screenX - sx;
+      const dy = screenY - sy;
+      if (dx * dx + dy * dy < threshold * threshold) {
+        return pt.index;
+      }
+    }
+    return null;
+  }
+
   private editingOverlay: HTMLElement | null = null;
 
   private onDoubleClick(e: MouseEvent) {
@@ -1804,6 +2021,21 @@ export class Editor {
     const nodeJson = this.engine.get_node_json(hit);
     if (!nodeJson) return;
     const node = JSON.parse(nodeJson);
+
+    // Mesh gradient fill → enter mesh edit mode
+    {
+      const fillsJson = this.engine.get_fills(hit);
+      if (fillsJson && fillsJson !== "[]") {
+        try {
+          const fills = JSON.parse(fillsJson);
+          const meshFillIdx = fills.findIndex((f: any) => f.type === "GradientMesh");
+          if (meshFillIdx >= 0) {
+            this.enterMeshEditMode(Number(hit), meshFillIdx);
+            return;
+          }
+        } catch {}
+      }
+    }
 
     // Path node → enter path edit mode
     if (typeof node.kind === "object" && node.kind.Path) {
@@ -2357,6 +2589,7 @@ export class Editor {
         this.renderMeasure();
         this.renderPathEditOverlay();
         this.renderVNEditOverlay();
+        this.renderMeshEditOverlay();
         this.renderCaret();
         this.renderMarquee();
         this.renderConnectorPreview();

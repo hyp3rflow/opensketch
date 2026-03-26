@@ -137,6 +137,15 @@ pub fn extract_colors<'a>(nodes: impl Iterator<Item = &'a Node>) -> Vec<ColorEnt
                         }
                     }
                 }
+                FillType::GradientMesh { ref mesh } => {
+                    for pt in &mesh.points {
+                        if pt.color.a > 0.01 {
+                            let hex = color_to_hex(&pt.color);
+                            let e = map.entry(hex.clone()).or_insert((pt.color, 0, "fill".into()));
+                            e.1 += 1;
+                        }
+                    }
+                }
                 FillType::Pattern { .. } | FillType::NoiseFill { .. } | FillType::DotPattern { .. } | FillType::CrosshatchFill { .. } => {}
             }
         }

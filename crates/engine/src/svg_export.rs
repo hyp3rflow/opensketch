@@ -984,6 +984,10 @@ fn append_fill_ref(attrs: &mut String, fill_type: &FillType, node_id: u64) {
         FillType::NoiseFill { .. } | FillType::DotPattern { .. } | FillType::CrosshatchFill { .. } => {
             attrs.push_str(&format!(r#" fill="url(#tex-{})""#, node_id));
         }
+        FillType::GradientMesh { .. } => {
+            // Mesh gradients use a rasterized fallback pattern
+            attrs.push_str(&format!(r#" fill="url(#mesh-{})""#, node_id));
+        }
     }
 }
 
@@ -1075,6 +1079,41 @@ fn build_gradient_defs(node: &Node) -> Option<String> {
                 id = pat_id, sp = sp, bg = bg, lines = lines, tr = transform,
             ))
         }
+        FillType::GradientMesh { ref mesh } => {
+            // SVG2 mesh gradient is not widely supported, so we generate a series of
+            // small rect elements with bilinearly interpolated colors as a fallback.
+            let pat_id = format!("mesh-{}", node.id);
+            let subdivs = 8u32;
+            let mut svg = format!(r#"<g id="{}">"#, pat_id);
+            for r in 0..(mesh.rows.saturating_sub(1)) {
+                for c in 0..(mesh.cols.saturating_sub(1)) {
+                    let tl = match mesh.get_point(r, c) { Some(p) => p, None => continue };
+                    let tr_pt = match mesh.get_point(r, c + 1) { Some(p) => p, None => continue };
+                    let bl = match mesh.get_point(r + 1, c) { Some(p) => p, None => continue };
+                    let br = match mesh.get_point(r + 1, c + 1) { Some(p) => p, None => continue };
+                    for sy in 0..subdivs {
+                        for sx in 0..subdivs {
+                            let u = (sx as f64 + 0.5) / subdivs as f64;
+                            let v = (sy as f64 + 0.5) / subdivs as f64;
+                            let px = tl.x * (1.0 - u) * (1.0 - v) + tr_pt.x * u * (1.0 - v) + bl.x * (1.0 - u) * v + br.x * u * v;
+                            let py = tl.y * (1.0 - u) * (1.0 - v) + tr_pt.y * u * (1.0 - v) + bl.y * (1.0 - u) * v + br.y * u * v;
+                            let cr = (tl.color.r as f64 * (1.0 - u) * (1.0 - v) + tr_pt.color.r as f64 * u * (1.0 - v) + bl.color.r as f64 * (1.0 - u) * v + br.color.r as f64 * u * v) as u8;
+                            let cg = (tl.color.g as f64 * (1.0 - u) * (1.0 - v) + tr_pt.color.g as f64 * u * (1.0 - v) + bl.color.g as f64 * (1.0 - u) * v + br.color.g as f64 * u * v) as u8;
+                            let cb = (tl.color.b as f64 * (1.0 - u) * (1.0 - v) + tr_pt.color.b as f64 * u * (1.0 - v) + bl.color.b as f64 * (1.0 - u) * v + br.color.b as f64 * u * v) as u8;
+                            let w_frac = 1.0 / subdivs as f64;
+                            svg.push_str(&format!(
+                                r#"<rect x="{}%" y="{}%" width="{}%" height="{}%" fill="{}"/>"#,
+                                (px - w_frac / 2.0) * 100.0, (py - w_frac / 2.0) * 100.0,
+                                w_frac * 100.0 * 1.1, w_frac * 100.0 * 1.1,
+                                color_to_hex(cr, cg, cb)
+                            ));
+                        }
+                    }
+                }
+            }
+            svg.push_str("</g>");
+            Some(svg)
+        }
         FillType::Pattern { src, scale, rotation, pattern_type, tile_width, tile_height } => {
             let pat_id = format!("pat-{}", node.id);
             let tw = if *tile_width > 0.0 { *tile_width * scale } else { 50.0 * scale };
@@ -1128,6 +1167,9 @@ fn append_fill_stroke(attrs: &mut String, node: &Node) {
             }
             FillType::NoiseFill { .. } | FillType::DotPattern { .. } | FillType::CrosshatchFill { .. } => {
                 attrs.push_str(&format!(r#" fill="url(#tex-{})""#, node.id));
+            }
+            FillType::GradientMesh { .. } => {
+                attrs.push_str(&format!(r#" fill="url(#mesh-{})""#, node.id));
             }
         }
     } else {

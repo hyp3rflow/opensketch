@@ -1303,6 +1303,18 @@ impl Engine {
                             "density": density,
                         }).to_string()
                     }
+                    FillType::GradientMesh { ref mesh } => {
+                        serde_json::json!({
+                            "type": "GradientMesh",
+                            "rows": mesh.rows,
+                            "cols": mesh.cols,
+                            "points": mesh.points.iter().enumerate().map(|(i, p)| serde_json::json!({
+                                "index": i,
+                                "x": p.x, "y": p.y,
+                                "r": p.color.r, "g": p.color.g, "b": p.color.b, "a": p.color.a
+                            })).collect::<Vec<_>>()
+                        }).to_string()
+                    }
                 };
             }
         }
@@ -1443,6 +1455,20 @@ impl Engine {
                             "bg_color": { "r": bg_color.r, "g": bg_color.g, "b": bg_color.b, "a": bg_color.a },
                             "angle": angle,
                             "density": density,
+                        })
+                    }
+                    FillType::GradientMesh { ref mesh } => {
+                        serde_json::json!({
+                            "index": i,
+                            "type": "GradientMesh",
+                            "visible": fill.visible,
+                            "rows": mesh.rows,
+                            "cols": mesh.cols,
+                            "points": mesh.points.iter().enumerate().map(|(pi, p)| serde_json::json!({
+                                "index": pi,
+                                "x": p.x, "y": p.y,
+                                "r": p.color.r, "g": p.color.g, "b": p.color.b, "a": p.color.a
+                            })).collect::<Vec<_>>()
                         })
                     }
                 };
@@ -1608,6 +1634,149 @@ impl Engine {
                 };
             }
         }
+    }
+
+    /// Set fill at index to gradient mesh. points_json: [{"x":0,"y":0,"r":255,"g":0,"b":0,"a":1}, ...]
+    pub fn set_fill_gradient_mesh_at(&mut self, id: u64, index: u32, rows: u32, cols: u32, points_json: &str) {
+        let pts: Vec<serde_json::Value> = serde_json::from_str(points_json).unwrap_or_default();
+        let mesh_points: Vec<crate::node::MeshPoint> = pts.iter().map(|p| crate::node::MeshPoint {
+            x: p["x"].as_f64().unwrap_or(0.0),
+            y: p["y"].as_f64().unwrap_or(0.0),
+            color: Color {
+                r: p["r"].as_u64().unwrap_or(200) as u8,
+                g: p["g"].as_u64().unwrap_or(200) as u8,
+                b: p["b"].as_u64().unwrap_or(200) as u8,
+                a: p["a"].as_f64().unwrap_or(1.0),
+            },
+        }).collect();
+        if let Some(node) = self.scene.get_node_mut(id) {
+            let idx = index as usize;
+            if idx < node.fills.len() {
+                node.fills[idx] = Fill {
+                    fill_type: FillType::GradientMesh {
+                        mesh: crate::node::MeshGradient {
+                            rows: rows.max(2),
+                            cols: cols.max(2),
+                            points: mesh_points,
+                        },
+                    },
+                    visible: node.fills[idx].visible,
+                };
+            }
+        }
+    }
+
+    /// Set a gradient mesh with default 2x2 grid
+    pub fn set_fill_gradient_mesh_default_at(&mut self, id: u64, index: u32) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            let idx = index as usize;
+            if idx < node.fills.len() {
+                node.fills[idx] = Fill {
+                    fill_type: FillType::GradientMesh {
+                        mesh: crate::node::MeshGradient::new_default(),
+                    },
+                    visible: node.fills[idx].visible,
+                };
+            }
+        }
+    }
+
+    /// Set mesh point color by index
+    pub fn mesh_set_point_color(&mut self, id: u64, fill_index: u32, point_index: u32, r: u8, g: u8, b: u8, a: f64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            let fi = fill_index as usize;
+            if fi < node.fills.len() {
+                if let FillType::GradientMesh { ref mut mesh } = node.fills[fi].fill_type {
+                    if let Some(pt) = mesh.points.get_mut(point_index as usize) {
+                        pt.color = Color { r, g, b, a };
+                    }
+                }
+            }
+        }
+    }
+
+    /// Set mesh point position by index
+    pub fn mesh_set_point_position(&mut self, id: u64, fill_index: u32, point_index: u32, x: f64, y: f64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            let fi = fill_index as usize;
+            if fi < node.fills.len() {
+                if let FillType::GradientMesh { ref mut mesh } = node.fills[fi].fill_type {
+                    if let Some(pt) = mesh.points.get_mut(point_index as usize) {
+                        pt.x = x.clamp(0.0, 1.0);
+                        pt.y = y.clamp(0.0, 1.0);
+                    }
+                }
+            }
+        }
+    }
+
+    /// Add a row to a mesh gradient
+    pub fn mesh_add_row(&mut self, id: u64, fill_index: u32) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            let fi = fill_index as usize;
+            if fi < node.fills.len() {
+                if let FillType::GradientMesh { ref mut mesh } = node.fills[fi].fill_type {
+                    mesh.add_row();
+                }
+            }
+        }
+    }
+
+    /// Add a column to a mesh gradient
+    pub fn mesh_add_col(&mut self, id: u64, fill_index: u32) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            let fi = fill_index as usize;
+            if fi < node.fills.len() {
+                if let FillType::GradientMesh { ref mut mesh } = node.fills[fi].fill_type {
+                    mesh.add_col();
+                }
+            }
+        }
+    }
+
+    /// Remove a row from a mesh gradient
+    pub fn mesh_remove_row(&mut self, id: u64, fill_index: u32) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            let fi = fill_index as usize;
+            if fi < node.fills.len() {
+                if let FillType::GradientMesh { ref mut mesh } = node.fills[fi].fill_type {
+                    mesh.remove_row();
+                }
+            }
+        }
+    }
+
+    /// Remove a column from a mesh gradient
+    pub fn mesh_remove_col(&mut self, id: u64, fill_index: u32) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            let fi = fill_index as usize;
+            if fi < node.fills.len() {
+                if let FillType::GradientMesh { ref mut mesh } = node.fills[fi].fill_type {
+                    mesh.remove_col();
+                }
+            }
+        }
+    }
+
+    /// Get mesh gradient info as JSON
+    pub fn mesh_get_info(&self, id: u64, fill_index: u32) -> String {
+        if let Some(node) = self.scene.get_node(id) {
+            let fi = fill_index as usize;
+            if fi < node.fills.len() {
+                if let FillType::GradientMesh { ref mesh } = node.fills[fi].fill_type {
+                    return serde_json::json!({
+                        "rows": mesh.rows,
+                        "cols": mesh.cols,
+                        "points": mesh.points.iter().enumerate().map(|(i, p)| serde_json::json!({
+                            "index": i,
+                            "x": p.x, "y": p.y,
+                            "r": p.color.r, "g": p.color.g, "b": p.color.b, "a": p.color.a
+                        })).collect::<Vec<_>>()
+                    }).to_string();
+                }
+            }
+        }
+        "null".to_string()
     }
 
     /// Set stroke at index 0 (backward compat). Creates if empty.

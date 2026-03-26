@@ -197,6 +197,7 @@
 - [ ] Canvas text cursor + multi-line text
 - [x] Image nodes (drag & drop, URL, clipboard paste, cover/contain/fill)
 - [x] **Gradient fills**: Solid/LinearGradient/RadialGradient fill types with gradient stops editor
+- [x] **Gradient mesh fills**: Multi-point color interpolation on 2D grid (MeshGradient), bilinear tessellation rendering, mesh edit mode (double-click to enter, drag points, click to change colors), rows/cols adjustment, SVG export fallback
   - Linear: start/end points (normalized 0~1), multiple color stops
   - Radial: center/radius (normalized), multiple color stops
   - Properties panel: mode switcher (Solid/Linear/Radial), stop color pickers, position inputs

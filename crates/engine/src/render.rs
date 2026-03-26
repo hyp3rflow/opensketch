@@ -1795,6 +1795,88 @@ impl Renderer {
                 ctx.restore();
                 return;
             }
+            crate::node::FillType::GradientMesh { ref mesh } => {
+                // Render gradient mesh via tessellation: for each cell in the grid,
+                // subdivide into small triangles with bilinearly interpolated colors.
+                if mesh.rows < 2 || mesh.cols < 2 { return; }
+                ctx.save();
+                ctx.begin_path();
+                ctx.rect(node.x, node.y, node.width, node.height);
+                ctx.clip();
+
+                let subdivs = 8u32; // subdivisions per cell for smooth interpolation
+                for r in 0..(mesh.rows - 1) {
+                    for c in 0..(mesh.cols - 1) {
+                        // Get 4 corners of this cell
+                        let tl = match mesh.get_point(r, c) { Some(p) => p, None => continue };
+                        let tr = match mesh.get_point(r, c + 1) { Some(p) => p, None => continue };
+                        let bl = match mesh.get_point(r + 1, c) { Some(p) => p, None => continue };
+                        let br = match mesh.get_point(r + 1, c + 1) { Some(p) => p, None => continue };
+
+                        for sy in 0..subdivs {
+                            for sx in 0..subdivs {
+                                let u0 = sx as f64 / subdivs as f64;
+                                let v0 = sy as f64 / subdivs as f64;
+                                let u1 = (sx + 1) as f64 / subdivs as f64;
+                                let v1 = (sy + 1) as f64 / subdivs as f64;
+
+                                // Bilinear position interpolation
+                                let lerp_x = |u: f64, v: f64| -> f64 {
+                                    let top = tl.x * (1.0 - u) + tr.x * u;
+                                    let bot = bl.x * (1.0 - u) + br.x * u;
+                                    top * (1.0 - v) + bot * v
+                                };
+                                let lerp_y = |u: f64, v: f64| -> f64 {
+                                    let top = tl.y * (1.0 - u) + tr.y * u;
+                                    let bot = bl.y * (1.0 - u) + br.y * u;
+                                    top * (1.0 - v) + bot * v
+                                };
+
+                                // Center color via bilinear interpolation
+                                let um = (u0 + u1) / 2.0;
+                                let vm = (v0 + v1) / 2.0;
+                                let lerp_color = |u: f64, v: f64| -> (u8, u8, u8, f64) {
+                                    let top_r = tl.color.r as f64 * (1.0 - u) + tr.color.r as f64 * u;
+                                    let top_g = tl.color.g as f64 * (1.0 - u) + tr.color.g as f64 * u;
+                                    let top_b = tl.color.b as f64 * (1.0 - u) + tr.color.b as f64 * u;
+                                    let top_a = tl.color.a * (1.0 - u) + tr.color.a * u;
+                                    let bot_r = bl.color.r as f64 * (1.0 - u) + br.color.r as f64 * u;
+                                    let bot_g = bl.color.g as f64 * (1.0 - u) + br.color.g as f64 * u;
+                                    let bot_b = bl.color.b as f64 * (1.0 - u) + br.color.b as f64 * u;
+                                    let bot_a = bl.color.a * (1.0 - u) + br.color.a * u;
+                                    (
+                                        (top_r * (1.0 - v) + bot_r * v) as u8,
+                                        (top_g * (1.0 - v) + bot_g * v) as u8,
+                                        (top_b * (1.0 - v) + bot_b * v) as u8,
+                                        top_a * (1.0 - v) + bot_a * v,
+                                    )
+                                };
+                                let (cr, cg, cb, ca) = lerp_color(um, vm);
+
+                                let px0 = node.x + lerp_x(u0, v0) * node.width;
+                                let py0 = node.y + lerp_y(u0, v0) * node.height;
+                                let px1 = node.x + lerp_x(u1, v0) * node.width;
+                                let py1 = node.y + lerp_y(u1, v0) * node.height;
+                                let px2 = node.x + lerp_x(u1, v1) * node.width;
+                                let py2 = node.y + lerp_y(u1, v1) * node.height;
+                                let px3 = node.x + lerp_x(u0, v1) * node.width;
+                                let py3 = node.y + lerp_y(u0, v1) * node.height;
+
+                                ctx.set_fill_style_str(&format!("rgba({},{},{},{})", cr, cg, cb, ca));
+                                ctx.begin_path();
+                                ctx.move_to(px0, py0);
+                                ctx.line_to(px1, py1);
+                                ctx.line_to(px2, py2);
+                                ctx.line_to(px3, py3);
+                                ctx.close_path();
+                                ctx.fill();
+                            }
+                        }
+                    }
+                }
+                ctx.restore();
+                return;
+            }
         }
     }
 

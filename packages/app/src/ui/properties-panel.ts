@@ -904,10 +904,10 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         const typeSelect = document.createElement("select");
         typeSelect.className = "prop-input";
         typeSelect.style.cssText = "flex:1;font-size:11px;";
-        for (const t of ["Solid", "LinearGradient", "RadialGradient", "Pattern", "NoiseFill", "DotPattern", "CrosshatchFill"]) {
+        for (const t of ["Solid", "LinearGradient", "RadialGradient", "Pattern", "NoiseFill", "DotPattern", "CrosshatchFill", "GradientMesh"]) {
           const opt = document.createElement("option");
           opt.value = t;
-          opt.textContent = t === "LinearGradient" ? "Linear" : t === "RadialGradient" ? "Radial" : t === "NoiseFill" ? "Noise" : t === "DotPattern" ? "Dots" : t === "CrosshatchFill" ? "Crosshatch" : t;
+          opt.textContent = t === "LinearGradient" ? "Linear" : t === "RadialGradient" ? "Radial" : t === "NoiseFill" ? "Noise" : t === "DotPattern" ? "Dots" : t === "CrosshatchFill" ? "Crosshatch" : t === "GradientMesh" ? "Mesh" : t;
           if (fill.type === t) opt.selected = true;
           typeSelect.appendChild(opt);
         }
@@ -936,6 +936,8 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             editor.engine.set_fill_dot_pattern_at(id, idx, 3.0, 12.0, 100, 100, 120, 1.0, 30, 30, 40, 1.0, 0.0);
           } else if (typeSelect.value === "CrosshatchFill") {
             editor.engine.set_fill_crosshatch_at(id, idx, 10.0, 1.0, 100, 100, 120, 1.0, 30, 30, 40, 1.0, 45.0, 2);
+          } else if (typeSelect.value === "GradientMesh") {
+            editor.engine.set_fill_gradient_mesh_default_at(id, idx);
           }
           editor.requestRender();
           refresh(ids);
@@ -1298,6 +1300,75 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             ensureUndo(); applyCross(); editor.requestRender(); refresh(ids);
           }));
           fillWrap.appendChild(cw);
+        } else if (fill.type === "GradientMesh") {
+          // Gradient Mesh UI
+          const mw = document.createElement("div");
+          mw.style.cssText = "display:flex;flex-direction:column;gap:4px;";
+          const meshRows = fill.rows || 2;
+          const meshCols = fill.cols || 2;
+          const meshPts = fill.points || [];
+
+          // Grid size info
+          const sizeRow = document.createElement("div");
+          sizeRow.style.cssText = "display:flex;align-items:center;gap:4px;";
+          const sizeLabel = document.createElement("span");
+          sizeLabel.style.cssText = "font-size:10px;color:#888;flex:1;";
+          sizeLabel.textContent = `Grid: ${meshRows}×${meshCols} (${meshPts.length} points)`;
+          sizeRow.appendChild(sizeLabel);
+          mw.appendChild(sizeRow);
+
+          // Row/Col buttons
+          const btnRow = document.createElement("div");
+          btnRow.style.cssText = "display:flex;gap:4px;flex-wrap:wrap;";
+          const mkBtn = (label: string, fn_: () => void) => {
+            const b = document.createElement("button");
+            b.style.cssText = "background:#333;border:1px solid #555;border-radius:4px;color:#ccc;cursor:pointer;font-size:10px;padding:2px 6px;";
+            b.textContent = label;
+            b.addEventListener("click", () => { ensureUndo(); fn_(); editor.requestRender(); refresh(ids); });
+            return b;
+          };
+          btnRow.appendChild(mkBtn("+Row", () => editor.engine.mesh_add_row(id, idx)));
+          btnRow.appendChild(mkBtn("-Row", () => editor.engine.mesh_remove_row(id, idx)));
+          btnRow.appendChild(mkBtn("+Col", () => editor.engine.mesh_add_col(id, idx)));
+          btnRow.appendChild(mkBtn("-Col", () => editor.engine.mesh_remove_col(id, idx)));
+          mw.appendChild(btnRow);
+
+          // Mesh points list (compact)
+          const ptsLabel = document.createElement("span");
+          ptsLabel.style.cssText = "font-size:10px;color:#888;margin-top:4px;";
+          ptsLabel.textContent = "Points (click to edit color):";
+          mw.appendChild(ptsLabel);
+
+          const ptsGrid = document.createElement("div");
+          ptsGrid.style.cssText = `display:grid;grid-template-columns:repeat(${meshCols}, 1fr);gap:2px;`;
+          for (let pi = 0; pi < meshPts.length; pi++) {
+            const pt = meshPts[pi];
+            const swatch = document.createElement("input");
+            swatch.type = "color";
+            swatch.value = `#${(pt.r ?? 200).toString(16).padStart(2, '0')}${(pt.g ?? 200).toString(16).padStart(2, '0')}${(pt.b ?? 200).toString(16).padStart(2, '0')}`;
+            swatch.style.cssText = "width:100%;height:20px;border:1px solid #555;border-radius:3px;padding:0;cursor:pointer;background:none;";
+            swatch.title = `Point ${pi} (${pt.x?.toFixed(2)}, ${pt.y?.toFixed(2)})`;
+            const ptIdx = pi;
+            swatch.addEventListener("input", () => {
+              const hex = swatch.value;
+              const r = parseInt(hex.slice(1, 3), 16);
+              const g = parseInt(hex.slice(3, 5), 16);
+              const b = parseInt(hex.slice(5, 7), 16);
+              ensureUndo();
+              editor.engine.mesh_set_point_color(id, idx, ptIdx, r, g, b, 1.0);
+              editor.requestRender();
+            });
+            ptsGrid.appendChild(swatch);
+          }
+          mw.appendChild(ptsGrid);
+
+          // Hint for mesh edit mode
+          const hint = document.createElement("span");
+          hint.style.cssText = "font-size:9px;color:#666;margin-top:2px;";
+          hint.textContent = "Double-click node to enter mesh edit mode";
+          mw.appendChild(hint);
+
+          fillWrap.appendChild(mw);
         } else if (fill.type === "Solid") {
           const color = fill.color || { r: 200, g: 200, b: 200, a: 1 };
           fillWrap.appendChild(createColorRow(color, (r, g, b, a) => {

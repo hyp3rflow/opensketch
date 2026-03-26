@@ -457,6 +457,156 @@ pub enum FillType {
         /// Density: 1 = single direction, 2 = crosshatch (two directions)
         density: u8,
     },
+    /// Gradient mesh fill (multi-point color interpolation on a 2D grid)
+    GradientMesh {
+        mesh: MeshGradient,
+    },
+}
+
+/// A point on a gradient mesh grid
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct MeshPoint {
+    /// Normalized x position (0.0–1.0) in node-local coords
+    pub x: f64,
+    /// Normalized y position (0.0–1.0) in node-local coords
+    pub y: f64,
+    /// Color at this point (CSS hex or rgba string)
+    pub color: Color,
+}
+
+/// Gradient mesh definition: a rows×cols grid of colored points
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct MeshGradient {
+    pub rows: u32,
+    pub cols: u32,
+    pub points: Vec<MeshPoint>,
+}
+
+impl MeshGradient {
+    /// Create a default 2×2 mesh with 4 corner colors
+    pub fn new_default() -> Self {
+        let points = vec![
+            MeshPoint { x: 0.0, y: 0.0, color: Color { r: 79, g: 70, b: 229, a: 1.0 } },   // top-left: indigo
+            MeshPoint { x: 1.0, y: 0.0, color: Color { r: 16, g: 185, b: 129, a: 1.0 } },   // top-right: emerald
+            MeshPoint { x: 0.0, y: 1.0, color: Color { r: 245, g: 158, b: 11, a: 1.0 } },   // bottom-left: amber
+            MeshPoint { x: 1.0, y: 1.0, color: Color { r: 239, g: 68, b: 68, a: 1.0 } },    // bottom-right: red
+        ];
+        Self { rows: 2, cols: 2, points }
+    }
+
+    /// Get point at grid position (row, col)
+    pub fn get_point(&self, row: u32, col: u32) -> Option<&MeshPoint> {
+        if row < self.rows && col < self.cols {
+            self.points.get((row * self.cols + col) as usize)
+        } else {
+            None
+        }
+    }
+
+    /// Get mutable point at grid position (row, col)
+    pub fn get_point_mut(&mut self, row: u32, col: u32) -> Option<&mut MeshPoint> {
+        if row < self.rows && col < self.cols {
+            self.points.get_mut((row * self.cols + col) as usize)
+        } else {
+            None
+        }
+    }
+
+    /// Add a row at the bottom, interpolating colors from the last row
+    pub fn add_row(&mut self) {
+        let new_row = self.rows;
+        let t = 1.0; // new row at bottom
+        for c in 0..self.cols {
+            // Interpolate between first and last row
+            let top = self.get_point(0, c).cloned().unwrap_or(MeshPoint { x: c as f64 / (self.cols - 1).max(1) as f64, y: 0.0, color: Color::white() });
+            let bot = self.get_point(self.rows - 1, c).cloned().unwrap_or(MeshPoint { x: c as f64 / (self.cols - 1).max(1) as f64, y: 1.0, color: Color::white() });
+            let new_y = 1.0; // at the bottom
+            // Redistribute y coords after
+            self.points.push(MeshPoint {
+                x: top.x,
+                y: new_y,
+                color: bot.color,
+            });
+        }
+        self.rows += 1;
+        // Redistribute y positions evenly
+        for r in 0..self.rows {
+            let y = r as f64 / (self.rows - 1).max(1) as f64;
+            for c in 0..self.cols {
+                if let Some(p) = self.points.get_mut((r * self.cols + c) as usize) {
+                    p.y = y;
+                }
+            }
+        }
+    }
+
+    /// Add a column at the right, interpolating colors
+    pub fn add_col(&mut self) {
+        let new_cols = self.cols + 1;
+        let mut new_points = Vec::with_capacity((self.rows * new_cols) as usize);
+        for r in 0..self.rows {
+            for c in 0..self.cols {
+                new_points.push(self.points[(r * self.cols + c) as usize].clone());
+            }
+            // Add new column point
+            let last = self.points[(r * self.cols + self.cols - 1) as usize].clone();
+            new_points.push(MeshPoint {
+                x: 1.0,
+                y: last.y,
+                color: last.color,
+            });
+        }
+        self.points = new_points;
+        self.cols = new_cols;
+        // Redistribute x positions evenly
+        for r in 0..self.rows {
+            for c in 0..self.cols {
+                let x = c as f64 / (self.cols - 1).max(1) as f64;
+                if let Some(p) = self.points.get_mut((r * self.cols + c) as usize) {
+                    p.x = x;
+                }
+            }
+        }
+    }
+
+    /// Remove the last row (min 2 rows)
+    pub fn remove_row(&mut self) {
+        if self.rows <= 2 { return; }
+        self.points.truncate(((self.rows - 1) * self.cols) as usize);
+        self.rows -= 1;
+        // Redistribute y
+        for r in 0..self.rows {
+            let y = r as f64 / (self.rows - 1).max(1) as f64;
+            for c in 0..self.cols {
+                if let Some(p) = self.points.get_mut((r * self.cols + c) as usize) {
+                    p.y = y;
+                }
+            }
+        }
+    }
+
+    /// Remove the last column (min 2 cols)
+    pub fn remove_col(&mut self) {
+        if self.cols <= 2 { return; }
+        let new_cols = self.cols - 1;
+        let mut new_points = Vec::new();
+        for r in 0..self.rows {
+            for c in 0..new_cols {
+                new_points.push(self.points[(r * self.cols + c) as usize].clone());
+            }
+        }
+        self.points = new_points;
+        self.cols = new_cols;
+        // Redistribute x
+        for r in 0..self.rows {
+            for c in 0..self.cols {
+                let x = c as f64 / (self.cols - 1).max(1) as f64;
+                if let Some(p) = self.points.get_mut((r * self.cols + c) as usize) {
+                    p.x = x;
+                }
+            }
+        }
+    }
 }
 
 fn default_visible() -> bool { true }
@@ -508,6 +658,9 @@ impl Fill {
             FillType::NoiseFill { color1, .. } => *color1,
             FillType::DotPattern { color, .. } => *color,
             FillType::CrosshatchFill { color, .. } => *color,
+            FillType::GradientMesh { ref mesh } => {
+                mesh.points.first().map(|p| p.color).unwrap_or(Color::white())
+            }
         }
     }
 

@@ -27,7 +27,9 @@ Pure Rust crate compiled to WASM via `wasm-pack`. No NAPI — runs entirely in t
 - Region detection: planar face algorithm finds minimal closed cycles for fill regions
 - Path → VectorNetwork conversion supported
 - `GradientStop { offset: f64, color: Color }`
-- `FillType`: `Solid { color }` | `LinearGradient { start_x, start_y, end_x, end_y, stops }` | `RadialGradient { center_x, center_y, radius, stops }` | `Pattern { src, scale, rotation, pattern_type, tile_width, tile_height }` | `NoiseFill { scale, color1, color2, intensity, seed }` | `DotPattern { dot_radius, spacing, color, bg_color, angle }` | `CrosshatchFill { spacing, line_width, color, bg_color, angle, density }` — coordinates normalized 0~1
+- `FillType`: `Solid { color }` | `LinearGradient { start_x, start_y, end_x, end_y, stops }` | `RadialGradient { center_x, center_y, radius, stops }` | `Pattern { src, scale, rotation, pattern_type, tile_width, tile_height }` | `NoiseFill { scale, color1, color2, intensity, seed }` | `DotPattern { dot_radius, spacing, color, bg_color, angle }` | `CrosshatchFill { spacing, line_width, color, bg_color, angle, density }` | `GradientMesh { mesh: MeshGradient }` — coordinates normalized 0~1
+- `MeshGradient { rows: u32, cols: u32, points: Vec<MeshPoint> }` — 2D grid of colored points for multi-point gradient interpolation
+- `MeshPoint { x: f64, y: f64, color: Color }` — normalized position (0~1) with color at each grid intersection
 - `Fill { fill_type: FillType, visible: bool }` (backward-compatible deserialization from old `{ color }` format; visible defaults to true)
 - `Stroke { color: Color, width: f64, dash_array: Vec<f64>, dash_offset: f64, line_cap: LineCap, line_join: LineJoin, align: StrokeAlign }`
 - `StrokeAlign { Center, Inside, Outside }` — stroke alignment (Figma-style)
@@ -83,7 +85,7 @@ Pure Rust crate compiled to WASM via `wasm-pack`. No NAPI — runs entirely in t
 - Rendering: all visible fills rendered in sequence (bottom → top); strokes rendered per-stroke (outside before fills, center/inside after fills)
 - Multi-stroke: Vec<Stroke> with visible toggle per stroke, add/remove/update API
 - SVG export: uses first visible fill (SVG doesn't natively support stacked fills)
-- WASM API: `add_fill`, `remove_fill`, `update_fill_at`, `set_fill_visible_at`, `get_fills`, `get_fill_count`, `move_fill`, `set_fill_linear_gradient_at`, `set_fill_radial_gradient_at`
+- WASM API: `add_fill`, `remove_fill`, `update_fill_at`, `set_fill_visible_at`, `get_fills`, `get_fill_count`, `move_fill`, `set_fill_linear_gradient_at`, `set_fill_radial_gradient_at`, `set_fill_gradient_mesh_at`, `set_fill_gradient_mesh_default_at`, `mesh_set_point_color`, `mesh_set_point_position`, `mesh_add_row`, `mesh_add_col`, `mesh_remove_row`, `mesh_remove_col`, `mesh_get_info`
 - Legacy `set_fill_color` / `set_fill_linear_gradient` / `set_fill_radial_gradient` update fills[0]
 
 ## Effects System
