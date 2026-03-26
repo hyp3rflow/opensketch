@@ -1,4 +1,5 @@
 import type { Engine } from "./wasm/opensketch_engine";
+import { renderPixelGrid, renderDeviceFrame } from "./ui/pixel-preview";
 import { computeSnap, renderGuides, type SnapGuide } from "./tools/smart-guides";
 import { computePointSnap, renderPointSnapIndicators, collectPathPointTargets, addRulerTargets, constrainAngle, type PointSnapIndicator, type PointSnapTarget } from "./tools/point-snap";
 import { computeMeasureLines, renderMeasureLines, renderTargetHighlight, type MeasureLine } from "./tools/measure";
@@ -475,6 +476,13 @@ export class Editor {
       if (e.shiftKey && e.altKey && (e.key === "R" || e.key === "r") && !(e.metaKey || e.ctrlKey)) {
         e.preventDefault();
         toggleRecorderBar();
+        return;
+      }
+
+      // Alt+P: Pixel Preview toggle
+      if (e.altKey && !e.metaKey && !e.ctrlKey && !e.shiftKey && (e.key === "p" || e.key === "π")) {
+        e.preventDefault();
+        this.togglePixelPreview();
         return;
       }
 
@@ -2294,6 +2302,12 @@ export class Editor {
     return lines;
   }
 
+  // Pixel preview mode
+  private _pixelPreview = false;
+  private _pixelPreviewDevice: import("./ui/pixel-preview").DevicePreset | null = null;
+  private _pixelPreviewShowGrid = true;
+  private _onPixelPreviewChanges: (() => void)[] = [];
+
   // Performance monitoring
   private _frameTimeHistory: number[] = [];
   private _perfStatsEl: HTMLElement | null = null;
@@ -2306,6 +2320,10 @@ export class Editor {
         const frameStart = performance.now();
         const dpr = window.devicePixelRatio || 1;
         this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        // Pixel preview: disable smoothing for crisp 1:1 pixels
+        if (this._pixelPreview) {
+          this.ctx.imageSmoothingEnabled = false;
+        }
         this.engine.render(this.ctx);
         this.renderImages();
         this.renderPatternFills();
@@ -2324,6 +2342,7 @@ export class Editor {
         this.renderSpacingHandles();
         this.renderCursorPresence();
         this.renderDiffOverlay();
+        this.renderPixelPreviewOverlay();
         this._rulers?.render();
         this.needsRender = false;
 
@@ -2794,6 +2813,28 @@ export class Editor {
   private renderSpacingHandles() {
     if (this._spacingHandles.length === 0) return;
     renderSpacingHandles(this.ctx, this._spacingHandles, this._spacingHovered, this._spacingDragging);
+  }
+
+  private renderPixelPreviewOverlay() {
+    if (!this._pixelPreview) return;
+    const zoom = this.engine.get_zoom();
+    const panX = this.engine.get_pan_x();
+    const panY = this.engine.get_pan_y();
+    const cw = this.canvas.clientWidth;
+    const ch = this.canvas.clientHeight;
+    
+    // Pixel grid at high zoom
+    if (this._pixelPreviewShowGrid) {
+      renderPixelGrid(this.ctx, cw, ch, zoom, panX, panY);
+    }
+    
+    // Device frame overlay
+    if (this._pixelPreviewDevice) {
+      renderDeviceFrame(this.ctx, cw, ch, zoom, panX, panY, this._pixelPreviewDevice);
+    }
+    
+    // Re-enable smoothing for UI overlays (rulers, etc.)
+    this.ctx.imageSmoothingEnabled = true;
   }
 
   private renderDiffOverlay() {
@@ -3384,6 +3425,49 @@ export class Editor {
 
   private onZoomChange() {
     this._onZoomChanges.forEach(fn => fn());
+  }
+
+  // =============================================
+  // Pixel Preview Mode
+  // =============================================
+
+  togglePixelPreview() {
+    this._pixelPreview = !this._pixelPreview;
+    if (this._pixelPreview) {
+      // Disable anti-aliasing for crisp pixel rendering
+      this.ctx.imageSmoothingEnabled = false;
+    } else {
+      this.ctx.imageSmoothingEnabled = true;
+    }
+    this.needsRender = true;
+    this._onPixelPreviewChanges.forEach(fn => fn());
+  }
+
+  isPixelPreviewEnabled(): boolean {
+    return this._pixelPreview;
+  }
+
+  setPixelPreviewDevice(device: import("./ui/pixel-preview").DevicePreset | null) {
+    this._pixelPreviewDevice = device;
+    this.needsRender = true;
+    this._onPixelPreviewChanges.forEach(fn => fn());
+  }
+
+  getPixelPreviewDevice(): import("./ui/pixel-preview").DevicePreset | null {
+    return this._pixelPreviewDevice;
+  }
+
+  setPixelPreviewShowGrid(show: boolean) {
+    this._pixelPreviewShowGrid = show;
+    this.needsRender = true;
+  }
+
+  getPixelPreviewShowGrid(): boolean {
+    return this._pixelPreviewShowGrid;
+  }
+
+  onPixelPreviewChanged(fn: () => void) {
+    this._onPixelPreviewChanges.push(fn);
   }
 
   // =============================================

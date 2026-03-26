@@ -137,6 +137,7 @@ select.prop-input { appearance: none; background: #333 url("data:image/svg+xml,%
 .zoom-controls .zoom-btn:hover { background: #3a3a3a; color: #fff; }
 .zoom-controls .zoom-level { border: none; background: transparent; color: #ccc; font-size: 11px; font-weight: 600; padding: 0 6px; height: 32px; cursor: pointer; min-width: 48px; text-align: center; transition: all 0.15s; }
 .zoom-controls .zoom-level:hover { background: #3a3a3a; color: #fff; }
+.zoom-controls .zoom-btn.active { background: #4a4af5; color: #fff; }
 
 /* Version History Panel */
 .history-panel { display: flex; flex-direction: column; height: 100%; }

@@ -972,3 +972,13 @@ Frame overflow control and content scrolling.
 - [x] **Toolbar**: Table button (B shortcut)
 - [x] **Properties panel**: Rows/Cols display, add/remove row/col, CSV import, sort buttons
 - [x] **Backward-compatible serde**: Default values for all Table fields
+
+## 92. Pixel Preview Mode
+- [x] **Toggle**: Alt+P keyboard shortcut, zoom bar button
+- [x] **Anti-aliasing off**: `imageSmoothingEnabled = false` during scene rendering
+- [x] **Pixel grid overlay**: Visible at zoom ≥ 8x, adaptive opacity, max 500 lines
+- [x] **Device frame simulation**: 10 presets (iPhone, Pixel, iPad, MacBook, 1080p, 4K)
+- [x] **Device picker**: Right-click pixel preview button for device selection dropdown
+- [x] **DPR display**: Physical resolution info shown below device frame
+- [x] **Dimmed surround**: Area outside device viewport dimmed at 40% black
+- [x] **UI smoothing preserved**: Re-enables imageSmoothingEnabled for rulers/overlays
