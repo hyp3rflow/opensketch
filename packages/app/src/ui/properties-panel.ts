@@ -3207,6 +3207,25 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         refresh(ids);
       });
       varToggleRow.appendChild(varToggle);
+
+      // Pressure sensitivity toggle
+      const pressRow = document.createElement("div");
+      pressRow.style.cssText = "display:flex;align-items:center;gap:8px;margin-bottom:6px;";
+      const pressLabel = document.createElement("span");
+      pressLabel.style.cssText = "font-size:11px;color:#999;";
+      pressLabel.textContent = "Pressure";
+      pressRow.appendChild(pressLabel);
+      const pressToggle = document.createElement("button");
+      const pressOn = editor.penPressureEnabled;
+      pressToggle.textContent = pressOn ? "On" : "Off";
+      pressToggle.style.cssText = `padding:3px 8px;border:1px solid ${pressOn ? "#4f46e5" : "#444"};border-radius:4px;background:${pressOn ? "#4f46e520" : "#2a2a2a"};color:${pressOn ? "#818cf8" : "#999"};cursor:pointer;font-size:11px;`;
+      pressToggle.title = "Enable stylus pressure sensitivity for pen tool";
+      pressToggle.addEventListener("click", () => {
+        editor.penPressureEnabled = !editor.penPressureEnabled;
+        refresh(ids);
+      });
+      pressRow.appendChild(pressToggle);
+      varToggleRow.appendChild(pressRow);
       varRow.appendChild(varToggleRow);
 
       if (hasVarStroke) {

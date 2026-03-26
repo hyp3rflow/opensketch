@@ -232,6 +232,7 @@
   - SVG export: `<path d="M... C... L... Z"/>` with full bezier support
   - Properties panel: point count display, open/closed toggle
   - WASM bindings: add_path, path_add_point, path_add_curve_point, path_set_point, path_set_handle_out/in, path_remove_point, path_set_closed, path_get_data, path_point_count
+  - Pressure sensitivity: stylus PointerEvent.pressure → per-point variable stroke width, auto-detect pen input, Properties panel toggle
   - **Variable-width stroke**: per-point stroke_width field, rendered as filled outline shape
     - WASM: path_set_point_stroke_width, path_get_point_stroke_width, has_variable_stroke, path_get_stroke_profile
     - Properties panel: toggle + start/end width inputs + profile preview canvas

@@ -797,13 +797,26 @@
 - TS UI: 댓글 패널 필터 탭 — All / Unresolved (count) / @Me (mentions + assigned)
 - Backward-compatible serde(default)
 
+## 완료된 기능 (추가 109)
+- Canvas minimap (이미 구현 완료 확인): 우하단 미니맵 오버레이, 뷰포트 사각형, 클릭/드래그 네비게이션, 토글 접기
+- 3D Perspective Transform (이미 구현 완료 확인): rotate_x/y/z, perspective, origin, Properties panel, Inspect CSS export
+
+## 완료된 기능 (추가 110)
+- Pen tool pressure sensitivity:
+  - PointerEvent.pressure 캡처 (pointerType === "pen" 시 자동 감지)
+  - Pressure → per-point stroke_width 매핑 (baseWidth × (0.1 + pressure × 1.9))
+  - Pen drag 중에도 pressure 업데이트 (bezier handle 생성 시)
+  - Editor.penPressureEnabled getter/setter (기본 on)
+  - Properties panel: Path 노드 Variable Stroke 섹션에 Pressure On/Off 토글
+  - 기존 variable-width stroke 렌더링 엔진 활용 (render_variable_width_stroke)
+
 ## 다음 할 것
 - Canvas annotations / sticky notes (FigJam-style sticky notes with color themes, resizable, connectable, voting dots)
 - Figma file diff / merge (Figma 파일 간 노드 비교, 변경사항 시각화, 선택적 머지)
 - Plugin marketplace (커뮤니티 플러그인 브라우저, 설치/제거, 버전 관리)
-- Pen tool pressure sensitivity (스타일러스 펜 필압 지원, 가변 선 두께)
 - Smart component variants (조건부 variant 전환 — hover/press/focus state 자동 교체)
 - Shared component library (팀 간 컴포넌트 라이브러리 퍼블리싱/구독, 버전 동기화)
-- Canvas minimap (우하단 미니맵 오버레이, 현재 뷰포트 표시, 클릭/드래그로 네비게이션)
 - Auto-documentation generator (컴포넌트/스타일 기반 디자인 시스템 문서 자동 생성, Markdown/HTML export)
-- 3D Perspective Transform (노드별 3D 회전 X/Y/Z + 원근 투영 + vanishing point, strip-based Canvas2D 렌더링, Properties UI, SVG/CSS export)
+- Accessible color contrast checker (WCAG AA/AAA 대비 비율 검사, 자동 색상 보정 제안, 접근성 리포트)
+- Smart layout suggestions (AI 기반 레이아웃 개선 제안 — 정렬 불일치, 간격 불균형, 일관성 위반 감지 + 원클릭 적용)
+- Canvas performance profiler (렌더링 FPS 모니터, 노드별 렌더 비용 히트맵, 최적화 제안)

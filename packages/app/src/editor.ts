@@ -69,6 +69,9 @@ export class Editor {
   private _penDragging = false;
   private _penDragStartX = 0;
   private _penDragStartY = 0;
+  /** Pressure sensitivity: auto-detect stylus and map pressure → per-point stroke width */
+  private _penPressureEnabled = true;
+  private _penLastPressure = 0.5;
 
   // Path edit mode state
   private _pathEditMode = false;
@@ -963,6 +966,18 @@ export class Editor {
         this.engine.select(this._penPathId);
       }
       this.engine.path_add_point(this._penPathId, sx, sy);
+
+      // Pressure sensitivity: if stylus provides pressure, set per-point stroke width
+      if (this._penPressureEnabled && e.pressure > 0 && e.pressure < 1 && e.pointerType === "pen") {
+        this._penLastPressure = e.pressure;
+        const strokeInfo = this.engine.get_stroke_info(BigInt(this._penPathId));
+        const baseWidth = strokeInfo ? (JSON.parse(strokeInfo).width || 2) : 2;
+        const pointIdx = this.engine.path_point_count(this._penPathId) - 1;
+        // Map pressure (0–1) to width: minFactor 0.1, maxFactor 2.0
+        const width = baseWidth * (0.1 + e.pressure * 1.9);
+        this.engine.path_set_point_stroke_width(BigInt(this._penPathId), pointIdx, width);
+      }
+
       this._penDragging = true;
       this._penDragStartX = sx;
       this._penDragStartY = sy;
@@ -1219,6 +1234,14 @@ export class Editor {
       const pointCount = this.engine.path_point_count(this._penPathId);
       if (pointCount > 0) {
         this.engine.path_set_handle_out(this._penPathId, pointCount - 1, sx, sy);
+        // Update pressure on current point while dragging
+        if (this._penPressureEnabled && e.pressure > 0 && e.pressure < 1 && e.pointerType === "pen") {
+          this._penLastPressure = e.pressure;
+          const strokeInfo = this.engine.get_stroke_info(BigInt(this._penPathId));
+          const baseWidth = strokeInfo ? (JSON.parse(strokeInfo).width || 2) : 2;
+          const width = baseWidth * (0.1 + e.pressure * 1.9);
+          this.engine.path_set_point_stroke_width(BigInt(this._penPathId), pointCount - 1, width);
+        }
       }
       this.needsRender = true;
       return;
@@ -2700,6 +2723,10 @@ export class Editor {
       this.needsRender = true;
     }
   }
+
+  /** Enable/disable pressure sensitivity for pen tool (stylus input) */
+  get penPressureEnabled() { return this._penPressureEnabled; }
+  set penPressureEnabled(v: boolean) { this._penPressureEnabled = v; }
 
   setTool(tool: ToolType) {
     // Finish any in-progress pen path when switching away
