@@ -565,6 +565,21 @@ Save, manage, and apply named export configurations (format, scale, suffix) for 
 - [x] SVG export: Uses engine.export_node_svg() / export_svg()
 - [x] Auto-naming: node name + suffix + format extension
 
+## Batch Export (ZIP)
+Multi-node/page bulk export with ZIP download.
+
+### Features
+- [x] **Batch export dialog**: Cmd+Shift+E or toolbar button
+- [x] **Node + page selection**: Checkbox list of all pages and root-level nodes (selected nodes pre-checked)
+- [x] **Per-item format/scale**: PNG or SVG, 0.5x–4x per item
+- [x] **Quick actions**: Select All/None, All PNG/SVG, global scale selector, apply preset
+- [x] **ZIP download**: fflate compression, auto-named files, deduplication
+- [x] **Page export**: Switches active page temporarily, restores after
+- [x] **Integration**: Export preset profiles applicable to batch items
+
+### Files
+- `packages/app/src/ui/batch-export.ts`
+
 ## Cursor Presence Indicators
 
 Simulated multi-user cursor display for collaboration readiness.

@@ -391,6 +391,12 @@ export class Editor {
         }
         return;
       }
+      // Batch Export: Cmd+Shift+E
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "e" || e.key === "E")) {
+        e.preventDefault();
+        import("./ui/batch-export").then(m => m.openBatchExport(this));
+        return;
+      }
       // Smart Select: Cmd+Shift+A
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "a" || e.key === "A")) {
         e.preventDefault();
