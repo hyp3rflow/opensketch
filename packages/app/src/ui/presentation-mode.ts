@@ -5,7 +5,7 @@
 import type { Editor } from "../editor";
 import { createPresentationAnnotations } from "./presentation-annotations";
 
-type TransitionType = "none" | "fade" | "slide-left" | "slide-right" | "slide-up" | "zoom";
+type TransitionType = "none" | "fade" | "slide-left" | "slide-right" | "slide-up" | "zoom" | "smart-animate";
 
 interface PageInfo {
   id: number;
@@ -37,6 +37,7 @@ export function createPresentationMode(editor: Editor) {
   let progressBar: HTMLDivElement | null = null;
   let slideCounter: HTMLSpanElement | null = null;
   let annotations: ReturnType<typeof createPresentationAnnotations> | null = null;
+  let prevPageId: number | null = null;
 
   function show(opts?: PresentationOptions) {
     if (active) return;
@@ -154,7 +155,7 @@ export function createPresentationMode(editor: Editor) {
     // Transition select
     const transSelect = document.createElement("select");
     transSelect.style.cssText = "background:#333;color:#ccc;border:1px solid #555;border-radius:4px;padding:2px 6px;font-size:11px;cursor:pointer;";
-    for (const t of ["none", "fade", "slide-left", "slide-right", "slide-up", "zoom"] as TransitionType[]) {
+    for (const t of ["none", "fade", "slide-left", "slide-right", "slide-up", "zoom", "smart-animate"] as TransitionType[]) {
       const opt = document.createElement("option");
       opt.value = t; opt.textContent = t.charAt(0).toUpperCase() + t.slice(1).replace("-", " ");
       if (t === options.transition) opt.selected = true;
@@ -352,6 +353,11 @@ export function createPresentationMode(editor: Editor) {
   }
 
   function applyTransition(fromCanvas: HTMLCanvasElement, toCanvas: HTMLCanvasElement, type: TransitionType) {
+    if (type === "smart-animate") {
+      performSmartAnimatePages(fromCanvas, toCanvas);
+      return;
+    }
+
     transitioning = true;
     const duration = 400;
     const start = performance.now();
@@ -430,14 +436,239 @@ export function createPresentationMode(editor: Editor) {
     requestAnimationFrame(frame);
   }
 
+  /**
+   * Smart Animate between pages: match nodes by name across pages,
+   * interpolate position/size/rotation/opacity/corner_radius with cross-fade.
+   */
+  function performSmartAnimatePages(fromCanvas: HTMLCanvasElement, toCanvas: HTMLCanvasElement) {
+    if (!slideCanvas) return;
+    transitioning = true;
+
+    const prevPageIndex = (() => {
+      // The previous page was the one before currentIndex change
+      // We need the page IDs for the from/to pages
+      // fromCanvas was captured BEFORE currentIndex changed
+      // currentIndex is now the NEW page
+      return currentIndex;
+    })();
+
+    // Get page IDs
+    const fromPageId = prevPageId;
+    const toPageId = pages[currentIndex]?.id;
+
+    if (fromPageId == null || toPageId == null) {
+      // Fallback to fade
+      transitioning = false;
+      return;
+    }
+
+    // Call engine to compute matched pairs
+    let animData: { pairs: any[]; removed: any[]; added: any[] };
+    try {
+      const json = editor.engine.compute_auto_animate_pages(fromPageId, toPageId);
+      animData = JSON.parse(json);
+    } catch {
+      animData = { pairs: [], removed: [], added: [] };
+    }
+
+    // If no matches, fall back to fade
+    if (animData.pairs.length === 0) {
+      applyFadeFallback(fromCanvas, toCanvas);
+      return;
+    }
+
+    const dpr = window.devicePixelRatio || 1;
+    const w = slideCanvas.width;
+    const h = slideCanvas.height;
+
+    // We need to compute the scale used when rendering
+    let boundsJson: string;
+    try { boundsJson = editor.engine.get_scene_bounds(); } catch { boundsJson = '{"x":0,"y":0,"width":1920,"height":1080}'; }
+    const bounds = JSON.parse(boundsJson);
+    const sceneW = bounds.width || 1920;
+    const sceneH = bounds.height || 1080;
+    const availW = window.innerWidth;
+    const availH = window.innerHeight;
+    const renderScale = Math.min(availW / sceneW, availH / sceneH, 2);
+    const totalScale = renderScale * dpr;
+
+    // Snapshot the new slide
+    const newSnapshot = document.createElement("canvas");
+    newSnapshot.width = w; newSnapshot.height = h;
+    newSnapshot.getContext("2d")!.drawImage(toCanvas, 0, 0);
+
+    const ctx = slideCanvas.getContext("2d")!;
+    const duration = 500;
+    const startTime = performance.now();
+
+    function ease(t: number): number {
+      return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    }
+
+    function lerp(a: number, b: number, t: number): number {
+      return a + (b - a) * t;
+    }
+
+    function animate() {
+      if (!slideCanvas || !active) { transitioning = false; return; }
+      const elapsed = performance.now() - startTime;
+      const rawT = Math.min(elapsed / duration, 1);
+      const t = ease(rawT);
+
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, w, h);
+
+      // Cross-fade background (unmatched content)
+      ctx.globalAlpha = 1 - t;
+      ctx.drawImage(fromCanvas, 0, 0, w, h);
+      ctx.globalAlpha = t;
+      ctx.drawImage(newSnapshot, 0, 0, w, h);
+      ctx.globalAlpha = 1;
+
+      // Render matched pairs with interpolation
+      for (const pair of animData.pairs) {
+        const { from, to } = pair;
+
+        const ix = lerp(from.rel_x, to.rel_x, t) * totalScale;
+        const iy = lerp(from.rel_y, to.rel_y, t) * totalScale;
+        const iw = lerp(from.width, to.width, t) * totalScale;
+        const ih = lerp(from.height, to.height, t) * totalScale;
+        const iOpacity = lerp(from.opacity, to.opacity, t);
+
+        const sx = from.rel_x * totalScale;
+        const sy = from.rel_y * totalScale;
+        const sw = from.width * totalScale;
+        const sh = from.height * totalScale;
+
+        const tx = to.rel_x * totalScale;
+        const ty = to.rel_y * totalScale;
+        const tw = to.width * totalScale;
+        const th = to.height * totalScale;
+
+        ctx.save();
+
+        // Interpolate rotation
+        const iRotation = lerp(from.rotation, to.rotation, t);
+        if (Math.abs(iRotation) > 0.01) {
+          const cx = ix + iw / 2;
+          const cy = iy + ih / 2;
+          ctx.translate(cx, cy);
+          ctx.rotate((iRotation * Math.PI) / 180);
+          ctx.translate(-cx, -cy);
+        }
+
+        // Interpolate corner radius
+        const iRadius = lerp(from.corner_radius, to.corner_radius, t) * totalScale;
+
+        // Clip to interpolated rounded rect
+        ctx.beginPath();
+        if (iRadius > 0 && ctx.roundRect) {
+          ctx.roundRect(ix, iy, iw, ih, iRadius);
+        } else {
+          ctx.rect(ix, iy, iw, ih);
+        }
+        ctx.clip();
+
+        // Clear clipped area
+        ctx.clearRect(ix - 1, iy - 1, iw + 2, ih + 2);
+
+        // Draw from-node fading out
+        if (sw > 0 && sh > 0) {
+          ctx.globalAlpha = (1 - t) * iOpacity;
+          ctx.drawImage(fromCanvas, sx, sy, sw, sh, ix, iy, iw, ih);
+        }
+
+        // Draw to-node fading in
+        if (tw > 0 && th > 0) {
+          ctx.globalAlpha = t * iOpacity;
+          ctx.drawImage(newSnapshot, tx, ty, tw, th, ix, iy, iw, ih);
+        }
+
+        ctx.globalAlpha = 1;
+        ctx.restore();
+      }
+
+      // Fade out removed nodes
+      for (const node of animData.removed) {
+        ctx.save();
+        ctx.globalAlpha = 1 - t;
+        const rx = node.rel_x * totalScale;
+        const ry = node.rel_y * totalScale;
+        const rw = node.width * totalScale;
+        const rh = node.height * totalScale;
+        if (rw > 0 && rh > 0) {
+          ctx.drawImage(fromCanvas, rx, ry, rw, rh, rx, ry, rw, rh);
+        }
+        ctx.restore();
+      }
+
+      // Fade in added nodes
+      for (const node of animData.added) {
+        ctx.save();
+        ctx.globalAlpha = t;
+        const ax = node.rel_x * totalScale;
+        const ay = node.rel_y * totalScale;
+        const aw = node.width * totalScale;
+        const ah = node.height * totalScale;
+        if (aw > 0 && ah > 0) {
+          ctx.drawImage(newSnapshot, ax, ay, aw, ah, ax, ay, aw, ah);
+        }
+        ctx.restore();
+      }
+
+      if (rawT < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, w, h);
+        ctx.drawImage(newSnapshot, 0, 0);
+        transitioning = false;
+      }
+    }
+
+    requestAnimationFrame(animate);
+  }
+
+  /** Simple fade fallback when smart-animate has no matched nodes */
+  function applyFadeFallback(fromCanvas: HTMLCanvasElement, toCanvas: HTMLCanvasElement) {
+    transitioning = true;
+    if (!slideCanvas) return;
+    const ctx = slideCanvas.getContext("2d")!;
+    const w = slideCanvas.width;
+    const h = slideCanvas.height;
+    const newSnapshot = document.createElement("canvas");
+    newSnapshot.width = w; newSnapshot.height = h;
+    newSnapshot.getContext("2d")!.drawImage(toCanvas, 0, 0);
+    const duration = 400;
+    const start = performance.now();
+    function ease(t: number): number { return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t; }
+    function frame(now: number) {
+      const elapsed = now - start;
+      const t = Math.min(elapsed / duration, 1);
+      const et = ease(t);
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, w, h);
+      ctx.globalAlpha = 1;
+      ctx.drawImage(fromCanvas, 0, 0);
+      ctx.globalAlpha = et;
+      ctx.drawImage(newSnapshot, 0, 0);
+      ctx.globalAlpha = 1;
+      if (t < 1) requestAnimationFrame(frame);
+      else { ctx.clearRect(0, 0, w, h); ctx.drawImage(newSnapshot, 0, 0); transitioning = false; }
+    }
+    requestAnimationFrame(frame);
+  }
+
   function goNext() {
     if (transitioning) return;
     if (currentIndex < pages.length - 1) {
       const prev = captureCurrentSlide();
+      prevPageId = pages[currentIndex]?.id ?? null;
       currentIndex++;
       renderSlide(prev ?? undefined);
     } else if (options.loop) {
       const prev = captureCurrentSlide();
+      prevPageId = pages[currentIndex]?.id ?? null;
       currentIndex = 0;
       renderSlide(prev ?? undefined);
     }
@@ -447,10 +678,12 @@ export function createPresentationMode(editor: Editor) {
     if (transitioning) return;
     if (currentIndex > 0) {
       const prev = captureCurrentSlide();
+      prevPageId = pages[currentIndex]?.id ?? null;
       currentIndex--;
       renderSlide(prev ?? undefined);
     } else if (options.loop) {
       const prev = captureCurrentSlide();
+      prevPageId = pages[currentIndex]?.id ?? null;
       currentIndex = pages.length - 1;
       renderSlide(prev ?? undefined);
     }
@@ -460,6 +693,7 @@ export function createPresentationMode(editor: Editor) {
     if (transitioning || idx === currentIndex) return;
     const clamped = Math.max(0, Math.min(pages.length - 1, idx));
     const prev = captureCurrentSlide();
+    prevPageId = pages[currentIndex]?.id ?? null;
     currentIndex = clamped;
     renderSlide(prev ?? undefined);
   }

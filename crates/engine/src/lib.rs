@@ -2215,6 +2215,12 @@ impl Engine {
         serde_json::to_string(&result).unwrap_or_else(|_| r#"{"pairs":[],"removed":[],"added":[]}"#.to_string())
     }
 
+    /// Compute auto-animate pairs between two pages (matched by node name across pages).
+    pub fn compute_auto_animate_pages(&self, from_page_id: u64, to_page_id: u64) -> String {
+        let result = self.scene.compute_auto_animate_pages(from_page_id, to_page_id);
+        serde_json::to_string(&result).unwrap_or_else(|_| r#"{"pairs":[],"removed":[],"added":[]}"#.to_string())
+    }
+
     pub fn select(&mut self, id: u64) {
         self.scene.selection = vec![id];
     }

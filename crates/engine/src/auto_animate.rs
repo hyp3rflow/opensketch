@@ -131,4 +131,108 @@ impl Scene {
 
         AutoAnimateResult { pairs, removed, added }
     }
+
+    /// Compute auto-animate pairs between two pages (matched by top-level node name).
+    /// Temporarily reads page data without switching the active page.
+    pub fn compute_auto_animate_pages(&self, from_page_id: u64, to_page_id: u64) -> AutoAnimateResult {
+        let from_page = self.pages.iter().find(|p| p.id == from_page_id);
+        let to_page = self.pages.iter().find(|p| p.id == to_page_id);
+
+        // Helper: collect snapshots from a page's nodes
+        fn collect_page_snapshots(page: &crate::scene::Page) -> std::collections::HashMap<String, NodeSnapshot> {
+            let mut map = std::collections::HashMap::new();
+            let node_map: std::collections::HashMap<u64, &crate::node::Node> =
+                page.nodes.iter().map(|n| (n.id, n)).collect();
+
+            // Recursively collect all nodes, using (0,0) as page origin
+            fn collect_recursive(
+                node_map: &std::collections::HashMap<u64, &crate::node::Node>,
+                children: &[u64],
+                parent_x: f64,
+                parent_y: f64,
+                result: &mut std::collections::HashMap<String, NodeSnapshot>,
+            ) {
+                for &child_id in children {
+                    if let Some(node) = node_map.get(&child_id) {
+                        result.entry(node.name.clone())
+                            .or_insert_with(|| snapshot_node(node, parent_x, parent_y));
+                        collect_recursive(node_map, &node.children, parent_x, parent_y, result);
+                    }
+                }
+            }
+
+            collect_recursive(&node_map, &page.root_children, 0.0, 0.0, &mut map);
+            map
+        }
+
+        // Also handle current active page (whose data is in self.nodes, not pages[])
+        let active_page_id = self.pages.get(self.active_page_index).map(|p| p.id).unwrap_or(u64::MAX);
+
+        let from_map = if from_page_id == active_page_id {
+            // Active page: use self.nodes + self.root_children
+            let mut map = std::collections::HashMap::new();
+            fn collect_active(scene: &Scene, children: &[u64], ox: f64, oy: f64, result: &mut std::collections::HashMap<String, NodeSnapshot>) {
+                for &cid in children {
+                    if let Some(node) = scene.get_node(cid) {
+                        result.entry(node.name.clone())
+                            .or_insert_with(|| snapshot_node(node, ox, oy));
+                        collect_active(scene, &node.children, ox, oy, result);
+                    }
+                }
+            }
+            collect_active(self, &self.root_children, 0.0, 0.0, &mut map);
+            map
+        } else if let Some(page) = from_page {
+            collect_page_snapshots(page)
+        } else {
+            std::collections::HashMap::new()
+        };
+
+        let to_map = if to_page_id == active_page_id {
+            let mut map = std::collections::HashMap::new();
+            fn collect_active2(scene: &Scene, children: &[u64], ox: f64, oy: f64, result: &mut std::collections::HashMap<String, NodeSnapshot>) {
+                for &cid in children {
+                    if let Some(node) = scene.get_node(cid) {
+                        result.entry(node.name.clone())
+                            .or_insert_with(|| snapshot_node(node, ox, oy));
+                        collect_active2(scene, &node.children, ox, oy, result);
+                    }
+                }
+            }
+            collect_active2(self, &self.root_children, 0.0, 0.0, &mut map);
+            map
+        } else if let Some(page) = to_page {
+            collect_page_snapshots(page)
+        } else {
+            std::collections::HashMap::new()
+        };
+
+        let mut pairs = Vec::new();
+        let mut removed = Vec::new();
+        let mut added = Vec::new();
+
+        for (name, from_snap) in &from_map {
+            if let Some(to_snap) = to_map.get(name) {
+                pairs.push(AnimatePair {
+                    name: name.clone(),
+                    from: from_snap.clone(),
+                    to: to_snap.clone(),
+                });
+            } else {
+                removed.push(from_snap.clone());
+            }
+        }
+
+        for (name, to_snap) in &to_map {
+            if !from_map.contains_key(name) {
+                added.push(to_snap.clone());
+            }
+        }
+
+        pairs.sort_by(|a, b| a.name.cmp(&b.name));
+        removed.sort_by(|a, b| a.name.cmp(&b.name));
+        added.sort_by(|a, b| a.name.cmp(&b.name));
+
+        AutoAnimateResult { pairs, removed, added }
+    }
 }

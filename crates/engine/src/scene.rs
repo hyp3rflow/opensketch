@@ -119,12 +119,12 @@ pub struct SceneData {
 
 pub struct Scene {
     pub(crate) nodes: HashMap<NodeId, Node>,
-    root_children: Vec<NodeId>,
+    pub(crate) root_children: Vec<NodeId>,
     next_id: NodeId,
     pub selection: Vec<NodeId>,
     // Multi-page
-    pages: Vec<Page>,
-    active_page_index: usize,
+    pub(crate) pages: Vec<Page>,
+    pub(crate) active_page_index: usize,
     next_page_id: u64,
     // Comments
     comments: Vec<Comment>,

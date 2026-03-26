@@ -935,7 +935,8 @@ Frame overflow control and content scrolling.
 
 ### Canvas Presentation Mode
 - [x] **Fullscreen slideshow**: Page-based presentation with black background, auto-scaled rendering
-- [x] **Transitions**: None, Fade, Slide Left/Right/Up, Zoom — eased animations (400ms)
+- [x] **Transitions**: None, Fade, Slide Left/Right/Up, Zoom, Smart Animate — eased animations (400-500ms)
+- [x] **Smart Animate**: Matches nodes by name across pages, interpolates position/size/rotation/opacity/corner_radius with cross-fade; falls back to fade when no matches found; Rust engine `compute_auto_animate_pages` WASM binding
 - [x] **Navigation**: Arrow keys, Space, PageUp/Down, Home/End, click left/right halves
 - [x] **Presenter notes**: Toggle with N key — collects notes from top-level nodes on each page
 - [x] **Controls**: Bottom bar (auto-hide), progress bar with click-to-seek, slide counter
