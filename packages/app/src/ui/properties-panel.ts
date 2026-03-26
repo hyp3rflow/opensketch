@@ -2826,6 +2826,132 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       });
       infoRow.appendChild(closedBtn);
       pathSection.appendChild(infoRow);
+
+      // Variable Stroke Width
+      const hasVarStroke = editor.engine.has_variable_stroke(BigInt(id));
+      const varRow = document.createElement("div");
+      varRow.style.cssText = "margin-top:8px;";
+
+      const varToggleRow = document.createElement("div");
+      varToggleRow.style.cssText = "display:flex;align-items:center;gap:8px;margin-bottom:6px;";
+      const varLabel = document.createElement("span");
+      varLabel.style.cssText = "font-size:11px;color:#999;";
+      varLabel.textContent = "Variable Stroke";
+      varToggleRow.appendChild(varLabel);
+
+      const varToggle = document.createElement("button");
+      varToggle.textContent = hasVarStroke ? "On" : "Off";
+      varToggle.style.cssText = `padding:3px 8px;border:1px solid ${hasVarStroke ? "#4f46e5" : "#444"};border-radius:4px;background:${hasVarStroke ? "#4f46e520" : "#2a2a2a"};color:${hasVarStroke ? "#818cf8" : "#999"};cursor:pointer;font-size:11px;`;
+      varToggle.addEventListener("click", () => {
+        ensureUndo();
+        const pts = pathData.points?.length || 0;
+        const defaultW = 2;
+        if (!hasVarStroke) {
+          // Enable: set linear profile from start to end
+          for (let i = 0; i < pts; i++) {
+            editor.engine.path_set_point_stroke_width(BigInt(id), i, defaultW);
+          }
+        } else {
+          // Disable: reset all to 0
+          for (let i = 0; i < pts; i++) {
+            editor.engine.path_set_point_stroke_width(BigInt(id), i, 0);
+          }
+        }
+        editor.requestRender();
+        refresh(ids);
+      });
+      varToggleRow.appendChild(varToggle);
+      varRow.appendChild(varToggleRow);
+
+      if (hasVarStroke) {
+        const pts = pathData.points?.length || 0;
+        const startW = pts > 0 ? editor.engine.path_get_point_stroke_width(BigInt(id), 0) : 2;
+        const endW = pts > 1 ? editor.engine.path_get_point_stroke_width(BigInt(id), pts - 1) : 2;
+
+        const profileRow = document.createElement("div");
+        profileRow.style.cssText = "display:flex;align-items:center;gap:6px;margin-bottom:4px;";
+
+        const makeInput = (label: string, value: number, onChange: (v: number) => void) => {
+          const wrap = document.createElement("div");
+          wrap.style.cssText = "display:flex;align-items:center;gap:4px;";
+          const lbl = document.createElement("span");
+          lbl.style.cssText = "font-size:10px;color:#777;";
+          lbl.textContent = label;
+          const inp = document.createElement("input");
+          inp.type = "number";
+          inp.value = String(value);
+          inp.min = "0.5";
+          inp.max = "100";
+          inp.step = "0.5";
+          inp.style.cssText = "width:48px;padding:2px 4px;background:#2a2a2a;border:1px solid #444;border-radius:3px;color:#ddd;font-size:11px;";
+          inp.addEventListener("change", () => {
+            onChange(parseFloat(inp.value) || 1);
+          });
+          wrap.appendChild(lbl);
+          wrap.appendChild(inp);
+          return wrap;
+        };
+
+        profileRow.appendChild(makeInput("Start", startW, (v) => {
+          ensureUndo();
+          const numPts = pathData.points?.length || 0;
+          const ew = editor.engine.path_get_point_stroke_width(BigInt(id), numPts - 1) || v;
+          for (let i = 0; i < numPts; i++) {
+            const t = numPts > 1 ? i / (numPts - 1) : 0;
+            editor.engine.path_set_point_stroke_width(BigInt(id), i, v + (ew - v) * t);
+          }
+          editor.requestRender();
+          refresh(ids);
+        }));
+
+        profileRow.appendChild(makeInput("End", endW, (v) => {
+          ensureUndo();
+          const numPts = pathData.points?.length || 0;
+          const sw = editor.engine.path_get_point_stroke_width(BigInt(id), 0) || v;
+          for (let i = 0; i < numPts; i++) {
+            const t = numPts > 1 ? i / (numPts - 1) : 0;
+            editor.engine.path_set_point_stroke_width(BigInt(id), i, sw + (v - sw) * t);
+          }
+          editor.requestRender();
+          refresh(ids);
+        }));
+
+        varRow.appendChild(profileRow);
+
+        // Mini stroke profile preview canvas
+        const previewCanvas = document.createElement("canvas");
+        previewCanvas.width = 200;
+        previewCanvas.height = 30;
+        previewCanvas.style.cssText = "width:100%;height:30px;border-radius:4px;background:#1a1a1a;border:1px solid #333;";
+        const pCtx = previewCanvas.getContext("2d");
+        if (pCtx && pts > 1) {
+          const cw = 200, ch = 30;
+          pCtx.fillStyle = "#1a1a1a";
+          pCtx.fillRect(0, 0, cw, ch);
+          // Draw stroke profile
+          const maxW = Math.max(...(pathData.points || []).map((p: any) => p.stroke_width || 2));
+          pCtx.fillStyle = "#818cf8";
+          pCtx.beginPath();
+          for (let i = 0; i < pts; i++) {
+            const x = (i / (pts - 1)) * cw;
+            const w = (pathData.points![i] as any).stroke_width || 2;
+            const h = (w / Math.max(maxW, 1)) * (ch / 2 - 2);
+            if (i === 0) pCtx.moveTo(x, ch / 2 - h);
+            else pCtx.lineTo(x, ch / 2 - h);
+          }
+          for (let i = pts - 1; i >= 0; i--) {
+            const x = (i / (pts - 1)) * cw;
+            const w = (pathData.points![i] as any).stroke_width || 2;
+            const h = (w / Math.max(maxW, 1)) * (ch / 2 - 2);
+            pCtx.lineTo(x, ch / 2 + h);
+          }
+          pCtx.closePath();
+          pCtx.fill();
+        }
+        varRow.appendChild(previewCanvas);
+      }
+
+      pathSection.appendChild(varRow);
       container.appendChild(pathSection);
     }
 

@@ -163,11 +163,14 @@ pub struct PathPoint {
     /// Outgoing control handle (absolute coords)
     pub handle_out_x: f64,
     pub handle_out_y: f64,
+    /// Per-point stroke width override. 0.0 = inherit from node's stroke width.
+    #[serde(default)]
+    pub stroke_width: f64,
 }
 
 impl PathPoint {
     pub fn corner(x: f64, y: f64) -> Self {
-        Self { x, y, handle_in_x: x, handle_in_y: y, handle_out_x: x, handle_out_y: y }
+        Self { x, y, handle_in_x: x, handle_in_y: y, handle_out_x: x, handle_out_y: y, stroke_width: 0.0 }
     }
 
     pub fn has_handle_in(&self) -> bool {

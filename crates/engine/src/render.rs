@@ -981,6 +981,10 @@ impl Renderer {
 
     fn render_path(&self, ctx: &CanvasRenderingContext2d, node: &Node, points: &[PathPoint], closed: bool) {
         if points.is_empty() { return; }
+
+        // Check for variable-width stroke
+        let has_variable = points.iter().any(|p| p.stroke_width > 0.0);
+
         ctx.begin_path();
         ctx.move_to(points[0].x, points[0].y);
         for i in 1..points.len() {
@@ -1009,7 +1013,105 @@ impl Renderer {
                 ctx.close_path();
             }
         }
-        self.apply_fill_stroke(ctx, node);
+
+        if has_variable {
+            // Fill the path normally if it has fills
+            for fill in node.visible_fills() {
+                self.apply_single_fill_style(ctx, fill, node);
+                ctx.fill();
+            }
+            // Render variable-width stroke as filled outline
+            let default_width = node.first_stroke().map(|s| s.width).unwrap_or(2.0);
+            let stroke_color = node.first_stroke().map(|s| s.color.to_css()).unwrap_or_else(|| "rgba(255,255,255,1)".to_string());
+            Self::render_variable_width_stroke(ctx, points, closed, default_width, &stroke_color);
+        } else {
+            self.apply_fill_stroke(ctx, node);
+        }
+    }
+
+    /// Render a variable-width stroke by building left/right offset curves and filling.
+    fn render_variable_width_stroke(
+        ctx: &CanvasRenderingContext2d,
+        points: &[PathPoint],
+        closed: bool,
+        default_width: f64,
+        stroke_color: &str,
+    ) {
+        if points.len() < 2 { return; }
+
+        // 1. Flatten path to polyline with interpolated widths
+        let segments_per_curve = 16;
+        let mut samples: Vec<(f64, f64, f64)> = Vec::new(); // (x, y, half_width)
+
+        // Helper: get effective width at a point
+        let ew = |p: &PathPoint| -> f64 {
+            if p.stroke_width > 0.0 { p.stroke_width } else { default_width }
+        };
+
+        let num_segs = if closed { points.len() } else { points.len() - 1 };
+        for seg in 0..num_segs {
+            let i0 = seg;
+            let i1 = (seg + 1) % points.len();
+            let p0 = &points[i0];
+            let p1 = &points[i1];
+            let w0 = ew(p0);
+            let w1 = ew(p1);
+            let is_curve = p0.has_handle_out() || p1.has_handle_in();
+            let steps = if is_curve { segments_per_curve } else { 1 };
+
+            for s in 0..steps {
+                let t = s as f64 / steps as f64;
+                let (x, y) = if is_curve {
+                    cubic_bezier_point(p0.x, p0.y, p0.handle_out_x, p0.handle_out_y, p1.handle_in_x, p1.handle_in_y, p1.x, p1.y, t)
+                } else {
+                    (p0.x + (p1.x - p0.x) * t, p0.y + (p1.y - p0.y) * t)
+                };
+                let w = w0 + (w1 - w0) * t;
+                samples.push((x, y, w / 2.0));
+            }
+        }
+        // Add the last point
+        let last_idx = if closed { 0 } else { points.len() - 1 };
+        let lp = &points[last_idx];
+        samples.push((lp.x, lp.y, ew(lp) / 2.0));
+
+        if samples.len() < 2 { return; }
+
+        // 2. Compute normals and build left/right outlines
+        let n = samples.len();
+        let mut left: Vec<(f64, f64)> = Vec::with_capacity(n);
+        let mut right: Vec<(f64, f64)> = Vec::with_capacity(n);
+
+        for i in 0..n {
+            // Tangent by central difference
+            let (tx, ty) = if i == 0 {
+                (samples[1].0 - samples[0].0, samples[1].1 - samples[0].1)
+            } else if i == n - 1 {
+                (samples[n-1].0 - samples[n-2].0, samples[n-1].1 - samples[n-2].1)
+            } else {
+                (samples[i+1].0 - samples[i-1].0, samples[i+1].1 - samples[i-1].1)
+            };
+            let len = (tx * tx + ty * ty).sqrt().max(1e-10);
+            let nx = -ty / len;
+            let ny = tx / len;
+            let (x, y, hw) = samples[i];
+            left.push((x + nx * hw, y + ny * hw));
+            right.push((x - nx * hw, y - ny * hw));
+        }
+
+        // 3. Draw filled outline
+        ctx.begin_path();
+        ctx.move_to(left[0].0, left[0].1);
+        for i in 1..n {
+            ctx.line_to(left[i].0, left[i].1);
+        }
+        // Connect to right side in reverse
+        for i in (0..n).rev() {
+            ctx.line_to(right[i].0, right[i].1);
+        }
+        ctx.close_path();
+        ctx.set_fill_style_str(stroke_color);
+        ctx.fill();
     }
 
     fn render_vector_network(&self, ctx: &CanvasRenderingContext2d, node: &Node, vn: &crate::vector_network::VectorNetwork) {
@@ -1754,4 +1856,16 @@ impl Renderer {
         self.viewport.tx += dx;
         self.viewport.ty += dy;
     }
+}
+
+/// Evaluate a cubic bezier at parameter t
+fn cubic_bezier_point(x0: f64, y0: f64, x1: f64, y1: f64, x2: f64, y2: f64, x3: f64, y3: f64, t: f64) -> (f64, f64) {
+    let u = 1.0 - t;
+    let uu = u * u;
+    let tt = t * t;
+    let uuu = uu * u;
+    let ttt = tt * t;
+    let x = uuu * x0 + 3.0 * uu * t * x1 + 3.0 * u * tt * x2 + ttt * x3;
+    let y = uuu * y0 + 3.0 * uu * t * y1 + 3.0 * u * tt * y2 + ttt * y3;
+    (x, y)
 }

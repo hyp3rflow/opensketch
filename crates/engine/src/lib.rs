@@ -593,7 +593,7 @@ impl Engine {
     pub fn path_add_curve_point(&mut self, id: u64, x: f64, y: f64, hix: f64, hiy: f64, hox: f64, hoy: f64) {
         if let Some(node) = self.scene.get_node_mut(id) {
             if let NodeKind::Path { ref mut points, .. } = node.kind {
-                points.push(PathPoint { x, y, handle_in_x: hix, handle_in_y: hiy, handle_out_x: hox, handle_out_y: hoy });
+                points.push(PathPoint { x, y, handle_in_x: hix, handle_in_y: hiy, handle_out_x: hox, handle_out_y: hoy, stroke_width: 0.0 });
                 recalc_path_bounds(node);
             }
         }
@@ -684,6 +684,56 @@ impl Engine {
             }
         }
         0
+    }
+
+    // =============================================
+    // Variable-width stroke
+    // =============================================
+
+    /// Set per-point stroke width on a path point
+    pub fn path_set_point_stroke_width(&mut self, id: u64, index: u32, width: f64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Path { ref mut points, .. } = node.kind {
+                if let Some(pt) = points.get_mut(index as usize) {
+                    pt.stroke_width = width.max(0.0);
+                }
+            }
+        }
+    }
+
+    /// Get per-point stroke width
+    pub fn path_get_point_stroke_width(&self, id: u64, index: u32) -> f64 {
+        if let Some(node) = self.scene.get_node(id) {
+            if let NodeKind::Path { ref points, .. } = node.kind {
+                if let Some(pt) = points.get(index as usize) {
+                    return pt.stroke_width;
+                }
+            }
+        }
+        0.0
+    }
+
+    /// Check if any point has a custom stroke width
+    pub fn has_variable_stroke(&self, id: u64) -> bool {
+        if let Some(node) = self.scene.get_node(id) {
+            if let NodeKind::Path { ref points, .. } = node.kind {
+                return points.iter().any(|p| p.stroke_width > 0.0);
+            }
+        }
+        false
+    }
+
+    /// Get stroke profile as JSON array of {index, width}
+    pub fn path_get_stroke_profile(&self, id: u64) -> String {
+        if let Some(node) = self.scene.get_node(id) {
+            if let NodeKind::Path { ref points, .. } = node.kind {
+                let profile: Vec<serde_json::Value> = points.iter().enumerate().map(|(i, p)| {
+                    serde_json::json!({"index": i, "width": p.stroke_width})
+                }).collect();
+                return serde_json::to_string(&profile).unwrap_or_default();
+            }
+        }
+        "[]".to_string()
     }
 
     // =============================================
