@@ -1107,16 +1107,19 @@ Frame overflow control and content scrolling.
   - Inspect panel: CSS code generation for perspective transforms
 
 ## 106. AI Code-to-Design (HTML/CSS → Nodes)
-- [x] **HTML parser**: DOMParser-based, extracts element tree + `<style>` blocks + inline styles
-- [x] **CSS parser**: Property declarations, class/id/tag selectors, inline style merging
-- [x] **Color parsing**: hex (#rgb/#rrggbb/#rrggbbaa), rgb()/rgba(), 30+ named colors
-- [x] **Node creation**: HTML elements → Frame (container), Text (text-only), Image (img), Rect (hr), Frame+children (input/button/form)
-- [x] **Style mapping**: background-color, color, border-radius, border, opacity, font-size/weight/family/style, text-align, line-height, letter-spacing, padding
-- [x] **Flexbox support**: display:flex, flex-direction, gap, align-items, justify-content → auto-layout
-- [x] **Auto-sizing**: Containers auto-size based on children when width/height not explicit
+- [x] **Rust HTML parser**: Pure Rust tokenizer + recursive descent parser (no DOMParser dependency, works in WASM)
+- [x] **CSS `<style>` block parser**: Tag/class/id selectors, property declarations, comma-separated selectors
+- [x] **Inline style parser**: `style="..."` attribute parsing + merging with `<style>` rules
+- [x] **Color parsing**: hex (#rgb/#rrggbb/#rrggbbaa), rgb()/rgba(), 12+ named colors
+- [x] **Node creation**: HTML elements → Frame (container), Text (text-only), Image placeholder, Rect (hr), Input/Textarea/Select, Button (Frame+Label)
+- [x] **Style mapping**: background-color, color, border-radius, border (shorthand), opacity, box-shadow, overflow, font-size/weight/family/style, text-align, line-height, letter-spacing, padding (shorthand + individual), width/height, min-width/min-height/max-width
+- [x] **Flexbox support**: display:flex/inline-flex, flex-direction, gap, align-items, justify-content, flex-wrap → auto-layout
+- [x] **Grid support**: display:grid, grid-template-columns → Grid layout mode
+- [x] **Tag defaults**: h1-h6 font sizes/weights, strong/em/code styles, small text size
+- [x] **Auto-sizing**: Containers auto-size based on children (column: sum heights, row: sum widths)
 - [x] **Hierarchical creation**: Recursive children → reparent into parent Frame
-- [x] **Example snippets**: Card, Nav, Form, Hero templates built into modal
-- [x] **Modal UI**: Code editor (textarea with Tab support), live node count preview, example buttons
+- [x] **WASM binding**: `engine.code_to_design(html, offset_x, offset_y)` → JSON `{root_id, node_count}`
+- [x] **Modal UI**: Code editor (textarea with Tab/Escape support), syntax-colored code, status feedback
 - [x] **Toolbar button**: Code icon (⌘⇧D shortcut)
 - [x] **Undo integration**: push_undo before conversion
-- [x] **Implementation**: `ui/code-to-design.ts` (single file, ~450 lines)
+- [x] **Implementation**: `crates/engine/src/code_to_design.rs` (Rust engine) + `ui/code-to-design.ts` (modal UI)
