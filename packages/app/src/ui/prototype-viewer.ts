@@ -73,8 +73,19 @@ export function createPrototypeViewer(editor: Editor): {
       currentFrameId = selIds.length > 0 ? selIds[0] : null;
     }
 
+    // Initialize event runtime for JS callbacks
+    eventRuntime = new EventRuntime(editor);
+    eventRuntime.setNavigateCallback((pageId: number) => {
+      editor.engine.set_active_page(BigInt(pageId));
+      renderCurrentView();
+    });
+
     renderCurrentView();
     viewCanvas.addEventListener("click", onCanvasClick);
+    viewCanvas.addEventListener("mousemove", onCanvasMouseMove);
+    viewCanvas.addEventListener("mousedown", onCanvasMouseDown);
+    viewCanvas.addEventListener("mouseup", onCanvasMouseUp);
+    viewCanvas.addEventListener("dblclick", onCanvasDblClick);
     viewCanvas.addEventListener("touchstart", onTouchStart, { passive: false });
     viewCanvas.addEventListener("touchmove", onTouchMove, { passive: false });
     viewCanvas.addEventListener("touchend", onTouchEnd, { passive: false });
@@ -470,6 +481,8 @@ export function createPrototypeViewer(editor: Editor): {
 
     // Draw interaction hotspot hints (blue border on nodes with interactions)
     drawHotspotHints(ctx, bounds, scale * dpr);
+    // Draw event hotspot hints (orange dotted border on nodes with JS events)
+    drawEventHints(ctx, bounds, scale * dpr);
   }
 
   function drawHotspotHints(ctx: CanvasRenderingContext2D, frameBounds: { x: number; y: number; width: number; height: number }, totalScale: number) {
@@ -554,8 +567,103 @@ export function createPrototypeViewer(editor: Editor): {
     }
   }
 
+  /** Find the top-most node at a screen point (for event firing) */
+  function findNodeAtPoint(clientX: number, clientY: number): number | null {
+    if (!viewCanvas || !currentFrameId) return null;
+    const rect = viewCanvas.getBoundingClientRect();
+    const fb = getFrameBounds(currentFrameId);
+    const bounds = fb || { x: 0, y: 0, width: 800, height: 600 };
+    const { scale } = getViewportParams(bounds);
+    const sceneX = (clientX - rect.left) / scale + bounds.x;
+    const sceneY = (clientY - rect.top) / scale + bounds.y;
+
+    // Use engine hit test
+    try {
+      const hitId = Number(editor.engine.hit_test(sceneX, sceneY));
+      return hitId > 0 ? hitId : null;
+    } catch {
+      return null;
+    }
+  }
+
+  let lastHoveredNodeId: number | null = null;
+  let mousePressNodeId: number | null = null;
+  let mousePressX = 0;
+  let mousePressY = 0;
+  let isDragging = false;
+
+  function onCanvasMouseMove(e: MouseEvent) {
+    if (!viewCanvas || transitioning || !eventRuntime) return;
+    const nodeId = findNodeAtPoint(e.clientX, e.clientY);
+
+    // Hover enter/leave
+    if (nodeId !== lastHoveredNodeId) {
+      if (lastHoveredNodeId !== null) {
+        eventRuntime.handleHoverLeave(lastHoveredNodeId);
+      }
+      if (nodeId !== null) {
+        eventRuntime.handleHoverEnter(nodeId, e.clientX, e.clientY);
+      }
+      lastHoveredNodeId = nodeId;
+    }
+
+    // Drag move
+    if (isDragging && mousePressNodeId !== null) {
+      eventRuntime.handleDragMove(e.clientX, e.clientY);
+    }
+  }
+
+  function onCanvasMouseDown(e: MouseEvent) {
+    if (!viewCanvas || transitioning || !eventRuntime) return;
+    const nodeId = findNodeAtPoint(e.clientX, e.clientY);
+    if (nodeId !== null) {
+      mousePressNodeId = nodeId;
+      mousePressX = e.clientX;
+      mousePressY = e.clientY;
+      isDragging = false;
+      eventRuntime.handlePress(nodeId, e.clientX, e.clientY);
+    }
+  }
+
+  function onCanvasMouseUp(e: MouseEvent) {
+    if (!viewCanvas || transitioning || !eventRuntime) return;
+    if (mousePressNodeId !== null) {
+      if (isDragging) {
+        eventRuntime.handleDragEnd(e.clientX, e.clientY);
+      }
+      eventRuntime.handleRelease(mousePressNodeId, e.clientX, e.clientY);
+
+      // Check if it was a drag (moved > 5px)
+      const dx = e.clientX - mousePressX;
+      const dy = e.clientY - mousePressY;
+      if (Math.sqrt(dx * dx + dy * dy) > 5 && !isDragging) {
+        isDragging = true;
+        eventRuntime.handleDragStart(mousePressNodeId, mousePressX, mousePressY);
+        eventRuntime.handleDragEnd(e.clientX, e.clientY);
+      }
+    }
+    mousePressNodeId = null;
+    isDragging = false;
+  }
+
+  function onCanvasDblClick(e: MouseEvent) {
+    if (!viewCanvas || transitioning || !eventRuntime) return;
+    const nodeId = findNodeAtPoint(e.clientX, e.clientY);
+    if (nodeId !== null) {
+      eventRuntime.handleDoubleClick(nodeId, e.clientX, e.clientY);
+    }
+  }
+
   function onCanvasClick(e: MouseEvent) {
     if (!viewCanvas || transitioning) return;
+    // Fire node event
+    if (eventRuntime) {
+      const nodeId = findNodeAtPoint(e.clientX, e.clientY);
+      if (nodeId !== null) {
+        eventRuntime.handleClick(nodeId, e.clientX, e.clientY);
+      }
+    }
+    // Then handle interaction navigation
     const match = findInteractionAtPoint(e.clientX, e.clientY, "OnClick");
     if (match) executeInteraction(match.interaction);
   }
@@ -683,6 +791,35 @@ export function createPrototypeViewer(editor: Editor): {
     const dx = a.clientX - b.clientX;
     const dy = a.clientY - b.clientY;
     return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  function drawEventHints(ctx: CanvasRenderingContext2D, frameBounds: { x: number; y: number; width: number; height: number }, totalScale: number) {
+    if (!eventRuntime || !eventRuntime.hasEvents()) return;
+    const allJson = editor.engine.get_all_node_events();
+    const nodesWithEvents: any[] = JSON.parse(allJson || "[]");
+
+    ctx.save();
+    for (const nwe of nodesWithEvents) {
+      const nj = editor.engine.get_node_json(Number(nwe.id));
+      if (!nj) continue;
+      const node = JSON.parse(nj);
+      const x = (node.x - frameBounds.x) * totalScale;
+      const y = (node.y - frameBounds.y) * totalScale;
+      const w = node.width * totalScale;
+      const h = node.height * totalScale;
+
+      ctx.strokeStyle = "rgba(255, 165, 0, 0.5)";
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([3, 3]);
+      ctx.strokeRect(x, y, w, h);
+
+      // Show ⚡ icon
+      ctx.fillStyle = "rgba(255, 165, 0, 0.7)";
+      ctx.font = "10px sans-serif";
+      ctx.fillText("⚡", x + w - 14, y + 12);
+    }
+    ctx.setLineDash([]);
+    ctx.restore();
   }
 
   return { show, hide, isActive: () => active };

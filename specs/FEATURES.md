@@ -1047,3 +1047,15 @@ Frame overflow control and content scrolling.
 - [x] **Node info**: Tooltip header shows node name + kind
 - [x] **Integration**: `editor.setDevMode(true/false)` from toolbar Edit/Dev mode toggle
 - [x] **Implementation**: `ui/dev-mode-overlay.ts` — DevModeOverlay class
+
+## 95. Node-level Event System
+- [x] **EventTrigger enum**: onClick, onDoubleClick, onHover, onHoverEnd, onPress, onRelease, onDrag, onDragEnd, onFocus, onBlur
+- [x] **NodeEvent struct**: id, trigger, handler (JS code string), enabled, label
+- [x] **Node.events**: Vec<NodeEvent> per node, backward-compatible serde
+- [x] **Rust engine**: EventTrigger, NodeEvent in node.rs, Scene.alloc_id() for event IDs
+- [x] **WASM**: add_node_event, remove_node_event, update_node_event_handler, update_node_event_trigger, set_node_event_enabled, get_node_events, get_node_event_count, get_all_node_events
+- [x] **EventRuntime**: Sandboxed JS execution context with node API (setProperty, setVisible, setOpacity, setPosition, setSize, setFillColor, setText, setRotation, getNode, navigateTo, log, delay)
+- [x] **Prototype viewer integration**: Click/hover/press/drag/dblclick event firing, hover enter/leave tracking, drag state management
+- [x] **Event hotspot hints**: Orange dotted border + ⚡ icon on nodes with events in prototype viewer
+- [x] **Properties panel**: "Events" section with add/remove, trigger dropdown, JS code editor (monospace textarea with Tab support), enable/disable toggle
+- [x] **Implementation**: ui/node-events.ts (EventRuntime + renderNodeEventsSection), prototype-viewer.ts integration

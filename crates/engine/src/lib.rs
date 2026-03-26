@@ -18,6 +18,7 @@ mod design_lint;
 mod color_palette;
 mod smart_select;
 pub mod vector_network;
+pub mod auto_animate;
 pub mod branch;
 mod find_replace;
 pub mod permissions;
@@ -2198,6 +2199,15 @@ impl Engine {
             }
         }
         serde_json::to_string(&result).unwrap_or_else(|_| "[]".to_string())
+    }
+
+    // ── Auto-Animate (Smart Animate) ────────────────────────────
+
+    /// Compute auto-animate matched node pairs between two frames.
+    /// Returns JSON with { pairs, removed, added } for smart animate transitions.
+    pub fn compute_auto_animate(&self, from_frame_id: u64, to_frame_id: u64) -> String {
+        let result = self.scene.compute_auto_animate(from_frame_id, to_frame_id);
+        serde_json::to_string(&result).unwrap_or_else(|_| r#"{"pairs":[],"removed":[],"added":[]}"#.to_string())
     }
 
     pub fn select(&mut self, id: u64) {
