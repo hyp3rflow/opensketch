@@ -170,6 +170,13 @@ Output: `packages/app/src/wasm/` (opensketch_engine.js + .wasm + .d.ts)
 - **AnimationStore**: Vec<AnimationClip>, CRUD operations, evaluate_clip → Vec<(NodeId, Property, Value)>
 - **Scene.anim_apply(clip_id, time_ms)**: mutates nodes in-place, returns changed IDs
 
+## Auto-Animate / Smart Animate (auto_animate.rs)
+- **NodeSnapshot**: id, name, rel_x/y (relative to frame), width, height, rotation, opacity, corner_radius, blur, fill RGBA, stroke_width
+- **AnimatePair**: name + from/to NodeSnapshot for matched nodes
+- **AutoAnimateResult**: { pairs, removed, added } — matched pairs interpolate, removed fade out, added fade in
+- **Scene.compute_auto_animate(from_frame_id, to_frame_id)**: recursive descendant matching by name, returns AutoAnimateResult
+- **WASM binding**: `compute_auto_animate(from, to) → JSON`
+
 ## Design Lint (design_lint.rs)
 - **LintSeverity**: Error, Warning, Info
 - **LintCategory**: Contrast, TouchTarget, TextSize, AltText, Spacing, CornerRadius, Color, Naming, Alignment, Opacity, Stroke

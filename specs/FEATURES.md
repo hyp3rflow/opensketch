@@ -259,7 +259,8 @@
   - Properties panel: "Interactions" section with trigger/action/target/transition/duration editors, add/remove
   - Prototype viewer: full-screen overlay, click navigation, back stack, Esc to close
   - Animated transitions: Dissolve (cross-fade), SlideIn (from right), SlideOut (old exits right), Push (both move), SmartAnimate (name-matched node interpolation with position/size cross-fade)
-  - SmartAnimate: matches children by node name across frames, interpolates position/size with cubic ease-in-out, unmatched content cross-fades
+  - SmartAnimate: Rust engine `compute_auto_animate(from, to)` matches descendants by name, returns paired snapshots with full property diffs (position, size, rotation, opacity, corner_radius, blur, fill color, stroke width)
+  - SmartAnimate rendering: matched nodes interpolate all properties with cubic ease-in-out, rotation via canvas transform, rounded clip for corner_radius, removed nodes fade out, added nodes fade in
   - Toolbar: Play button (▶), keyboard shortcut Cmd+Enter
   - Interaction hotspot hints (color-coded: blue=click, green=gesture, orange=hover)
   - Gesture-based interactions: swipe (left/right/up/down), long-press (500ms), pinch in/out

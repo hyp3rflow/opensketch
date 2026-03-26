@@ -177,39 +177,18 @@ export function createPrototypeViewer(editor: Editor): {
     return offscreen;
   }
 
-  /** Get all children node info for a frame (for smart animate matching) */
-  function getFrameChildrenInfo(frameId: number): Map<string, { x: number; y: number; width: number; height: number; rotation: number; opacity: number; name: string; id: number }> {
-    const map = new Map();
-    const json = editor.engine.get_node_json(frameId);
-    if (!json) return map;
-    const frame = JSON.parse(json);
-    const frameBounds = { x: frame.x, y: frame.y };
-
-    function collectChildren(parentId: number) {
-      const pjson = editor.engine.get_node_json(parentId);
-      if (!pjson) return;
-      const parent = JSON.parse(pjson);
-      if (!parent.children) return;
-      for (const childId of parent.children) {
-        const cjson = editor.engine.get_node_json(Number(childId));
-        if (!cjson) continue;
-        const child = JSON.parse(cjson);
-        // Store position relative to frame
-        map.set(child.name, {
-          x: child.x - frameBounds.x,
-          y: child.y - frameBounds.y,
-          width: child.width,
-          height: child.height,
-          rotation: child.rotation || 0,
-          opacity: child.opacity ?? 1,
-          name: child.name,
-          id: Number(childId),
-        });
-        collectChildren(Number(childId));
-      }
+  /** Compute auto-animate data via engine (Rust-side node matching by name) */
+  function computeAutoAnimate(fromId: number, toId: number): {
+    pairs: Array<{ name: string; from: any; to: any }>;
+    removed: any[];
+    added: any[];
+  } {
+    try {
+      const json = editor.engine.compute_auto_animate(fromId, toId);
+      return JSON.parse(json);
+    } catch {
+      return { pairs: [], removed: [], added: [] };
     }
-    collectChildren(frameId);
-    return map;
   }
 
   /** Perform animated transition between two frames */
@@ -304,25 +283,17 @@ export function createPrototypeViewer(editor: Editor): {
     requestAnimationFrame(animate);
   }
 
-  /** Smart Animate: match nodes by name, interpolate properties */
+  /** Smart Animate: match nodes by name via engine, interpolate all properties */
   function performSmartAnimate(fromId: number, toId: number, fromCanvas: HTMLCanvasElement, toCanvas: HTMLCanvasElement, durationMs: number) {
     if (!viewCanvas) { transitioning = false; return; }
 
-    const fromChildren = getFrameChildrenInfo(fromId);
-    const toChildren = getFrameChildrenInfo(toId);
-    const fromBounds = getFrameBounds(fromId)!;
+    const animData = computeAutoAnimate(fromId, toId);
     const toBounds = getFrameBounds(toId)!;
     const dpr = window.devicePixelRatio || 1;
-    const { scale, displayW, displayH } = getViewportParams(toBounds);
-
-    // Find matched nodes (same name in both frames)
-    const matchedNames: string[] = [];
-    for (const name of fromChildren.keys()) {
-      if (toChildren.has(name)) matchedNames.push(name);
-    }
+    const { scale } = getViewportParams(toBounds);
 
     // If no matches, fall back to dissolve
-    if (matchedNames.length === 0) {
+    if (animData.pairs.length === 0) {
       performTransition(fromId, toId, "Dissolve", durationMs);
       return;
     }
@@ -350,64 +321,104 @@ export function createPrototypeViewer(editor: Editor): {
       const w = viewCanvas.width;
       const h = viewCanvas.height;
 
-      // Cross-fade unmatched content (background)
+      // Cross-fade background (unmatched content)
       ctx.globalAlpha = 1 - t;
       ctx.drawImage(fromCanvas, 0, 0, w, h);
       ctx.globalAlpha = t;
       ctx.drawImage(toCanvas, 0, 0, w, h);
       ctx.globalAlpha = 1;
 
-      // For matched nodes: render interpolated by temporarily modifying and re-rendering
-      // We overlay interpolated rectangles as colored hints (visual feedback)
-      // For a proper implementation, we'd need per-node rendering isolation.
-      // Instead, we render the target frame and smoothly interpolate matched node positions
-      // using clip regions for each matched node.
-
-      // Draw matched node transition overlays
+      // Render matched node pairs with property interpolation
       const totalScale = scale * dpr;
-      for (const name of matchedNames) {
-        const from = fromChildren.get(name)!;
-        const to = toChildren.get(name)!;
+      for (const pair of animData.pairs) {
+        const { from, to } = pair;
 
-        const ix = lerp(from.x, to.x, t) * totalScale;
-        const iy = lerp(from.y, to.y, t) * totalScale;
+        const ix = lerp(from.rel_x, to.rel_x, t) * totalScale;
+        const iy = lerp(from.rel_y, to.rel_y, t) * totalScale;
         const iw = lerp(from.width, to.width, t) * totalScale;
         const ih = lerp(from.height, to.height, t) * totalScale;
+        const iOpacity = lerp(from.opacity, to.opacity, t);
 
         // Source position in fromCanvas
-        const sx = from.x * totalScale;
-        const sy = from.y * totalScale;
+        const sx = from.rel_x * totalScale;
+        const sy = from.rel_y * totalScale;
         const sw = from.width * totalScale;
         const sh = from.height * totalScale;
 
         // Target position in toCanvas
-        const tx = to.x * totalScale;
-        const ty = to.y * totalScale;
+        const tx = to.rel_x * totalScale;
+        const ty = to.rel_y * totalScale;
         const tw = to.width * totalScale;
         const th = to.height * totalScale;
 
         ctx.save();
-        // Clip to interpolated rect
+
+        // Interpolate rotation
+        const iRotation = lerp(from.rotation, to.rotation, t);
+        if (Math.abs(iRotation) > 0.01) {
+          const cx = ix + iw / 2;
+          const cy = iy + ih / 2;
+          ctx.translate(cx, cy);
+          ctx.rotate((iRotation * Math.PI) / 180);
+          ctx.translate(-cx, -cy);
+        }
+
+        // Interpolate corner radius (visual hint via rounded clip)
+        const iRadius = lerp(from.corner_radius, to.corner_radius, t) * totalScale;
+
+        // Clip to interpolated rounded rect
         ctx.beginPath();
-        ctx.rect(ix, iy, iw, ih);
+        if (iRadius > 0 && ctx.roundRect) {
+          ctx.roundRect(ix, iy, iw, ih, iRadius);
+        } else {
+          ctx.rect(ix, iy, iw, ih);
+        }
         ctx.clip();
 
         // Clear clipped area
-        ctx.clearRect(ix, iy, iw, ih);
+        ctx.clearRect(ix - 1, iy - 1, iw + 2, ih + 2);
 
         // Draw from-node fading out
         if (sw > 0 && sh > 0) {
-          ctx.globalAlpha = 1 - t;
+          ctx.globalAlpha = (1 - t) * iOpacity;
           ctx.drawImage(fromCanvas, sx, sy, sw, sh, ix, iy, iw, ih);
         }
 
         // Draw to-node fading in
         if (tw > 0 && th > 0) {
-          ctx.globalAlpha = t;
+          ctx.globalAlpha = t * iOpacity;
           ctx.drawImage(toCanvas, tx, ty, tw, th, ix, iy, iw, ih);
         }
 
         ctx.globalAlpha = 1;
+        ctx.restore();
+      }
+
+      // Fade out removed nodes
+      for (const node of animData.removed) {
+        ctx.save();
+        ctx.globalAlpha = (1 - t);
+        const rx = node.rel_x * totalScale;
+        const ry = node.rel_y * totalScale;
+        const rw = node.width * totalScale;
+        const rh = node.height * totalScale;
+        if (rw > 0 && rh > 0) {
+          ctx.drawImage(fromCanvas, rx, ry, rw, rh, rx, ry, rw, rh);
+        }
+        ctx.restore();
+      }
+
+      // Fade in added nodes
+      for (const node of animData.added) {
+        ctx.save();
+        ctx.globalAlpha = t;
+        const ax = node.rel_x * totalScale;
+        const ay = node.rel_y * totalScale;
+        const aw = node.width * totalScale;
+        const ah = node.height * totalScale;
+        if (aw > 0 && ah > 0) {
+          ctx.drawImage(toCanvas, ax, ay, aw, ah, ax, ay, aw, ah);
+        }
         ctx.restore();
       }
 
