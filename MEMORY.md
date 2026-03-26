@@ -793,3 +793,4 @@
 - Shared component library (팀 간 컴포넌트 라이브러리 퍼블리싱/구독, 버전 동기화)
 - Canvas minimap (우하단 미니맵 오버레이, 현재 뷰포트 표시, 클릭/드래그로 네비게이션)
 - Auto-documentation generator (컴포넌트/스타일 기반 디자인 시스템 문서 자동 생성, Markdown/HTML export)
+- 3D Perspective Transform (노드별 3D 회전 X/Y/Z + 원근 투영 + vanishing point, strip-based Canvas2D 렌더링, Properties UI, SVG/CSS export)

@@ -965,6 +965,24 @@ fn append_transform(attrs: &mut String, node: &Node) {
     if !transforms.is_empty() {
         attrs.push_str(&format!(r#" transform="{}""#, transforms.join(" ")));
     }
+    // 3D perspective via CSS transform (SVG style attribute)
+    if let Some(ref p) = node.perspective {
+        let has_3d = p.rotate_x.abs() > 0.001 || p.rotate_y.abs() > 0.001 || p.rotate_z.abs() > 0.001;
+        if has_3d {
+            let mut parts = Vec::new();
+            if p.perspective > 0.0 {
+                parts.push(format!("perspective({}px)", p.perspective));
+            }
+            if p.rotate_x.abs() > 0.001 { parts.push(format!("rotateX({}deg)", p.rotate_x)); }
+            if p.rotate_y.abs() > 0.001 { parts.push(format!("rotateY({}deg)", p.rotate_y)); }
+            if p.rotate_z.abs() > 0.001 { parts.push(format!("rotateZ({}deg)", p.rotate_z)); }
+            let origin = format!("{}% {}%", p.origin_x * 100.0, p.origin_y * 100.0);
+            attrs.push_str(&format!(
+                r#" style="transform: {}; transform-origin: {};""#,
+                parts.join(" "), origin
+            ));
+        }
+    }
 }
 
 fn append_fill_ref(attrs: &mut String, fill_type: &FillType, node_id: u64) {

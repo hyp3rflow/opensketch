@@ -273,7 +273,19 @@ function generateCSS(ctx: CodeCtx): string {
     else lines.push("border-radius: 50%;");
   }
 
-  if (node.rotation && node.rotation !== 0) {
+  if (node.perspective) {
+    const p = node.perspective;
+    const parts: string[] = [];
+    if (p.perspective > 0) parts.push(`perspective(${p.perspective}px)`);
+    if (Math.abs(p.rotate_x) > 0.01) parts.push(`rotateX(${p.rotate_x.toFixed(1)}deg)`);
+    if (Math.abs(p.rotate_y) > 0.01) parts.push(`rotateY(${p.rotate_y.toFixed(1)}deg)`);
+    if (Math.abs(p.rotate_z) > 0.01) parts.push(`rotateZ(${p.rotate_z.toFixed(1)}deg)`);
+    if (node.rotation && node.rotation !== 0) parts.push(`rotate(${node.rotation.toFixed(1)}deg)`);
+    if (parts.length > 0) {
+      lines.push(`transform: ${parts.join(" ")};`);
+      lines.push(`transform-origin: ${(p.origin_x * 100).toFixed(0)}% ${(p.origin_y * 100).toFixed(0)}%;`);
+    }
+  } else if (node.rotation && node.rotation !== 0) {
     lines.push(`transform: rotate(${node.rotation.toFixed(1)}deg);`);
   }
   if (node.opacity !== undefined && node.opacity < 1) {

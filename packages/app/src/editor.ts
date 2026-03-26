@@ -2606,6 +2606,7 @@ export class Editor {
         }
         this.engine.render(this.ctx);
         this.renderImages();
+        this.render3DPerspective();
         this.renderPatternFills();
         this.renderLayoutGrids();
         this.renderGuideLines();
@@ -2930,6 +2931,118 @@ export class Editor {
       result.push({ id: l.id, x: n.x, y: n.y, w: n.width, h: n.height });
     }
     return result;
+  }
+
+  /** Render 3D perspective transforms using strip-based subdivision */
+  private render3DPerspective() {
+    const layers = JSON.parse(this.engine.get_layer_list());
+    const zoom = this.engine.get_zoom();
+    const panX = this.engine.get_pan_x();
+    const panY = this.engine.get_pan_y();
+
+    for (const layer of layers) {
+      if (!layer.visible) continue;
+      const pJson = this.engine.get_perspective(BigInt(layer.id));
+      if (!pJson) continue;
+      let p: any;
+      try { p = JSON.parse(pJson); } catch { continue; }
+      if (!p) continue;
+      const hasRotation = Math.abs(p.rotate_x) > 0.01 || Math.abs(p.rotate_y) > 0.01 || Math.abs(p.rotate_z) > 0.01;
+      if (!hasRotation) continue;
+
+      const nj = this.engine.get_node_json(BigInt(layer.id));
+      if (!nj) continue;
+      const node = JSON.parse(nj);
+
+      const w = node.width;
+      const h = node.height;
+      const sx = node.x * zoom + panX;
+      const sy = node.y * zoom + panY;
+      const sw = w * zoom;
+      const sh = h * zoom;
+
+      // Build DOMMatrix for 3D transform
+      const cx = sw * p.origin_x;
+      const cy = sh * p.origin_y;
+      const m = new DOMMatrix();
+      m.translateSelf(cx, cy);
+      if (p.perspective > 0) {
+        m.m34 = -1 / (p.perspective * zoom);
+      }
+      m.rotateAxisAngleSelf(1, 0, 0, p.rotate_x);
+      m.rotateAxisAngleSelf(0, 1, 0, p.rotate_y);
+      m.rotateAxisAngleSelf(0, 0, 1, p.rotate_z);
+      m.translateSelf(-cx, -cy);
+
+      // Project 4 corners
+      const corners = [
+        new DOMPoint(0, 0, 0), new DOMPoint(sw, 0, 0),
+        new DOMPoint(sw, sh, 0), new DOMPoint(0, sh, 0)
+      ];
+      const proj = corners.map(c => {
+        const pt = m.transformPoint(c);
+        const ww = pt.w || 1;
+        return { x: pt.x / ww, y: pt.y / ww };
+      });
+
+      // Draw semi-transparent overlay to hide the flat-rendered node
+      this.ctx.save();
+      this.ctx.globalCompositeOperation = "destination-out";
+      this.ctx.fillStyle = "rgba(0,0,0,1)";
+      this.ctx.fillRect(sx, sy, sw, sh);
+      this.ctx.restore();
+
+      // Render the node to an offscreen canvas at 1x (zoomed) size
+      const offW = Math.max(1, Math.ceil(sw));
+      const offH = Math.max(1, Math.ceil(sh));
+      const off = new OffscreenCanvas(offW, offH);
+      const offCtx = off.getContext("2d")!;
+      // Re-render the node into offscreen (we use engine render at this node's region)
+      // For simplicity, capture from main canvas
+      // Actually, let's just draw what we can from the main canvas region
+      offCtx.drawImage(this.canvas, sx * (window.devicePixelRatio || 1), sy * (window.devicePixelRatio || 1), offW * (window.devicePixelRatio || 1), offH * (window.devicePixelRatio || 1), 0, 0, offW, offH);
+
+      // Strip-based perspective warp (vertical slices)
+      const STRIPS = Math.max(16, Math.ceil(sw / 4));
+      this.ctx.save();
+      this.ctx.globalAlpha = node.opacity ?? 1;
+      for (let i = 0; i < STRIPS; i++) {
+        const t0 = i / STRIPS;
+        const t1 = (i + 1) / STRIPS;
+
+        // Interpolate left edge (top-left to bottom-left) and right edge (top-right to bottom-right)
+        const topL = { x: proj[0].x + (proj[1].x - proj[0].x) * t0, y: proj[0].y + (proj[1].y - proj[0].y) * t0 };
+        const topR = { x: proj[0].x + (proj[1].x - proj[0].x) * t1, y: proj[0].y + (proj[1].y - proj[0].y) * t1 };
+        const botL = { x: proj[3].x + (proj[2].x - proj[3].x) * t0, y: proj[3].y + (proj[2].y - proj[3].y) * t0 };
+        const botR = { x: proj[3].x + (proj[2].x - proj[3].x) * t1, y: proj[3].y + (proj[2].y - proj[3].y) * t1 };
+
+        // Source strip from offscreen
+        const srcX = t0 * offW;
+        const srcW = Math.max(1, (t1 - t0) * offW + 1);
+
+        // Destination: use affine transform to map strip
+        // We approximate by mapping the strip rectangle to the trapezoid slice
+        const dstX = topL.x;
+        const dstY = topL.y;
+        const dstW = topR.x - topL.x;
+        const dstH_left = botL.y - topL.y;
+        const dstH_right = botR.y - topR.y;
+        const dstH = Math.max(dstH_left, dstH_right);
+
+        if (dstW <= 0 || dstH <= 0) continue;
+
+        this.ctx.save();
+        this.ctx.translate(sx + dstX, sy + dstY);
+        // Simple affine: scale x and y, plus skew for perspective
+        const scaleX = dstW / srcW;
+        const scaleY = dstH / offH;
+        const skewY = ((topR.y - topL.y) / dstW) || 0;
+        this.ctx.transform(scaleX, skewY, 0, scaleY, 0, 0);
+        this.ctx.drawImage(off, srcX, 0, srcW, offH, 0, 0, srcW, offH);
+        this.ctx.restore();
+      }
+      this.ctx.restore();
+    }
   }
 
   /** Get combined bounding box of selected nodes */

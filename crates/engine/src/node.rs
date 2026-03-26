@@ -1254,6 +1254,30 @@ pub struct Breakpoint {
     pub hidden_children: Vec<usize>,
 }
 
+/// 3D perspective transform
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct Perspective3D {
+    pub rotate_x: f64,
+    pub rotate_y: f64,
+    pub rotate_z: f64,
+    pub perspective: f64,
+    pub origin_x: f64,
+    pub origin_y: f64,
+}
+
+impl Default for Perspective3D {
+    fn default() -> Self {
+        Self {
+            rotate_x: 0.0,
+            rotate_y: 0.0,
+            rotate_z: 0.0,
+            perspective: 800.0,
+            origin_x: 0.5,
+            origin_y: 0.5,
+        }
+    }
+}
+
 /// Attached note (markdown)
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Note {
@@ -1371,6 +1395,9 @@ pub struct Node {
     /// Text-on-path offset along the path (0.0 = start, 1.0 = end)
     #[serde(default)]
     pub text_path_offset: f64,
+    /// 3D perspective transform
+    #[serde(default)]
+    pub perspective: Option<Perspective3D>,
 }
 
 impl Node {
@@ -1442,6 +1469,7 @@ impl Node {
             absolute_position: false,
             text_path_id: None,
             text_path_offset: 0.0,
+            perspective: None,
         }
     }
 

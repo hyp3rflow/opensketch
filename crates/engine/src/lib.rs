@@ -4238,6 +4238,57 @@ impl Engine {
     }
 
     // =============================================
+    // 3D Perspective Transform
+    // =============================================
+
+    pub fn set_perspective(&mut self, id: u64, rotate_x: f64, rotate_y: f64, rotate_z: f64, perspective: f64, origin_x: f64, origin_y: f64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            node.perspective = Some(crate::node::Perspective3D {
+                rotate_x, rotate_y, rotate_z, perspective, origin_x, origin_y,
+            });
+        }
+    }
+
+    pub fn get_perspective(&self, id: u64) -> String {
+        if let Some(node) = self.scene.get_node(id) {
+            if let Some(ref p) = node.perspective {
+                return serde_json::to_string(p).unwrap_or_default();
+            }
+        }
+        String::new()
+    }
+
+    pub fn clear_perspective(&mut self, id: u64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            node.perspective = None;
+        }
+    }
+
+    pub fn set_perspective_rotation(&mut self, id: u64, rx: f64, ry: f64, rz: f64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            let p = node.perspective.get_or_insert(crate::node::Perspective3D::default());
+            p.rotate_x = rx;
+            p.rotate_y = ry;
+            p.rotate_z = rz;
+        }
+    }
+
+    pub fn set_perspective_distance(&mut self, id: u64, distance: f64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            let p = node.perspective.get_or_insert(crate::node::Perspective3D::default());
+            p.perspective = distance;
+        }
+    }
+
+    pub fn set_perspective_origin(&mut self, id: u64, ox: f64, oy: f64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            let p = node.perspective.get_or_insert(crate::node::Perspective3D::default());
+            p.origin_x = ox;
+            p.origin_y = oy;
+        }
+    }
+
+    // =============================================
     // Constraints
     // =============================================
 

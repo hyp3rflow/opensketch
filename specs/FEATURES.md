@@ -1060,3 +1060,9 @@ Frame overflow control and content scrolling.
 - [x] **Event hotspot hints**: Orange dotted border + ⚡ icon on nodes with events in prototype viewer
 - [x] **Properties panel**: "Events" section with add/remove, trigger dropdown, JS code editor (monospace textarea with Tab support), enable/disable toggle
 - [x] **Implementation**: ui/node-events.ts (EventRuntime + renderNodeEventsSection), prototype-viewer.ts integration
+- [x] **3D Perspective Transform**: Per-node 3D rotation (X/Y/Z) + perspective distance + vanishing point origin
+  - Rust engine: Perspective3D struct (rotate_x/y/z, perspective distance, origin_x/y), WASM bindings (set/get/clear_perspective, set_perspective_rotation/distance/origin)
+  - Canvas rendering: Strip-based perspective warp using DOMMatrix 3D projection
+  - Properties panel: "3D Transform" section with enable checkbox, rotation sliders, distance, origin controls, reset button
+  - SVG export: CSS transform with perspective() rotateX/Y/Z() + transform-origin
+  - Inspect panel: CSS code generation for perspective transforms

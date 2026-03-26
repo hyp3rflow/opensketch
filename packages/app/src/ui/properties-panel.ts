@@ -2059,6 +2059,114 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       container.appendChild(effectsSection);
     }
 
+    // --- 3D Transform ---
+    {
+      const section3d = createSection("3D Transform");
+      const pJson = editor.engine.get_perspective(BigInt(id));
+      let perspective: any = pJson ? JSON.parse(pJson) : null;
+      const enabled = !!perspective;
+
+      // Enable checkbox
+      const enableRow = document.createElement("div");
+      enableRow.className = "prop-row";
+      const enableCb = document.createElement("input");
+      enableCb.type = "checkbox";
+      enableCb.checked = enabled;
+      enableCb.style.cssText = "margin-right:6px;";
+      enableCb.addEventListener("change", () => {
+        if (enableCb.checked) {
+          editor.engine.set_perspective(BigInt(id), 0, 0, 0, 800, 0.5, 0.5);
+        } else {
+          editor.engine.clear_perspective(BigInt(id));
+        }
+        editor.requestRender();
+        refresh(ids);
+      });
+      const enableLabel = document.createElement("span");
+      enableLabel.style.cssText = "font-size:11px;color:#aaa;";
+      enableLabel.textContent = "Enable 3D";
+      enableRow.appendChild(enableCb);
+      enableRow.appendChild(enableLabel);
+      section3d.appendChild(enableRow);
+
+      if (enabled && perspective) {
+        const make3DInput = (label: string, value: number, min: number, max: number, step: number, onChange: (v: number) => void) => {
+          const row = document.createElement("div");
+          row.className = "prop-row";
+          row.style.cssText = "display:flex;align-items:center;gap:6px;";
+          const lbl = document.createElement("span");
+          lbl.style.cssText = "font-size:10px;color:#666;width:60px;flex-shrink:0;";
+          lbl.textContent = label;
+          row.appendChild(lbl);
+          const slider = document.createElement("input");
+          slider.type = "range";
+          slider.min = String(min);
+          slider.max = String(max);
+          slider.step = String(step);
+          slider.value = String(value);
+          slider.style.cssText = "flex:1;accent-color:#7c3aed;";
+          const num = document.createElement("input");
+          num.className = "prop-input";
+          num.type = "number";
+          num.min = String(min);
+          num.max = String(max);
+          num.step = String(step);
+          num.value = String(Math.round(value * 10) / 10);
+          num.style.width = "50px";
+          const update = (v: number) => {
+            slider.value = String(v);
+            num.value = String(Math.round(v * 10) / 10);
+            onChange(v);
+            editor.requestRender();
+          };
+          slider.addEventListener("input", () => update(parseFloat(slider.value)));
+          num.addEventListener("change", () => update(parseFloat(num.value) || 0));
+          row.appendChild(slider);
+          row.appendChild(num);
+          return row;
+        };
+
+        section3d.appendChild(make3DInput("Rotate X", perspective.rotate_x, -180, 180, 1, (v) => {
+          editor.engine.set_perspective_rotation(BigInt(id), v, perspective.rotate_y, perspective.rotate_z);
+          perspective.rotate_x = v;
+        }));
+        section3d.appendChild(make3DInput("Rotate Y", perspective.rotate_y, -180, 180, 1, (v) => {
+          editor.engine.set_perspective_rotation(BigInt(id), perspective.rotate_x, v, perspective.rotate_z);
+          perspective.rotate_y = v;
+        }));
+        section3d.appendChild(make3DInput("Rotate Z", perspective.rotate_z, -180, 180, 1, (v) => {
+          editor.engine.set_perspective_rotation(BigInt(id), perspective.rotate_x, perspective.rotate_y, v);
+          perspective.rotate_z = v;
+        }));
+        section3d.appendChild(make3DInput("Distance", perspective.perspective, 0, 2000, 10, (v) => {
+          editor.engine.set_perspective_distance(BigInt(id), v);
+          perspective.perspective = v;
+        }));
+        section3d.appendChild(make3DInput("Origin X", perspective.origin_x, 0, 1, 0.05, (v) => {
+          editor.engine.set_perspective_origin(BigInt(id), v, perspective.origin_y);
+          perspective.origin_x = v;
+        }));
+        section3d.appendChild(make3DInput("Origin Y", perspective.origin_y, 0, 1, 0.05, (v) => {
+          editor.engine.set_perspective_origin(BigInt(id), perspective.origin_x, v);
+          perspective.origin_y = v;
+        }));
+
+        // Reset button
+        const resetBtn = document.createElement("button");
+        resetBtn.className = "prop-btn";
+        resetBtn.textContent = "Reset";
+        resetBtn.style.cssText = "margin-top:4px;font-size:10px;padding:3px 8px;";
+        resetBtn.addEventListener("click", () => {
+          editor.engine.set_perspective(BigInt(id), 0, 0, 0, 800, 0.5, 0.5);
+          editor.requestRender();
+          refresh(ids);
+        });
+        section3d.appendChild(resetBtn);
+      }
+
+      container.appendChild(section3d);
+    }
+
     // --- Prototype Interactions ---
     {
       const interSection = createSection("Interactions");
