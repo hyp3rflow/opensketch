@@ -1775,6 +1775,25 @@ impl Scene {
     /// Apply animation values at a given time, mutating nodes in-place. Returns changed node IDs.
     pub fn anim_apply(&mut self, clip_id: u64, time_ms: u32) -> Vec<NodeId> {
         let values = self.animations.evaluate_clip(clip_id, time_ms);
+        // Collect motion path configs for motion path tracks
+        let motion_configs: Vec<(NodeId, f64, crate::animation::MotionPathConfig)> = {
+            if let Some(clip) = self.animations.get_clip(clip_id) {
+                let effective_time = if clip.looping && clip.effective_duration() > 0 {
+                    time_ms % clip.effective_duration()
+                } else {
+                    time_ms.min(clip.effective_duration())
+                };
+                clip.tracks.iter().filter_map(|track| {
+                    if track.property == crate::animation::AnimProperty::MotionPath {
+                        if let Some(config) = &track.motion_path {
+                            let progress = track.value_at(effective_time).unwrap_or(0.0);
+                            Some((track.node_id, progress, config.clone()))
+                        } else { None }
+                    } else { None }
+                }).collect()
+            } else { vec![] }
+        };
+
         let mut changed = Vec::new();
         for (node_id, prop, val) in values {
             if let Some(node) = self.nodes.get_mut(&node_id) {
@@ -1815,10 +1834,37 @@ impl Scene {
                     }
                     ScaleX => { /* handled in TS as width % */ }
                     ScaleY => { /* handled in TS as height % */ }
+                    MotionPath => { /* handled below with path sampling */ }
                 };
                 if !changed.contains(&node_id) { changed.push(node_id); }
             }
         }
+
+        // Apply motion path positions
+        for (node_id, progress, config) in &motion_configs {
+            // Get path points from the path node
+            let path_data: Option<(Vec<crate::node::PathPoint>, bool)> = self.nodes.get(&config.path_node_id).and_then(|pn| {
+                if let crate::node::NodeKind::Path { ref points, closed } = pn.kind {
+                    Some((points.clone(), closed))
+                } else { None }
+            });
+            if let Some((points, closed)) = path_data {
+                let total_len = crate::path_utils::path_length(&points, closed);
+                let dist = progress.clamp(0.0, 1.0) * total_len;
+                if let Some(sample) = crate::path_utils::point_at_length(&points, closed, dist) {
+                    if let Some(node) = self.nodes.get_mut(node_id) {
+                        // Center the node on the path point
+                        node.x = sample.x - node.width / 2.0;
+                        node.y = sample.y - node.height / 2.0;
+                        if config.orient_to_path {
+                            node.rotation = sample.angle.to_degrees() + config.rotation_offset;
+                        }
+                        if !changed.contains(node_id) { changed.push(*node_id); }
+                    }
+                }
+            }
+        }
+
         changed
     }
 

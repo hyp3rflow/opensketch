@@ -104,7 +104,52 @@ export function createAnimationTimeline(editor: Editor): {
   });
   recordBtn.style.color = "#e94560";
 
-  topBar.append(clipSelect, addClipBtn, removeClipBtn, sep(), playBtn, stopBtn, loopBtn, sep(), recordBtn, timeDisplay);
+  // Motion Path button
+  const motionPathBtn = makeBtn("🛤", "Attach motion path", () => {
+    if (state.activeClipId == null) { alert("Select a clip first"); return; }
+    const sel = editor.getSelection();
+    if (sel.length !== 1) { alert("Select exactly one node"); return; }
+    const nodeId = sel[0];
+
+    // Get available path nodes
+    const paths: { id: number; name: string }[] = JSON.parse(editor.engine.get_path_nodes());
+    if (paths.length === 0) { alert("No Path nodes in scene. Draw a path first."); return; }
+
+    // Check if already has motion path
+    const existing = JSON.parse(editor.engine.anim_get_motion_path(BigInt(state.activeClipId!), BigInt(nodeId)));
+    if (existing) {
+      if (confirm("Remove existing motion path?")) {
+        editor.engine.push_undo();
+        editor.engine.anim_remove_motion_path(BigInt(state.activeClipId!), BigInt(nodeId));
+        renderTracks();
+      }
+      return;
+    }
+
+    // Simple path picker
+    const pathId = paths.length === 1 ? paths[0].id : (() => {
+      const choice = prompt(
+        "Select path:\n" + paths.map((p, i) => `${i + 1}. ${p.name} (#${p.id})`).join("\n") + "\n\nEnter number:",
+        "1"
+      );
+      if (!choice) return null;
+      const idx = parseInt(choice) - 1;
+      return paths[idx]?.id ?? null;
+    })();
+    if (pathId == null) return;
+
+    const dur = Number(prompt("Duration (ms):", "2000") || "2000");
+    const orient = confirm("Orient node along path?");
+
+    editor.engine.push_undo();
+    editor.engine.anim_set_motion_path(
+      BigInt(state.activeClipId!), BigInt(nodeId), BigInt(pathId),
+      dur, orient, 0.0, "ease_in_out"
+    );
+    renderTracks();
+  });
+
+  topBar.append(clipSelect, addClipBtn, removeClipBtn, sep(), playBtn, stopBtn, loopBtn, sep(), recordBtn, motionPathBtn, timeDisplay);
   container.appendChild(topBar);
 
   // ─── Track area ───
@@ -275,7 +320,8 @@ export function createAnimationTimeline(editor: Editor): {
         if (nj) nodeName = JSON.parse(nj).name || `#${t.node_id}`;
       } catch {}
 
-      const propLabel = typeof t.property === "string" ? t.property : JSON.stringify(t.property);
+      let propLabel = typeof t.property === "string" ? t.property : JSON.stringify(t.property);
+      if (propLabel === "MotionPath") propLabel = "🛤 Motion Path";
 
       return {
         nodeId: Number(t.node_id),

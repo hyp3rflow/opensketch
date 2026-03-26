@@ -745,6 +745,18 @@ Frame overflow control and content scrolling.
 - [x] Zoom/scroll on timeline, right-click to delete keyframes
 - [x] Keyboard shortcut: Alt+T to toggle timeline panel
 
+## Motion Path Animation
+- [x] AnimProperty::MotionPath — node follows a Path node, value = progress (0.0–1.0)
+- [x] MotionPathConfig: path_node_id, orient_to_path (auto-rotate along tangent), rotation_offset
+- [x] AnimationTrack.motion_path: Optional<MotionPathConfig> for MotionPath tracks
+- [x] Scene anim_apply: resolves path geometry via path_utils, samples point+tangent at progress distance
+- [x] Node centering on path point, optional orientation to tangent angle
+- [x] WASM: anim_set_motion_path, anim_update_motion_path, anim_remove_motion_path, anim_get_motion_path, get_path_nodes
+- [x] Timeline UI: 🛤 button to attach/detach motion path, path picker, duration input, orient toggle
+- [x] Track label: "🛤 Motion Path" for motion path tracks
+- [x] Works with existing playback, looping, easing, and scene snapshot/restore
+- [x] Backward-compatible serde (motion_path field skipped when None)
+
 ## Color Palette Generator
 - [x] Rust: color_palette.rs — extract scene colors, HSL conversion, harmony generation, WCAG contrast
 - [x] Color extraction: all fills (solid + gradient stops), strokes, shadows with usage count

@@ -77,7 +77,25 @@ pub enum AnimProperty {
     // Scale (uniform, encoded as width+height percentage)
     ScaleX,
     ScaleY,
+    /// Motion path: node follows a Path node. Value = progress (0.0–1.0).
+    /// The associated MotionPathConfig is stored on the track.
+    MotionPath,
 }
+
+/// Configuration for motion path animation
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct MotionPathConfig {
+    /// ID of the Path node to follow
+    pub path_node_id: u64,
+    /// Whether to orient the node along the path tangent
+    #[serde(default = "default_true")]
+    pub orient_to_path: bool,
+    /// Rotation offset in degrees (added to tangent angle when orient_to_path is true)
+    #[serde(default)]
+    pub rotation_offset: f64,
+}
+
+fn default_true() -> bool { true }
 
 /// A single keyframe: a property value at a specific time
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -97,6 +115,9 @@ pub struct AnimationTrack {
     pub node_id: NodeId,
     pub property: AnimProperty,
     pub keyframes: Vec<Keyframe>,
+    /// Motion path config (only used when property == MotionPath)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub motion_path: Option<MotionPathConfig>,
 }
 
 impl AnimationTrack {
@@ -211,6 +232,7 @@ impl AnimationStore {
                     node_id,
                     property: property.clone(),
                     keyframes: vec![],
+                    motion_path: None,
                 });
                 clip.tracks.last_mut().unwrap()
             }

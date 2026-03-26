@@ -5634,6 +5634,87 @@ impl Engine {
         count
     }
 
+    // ── Motion Path Animation ─────────────────────────────────────
+
+    /// Set up a motion path track: node follows a Path node.
+    /// Creates a MotionPath track with keyframes at 0ms (0.0) and duration_ms (1.0).
+    #[wasm_bindgen]
+    pub fn anim_set_motion_path(&mut self, clip_id: u64, node_id: u64, path_node_id: u64, duration_ms: u32, orient: bool, rotation_offset: f64, easing: &str) -> bool {
+        let ease = parse_easing(easing);
+        let config = animation::MotionPathConfig {
+            path_node_id,
+            orient_to_path: orient,
+            rotation_offset,
+        };
+        // Remove existing motion path track for this node if any
+        if let Some(clip) = self.scene.animations.get_clip_mut(clip_id) {
+            clip.tracks.retain(|t| !(t.node_id == node_id && t.property == animation::AnimProperty::MotionPath));
+            clip.tracks.push(animation::AnimationTrack {
+                node_id,
+                property: animation::AnimProperty::MotionPath,
+                keyframes: vec![
+                    animation::Keyframe { time_ms: 0, value: 0.0, easing: ease },
+                    animation::Keyframe { time_ms: duration_ms, value: 1.0, easing: animation::Easing::Linear },
+                ],
+                motion_path: Some(config),
+            });
+            true
+        } else { false }
+    }
+
+    /// Update motion path config on an existing track
+    #[wasm_bindgen]
+    pub fn anim_update_motion_path(&mut self, clip_id: u64, node_id: u64, orient: bool, rotation_offset: f64) -> bool {
+        if let Some(clip) = self.scene.animations.get_clip_mut(clip_id) {
+            if let Some(track) = clip.tracks.iter_mut().find(|t| t.node_id == node_id && t.property == animation::AnimProperty::MotionPath) {
+                if let Some(ref mut config) = track.motion_path {
+                    config.orient_to_path = orient;
+                    config.rotation_offset = rotation_offset;
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    /// Remove motion path track from a clip
+    #[wasm_bindgen]
+    pub fn anim_remove_motion_path(&mut self, clip_id: u64, node_id: u64) -> bool {
+        if let Some(clip) = self.scene.animations.get_clip_mut(clip_id) {
+            let len = clip.tracks.len();
+            clip.tracks.retain(|t| !(t.node_id == node_id && t.property == animation::AnimProperty::MotionPath));
+            clip.tracks.len() < len
+        } else { false }
+    }
+
+    /// Get motion path info for a node in a clip. Returns JSON or "null".
+    #[wasm_bindgen]
+    pub fn anim_get_motion_path(&self, clip_id: u64, node_id: u64) -> String {
+        if let Some(clip) = self.scene.animations.get_clip(clip_id) {
+            if let Some(track) = clip.tracks.iter().find(|t| t.node_id == node_id && t.property == animation::AnimProperty::MotionPath) {
+                if let Some(ref config) = track.motion_path {
+                    return serde_json::json!({
+                        "path_node_id": config.path_node_id,
+                        "orient_to_path": config.orient_to_path,
+                        "rotation_offset": config.rotation_offset,
+                        "keyframes": track.keyframes,
+                    }).to_string();
+                }
+            }
+        }
+        "null".to_string()
+    }
+
+    /// Get all Path nodes in the scene (for motion path picker)
+    #[wasm_bindgen]
+    pub fn get_path_nodes(&self) -> String {
+        let paths: Vec<serde_json::Value> = self.scene.all_nodes()
+            .filter(|n| matches!(n.kind, crate::node::NodeKind::Path { .. }))
+            .map(|n| serde_json::json!({"id": n.id, "name": &n.name}))
+            .collect();
+        serde_json::to_string(&paths).unwrap_or_else(|_| "[]".to_string())
+    }
+
     // ── Find & Replace ──────────────────────────────────────────
 
     #[wasm_bindgen]
@@ -5790,6 +5871,7 @@ fn parse_anim_property(s: &str) -> Option<animation::AnimProperty> {
         "blur" => Some(Blur),
         "scale_x" => Some(ScaleX),
         "scale_y" => Some(ScaleY),
+        "motion_path" => Some(MotionPath),
         _ if s.starts_with("fill_r:") => s[7..].parse::<usize>().ok().map(FillR),
         _ if s.starts_with("fill_g:") => s[7..].parse::<usize>().ok().map(FillG),
         _ if s.starts_with("fill_b:") => s[7..].parse::<usize>().ok().map(FillB),
@@ -5835,5 +5917,6 @@ fn get_node_property_value(node: &node::Node, prop: &animation::AnimProperty) ->
         StrokeWidth(idx) => node.strokes.get(*idx).map(|s| s.width),
         ScaleX => Some(node.width),
         ScaleY => Some(node.height),
+        MotionPath => Some(0.0), // progress, not a static property
     }
 }
