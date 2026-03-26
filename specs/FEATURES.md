@@ -1140,13 +1140,15 @@ Frame overflow control and content scrolling.
 - [x] **Implementation**: `crates/engine/src/design_polish.rs` (Rust) + `ui/design-polish.ts` (modal)
 
 ## 108. Design System Health Dashboard
-- [x] **Rust analysis engine**: `design_health.rs` — ComponentStore + StyleStore + Scene analysis
-- [x] **Component usage stats**: Per-component instance count, total components/instances
-- [x] **Detached instance detection**: Instances referencing non-existent components
-- [x] **Unused style detection**: Color/text styles not matching any node fill/font
-- [x] **Consistency score**: Weighted metric (instance health 30%, color coverage 25%, text coverage 25%, component adoption 20%)
+- [x] **Rust analysis engine**: `design_health.rs` — ComponentStore + StyleStore + Scene cross-analysis
+- [x] **Overall health score**: 0–100 weighted metric (component adoption, style adoption, detached, unused, hardcoded colors, near-duplicates)
+- [x] **Component health**: total/instances/unused/detached, adoption rate (instances vs raw shapes)
+- [x] **Style health**: color/text style usage tracking, unused detection, style adoption rate
+- [x] **Color health**: unique color count, hardcoded colors (≥2 uses without style), near-duplicate detection (distance <15)
+- [x] **Typography health**: font family usage, font size inventory, unstandardized sizes (not in text styles)
+- [x] **Issues list**: severity-tagged (error/warning/info), categorized, with suggestions
 - [x] **Cleanup actions**: `remove_unused_color_styles()`, `remove_unused_text_styles()` WASM bindings
-- [x] **WASM bindings**: `get_design_health()` → JSON report, cleanup methods
-- [x] **Modal UI**: Stats cards, progress bars, component usage table, detached warnings, cleanup buttons
+- [x] **WASM bindings**: `get_design_health()` → JSON report
+- [x] **Tabbed modal UI**: Overview / Components / Styles / Colors / Typography / Issues tabs
 - [x] **Toolbar button**: Pulse/heartbeat icon
 - [x] **Implementation**: `crates/engine/src/design_health.rs` (Rust) + `ui/design-health.ts` (modal)
