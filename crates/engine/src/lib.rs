@@ -27,6 +27,7 @@ mod smart_component;
 pub mod recording;
 mod svg_import;
 pub mod code_to_design;
+mod design_health;
 
 use wasm_bindgen::prelude::*;
 use web_sys::CanvasRenderingContext2d;
@@ -4702,9 +4703,35 @@ impl Engine {
         design_tokens::export_design_tokens(&self.styles, &self.scene.variable_collections, fmt)
     }
 
-    /// Run design lint on all visible nodes in the active page.
-    /// Returns JSON array of lint issues.
+    /// Analyze design system health: component usage, detached instances, unused styles, consistency score
     #[wasm_bindgen]
+    pub fn get_design_health(&self) -> String {
+        let report = design_health::analyze_health(&self.scene, &self.components, &self.styles);
+        serde_json::to_string(&report).unwrap_or_else(|_| "{}".to_string())
+    }
+
+    /// Remove unused color styles
+    #[wasm_bindgen]
+    pub fn remove_unused_color_styles(&mut self) -> u32 {
+        let report = design_health::analyze_health(&self.scene, &self.components, &self.styles);
+        let mut removed = 0u32;
+        for id in &report.unused_color_style_ids {
+            if self.styles.remove_color_style(*id) { removed += 1; }
+        }
+        removed
+    }
+
+    /// Remove unused text styles
+    #[wasm_bindgen]
+    pub fn remove_unused_text_styles(&mut self) -> u32 {
+        let report = design_health::analyze_health(&self.scene, &self.components, &self.styles);
+        let mut removed = 0u32;
+        for id in &report.unused_text_style_ids {
+            if self.styles.remove_text_style(*id) { removed += 1; }
+        }
+        removed
+    }
+
     pub fn run_design_lint(&self) -> String {
         let config = design_lint::LintConfig::default();
         let issues = design_lint::run_lint(self.scene.nodes_map(), &config);

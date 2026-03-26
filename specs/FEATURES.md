@@ -1138,3 +1138,15 @@ Frame overflow control and content scrolling.
 - [x] **Toolbar button**: Sparkle icon, opens modal
 - [x] **Undo integration**: push_undo before applying fixes
 - [x] **Implementation**: `crates/engine/src/design_polish.rs` (Rust) + `ui/design-polish.ts` (modal)
+
+## 108. Design System Health Dashboard
+- [x] **Rust analysis engine**: `design_health.rs` — ComponentStore + StyleStore + Scene analysis
+- [x] **Component usage stats**: Per-component instance count, total components/instances
+- [x] **Detached instance detection**: Instances referencing non-existent components
+- [x] **Unused style detection**: Color/text styles not matching any node fill/font
+- [x] **Consistency score**: Weighted metric (instance health 30%, color coverage 25%, text coverage 25%, component adoption 20%)
+- [x] **Cleanup actions**: `remove_unused_color_styles()`, `remove_unused_text_styles()` WASM bindings
+- [x] **WASM bindings**: `get_design_health()` → JSON report, cleanup methods
+- [x] **Modal UI**: Stats cards, progress bars, component usage table, detached warnings, cleanup buttons
+- [x] **Toolbar button**: Pulse/heartbeat icon
+- [x] **Implementation**: `crates/engine/src/design_health.rs` (Rust) + `ui/design-health.ts` (modal)
