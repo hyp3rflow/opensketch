@@ -28,6 +28,7 @@ pub mod recording;
 mod svg_import;
 pub mod code_to_design;
 mod design_health;
+mod smart_replace;
 
 use wasm_bindgen::prelude::*;
 use web_sys::CanvasRenderingContext2d;
@@ -4756,6 +4757,43 @@ impl Engine {
         design_polish::apply_fixes(nodes, &result, &fix_ids)
     }
 
+    // ── Smart Replace ──────────────────────────────────────
+
+    /// Find nodes with similar size/aspect-ratio to the target node.
+    /// Returns JSON array of {id, name, width, height, similarity}.
+    #[wasm_bindgen]
+    pub fn find_similar_nodes(&self, target_id: u64, ratio_threshold: f64, size_threshold: f64) -> String {
+        let thresh = smart_replace::SimilarityThreshold {
+            ratio_threshold,
+            size_threshold,
+        };
+        let results = smart_replace::find_similar_nodes(self.scene.nodes_map(), target_id, &thresh);
+        serde_json::to_string(&results).unwrap_or_else(|_| "[]".to_string())
+    }
+
+    /// Replace target nodes' content with the source node's visual properties.
+    /// target_ids_json: JSON array of u64 node IDs.
+    /// Returns the number of nodes replaced.
+    #[wasm_bindgen]
+    pub fn replace_with_node(&mut self, source_id: u64, target_ids_json: &str) -> u32 {
+        let target_ids: Vec<u64> = serde_json::from_str(target_ids_json).unwrap_or_default();
+        if target_ids.is_empty() { return 0; }
+        self.push_undo();
+        let nodes = self.scene.nodes_map_mut();
+        smart_replace::replace_node_content(nodes, source_id, &target_ids)
+    }
+
+    /// Replace all currently selected nodes with the source node's content.
+    /// Returns the number of nodes replaced.
+    #[wasm_bindgen]
+    pub fn replace_selection_with(&mut self, source_id: u64) -> u32 {
+        let sel: Vec<u64> = self.scene.selection.clone();
+        if sel.is_empty() { return 0; }
+        self.push_undo();
+        let nodes = self.scene.nodes_map_mut();
+        smart_replace::replace_node_content(nodes, source_id, &sel)
+    }
+
     /// Perform a boolean operation on selected nodes.
     /// op: "union" | "subtract" | "intersect" | "exclude"
     /// Returns the new node ID, or 0 if failed.
@@ -6006,6 +6044,7 @@ impl Engine {
         let suggestions = self.scene.suggest_components();
         serde_json::to_string(&suggestions).unwrap_or_else(|_| "[]".to_string())
     }
+
 }
 
 fn parse_anim_property(s: &str) -> Option<animation::AnimProperty> {

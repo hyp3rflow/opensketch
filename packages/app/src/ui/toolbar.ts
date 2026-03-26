@@ -213,6 +213,19 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
   });
   container.appendChild(polishBtn);
 
+  // Smart Replace button
+  const replaceBtn = document.createElement("button");
+  replaceBtn.className = "tool-btn";
+  replaceBtn.title = "Smart Replace (Cmd+Shift+H)";
+  replaceBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M8 21H3v-5"/><path d="M21 3l-8.5 8.5"/><path d="M3 21l8.5-8.5"/></svg>`;
+  replaceBtn.addEventListener("click", () => {
+    const sel = Array.from(editor.engine.get_selection()).map(Number);
+    if (sel.length === 1) {
+      editor.openSmartReplacePanel(sel[0]!);
+    }
+  });
+  container.appendChild(replaceBtn);
+
   // Design Health Dashboard button
   const healthBtn = document.createElement("button");
   healthBtn.className = "tool-btn";

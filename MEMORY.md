@@ -820,3 +820,10 @@
 - Accessible color contrast checker (WCAG AA/AAA 대비 비율 검사, 자동 색상 보정 제안, 접근성 리포트)
 - Smart layout suggestions (AI 기반 레이아웃 개선 제안 — 정렬 불일치, 간격 불균형, 일관성 위반 감지 + 원클릭 적용)
 - Canvas performance profiler (렌더링 FPS 모니터, 노드별 렌더 비용 히트맵, 최적화 제안)
+
+## 완료된 기능 (추가 — Smart Replace)
+- Smart Object Replace: 선택 노드와 유사 크기/비율 노드를 찾아 일괄 교체 (smart_replace.rs + ui/smart-replace.ts)
+  - Rust: find_similar_nodes, replace_node_content (aspect ratio ±10%, area ±50% threshold)
+  - WASM: find_similar_nodes, replace_with_node, replace_selection_with
+  - UI: 모달 (유사 노드 목록 + 유사도% + 체크박스 + threshold 조절)
+  - 단축키: Cmd+Shift+H, 컨텍스트 메뉴, 툴바 버튼

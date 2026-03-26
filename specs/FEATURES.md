@@ -1153,3 +1153,15 @@ Frame overflow control and content scrolling.
 - [x] **Tabbed modal UI**: Overview / Components / Styles / Colors / Typography / Issues tabs
 - [x] **Toolbar button**: Pulse/heartbeat icon
 - [x] **Implementation**: `crates/engine/src/design_health.rs` (Rust) + `ui/design-health.ts` (modal)
+
+## 109. Smart Object Replace
+- [x] **Rust engine**: `smart_replace.rs` — find similar nodes by aspect ratio/size, replace visual content
+- [x] **Similarity search**: configurable ratio threshold (±10%) and size threshold (±50%), weighted scoring
+- [x] **NodeKind-aware replace**: Image(src swap), Instance(component ref), Rect/Ellipse/etc.(fills/strokes/shadows/blur)
+- [x] **WASM bindings**: `find_similar_nodes(target_id, ratio_threshold, size_threshold)` → JSON, `replace_with_node(source_id, target_ids_json)` → count, `replace_selection_with(source_id)` → count
+- [x] **Modal UI**: Source node selection, similar node list with similarity %, checkboxes, threshold controls, Replace All / Replace Selected
+- [x] **Hover preview**: Highlights target node on hover in the list
+- [x] **Toolbar button**: Swap arrows icon + Cmd+Shift+H shortcut
+- [x] **Context menu**: "Smart Replace…" option when single node selected
+- [x] **Undo integration**: push_undo before replacements
+- [x] **Implementation**: `crates/engine/src/smart_replace.rs` (Rust) + `ui/smart-replace.ts` (modal)

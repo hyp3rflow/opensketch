@@ -10,6 +10,7 @@ import { openResponsivePreview, isResponsivePreviewOpen, closeResponsivePreview 
 import { openResponsiveTokensPanel, closeResponsiveTokensPanel, isResponsiveTokensPanelOpen } from "./ui/responsive-tokens";
 import { CursorPresence } from "./ui/cursor-presence";
 import { openComponentSwapModal } from "./ui/component-swap";
+import { openSmartReplace, closeSmartReplace, isSmartReplaceOpen } from "./ui/smart-replace";
 import { openComponentLibraryPanel } from "./ui/component-library";
 import { openComponentAnalytics, closeComponentAnalytics, isComponentAnalyticsOpen } from "./ui/component-analytics";
 import { openSmartSuggestions, closeSmartSuggestions, isSmartSuggestionsOpen } from "./ui/smart-suggestions";
@@ -483,6 +484,14 @@ export class Editor {
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "k" || e.key === "K")) {
         e.preventDefault();
         this.openComponentSwap();
+        return;
+      }
+
+      // Ctrl/Cmd+Shift+H: smart replace
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "h" || e.key === "H")) {
+        e.preventDefault();
+        const sel = Array.from(this.engine.get_selection()).map(Number);
+        if (sel.length === 1) this.openSmartReplacePanel(sel[0]!);
         return;
       }
 
@@ -4032,6 +4041,22 @@ export class Editor {
     openComponentLibraryPanel(this.engine, () => this.requestRender());
   }
 
+  openSmartReplacePanel(sourceNodeId: number) {
+    openSmartReplace(
+      this.engine,
+      sourceNodeId,
+      () => this.requestRender(),
+      (nodeId) => {
+        // Highlight node on hover
+        if (nodeId) {
+          this.engine.deselect_all();
+          this.engine.select(BigInt(nodeId));
+        }
+        this.needsRender = true;
+      },
+    );
+  }
+
   openComponentSwap() {
     openComponentSwapModal(this);
   }
@@ -4196,6 +4221,7 @@ export class Editor {
       items.push({ label: "Select All with Same Font", enabled: selAfter.length === 1, action: () => this.selectSameFont(selAfter[0]!) });
       items.push({ label: "Select All with Same Kind", enabled: selAfter.length === 1, action: () => this.selectSameKind(selAfter[0]!) });
       items.push({ label: "Select Similar…", shortcut: `${mod}⇧A`, enabled: selAfter.length === 1, action: () => this.openSmartSelect(selAfter[0]!) });
+      items.push({ label: "Smart Replace…", shortcut: `${mod}⇧H`, enabled: selAfter.length === 1, action: () => this.openSmartReplacePanel(selAfter[0]!) });
     } else {
       // Empty canvas context menu
       items.push({ label: "Paste", shortcut: `${mod}V`, enabled: !!this._clipboard, action: () => this.pasteNodes() });
