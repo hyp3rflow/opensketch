@@ -961,7 +961,7 @@ impl Scene {
         let id = self.next_comment_id;
         self.next_comment_id += 1;
         let page_id = self.pages.get(self.active_page_index).map(|p| p.id).unwrap_or(0);
-        self.comments.push(Comment {
+        let mut comment = Comment {
             id, x, y,
             author: author.to_string(),
             text: text.to_string(),
@@ -970,7 +970,11 @@ impl Scene {
             replies: vec![],
             node_id,
             page_id,
-        });
+            assignee: None,
+            mentions: vec![],
+        };
+        comment.extract_mentions();
+        self.comments.push(comment);
         id
     }
 
@@ -989,6 +993,7 @@ impl Scene {
     pub fn edit_comment(&mut self, comment_id: u64, text: &str) {
         if let Some(c) = self.comments.iter_mut().find(|c| c.id == comment_id) {
             c.text = text.to_string();
+            c.extract_mentions();
         }
     }
 
@@ -1002,6 +1007,7 @@ impl Scene {
                 text: text.to_string(),
                 timestamp: js_sys::Date::now() as u64,
             });
+            c.extract_mentions();
         }
         reply_id
     }
@@ -1013,6 +1019,12 @@ impl Scene {
             return c.replies.len() < len;
         }
         false
+    }
+
+    pub fn set_comment_assignee(&mut self, comment_id: u64, assignee: Option<String>) {
+        if let Some(c) = self.comments.iter_mut().find(|c| c.id == comment_id) {
+            c.assignee = assignee;
+        }
     }
 
     pub fn get_comments_for_page(&self) -> Vec<&Comment> {

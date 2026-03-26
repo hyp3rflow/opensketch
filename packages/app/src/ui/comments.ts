@@ -11,9 +11,21 @@ interface CommentData {
   replies: { id: number; author: string; text: string; timestamp: number }[];
   node_id: number | null;
   page_id: number;
+  assignee: string | null;
+  mentions: string[];
 }
 
 const COMMENT_AUTHOR = "User"; // Default author name
+
+/** Known users for @mention autocomplete */
+const KNOWN_USERS = ["User", "Designer", "Developer", "PM", "QA", "Admin"];
+
+/** Highlight @mentions in text as styled spans */
+function highlightMentions(text: string): string {
+  return text.replace(/@([a-zA-Z0-9_.\-]+)/g, '<span style="color:#4a90d9;font-weight:600;cursor:pointer;" class="mention-tag">@$1</span>');
+}
+
+type CommentFilter = "all" | "unresolved" | "mentions";
 
 /**
  * Comment pins rendered on the canvas overlay
@@ -153,6 +165,9 @@ export class CommentOverlay {
       }
       if (e.key === "Escape") this.closePopup();
     });
+
+    // @mention autocomplete for new comment
+    this.attachMentionAutocomplete(textarea, popup);
   }
 
   private openThread(commentId: number) {
@@ -185,7 +200,7 @@ export class CommentOverlay {
     const repliesHtml = comment.replies.map((r) => `
       <div style="padding:8px 0;border-top:1px solid #333;">
         <div style="font-weight:600;font-size:12px;color:#ccc;">${r.author} <span style="font-weight:400;color:#777;margin-left:6px;">${formatTime(r.timestamp)}</span></div>
-        <div style="font-size:13px;color:#ddd;margin-top:4px;">${r.text}</div>
+        <div style="font-size:13px;color:#ddd;margin-top:4px;">${highlightMentions(r.text)}</div>
       </div>
     `).join("");
 
@@ -194,11 +209,14 @@ export class CommentOverlay {
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
           <span style="font-weight:600;font-size:12px;color:#ccc;">${comment.author} <span style="font-weight:400;color:#777;margin-left:6px;">${formatTime(comment.timestamp)}</span></span>
           <div style="display:flex;gap:4px;">
+            <button class="comment-assign" title="Assign" style="background:none;border:none;cursor:pointer;color:${comment.assignee ? '#4a90d9' : '#777'};font-size:12px;">👤</button>
             <button class="comment-resolve" title="${comment.resolved ? 'Unresolve' : 'Resolve'}" style="background:none;border:none;cursor:pointer;color:${comment.resolved ? '#4a90d9' : '#777'};font-size:14px;">✓</button>
             <button class="comment-delete" title="Delete" style="background:none;border:none;cursor:pointer;color:#777;font-size:14px;">✕</button>
           </div>
         </div>
-        <div style="font-size:13px;color:#ddd;margin-bottom:8px;">${comment.text}</div>
+        <div style="font-size:13px;color:#ddd;margin-bottom:8px;">${highlightMentions(comment.text)}</div>
+        ${comment.assignee ? `<div style="font-size:10px;color:#4a90d9;margin-bottom:6px;">👤 Assigned to @${comment.assignee}</div>` : ""}
+        ${comment.mentions.length > 0 ? `<div style="font-size:10px;color:#777;margin-bottom:6px;">Mentions: ${comment.mentions.map(m => `<span style="color:#4a90d9;">@${m}</span>`).join(", ")}</div>` : ""}
         ${repliesHtml}
         <div style="margin-top:8px;border-top:1px solid #333;padding-top:8px;">
           <textarea class="reply-input" placeholder="Reply..." rows="2" style="width:100%;border:1px solid #444;background:#2a2a2a;color:#eee;border-radius:6px;padding:6px;resize:none;font-size:12px;font-family:inherit;box-sizing:border-box;"></textarea>
@@ -222,6 +240,17 @@ export class CommentOverlay {
       window.dispatchEvent(new CustomEvent("comments-changed"));
     });
 
+    popup.querySelector(".comment-assign")!.addEventListener("click", () => {
+      const current = comment.assignee || "";
+      const name = prompt("Assign to (username, empty to unassign):", current);
+      if (name !== null) {
+        this.editor.engine.set_comment_assignee(comment.id, name);
+        this.renderPins();
+        window.dispatchEvent(new CustomEvent("comments-changed"));
+        this.openThread(comment.id);
+      }
+    });
+
     const replyInput = popup.querySelector<HTMLTextAreaElement>(".reply-input")!;
     popup.querySelector(".reply-submit")!.addEventListener("click", () => {
       const text = replyInput.value.trim();
@@ -237,6 +266,56 @@ export class CommentOverlay {
         popup.querySelector<HTMLButtonElement>(".reply-submit")!.click();
       }
     });
+
+    // @mention autocomplete for reply
+    this.attachMentionAutocomplete(replyInput, popup);
+  }
+
+  /** Attach @mention autocomplete dropdown to a textarea */
+  private attachMentionAutocomplete(textarea: HTMLTextAreaElement, parent: HTMLElement) {
+    let dropdown: HTMLDivElement | null = null;
+
+    const removeDd = () => { if (dropdown) { dropdown.remove(); dropdown = null; } };
+
+    textarea.addEventListener("input", () => {
+      removeDd();
+      const val = textarea.value;
+      const cursor = textarea.selectionStart ?? val.length;
+      // Find @word before cursor
+      const before = val.slice(0, cursor);
+      const match = before.match(/@([a-zA-Z0-9_.\-]*)$/);
+      if (!match) return;
+
+      const query = match[1].toLowerCase();
+      const filtered = KNOWN_USERS.filter(u => u.toLowerCase().startsWith(query));
+      if (filtered.length === 0) return;
+
+      dropdown = document.createElement("div");
+      dropdown.style.cssText = "position:absolute;bottom:100%;left:0;background:#2a2a2a;border:1px solid #555;border-radius:6px;max-height:120px;overflow-y:auto;z-index:200;width:160px;";
+      for (const user of filtered) {
+        const item = document.createElement("div");
+        item.textContent = `@${user}`;
+        item.style.cssText = "padding:6px 10px;font-size:12px;color:#ddd;cursor:pointer;";
+        item.addEventListener("mouseenter", () => { item.style.background = "#3a3a3a"; });
+        item.addEventListener("mouseleave", () => { item.style.background = "transparent"; });
+        item.addEventListener("mousedown", (e) => {
+          e.preventDefault();
+          const start = cursor - match[0].length;
+          textarea.value = val.slice(0, start) + `@${user} ` + val.slice(cursor);
+          textarea.focus();
+          const newPos = start + user.length + 2;
+          textarea.setSelectionRange(newPos, newPos);
+          removeDd();
+        });
+        dropdown.appendChild(item);
+      }
+      // Position relative to textarea parent
+      const wrapper = textarea.parentElement!;
+      wrapper.style.position = "relative";
+      wrapper.appendChild(dropdown);
+    });
+
+    textarea.addEventListener("blur", () => setTimeout(removeDd, 150));
   }
 
   private createPopup(x: number, y: number): HTMLDivElement {
@@ -275,29 +354,50 @@ export class CommentOverlay {
  * Comments panel in right pane — list of all comments
  */
 export function setupCommentsPanel(container: HTMLElement, editor: Editor, overlay: CommentOverlay) {
+  let currentFilter: CommentFilter = "all";
+
   const render = () => {
     let comments: CommentData[] = [];
     try {
       comments = JSON.parse(editor.engine.get_all_comments());
     } catch { /* */ }
 
-    const unresolved = comments.filter((c) => !c.resolved);
-    const resolved = comments.filter((c) => c.resolved);
+    // Apply filter
+    let filtered = comments;
+    if (currentFilter === "unresolved") {
+      filtered = comments.filter(c => !c.resolved);
+    } else if (currentFilter === "mentions") {
+      filtered = comments.filter(c => c.mentions.includes(COMMENT_AUTHOR) || c.assignee === COMMENT_AUTHOR);
+    }
+
+    const unresolved = filtered.filter((c) => !c.resolved);
+    const resolved = filtered.filter((c) => c.resolved);
+    const unresolvedTotal = comments.filter(c => !c.resolved).length;
 
     const formatTime = (ts: number) => {
       const d = new Date(ts);
       return d.toLocaleString("en", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
     };
 
+    const filterBtn = (label: string, value: CommentFilter, count?: number) => {
+      const active = currentFilter === value;
+      return `<button class="comment-filter-btn" data-filter="${value}" style="padding:3px 8px;border:1px solid ${active ? '#4a90d9' : '#555'};background:${active ? '#4a90d920' : 'transparent'};color:${active ? '#4a90d9' : '#aaa'};border-radius:4px;cursor:pointer;font-size:10px;">${label}${count !== undefined ? ` (${count})` : ''}</button>`;
+    };
+
     container.innerHTML = `
       <div style="padding:12px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
           <span style="font-size:12px;color:#999;">${comments.length} comment${comments.length !== 1 ? "s" : ""}</span>
           <div style="display:flex;gap:4px;">
             <button id="export-comments-btn" style="padding:4px 10px;border:1px solid #555;background:transparent;color:#aaa;border-radius:4px;cursor:pointer;font-size:11px;" title="Export annotations as Markdown">↓ MD</button>
             <button id="export-annotations-json-btn" style="padding:4px 10px;border:1px solid #555;background:transparent;color:#aaa;border-radius:4px;cursor:pointer;font-size:11px;" title="Export annotations as JSON">↓ JSON</button>
             <button id="add-comment-btn" style="padding:4px 10px;border:none;background:#4a90d9;color:white;border-radius:4px;cursor:pointer;font-size:11px;">+ Add</button>
           </div>
+        </div>
+        <div style="display:flex;gap:4px;margin-bottom:10px;">
+          ${filterBtn("All", "all")}
+          ${filterBtn("Unresolved", "unresolved", unresolvedTotal)}
+          ${filterBtn("@Me", "mentions")}
         </div>
         ${unresolved.length === 0 && resolved.length === 0 ? '<div style="color:#666;font-size:12px;text-align:center;padding:20px 0;">No comments yet.<br>Click + Add or press C to add one.</div>' : ""}
         ${unresolved.map((c) => commentCard(c, formatTime)).join("")}
@@ -312,6 +412,13 @@ export function setupCommentsPanel(container: HTMLElement, editor: Editor, overl
 
     container.querySelector("#add-comment-btn")?.addEventListener("click", () => {
       overlay.toggleCommentMode();
+    });
+
+    container.querySelectorAll(".comment-filter-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        currentFilter = (btn as HTMLElement).dataset.filter as CommentFilter;
+        render();
+      });
     });
 
     container.querySelector("#export-comments-btn")?.addEventListener("click", () => {
@@ -377,7 +484,8 @@ export function setupCommentsPanel(container: HTMLElement, editor: Editor, overl
             <button class="comment-resolve-btn" data-comment-id="${c.id}" title="${c.resolved ? 'Unresolve' : 'Resolve'}" style="background:none;border:none;cursor:pointer;color:${c.resolved ? '#4a90d9' : '#555'};font-size:12px;padding:2px;">✓</button>
           </div>
         </div>
-        <div style="font-size:12px;color:#ddd;margin-top:4px;${c.resolved ? 'text-decoration:line-through;opacity:0.6;' : ''}">${c.text}</div>
+        <div style="font-size:12px;color:#ddd;margin-top:4px;${c.resolved ? 'text-decoration:line-through;opacity:0.6;' : ''}">${highlightMentions(c.text)}</div>
+        ${c.assignee ? `<div style="font-size:10px;color:#4a90d9;margin-top:3px;">👤 @${c.assignee}</div>` : ""}
         ${c.replies.length > 0 ? `<div style="font-size:10px;color:#777;margin-top:4px;">${c.replies.length} repl${c.replies.length === 1 ? "y" : "ies"}</div>` : ""}
       </div>
     `;

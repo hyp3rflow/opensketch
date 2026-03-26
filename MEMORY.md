@@ -784,6 +784,19 @@
   - 노드 이름/종류 헤더, fill/stroke/shadow/blur/layout CSS 생성
   - editor.setDevMode(true/false), DevModeOverlay 클래스 (ui/dev-mode-overlay.ts)
 
+## 완료된 기능 (추가 — Comments @mention threading)
+- Comment struct에 assignee(Option<String>), mentions(Vec<String>) 필드 추가
+- Rust parse_mentions() — @username 패턴 파싱 (alphanumeric, _, -, .)
+- Comment.extract_mentions() — text + 모든 replies에서 mention 추출, 중복 제거
+- add_comment, edit_comment, add_reply 시 자동 extract_mentions() 호출
+- set_comment_assignee(comment_id, assignee) — Scene + WASM 바인딩
+- get_comments_by_mention(username), get_unresolved_comment_count — WASM 바인딩
+- TS UI: highlightMentions() — @username을 파란 span으로 렌더링 (thread popup + panel card)
+- TS UI: @mention autocomplete — textarea에서 @ 입력 시 사용자 목록 드롭다운
+- TS UI: 👤 assignee 버튼 (thread popup header) + assignee 표시
+- TS UI: 댓글 패널 필터 탭 — All / Unresolved (count) / @Me (mentions + assigned)
+- Backward-compatible serde(default)
+
 ## 다음 할 것
 - Canvas annotations / sticky notes (FigJam-style sticky notes with color themes, resizable, connectable, voting dots)
 - Figma file diff / merge (Figma 파일 간 노드 비교, 변경사항 시각화, 선택적 머지)

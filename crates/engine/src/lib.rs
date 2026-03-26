@@ -55,7 +55,7 @@ use crate::scene::Scene;
 use crate::render::Renderer;
 use crate::types::{Color, Point};
 use crate::component::{ComponentStore, VariantProp, VariantPropType, VariantValue, VariantData, VariantKey, SlotDef, InstanceData, NodeOverrides};
-use crate::node::{Note, Shadow, Interaction, InteractionTrigger, InteractionAction, TransitionType};
+use crate::node::{Note, Shadow, Interaction, InteractionTrigger, InteractionAction, TransitionType, Comment};
 use crate::styles::StyleStore;
 use crate::permissions::PermissionStore;
 use crate::recording::RecordingStore;
@@ -5006,6 +5006,26 @@ impl Engine {
     /// Get comment count for current page
     pub fn get_comment_count(&self) -> u32 {
         self.scene.get_comments_for_page().len() as u32
+    }
+
+    /// Set assignee for a comment
+    pub fn set_comment_assignee(&mut self, comment_id: u32, assignee: &str) {
+        let a = if assignee.is_empty() { None } else { Some(assignee.to_string()) };
+        self.scene.set_comment_assignee(comment_id as u64, a);
+    }
+
+    /// Get comments filtered by mention (username mentioned in text)
+    pub fn get_comments_by_mention(&self, username: &str) -> String {
+        let comments: Vec<&Comment> = self.scene.get_all_comments()
+            .iter()
+            .filter(|c| c.mentions.iter().any(|m| m == username))
+            .collect();
+        serde_json::to_string(&comments).unwrap_or_else(|_| "[]".to_string())
+    }
+
+    /// Get unresolved comment count
+    pub fn get_unresolved_comment_count(&self) -> u32 {
+        self.scene.get_all_comments().iter().filter(|c| !c.resolved).count() as u32
     }
 
     /// Export all comments as Markdown report

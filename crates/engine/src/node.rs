@@ -1126,6 +1126,49 @@ pub struct Comment {
     /// Page ID this comment belongs to
     #[serde(default)]
     pub page_id: u64,
+    /// Assignee (user who should act on this comment)
+    #[serde(default)]
+    pub assignee: Option<String>,
+    /// Extracted @mentions from text and replies
+    #[serde(default)]
+    pub mentions: Vec<String>,
+}
+
+impl Comment {
+    /// Extract all unique @mentions from the comment text and all replies
+    pub fn extract_mentions(&mut self) {
+        let mut all = parse_mentions(&self.text);
+        for r in &self.replies {
+            all.extend(parse_mentions(&r.text));
+        }
+        all.sort();
+        all.dedup();
+        self.mentions = all;
+    }
+}
+
+/// Parse @username mentions from text. Usernames: alphanumeric, underscore, hyphen, dot.
+pub fn parse_mentions(text: &str) -> Vec<String> {
+    let mut result = Vec::new();
+    let mut chars = text.char_indices().peekable();
+    while let Some((i, ch)) = chars.next() {
+        if ch == '@' && (i == 0 || !text[..i].ends_with(|c: char| c.is_alphanumeric())) {
+            let start = i + 1;
+            let mut end = start;
+            while let Some(&(j, c)) = chars.peek() {
+                if c.is_alphanumeric() || c == '_' || c == '-' || c == '.' {
+                    end = j + c.len_utf8();
+                    chars.next();
+                } else {
+                    break;
+                }
+            }
+            if end > start {
+                result.push(text[start..end].to_string());
+            }
+        }
+    }
+    result
 }
 
 /// Bitmap filter effects (CSS filter functions)

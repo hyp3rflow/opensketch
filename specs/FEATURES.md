@@ -405,6 +405,12 @@
 - [x] **Page-aware**: Comments belong to specific pages
 - [x] **Undo integration**: All comment operations push undo state
 - [x] **Backward compatible**: serde(default) for comments/next_comment_id in SceneData
+- [x] **@mention support**: Parse @username patterns in comment/reply text, highlight with blue styling
+- [x] **Mention autocomplete**: Typing @ in comment/reply textarea shows dropdown of known users
+- [x] **Assignee field**: Comments can have an assignee (👤 button in thread popup)
+- [x] **Mentions extraction**: Rust-side parse_mentions() extracts all @mentions, stored in Comment.mentions[]
+- [x] **Comment filters**: Panel filter tabs — All / Unresolved (with count) / @Me (mentions + assigned)
+- [x] **WASM bindings**: set_comment_assignee, get_comments_by_mention, get_unresolved_comment_count
 
 ### Keyboard Shortcuts Panel
 - [x] **Modal overlay**: Toggled via ⌘/ or ? key
