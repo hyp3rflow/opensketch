@@ -82,6 +82,15 @@ interface FigmaNode {
   // but we'll handle regular polygon & star as REGULAR_POLYGON type
   starInnerRadius?: number;
   pointCount?: number;
+  // Vector geometry (when geometry=paths is requested)
+  fillGeometry?: { path: string; windingRule: string }[];
+  strokeGeometry?: { path: string; windingRule: string }[];
+  // Component info
+  componentId?: string;
+  // Interaction / prototype
+  transitionNodeID?: string;
+  transitionDuration?: number;
+  reactions?: { trigger: { type: string }; action: { type: string; destinationId?: string; navigation?: string; transition?: { type: string; duration: number } } }[];
 }
 
 interface FigmaFileResponse {
@@ -246,10 +255,142 @@ function applyCommonProps(engine: Engine, nodeId: number, figmaNode: FigmaNode) 
     engine.set_blend_mode(BigInt(nodeId), bm);
   }
 
+  // Constraints
+  if (figmaNode.constraints) {
+    const ch = mapConstraintH(figmaNode.constraints.horizontal);
+    const cv = mapConstraintV(figmaNode.constraints.vertical);
+    if (ch !== "Left" || cv !== "Top") {
+      engine.set_constraints(BigInt(nodeId), ch, cv);
+    }
+  }
+
+  // Rotation
+  if (figmaNode.rotation && figmaNode.rotation !== 0) {
+    engine.set_rotation(BigInt(nodeId), figmaNode.rotation * Math.PI / 180);
+  }
+
   // Fills, strokes, effects
   applyFills(engine, nodeId, figmaNode.fills);
   applyStrokes(engine, nodeId, figmaNode.strokes, figmaNode.strokeWeight, figmaNode.strokeAlign);
   applyEffects(engine, nodeId, figmaNode.effects);
+}
+
+// ── SVG path → OpenSketch path points (simplified parser) ────────
+
+interface ParsedPathPoint {
+  x: number;
+  y: number;
+  handleIn?: { x: number; y: number };
+  handleOut?: { x: number; y: number };
+}
+
+/**
+ * Parse a simplified SVG path string into path points.
+ * Supports M, L, C, Z commands (absolute only — Figma geometry uses absolute).
+ */
+function parseSVGPathToPoints(d: string, _offsetX: number = 0, _offsetY: number = 0): ParsedPathPoint[] {
+  const points: ParsedPathPoint[] = [];
+  // Tokenize: split into commands
+  const cmds = d.match(/[MLCZmlcz][^MLCZmlcz]*/g);
+  if (!cmds) return points;
+
+  let cx = 0, cy = 0;
+
+  for (const cmd of cmds) {
+    const type = cmd[0];
+    const nums = cmd.slice(1).trim().split(/[\s,]+/).map(Number).filter(n => !isNaN(n));
+
+    switch (type) {
+      case 'M':
+        if (nums.length >= 2) {
+          cx = nums[0]; cy = nums[1];
+          points.push({ x: cx, y: cy });
+        }
+        break;
+      case 'L':
+        for (let i = 0; i + 1 < nums.length; i += 2) {
+          cx = nums[i]; cy = nums[i + 1];
+          points.push({ x: cx, y: cy });
+        }
+        break;
+      case 'C':
+        for (let i = 0; i + 5 < nums.length; i += 6) {
+          const cp1x = nums[i], cp1y = nums[i + 1];
+          const cp2x = nums[i + 2], cp2y = nums[i + 3];
+          const ex = nums[i + 4], ey = nums[i + 5];
+          // Set handle_out on previous point
+          if (points.length > 0) {
+            points[points.length - 1].handleOut = { x: cp1x, y: cp1y };
+          }
+          points.push({ x: ex, y: ey, handleIn: { x: cp2x, y: cp2y } });
+          cx = ex; cy = ey;
+        }
+        break;
+      case 'Z':
+      case 'z':
+        // Close path — handled by caller
+        break;
+      // Relative commands (lowercase) — basic support
+      case 'm':
+        if (nums.length >= 2) {
+          cx += nums[0]; cy += nums[1];
+          points.push({ x: cx, y: cy });
+        }
+        break;
+      case 'l':
+        for (let i = 0; i + 1 < nums.length; i += 2) {
+          cx += nums[i]; cy += nums[i + 1];
+          points.push({ x: cx, y: cy });
+        }
+        break;
+      case 'c':
+        for (let i = 0; i + 5 < nums.length; i += 6) {
+          const cp1x = cx + nums[i], cp1y = cy + nums[i + 1];
+          const cp2x = cx + nums[i + 2], cp2y = cy + nums[i + 3];
+          const ex = cx + nums[i + 4], ey = cy + nums[i + 5];
+          if (points.length > 0) {
+            points[points.length - 1].handleOut = { x: cp1x, y: cp1y };
+          }
+          points.push({ x: ex, y: ey, handleIn: { x: cp2x, y: cp2y } });
+          cx = ex; cy = ey;
+        }
+        break;
+    }
+  }
+  return points;
+}
+
+// ── Prototype / interaction import ───────────────────────────────
+
+function applyInteractions(engine: Engine, nodeId: number, figmaNode: FigmaNode, _idMap: Map<string, number>) {
+  if (!figmaNode.reactions || figmaNode.reactions.length === 0) return;
+  for (const reaction of figmaNode.reactions) {
+    const trigger = reaction.trigger?.type || "ON_CLICK";
+    const action = reaction.action;
+    if (!action) continue;
+    // Map Figma trigger types
+    const triggerMap: Record<string, string> = {
+      ON_CLICK: "OnClick", ON_HOVER: "OnHover", ON_PRESS: "OnPress", ON_DRAG: "OnDrag",
+    };
+    const osTrigger = triggerMap[trigger] || "OnClick";
+    // Map action types
+    if (action.type === "NODE" && action.destinationId) {
+      const targetId = _idMap.get(action.destinationId);
+      if (targetId !== undefined) {
+        const transType = action.transition?.type || "INSTANT_TRANSITION";
+        const transMap: Record<string, string> = {
+          INSTANT_TRANSITION: "Instant", DISSOLVE: "Dissolve",
+          SMART_ANIMATE: "SmartAnimate", SLIDE_IN: "SlideIn",
+          SLIDE_OUT: "SlideOut", PUSH: "Push",
+        };
+        const osTrans = transMap[transType] || "Instant";
+        const duration = action.transition?.duration ?? 300;
+        engine.add_interaction(BigInt(nodeId), osTrigger, "NavigateTo", BigInt(targetId), osTrans, duration);
+      }
+    } else if (action.navigation === "BACK") {
+      engine.add_interaction(BigInt(nodeId), osTrigger, "Back", BigInt(0), "Instant", 0);
+    }
+  }
 }
 
 /** Recursively convert Figma nodes. Returns created OpenSketch node ID or null. */
@@ -260,6 +401,7 @@ function convertNode(
   offsetX: number,
   offsetY: number,
   stats: ImportStats,
+  idMap: Map<string, number> = new Map(),
 ): number | null {
   stats.total++;
 
@@ -282,7 +424,7 @@ function convertNode(
         // Process first page (canvas)
         if (figmaNode.children && figmaNode.children.length > 0) {
           for (const page of figmaNode.children) {
-            convertNode(engine, page, null, 0, 0, stats);
+            convertNode(engine, page, null, 0, 0, stats, idMap);
           }
         }
         return null;
@@ -291,7 +433,7 @@ function convertNode(
         // Process all top-level children of the page
         if (figmaNode.children) {
           for (const child of figmaNode.children) {
-            convertNode(engine, child, null, 0, 0, stats);
+            convertNode(engine, child, null, 0, 0, stats, idMap);
           }
         }
         return null;
@@ -326,7 +468,7 @@ function convertNode(
         // Recurse children
         if (figmaNode.children) {
           for (const child of figmaNode.children) {
-            const childId = convertNode(engine, child, nodeId, 0, 0, stats);
+            const childId = convertNode(engine, child, nodeId, 0, 0, stats, idMap);
             if (childId !== null) {
               engine.reparent_node(BigInt(childId), BigInt(nodeId));
               // Adjust position relative to frame
@@ -350,7 +492,7 @@ function convertNode(
 
         if (figmaNode.children) {
           for (const child of figmaNode.children) {
-            const childId = convertNode(engine, child, nodeId, 0, 0, stats);
+            const childId = convertNode(engine, child, nodeId, 0, 0, stats, idMap);
             if (childId !== null) {
               engine.reparent_node(BigInt(childId), BigInt(nodeId));
               if (child.absoluteBoundingBox && bb) {
@@ -434,6 +576,30 @@ function convertNode(
       }
 
       case "VECTOR": {
+        // Try to import vector geometry as Path node
+        const geom = figmaNode.fillGeometry?.[0] || figmaNode.strokeGeometry?.[0];
+        if (geom && geom.path) {
+          const pathPoints = parseSVGPathToPoints(geom.path, bb ? bb.x : 0, bb ? bb.y : 0);
+          if (pathPoints.length > 0) {
+            nodeId = Number(engine.add_path(pathPoints[0].x, pathPoints[0].y));
+            // Add remaining points
+            for (let pi = 1; pi < pathPoints.length; pi++) {
+              const pp = pathPoints[pi];
+              if (pp.handleIn || pp.handleOut) {
+                engine.path_add_curve_point(BigInt(nodeId), pp.x, pp.y,
+                  pp.handleIn?.x ?? pp.x, pp.handleIn?.y ?? pp.y,
+                  pp.handleOut?.x ?? pp.x, pp.handleOut?.y ?? pp.y);
+              } else {
+                engine.path_add_point(BigInt(nodeId), pp.x, pp.y);
+              }
+            }
+            if (pathPoints.length > 2) {
+              engine.path_set_closed(BigInt(nodeId), true);
+            }
+            applyCommonProps(engine, nodeId, figmaNode);
+            break;
+          }
+        }
         // Fallback: render as rectangle with the vector's bounding box
         nodeId = Number(engine.add_rect(x, y, w, h));
         applyCommonProps(engine, nodeId, figmaNode);
@@ -451,7 +617,7 @@ function convertNode(
         nodeId = Number(engine.add_section(figmaNode.name, x, y, w, h));
         if (figmaNode.children) {
           for (const child of figmaNode.children) {
-            const childId = convertNode(engine, child, nodeId, 0, 0, stats);
+            const childId = convertNode(engine, child, nodeId, 0, 0, stats, idMap);
             if (childId !== null) {
               engine.reparent_node(BigInt(childId), BigInt(nodeId));
               if (child.absoluteBoundingBox && bb) {
@@ -480,6 +646,10 @@ function convertNode(
 
     if (nodeId !== null) {
       stats.converted++;
+      // Track Figma ID → OpenSketch ID for interaction linking
+      idMap.set(figmaNode.id, nodeId);
+      // Import prototype interactions
+      applyInteractions(engine, nodeId, figmaNode, idMap);
     }
   } catch (err) {
     stats.errors.push(`Error converting "${figmaNode.name}": ${err}`);
@@ -531,7 +701,8 @@ export async function importFigmaFile(
   // Push undo before import
   engine.push_undo();
 
-  convertNode(engine, file.document, null, 0, 0, stats);
+  const idMap = new Map<string, number>();
+  convertNode(engine, file.document, null, 0, 0, stats, idMap);
 
   onProgress?.(`Done: ${stats.converted} nodes imported, ${stats.skipped} skipped`);
   return stats;

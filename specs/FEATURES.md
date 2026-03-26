@@ -862,6 +862,11 @@ Frame overflow control and content scrolling.
 - [x] **Toolbar button**: Figma logo icon next to PDF export
 - [x] **Undo integration**: push_undo before import
 - [x] TS: ui/figma-import.ts — fetchFigmaFile(), convertNode(), openFigmaImportModal()
+- [x] **Constraints import**: Figma constraints → OpenSketch constraints mapping
+- [x] **Rotation import**: Figma rotation (degrees) → OpenSketch rotation (radians)
+- [x] **Vector path import**: VECTOR nodes → Path nodes via SVG path data parsing (M/L/C/Z + relative)
+- [x] **Prototype import**: Figma reactions → OpenSketch interactions (trigger/action/destination/transition/duration)
+- [x] **ID mapping**: Figma node ID → OpenSketch ID tracking for cross-references
 
 ### Shared Component Library
 - [x] **ComponentLibrary struct**: id (String), name, version, components HashMap
