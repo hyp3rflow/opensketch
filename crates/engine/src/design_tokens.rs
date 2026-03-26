@@ -17,6 +17,8 @@ pub enum TokenFormat {
     StyleDictionary,
     /// Tailwind CSS theme config (JS object)
     Tailwind,
+    /// CSS Custom Properties (variables)
+    CssVariables,
 }
 
 /// Convert RGBA to hex string
@@ -239,16 +241,73 @@ fn export_tailwind(styles: &StyleStore, collections: &[VariableCollection]) -> V
     json!({ "theme": { "extend": theme } })
 }
 
+/// Export as CSS Custom Properties
+fn export_css_variables(styles: &StyleStore, collections: &[VariableCollection]) -> String {
+    let mut lines = vec![":root {".to_string()];
+
+    // Color styles
+    if !styles.color_styles.is_empty() {
+        lines.push("  /* Color Styles */".into());
+        for cs in styles.list_color_styles() {
+            let key = to_token_key(&cs.name);
+            let hex = rgba_to_hex(cs.fill_r, cs.fill_g, cs.fill_b, cs.fill_a);
+            lines.push(format!("  --color-{}: {};", key, hex));
+        }
+    }
+
+    // Text styles
+    if !styles.text_styles.is_empty() {
+        lines.push("  /* Typography */".into());
+        for ts in styles.list_text_styles() {
+            let key = to_token_key(&ts.name);
+            lines.push(format!("  --font-family-{}: '{}';", key, ts.font_family));
+            lines.push(format!("  --font-size-{}: {}px;", key, ts.font_size));
+            lines.push(format!("  --font-weight-{}: {};", key, ts.font_weight));
+            lines.push(format!("  --line-height-{}: {};", key, ts.line_height));
+        }
+    }
+
+    // Variable collections
+    for col in collections {
+        let col_key = to_token_key(&col.name);
+        let mut has_header = false;
+        for var in &col.variables {
+            let var_key = to_token_key(&var.name);
+            let value = col.resolve(var.id);
+            let css_val = match &value {
+                Some(VariableValue::Color(c)) => c.clone(),
+                Some(VariableValue::Number(n)) => format!("{}px", n),
+                Some(VariableValue::String(s)) => format!("'{}'", s),
+                Some(VariableValue::Boolean(b)) => format!("{}", if *b { 1 } else { 0 }),
+                None => continue,
+            };
+            if !has_header {
+                lines.push(format!("  /* {} */", col.name));
+                has_header = true;
+            }
+            lines.push(format!("  --{}-{}: {};", col_key, var_key, css_val));
+        }
+    }
+
+    lines.push("}".into());
+    lines.join("\n")
+}
+
 /// Main export function
 pub fn export_design_tokens(
     styles: &StyleStore,
     collections: &[VariableCollection],
     format: TokenFormat,
 ) -> String {
+    match format {
+        TokenFormat::CssVariables => return export_css_variables(styles, collections),
+        _ => {}
+    }
     let value = match format {
         TokenFormat::W3C => export_w3c(styles, collections),
         TokenFormat::StyleDictionary => export_style_dictionary(styles, collections),
         TokenFormat::Tailwind => export_tailwind(styles, collections),
+        TokenFormat::CssVariables => unreachable!(),
     };
     serde_json::to_string_pretty(&value).unwrap_or_else(|_| "{}".into())
 }

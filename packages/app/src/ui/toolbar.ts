@@ -3,6 +3,7 @@ import { icons } from "./icons";
 import { openFigmaImportModal } from "./figma-import";
 import { toggleRecorderBar } from "./canvas-recorder";
 import { openBatchExport } from "./batch-export";
+import { toggleDesignTokenExport } from "./design-token-export";
 
 const tools: { id: ToolType; icon: string; label: string }[] = [
   { id: "select", icon: icons.select, label: "Select (V)" },
@@ -174,6 +175,14 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
   batchExportBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/><line x1="8" y1="21" x2="8" y2="21"/><line x1="12" y1="21" x2="12" y2="21"/><line x1="16" y1="21" x2="16" y2="21"/></svg>`;
   batchExportBtn.addEventListener("click", () => openBatchExport(editor));
   container.appendChild(batchExportBtn);
+
+  // Design Token Export button
+  const tokenBtn = document.createElement("button");
+  tokenBtn.className = "tool-btn";
+  tokenBtn.title = "Export Design Tokens";
+  tokenBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4"/><path d="M12 19v4"/><path d="M1 12h4"/><path d="M19 12h4"/><path d="M4.22 4.22l2.83 2.83"/><path d="M16.95 16.95l2.83 2.83"/><path d="M4.22 19.78l2.83-2.83"/><path d="M16.95 7.05l2.83-2.83"/></svg>`;
+  tokenBtn.addEventListener("click", () => toggleDesignTokenExport(editor));
+  container.appendChild(tokenBtn);
 
   // Figma import button
   const figmaBtn = document.createElement("button");

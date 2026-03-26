@@ -3739,12 +3739,13 @@ export class Editor {
   downloadDesignTokens(format: string = 'w3c', filename?: string) {
     const json = this.exportDesignTokens(format);
     if (!json || json === '{}') return false;
-    const ext = format === 'tailwind' ? 'js' : 'json';
+    const ext = format === 'tailwind' ? 'js' : format === 'css-variables' || format === 'css' ? 'css' : 'json';
     let content = json;
     if (format === 'tailwind') {
       content = `/** @type {import('tailwindcss').Config} */\nmodule.exports = ${json};\n`;
     }
-    const blob = new Blob([content], { type: ext === 'js' ? 'text/javascript' : 'application/json' });
+    const mimeTypes: Record<string, string> = { js: 'text/javascript', css: 'text/css', json: 'application/json' };
+    const blob = new Blob([content], { type: mimeTypes[ext] || 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;

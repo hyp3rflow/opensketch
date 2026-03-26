@@ -24,6 +24,7 @@ mod find_replace;
 pub mod permissions;
 mod smart_component;
 pub mod recording;
+mod svg_import;
 
 use wasm_bindgen::prelude::*;
 use web_sys::CanvasRenderingContext2d;
@@ -4100,6 +4101,16 @@ impl Engine {
         svg_export::export_node_svg(&self.scene, node_id)
     }
 
+    /// Import SVG markup into the scene. Returns JSON array of created top-level node IDs.
+    pub fn import_svg(&mut self, svg_text: &str, offset_x: f64, offset_y: f64) -> String {
+        self.push_undo();
+        let ids = svg_import::import_svg(&mut self.scene, svg_text, offset_x, offset_y);
+        let id_nums: Vec<u64> = ids.iter().map(|id| *id).collect();
+        // Select imported nodes
+        self.scene.selection = ids;
+        serde_json::to_string(&id_nums).unwrap_or_else(|_| "[]".into())
+    }
+
     /// Get all slice nodes as JSON array [{id, name, x, y, width, height}]
     pub fn get_slices(&self) -> String {
         let slices: Vec<serde_json::Value> = self.scene.all_nodes()
@@ -4673,6 +4684,7 @@ impl Engine {
         let fmt = match format {
             "style-dictionary" => design_tokens::TokenFormat::StyleDictionary,
             "tailwind" => design_tokens::TokenFormat::Tailwind,
+            "css-variables" | "css" => design_tokens::TokenFormat::CssVariables,
             _ => design_tokens::TokenFormat::W3C,
         };
         design_tokens::export_design_tokens(&self.styles, &self.scene.variable_collections, fmt)

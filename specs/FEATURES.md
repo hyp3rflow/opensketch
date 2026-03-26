@@ -390,7 +390,9 @@
 - [x] **WASM**: export_design_tokens(format) binding
 - [x] **TS Editor**: exportDesignTokens(), downloadDesignTokens() methods
 - [x] **UI**: Properties panel empty state "Design Tokens" section (3 format buttons), Inspect panel "Design Tokens" download section
-- [x] **File naming**: .json for W3C/StyleDictionary, .js (module.exports) for Tailwind
+- [x] **File naming**: .json for W3C/StyleDictionary, .js (module.exports) for Tailwind, .css for CSS Variables
+- [x] **CSS Variables format**: :root { --color-*, --font-family-*, --font-size-*, --font-weight-*, --line-height-* } + variable collections
+- [x] **Design Token Export modal**: Format selection cards (W3C/Style Dictionary/Tailwind/CSS Variables), live preview, copy to clipboard, download
 
 ### Comments / Annotations
 - [x] **Comment struct**: id, x, y, author, text, timestamp, resolved, replies[], node_id, page_id
