@@ -1,7 +1,7 @@
 import type { Editor, ToolType } from "../editor";
 import { icons } from "./icons";
 
-const WHITEBOARD_TOOLS: ToolType[] = ["select", "sticky", "pen", "text"];
+const WHITEBOARD_TOOLS: ToolType[] = ["select", "sticky", "pen", "text", "freehand", "connector"];
 
 const VOTE_COLORS = [
   "#ff6b6b", "#ffa94d", "#ffd43b", "#69db7c", "#4dabf7",

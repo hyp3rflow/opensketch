@@ -1226,4 +1226,6 @@ Frame overflow control and content scrolling.
 - [x] **Dot grid background**: CSS radial-gradient overlay when mode active
 - [x] **Timer widget**: Floating top-left panel, start/stop/reset, configurable duration (1-60 min), visual countdown with flash at 0
 - [x] **Voting dots**: V key toggle, click to place colored dots on canvas (per-user color), 4px circles with white border
+- [x] **Freehand drawing tool**: D shortcut, mouse/pen drag to draw smooth bezier paths, Catmull-Rom smoothing, configurable stroke color/width
+- [x] **Whiteboard tools**: freehand + connector added to whiteboard mode tool palette
 - [x] **Implementation**: `crates/engine/src/whiteboard.rs` (Rust) + `ui/whiteboard-mode.ts` (TypeScript)

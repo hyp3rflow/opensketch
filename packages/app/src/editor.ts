@@ -22,7 +22,6 @@ import { findSpacingHandles, hitTestSpacingHandle, renderSpacingHandles, type Sp
 import { showLayoutSuggestion, dismissSuggestion } from "./ui/ai-layout-suggest";
 import { toggleFindReplace, closeFindReplace } from "./ui/find-replace-panel";
 import { toggleRecorderBar } from "./ui/canvas-recorder";
-import { getFreehandColor, getFreehandWidth } from "./ui/whiteboard";
 import { toggleSpotlight, closeSpotlight, isSpotlightVisible } from "./ui/spotlight";
 import { exportPDF, type PDFExportOptions } from "./ui/pdf-export";
 import { setupDiffOverlay } from "./ui/diff-overlay";
@@ -1018,12 +1017,8 @@ export class Editor {
       this._freehandPathId = pathId;
       this._freehandPoints = [{ x: sx, y: sy }];
       this._freehandDrawing = true;
-      // Set stroke for freehand using whiteboard settings
-      const hexColor = getFreehandColor();
-      const r = parseInt(hexColor.slice(1, 3), 16);
-      const g = parseInt(hexColor.slice(3, 5), 16);
-      const b = parseInt(hexColor.slice(5, 7), 16);
-      this.engine.set_stroke(pathId, r, g, b, 1.0, getFreehandWidth());
+      // Set stroke for freehand drawing
+      this.engine.set_stroke(pathId, 255, 255, 255, 1.0, 2.0);
       this.canvas.setPointerCapture(e.pointerId);
       return;
     }
