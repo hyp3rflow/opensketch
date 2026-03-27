@@ -27,6 +27,7 @@ mod smart_component;
 pub mod recording;
 mod svg_import;
 pub mod code_to_design;
+pub mod code_export;
 mod design_health;
 mod smart_replace;
 pub mod crdt;
@@ -4795,6 +4796,57 @@ impl Engine {
         serde_json::to_string(&issues).unwrap_or_else(|_| "[]".to_string())
     }
 
+    /// Get auto-fix suggestions for WCAG contrast violations
+    #[wasm_bindgen]
+    pub fn get_a11y_fixes(&self) -> String {
+        let config = design_lint::LintConfig::default();
+        let fixes = design_lint::get_accessibility_fixes(self.scene.nodes_map(), &config);
+        serde_json::to_string(&fixes).unwrap_or_else(|_| "[]".to_string())
+    }
+
+    /// Apply a suggested accessible color to a node's first solid fill
+    #[wasm_bindgen]
+    pub fn apply_a11y_fix(&mut self, node_id: u64, r: u8, g: u8, b: u8) -> bool {
+        self.push_undo();
+        let nid = node_id as crate::node::NodeId;
+        if let Some(node) = self.scene.get_node_mut(nid) {
+            // Find first solid fill and update its color
+            for fill in node.fills.iter_mut() {
+                if let crate::node::FillType::Solid { color } = &mut fill.fill_type {
+                    color.r = r;
+                    color.g = g;
+                    color.b = b;
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    /// Apply all accessibility fixes at once
+    #[wasm_bindgen]
+    pub fn apply_all_a11y_fixes(&mut self) -> u32 {
+        let config = design_lint::LintConfig::default();
+        let fixes = design_lint::get_accessibility_fixes(self.scene.nodes_map(), &config);
+        if fixes.is_empty() { return 0; }
+        self.push_undo();
+        let mut count = 0u32;
+        for fix in &fixes {
+            if let Some(node) = self.scene.get_node_mut(fix.node_id) {
+                for fill in node.fills.iter_mut() {
+                    if let crate::node::FillType::Solid { color } = &mut fill.fill_type {
+                        color.r = fix.suggested_r;
+                        color.g = fix.suggested_g;
+                        color.b = fix.suggested_b;
+                        count += 1;
+                        break;
+                    }
+                }
+            }
+        }
+        count
+    }
+
     /// Analyze design and return polish suggestions as JSON
     #[wasm_bindgen]
     pub fn analyze_polish(&self) -> String {
@@ -5594,6 +5646,51 @@ impl Engine {
             }
         }
         String::new()
+    }
+
+    // =============================================
+    // Design-to-code component mapping
+    // =============================================
+
+    /// Set code mapping on a node (JSON: { component_name, framework, import_path, props, children_slot })
+    #[wasm_bindgen]
+    pub fn set_code_mapping(&mut self, node_id: u64, json: &str) -> bool {
+        match serde_json::from_str::<node::CodeMapping>(json) {
+            Ok(mapping) => {
+                self.push_undo();
+                self.scene.set_code_mapping(node_id, mapping)
+            }
+            Err(_) => false,
+        }
+    }
+
+    /// Get code mapping JSON for a node (null string if none)
+    #[wasm_bindgen]
+    pub fn get_code_mapping(&self, node_id: u64) -> String {
+        self.scene.get_code_mapping(node_id).unwrap_or_default()
+    }
+
+    /// Remove code mapping from a node
+    #[wasm_bindgen]
+    pub fn clear_code_mapping(&mut self, node_id: u64) -> bool {
+        self.push_undo();
+        self.scene.clear_code_mapping(node_id)
+    }
+
+    /// Export component code for a mapped node → JSON { component_name, framework, import_path, code, props_interface }
+    #[wasm_bindgen]
+    pub fn export_component_code(&self, node_id: u64) -> String {
+        match self.scene.export_component_code(node_id) {
+            Some(exp) => serde_json::to_string(&exp).unwrap_or_default(),
+            None => String::new(),
+        }
+    }
+
+    /// Export all mapped components → JSON array
+    #[wasm_bindgen]
+    pub fn export_all_components(&self) -> String {
+        let comps = self.scene.export_all_components();
+        serde_json::to_string(&comps).unwrap_or_else(|_| "[]".to_string())
     }
 }
 

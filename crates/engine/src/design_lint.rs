@@ -391,3 +391,173 @@ fn color_distance(a: &Color, b: &Color) -> f64 {
     let db = a.b as f64 - b.b as f64;
     (dr * dr + dg * dg + db * db).sqrt()
 }
+
+// =============================================
+// Smart color accessibility fix
+// =============================================
+
+/// HSL representation for color manipulation
+struct Hsl {
+    h: f64, // 0..360
+    s: f64, // 0..1
+    l: f64, // 0..1
+}
+
+fn rgb_to_hsl(c: &Color) -> Hsl {
+    let r = c.r as f64 / 255.0;
+    let g = c.g as f64 / 255.0;
+    let b = c.b as f64 / 255.0;
+    let max = r.max(g).max(b);
+    let min = r.min(g).min(b);
+    let l = (max + min) / 2.0;
+    if (max - min).abs() < 1e-10 {
+        return Hsl { h: 0.0, s: 0.0, l };
+    }
+    let d = max - min;
+    let s = if l > 0.5 { d / (2.0 - max - min) } else { d / (max + min) };
+    let h = if (max - r).abs() < 1e-10 {
+        ((g - b) / d + if g < b { 6.0 } else { 0.0 }) * 60.0
+    } else if (max - g).abs() < 1e-10 {
+        ((b - r) / d + 2.0) * 60.0
+    } else {
+        ((r - g) / d + 4.0) * 60.0
+    };
+    Hsl { h, s, l }
+}
+
+fn hsl_to_rgb(hsl: &Hsl) -> Color {
+    if hsl.s < 1e-10 {
+        let v = (hsl.l * 255.0).round() as u8;
+        return Color { r: v, g: v, b: v, a: 1.0 };
+    }
+    let q = if hsl.l < 0.5 { hsl.l * (1.0 + hsl.s) } else { hsl.l + hsl.s - hsl.l * hsl.s };
+    let p = 2.0 * hsl.l - q;
+    let hue_to_rgb = |t: f64| -> f64 {
+        let mut t = t;
+        if t < 0.0 { t += 1.0; }
+        if t > 1.0 { t -= 1.0; }
+        if t < 1.0 / 6.0 { return p + (q - p) * 6.0 * t; }
+        if t < 1.0 / 2.0 { return q; }
+        if t < 2.0 / 3.0 { return p + (q - p) * (2.0 / 3.0 - t) * 6.0; }
+        p
+    };
+    Color {
+        r: (hue_to_rgb(hsl.h / 360.0 + 1.0 / 3.0) * 255.0).round() as u8,
+        g: (hue_to_rgb(hsl.h / 360.0) * 255.0).round() as u8,
+        b: (hue_to_rgb(hsl.h / 360.0 - 1.0 / 3.0) * 255.0).round() as u8,
+        a: 1.0,
+    }
+}
+
+/// Find the closest color to `fg` that meets `target_ratio` against `bg`.
+/// Adjusts lightness while preserving hue and saturation.
+pub fn find_accessible_color(fg: &Color, bg: &Color, target_ratio: f64) -> Color {
+    let bg_lum = relative_luminance(bg);
+    let fg_hsl = rgb_to_hsl(fg);
+
+    // Binary search on lightness
+    // Try both directions: darker and lighter
+    let mut best: Option<Color> = None;
+    let mut best_dist = f64::MAX;
+
+    for direction in &[true, false] {
+        // direction: true = search toward 0 (darker), false = toward 1 (lighter)
+        let (lo, hi) = if *direction { (0.0, fg_hsl.l) } else { (fg_hsl.l, 1.0) };
+        let mut low = lo;
+        let mut high = hi;
+
+        for _ in 0..50 {
+            let mid = (low + high) / 2.0;
+            let candidate = hsl_to_rgb(&Hsl { h: fg_hsl.h, s: fg_hsl.s, l: mid });
+            let cand_lum = relative_luminance(&candidate);
+            let ratio = contrast_ratio(cand_lum, bg_lum);
+
+            if ratio >= target_ratio {
+                // Valid — try to get closer to original
+                if *direction { low = mid; } else { high = mid; }
+            } else {
+                // Not enough contrast — go further
+                if *direction { high = mid; } else { low = mid; }
+            }
+        }
+
+        let final_l = if *direction { low } else { high };
+        let candidate = hsl_to_rgb(&Hsl { h: fg_hsl.h, s: fg_hsl.s, l: final_l });
+        let cand_lum = relative_luminance(&candidate);
+        let ratio = contrast_ratio(cand_lum, bg_lum);
+
+        if ratio >= target_ratio {
+            let dist = (final_l - fg_hsl.l).abs();
+            if dist < best_dist {
+                best_dist = dist;
+                best = Some(candidate);
+            }
+        }
+    }
+
+    best.unwrap_or_else(|| {
+        // Fallback: black or white depending on bg
+        if bg_lum > 0.5 { Color::black() } else { Color::white() }
+    })
+}
+
+/// Accessibility fix suggestion for a node
+#[derive(Clone, Serialize)]
+pub struct A11yFix {
+    pub node_id: NodeId,
+    pub node_name: String,
+    pub current_color: String,
+    pub suggested_color: String,
+    pub current_ratio: f64,
+    pub fixed_ratio: f64,
+    pub target: String, // "AA" or "AAA"
+    pub suggested_r: u8,
+    pub suggested_g: u8,
+    pub suggested_b: u8,
+}
+
+/// Get auto-fix suggestions for all contrast issues in the scene
+pub fn get_accessibility_fixes(node_map: &HashMap<NodeId, Node>, config: &LintConfig) -> Vec<A11yFix> {
+    let mut fixes = Vec::new();
+    let node_ref_map: HashMap<NodeId, &Node> = node_map.iter().map(|(id, n)| (*id, n)).collect();
+
+    for node in node_map.values() {
+        if !node.visible { continue; }
+        if let NodeKind::Text { font_size, font_weight, .. } = &node.kind {
+            if let Some(text_color) = solid_color(node) {
+                let bg_color = node.parent
+                    .and_then(|pid| node_ref_map.get(&pid))
+                    .and_then(|p| solid_color(p))
+                    .unwrap_or(Color { r: 255, g: 255, b: 255, a: 1.0 });
+
+                let fg_lum = relative_luminance(&text_color);
+                let bg_lum = relative_luminance(&bg_color);
+                let ratio = contrast_ratio(fg_lum, bg_lum);
+
+                let is_large = *font_size >= 24.0 || (*font_size >= 18.66 && *font_weight >= 700);
+                let aa_min = if is_large { 3.0 } else { config.min_contrast_aa };
+
+                if ratio < aa_min {
+                    let suggested = find_accessible_color(&text_color, &bg_color, aa_min);
+                    let sug_lum = relative_luminance(&suggested);
+                    let fixed_ratio = contrast_ratio(sug_lum, bg_lum);
+
+                    fixes.push(A11yFix {
+                        node_id: node.id,
+                        node_name: node.name.clone(),
+                        current_color: color_key(&text_color),
+                        suggested_color: color_key(&suggested),
+                        current_ratio: (ratio * 10.0).round() / 10.0,
+                        fixed_ratio: (fixed_ratio * 10.0).round() / 10.0,
+                        target: "AA".into(),
+                        suggested_r: suggested.r,
+                        suggested_g: suggested.g,
+                        suggested_b: suggested.b,
+                    });
+                }
+            }
+        }
+    }
+
+    fixes
+}

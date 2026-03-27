@@ -17,6 +17,7 @@ import { setupColorPalettePanel } from "./ui/color-palette-panel";
 import { setupBranchPanel } from "./ui/branch-panel";
 import { setupReviewPanel } from "./ui/review-panel";
 import { createPrototypeViewer } from "./ui/prototype-viewer";
+import { showExportAllModal } from "./ui/code-mapping-panel";
 import { CommentOverlay, setupCommentsPanel, updateCommentsBadge } from "./ui/comments";
 import { setupVariablesPanel } from "./ui/variables-panel";
 import { setupAssetPanel } from "./ui/asset-panel";
@@ -287,6 +288,11 @@ async function main() {
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       prototypeViewer.show();
+    }
+    // Cmd+Shift+E → export all mapped components
+    if (e.key === "E" && (e.metaKey || e.ctrlKey) && e.shiftKey) {
+      e.preventDefault();
+      showExportAllModal(editor);
     }
   });
 

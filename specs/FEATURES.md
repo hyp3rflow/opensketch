@@ -654,6 +654,17 @@ Right pane "A11y" tab — automated accessibility audit for design nodes.
 - [x] Click issue → select node + zoom to selection
 - [x] Re-check button for manual re-audit
 
+### Smart Color Accessibility Fix
+- [x] Rust: HSL-based color adjustment — find closest WCAG-compliant color preserving hue/saturation
+- [x] Binary search on lightness in both directions (darker/lighter), picks minimum change
+- [x] Fallback to black/white if no solution found
+- [x] WASM: get_a11y_fixes() → JSON array of fix suggestions (current/suggested color, ratios)
+- [x] WASM: apply_a11y_fix(node_id, r, g, b) — apply single fix with undo
+- [x] WASM: apply_all_a11y_fixes() → batch fix all contrast violations with undo
+- [x] UI: Per-issue "Fix" button with color preview (current → suggested, ratio display)
+- [x] UI: "Fix All (N)" button in header to batch-fix all contrast issues
+- [x] Undo integration for all fixes
+
 ### Scrollable Frames (Overflow Control)
 - [x] Node.overflow: Visible (default), Hidden, Scroll
 - [x] Node.scroll_x / scroll_y: scroll offset for Scroll mode
@@ -1192,3 +1203,17 @@ Frame overflow control and content scrolling.
 - [x] **Context menu**: "Smart Replace…" option when single node selected
 - [x] **Undo integration**: push_undo before replacements
 - [x] **Implementation**: `crates/engine/src/smart_replace.rs` (Rust) + `ui/smart-replace.ts` (modal)
+
+## 113. Design-to-Code Component Mapping
+- [x] **Rust structs**: `CodeMapping` (component_name, framework, import_path, props, children_slot), `PropBinding` (prop_name, prop_type, default_value, design_source), `CodeFramework` enum (React/Vue/SwiftUI/Compose/Flutter)
+- [x] **Code generation**: 5 framework targets — React (JSX + TypeScript interface), Vue (SFC + `<script setup>`), SwiftUI (struct View), Compose (`@Composable`), Flutter (`StatelessWidget`)
+- [x] **Design property resolution**: Maps fill color, text content, opacity, width, height, corner_radius, visibility to component props
+- [x] **Child component recursion**: Parent component renders child nodes that have their own code mappings
+- [x] **Auto-layout → flexbox/CSS**: Layout mode, direction, gap translated to framework-appropriate styling
+- [x] **WASM bindings**: `set_code_mapping(id, json)`, `get_code_mapping(id)`, `clear_code_mapping(id)`, `export_component_code(id)` → JSON, `export_all_components()` → JSON array
+- [x] **Inspect panel integration**: "Component Mapping" section — component name, framework selector, import path, children slot toggle, props list with type/source/default binding
+- [x] **Export preview**: Inline code preview with syntax display + clipboard copy
+- [x] **Export All modal**: `Cmd+Shift+E` — lists all mapped components, copy individual or download all
+- [x] **Undo integration**: set/clear mapping pushes undo
+- [x] **Backward-compatible serde**: `code_mapping: Option<CodeMapping>` defaults to None
+- [x] **Implementation**: `crates/engine/src/code_export.rs` (Rust) + `ui/code-mapping-panel.ts` (UI)

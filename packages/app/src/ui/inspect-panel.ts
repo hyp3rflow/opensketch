@@ -1,5 +1,6 @@
 import type { Editor } from "../editor";
 import { icons } from "./icons";
+import { renderCodeMappingSection } from "./code-mapping-panel";
 
 type CodeLang = "css" | "swiftui" | "kotlin" | "svg";
 
@@ -125,6 +126,9 @@ export function setupInspectPanel(container: HTMLElement, editor: Editor) {
     }
     tokensSection.appendChild(tokensBtns);
     wrap.appendChild(tokensSection);
+
+    // Code mapping section
+    renderCodeMappingSection(wrap, editor, ids[0]!);
 
     container.appendChild(wrap);
   }

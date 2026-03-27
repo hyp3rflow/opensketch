@@ -1321,6 +1321,64 @@ impl Default for Perspective3D {
     }
 }
 
+// =============================================
+// Design-to-code component mapping
+// =============================================
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
+pub enum CodeFramework {
+    React,
+    Vue,
+    SwiftUI,
+    Compose,
+    Flutter,
+}
+
+impl Default for CodeFramework {
+    fn default() -> Self { Self::React }
+}
+
+impl CodeFramework {
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s.to_lowercase().as_str() {
+            "react" => Some(Self::React),
+            "vue" => Some(Self::Vue),
+            "swiftui" => Some(Self::SwiftUI),
+            "compose" => Some(Self::Compose),
+            "flutter" => Some(Self::Flutter),
+            _ => None,
+        }
+    }
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::React => "react",
+            Self::Vue => "vue",
+            Self::SwiftUI => "swiftui",
+            Self::Compose => "compose",
+            Self::Flutter => "flutter",
+        }
+    }
+}
+
+/// A single prop binding: design property → component prop
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct PropBinding {
+    pub prop_name: String,
+    pub prop_type: String,       // "string" | "number" | "boolean" | "color" | "enum"
+    pub default_value: String,
+    pub design_source: String,   // which design property this maps from, e.g. "fill.0.color", "text.content", "opacity"
+}
+
+/// Maps a design node to a code component
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct CodeMapping {
+    pub component_name: String,
+    pub framework: CodeFramework,
+    pub import_path: String,     // e.g. "@/components/Button"
+    pub props: Vec<PropBinding>,
+    pub children_slot: bool,     // whether children map to component children/slot
+}
+
 /// Attached note (markdown)
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Note {
@@ -1441,6 +1499,9 @@ pub struct Node {
     /// 3D perspective transform
     #[serde(default)]
     pub perspective: Option<Perspective3D>,
+    /// Design-to-code component mapping
+    #[serde(default)]
+    pub code_mapping: Option<CodeMapping>,
 }
 
 impl Node {
@@ -1513,6 +1574,7 @@ impl Node {
             text_path_id: None,
             text_path_offset: 0.0,
             perspective: None,
+            code_mapping: None,
         }
     }
 

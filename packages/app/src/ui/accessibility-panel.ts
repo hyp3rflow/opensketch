@@ -15,6 +15,19 @@ interface A11yIssue {
   suggestion?: string;
 }
 
+interface A11yFix {
+  node_id: number;
+  node_name: string;
+  current_color: string;
+  suggested_color: string;
+  current_ratio: number;
+  fixed_ratio: number;
+  target: string;
+  suggested_r: number;
+  suggested_g: number;
+  suggested_b: number;
+}
+
 // WCAG 2.1 relative luminance
 function sRGBtoLinear(c: number): number {
   c /= 255;
@@ -120,8 +133,18 @@ export function setupAccessibilityPanel(container: HTMLElement, editor: Editor) 
     }
   }
 
+  function getA11yFixes(): A11yFix[] {
+    try {
+      return JSON.parse((editor.engine as any).get_a11y_fixes());
+    } catch { return []; }
+  }
+
   function render() {
     lastIssues = runAudit();
+    const fixes = getA11yFixes();
+    const fixMap = new Map<number, A11yFix>();
+    for (const f of fixes) fixMap.set(f.node_id, f);
+
     container.innerHTML = "";
 
     const wrap = document.createElement("div");
@@ -142,6 +165,23 @@ export function setupAccessibilityPanel(container: HTMLElement, editor: Editor) 
     titleArea.appendChild(title);
     header.appendChild(titleArea);
 
+    const btnGroup = document.createElement("div");
+    btnGroup.style.cssText = "display:flex;gap:6px;";
+
+    // Fix All button (only if there are contrast fixes)
+    if (fixes.length > 0) {
+      const fixAllBtn = document.createElement("button");
+      fixAllBtn.style.cssText = "background:#059669;border:none;border-radius:6px;padding:4px 10px;color:white;cursor:pointer;font-size:11px;display:flex;align-items:center;gap:4px;transition:background 0.15s;";
+      fixAllBtn.textContent = `🔧 Fix All (${fixes.length})`;
+      fixAllBtn.addEventListener("mouseenter", () => fixAllBtn.style.background = "#10b981");
+      fixAllBtn.addEventListener("mouseleave", () => fixAllBtn.style.background = "#059669");
+      fixAllBtn.addEventListener("click", () => {
+        const count = Number((editor.engine as any).apply_all_a11y_fixes());
+        if (count > 0) { editor.render(); render(); }
+      });
+      btnGroup.appendChild(fixAllBtn);
+    }
+
     // Re-run button
     const rerunBtn = document.createElement("button");
     rerunBtn.style.cssText = "background:#4f46e5;border:none;border-radius:6px;padding:4px 10px;color:white;cursor:pointer;font-size:11px;display:flex;align-items:center;gap:4px;transition:background 0.15s;";
@@ -149,7 +189,8 @@ export function setupAccessibilityPanel(container: HTMLElement, editor: Editor) 
     rerunBtn.addEventListener("mouseenter", () => rerunBtn.style.background = "#6366f1");
     rerunBtn.addEventListener("mouseleave", () => rerunBtn.style.background = "#4f46e5");
     rerunBtn.addEventListener("click", render);
-    header.appendChild(rerunBtn);
+    btnGroup.appendChild(rerunBtn);
+    header.appendChild(btnGroup);
     wrap.appendChild(header);
 
     // Summary
@@ -232,6 +273,38 @@ export function setupAccessibilityPanel(container: HTMLElement, editor: Editor) 
             sug.style.cssText = "font-size:10px;color:#818cf8;margin-top:2px;font-style:italic;";
             sug.textContent = `💡 ${issue.suggestion}`;
             row.appendChild(sug);
+          }
+
+          // Auto-fix button for contrast issues
+          const fix = fixMap.get(issue.nodeId);
+          if (fix && issue.category === "contrast") {
+            const fixRow = document.createElement("div");
+            fixRow.style.cssText = "display:flex;align-items:center;gap:8px;margin-top:6px;";
+
+            // Color preview: current → suggested
+            const preview = document.createElement("span");
+            preview.style.cssText = "display:flex;align-items:center;gap:4px;font-size:10px;color:#aaa;";
+            preview.innerHTML = `
+              <span style="display:inline-block;width:14px;height:14px;border-radius:3px;background:${fix.current_color};border:1px solid #555;"></span>
+              <span>→</span>
+              <span style="display:inline-block;width:14px;height:14px;border-radius:3px;background:${fix.suggested_color};border:1px solid #555;"></span>
+              <span>${fix.suggested_color} (${fix.fixed_ratio}:1)</span>
+            `;
+            fixRow.appendChild(preview);
+
+            const fixBtn = document.createElement("button");
+            fixBtn.style.cssText = "margin-left:auto;background:#059669;border:none;border-radius:4px;padding:2px 8px;color:white;cursor:pointer;font-size:10px;font-weight:600;transition:background 0.15s;";
+            fixBtn.textContent = "Fix";
+            fixBtn.addEventListener("mouseenter", () => fixBtn.style.background = "#10b981");
+            fixBtn.addEventListener("mouseleave", () => fixBtn.style.background = "#059669");
+            fixBtn.addEventListener("click", (e) => {
+              e.stopPropagation();
+              (editor.engine as any).apply_a11y_fix(BigInt(fix.node_id), fix.suggested_r, fix.suggested_g, fix.suggested_b);
+              editor.render();
+              render();
+            });
+            fixRow.appendChild(fixBtn);
+            row.appendChild(fixRow);
           }
 
           list.appendChild(row);
