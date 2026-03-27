@@ -5,6 +5,7 @@
  */
 
 import type { CursorPresence } from "./ui/cursor-presence";
+import type { CRDTOperation, MergeResult } from "./sync-queue";
 
 // ── Protocol Types ──────────────────────────────────────────────
 
@@ -47,6 +48,8 @@ export interface CollabCallbacks {
   onChat?: (msg: ChatMessage) => void;
   /** Called when remote user starts/stops typing */
   onTyping?: (userId: string, isTyping: boolean) => void;
+  /** Called when remote CRDT operations received */
+  onRemoteCRDTOps?: (ops: CRDTOperation[]) => void;
 }
 
 // ── Collab Client ───────────────────────────────────────────────
@@ -179,6 +182,12 @@ export class CollabClient {
     this.send({ type: "typing", isTyping });
   }
 
+  /** Send CRDT operations to the room */
+  sendCRDTOps(ops: CRDTOperation[]) {
+    if (this.status !== "connected" || ops.length === 0) return;
+    this.send({ type: "crdt_ops", ops });
+  }
+
   // ── Internal ────────────────────────────────────────────────
 
   private doConnect() {
@@ -282,6 +291,12 @@ export class CollabClient {
 
       case "remote_typing":
         this.callbacks.onTyping?.(msg.userId, msg.isTyping);
+        break;
+
+      case "remote_crdt_ops":
+        if (msg.ops && Array.isArray(msg.ops)) {
+          this.callbacks.onRemoteCRDTOps?.(msg.ops as CRDTOperation[]);
+        }
         break;
     }
   }

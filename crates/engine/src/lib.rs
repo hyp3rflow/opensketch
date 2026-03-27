@@ -29,6 +29,7 @@ mod svg_import;
 pub mod code_to_design;
 mod design_health;
 mod smart_replace;
+pub mod crdt;
 
 use wasm_bindgen::prelude::*;
 use web_sys::CanvasRenderingContext2d;
@@ -78,6 +79,7 @@ pub struct Engine {
     /// Current user ID for permission checks
     current_user_id: String,
     recording: RecordingStore,
+    crdt: crdt::CRDTDoc,
 }
 
 #[wasm_bindgen]
@@ -96,6 +98,7 @@ impl Engine {
             permissions: PermissionStore::new(),
             current_user_id: String::from("local"),
             recording: RecordingStore::new(),
+            crdt: crdt::CRDTDoc::new("local"),
         }
     }
 
@@ -6098,6 +6101,216 @@ impl Engine {
         serde_json::to_string(&suggestions).unwrap_or_else(|_| "[]".to_string())
     }
 
+    // =============================================
+    // CRDT — Operation-Level Sync
+    // =============================================
+
+    /// Set the site ID for this CRDT instance
+    #[wasm_bindgen]
+    pub fn set_site_id(&mut self, site_id: &str) {
+        self.crdt.site_id = site_id.to_string();
+    }
+
+    /// Get the current site ID
+    #[wasm_bindgen]
+    pub fn get_site_id(&self) -> String {
+        self.crdt.site_id.clone()
+    }
+
+    /// Get the vector clock as JSON
+    #[wasm_bindgen]
+    pub fn get_vector_clock(&self) -> String {
+        self.crdt.clock_json()
+    }
+
+    /// Get pending (unsent) operations as JSON
+    #[wasm_bindgen]
+    pub fn get_pending_operations(&self) -> String {
+        self.crdt.pending_json()
+    }
+
+    /// Take and return pending operations, clearing them from the queue
+    #[wasm_bindgen]
+    pub fn take_pending_operations(&mut self) -> String {
+        let ops = self.crdt.take_pending();
+        serde_json::to_string(&ops).unwrap_or_else(|_| "[]".to_string())
+    }
+
+    /// Acknowledge that specific operations have been sent (by their IDs, JSON array of strings)
+    #[wasm_bindgen]
+    pub fn ack_operations(&mut self, op_ids_json: &str) {
+        if let Ok(ids) = serde_json::from_str::<Vec<String>>(op_ids_json) {
+            self.crdt.ack_pending(&ids);
+        }
+    }
+
+    /// Apply remote operations (JSON array of Operation) and return merge result as JSON
+    #[wasm_bindgen]
+    pub fn apply_remote_operations(&mut self, ops_json: &str) -> String {
+        let ops: Vec<crdt::Operation> = match serde_json::from_str(ops_json) {
+            Ok(o) => o,
+            Err(e) => return format!("{{\"error\":\"{}\"}}", e),
+        };
+
+        let merge_result = self.crdt.merge_remote(ops.clone());
+
+        // Apply the accepted operations to the actual scene
+        for op in &merge_result.applied {
+            self.apply_crdt_op_to_scene(op);
+        }
+
+        serde_json::to_string(&merge_result).unwrap_or_else(|_| "{}".to_string())
+    }
+
+    /// Generate a CRDT operation for adding a node (call after add_node)
+    #[wasm_bindgen]
+    pub fn crdt_add_node(&mut self, node_id: u64, parent_id: f64) -> String {
+        let parent = if parent_id < 0.0 { None } else { Some(parent_id as u64) };
+        let node_json = if let Some(node) = self.scene.get_node(node_id) {
+            serde_json::to_string(node).unwrap_or_default()
+        } else {
+            return "{}".to_string();
+        };
+        let op = self.crdt.generate_op(crdt::OpKind::AddNode { node_json, parent_id: parent });
+        serde_json::to_string(&op).unwrap_or_else(|_| "{}".to_string())
+    }
+
+    /// Generate a CRDT operation for removing a node
+    #[wasm_bindgen]
+    pub fn crdt_remove_node(&mut self, node_id: u64) -> String {
+        let op = self.crdt.generate_op(crdt::OpKind::RemoveNode { node_id });
+        serde_json::to_string(&op).unwrap_or_else(|_| "{}".to_string())
+    }
+
+    /// Generate a CRDT operation for updating a node property
+    /// key: property name string, value_json: JSON-encoded value
+    #[wasm_bindgen]
+    pub fn crdt_update_property(&mut self, node_id: u64, key: &str, value_json: &str) -> String {
+        let prop_key = parse_prop_key(key);
+        let prop_value: crdt::PropValue = serde_json::from_str(value_json)
+            .unwrap_or(crdt::PropValue::Json(value_json.to_string()));
+        let op = self.crdt.generate_op(crdt::OpKind::UpdateProperty {
+            node_id,
+            key: prop_key,
+            value: prop_value,
+        });
+        serde_json::to_string(&op).unwrap_or_else(|_| "{}".to_string())
+    }
+
+    /// Generate a CRDT operation for moving a node
+    #[wasm_bindgen]
+    pub fn crdt_move_node(&mut self, node_id: u64, x: f64, y: f64) -> String {
+        let op = self.crdt.generate_op(crdt::OpKind::MoveNode { node_id, x, y });
+        serde_json::to_string(&op).unwrap_or_else(|_| "{}".to_string())
+    }
+
+    /// Generate a CRDT operation for reparenting a node
+    #[wasm_bindgen]
+    pub fn crdt_reparent_node(&mut self, node_id: u64, new_parent_id: f64, index: f64) -> String {
+        let parent = if new_parent_id < 0.0 { None } else { Some(new_parent_id as u64) };
+        let idx = if index < 0.0 { None } else { Some(index as usize) };
+        let op = self.crdt.generate_op(crdt::OpKind::ReparentNode {
+            node_id,
+            new_parent_id: parent,
+            index: idx,
+        });
+        serde_json::to_string(&op).unwrap_or_else(|_| "{}".to_string())
+    }
+
+    /// Get CRDT state summary as JSON (for debugging)
+    #[wasm_bindgen]
+    pub fn get_crdt_state(&self) -> String {
+        let state = serde_json::json!({
+            "site_id": self.crdt.site_id,
+            "clock": self.crdt.clock,
+            "pending_count": self.crdt.pending_ops.len(),
+            "op_log_size": self.crdt.op_log.len(),
+            "tombstone_count": self.crdt.tombstones.deleted.len(),
+        });
+        state.to_string()
+    }
+}
+
+/// Apply a CRDT operation to the actual scene
+impl Engine {
+    fn apply_crdt_op_to_scene(&mut self, op: &crdt::Operation) {
+        match &op.kind {
+            crdt::OpKind::AddNode { node_json, parent_id } => {
+                if let Ok(node) = serde_json::from_str::<crate::node::Node>(node_json) {
+                    let id = self.scene.add_node(node);
+                    if let Some(pid) = parent_id {
+                        self.scene.reparent(id, Some(*pid));
+                    }
+                }
+            }
+            crdt::OpKind::RemoveNode { node_id } => {
+                self.scene.remove_node(*node_id);
+            }
+            crdt::OpKind::UpdateProperty { node_id, key, value } => {
+                if let Some(node) = self.scene.get_node_mut(*node_id) {
+                    apply_prop_value(node, key, value);
+                }
+            }
+            crdt::OpKind::MoveNode { node_id, x, y } => {
+                if let Some(node) = self.scene.get_node_mut(*node_id) {
+                    node.x = *x;
+                    node.y = *y;
+                }
+            }
+            crdt::OpKind::ReparentNode { node_id, new_parent_id, .. } => {
+                self.scene.reparent(*node_id, *new_parent_id);
+            }
+            crdt::OpKind::ReorderChildren { parent_id, child_ids } => {
+                match parent_id {
+                    None => {
+                        // Reorder root children
+                        let root = self.scene.get_root_children();
+                        let mut new_order = Vec::new();
+                        for &id in child_ids {
+                            if root.contains(&id) {
+                                new_order.push(id);
+                            }
+                        }
+                        // Keep any not in child_ids at the end
+                        for &id in &root {
+                            if !new_order.contains(&id) {
+                                new_order.push(id);
+                            }
+                        }
+                        self.scene.root_children = new_order;
+                    }
+                    Some(pid) => {
+                        if let Some(parent) = self.scene.get_node_mut(*pid) {
+                            let mut new_order = Vec::new();
+                            for &id in child_ids {
+                                if parent.children.contains(&id) {
+                                    new_order.push(id);
+                                }
+                            }
+                            for &id in &parent.children.clone() {
+                                if !new_order.contains(&id) {
+                                    new_order.push(id);
+                                }
+                            }
+                            parent.children = new_order;
+                        }
+                    }
+                }
+            }
+            crdt::OpKind::AddPage { name, page_id: _ } => {
+                self.scene.add_page(name);
+            }
+            crdt::OpKind::RemovePage { page_id } => {
+                self.scene.remove_page(*page_id);
+            }
+            crdt::OpKind::RenamePage { page_id, name } => {
+                self.scene.rename_page(*page_id, name);
+            }
+            crdt::OpKind::SetActivePage { page_id } => {
+                self.scene.set_active_page(*page_id);
+            }
+        }
+    }
 }
 
 fn parse_anim_property(s: &str) -> Option<animation::AnimProperty> {
@@ -6160,5 +6373,102 @@ fn get_node_property_value(node: &node::Node, prop: &animation::AnimProperty) ->
         ScaleX => Some(node.width),
         ScaleY => Some(node.height),
         MotionPath => Some(0.0), // progress, not a static property
+    }
+}
+
+fn parse_prop_key(s: &str) -> crdt::PropKey {
+    match s {
+        "x" => crdt::PropKey::X,
+        "y" => crdt::PropKey::Y,
+        "width" => crdt::PropKey::Width,
+        "height" => crdt::PropKey::Height,
+        "rotation" => crdt::PropKey::Rotation,
+        "opacity" => crdt::PropKey::Opacity,
+        "visible" => crdt::PropKey::Visible,
+        "locked" => crdt::PropKey::Locked,
+        "name" => crdt::PropKey::Name,
+        "fill" => crdt::PropKey::Fill,
+        "stroke" => crdt::PropKey::Stroke,
+        "corner_radius" => crdt::PropKey::CornerRadius,
+        "content" => crdt::PropKey::Content,
+        "font_family" => crdt::PropKey::FontFamily,
+        "font_size" => crdt::PropKey::FontSize,
+        "font_weight" => crdt::PropKey::FontWeight,
+        "font_style" => crdt::PropKey::FontStyle,
+        "text_align" => crdt::PropKey::TextAlign,
+        "line_height" => crdt::PropKey::LineHeight,
+        "blur" => crdt::PropKey::Blur,
+        "shadows" => crdt::PropKey::Shadows,
+        "blend_mode" => crdt::PropKey::BlendMode,
+        "overflow" => crdt::PropKey::Overflow,
+        other => crdt::PropKey::Custom(other.to_string()),
+    }
+}
+
+fn apply_prop_value(node: &mut node::Node, key: &crdt::PropKey, value: &crdt::PropValue) {
+    match key {
+        crdt::PropKey::X => if let crdt::PropValue::F64(v) = value { node.x = *v; },
+        crdt::PropKey::Y => if let crdt::PropValue::F64(v) = value { node.y = *v; },
+        crdt::PropKey::Width => if let crdt::PropValue::F64(v) = value { node.width = *v; },
+        crdt::PropKey::Height => if let crdt::PropValue::F64(v) = value { node.height = *v; },
+        crdt::PropKey::Rotation => if let crdt::PropValue::F64(v) = value { node.rotation = *v; },
+        crdt::PropKey::Opacity => if let crdt::PropValue::F64(v) = value { node.opacity = *v; },
+        crdt::PropKey::Visible => if let crdt::PropValue::Bool(v) = value { node.visible = *v; },
+        crdt::PropKey::Locked => if let crdt::PropValue::Bool(v) = value { node.locked = *v; },
+        crdt::PropKey::Name => if let crdt::PropValue::String(v) = value { node.name = v.clone(); },
+        crdt::PropKey::CornerRadius => if let crdt::PropValue::F64(v) = value { node.corner_radius = *v; },
+        crdt::PropKey::Blur => if let crdt::PropValue::F64(v) = value { node.blur = *v; },
+        crdt::PropKey::Content => {
+            if let crdt::PropValue::String(v) = value {
+                if let NodeKind::Text { ref mut content, .. } = node.kind {
+                    *content = v.clone();
+                }
+            }
+        },
+        crdt::PropKey::FontFamily => {
+            if let crdt::PropValue::String(v) = value {
+                if let NodeKind::Text { ref mut font_family, .. } = node.kind {
+                    *font_family = v.clone();
+                }
+            }
+        },
+        crdt::PropKey::FontSize => {
+            if let crdt::PropValue::F64(v) = value {
+                if let NodeKind::Text { ref mut font_size, .. } = node.kind {
+                    *font_size = *v;
+                }
+            }
+        },
+        crdt::PropKey::Fill => {
+            if let crdt::PropValue::Json(json) = value {
+                if let Ok(fills) = serde_json::from_str::<Vec<node::Fill>>(json) {
+                    node.fills = fills;
+                }
+            }
+        },
+        crdt::PropKey::Stroke => {
+            if let crdt::PropValue::Json(json) = value {
+                if let Ok(strokes) = serde_json::from_str::<Vec<node::Stroke>>(json) {
+                    node.strokes = strokes;
+                }
+            }
+        },
+        crdt::PropKey::Shadows => {
+            if let crdt::PropValue::Json(json) = value {
+                if let Ok(shadows) = serde_json::from_str::<Vec<node::Shadow>>(json) {
+                    node.shadows = shadows;
+                }
+            }
+        },
+        crdt::PropKey::BlendMode => {
+            if let crdt::PropValue::String(v) = value {
+                if let Ok(mode) = serde_json::from_str::<node::BlendMode>(&format!("\"{}\"", v)) {
+                    node.blend_mode = mode;
+                }
+            }
+        },
+        _ => {
+            // Custom or unhandled properties — ignore for now
+        }
     }
 }
