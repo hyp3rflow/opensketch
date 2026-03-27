@@ -27,6 +27,7 @@ import { exportPDF, type PDFExportOptions } from "./ui/pdf-export";
 import { setupDiffOverlay } from "./ui/diff-overlay";
 import { DevModeOverlay } from "./ui/dev-mode-overlay";
 import { WhiteboardMode } from "./ui/whiteboard-mode";
+import { initSnapshotPanel } from "./ui/snapshot-panel";
 
 export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "section" | "image" | "pen" | "star" | "polygon" | "slice" | "connector" | "sticky" | "table" | "freehand";
 
@@ -131,6 +132,7 @@ export class Editor {
   private _diffOverlay: ReturnType<typeof setupDiffOverlay> | null = null;
   private _gradientEditor: GradientEditor | null = null;
   private _smartSelectPanel: SmartSelectPanel;
+  private _snapshotPanel: ReturnType<typeof initSnapshotPanel> | null = null;
 
   // Spacing handles (auto-layout gap drag)
   private _spacingHandles: SpacingHandle[] = [];
@@ -472,6 +474,13 @@ export class Editor {
       if ((e.metaKey || e.ctrlKey) && e.altKey && (e.key === "a" || e.key === "A")) {
         e.preventDefault();
         this.openComponentAnalytics();
+        return;
+      }
+
+      // Ctrl/Cmd+Alt+N: snapshot testing panel
+      if ((e.metaKey || e.ctrlKey) && e.altKey && (e.key === "n" || e.key === "N") && !e.shiftKey) {
+        e.preventDefault();
+        this.toggleSnapshotPanel();
         return;
       }
 
@@ -4250,6 +4259,13 @@ export class Editor {
       this.requestRender();
       this.fireSelectionNow([nodeId]);
     });
+  }
+
+  toggleSnapshotPanel() {
+    if (!this._snapshotPanel) {
+      this._snapshotPanel = initSnapshotPanel(this);
+    }
+    this._snapshotPanel.toggle();
   }
 
   // =============================================

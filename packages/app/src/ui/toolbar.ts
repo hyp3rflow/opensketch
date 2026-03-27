@@ -274,6 +274,16 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
   });
   container.appendChild(healthBtn);
 
+  // Snapshot Testing button
+  const snapshotBtn = document.createElement("button");
+  snapshotBtn.className = "tool-btn";
+  snapshotBtn.title = "Snapshot Testing (⌘⌥N)";
+  snapshotBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>`;
+  snapshotBtn.addEventListener("click", () => {
+    editor.toggleSnapshotPanel();
+  });
+  container.appendChild(snapshotBtn);
+
   // Figma import button
   const figmaBtn = document.createElement("button");
   figmaBtn.className = "tool-btn";

@@ -33,6 +33,7 @@ mod smart_replace;
 pub mod crdt;
 pub mod whiteboard;
 mod email_export;
+pub mod snapshot_test;
 
 use wasm_bindgen::prelude::*;
 use web_sys::CanvasRenderingContext2d;
@@ -83,6 +84,7 @@ pub struct Engine {
     current_user_id: String,
     recording: RecordingStore,
     crdt: crdt::CRDTDoc,
+    snapshot_store: snapshot_test::SnapshotStore,
 }
 
 #[wasm_bindgen]
@@ -100,6 +102,7 @@ impl Engine {
             redo_stack: Vec::new(),
             permissions: PermissionStore::new(),
             current_user_id: String::from("local"),
+            snapshot_store: snapshot_test::SnapshotStore::new(),
             recording: RecordingStore::new(),
             crdt: crdt::CRDTDoc::new("local"),
         }
@@ -6402,6 +6405,93 @@ impl Engine {
             "tombstone_count": self.crdt.tombstones.deleted.len(),
         });
         state.to_string()
+    }
+
+    // ── Snapshot Testing ──
+
+    /// Register a snapshot (metadata only; pixel data stored in JS)
+    #[wasm_bindgen]
+    pub fn snapshot_register(&mut self, id: &str, name: &str, target_type: &str, target_id: u64, width: u32, height: u32, timestamp: f64, hash: f64) {
+        let tt = match target_type {
+            "page" => snapshot_test::SnapshotTarget::Page,
+            "frame" => snapshot_test::SnapshotTarget::Frame,
+            _ => snapshot_test::SnapshotTarget::Node,
+        };
+        self.snapshot_store.add_snapshot(snapshot_test::Snapshot {
+            id: id.to_string(),
+            name: name.to_string(),
+            target_type: tt,
+            target_id,
+            width,
+            height,
+            timestamp,
+            hash: hash as u64,
+        });
+    }
+
+    /// Remove a snapshot by id
+    #[wasm_bindgen]
+    pub fn snapshot_remove(&mut self, id: &str) -> bool {
+        self.snapshot_store.remove_snapshot(id)
+    }
+
+    /// List all snapshots as JSON
+    #[wasm_bindgen]
+    pub fn snapshot_list(&self) -> String {
+        serde_json::to_string(&self.snapshot_store.snapshots).unwrap_or_else(|_| "[]".to_string())
+    }
+
+    /// Get snapshots for a specific target
+    #[wasm_bindgen]
+    pub fn snapshot_list_for_target(&self, target_type: &str, target_id: u64) -> String {
+        let tt = match target_type {
+            "page" => snapshot_test::SnapshotTarget::Page,
+            "frame" => snapshot_test::SnapshotTarget::Frame,
+            _ => snapshot_test::SnapshotTarget::Node,
+        };
+        let snaps: Vec<_> = self.snapshot_store.get_snapshots_for_target(&tt, target_id);
+        serde_json::to_string(&snaps).unwrap_or_else(|_| "[]".to_string())
+    }
+
+    /// Pixel-diff two RGBA buffers. Returns JSON DiffResult.
+    #[wasm_bindgen]
+    pub fn snapshot_diff(&self, baseline: &[u8], current: &[u8], width: u32, height: u32) -> String {
+        let result = snapshot_test::pixel_diff(
+            baseline, current, width, height,
+            self.snapshot_store.threshold,
+            self.snapshot_store.channel_tolerance,
+        );
+        serde_json::to_string(&result).unwrap_or_else(|_| "{}".to_string())
+    }
+
+    /// Generate a diff image (RGBA u8 array) highlighting changes in red
+    #[wasm_bindgen]
+    pub fn snapshot_diff_image(&self, baseline: &[u8], current: &[u8], width: u32, height: u32) -> Vec<u8> {
+        snapshot_test::generate_diff_image(baseline, current, width, height, self.snapshot_store.channel_tolerance)
+    }
+
+    /// Set diff threshold (percentage 0-100)
+    #[wasm_bindgen]
+    pub fn snapshot_set_threshold(&mut self, threshold: f64) {
+        self.snapshot_store.set_threshold(threshold);
+    }
+
+    /// Get current threshold
+    #[wasm_bindgen]
+    pub fn snapshot_get_threshold(&self) -> f64 {
+        self.snapshot_store.threshold
+    }
+
+    /// Set channel tolerance (0-255)
+    #[wasm_bindgen]
+    pub fn snapshot_set_channel_tolerance(&mut self, tolerance: u8) {
+        self.snapshot_store.set_channel_tolerance(tolerance);
+    }
+
+    /// Hash image data (FNV-1a) — returns as f64 for JS compat
+    #[wasm_bindgen]
+    pub fn snapshot_hash(&self, data: &[u8]) -> f64 {
+        snapshot_test::hash_image_data(data) as f64
     }
 }
 

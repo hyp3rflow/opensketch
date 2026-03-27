@@ -1240,3 +1240,16 @@ Frame overflow control and content scrolling.
 - [x] **WASM binding**: `export_email_html()` on Engine
 - [x] **Toolbar UI**: Email icon button → generates HTML → downloads `email-template.html`
 - [x] **Implementation**: `crates/engine/src/email_export.rs` (Rust) + toolbar button in `ui/toolbar.ts` (TypeScript)
+
+## 118. Snapshot Testing (Visual Regression)
+- [x] **Rust engine**: `snapshot_test.rs` — SnapshotStore, Snapshot metadata, pixel_diff (RGBA comparison), generate_diff_image, hash_image_data (FNV-1a)
+- [x] **DiffResult**: total_pixels, changed_pixels, diff_percentage, passed (threshold-based), max_channel_diff
+- [x] **Channel tolerance**: Per-channel ignore threshold (default 2) to avoid anti-aliasing false positives
+- [x] **Diff image generation**: Red overlay for changed pixels (intensity proportional to diff), dimmed unchanged pixels
+- [x] **WASM bindings**: snapshot_register, snapshot_remove, snapshot_list, snapshot_list_for_target, snapshot_diff, snapshot_diff_image, snapshot_set_threshold, snapshot_get_threshold, snapshot_set_channel_tolerance, snapshot_hash
+- [x] **IndexedDB storage**: Pixel data stored in browser IndexedDB (`opensketch-snapshots`), metadata in engine
+- [x] **UI panel**: Floating panel (⌘⌥N), capture baseline, compare current vs baseline, delete snapshots
+- [x] **Diff report modal**: Pass/Fail status, diff percentage, changed pixel count, 3-tab view (Diff/Baseline/Current)
+- [x] **Configurable threshold**: Percentage-based pass/fail (default 0.1%)
+- [x] **Toolbar button**: Camera icon, keyboard shortcut ⌘⌥N
+- [x] **Implementation**: `crates/engine/src/snapshot_test.rs` (Rust) + `ui/snapshot-panel.ts` (TypeScript)
