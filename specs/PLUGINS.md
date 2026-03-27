@@ -102,6 +102,60 @@ Right pane "Plugins" tab shows:
 - Enable/Disable toggle per plugin
 - Sub-tabs for plugin-registered panels
 
+## Figma Plugin Compatibility Layer
+
+OpenSketch includes a Figma Plugin API compatibility shim (`figma-compat.ts`) that emulates a subset of the Figma Plugin API, allowing simple Figma plugins to run with minimal or no modifications.
+
+### Supported Figma API
+
+| API | Description |
+|-----|-------------|
+| `figma.createRectangle()` | Create rectangle node |
+| `figma.createEllipse()` | Create ellipse node |
+| `figma.createFrame()` | Create frame node |
+| `figma.createText()` | Create text node |
+| `figma.createStar()` | Create star node |
+| `figma.createPolygon()` | Create polygon node |
+| `figma.group(nodes, parent)` | Group nodes |
+| `figma.currentPage` | Current page (selection, children, findAll, findOne) |
+| `figma.viewport` | Zoom, center, scrollAndZoomIntoView |
+| `figma.getNodeById(id)` | Find node by ID |
+| `figma.notify(msg, opts?)` | Show notification toast |
+| `figma.closePlugin(msg?)` | Close plugin |
+| `figma.showUI(html, opts?)` | Show plugin UI panel |
+| `figma.ui.postMessage(msg)` | Send message to UI |
+| `figma.loadFontAsync()` | No-op (fonts loaded via Google Fonts) |
+| `figma.on/once/off` | Event listeners |
+
+### Node Properties (FigmaNode)
+
+`x`, `y`, `width`, `height`, `name`, `opacity`, `visible`, `locked`, `rotation`, `cornerRadius`, `fills` (Paint[]), `strokes`, `strokeWeight`, `characters` (text), `fontSize`, `children`, `parent`, `remove()`, `resize(w,h)`, `appendChild(child)`
+
+### Running Figma Plugins
+
+1. **Plugin Panel UI**: Click "▶ Run Figma Plugin" button → paste code → Run
+2. **Programmatic**: `import { runFigmaPlugin } from './plugins/figma-compat'; runFigmaPlugin(editor, code);`
+3. **Console**: `(window as any).__figmaCompat = createFigmaCompat(editor);`
+
+### Limitations
+
+- No Variables/Styles API
+- No REST API / team library access
+- No component publishing
+- `clone()` is simplified
+- Single fill applied (first in array)
+- `showUI` uses iframe sandboxing
+
+### Sample: Color Grid (Figma-compatible)
+```js
+const rect = figma.createRectangle();
+rect.x = 100; rect.y = 100;
+rect.resize(60, 60);
+rect.cornerRadius = 8;
+rect.fills = [{ type: "SOLID", color: { r: 1, g: 0.4, b: 0.4 } }];
+figma.notify("Created!");
+```
+
 ## External Plugin Registration
 
 ```typescript
@@ -118,4 +172,6 @@ pm.activate("my-plugin-id");
 - `packages/app/src/plugins/index.ts` — Barrel exports
 - `packages/app/src/plugins/samples/lorem-ipsum.ts` — Sample plugin
 - `packages/app/src/plugins/samples/color-palette.ts` — Sample plugin
-- `packages/app/src/ui/plugin-panel.ts` — Plugin management UI
+- `packages/app/src/plugins/figma-compat.ts` — Figma Plugin API compatibility layer
+- `packages/app/src/plugins/samples/figma-color-grid.ts` — Sample Figma-compatible plugin
+- `packages/app/src/ui/plugin-panel.ts` — Plugin management UI (+ Figma plugin runner)

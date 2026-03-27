@@ -172,7 +172,7 @@ async function main() {
   // Plugin system
   const pluginManager = new PluginManager(editor);
   (window as any).__pluginManager = pluginManager; // expose for external plugins
-  setupPluginPanel(document.getElementById("plugins-panel")!, pluginManager);
+  setupPluginPanel(document.getElementById("plugins-panel")!, pluginManager, editor);
   pluginManager.register(loremIpsumPlugin);
   pluginManager.register(colorPalettePlugin);
   pluginManager.activate("lorem-ipsum");
