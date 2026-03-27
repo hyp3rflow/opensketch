@@ -1217,3 +1217,13 @@ Frame overflow control and content scrolling.
 - [x] **Undo integration**: set/clear mapping pushes undo
 - [x] **Backward-compatible serde**: `code_mapping: Option<CodeMapping>` defaults to None
 - [x] **Implementation**: `crates/engine/src/code_export.rs` (Rust) + `ui/code-mapping-panel.ts` (UI)
+
+## 114. Collaborative Whiteboard Mode
+- [x] **Rust engine**: `whiteboard.rs` module — `WhiteboardState` (active, timer, voting_enabled), `WhiteboardTimer` (duration_secs, remaining_secs, running)
+- [x] **Scene integration**: `whiteboard_state` field on Scene, backward-compatible serde
+- [x] **WASM bindings**: `toggle_whiteboard_mode`, `start_timer`, `stop_timer`, `reset_timer`, `tick_timer`, `get_timer_state`, `set_voting_enabled`, `get_voting_enabled`, `get_whiteboard_active`
+- [x] **Whiteboard mode toggle**: W shortcut, toolbar button, simplified toolbar (select/sticky/pen/text only)
+- [x] **Dot grid background**: CSS radial-gradient overlay when mode active
+- [x] **Timer widget**: Floating top-left panel, start/stop/reset, configurable duration (1-60 min), visual countdown with flash at 0
+- [x] **Voting dots**: V key toggle, click to place colored dots on canvas (per-user color), 4px circles with white border
+- [x] **Implementation**: `crates/engine/src/whiteboard.rs` (Rust) + `ui/whiteboard-mode.ts` (TypeScript)

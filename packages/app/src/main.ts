@@ -32,6 +32,7 @@ import { CollabClient } from "./collab";
 import { initCollabUI, updateCollabUI } from "./ui/collab-ui";
 import { renderPermissionsPanel } from "./ui/permissions-panel";
 import { setupCanvasRecorder, toggleRecorderBar } from "./ui/canvas-recorder";
+import { setupWhiteboardMode, toggleWhiteboardMode, toggleTimerVisibility } from "./ui/whiteboard";
 
 async function main() {
   const wasm = await loadEngine();
@@ -80,6 +81,11 @@ async function main() {
 
   // Canvas recorder (floating bar)
   setupCanvasRecorder(editor);
+
+  // Whiteboard mode (collaborative tools bar)
+  setupWhiteboardMode(editor);
+  (window as any).__toggleWhiteboard = () => toggleWhiteboardMode(editor);
+  (window as any).__toggleTimer = () => toggleTimerVisibility();
 
   // Bottom toolbar (with design system button + mode toggle)
   setupToolbar(document.getElementById("bottom-toolbar")!, editor, toggleDesignSystem, (mode) => {

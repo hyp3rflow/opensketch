@@ -31,6 +31,7 @@ pub mod code_export;
 mod design_health;
 mod smart_replace;
 pub mod crdt;
+pub mod whiteboard;
 
 use wasm_bindgen::prelude::*;
 use web_sys::CanvasRenderingContext2d;
@@ -5691,6 +5692,76 @@ impl Engine {
     pub fn export_all_components(&self) -> String {
         let comps = self.scene.export_all_components();
         serde_json::to_string(&comps).unwrap_or_else(|_| "[]".to_string())
+    }
+
+    // =============================================
+    // Whiteboard Mode
+    // =============================================
+
+    pub fn toggle_whiteboard_mode(&mut self) -> bool {
+        self.scene.whiteboard_state.active = !self.scene.whiteboard_state.active;
+        if self.scene.whiteboard_state.active && self.scene.whiteboard_state.timer.is_none() {
+            self.scene.whiteboard_state.timer = Some(whiteboard::WhiteboardTimer::default());
+        }
+        self.scene.whiteboard_state.active
+    }
+
+    pub fn get_whiteboard_active(&self) -> bool {
+        self.scene.whiteboard_state.active
+    }
+
+    pub fn start_timer(&mut self) {
+        if let Some(ref mut timer) = self.scene.whiteboard_state.timer {
+            timer.running = true;
+        }
+    }
+
+    pub fn stop_timer(&mut self) {
+        if let Some(ref mut timer) = self.scene.whiteboard_state.timer {
+            timer.running = false;
+        }
+    }
+
+    pub fn reset_timer(&mut self, duration_secs: u32) {
+        let dur = if duration_secs == 0 { 300 } else { duration_secs };
+        self.scene.whiteboard_state.timer = Some(whiteboard::WhiteboardTimer {
+            duration_secs: dur,
+            remaining_secs: dur,
+            running: false,
+        });
+    }
+
+    pub fn tick_timer(&mut self) -> u32 {
+        if let Some(ref mut timer) = self.scene.whiteboard_state.timer {
+            if timer.running && timer.remaining_secs > 0 {
+                timer.remaining_secs -= 1;
+                if timer.remaining_secs == 0 {
+                    timer.running = false;
+                }
+            }
+            timer.remaining_secs
+        } else {
+            0
+        }
+    }
+
+    pub fn get_timer_state(&self) -> String {
+        match &self.scene.whiteboard_state.timer {
+            Some(timer) => serde_json::json!({
+                "duration_secs": timer.duration_secs,
+                "remaining_secs": timer.remaining_secs,
+                "running": timer.running,
+            }).to_string(),
+            None => "null".to_string(),
+        }
+    }
+
+    pub fn set_voting_enabled(&mut self, enabled: bool) {
+        self.scene.whiteboard_state.voting_enabled = enabled;
+    }
+
+    pub fn get_voting_enabled(&self) -> bool {
+        self.scene.whiteboard_state.voting_enabled
     }
 }
 

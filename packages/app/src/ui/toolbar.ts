@@ -24,6 +24,7 @@ const tools: { id: ToolType; icon: string; label: string }[] = [
   { id: "connector", icon: icons.connector, label: "Connector (L)" },
   { id: "sticky", icon: icons.stickyNote, label: "Sticky Note (N)" },
   { id: "table", icon: icons.table, label: "Table (B)" },
+  { id: "freehand", icon: icons.freehand, label: "Freehand (D)" },
 ];
 
 export type AppMode = "edit" | "dev";
@@ -112,6 +113,24 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
     dsBtn.innerHTML = icons.palette;
     dsBtn.addEventListener("click", onDesignSystem);
     container.appendChild(dsBtn);
+  }
+
+  // Whiteboard mode button
+  {
+    const sep = document.createElement("div");
+    sep.className = "tool-btn-separator";
+    container.appendChild(sep);
+
+    const wbBtn = document.createElement("button");
+    wbBtn.className = "tool-btn";
+    wbBtn.id = "whiteboard-mode-btn";
+    wbBtn.title = "Whiteboard Mode (⇧W)";
+    wbBtn.innerHTML = icons.whiteboard;
+    wbBtn.addEventListener("click", () => {
+      (window as any).__toggleWhiteboard?.();
+      wbBtn.classList.toggle("active");
+    });
+    container.appendChild(wbBtn);
   }
 
   // Boolean operations buttons

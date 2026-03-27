@@ -39,6 +39,9 @@ const DEFAULTS: ShortcutDef[] = [
   { id: "tool.slice",    category: "Tools", description: "Slice",          defaultBinding: { key: "k" } },
   { id: "tool.connector",category: "Tools", description: "Connector",      defaultBinding: { key: "l" } },
   { id: "tool.section",  category: "Tools", description: "Section",        defaultBinding: { key: "s", shift: true } },
+  { id: "tool.freehand", category: "Tools", description: "Freehand draw",  defaultBinding: { key: "d" } },
+  { id: "whiteboard.toggle", category: "Whiteboard", description: "Toggle whiteboard mode", defaultBinding: { key: "w", shift: true } },
+  { id: "whiteboard.timer", category: "Whiteboard", description: "Toggle timer", defaultBinding: { key: "t", shift: true, meta: true } },
 
   // Edit
   { id: "edit.undo",       category: "Edit", description: "Undo",          defaultBinding: { key: "z", meta: true } },

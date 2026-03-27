@@ -36,6 +36,7 @@ pub struct ResponsiveState {
 }
 use crate::types::Color;
 use crate::animation::AnimationStore;
+use crate::whiteboard::WhiteboardState;
 use crate::branch::{Branch, BranchSnapshot, BranchDiff, VisualDiff, compute_diff, compute_visual_diff, merge_snapshots, ReviewRequest, ReviewComment, ReviewStatus};
 use crate::component::ComponentLibrary;
 
@@ -124,6 +125,8 @@ pub struct SceneData {
     pub next_review_id: u64,
     #[serde(default)]
     pub next_review_comment_id: u64,
+    #[serde(default)]
+    pub whiteboard_state: WhiteboardState,
 }
 
 pub struct Scene {
@@ -157,6 +160,7 @@ pub struct Scene {
     pub(crate) review_comments: Vec<ReviewComment>,
     next_review_id: u64,
     next_review_comment_id: u64,
+    pub whiteboard_state: WhiteboardState,
 }
 
 impl Scene {
@@ -196,6 +200,7 @@ impl Scene {
             review_comments: vec![],
             next_review_id: 1,
             next_review_comment_id: 1,
+            whiteboard_state: WhiteboardState::default(),
         }
     }
 
@@ -520,6 +525,7 @@ impl Scene {
             review_comments: self.review_comments.clone(),
             next_review_id: self.next_review_id,
             next_review_comment_id: self.next_review_comment_id,
+            whiteboard_state: self.whiteboard_state.clone(),
         }
     }
 
@@ -594,6 +600,7 @@ impl Scene {
                 review_comments: data.review_comments.clone(),
                 next_review_id: if data.next_review_id > 0 { data.next_review_id } else { 1 },
                 next_review_comment_id: if data.next_review_comment_id > 0 { data.next_review_comment_id } else { 1 },
+                whiteboard_state: data.whiteboard_state.clone(),
             }
         } else {
             // Legacy single-page format
@@ -645,6 +652,7 @@ impl Scene {
                 review_comments: vec![],
                 next_review_id: 1,
                 next_review_comment_id: 1,
+                whiteboard_state: data.whiteboard_state.clone(),
             }
         }
     }

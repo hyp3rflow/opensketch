@@ -22,12 +22,14 @@ import { findSpacingHandles, hitTestSpacingHandle, renderSpacingHandles, type Sp
 import { showLayoutSuggestion, dismissSuggestion } from "./ui/ai-layout-suggest";
 import { toggleFindReplace, closeFindReplace } from "./ui/find-replace-panel";
 import { toggleRecorderBar } from "./ui/canvas-recorder";
+import { getFreehandColor, getFreehandWidth } from "./ui/whiteboard";
 import { toggleSpotlight, closeSpotlight, isSpotlightVisible } from "./ui/spotlight";
 import { exportPDF, type PDFExportOptions } from "./ui/pdf-export";
 import { setupDiffOverlay } from "./ui/diff-overlay";
 import { DevModeOverlay } from "./ui/dev-mode-overlay";
+import { WhiteboardMode } from "./ui/whiteboard-mode";
 
-export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "section" | "image" | "pen" | "star" | "polygon" | "slice" | "connector" | "sticky" | "table";
+export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "section" | "image" | "pen" | "star" | "polygon" | "slice" | "connector" | "sticky" | "table" | "freehand";
 
 /** Snap threshold in screen pixels */
 const SNAP_THRESHOLD_PX = 5;
@@ -63,6 +65,8 @@ export class Editor {
   private _clipboard: string | null = null;
   private _pasteCount = 0;
 
+  whiteboardMode: WhiteboardMode;
+
   private _imageCache: Map<string, HTMLImageElement> = new Map();
   private _imageLoading: Set<string> = new Set();
 
@@ -85,6 +89,11 @@ export class Editor {
 
   // Connector tool state
   private _connectorDrag: { startNodeId: number; sx: number; sy: number; ex?: number; ey?: number; endNodeId?: number } | null = null;
+
+  // Freehand drawing state
+  private _freehandPathId: number | null = null;
+  private _freehandPoints: { x: number; y: number }[] = [];
+  private _freehandDrawing = false;
   private _pathEditHandleOffsets: { hix: number; hiy: number; hox: number; hoy: number } | null = null;
 
   // Vector Network edit mode state
@@ -167,6 +176,7 @@ export class Editor {
     );
     this._diffOverlay = setupDiffOverlay(this);
     this._devModeOverlay = new DevModeOverlay(this);
+    this.whiteboardMode = new WhiteboardMode(this);
     this.startLoop();
   }
 
@@ -572,6 +582,13 @@ export class Editor {
         return;
       }
       // Tool shortcuts via ShortcutManager
+      // Whiteboard mode shortcuts
+      if (e.key === "w" && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+        if (this.whiteboardMode.handleKeydown("w")) { e.preventDefault(); return; }
+      }
+      if (e.key === "v" && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey && this.whiteboardMode.isActive) {
+        if (this.whiteboardMode.handleKeydown("v")) { e.preventDefault(); return; }
+      }
       if (_sm.matches(e, "tool.section")) this.setTool("section");
       else if (_sm.matches(e, "tool.select")) this.setTool("select");
       else if (_sm.matches(e, "tool.hand")) this.setTool("hand");
@@ -584,6 +601,9 @@ export class Editor {
       else if (_sm.matches(e, "tool.star")) this.setTool("star");
       else if (_sm.matches(e, "tool.polygon")) this.setTool("polygon");
       else if (_sm.matches(e, "tool.sticky")) this.setTool("sticky");
+      else if (_sm.matches(e, "tool.freehand")) this.setTool("freehand");
+      else if (_sm.matches(e, "whiteboard.toggle")) { (window as any).__toggleWhiteboard?.(); }
+      else if (_sm.matches(e, "whiteboard.timer")) { (window as any).__toggleTimer?.(); }
       else if (_sm.matches(e, "tool.table")) this.setTool("table");
       else if (_sm.matches(e, "tool.slice")) this.setTool("slice");
       else if (_sm.matches(e, "tool.connector")) this.setTool("connector");
@@ -989,6 +1009,25 @@ export class Editor {
       return;
     }
 
+    if (this.currentTool === "freehand") {
+      const sx = this.engine.screen_to_scene_x(x, y);
+      const sy = this.engine.screen_to_scene_y(x, y);
+      this.engine.push_undo();
+      const pathId = Number(this.engine.add_path(sx, sy));
+      this.engine.path_add_point(pathId, sx, sy);
+      this._freehandPathId = pathId;
+      this._freehandPoints = [{ x: sx, y: sy }];
+      this._freehandDrawing = true;
+      // Set stroke for freehand using whiteboard settings
+      const hexColor = getFreehandColor();
+      const r = parseInt(hexColor.slice(1, 3), 16);
+      const g = parseInt(hexColor.slice(3, 5), 16);
+      const b = parseInt(hexColor.slice(5, 7), 16);
+      this.engine.set_stroke(pathId, r, g, b, 1.0, getFreehandWidth());
+      this.canvas.setPointerCapture(e.pointerId);
+      return;
+    }
+
     if (this.currentTool === "connector") {
       const sx = this.engine.screen_to_scene_x(x, y);
       const sy = this.engine.screen_to_scene_y(x, y);
@@ -1250,6 +1289,21 @@ export class Editor {
       return;
     }
 
+    // Freehand tool: add points during drag
+    if (this._freehandDrawing && this._freehandPathId != null) {
+      const sx = this.engine.screen_to_scene_x(e.offsetX, e.offsetY);
+      const sy = this.engine.screen_to_scene_y(e.offsetX, e.offsetY);
+      const last = this._freehandPoints[this._freehandPoints.length - 1];
+      const dist = Math.hypot(sx - last.x, sy - last.y);
+      // Only add points with minimum distance (prevents too many points)
+      if (dist > 2) {
+        this._freehandPoints.push({ x: sx, y: sy });
+        this.engine.path_add_point(this._freehandPathId, sx, sy);
+        this.needsRender = true;
+      }
+      return;
+    }
+
     // Connector tool: update preview during drag
     if (this._connectorDrag) {
       this._connectorDrag.ex = this.engine.screen_to_scene_x(e.offsetX, e.offsetY);
@@ -1442,6 +1496,26 @@ export class Editor {
 
     if (this._penDragging) {
       this._penDragging = false;
+      this.needsRender = true;
+      return;
+    }
+
+    // Freehand: finish drawing
+    if (this._freehandDrawing && this._freehandPathId != null) {
+      const pts = this._freehandPoints;
+      if (pts.length < 2) {
+        // Too short, remove the path
+        this.engine.remove_node(this._freehandPathId);
+      } else {
+        // Smooth the path by converting raw points to bezier curves
+        this._smoothFreehandPath(this._freehandPathId, pts);
+        this.engine.select(this._freehandPathId);
+        this.fireSelectionNow([this._freehandPathId]);
+        this.onLayersChanges.forEach(fn => fn());
+      }
+      this._freehandPathId = null;
+      this._freehandPoints = [];
+      this._freehandDrawing = false;
       this.needsRender = true;
       return;
     }
@@ -2116,6 +2190,45 @@ export class Editor {
 
     // Start inline text editing
     this.startTextEdit(hit, node);
+  }
+
+  private _smoothFreehandPath(pathId: number, pts: { x: number; y: number }[]) {
+    // Downsample points for smoothing (keep every Nth point based on total count)
+    const maxPoints = 100;
+    let sampled = pts;
+    if (pts.length > maxPoints) {
+      const step = pts.length / maxPoints;
+      sampled = [];
+      for (let i = 0; i < maxPoints - 1; i++) {
+        sampled.push(pts[Math.round(i * step)]);
+      }
+      sampled.push(pts[pts.length - 1]);
+    }
+
+    // Remove all existing points and rebuild with bezier handles
+    const count = this.engine.path_point_count(pathId);
+    for (let i = count - 1; i >= 0; i--) {
+      this.engine.path_remove_point(pathId, i);
+    }
+
+    // Add smoothed points with Catmull-Rom → Bezier conversion
+    for (let i = 0; i < sampled.length; i++) {
+      const p = sampled[i];
+      if (sampled.length < 3 || i === 0 || i === sampled.length - 1) {
+        this.engine.path_add_point(pathId, p.x, p.y);
+      } else {
+        const prev = sampled[i - 1];
+        const next = sampled[i + 1];
+        const tension = 0.3;
+        const hix = p.x - (next.x - prev.x) * tension;
+        const hiy = p.y - (next.y - prev.y) * tension;
+        const hox = p.x + (next.x - prev.x) * tension;
+        const hoy = p.y + (next.y - prev.y) * tension;
+        this.engine.path_add_curve_point(pathId, p.x, p.y, hix, hiy, hox, hoy);
+      }
+    }
+    // Rename the node
+    this.engine.set_name(pathId, `Freehand ${pathId}`);
   }
 
   private startStickyEdit(nodeId: bigint | number, node: any) {
@@ -2815,7 +2928,7 @@ export class Editor {
       ellipse: "crosshair", text: "text", frame: "crosshair",
       section: "crosshair", image: "crosshair", pen: "crosshair",
       star: "crosshair", polygon: "crosshair",
-      slice: "crosshair", connector: "crosshair", sticky: "crosshair",
+      slice: "crosshair", connector: "crosshair", sticky: "crosshair", freehand: "crosshair",
     };
     this.canvas.style.cursor = cursors[this.currentTool] || "default";
   }
