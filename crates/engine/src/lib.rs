@@ -32,6 +32,7 @@ mod design_health;
 mod smart_replace;
 pub mod crdt;
 pub mod whiteboard;
+mod email_export;
 
 use wasm_bindgen::prelude::*;
 use web_sys::CanvasRenderingContext2d;
@@ -4101,6 +4102,11 @@ impl Engine {
     /// Export entire scene as SVG
     pub fn export_svg(&self) -> String {
         svg_export::export_scene_svg(&self.scene)
+    }
+
+    /// Export active page as email-compatible HTML (table-based, inline styles)
+    pub fn export_email_html(&self) -> String {
+        email_export::export_email_html(&self.scene)
     }
 
     /// Export selected nodes as SVG

@@ -1229,3 +1229,14 @@ Frame overflow control and content scrolling.
 - [x] **Freehand drawing tool**: D shortcut, mouse/pen drag to draw smooth bezier paths, Catmull-Rom smoothing, configurable stroke color/width
 - [x] **Whiteboard tools**: freehand + connector added to whiteboard mode tool palette
 - [x] **Implementation**: `crates/engine/src/whiteboard.rs` (Rust) + `ui/whiteboard-mode.ts` (TypeScript)
+
+## 117. Responsive Email Template Builder
+- [x] **Email HTML export**: Table-based layout with inline styles for maximum email client compatibility (Gmail, Outlook, Apple Mail, Yahoo)
+- [x] **Rust engine**: `email_export.rs` — `export_email_html(scene)` converts scene nodes to email-compatible HTML
+- [x] **Node mapping**: Frame → nested `<table>`, Text → `<p>` with inline font styles, Rect/Ellipse → colored `<div>`, Image → `<img>` tag
+- [x] **Layout support**: Flex Row → single `<tr>` with multiple `<td>`, Flex Column → multiple `<tr>`, gap → padding, auto-layout padding
+- [x] **Email boilerplate**: XHTML Transitional DOCTYPE, charset/viewport meta, Outlook conditional comments (`<!--[if mso]>`), MSO XML namespace
+- [x] **CSS reset**: Inline body reset, table border-collapse, image rendering fixes
+- [x] **WASM binding**: `export_email_html()` on Engine
+- [x] **Toolbar UI**: Email icon button → generates HTML → downloads `email-template.html`
+- [x] **Implementation**: `crates/engine/src/email_export.rs` (Rust) + toolbar button in `ui/toolbar.ts` (TypeScript)

@@ -199,6 +199,24 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
   pdfBtn.addEventListener("click", () => editor.downloadPDF());
   container.appendChild(pdfBtn);
 
+  // Email HTML export button
+  const emailBtn = document.createElement("button");
+  emailBtn.className = "tool-btn";
+  emailBtn.title = "Export Email HTML";
+  emailBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>`;
+  emailBtn.addEventListener("click", () => {
+    const html = editor.engine.export_email_html();
+    if (!html) return;
+    const blob = new Blob([html], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "email-template.html";
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+  container.appendChild(emailBtn);
+
   // Batch export button
   const batchExportBtn = document.createElement("button");
   batchExportBtn.className = "tool-btn";

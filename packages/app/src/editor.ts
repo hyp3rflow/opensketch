@@ -3950,6 +3950,22 @@ export class Editor {
   }
 
   /**
+   * Export active page as email-compatible HTML and trigger download
+   */
+  downloadEmailHtml(filename?: string) {
+    const html = this.engine.export_email_html();
+    if (!html) return false;
+    const blob = new Blob([html], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename || "opensketch-email.html";
+    a.click();
+    URL.revokeObjectURL(url);
+    return true;
+  }
+
+  /**
    * Export frame as PNG and trigger download
    */
   downloadPng(nodeId?: number | bigint, scale: number = 2, filename?: string) {
