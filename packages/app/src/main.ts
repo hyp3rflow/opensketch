@@ -15,6 +15,7 @@ import { setupSyncStatus } from "./ui/sync-status";
 import { setupHandoffPanel } from "./ui/handoff-panel";
 import { setupColorPalettePanel } from "./ui/color-palette-panel";
 import { setupBranchPanel } from "./ui/branch-panel";
+import { setupReviewPanel } from "./ui/review-panel";
 import { createPrototypeViewer } from "./ui/prototype-viewer";
 import { CommentOverlay, setupCommentsPanel, updateCommentsBadge } from "./ui/comments";
 import { setupVariablesPanel } from "./ui/variables-panel";
@@ -119,6 +120,8 @@ async function main() {
   // Page tabs (bottom center, above toolbar)
   const pageTabs = setupPageTabs(document.getElementById("workspace")!, editor);
   const branchPanel = setupBranchPanel(document.getElementById("workspace")!, editor);
+  const reviewPanel = setupReviewPanel(document.getElementById("workspace")!, editor);
+  (editor as any).reviewPanel = reviewPanel;
 
   // Note overlay (positioned over canvas)
   const noteOverlay = setupNoteOverlay(document.getElementById("workspace")!, editor);

@@ -311,6 +311,20 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
   });
   container.appendChild(recBtn);
 
+  // Review panel toggle
+  const reviewBtn = document.createElement("button");
+  reviewBtn.className = "tool-btn";
+  reviewBtn.title = "Reviews";
+  reviewBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/><path d="M8 9h8M8 13h4"/></svg>`;
+  let reviewVisible = false;
+  reviewBtn.addEventListener("click", () => {
+    reviewVisible = !reviewVisible;
+    const rp = (editor as any).reviewPanel;
+    if (rp) { reviewVisible ? rp.show() : rp.hide(); }
+    reviewBtn.classList.toggle("active", reviewVisible);
+  });
+  container.appendChild(reviewBtn);
+
   // Cursor presence demo toggle
   const cursorBtn = document.createElement("button");
   cursorBtn.className = "tool-btn";

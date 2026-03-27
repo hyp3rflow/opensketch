@@ -3,6 +3,41 @@ use std::collections::HashMap;
 use crate::node::{Node, NodeId};
 use crate::scene::{Page, SceneData};
 
+// =============================================
+// Review workflow
+// =============================================
+
+#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Debug)]
+pub enum ReviewStatus {
+    Open,
+    Approved,
+    Rejected,
+    Merged,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct ReviewRequest {
+    pub id: u64,
+    pub branch_id: u64,
+    pub title: String,
+    pub description: String,
+    pub status: ReviewStatus,
+    pub reviewer: String,
+    pub created_at: f64,
+    pub updated_at: f64,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct ReviewComment {
+    pub id: u64,
+    pub review_id: u64,
+    pub node_id: Option<NodeId>,
+    pub text: String,
+    pub author: String,
+    pub timestamp: f64,
+    pub resolved: bool,
+}
+
 /// A snapshot of scene state for branching
 #[derive(Clone, Serialize, Deserialize)]
 pub struct BranchSnapshot {

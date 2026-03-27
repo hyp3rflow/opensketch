@@ -822,6 +822,21 @@ Frame overflow control and content scrolling.
   - [x] Diff panel: stats summary, opacity slider, label toggle, clickable node list (pan-to-node)
   - [x] Branch panel integration: diff button per branch + self-diff button on active branch
 
+## Version Comments & Review Workflow
+- [x] ReviewRequest struct: id, branch_id, title, description, status (Open/Approved/Rejected/Merged), reviewer, created_at, updated_at
+- [x] ReviewComment struct: id, review_id, node_id (optional), text, author, timestamp, resolved
+- [x] Scene storage: reviews Vec, review_comments Vec, next_review_id, next_review_comment_id
+- [x] Scene methods: create_review, approve_review, reject_review, merge_review, add_review_comment, resolve_review_comment, get_reviews, get_review, get_review_comments
+- [x] WASM bindings: all 9 review APIs with BigInt conversion + undo integration
+- [x] Review panel (review-panel.ts): floating panel with Open/Closed tabs, review list, detail view
+- [x] Review detail: diff summary (added/modified/removed counts), comment thread, approve/reject/merge buttons
+- [x] Review comments: post with optional node attachment, resolve individual comments, navigate to node
+- [x] Create review modal: title, description, reviewer fields — accessible from branch panel
+- [x] Branch panel integration: "Request Review" button per non-main branch, review status badge (In Review / Approved)
+- [x] Toolbar: Reviews toggle button
+- [x] Merge via review: approved reviews enable merge button, which triggers branch merge
+- [x] Backward-compatible serde (default empty vecs)
+
 ## AI Layout Suggestion
 - [x] Heuristic analysis: detects row/column/grid arrangement of selected nodes
 - [x] Gap detection: calculates average spacing, rounds to nice values

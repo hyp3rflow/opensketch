@@ -4474,6 +4474,53 @@ impl Engine {
         }
     }
 
+    // =============================================
+    // Review workflow
+    // =============================================
+
+    pub fn create_review(&mut self, branch_id: u64, title: &str, description: &str, reviewer: &str) -> u64 {
+        self.push_undo();
+        self.scene.create_review(branch_id, title, description, reviewer)
+    }
+
+    pub fn approve_review(&mut self, review_id: u64) -> bool {
+        self.push_undo();
+        self.scene.approve_review(review_id)
+    }
+
+    pub fn reject_review(&mut self, review_id: u64, reason: &str) -> bool {
+        self.push_undo();
+        self.scene.reject_review(review_id, reason)
+    }
+
+    pub fn merge_review(&mut self, review_id: u64) -> bool {
+        self.push_undo();
+        self.scene.merge_review(review_id)
+    }
+
+    pub fn add_review_comment(&mut self, review_id: u64, node_id: u64, text: &str, author: &str) -> u64 {
+        self.push_undo();
+        let nid = if node_id == 0 { None } else { Some(node_id) };
+        self.scene.add_review_comment(review_id, nid, text, author)
+    }
+
+    pub fn resolve_review_comment(&mut self, comment_id: u64) -> bool {
+        self.push_undo();
+        self.scene.resolve_review_comment(comment_id)
+    }
+
+    pub fn get_reviews(&self) -> String {
+        self.scene.get_reviews()
+    }
+
+    pub fn get_review(&self, review_id: u64) -> String {
+        self.scene.get_review(review_id)
+    }
+
+    pub fn get_review_comments(&self, review_id: u64) -> String {
+        self.scene.get_review_comments(review_id)
+    }
+
     /// Get node JSON enriched with notes (for agent consumption)
     pub fn get_node_with_notes(&self, node_id: u64) -> String {
         if let Some(node) = self.scene.get_node(node_id) {

@@ -3,6 +3,7 @@
  * Rendered at the bottom of the canvas, next to page tabs.
  */
 import type { Editor } from "../editor";
+import { showCreateReviewModal } from "./review-panel";
 
 interface BranchInfo {
   id: number;
@@ -159,6 +160,36 @@ export function setupBranchPanel(container: HTMLElement, editor: Editor) {
           closePopups();
         });
         actions.appendChild(selfDiffBtn);
+      }
+
+      // Review badge
+      const reviews: any[] = (() => { try { return JSON.parse(editor.engine.get_reviews()); } catch { return []; } })();
+      const branchReviews = reviews.filter((r: any) => r.branch_id === branch.id);
+      const openReview = branchReviews.find((r: any) => r.status === "Open");
+      const approvedReview = branchReviews.find((r: any) => r.status === "Approved");
+      if (openReview || approvedReview) {
+        const badge = document.createElement("span");
+        badge.style.cssText = `font-size:9px; padding:1px 5px; border-radius:3px; margin-left:4px; font-weight:600;`;
+        if (approvedReview) { badge.style.background = "#a6e3a122"; badge.style.color = "#a6e3a1"; badge.textContent = "✓ Approved"; }
+        else { badge.style.background = "#89b4fa22"; badge.style.color = "#89b4fa"; badge.textContent = "⬤ In Review"; }
+        nameSpan.appendChild(badge);
+      }
+
+      // Request Review button (for non-main branches)
+      if (branch.id !== 1) {
+        const rvBtn = document.createElement("button");
+        rvBtn.className = "branch-action-btn";
+        rvBtn.title = "Request Review";
+        rvBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>`;
+        rvBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          showCreateReviewModal(editor, branch.id, () => {
+            render();
+            showBranchPopup();
+            (editor as any)._reviewPanelRender?.();
+          });
+        });
+        actions.appendChild(rvBtn);
       }
 
       // Merge button (not for active branch)

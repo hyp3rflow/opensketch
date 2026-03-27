@@ -835,12 +835,20 @@
 - Smart component variants (조건부 variant 전환 — hover/press/focus state 자동 교체)
 - Shared component library (팀 간 컴포넌트 라이브러리 퍼블리싱/구독, 버전 동기화)
 - Auto-documentation generator (컴포넌트/스타일 기반 디자인 시스템 문서 자동 생성, Markdown/HTML export)
-- Accessible color contrast checker (WCAG AA/AAA 대비 비율 검사, 자동 색상 보정 제안, 접근성 리포트)
-- Smart layout suggestions (AI 기반 레이아웃 개선 제안 — 정렬 불일치, 간격 불균형, 일관성 위반 감지 + 원클릭 적용)
 - Canvas performance profiler (렌더링 FPS 모니터, 노드별 렌더 비용 히트맵, 최적화 제안)
-- Real-time cursor presence (다중 사용자 커서 위치 공유, 아바타 표시, WebSocket 기반)
-- Motion/animation timeline (키프레임 기반 애니메이션 타임라인, 이징 커브 편집, CSS/Lottie export)
 - Component playground/sandbox (컴포넌트 독립 테스트 환경, 다양한 props 조합 미리보기)
+- Multi-cursor text editing (텍스트 노드 내 다중 커서/선택 영역, Cmd+D 단어 선택 추가)
+- Keyboard shortcut customization (사용자 정의 단축키 매핑, JSON 설정 파일, conflict detection)
+- Canvas annotation stamps (날짜/승인/서명 스탬프 도구, 리뷰 워크플로우 보조)
+
+## 완료된 기능 (추가 — Version Comments & Review Workflow)
+- Branch review workflow: ReviewRequest (Open/Approved/Rejected/Merged) + ReviewComment (node-attached, resolvable)
+- Rust: branch.rs structs, Scene 9 methods (create/approve/reject/merge_review, add/resolve comment, get queries)
+- WASM: 9 bindings with undo integration
+- UI: review-panel.ts (floating panel, Open/Closed tabs, detail view with diff summary + comment thread + action buttons)
+- Create review modal from branch panel, review status badges, toolbar toggle button
+- Merge via approved review triggers branch merge
+- Backward-compatible serde
 
 ## 완료된 기능 (추가 — Smart Replace)
 - Smart Object Replace: 선택 노드와 유사 크기/비율 노드를 찾아 일괄 교체 (smart_replace.rs + ui/smart-replace.ts)

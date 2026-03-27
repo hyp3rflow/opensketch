@@ -36,7 +36,7 @@ pub struct ResponsiveState {
 }
 use crate::types::Color;
 use crate::animation::AnimationStore;
-use crate::branch::{Branch, BranchSnapshot, BranchDiff, VisualDiff, compute_diff, compute_visual_diff, merge_snapshots};
+use crate::branch::{Branch, BranchSnapshot, BranchDiff, VisualDiff, compute_diff, compute_visual_diff, merge_snapshots, ReviewRequest, ReviewComment, ReviewStatus};
 use crate::component::ComponentLibrary;
 
 fn parse_hex_color(hex: &str) -> Option<Color> {
@@ -115,6 +115,15 @@ pub struct SceneData {
     /// Responsive token presets
     #[serde(default)]
     pub responsive: ResponsiveState,
+    /// Reviews
+    #[serde(default)]
+    pub reviews: Vec<ReviewRequest>,
+    #[serde(default)]
+    pub review_comments: Vec<ReviewComment>,
+    #[serde(default)]
+    pub next_review_id: u64,
+    #[serde(default)]
+    pub next_review_comment_id: u64,
 }
 
 pub struct Scene {
@@ -143,6 +152,11 @@ pub struct Scene {
     pub linked_libraries: Vec<ComponentLibrary>,
     // Responsive token presets
     pub responsive: ResponsiveState,
+    // Reviews
+    pub(crate) reviews: Vec<ReviewRequest>,
+    pub(crate) review_comments: Vec<ReviewComment>,
+    next_review_id: u64,
+    next_review_comment_id: u64,
 }
 
 impl Scene {
@@ -178,6 +192,10 @@ impl Scene {
             next_branch_id: 2,
             linked_libraries: vec![],
             responsive: ResponsiveState::default(),
+            reviews: vec![],
+            review_comments: vec![],
+            next_review_id: 1,
+            next_review_comment_id: 1,
         }
     }
 
@@ -498,6 +516,10 @@ impl Scene {
             next_branch_id: self.next_branch_id,
             linked_libraries: self.linked_libraries.clone(),
             responsive: self.responsive.clone(),
+            reviews: self.reviews.clone(),
+            review_comments: self.review_comments.clone(),
+            next_review_id: self.next_review_id,
+            next_review_comment_id: self.next_review_comment_id,
         }
     }
 
@@ -568,6 +590,10 @@ impl Scene {
                 next_branch_id: if data.next_branch_id > 0 { data.next_branch_id } else { 2 },
                 linked_libraries: data.linked_libraries,
                 responsive: data.responsive,
+                reviews: data.reviews.clone(),
+                review_comments: data.review_comments.clone(),
+                next_review_id: if data.next_review_id > 0 { data.next_review_id } else { 1 },
+                next_review_comment_id: if data.next_review_comment_id > 0 { data.next_review_comment_id } else { 1 },
             }
         } else {
             // Legacy single-page format
@@ -615,6 +641,10 @@ impl Scene {
                 next_branch_id: 2,
                 linked_libraries: vec![],
                 responsive: ResponsiveState::default(),
+                reviews: vec![],
+                review_comments: vec![],
+                next_review_id: 1,
+                next_review_comment_id: 1,
             }
         }
     }
@@ -2154,5 +2184,107 @@ impl Scene {
         };
 
         serde_json::to_string(&analytics).unwrap_or_default()
+    }
+
+    // =============================================
+    // Review workflow
+    // =============================================
+
+    pub fn create_review(&mut self, branch_id: u64, title: &str, description: &str, reviewer: &str) -> u64 {
+        let id = self.next_review_id;
+        self.next_review_id += 1;
+        let now = js_sys::Date::now();
+        self.reviews.push(ReviewRequest {
+            id,
+            branch_id,
+            title: title.to_string(),
+            description: description.to_string(),
+            status: ReviewStatus::Open,
+            reviewer: reviewer.to_string(),
+            created_at: now,
+            updated_at: now,
+        });
+        id
+    }
+
+    pub fn approve_review(&mut self, review_id: u64) -> bool {
+        if let Some(r) = self.reviews.iter_mut().find(|r| r.id == review_id) {
+            if r.status == ReviewStatus::Open {
+                r.status = ReviewStatus::Approved;
+                r.updated_at = js_sys::Date::now();
+                return true;
+            }
+        }
+        false
+    }
+
+    pub fn reject_review(&mut self, review_id: u64, reason: &str) -> bool {
+        if let Some(r) = self.reviews.iter_mut().find(|r| r.id == review_id) {
+            if r.status == ReviewStatus::Open {
+                r.status = ReviewStatus::Rejected;
+                r.description = format!("{}\n\n---\nRejection reason: {}", r.description, reason);
+                r.updated_at = js_sys::Date::now();
+                return true;
+            }
+        }
+        false
+    }
+
+    pub fn merge_review(&mut self, review_id: u64) -> bool {
+        if let Some(r) = self.reviews.iter_mut().find(|r| r.id == review_id) {
+            if r.status == ReviewStatus::Approved {
+                let branch_id = r.branch_id;
+                r.status = ReviewStatus::Merged;
+                r.updated_at = js_sys::Date::now();
+                // Find parent branch and merge
+                if let Some(branch) = self.branches.iter().find(|b| b.id == branch_id) {
+                    if let Some(parent_id) = branch.parent_branch_id {
+                        return self.merge_branch(branch_id, parent_id);
+                    }
+                }
+            }
+        }
+        false
+    }
+
+    pub fn add_review_comment(&mut self, review_id: u64, node_id: Option<u64>, text: &str, author: &str) -> u64 {
+        let id = self.next_review_comment_id;
+        self.next_review_comment_id += 1;
+        self.review_comments.push(ReviewComment {
+            id,
+            review_id,
+            node_id,
+            text: text.to_string(),
+            author: author.to_string(),
+            timestamp: js_sys::Date::now(),
+            resolved: false,
+        });
+        id
+    }
+
+    pub fn resolve_review_comment(&mut self, comment_id: u64) -> bool {
+        if let Some(c) = self.review_comments.iter_mut().find(|c| c.id == comment_id) {
+            c.resolved = true;
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn get_reviews(&self) -> String {
+        serde_json::to_string(&self.reviews).unwrap_or_else(|_| "[]".to_string())
+    }
+
+    pub fn get_review(&self, review_id: u64) -> String {
+        if let Some(r) = self.reviews.iter().find(|r| r.id == review_id) {
+            serde_json::to_string(r).unwrap_or_else(|_| "{}".to_string())
+        } else {
+            "{}".to_string()
+        }
+    }
+
+    pub fn get_review_comments(&self, review_id: u64) -> String {
+        let comments: Vec<&ReviewComment> = self.review_comments.iter().filter(|c| c.review_id == review_id).collect();
+        serde_json::to_string(&comments).unwrap_or_else(|_| "[]".to_string())
     }
 }
