@@ -3618,6 +3618,88 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       container.appendChild(connSection);
     }
 
+    // === Sticky Note properties ===
+    if (typeof node.kind === "object" && node.kind.StickyNote) {
+      const stickySection = createSection("Sticky Note");
+      const info = JSON.parse(editor.engine.get_sticky_info(BigInt(id)));
+
+      // Theme color swatches
+      const themeRow = document.createElement("div");
+      themeRow.style.cssText = "display:flex;gap:6px;align-items:center;margin-bottom:8px;flex-wrap:wrap;";
+      const themeLabel = document.createElement("span");
+      themeLabel.style.cssText = "font-size:11px;color:#999;width:50px;";
+      themeLabel.textContent = "Theme:";
+      themeRow.appendChild(themeLabel);
+      const themes: Record<string, string> = {
+        yellow: "#FFF9C4", blue: "#BBDEFB", pink: "#F8BBD0",
+        green: "#C8E6C9", orange: "#FFE0B2", purple: "#E1BEE7", gray: "#E0E0E0",
+      };
+      for (const [name, color] of Object.entries(themes)) {
+        const swatch = document.createElement("div");
+        swatch.style.cssText = `width:24px;height:24px;border-radius:4px;background:${color};cursor:pointer;border:2px solid ${name === info.theme ? "#fff" : "transparent"};`;
+        swatch.title = name;
+        swatch.addEventListener("click", () => {
+          editor.engine.push_undo();
+          editor.engine.set_sticky_theme(BigInt(id), name);
+          editor.requestRender();
+          refresh();
+        });
+        themeRow.appendChild(swatch);
+      }
+      stickySection.appendChild(themeRow);
+
+      // Font size
+      const fsRow = document.createElement("div");
+      fsRow.style.cssText = "display:flex;gap:6px;align-items:center;margin-bottom:8px;";
+      const fsLabel = document.createElement("span");
+      fsLabel.style.cssText = "font-size:11px;color:#999;width:50px;";
+      fsLabel.textContent = "Font:";
+      fsRow.appendChild(fsLabel);
+      const fsInput = document.createElement("input");
+      fsInput.type = "number";
+      fsInput.min = "8"; fsInput.max = "72"; fsInput.step = "1";
+      fsInput.value = String(info.font_size);
+      fsInput.style.cssText = "width:60px;background:#2a2a2a;color:#ccc;border:1px solid #444;border-radius:4px;padding:2px 6px;font-size:11px;";
+      fsInput.addEventListener("change", () => {
+        editor.engine.push_undo();
+        editor.engine.set_sticky_font_size(BigInt(id), parseFloat(fsInput.value) || 16);
+        editor.requestRender();
+      });
+      fsRow.appendChild(fsInput);
+      stickySection.appendChild(fsRow);
+
+      // Votes
+      const voteRow = document.createElement("div");
+      voteRow.style.cssText = "display:flex;gap:8px;align-items:center;margin-bottom:4px;";
+      const voteLabel = document.createElement("span");
+      voteLabel.style.cssText = "font-size:11px;color:#999;";
+      voteLabel.textContent = `Votes: ${info.total_votes}`;
+      voteRow.appendChild(voteLabel);
+      const voteBtn = document.createElement("button");
+      voteBtn.style.cssText = "background:#3a3a3a;color:#ccc;border:1px solid #555;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;";
+      voteBtn.textContent = "+1 Vote";
+      voteBtn.addEventListener("click", () => {
+        editor.engine.push_undo();
+        editor.engine.sticky_add_vote(BigInt(id), "local");
+        editor.requestRender();
+        refresh();
+      });
+      voteRow.appendChild(voteBtn);
+      const unvoteBtn = document.createElement("button");
+      unvoteBtn.style.cssText = "background:#3a3a3a;color:#ccc;border:1px solid #555;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;";
+      unvoteBtn.textContent = "-1";
+      unvoteBtn.addEventListener("click", () => {
+        editor.engine.push_undo();
+        editor.engine.sticky_remove_vote(BigInt(id), "local");
+        editor.requestRender();
+        refresh();
+      });
+      voteRow.appendChild(unvoteBtn);
+      stickySection.appendChild(voteRow);
+
+      container.appendChild(stickySection);
+    }
+
     // === Slice export section ===
     if (node.kind === "Slice") {
       const sliceSection = createSection("Export");

@@ -11,6 +11,7 @@ const kindIcons: Record<string, string> = {
   Section: icons.section,
   Slice: icons.slice,
   Connector: icons.connector,
+  StickyNote: icons.stickyNote,
   VectorNetwork: icons.pen || icons.rect,
 };
 

@@ -589,9 +589,9 @@ export class Editor {
       if ((e.key === "s" || e.key === "S") && e.shiftKey) this.setTool("section");
       else if (e.key === "s" || e.key === "S") this.setTool("star");
       if (e.key === "g" || e.key === "G") this.setTool("polygon");
+      if (e.key === "n" || e.key === "N") this.setTool("sticky");
       if (e.key === "b" || e.key === "B") this.setTool("table");
       if (e.key === "k" || e.key === "K") this.setTool("slice");
-      if (e.key === "l" || e.key === "L") this.setTool("connector");
       if (e.key === "l" || e.key === "L") this.setTool("connector");
       if (e.key === "Delete" || e.key === "Backspace") {
         if (this._vnEditMode && this._vnEditNodeId != null) {
@@ -2112,10 +2112,58 @@ export class Editor {
       return;
     }
 
+    // Sticky note → edit text content inline
+    if (typeof node.kind === "object" && node.kind.StickyNote) {
+      this.startStickyEdit(hit, node);
+      return;
+    }
+
     if (typeof node.kind !== "object" || !node.kind.Text) return;
 
     // Start inline text editing
     this.startTextEdit(hit, node);
+  }
+
+  private startStickyEdit(nodeId: bigint | number, node: any) {
+    const id = BigInt(nodeId);
+    const stickyInfo = node.kind.StickyNote;
+    const content = stickyInfo.content || "";
+
+    // Create an overlay textarea for editing
+    const zoom = this.engine.get_zoom();
+    const panX = this.engine.get_pan_x();
+    const panY = this.engine.get_pan_y();
+    const sx = node.x * zoom + panX;
+    const sy = node.y * zoom + panY;
+    const sw = node.width * zoom;
+    const sh = node.height * zoom;
+    const fontSize = (stickyInfo.font_size || 16) * zoom;
+
+    const themes: Record<string, string> = {
+      yellow: "#FFF9C4", blue: "#BBDEFB", pink: "#F8BBD0",
+      green: "#C8E6C9", orange: "#FFE0B2", purple: "#E1BEE7", gray: "#E0E0E0",
+    };
+    const bg = themes[stickyInfo.theme] || themes.yellow;
+
+    const textarea = document.createElement("textarea");
+    textarea.value = content;
+    textarea.style.cssText = `position:fixed;left:${sx + 8 * zoom}px;top:${sy + 8 * zoom}px;width:${sw - 16 * zoom}px;height:${sh - 16 * zoom}px;background:${bg};color:#333;border:none;outline:none;resize:none;font-size:${fontSize}px;font-family:Inter,sans-serif;padding:4px;border-radius:4px;z-index:9999;`;
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+
+    const finish = () => {
+      this.engine.push_undo();
+      this.engine.set_sticky_content(id, textarea.value);
+      textarea.remove();
+      this.requestRender();
+    };
+
+    textarea.addEventListener("blur", finish);
+    textarea.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") { textarea.removeEventListener("blur", finish); textarea.remove(); }
+      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { textarea.removeEventListener("blur", finish); finish(); }
+    });
   }
 
   private editingNodeId: bigint | null = null;

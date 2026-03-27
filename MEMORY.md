@@ -819,8 +819,17 @@
 - UI 인디케이터 (ui/sync-status.ts): 🟢 Online / 🔴 Offline + pending count, 자동 숨김
 - 외부 패키지 추가 없음, 기존 AutoSave API 호환 유지 (async 전환)
 
+## 완료된 기능 (추가 — Canvas Annotations / Sticky Notes)
+- FigJam-style sticky notes: NodeKind::StickyNote (content, font_size, theme, votes)
+- 7가지 색상 테마: yellow, blue, pink, green, orange, purple, gray
+- Voting dots: user별 투표 추가/제거, 총 투표 수 표시
+- Toolbar 버튼 (N shortcut), Properties panel 테마 선택 + 폰트 크기 + 투표 UI
+- Double-click 텍스트 편집 (overlay textarea)
+- Connector 노드로 sticky notes 간 연결 가능 (이미 구현됨)
+- Layers panel 아이콘 지원
+- Rust render.rs에서 rounded rect + 테마 색상 + 투표 dot 렌더링
+
 ## 다음 할 것
-- Canvas annotations / sticky notes (FigJam-style sticky notes with color themes, resizable, connectable, voting dots)
 - Figma file diff / merge (Figma 파일 간 노드 비교, 변경사항 시각화, 선택적 머지)
 - Plugin marketplace (커뮤니티 플러그인 브라우저, 설치/제거, 버전 관리)
 - Smart component variants (조건부 variant 전환 — hover/press/focus state 자동 교체)
@@ -829,6 +838,9 @@
 - Accessible color contrast checker (WCAG AA/AAA 대비 비율 검사, 자동 색상 보정 제안, 접근성 리포트)
 - Smart layout suggestions (AI 기반 레이아웃 개선 제안 — 정렬 불일치, 간격 불균형, 일관성 위반 감지 + 원클릭 적용)
 - Canvas performance profiler (렌더링 FPS 모니터, 노드별 렌더 비용 히트맵, 최적화 제안)
+- Real-time cursor presence (다중 사용자 커서 위치 공유, 아바타 표시, WebSocket 기반)
+- Motion/animation timeline (키프레임 기반 애니메이션 타임라인, 이징 커브 편집, CSS/Lottie export)
+- Component playground/sandbox (컴포넌트 독립 테스트 환경, 다양한 props 조합 미리보기)
 
 ## 완료된 기능 (추가 — Smart Replace)
 - Smart Object Replace: 선택 노드와 유사 크기/비율 노드를 찾아 일괄 교체 (smart_replace.rs + ui/smart-replace.ts)
