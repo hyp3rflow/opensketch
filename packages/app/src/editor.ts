@@ -5,6 +5,7 @@ import { computePointSnap, renderPointSnapIndicators, collectPathPointTargets, a
 import { computeMeasureLines, renderMeasureLines, renderTargetHighlight, type MeasureLine } from "./tools/measure";
 import type { RulersAPI } from "./ui/rulers";
 import { toggleShortcutsPanel, isShortcutsPanelVisible, closeShortcutsPanel } from "./ui/shortcuts-panel";
+import { getShortcutManager } from "./ui/shortcut-manager";
 import { showContextMenu, hideContextMenu, type MenuItem } from "./ui/context-menu";
 import { openResponsivePreview, isResponsivePreviewOpen, closeResponsivePreview } from "./ui/responsive-preview";
 import { openResponsiveTokensPanel, closeResponsiveTokensPanel, isResponsiveTokensPanelOpen } from "./ui/responsive-tokens";
@@ -231,13 +232,9 @@ export class Editor {
     window.addEventListener("keydown", (e) => {
       if (e.key === "Alt") this._altHeld = true;
       if (this.isInputFocused()) return;
+      const _sm = getShortcutManager();
       // Shortcuts panel: Cmd+/ or ?
-      if ((e.metaKey || e.ctrlKey) && e.key === "/") {
-        e.preventDefault();
-        toggleShortcutsPanel();
-        return;
-      }
-      if (e.key === "?" && !e.metaKey && !e.ctrlKey) {
+      if (_sm.matches(e, "panel.shortcuts") || (e.key === "?" && !e.metaKey && !e.ctrlKey)) {
         e.preventDefault();
         toggleShortcutsPanel();
         return;
@@ -255,8 +252,8 @@ export class Editor {
         this.canvas.style.cursor = "grab";
         return;
       }
-      // Undo: Cmd+Z / Ctrl+Z
-      if ((e.metaKey || e.ctrlKey) && e.key === "z" && !e.shiftKey) {
+      // Undo
+      if (_sm.matches(e, "edit.undo")) {
         e.preventDefault();
         if (this.engine.undo()) {
           this.onLayersChanges.forEach(fn => fn());
@@ -265,9 +262,8 @@ export class Editor {
         }
         return;
       }
-      // Redo: Cmd+Shift+Z / Ctrl+Shift+Z  or  Cmd+Y / Ctrl+Y
-      if (((e.metaKey || e.ctrlKey) && e.key === "z" && e.shiftKey) ||
-          ((e.metaKey || e.ctrlKey) && e.key === "y")) {
+      // Redo
+      if (_sm.matches(e, "edit.redo") || ((e.metaKey || e.ctrlKey) && e.key === "y")) {
         e.preventDefault();
         if (this.engine.redo()) {
           this.onLayersChanges.forEach(fn => fn());
@@ -276,26 +272,26 @@ export class Editor {
         }
         return;
       }
-      // Save: Cmd+S — triggers manual save (handled by autosave if attached)
-      if ((e.metaKey || e.ctrlKey) && e.key === "s") {
+      // Save
+      if (_sm.matches(e, "edit.save")) {
         e.preventDefault();
         this.onSaveCallbacks.forEach(fn => fn());
         return;
       }
-      // Node search spotlight: Cmd+K or Cmd+P
-      if ((e.metaKey || e.ctrlKey) && (e.key === "p" || e.key === "k")) {
+      // Node search spotlight
+      if (_sm.matches(e, "panel.spotlight")) {
         e.preventDefault();
         toggleSpotlight(this);
         return;
       }
-      // Find & Replace: Cmd+F
-      if ((e.metaKey || e.ctrlKey) && e.key === "f") {
+      // Find & Replace
+      if (_sm.matches(e, "panel.findReplace")) {
         e.preventDefault();
         toggleFindReplace(this);
         return;
       }
-      // Copy: Cmd+C
-      if ((e.metaKey || e.ctrlKey) && e.key === "c" && !e.shiftKey) {
+      // Copy
+      if (_sm.matches(e, "edit.copy")) {
         e.preventDefault();
         const json = this.engine.copy_selected();
         if (json && json !== "[]") {
@@ -304,8 +300,8 @@ export class Editor {
         }
         return;
       }
-      // Cut: Cmd+X
-      if ((e.metaKey || e.ctrlKey) && e.key === "x") {
+      // Cut
+      if (_sm.matches(e, "edit.cut")) {
         e.preventDefault();
         const json = this.engine.copy_selected();
         if (json && json !== "[]") {
@@ -321,8 +317,8 @@ export class Editor {
         }
         return;
       }
-      // Paste: Cmd+V (check for clipboard images first, then nodes)
-      if ((e.metaKey || e.ctrlKey) && e.key === "v" && !e.shiftKey) {
+      // Paste
+      if (_sm.matches(e, "edit.paste")) {
         e.preventDefault();
         // Try clipboard image paste
         if (navigator.clipboard && navigator.clipboard.read) {
@@ -344,8 +340,8 @@ export class Editor {
         }
         return;
       }
-      // Duplicate: Cmd+D
-      if ((e.metaKey || e.ctrlKey) && e.key === "d") {
+      // Duplicate
+      if (_sm.matches(e, "edit.duplicate")) {
         e.preventDefault();
         const json = this.engine.copy_selected();
         if (json && json !== "[]") {
@@ -358,38 +354,38 @@ export class Editor {
         }
         return;
       }
-      // Zoom to 100%: Cmd+0
-      if ((e.metaKey || e.ctrlKey) && e.key === "0") {
+      // Zoom to 100%
+      if (_sm.matches(e, "view.zoom100")) {
         e.preventDefault();
         this.zoomTo100();
         return;
       }
-      // Zoom to fit: Cmd+1
-      if ((e.metaKey || e.ctrlKey) && e.key === "1") {
+      // Zoom to fit
+      if (_sm.matches(e, "view.zoomFit")) {
         e.preventDefault();
         this.zoomToFit();
         return;
       }
-      // Zoom to selection: Cmd+2
-      if ((e.metaKey || e.ctrlKey) && e.key === "2") {
+      // Zoom to selection
+      if (_sm.matches(e, "view.zoomSelection")) {
         e.preventDefault();
         this.zoomToSelection();
         return;
       }
-      // Zoom in: = or +
-      if (e.key === "=" || e.key === "+") {
+      // Zoom in
+      if (_sm.matches(e, "view.zoomIn") || e.key === "+") {
         e.preventDefault();
         this.zoomBy(1.25);
         return;
       }
-      // Zoom out: -
-      if (e.key === "-" && !e.metaKey && !e.ctrlKey) {
+      // Zoom out
+      if (_sm.matches(e, "view.zoomOut")) {
         e.preventDefault();
         this.zoomBy(0.8);
         return;
       }
-      // Flatten selection: Ctrl/Cmd+E
-      if ((e.metaKey || e.ctrlKey) && e.key === "e" && !e.shiftKey) {
+      // Flatten selection
+      if (_sm.matches(e, "edit.flatten")) {
         e.preventDefault();
         this.flattenSelection();
         return;
@@ -429,14 +425,11 @@ export class Editor {
         }
         return;
       }
-      // Boolean operations: Ctrl/Cmd+Shift+U/S/I/X (but only without other modifiers conflicting)
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey) {
-        const boolKey = e.key.toLowerCase();
-        if (boolKey === "u") { e.preventDefault(); this.booleanOperation("union"); return; }
-        if (boolKey === "s") { e.preventDefault(); this.booleanOperation("subtract"); return; }
-        if (boolKey === "i") { e.preventDefault(); this.booleanOperation("intersect"); return; }
-        if (boolKey === "x") { e.preventDefault(); this.booleanOperation("exclude"); return; }
-      }
+      // Boolean operations
+      if (_sm.matches(e, "bool.union")) { e.preventDefault(); this.booleanOperation("union"); return; }
+      if (_sm.matches(e, "bool.subtract")) { e.preventDefault(); this.booleanOperation("subtract"); return; }
+      if (_sm.matches(e, "bool.intersect")) { e.preventDefault(); this.booleanOperation("intersect"); return; }
+      if (_sm.matches(e, "bool.exclude")) { e.preventDefault(); this.booleanOperation("exclude"); return; }
 
       // Ctrl/Cmd+Shift+B: toggle bookmark on selected nodes
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "b" || e.key === "B")) {
@@ -578,21 +571,22 @@ export class Editor {
         }
         return;
       }
-      if (e.key === "v" || e.key === "V") this.setTool("select");
-      if (e.key === "h" || e.key === "H") this.setTool("hand");
-      if (e.key === "r" || e.key === "R") this.setTool("rect");
-      if (e.key === "o" || e.key === "O") this.setTool("ellipse");
-      if (e.key === "t" || e.key === "T") this.setTool("text");
-      if (e.key === "f" || e.key === "F") this.setTool("frame");
-      if (e.key === "i" || e.key === "I") this.setTool("image");
-      if (e.key === "p" || e.key === "P") this.setTool("pen");
-      if ((e.key === "s" || e.key === "S") && e.shiftKey) this.setTool("section");
-      else if (e.key === "s" || e.key === "S") this.setTool("star");
-      if (e.key === "g" || e.key === "G") this.setTool("polygon");
-      if (e.key === "n" || e.key === "N") this.setTool("sticky");
-      if (e.key === "b" || e.key === "B") this.setTool("table");
-      if (e.key === "k" || e.key === "K") this.setTool("slice");
-      if (e.key === "l" || e.key === "L") this.setTool("connector");
+      // Tool shortcuts via ShortcutManager
+      if (_sm.matches(e, "tool.section")) this.setTool("section");
+      else if (_sm.matches(e, "tool.select")) this.setTool("select");
+      else if (_sm.matches(e, "tool.hand")) this.setTool("hand");
+      else if (_sm.matches(e, "tool.rect")) this.setTool("rect");
+      else if (_sm.matches(e, "tool.ellipse")) this.setTool("ellipse");
+      else if (_sm.matches(e, "tool.text")) this.setTool("text");
+      else if (_sm.matches(e, "tool.frame")) this.setTool("frame");
+      else if (_sm.matches(e, "tool.image")) this.setTool("image");
+      else if (_sm.matches(e, "tool.pen")) this.setTool("pen");
+      else if (_sm.matches(e, "tool.star")) this.setTool("star");
+      else if (_sm.matches(e, "tool.polygon")) this.setTool("polygon");
+      else if (_sm.matches(e, "tool.sticky")) this.setTool("sticky");
+      else if (_sm.matches(e, "tool.table")) this.setTool("table");
+      else if (_sm.matches(e, "tool.slice")) this.setTool("slice");
+      else if (_sm.matches(e, "tool.connector")) this.setTool("connector");
       if (e.key === "Delete" || e.key === "Backspace") {
         if (this._vnEditMode && this._vnEditNodeId != null) {
           if (this._vnSelectedVertex != null) {

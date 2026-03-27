@@ -1,90 +1,14 @@
 /**
- * Keyboard Shortcuts Panel — Figma-style modal overlay
+ * Keyboard Shortcuts Panel — view & customize key bindings
  * Toggle with Cmd+/ or ?
  */
 
-interface ShortcutEntry {
-  keys: string[];
-  description: string;
-}
-
-interface ShortcutCategory {
-  name: string;
-  shortcuts: ShortcutEntry[];
-}
-
-const SHORTCUT_DATA: ShortcutCategory[] = [
-  {
-    name: "Tools",
-    shortcuts: [
-      { keys: ["V"], description: "Select / Move" },
-      { keys: ["H"], description: "Hand (pan)" },
-      { keys: ["R"], description: "Rectangle" },
-      { keys: ["O"], description: "Ellipse" },
-      { keys: ["T"], description: "Text" },
-      { keys: ["F"], description: "Frame" },
-      { keys: ["I"], description: "Image" },
-      { keys: ["P"], description: "Pen" },
-      { keys: ["S"], description: "Star" },
-      { keys: ["G"], description: "Polygon" },
-    ],
-  },
-  {
-    name: "Edit",
-    shortcuts: [
-      { keys: ["⌘", "Z"], description: "Undo" },
-      { keys: ["⌘", "⇧", "Z"], description: "Redo" },
-      { keys: ["⌘", "C"], description: "Copy" },
-      { keys: ["⌘", "X"], description: "Cut" },
-      { keys: ["⌘", "V"], description: "Paste" },
-      { keys: ["⌘", "D"], description: "Duplicate" },
-      { keys: ["⌘", "S"], description: "Save" },
-      { keys: ["Del"], description: "Delete selected" },
-    ],
-  },
-  {
-    name: "View",
-    shortcuts: [
-      { keys: ["⌘", "0"], description: "Zoom to 100%" },
-      { keys: ["⌘", "1"], description: "Zoom to fit" },
-      { keys: ["⌘", "2"], description: "Zoom to selection" },
-      { keys: ["+"], description: "Zoom in" },
-      { keys: ["-"], description: "Zoom out" },
-      { keys: ["Space"], description: "Hold to pan" },
-      { keys: ["Scroll"], description: "Pan canvas" },
-      { keys: ["⌘", "Scroll"], description: "Zoom" },
-      { keys: ["⌘", "G"], description: "Toggle layout grid" },
-    ],
-  },
-  {
-    name: "Selection",
-    shortcuts: [
-      { keys: ["Esc"], description: "Deselect all / Exit mode" },
-      { keys: ["⇧", "Click"], description: "Add to selection" },
-      { keys: ["Drag"], description: "Marquee select" },
-      { keys: ["Dbl-click"], description: "Edit text / Enter path" },
-    ],
-  },
-  {
-    name: "Boolean & Transform",
-    shortcuts: [
-      { keys: ["⌘", "⇧", "U"], description: "Union" },
-      { keys: ["⌘", "⇧", "S"], description: "Subtract" },
-      { keys: ["⌘", "⇧", "I"], description: "Intersect" },
-      { keys: ["⌘", "⇧", "X"], description: "Exclude" },
-      { keys: ["⌘", "E"], description: "Flatten to path" },
-      { keys: ["⌘", "⌥", "R"], description: "Responsive preview" },
-    ],
-  },
-  {
-    name: "Pen Tool",
-    shortcuts: [
-      { keys: ["Enter"], description: "Finish path" },
-      { keys: ["Esc"], description: "Cancel / finish path" },
-      { keys: ["Alt", "Drag"], description: "Break handle symmetry" },
-    ],
-  },
-];
+import {
+  getShortcutManager,
+  bindingToDisplayKeys,
+  eventToBinding,
+  type KeyBinding,
+} from "./shortcut-manager";
 
 let overlayEl: HTMLElement | null = null;
 
@@ -102,6 +26,8 @@ export function toggleShortcutsPanel() {
 
 export function closeShortcutsPanel() {
   if (overlayEl) {
+    const handler = (overlayEl as any)._keyHandler;
+    if (handler) window.removeEventListener("keydown", handler, true);
     overlayEl.remove();
     overlayEl = null;
   }
@@ -109,24 +35,63 @@ export function closeShortcutsPanel() {
 
 function openShortcutsPanel() {
   if (overlayEl) return;
+  const mgr = getShortcutManager();
 
   // Backdrop
   const backdrop = document.createElement("div");
   backdrop.className = "shortcuts-backdrop";
-  backdrop.addEventListener("click", closeShortcutsPanel);
+  backdrop.addEventListener("click", (e) => {
+    if (e.target === backdrop) closeShortcutsPanel();
+  });
 
   // Modal
   const modal = document.createElement("div");
   modal.className = "shortcuts-modal";
+  modal.style.maxWidth = "640px";
 
   // Header
   const header = document.createElement("div");
   header.className = "shortcuts-header";
   header.innerHTML = `
     <span class="shortcuts-title">Keyboard Shortcuts</span>
-    <button class="shortcuts-close" title="Close (Esc)">✕</button>
+    <div style="display:flex;gap:6px;align-items:center">
+      <button class="shortcuts-btn shortcuts-reset-all" title="Reset all to defaults">Reset All</button>
+      <button class="shortcuts-btn shortcuts-export" title="Export custom bindings">Export</button>
+      <button class="shortcuts-btn shortcuts-import" title="Import custom bindings">Import</button>
+      <button class="shortcuts-close" title="Close (Esc)">✕</button>
+    </div>
   `;
   header.querySelector(".shortcuts-close")!.addEventListener("click", closeShortcutsPanel);
+  header.querySelector(".shortcuts-reset-all")!.addEventListener("click", () => {
+    if (confirm("Reset all shortcuts to defaults?")) {
+      mgr.resetAll();
+      renderCategories(searchInput.value);
+    }
+  });
+  header.querySelector(".shortcuts-export")!.addEventListener("click", () => {
+    const json = mgr.exportJSON();
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "opensketch-shortcuts.json"; a.click();
+    URL.revokeObjectURL(url);
+  });
+  header.querySelector(".shortcuts-import")!.addEventListener("click", () => {
+    const inp = document.createElement("input");
+    inp.type = "file"; inp.accept = ".json";
+    inp.onchange = () => {
+      const file = inp.files?.[0];
+      if (!file) return;
+      file.text().then(text => {
+        try {
+          const count = mgr.importJSON(text);
+          alert(`Imported ${count} shortcut(s)`);
+          renderCategories(searchInput.value);
+        } catch { alert("Invalid JSON file"); }
+      });
+    };
+    inp.click();
+  });
   modal.appendChild(header);
 
   // Search
@@ -144,19 +109,46 @@ function openShortcutsPanel() {
   content.className = "shortcuts-content";
   modal.appendChild(content);
 
+  let rebindingRow: HTMLElement | null = null;
+  let rebindingId: string | null = null;
+
+  function stopRebinding() {
+    if (rebindingRow) {
+      rebindingRow.classList.remove("shortcuts-rebinding");
+      const keysEl = rebindingRow.querySelector(".shortcuts-keys") as HTMLElement;
+      if (keysEl && rebindingId) {
+        renderKeys(keysEl, mgr.getBinding(rebindingId));
+      }
+    }
+    rebindingRow = null;
+    rebindingId = null;
+  }
+
+  function renderKeys(container: HTMLElement, binding: KeyBinding) {
+    container.innerHTML = "";
+    for (const k of bindingToDisplayKeys(binding)) {
+      const kbd = document.createElement("kbd");
+      kbd.textContent = k;
+      container.appendChild(kbd);
+    }
+  }
+
   function renderCategories(filter: string) {
     content.innerHTML = "";
     const q = filter.toLowerCase().trim();
+    const allDefs = mgr.getAllDefs();
+    const categories = mgr.getCategories();
     let hasResults = false;
 
-    for (const cat of SHORTCUT_DATA) {
+    for (const cat of categories) {
+      const catDefs = allDefs.filter(d => d.category === cat);
       const filtered = q
-        ? cat.shortcuts.filter(
-            (s) =>
-              s.description.toLowerCase().includes(q) ||
-              s.keys.join(" ").toLowerCase().includes(q)
+        ? catDefs.filter(d =>
+            d.description.toLowerCase().includes(q) ||
+            d.id.toLowerCase().includes(q) ||
+            bindingToDisplayKeys(mgr.getBinding(d.id)).join(" ").toLowerCase().includes(q)
           )
-        : cat.shortcuts;
+        : catDefs;
 
       if (filtered.length === 0) continue;
       hasResults = true;
@@ -166,27 +158,60 @@ function openShortcutsPanel() {
 
       const heading = document.createElement("div");
       heading.className = "shortcuts-section-title";
-      heading.textContent = cat.name;
+      heading.textContent = cat;
       section.appendChild(heading);
 
-      for (const sc of filtered) {
+      for (const def of filtered) {
         const row = document.createElement("div");
         row.className = "shortcuts-row";
+        if (mgr.isCustom(def.id)) row.classList.add("shortcuts-custom");
 
         const desc = document.createElement("span");
         desc.className = "shortcuts-desc";
-        desc.textContent = sc.description;
+        desc.textContent = def.description;
+
+        const keysWrap = document.createElement("div");
+        keysWrap.style.display = "flex";
+        keysWrap.style.alignItems = "center";
+        keysWrap.style.gap = "4px";
 
         const keys = document.createElement("span");
         keys.className = "shortcuts-keys";
-        for (const k of sc.keys) {
-          const kbd = document.createElement("kbd");
-          kbd.textContent = k;
-          keys.appendChild(kbd);
+        renderKeys(keys, mgr.getBinding(def.id));
+
+        // Edit button
+        const editBtn = document.createElement("button");
+        editBtn.className = "shortcuts-edit-btn";
+        editBtn.textContent = "✎";
+        editBtn.title = "Click to rebind, then press new key combination";
+        editBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          stopRebinding();
+          rebindingId = def.id;
+          rebindingRow = row;
+          row.classList.add("shortcuts-rebinding");
+          keys.innerHTML = "<span class='shortcuts-listening'>Press keys…</span>";
+        });
+
+        // Reset button (only if custom)
+        if (mgr.isCustom(def.id)) {
+          const resetBtn = document.createElement("button");
+          resetBtn.className = "shortcuts-edit-btn";
+          resetBtn.textContent = "↺";
+          resetBtn.title = "Reset to default";
+          resetBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            mgr.resetBinding(def.id);
+            renderCategories(filter);
+          });
+          keysWrap.appendChild(resetBtn);
         }
 
+        keysWrap.appendChild(keys);
+        keysWrap.appendChild(editBtn);
+
         row.appendChild(desc);
-        row.appendChild(keys);
+        row.appendChild(keysWrap);
         section.appendChild(row);
       }
 
@@ -202,21 +227,57 @@ function openShortcutsPanel() {
   }
 
   renderCategories("");
-  searchInput.addEventListener("input", () => renderCategories(searchInput.value));
+  searchInput.addEventListener("input", () => {
+    stopRebinding();
+    renderCategories(searchInput.value);
+  });
 
   backdrop.appendChild(modal);
   document.body.appendChild(backdrop);
   overlayEl = backdrop;
 
-  // Focus search
   requestAnimationFrame(() => searchInput.focus());
 
-  // ESC to close (handled at backdrop level)
-  backdrop.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") {
+  // Key handler for rebinding + ESC
+  const onKey = (e: KeyboardEvent) => {
+    if (e.key === "Escape" && !rebindingId) {
       e.preventDefault();
       e.stopPropagation();
       closeShortcutsPanel();
+      window.removeEventListener("keydown", onKey, true);
+      return;
     }
-  });
+
+    if (rebindingId) {
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (e.key === "Escape") {
+        stopRebinding();
+        return;
+      }
+
+      const binding = eventToBinding(e);
+      if (!binding) return; // bare modifier
+
+      const conflict = mgr.findConflict(binding, rebindingId);
+      if (conflict) {
+        const conflictDef = mgr.getAllDefs().find(d => d.id === conflict);
+        const conflictName = conflictDef?.description ?? conflict;
+        if (!confirm(`"${bindingToDisplayKeys(binding).join(" + ")}" is already used by "${conflictName}".\nOverride and clear the other binding?`)) {
+          return;
+        }
+        // Clear the conflicting binding by resetting it or setting to empty
+        mgr.resetBinding(conflict);
+      }
+
+      mgr.setBinding(rebindingId, binding);
+      stopRebinding();
+      renderCategories(searchInput.value);
+    }
+  };
+  window.addEventListener("keydown", onKey, true);
+
+  // Store cleanup ref on the overlay element
+  (backdrop as any)._keyHandler = onKey;
 }

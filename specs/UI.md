@@ -147,11 +147,18 @@ Available: select, hand, rect, ellipse, text, frame, eye, eyeOff, rotation, corn
 - Double-click guide to remove, drag back to ruler to remove
 - Guides snap with existing smart-guides system
 
-### Keyboard Shortcuts Panel
-- Centered modal overlay (520px wide, max 70vh height)
+### Keyboard Shortcuts Panel (Customizable)
+- Centered modal overlay (640px wide, max 70vh height)
 - Toggle: Cmd+/ or ? key; close: ESC or backdrop click
 - Dark panel (#2a2a2a) with header, search input, and categorized shortcut list
-- Categories: Tools, Edit, View, Boolean & Transform, Selection & Navigation
+- Categories: Tools, Edit, View, Panels, Boolean, Misc
 - Each row shows description (left) and kbd-styled key badges (right)
 - Search filters shortcuts in real-time across all categories
-- File: `packages/app/src/ui/shortcuts-panel.ts`
+- **Customization**: Click ✎ button on any shortcut to rebind — press new key combo to assign
+- **Conflict detection**: warns if proposed binding conflicts with another action, option to override
+- **Reset**: per-shortcut ↺ reset button (visible for custom bindings), "Reset All" header button
+- **Import/Export**: JSON file export/import for sharing custom keybindings
+- Custom bindings persisted in localStorage, highlighted with purple kbd badges
+- ShortcutManager singleton: central registry with `matches(event, actionId)` API
+- Editor keydown handler uses ShortcutManager for all tool + action shortcuts
+- Files: `packages/app/src/ui/shortcut-manager.ts`, `packages/app/src/ui/shortcuts-panel.ts`

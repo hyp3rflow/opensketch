@@ -207,6 +207,16 @@ select.prop-input { appearance: none; background: #333 url("data:image/svg+xml,%
 .shortcuts-keys kbd { display: inline-block; padding: 2px 6px; background: #383838; border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; font-size: 11px; font-family: inherit; color: #ccc; min-width: 20px; text-align: center; }
 .shortcuts-sep { font-size: 11px; color: #666; }
 .shortcuts-empty { text-align: center; color: #666; font-size: 13px; padding: 32px 0; }
+.shortcuts-btn { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1); color: #aaa; font-size: 11px; padding: 3px 8px; border-radius: 4px; cursor: pointer; }
+.shortcuts-btn:hover { background: rgba(255,255,255,0.14); color: #ddd; }
+.shortcuts-edit-btn { background: none; border: none; color: #666; font-size: 13px; cursor: pointer; padding: 2px 4px; border-radius: 3px; opacity: 0; transition: opacity 0.15s; }
+.shortcuts-row:hover .shortcuts-edit-btn { opacity: 1; }
+.shortcuts-edit-btn:hover { color: #aaa; background: rgba(255,255,255,0.08); }
+.shortcuts-rebinding { background: rgba(79,70,229,0.15); border-radius: 4px; }
+.shortcuts-listening { color: #7c73f0; font-size: 12px; font-style: italic; animation: shortcuts-pulse 1s ease infinite; }
+@keyframes shortcuts-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+.shortcuts-custom .shortcuts-keys kbd { background: #3b3470; border-color: rgba(124,115,240,0.3); }
+.shortcuts-section { margin-bottom: 8px; }
 
 /* Context menu */
 .os-context-menu { position: fixed; z-index: 10000; background: #2a2a2a; border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 4px 0; box-shadow: 0 8px 24px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.06); min-width: 200px; font-size: 13px; }

@@ -838,7 +838,6 @@
 - Canvas performance profiler (렌더링 FPS 모니터, 노드별 렌더 비용 히트맵, 최적화 제안)
 - Component playground/sandbox (컴포넌트 독립 테스트 환경, 다양한 props 조합 미리보기)
 - Multi-cursor text editing (텍스트 노드 내 다중 커서/선택 영역, Cmd+D 단어 선택 추가)
-- Keyboard shortcut customization (사용자 정의 단축키 매핑, JSON 설정 파일, conflict detection)
 - Canvas annotation stamps (날짜/승인/서명 스탬프 도구, 리뷰 워크플로우 보조)
 
 ## 완료된 기능 (추가 — Version Comments & Review Workflow)
@@ -856,3 +855,13 @@
   - WASM: find_similar_nodes, replace_with_node, replace_selection_with
   - UI: 모달 (유사 노드 목록 + 유사도% + 체크박스 + threshold 조절)
   - 단축키: Cmd+Shift+H, 컨텍스트 메뉴, 툴바 버튼
+
+## 완료된 기능 (추가 — Keyboard Shortcut Customization)
+- Keyboard shortcut customization (사용자 정의 단축키 매핑):
+  - ShortcutManager 싱글턴: 60+ 액션 정의 (Tools/Edit/View/Panels/Boolean/Misc 카테고리)
+  - `matches(event, actionId)` API로 에디터 keydown 핸들러 통합
+  - localStorage 저장/복원, JSON export/import
+  - Conflict detection: 바인딩 충돌 시 경고 + 덮어쓰기 옵션
+  - Shortcuts panel UI 업그레이드: ✎ 편집 버튼 (hover 시 표시), "Press keys…" 리바인딩 모드
+  - 커스텀 바인딩 보라색 kbd 하이라이트, per-shortcut ↺ 리셋, "Reset All" 버튼
+  - Files: shortcut-manager.ts, shortcuts-panel.ts
