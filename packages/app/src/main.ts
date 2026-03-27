@@ -11,6 +11,7 @@ import { setupMinimap } from "./ui/minimap";
 import { setupRulers } from "./ui/rulers";
 import { setupPageTabs } from "./ui/page-tabs";
 import { AutoSave, setupHistoryPanel } from "./autosave";
+import { setupSyncStatus } from "./ui/sync-status";
 import { setupHandoffPanel } from "./ui/handoff-panel";
 import { setupColorPalettePanel } from "./ui/color-palette-panel";
 import { setupBranchPanel } from "./ui/branch-panel";
@@ -40,12 +41,20 @@ async function main() {
 
   // Auto-save: restore previous session & start periodic saves
   const autoSave = new AutoSave(editor);
-  const hadSavedSession = autoSave.restore();
+  const hadSavedSession = await autoSave.restore();
   autoSave.start();
   editor.onSave(() => autoSave.save("manual"));
 
   // Save before unload
   window.addEventListener("beforeunload", () => autoSave.save("auto"));
+
+  // Service Worker registration
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  }
+
+  // Sync status indicator
+  const syncStatus = setupSyncStatus(document.body);
 
   // Design system modal
   const dsBackdrop = document.getElementById("ds-modal-backdrop")!;

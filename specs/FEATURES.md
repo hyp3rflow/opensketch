@@ -367,6 +367,11 @@
 - [x] **Clear history**: trash button to wipe all snapshots
 - [x] **Storage management**: auto-trims old entries on localStorage quota errors
 - [x] **Change detection**: simple hash to skip redundant saves
+- [x] **IndexedDB storage**: migrated from localStorage to IndexedDB (OfflineStore class, idb-keyval pattern, no external deps)
+- [x] **localStorage migration**: auto-migrates existing data to IndexedDB on first run
+- [x] **Service Worker**: cache-first strategy for static assets (HTML/JS/CSS/WASM), network-first for navigation, version-based cache invalidation
+- [x] **Offline indicator**: top-center status bar (🟢 Online / 🔴 Offline + pending count), auto-hide when online
+- [x] **Sync queue**: offline operation queue (SyncQueue class), auto-flush on reconnect, stub for future server sync
 
 ### Ruler / Guides
 - [x] **Horizontal ruler**: Top edge, tick marks + numbers, zoom/pan-aware

@@ -1,15 +1,19 @@
 /**
  * Auto-save & Version History for OpenSketch
- * - Auto-saves to localStorage every 30 seconds
+ * - IndexedDB-based storage (migrated from localStorage)
+ * - Auto-saves every 30 seconds
  * - Manual save via Cmd+S
  * - Stores up to 20 versioned snapshots
  * - Restore UI in history panel
  */
 
 import type { Editor } from "./editor";
+import { offlineStore } from "./offline-store";
 
-const STORAGE_KEY = "opensketch_autosave";
-const HISTORY_KEY = "opensketch_history";
+const IDB_SCENE_KEY = "current_scene";
+const IDB_HISTORY_KEY = "history";
+const LS_STORAGE_KEY = "opensketch_autosave"; // legacy localStorage key
+const LS_HISTORY_KEY = "opensketch_history";   // legacy localStorage key
 const MAX_HISTORY = 20;
 const AUTO_SAVE_INTERVAL = 30_000; // 30 seconds
 
@@ -31,7 +35,6 @@ export class AutoSave {
 
   /** Start auto-save timer and restore last session */
   start() {
-    this.restore();
     this.intervalId = setInterval(() => this.save("auto"), AUTO_SAVE_INTERVAL);
   }
 
@@ -39,32 +42,48 @@ export class AutoSave {
     if (this.intervalId) clearInterval(this.intervalId);
   }
 
-  /** Save current scene */
-  save(label = "manual") {
+  /** Migrate from localStorage to IndexedDB (one-time) */
+  private async migrateFromLocalStorage(): Promise<boolean> {
+    const lsData = localStorage.getItem(LS_STORAGE_KEY);
+    if (!lsData) return false;
+
+    // Migrate scene
+    await offlineStore.set(IDB_SCENE_KEY, lsData);
+
+    // Migrate history
+    const lsHistory = localStorage.getItem(LS_HISTORY_KEY);
+    if (lsHistory) {
+      try {
+        const parsed = JSON.parse(lsHistory);
+        await offlineStore.set(IDB_HISTORY_KEY, parsed);
+      } catch { /* ignore corrupt history */ }
+    }
+
+    // Remove old keys
+    localStorage.removeItem(LS_STORAGE_KEY);
+    localStorage.removeItem(LS_HISTORY_KEY);
+    return true;
+  }
+
+  /** Save current scene (async) */
+  async save(label = "manual") {
     const data = this.editor.engine.export_scene();
     if (!data || data === "{}") return;
 
-    // Skip if nothing changed
     const hash = this.simpleHash(data);
     if (hash === this.lastSavedHash) return;
     this.lastSavedHash = hash;
 
-    // Save current state
-    try {
-      localStorage.setItem(STORAGE_KEY, data);
-    } catch {
-      // localStorage full — try clearing old history
-      this.trimHistory(5);
-      try { localStorage.setItem(STORAGE_KEY, data); } catch { /* give up */ }
-    }
-
-    // Add to history
-    this.addHistoryEntry(label, data);
+    await offlineStore.set(IDB_SCENE_KEY, data);
+    await this.addHistoryEntry(label, data);
   }
 
-  /** Restore from localStorage on startup */
-  restore(): boolean {
-    const data = localStorage.getItem(STORAGE_KEY);
+  /** Restore from IndexedDB on startup (with localStorage migration) */
+  async restore(): Promise<boolean> {
+    // One-time migration
+    await this.migrateFromLocalStorage();
+
+    const data = await offlineStore.get<string>(IDB_SCENE_KEY);
     if (data) {
       try {
         const success = this.editor.engine.import_scene(data);
@@ -73,16 +92,14 @@ export class AutoSave {
           this.editor.requestRender();
           return true;
         }
-      } catch {
-        // corrupted data, ignore
-      }
+      } catch { /* corrupted data */ }
     }
     return false;
   }
 
   /** Restore a specific history entry */
-  restoreVersion(index: number): boolean {
-    const history = this.getHistory();
+  async restoreVersion(index: number): Promise<boolean> {
+    const history = await this.getHistory();
     const entry = history[index];
     if (!entry) return false;
 
@@ -90,7 +107,7 @@ export class AutoSave {
       const success = this.editor.engine.import_scene(entry.data);
       if (success) {
         this.lastSavedHash = this.simpleHash(entry.data);
-        localStorage.setItem(STORAGE_KEY, entry.data);
+        await offlineStore.set(IDB_SCENE_KEY, entry.data);
         this.editor.requestRender();
         this.editor.notifyLayersChanged();
         this.editor.notifySelectionChanged([]);
@@ -100,17 +117,17 @@ export class AutoSave {
     return false;
   }
 
-  getHistory(): HistoryEntry[] {
+  async getHistory(): Promise<HistoryEntry[]> {
     try {
-      const raw = localStorage.getItem(HISTORY_KEY);
-      return raw ? JSON.parse(raw) : [];
+      const history = await offlineStore.get<HistoryEntry[]>(IDB_HISTORY_KEY);
+      return history || [];
     } catch {
       return [];
     }
   }
 
-  clearHistory() {
-    localStorage.removeItem(HISTORY_KEY);
+  async clearHistory() {
+    await offlineStore.delete(IDB_HISTORY_KEY);
     this.fireHistoryChange();
   }
 
@@ -118,26 +135,12 @@ export class AutoSave {
     this.onHistoryChange.push(fn);
   }
 
-  private addHistoryEntry(label: string, data: string) {
-    const history = this.getHistory();
+  private async addHistoryEntry(label: string, data: string) {
+    const history = await this.getHistory();
     history.unshift({ timestamp: Date.now(), label, data });
     if (history.length > MAX_HISTORY) history.length = MAX_HISTORY;
-    try {
-      localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
-    } catch {
-      this.trimHistory(MAX_HISTORY / 2);
-      try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(0, 10))); } catch { /* give up */ }
-    }
+    await offlineStore.set(IDB_HISTORY_KEY, history);
     this.fireHistoryChange();
-  }
-
-  private trimHistory(keepN: number) {
-    const history = this.getHistory();
-    if (history.length > keepN) {
-      try {
-        localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(0, keepN)));
-      } catch { /* ignore */ }
-    }
   }
 
   private fireHistoryChange() {
@@ -183,8 +186,8 @@ export function setupHistoryPanel(container: HTMLElement, autoSave: AutoSave) {
   const list = container.querySelector(".history-list")!;
   const clearBtn = container.querySelector(".history-clear-btn")!;
 
-  function render() {
-    const history = autoSave.getHistory();
+  async function render() {
+    const history = await autoSave.getHistory();
     if (history.length === 0) {
       list.innerHTML = `<div class="history-empty">No saved versions yet</div>`;
       return;
@@ -202,23 +205,23 @@ export function setupHistoryPanel(container: HTMLElement, autoSave: AutoSave) {
     `).join("");
 
     list.querySelectorAll<HTMLButtonElement>(".history-restore-btn").forEach(btn => {
-      btn.addEventListener("click", (e) => {
+      btn.addEventListener("click", async (e) => {
         e.stopPropagation();
         const idx = parseInt(btn.dataset.index!);
         if (confirm("Restore this version? Current changes will be saved first.")) {
-          autoSave.save("before restore");
-          autoSave.restoreVersion(idx);
+          await autoSave.save("before restore");
+          await autoSave.restoreVersion(idx);
         }
       });
     });
   }
 
-  clearBtn.addEventListener("click", () => {
+  clearBtn.addEventListener("click", async () => {
     if (confirm("Clear all version history?")) {
-      autoSave.clearHistory();
+      await autoSave.clearHistory();
     }
   });
 
-  autoSave.onHistoryChanged(render);
+  autoSave.onHistoryChanged(() => render());
   render();
 }

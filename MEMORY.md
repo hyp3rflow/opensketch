@@ -810,6 +810,15 @@
   - Properties panel: Path 노드 Variable Stroke 섹션에 Pressure On/Off 토글
   - 기존 variable-width stroke 렌더링 엔진 활용 (render_variable_width_stroke)
 
+## 완료된 기능 (추가 — Offline-first Sync)
+- IndexedDB 스토리지 (offline-store.ts): idb-keyval 패턴 직접 구현, DB "opensketch" / store "files"
+- AutoSave IndexedDB 마이그레이션: localStorage → IndexedDB 자동 이전 (첫 실행), async API 전환
+- Service Worker (public/sw.js): cache-first (정적 에셋), network-first (네비게이션), CACHE_VERSION 기반 캐시 관리
+- SW 등록: main.ts에서 navigator.serviceWorker.register, online/offline 이벤트 처리
+- Sync Queue (sync-queue.ts): 오프라인 변경사항 큐잉, online 복귀 시 flush (서버 sync는 stub)
+- UI 인디케이터 (ui/sync-status.ts): 🟢 Online / 🔴 Offline + pending count, 자동 숨김
+- 외부 패키지 추가 없음, 기존 AutoSave API 호환 유지 (async 전환)
+
 ## 다음 할 것
 - Canvas annotations / sticky notes (FigJam-style sticky notes with color themes, resizable, connectable, voting dots)
 - Figma file diff / merge (Figma 파일 간 노드 비교, 변경사항 시각화, 선택적 머지)
