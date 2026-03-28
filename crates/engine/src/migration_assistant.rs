@@ -55,7 +55,7 @@ pub fn scan_for_migration_suggestions(scene: &Scene, styles: &StyleStore) -> Vec
         if node.color_style_id.is_none() {
             for fill in &node.fills {
                 if !fill.visible { continue; }
-                if let FillType::Solid = fill.fill_type {
+                if matches!(fill.fill_type, FillType::Solid { .. }) {
                     let hex = color_hex(&fill.color());
                     fill_map.entry(hex).or_default().push((node.id, node.name.clone()));
                 }
