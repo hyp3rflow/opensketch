@@ -514,6 +514,13 @@ export class Editor {
         return;
       }
 
+      // Ctrl/Cmd+Alt+G: smart grid distribute
+      if ((e.metaKey || e.ctrlKey) && e.altKey && (e.key === "g" || e.key === "G")) {
+        e.preventDefault();
+        this.smartDistributeGrid();
+        return;
+      }
+
       // Ctrl/Cmd+Shift+R: batch rename
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "r" || e.key === "R")) {
         e.preventDefault();
@@ -4304,6 +4311,18 @@ export class Editor {
     } catch { /* ignore */ }
   }
 
+  smartDistributeGrid() {
+    const sel = Array.from(this.engine.get_selection()).map(Number);
+    if (sel.length < 4) return;
+    try {
+      const result = (this.engine as any).smart_distribute_grid();
+      if (result && result !== "{}") {
+        this.notifyLayersChanged();
+        this.markDirty();
+      }
+    } catch { /* ignore */ }
+  }
+
   showBatchRenameDialog() {
     const sel = Array.from(this.engine.get_selection()).map(Number);
     if (sel.length < 2) return;
@@ -4425,6 +4444,9 @@ export class Editor {
       items.push({ label: "Flatten", shortcut: `${mod}E`, enabled: true, action: () => this.flattenSelection() });
       if (sel.length >= 2) {
         items.push({ label: "Tidy Up", shortcut: `${mod}⇧T`, enabled: true, action: () => this.tidyUpSelection() });
+        if (sel.length >= 4) {
+          items.push({ label: "Grid Distribute", shortcut: `${mod}⌥G`, enabled: true, action: () => this.smartDistributeGrid() });
+        }
         items.push({ label: "Batch Rename…", shortcut: `${mod}⇧R`, enabled: true, action: () => this.showBatchRenameDialog() });
         items.push({ label: "✨ Suggest Layout", shortcut: `${mod}⇧L`, enabled: true, action: () => showLayoutSuggestion(this) });
       }

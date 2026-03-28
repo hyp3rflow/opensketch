@@ -4132,6 +4132,15 @@ impl Engine {
         self.scene.tidy_up(&ids)
     }
 
+    /// Smart distribute selection as a 2D grid (detect rows/columns, align + distribute).
+    /// Returns JSON: { rows, cols, row_gap, col_gap, count }
+    pub fn smart_distribute_grid(&mut self) -> String {
+        let ids: Vec<u64> = self.scene.selection.iter().copied().collect();
+        if ids.len() < 4 { return "{}".to_string(); }
+        self.push_undo();
+        self.scene.smart_distribute_grid(&ids)
+    }
+
     // =============================================
     // SVG Export
     // =============================================

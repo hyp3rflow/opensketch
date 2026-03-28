@@ -947,6 +947,126 @@ impl Scene {
         format!("{{\"axis\":\"{}\",\"gap\":{:.1},\"count\":{}}}", axis, gap, items.len())
     }
 
+    /// Smart distribute: detect 2D grid pattern and align rows + distribute columns simultaneously.
+    /// Returns JSON: { rows, cols, row_gap, col_gap, count }
+    pub fn smart_distribute_grid(&mut self, ids: &[NodeId]) -> String {
+        if ids.len() < 4 { return "{}".to_string(); }
+
+        // Gather bounds
+        let items: Vec<(NodeId, f64, f64, f64, f64)> = ids.iter()
+            .filter_map(|&id| self.nodes.get(&id).map(|n| (id, n.x, n.y, n.width, n.height)))
+            .collect();
+        if items.len() < 4 { return "{}".to_string(); }
+
+        // Cluster Y positions into rows (tolerance = median height * 0.5)
+        let median_h = {
+            let mut hs: Vec<f64> = items.iter().map(|i| i.4).collect();
+            hs.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            hs[hs.len() / 2]
+        };
+        let tolerance = (median_h * 0.5).max(8.0);
+
+        // Sort by Y then cluster
+        let mut sorted_by_y: Vec<(NodeId, f64, f64, f64, f64)> = items.clone();
+        sorted_by_y.sort_by(|a, b| a.2.partial_cmp(&b.2).unwrap());
+
+        let mut rows: Vec<Vec<(NodeId, f64, f64, f64, f64)>> = Vec::new();
+        let mut current_row: Vec<(NodeId, f64, f64, f64, f64)> = vec![sorted_by_y[0]];
+        let mut row_y = sorted_by_y[0].2;
+
+        for &item in &sorted_by_y[1..] {
+            if (item.2 - row_y).abs() < tolerance {
+                current_row.push(item);
+            } else {
+                rows.push(current_row.clone());
+                current_row = vec![item];
+                row_y = item.2;
+            }
+        }
+        rows.push(current_row);
+
+        // Need at least 2 rows and 2 columns to be a grid
+        if rows.len() < 2 { return "{}".to_string(); }
+
+        // Sort each row by X
+        for row in &mut rows {
+            row.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+        }
+
+        let max_cols = rows.iter().map(|r| r.len()).max().unwrap_or(0);
+        if max_cols < 2 { return "{}".to_string(); }
+
+        // Determine column X positions: use first (longest) row as reference
+        let ref_row = rows.iter().max_by_key(|r| r.len()).unwrap();
+
+        // Calculate uniform column gap from reference row
+        let col_gap = if ref_row.len() >= 2 {
+            let gaps: Vec<f64> = ref_row.windows(2)
+                .map(|w| w[1].1 - (w[0].1 + w[0].3))
+                .collect();
+            let mut sg = gaps.clone();
+            sg.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            let med = sg[sg.len() / 2];
+            (med / 4.0).round() * 4.0
+        } else { 16.0 };
+        let col_gap = col_gap.max(0.0);
+
+        // Calculate uniform row gap
+        let row_centers: Vec<f64> = rows.iter().map(|r| {
+            let avg_y = r.iter().map(|i| i.2 + i.4 / 2.0).sum::<f64>() / r.len() as f64;
+            avg_y
+        }).collect();
+        let row_heights: Vec<f64> = rows.iter().map(|r| {
+            r.iter().map(|i| i.4).fold(0.0_f64, f64::max)
+        }).collect();
+
+        let row_gap = if rows.len() >= 2 {
+            let gaps: Vec<f64> = (0..rows.len()-1).map(|i| {
+                let bottom_of_row = row_centers[i] + row_heights[i] / 2.0;
+                let top_of_next = row_centers[i+1] - row_heights[i+1] / 2.0;
+                top_of_next - bottom_of_row
+            }).collect();
+            let mut sg = gaps;
+            sg.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            let med = sg[sg.len() / 2];
+            (med / 4.0).round() * 4.0
+        } else { 16.0 };
+        let row_gap = row_gap.max(0.0);
+
+        // Place grid: start from top-left of first row's first item
+        let start_x = ref_row[0].1;
+        let start_y = rows[0].iter().map(|i| i.2).fold(f64::INFINITY, f64::min);
+
+        // Build column widths from max width in each column across all rows
+        let mut col_widths = vec![0.0_f64; max_cols];
+        for row in &rows {
+            for (ci, item) in row.iter().enumerate() {
+                col_widths[ci] = col_widths[ci].max(item.3);
+            }
+        }
+
+        // Place nodes
+        let mut cursor_y = start_y;
+        for (ri, row) in rows.iter().enumerate() {
+            let row_h = row_heights[ri];
+            let mut cursor_x = start_x;
+            for (ci, &(id, _, _, w, h)) in row.iter().enumerate() {
+                if let Some(node) = self.nodes.get_mut(&id) {
+                    // Center horizontally within column
+                    node.x = cursor_x + (col_widths[ci] - w) / 2.0;
+                    // Center vertically within row
+                    node.y = cursor_y + (row_h - h) / 2.0;
+                }
+                cursor_x += col_widths[ci] + col_gap;
+            }
+            cursor_y += row_h + row_gap;
+        }
+
+        let num_rows = rows.len();
+        format!("{{\"rows\":{},\"cols\":{},\"row_gap\":{:.1},\"col_gap\":{:.1},\"count\":{}}}", 
+            num_rows, max_cols, row_gap, col_gap, items.len())
+    }
+
     /// Returns (min_x, min_y, max_x, max_y) bounding box of all nodes, or None if empty.
     pub fn get_bounds(&self) -> Option<(f64, f64, f64, f64)> {
         let mut min_x = f64::INFINITY;

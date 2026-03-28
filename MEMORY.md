@@ -1336,11 +1336,23 @@
   - Context menu: "Tidy Up" (2+ 노드 선택 시), Cmd/Ctrl+Shift+T 단축키
   - specs/FEATURES.md 업데이트
 
+## 완료된 기능 (추가 — Smart Grid Distribute)
+- Smart distribute with grid detection:
+  - Y 근접도 기반 행 클러스터링 (tolerance = median height × 0.5, min 8px)
+  - 행/열별 균등 gap 계산 (median → 4px grid 반올림)
+  - 셀 내 중앙 정렬 (행 높이, 열 너비 기준)
+  - Rust: Scene::smart_distribute_grid() → JSON { rows, cols, row_gap, col_gap, count }
+  - WASM: smart_distribute_grid() 바인딩, push_undo 통합
+  - Properties panel: "Grid distribute" 버튼 (4+ 노드), grid 아이콘
+  - Context menu: "Grid Distribute" (4+ 노드 선택 시)
+  - 단축키: Cmd/Ctrl+Alt+G
+
 ## 다음 할 것
 - Content-aware image cropping — 이미지 노드에서 subject detection 기반 스마트 크롭 영역 추천, focal point 설정
 - Multi-player follow mode — "Follow" 버튼으로 특정 유저의 뷰포트(zoom+pan) 실시간 추적, Cmd+클릭으로 follow/unfollow 토글
-- Smart distribute with grid detection — 2D 그리드 패턴 감지 시 행/열 동시 정렬 + 간격 균등화
-- Canvas minimap navigation — 미니맵에서 직접 클릭/드래그로 뷰포트 이동, 줌 레벨 표시
 - Design system diff export — 두 브랜치의 디자인 토큰/스타일 차이를 Markdown 리포트로 내보내기
 - Node annotation layers — 개발자/디자이너별 주석 레이어 분리, 레이어별 표시/숨기기 토글
 - Auto dark mode generation — 라이트 테마 디자인에서 자동으로 다크 모드 색상 팔레트 + 토큰 생성
+- Measurement overlay tool — 두 노드 사이 거리/간격 자동 표시, Alt+hover로 선택 노드와 hover 노드 간 간격 측정, 빨간 화살표 + px 라벨
+- Responsive breakpoint preview — 캔버스 내에서 여러 화면 크기(Mobile/Tablet/Desktop) 동시 프리뷰, Frame에 breakpoint 설정 → 리사이즈 시뮬레이션
+- Design token theme switching — Light/Dark/Custom 테마 정의 → 버튼 하나로 전체 캔버스 스타일 전환, 토큰 매핑 기반

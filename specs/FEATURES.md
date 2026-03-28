@@ -1349,3 +1349,12 @@ Design review checklist auto-generation + interactive quiz mode for design knowl
 - [x] **Rust**: `get_scene_analysis()` in `lib.rs` — scene statistics as JSON
 - [x] **UI**: `ui/design-review.ts` — pure TS checklist generation, `ui/quiz-panel.ts` — quiz UI with progress, scoring, explanations
 - [x] **Integration**: Right pane "Quiz" tab, LLM agent tools for programmatic access
+
+## Smart Grid Distribute
+- [x] **Grid detection**: Clusters selected nodes by Y-proximity into rows, X-sort into columns
+- [x] **2D distribution**: Uniform row gap + column gap, center-aligned within cells
+- [x] **Median-based spacing**: Uses median gap rounded to 4px grid for clean values
+- [x] **WASM**: `smart_distribute_grid()` returns `{ rows, cols, row_gap, col_gap, count }`
+- [x] **UI**: Properties panel "Grid distribute" button (4+ nodes), context menu item
+- [x] **Shortcut**: Cmd/Ctrl+Alt+G
+- [x] **Undo**: Integrated with snapshot system

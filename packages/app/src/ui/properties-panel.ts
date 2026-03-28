@@ -226,6 +226,18 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         alignSection.appendChild(distRow);
       }
 
+      // Smart grid distribute (4+ nodes)
+      if (ids.length >= 4) {
+        const gridBtn = document.createElement("button");
+        gridBtn.title = "Smart grid distribute — detect rows/columns and align";
+        gridBtn.style.cssText = "padding:6px;border:1px solid #3a3a3a;border-radius:6px;background:#2a2a2a;color:#888;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;font-size:10px;transition:all 0.15s;margin-top:4px;width:100%;";
+        gridBtn.innerHTML = `${icons.grid.replace(/width="\d+"/, 'width="14"').replace(/height="\d+"/, 'height="14"')}<span>Grid distribute</span>`;
+        gridBtn.addEventListener("mouseenter", () => { gridBtn.style.borderColor = "#4f46e5"; gridBtn.style.color = "#818cf8"; });
+        gridBtn.addEventListener("mouseleave", () => { gridBtn.style.borderColor = "#3a3a3a"; gridBtn.style.color = "#888"; });
+        gridBtn.addEventListener("click", () => { (editor.engine as any).smart_distribute_grid(); editor.requestRender(); });
+        alignSection.appendChild(gridBtn);
+      }
+
       wrap.appendChild(alignSection);
 
       // Auto-suggest Layout section (2+ nodes)
