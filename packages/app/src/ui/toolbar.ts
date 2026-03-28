@@ -7,6 +7,7 @@ import { toggleDesignTokenExport } from "./design-token-export";
 import { openCodeToDesignModal } from "./code-to-design";
 import { openDesignPolish } from "./design-polish";
 import { openDesignHealth } from "./design-health";
+import { setupVoiceControl } from "./voice-control";
 
 const tools: { id: ToolType; icon: string; label: string }[] = [
   { id: "select", icon: icons.select, label: "Select (V)" },
@@ -382,6 +383,9 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
     cursorBtn.classList.toggle("active", active);
   });
   container.appendChild(cursorBtn);
+
+  // Voice control button
+  setupVoiceControl(container, editor);
 
   // Mode toggle (rightmost)
   const sep2 = document.createElement("div");

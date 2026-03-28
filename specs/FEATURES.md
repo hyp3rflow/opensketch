@@ -1253,3 +1253,13 @@ Frame overflow control and content scrolling.
 - [x] **Configurable threshold**: Percentage-based pass/fail (default 0.1%)
 - [x] **Toolbar button**: Camera icon, keyboard shortcut ⌘⌥N
 - [x] **Implementation**: `crates/engine/src/snapshot_test.rs` (Rust) + `ui/snapshot-panel.ts` (TypeScript)
+
+## 119. Voice-Controlled Design
+- [x] **Web Speech API**: SpeechRecognition-based voice input, interim + final result handling
+- [x] **Direct commands**: undo, redo, delete, select all, deselect, zoom fit, zoom 100 — instant execution without LLM
+- [x] **LLM integration**: Non-direct commands sent to Agent panel's LLM for parsing → tool calling execution
+- [x] **Toolbar button**: Microphone icon with pulse animation when listening
+- [x] **Keyboard shortcut**: ⌘⇧V (Cmd+Shift+V) toggle
+- [x] **Floating indicator**: Top-center transcript display with status colors (red=listening, amber=processing, green=done)
+- [x] **Browser support detection**: Graceful fallback when Web Speech API unavailable
+- [x] **Implementation**: `ui/voice-control.ts` (TypeScript), `ui/shortcut-manager.ts` shortcut registration

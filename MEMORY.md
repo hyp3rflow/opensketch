@@ -856,6 +856,15 @@
   - UI: 모달 (유사 노드 목록 + 유사도% + 체크박스 + threshold 조절)
   - 단축키: Cmd+Shift+H, 컨텍스트 메뉴, 툴바 버튼
 
+## 완료된 기능 (추가 — Voice-Controlled Design)
+- Web Speech API 기반 음성 인식 → 디자인 명령 실행
+- Direct commands: undo, redo, delete, select all, deselect, zoom fit/100 (LLM 없이 즉시)
+- LLM 연동: 복잡한 명령은 Agent panel로 전달 → tool calling 실행
+- 툴바 마이크 버튼 (pulse animation), ⌘⇧V 단축키
+- 플로팅 transcript 인디케이터 (listening/processing/done 상태)
+- 브라우저 미지원 시 graceful fallback
+- Files: ui/voice-control.ts
+
 ## 완료된 기능 (추가 — Keyboard Shortcut Customization)
 - Keyboard shortcut customization (사용자 정의 단축키 매핑):
   - ShortcutManager 싱글턴: 60+ 액션 정의 (Tools/Edit/View/Panels/Boolean/Misc 카테고리)

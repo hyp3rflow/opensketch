@@ -93,6 +93,7 @@ const DEFAULTS: ShortcutDef[] = [
   { id: "misc.cursorChat",  category: "Misc", description: "Cursor chat",       defaultBinding: { key: "/" } },
   { id: "misc.presentation",category: "Misc", description: "Presentation mode", defaultBinding: { key: "Enter", meta: true } },
   { id: "misc.comment",     category: "Misc", description: "Comment mode",      defaultBinding: { key: "c" } },
+  { id: "misc.voice",       category: "Misc", description: "Voice command",     defaultBinding: { key: "v", meta: true, shift: true } },
 ];
 
 function bindingKey(b: KeyBinding): string {
