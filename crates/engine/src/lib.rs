@@ -35,6 +35,7 @@ pub mod crdt;
 pub mod whiteboard;
 mod email_export;
 pub mod snapshot_test;
+mod design_quiz;
 
 use wasm_bindgen::prelude::*;
 use web_sys::CanvasRenderingContext2d;
@@ -86,6 +87,93 @@ pub struct Engine {
     recording: RecordingStore,
     crdt: crdt::CRDTDoc,
     snapshot_store: snapshot_test::SnapshotStore,
+}
+
+#[derive(serde::Serialize)]
+struct CropSuggestion {
+    label: String,
+    x: f64,
+    y: f64,
+    w: f64,
+    h: f64,
+}
+
+/// Compute crop suggestions centered on focal point for a given target aspect ratio
+fn compute_crop_suggestions(fx: f64, fy: f64, img_w: f64, img_h: f64, target_ratio: f64) -> Vec<CropSuggestion> {
+    let mut suggestions = Vec::new();
+
+    // Helper: compute best crop rect for a given aspect ratio centered on focal point
+    let make_crop = |ratio: f64, label: &str| -> CropSuggestion {
+        let img_ratio = img_w / img_h.max(1.0);
+        let (cw, ch) = if ratio > img_ratio {
+            // width-limited
+            (1.0, (img_w / ratio) / img_h)
+        } else {
+            // height-limited
+            ((img_h * ratio) / img_w, 1.0)
+        };
+        let cw = cw.min(1.0);
+        let ch = ch.min(1.0);
+        // Center on focal point, clamped to image bounds
+        let cx = (fx - cw / 2.0).clamp(0.0, 1.0 - cw);
+        let cy = (fy - ch / 2.0).clamp(0.0, 1.0 - ch);
+        CropSuggestion { label: label.to_string(), x: cx, y: cy, w: cw, h: ch }
+    };
+
+    // Node aspect ratio (smart fit)
+    suggestions.push(make_crop(target_ratio, "Smart Fit"));
+
+    // Rule of thirds: nudge focal toward nearest third intersection
+    {
+        let thirds_x = [1.0/3.0, 2.0/3.0];
+        let thirds_y = [1.0/3.0, 2.0/3.0];
+        let mut best_dx = f64::MAX;
+        let mut best_tx = fx;
+        let mut best_ty = fy;
+        for &tx in &thirds_x {
+            for &ty in &thirds_y {
+                let d = (fx - tx).powi(2) + (fy - ty).powi(2);
+                if d < best_dx { best_dx = d; best_tx = tx; best_ty = ty; }
+            }
+        }
+        let img_ratio = img_w / img_h.max(1.0);
+        let (cw, ch) = if target_ratio > img_ratio {
+            (1.0, (img_w / target_ratio) / img_h)
+        } else {
+            ((img_h * target_ratio) / img_w, 1.0)
+        };
+        let cw = cw.min(1.0);
+        let ch = ch.min(1.0);
+        let cx = (best_tx - cw / 2.0).clamp(0.0, 1.0 - cw);
+        let cy = (best_ty - ch / 2.0).clamp(0.0, 1.0 - ch);
+        suggestions.push(CropSuggestion { label: "Rule of Thirds".into(), x: cx, y: cy, w: cw, h: ch });
+    }
+
+    // Center crop
+    {
+        let img_ratio = img_w / img_h.max(1.0);
+        let (cw, ch) = if target_ratio > img_ratio {
+            (1.0, (img_w / target_ratio) / img_h)
+        } else {
+            ((img_h * target_ratio) / img_w, 1.0)
+        };
+        let cw = cw.min(1.0);
+        let ch = ch.min(1.0);
+        let cx = (0.5 - cw / 2.0).max(0.0);
+        let cy = (0.5 - ch / 2.0).max(0.0);
+        suggestions.push(CropSuggestion { label: "Center".into(), x: cx, y: cy, w: cw, h: ch });
+    }
+
+    // Square crop centered on focal
+    suggestions.push(make_crop(1.0, "Square"));
+
+    // 16:9 crop centered on focal
+    suggestions.push(make_crop(16.0 / 9.0, "16:9"));
+
+    // 4:3 crop
+    suggestions.push(make_crop(4.0 / 3.0, "4:3"));
+
+    suggestions
 }
 
 #[wasm_bindgen]
@@ -591,6 +679,9 @@ impl Engine {
         let mut node = Node::new(0, NodeKind::Image {
             src: src.to_string(),
             fit: "cover".to_string(),
+            focal_x: 0.5,
+            focal_y: 0.5,
+            crop: None,
         });
         node.x = x; node.y = y; node.width = w; node.height = h;
         node.name = format!("Image {}", self.scene.node_count() + 1);
@@ -933,6 +1024,88 @@ impl Engine {
             }
         }
         String::new()
+    }
+
+    // --- Image focal point & crop ---
+
+    pub fn set_image_focal_point(&mut self, id: u64, fx: f64, fy: f64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Image { ref mut focal_x, ref mut focal_y, .. } = node.kind {
+                *focal_x = fx.clamp(0.0, 1.0);
+                *focal_y = fy.clamp(0.0, 1.0);
+            }
+        }
+    }
+
+    pub fn get_image_focal_point(&self, id: u64) -> String {
+        if let Some(node) = self.scene.get_node(id) {
+            if let NodeKind::Image { focal_x, focal_y, .. } = &node.kind {
+                return format!("{{\"x\":{},\"y\":{}}}", focal_x, focal_y);
+            }
+        }
+        "{}".into()
+    }
+
+    pub fn set_image_crop(&mut self, id: u64, cx: f64, cy: f64, cw: f64, ch: f64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Image { ref mut crop, .. } = node.kind {
+                *crop = Some(node::ImageCrop {
+                    x: cx.clamp(0.0, 1.0),
+                    y: cy.clamp(0.0, 1.0),
+                    w: cw.clamp(0.01, 1.0),
+                    h: ch.clamp(0.01, 1.0),
+                });
+            }
+        }
+    }
+
+    pub fn clear_image_crop(&mut self, id: u64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Image { ref mut crop, .. } = node.kind {
+                *crop = None;
+            }
+        }
+    }
+
+    pub fn get_image_crop(&self, id: u64) -> String {
+        if let Some(node) = self.scene.get_node(id) {
+            if let NodeKind::Image { ref crop, .. } = node.kind {
+                if let Some(c) = crop {
+                    return format!("{{\"x\":{},\"y\":{},\"w\":{},\"h\":{}}}", c.x, c.y, c.w, c.h);
+                }
+            }
+        }
+        "null".into()
+    }
+
+    pub fn get_image_info(&self, id: u64) -> String {
+        if let Some(node) = self.scene.get_node(id) {
+            if let NodeKind::Image { ref src, ref fit, focal_x, focal_y, ref crop } = node.kind {
+                let crop_json = if let Some(c) = crop {
+                    format!("{{\"x\":{},\"y\":{},\"w\":{},\"h\":{}}}", c.x, c.y, c.w, c.h)
+                } else {
+                    "null".into()
+                };
+                return format!(
+                    "{{\"src\":\"{}\",\"fit\":\"{}\",\"focal_x\":{},\"focal_y\":{},\"crop\":{}}}",
+                    src.replace('\\', "\\\\").replace('"', "\\\""),
+                    fit, focal_x, focal_y, crop_json
+                );
+            }
+        }
+        "{}".into()
+    }
+
+    /// Suggest crop rects based on focal point and common aspect ratios
+    pub fn suggest_crops(&self, id: u64, img_w: f64, img_h: f64) -> String {
+        if let Some(node) = self.scene.get_node(id) {
+            if let NodeKind::Image { focal_x, focal_y, .. } = &node.kind {
+                let target_ratio = node.width / node.height.max(1.0);
+                let suggestions = compute_crop_suggestions(*focal_x, *focal_y, img_w, img_h, target_ratio);
+                return serde_json::to_string(&suggestions).unwrap_or_else(|_| "[]".into());
+            }
+        }
+        "[]".into()
     }
 
     pub fn add_section(&mut self, name: &str, x: f64, y: f64, w: f64, h: f64) -> u64 {
@@ -7021,5 +7194,21 @@ fn apply_prop_value(node: &mut node::Node, key: &crdt::PropKey, value: &crdt::Pr
         _ => {
             // Custom or unhandled properties — ignore for now
         }
+    }
+}
+
+// --- Design Quiz / Interview Mode ---
+#[wasm_bindgen]
+impl Engine {
+    /// Generate quiz questions from the current design file (seed for randomization)
+    pub fn generate_quiz(&self, seed: u32) -> String {
+        let questions = design_quiz::generate_quiz(&self.scene, &self.components, &self.styles, seed as u64);
+        serde_json::to_string(&questions).unwrap_or_else(|_| "[]".into())
+    }
+
+    /// Generate a design review checklist
+    pub fn generate_review_checklist(&self) -> String {
+        let items = design_quiz::generate_review_checklist(&self.scene, &self.components, &self.styles);
+        serde_json::to_string(&items).unwrap_or_else(|_| "[]".into())
     }
 }

@@ -3166,6 +3166,181 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       });
       imgSection.appendChild(fitRow);
 
+      // Focal point
+      const focalRow = document.createElement("div");
+      focalRow.style.cssText = "display:flex;align-items:center;gap:6px;margin-top:8px;";
+      const focalLabel = document.createElement("span");
+      focalLabel.className = "prop-label";
+      focalLabel.style.width = "42px";
+      focalLabel.textContent = "Focal";
+      focalRow.appendChild(focalLabel);
+
+      const focalInfo = JSON.parse(editor.engine.get_image_focal_point(id) || "{}");
+      const fx = focalInfo.x ?? 0.5;
+      const fy = focalInfo.y ?? 0.5;
+
+      // Mini focal point picker (48x48 box)
+      const focalPicker = document.createElement("canvas");
+      focalPicker.width = 48;
+      focalPicker.height = 48;
+      focalPicker.style.cssText = "border:1px solid #555;border-radius:4px;cursor:crosshair;flex-shrink:0;";
+      const fpc = focalPicker.getContext("2d")!;
+      const drawFocal = (fpx: number, fpy: number) => {
+        fpc.fillStyle = "#1a1a2e";
+        fpc.fillRect(0, 0, 48, 48);
+        // Grid lines (rule of thirds)
+        fpc.strokeStyle = "#333";
+        fpc.lineWidth = 0.5;
+        for (const t of [16, 32]) {
+          fpc.beginPath(); fpc.moveTo(t, 0); fpc.lineTo(t, 48); fpc.stroke();
+          fpc.beginPath(); fpc.moveTo(0, t); fpc.lineTo(48, t); fpc.stroke();
+        }
+        // Focal dot
+        fpc.beginPath();
+        fpc.arc(fpx * 48, fpy * 48, 4, 0, Math.PI * 2);
+        fpc.fillStyle = "#ff3366";
+        fpc.fill();
+        fpc.strokeStyle = "#fff";
+        fpc.lineWidth = 1.5;
+        fpc.stroke();
+      };
+      drawFocal(fx, fy);
+
+      const updateFocalFromEvent = (e: MouseEvent) => {
+        const rect = focalPicker.getBoundingClientRect();
+        const nx = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+        const ny = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+        ensureUndo();
+        editor.engine.set_image_focal_point(id, nx, ny);
+        drawFocal(nx, ny);
+        fxInput.value = nx.toFixed(2);
+        fyInput.value = ny.toFixed(2);
+        editor.requestRender();
+      };
+      let focalDragging = false;
+      focalPicker.addEventListener("mousedown", (e) => { focalDragging = true; updateFocalFromEvent(e); });
+      window.addEventListener("mousemove", (e) => { if (focalDragging) updateFocalFromEvent(e); });
+      window.addEventListener("mouseup", () => { focalDragging = false; });
+      focalRow.appendChild(focalPicker);
+
+      // Numeric inputs
+      const focalInputs = document.createElement("div");
+      focalInputs.style.cssText = "display:flex;flex-direction:column;gap:2px;";
+      const fxInput = document.createElement("input");
+      fxInput.className = "prop-input";
+      fxInput.style.width = "48px";
+      fxInput.value = fx.toFixed(2);
+      fxInput.title = "Focal X (0–1)";
+      fxInput.addEventListener("change", () => {
+        ensureUndo();
+        editor.engine.set_image_focal_point(id, parseFloat(fxInput.value) || 0.5, parseFloat(fyInput.value) || 0.5);
+        editor.requestRender();
+      });
+      const fyInput = document.createElement("input");
+      fyInput.className = "prop-input";
+      fyInput.style.width = "48px";
+      fyInput.value = fy.toFixed(2);
+      fyInput.title = "Focal Y (0–1)";
+      fyInput.addEventListener("change", () => {
+        ensureUndo();
+        editor.engine.set_image_focal_point(id, parseFloat(fxInput.value) || 0.5, parseFloat(fyInput.value) || 0.5);
+        editor.requestRender();
+      });
+      focalInputs.appendChild(fxInput);
+      focalInputs.appendChild(fyInput);
+      focalRow.appendChild(focalInputs);
+      imgSection.appendChild(focalRow);
+
+      // Crop section
+      const cropHeader = document.createElement("div");
+      cropHeader.style.cssText = "display:flex;align-items:center;justify-content:space-between;margin-top:10px;margin-bottom:4px;";
+      const cropTitle = document.createElement("span");
+      cropTitle.style.cssText = "font-size:10px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:0.5px;";
+      cropTitle.textContent = "Smart Crop";
+      cropHeader.appendChild(cropTitle);
+
+      const cropInfo = JSON.parse(editor.engine.get_image_crop(id) || "null");
+      const clearCropBtn = document.createElement("button");
+      clearCropBtn.style.cssText = "background:none;border:1px solid #555;color:#aaa;font-size:9px;padding:1px 6px;border-radius:3px;cursor:pointer;";
+      clearCropBtn.textContent = cropInfo ? "Reset" : "No crop";
+      clearCropBtn.disabled = !cropInfo;
+      clearCropBtn.addEventListener("click", () => {
+        ensureUndo();
+        editor.engine.clear_image_crop(id);
+        editor.requestRender();
+        refresh(ids);
+      });
+      cropHeader.appendChild(clearCropBtn);
+      imgSection.appendChild(cropHeader);
+
+      // Crop suggestions — need image dimensions
+      const cachedImg = (editor as any)._imageCache?.get(imgData.src);
+      if (cachedImg && cachedImg.naturalWidth > 0) {
+        const suggestionsJson = editor.engine.suggest_crops(id, cachedImg.naturalWidth, cachedImg.naturalHeight);
+        const suggestions: Array<{ label: string; x: number; y: number; w: number; h: number }> = JSON.parse(suggestionsJson);
+        const suggestGrid = document.createElement("div");
+        suggestGrid.style.cssText = "display:flex;flex-wrap:wrap;gap:3px;";
+        for (const s of suggestions) {
+          const btn = document.createElement("button");
+          const isActive = cropInfo && Math.abs(cropInfo.x - s.x) < 0.01 && Math.abs(cropInfo.y - s.y) < 0.01 && Math.abs(cropInfo.w - s.w) < 0.01;
+          btn.textContent = s.label;
+          btn.style.cssText = `
+            padding:3px 6px;border:1px solid ${isActive ? "#4f46e5" : "#444"};border-radius:4px;
+            background:${isActive ? "#4f46e520" : "#2a2a2a"};color:${isActive ? "#818cf8" : "#aaa"};
+            cursor:pointer;font-size:10px;
+          `;
+          btn.addEventListener("click", () => {
+            ensureUndo();
+            editor.engine.set_image_crop(id, s.x, s.y, s.w, s.h);
+            editor.requestRender();
+            refresh(ids);
+          });
+          suggestGrid.appendChild(btn);
+        }
+        imgSection.appendChild(suggestGrid);
+      } else {
+        const hint = document.createElement("div");
+        hint.style.cssText = "font-size:10px;color:#555;padding:2px 0;";
+        hint.textContent = "Load image to see crop suggestions";
+        imgSection.appendChild(hint);
+      }
+
+      // Manual crop inputs
+      if (cropInfo) {
+        const cropInputs = document.createElement("div");
+        cropInputs.style.cssText = "display:flex;gap:4px;margin-top:6px;";
+        const fields = [
+          { label: "X", key: "x", val: cropInfo.x },
+          { label: "Y", key: "y", val: cropInfo.y },
+          { label: "W", key: "w", val: cropInfo.w },
+          { label: "H", key: "h", val: cropInfo.h },
+        ];
+        for (const f of fields) {
+          const inp = document.createElement("input");
+          inp.className = "prop-input";
+          inp.style.cssText = "width:40px;text-align:center;";
+          inp.value = f.val.toFixed(2);
+          inp.title = `Crop ${f.label} (0–1)`;
+          inp.addEventListener("change", () => {
+            ensureUndo();
+            const cur = JSON.parse(editor.engine.get_image_crop(id) || "null") || { x: 0, y: 0, w: 1, h: 1 };
+            (cur as any)[f.key] = parseFloat(inp.value) || 0;
+            editor.engine.set_image_crop(id, cur.x, cur.y, cur.w, cur.h);
+            editor.requestRender();
+            refresh(ids);
+          });
+          const label = document.createElement("span");
+          label.style.cssText = "font-size:9px;color:#666;";
+          label.textContent = f.label;
+          const wrap = document.createElement("div");
+          wrap.style.cssText = "display:flex;flex-direction:column;align-items:center;gap:1px;";
+          wrap.appendChild(label);
+          wrap.appendChild(inp);
+          cropInputs.appendChild(wrap);
+        }
+        imgSection.appendChild(cropInputs);
+      }
+
       container.appendChild(imgSection);
     }
 

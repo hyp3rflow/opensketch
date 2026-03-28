@@ -501,7 +501,7 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
             group.push_str("</g>\n");
             buf.push_str(&group);
         }
-        NodeKind::Image { ref src, ref fit } => {
+        NodeKind::Image { ref src, ref fit, .. } => {
             let mut attrs = String::new();
             if has_transform || node.rotation != 0.0 {
                 attrs.push_str("<g");

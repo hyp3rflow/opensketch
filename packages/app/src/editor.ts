@@ -3140,22 +3140,37 @@ export class Editor {
         this.ctx.clip();
       }
 
+      // Apply crop (normalized 0-1 within source image)
+      const crop = kind.Image.crop;
+      const imgW = img.naturalWidth;
+      const imgH = img.naturalHeight;
+      let srcX = 0, srcY = 0, srcW = imgW, srcH = imgH;
+      if (crop && crop.w > 0 && crop.h > 0) {
+        srcX = crop.x * imgW;
+        srcY = crop.y * imgH;
+        srcW = crop.w * imgW;
+        srcH = crop.h * imgH;
+      }
+
       // Draw image with fit mode
       const fit = kind.Image.fit || "cover";
+      const focalX = kind.Image.focal_x ?? 0.5;
+      const focalY = kind.Image.focal_y ?? 0.5;
       if (fit === "fill") {
-        this.ctx.drawImage(img, x, y, w, h);
+        this.ctx.drawImage(img, srcX, srcY, srcW, srcH, x, y, w, h);
       } else {
-        // cover or contain
-        const imgAspect = img.naturalWidth / img.naturalHeight;
+        // cover or contain with focal point
+        const imgAspect = srcW / srcH;
         const nodeAspect = w / h;
-        let sx = 0, sy = 0, sw = img.naturalWidth, sh = img.naturalHeight;
+        let sx = srcX, sy = srcY, sw = srcW, sh = srcH;
         if (fit === "cover") {
           if (imgAspect > nodeAspect) {
-            sw = img.naturalHeight * nodeAspect;
-            sx = (img.naturalWidth - sw) / 2;
+            sw = srcH * nodeAspect;
+            // Use focal point instead of center
+            sx = srcX + (srcW - sw) * focalX;
           } else {
-            sh = img.naturalWidth / nodeAspect;
-            sy = (img.naturalHeight - sh) / 2;
+            sh = srcW / nodeAspect;
+            sy = srcY + (srcH - sh) * focalY;
           }
         }
         this.ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);

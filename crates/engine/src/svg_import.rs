@@ -387,6 +387,9 @@ fn import_image(scene: &mut Scene, elem: &roxmltree::Node, parent_id: Option<Nod
     let mut node = Node::new(0, NodeKind::Image {
         src: href.to_string(),
         fit: "cover".to_string(),
+        focal_x: 0.5,
+        focal_y: 0.5,
+        crop: None,
     });
     node.x = x; node.y = y; node.width = w; node.height = h;
     node.name = elem.attribute("id").unwrap_or("Image").to_string();

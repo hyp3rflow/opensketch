@@ -96,12 +96,15 @@ pub fn replace_node_content(
 
             // Copy kind-specific content
             match (&source.kind, &mut target.kind) {
-                (NodeKind::Image { src, fit }, NodeKind::Image { src: ref mut ts, fit: ref mut tf }) => {
+                (NodeKind::Image { src, fit, focal_x, focal_y, crop }, NodeKind::Image { src: ref mut ts, fit: ref mut tf, focal_x: ref mut fx, focal_y: ref mut fy, crop: ref mut tc }) => {
                     *ts = src.clone();
                     *tf = fit.clone();
+                    *fx = *focal_x;
+                    *fy = *focal_y;
+                    *tc = crop.clone();
                 }
-                (NodeKind::Image { src, fit }, _) => {
-                    target.kind = NodeKind::Image { src: src.clone(), fit: fit.clone() };
+                (NodeKind::Image { src, fit, focal_x, focal_y, crop }, _) => {
+                    target.kind = NodeKind::Image { src: src.clone(), fit: fit.clone(), focal_x: *focal_x, focal_y: *focal_y, crop: crop.clone() };
                 }
                 _ => {
                     // For other types, visual properties (fills/strokes) are already copied

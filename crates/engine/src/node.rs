@@ -242,6 +242,15 @@ pub enum NodeKind {
         /// Object-fit mode: "cover", "contain", "fill"
         #[serde(default = "default_image_fit")]
         fit: String,
+        /// Focal point X (0.0–1.0, default 0.5 = center)
+        #[serde(default = "default_focal")]
+        focal_x: f64,
+        /// Focal point Y (0.0–1.0, default 0.5 = center)
+        #[serde(default = "default_focal")]
+        focal_y: f64,
+        /// Crop rect (normalized 0.0–1.0 within source image). None = no crop.
+        #[serde(default)]
+        crop: Option<ImageCrop>,
     },
     /// A star shape with configurable point count and inner radius ratio
     Star {
@@ -366,6 +375,26 @@ fn default_table_cols() -> u32 { 3 }
 fn default_line_height() -> f64 { 1.2 }
 fn default_font_weight() -> u16 { 400 }
 fn default_image_fit() -> String { "cover".to_string() }
+fn default_focal() -> f64 { 0.5 }
+
+/// Crop rectangle within source image (normalized 0.0–1.0)
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct ImageCrop {
+    /// Left edge (0.0–1.0)
+    pub x: f64,
+    /// Top edge (0.0–1.0)
+    pub y: f64,
+    /// Width (0.0–1.0)
+    pub w: f64,
+    /// Height (0.0–1.0)
+    pub h: f64,
+}
+
+impl Default for ImageCrop {
+    fn default() -> Self {
+        Self { x: 0.0, y: 0.0, w: 1.0, h: 1.0 }
+    }
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct GradientStop {

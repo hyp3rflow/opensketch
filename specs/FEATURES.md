@@ -158,6 +158,10 @@
 - [x] **SVG export**: `<image>` element with preserveAspectRatio
 - [x] **Placeholder rendering**: mountain/sun icon when image not loaded
 - [x] **Image cache**: loaded images cached for reuse
+- [x] **Focal point**: per-image focal point (0–1 normalized), affects cover-mode crop center
+- [x] **Content-aware crop**: ImageCrop struct (x, y, w, h normalized), smart crop suggestions (Smart Fit, Rule of Thirds, Center, Square, 16:9, 4:3)
+- [x] **WASM**: `set_image_focal_point`, `get_image_focal_point`, `set_image_crop`, `clear_image_crop`, `get_image_crop`, `get_image_info`, `suggest_crops`
+- [x] **Properties panel**: focal point picker (48×48 canvas + crosshair), crop suggestion buttons, manual crop inputs, reset
 
 ### Zoom Controls
 - [x] **Zoom to fit** (Cmd+1): fit all nodes in viewport with padding

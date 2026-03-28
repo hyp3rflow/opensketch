@@ -1,327 +1,313 @@
-/**
- * Quiz Panel — Design quiz / interview mode
- * Generates quizzes about components, styles, accessibility, and design guidelines
- */
 import type { Editor } from "../editor";
-import { icons } from "./icons";
-import { generateDesignReview, formatChecklist, type ChecklistItem } from "./design-review";
 
 interface QuizQuestion {
   id: number;
+  category: string;
   question: string;
   options: string[];
-  correctIndex: number;
+  correct_index: number;
   explanation: string;
+  difficulty: string;
+  related_id: number | null;
+}
+
+interface ChecklistItem {
   category: string;
+  text: string;
+  passed: boolean;
+  suggestion: string | null;
 }
 
-interface QuizState {
-  questions: QuizQuestion[];
-  currentIndex: number;
-  answers: (number | null)[];
-  finished: boolean;
+type QuizMode = "menu" | "quiz" | "results" | "checklist";
+
+let overlay: HTMLDivElement | null = null;
+
+export function toggleQuizPanel(editor: Editor) {
+  if (overlay) { closeQuiz(); return; }
+  openQuizModal(editor);
 }
 
-let quizState: QuizState | null = null;
-
-/** Generate quiz questions from current scene analysis */
-export function generateQuiz(editor: Editor): QuizQuestion[] {
-  const questions: QuizQuestion[] = [];
-  let qid = 0;
-  let analysis: any;
-  try {
-    analysis = JSON.parse(editor.engine.get_scene_analysis());
-  } catch {
-    return [];
-  }
-
-  const kinds = analysis.kind_distribution || {};
-  const total = analysis.total_nodes || 0;
-  const compCount = analysis.component_count || 0;
-  const instanceCount = analysis.instance_count || 0;
-  const layoutCount = analysis.layout_count || 0;
-
-  // Q: Total nodes
-  if (total > 0) {
-    const wrong1 = Math.max(1, total + Math.floor(Math.random() * 20) - 10);
-    const wrong2 = Math.max(1, total * 2);
-    const wrong3 = Math.max(1, Math.floor(total / 2));
-    const opts = shuffle([String(total), String(wrong1 === total ? total + 5 : wrong1), String(wrong2), String(wrong3)]);
-    questions.push({
-      id: qid++, category: "Scene Knowledge",
-      question: "How many total nodes are in the current scene?",
-      options: opts, correctIndex: opts.indexOf(String(total)),
-      explanation: `The scene contains exactly ${total} nodes.`,
-    });
-  }
-
-  // Q: Most common node type
-  const sortedKinds = Object.entries(kinds).sort((a: any, b: any) => b[1] - a[1]);
-  if (sortedKinds.length > 1) {
-    const correct = sortedKinds[0][0];
-    const others = sortedKinds.slice(1).map(k => k[0]);
-    const opts = shuffle([correct, ...others.slice(0, 3)].slice(0, 4));
-    questions.push({
-      id: qid++, category: "Scene Knowledge",
-      question: "What is the most common node type in this design?",
-      options: opts, correctIndex: opts.indexOf(correct),
-      explanation: `${correct} appears ${sortedKinds[0][1]} times, making it the most common type.`,
-    });
-  }
-
-  // Q: Component count
-  questions.push({
-    id: qid++, category: "Components",
-    question: `How many reusable components are defined in this project?`,
-    options: shuffle([String(compCount), String(compCount + 3), String(Math.max(0, compCount - 2)), String(compCount + 7)]),
-    correctIndex: -1, // fixed below
-    explanation: `There are ${compCount} component(s) and ${instanceCount} instance(s).`,
-  });
-  questions[questions.length - 1].correctIndex = questions[questions.length - 1].options.indexOf(String(compCount));
-
-  // Q: Layout usage (general knowledge)
-  questions.push({
-    id: qid++, category: "Layout",
-    question: "Which layout mode helps maintain consistent spacing between child elements?",
-    options: ["Flex (Auto-layout)", "Absolute positioning", "Grid only", "None"],
-    correctIndex: 0,
-    explanation: "Flex (auto-layout) automatically manages spacing, alignment, and distribution of children.",
-  });
-
-  // Q: Accessibility
-  questions.push({
-    id: qid++, category: "Accessibility",
-    question: "What is the minimum contrast ratio recommended by WCAG AA for normal text?",
-    options: ["4.5:1", "3:1", "2:1", "7:1"],
-    correctIndex: 0,
-    explanation: "WCAG AA requires at least 4.5:1 contrast ratio for normal text (3:1 for large text).",
-  });
-
-  // Q: Design system
-  questions.push({
-    id: qid++, category: "Design Systems",
-    question: "What is the primary benefit of using design tokens?",
-    options: [
-      "Consistent values across platforms",
-      "Faster rendering",
-      "Smaller file sizes",
-      "Better animations",
-    ],
-    correctIndex: 0,
-    explanation: "Design tokens store design decisions (colors, spacing, etc.) as platform-agnostic values for consistency.",
-  });
-
-  // Q: Naming
-  questions.push({
-    id: qid++, category: "Best Practices",
-    question: "Why should nodes have descriptive names instead of defaults like 'Frame 1'?",
-    options: [
-      "Easier navigation and developer handoff",
-      "Required by the rendering engine",
-      "Reduces file size",
-      "Improves animation performance",
-    ],
-    correctIndex: 0,
-    explanation: "Descriptive names make the layer panel navigable and help developers understand the design structure.",
-  });
-
-  return questions;
-}
-
-function shuffle<T>(arr: T[]): T[] {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
-
-/** Format quiz result as text for LLM */
-export function formatQuizResult(state: QuizState): string {
-  const correct = state.answers.filter((a, i) => a === state.questions[i].correctIndex).length;
-  const total = state.questions.length;
-  const lines = state.questions.map((q, i) => {
-    const userAns = state.answers[i];
-    const isCorrect = userAns === q.correctIndex;
-    return `${isCorrect ? "✅" : "❌"} Q${i + 1}: ${q.question}\n   Your answer: ${userAns !== null ? q.options[userAns] : "(skipped)"}\n   ${isCorrect ? "" : `Correct: ${q.options[q.correctIndex]}\n   `}${q.explanation}`;
-  });
-  return `Quiz Results: ${correct}/${total} correct\n\n${lines.join("\n\n")}`;
-}
-
-/** Setup the Quiz tab panel in the right pane */
+/** Tab-based setup for right pane */
 export function setupQuizPanel(container: HTMLElement, editor: Editor) {
-  function render() {
-    container.innerHTML = "";
-    container.style.cssText = "display:flex;flex-direction:column;height:100%;font-family:Inter,system-ui,sans-serif;color:#cdd6f4;";
+  renderMenu(container, editor);
+}
 
-    // Header
-    const header = document.createElement("div");
-    header.style.cssText = "padding:16px;border-bottom:1px solid #333;";
-    header.innerHTML = `<div style="font-size:13px;font-weight:600;margin-bottom:8px;">Design Review & Quiz</div>`;
+function closeQuiz() {
+  overlay?.remove();
+  overlay = null;
+}
 
-    // Action buttons
-    const btnRow = document.createElement("div");
-    btnRow.style.cssText = "display:flex;gap:8px;";
+function openQuizModal(editor: Editor) {
+  overlay = document.createElement("div");
+  overlay.style.cssText = "position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);";
+  overlay.onclick = (e) => { if (e.target === overlay) closeQuiz(); };
 
-    const reviewBtn = document.createElement("button");
-    reviewBtn.textContent = "📋 Run Review";
-    reviewBtn.style.cssText = btnStyle();
-    reviewBtn.onclick = () => showReview();
+  const modal = document.createElement("div");
+  modal.style.cssText = "background:#1e1e2e;border-radius:16px;width:560px;max-height:80vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,0.5);color:#e0e0e0;font-family:system-ui;";
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
 
-    const quizBtn = document.createElement("button");
-    quizBtn.textContent = "🧠 Start Quiz";
-    quizBtn.style.cssText = btnStyle();
-    quizBtn.onclick = () => startQuiz();
+  renderMenu(modal, editor);
+}
 
-    btnRow.append(reviewBtn, quizBtn);
-    header.appendChild(btnRow);
-    container.appendChild(header);
+function renderMenu(modal: HTMLElement, editor: Editor) {
+  modal.innerHTML = "";
+  const pad = "padding:32px;";
 
-    // Content area
-    const content = document.createElement("div");
-    content.id = "quiz-content";
-    content.style.cssText = "flex:1;overflow-y:auto;padding:12px;";
-    content.innerHTML = `<div style="color:#666;font-size:12px;text-align:center;padding-top:40px;">
-      Run a design review checklist or start a quiz to test your design knowledge.</div>`;
-    container.appendChild(content);
+  const header = el("div", `${pad}text-align:center;`);
+  header.innerHTML = `
+    <div style="font-size:36px;margin-bottom:8px;">🎓</div>
+    <h2 style="margin:0;font-size:20px;font-weight:700;color:#fff;">Design Quiz</h2>
+    <p style="margin:6px 0 0;font-size:13px;color:#888;">Test your knowledge of this design file</p>
+  `;
+  modal.appendChild(header);
+
+  const body = el("div", "padding:0 32px 32px;display:flex;flex-direction:column;gap:12px;");
+
+  const quizBtn = actionCard("🧠", "Start Quiz", "Answer questions about components, styles, tokens & more", "#6c5ce7");
+  quizBtn.onclick = () => startQuiz(modal, editor);
+  body.appendChild(quizBtn);
+
+  const checkBtn = actionCard("📋", "Design Review Checklist", "Auto-generated review of your file's health", "#00b894");
+  checkBtn.onclick = () => showChecklist(modal, editor);
+  body.appendChild(checkBtn);
+
+  modal.appendChild(body);
+}
+
+function actionCard(icon: string, title: string, desc: string, color: string): HTMLElement {
+  const card = el("div", `display:flex;align-items:center;gap:14px;padding:16px;background:#2a2a3e;border-radius:12px;cursor:pointer;border:1px solid #333;transition:border-color 0.2s;`);
+  card.onmouseenter = () => card.style.borderColor = color;
+  card.onmouseleave = () => card.style.borderColor = "#333";
+  card.innerHTML = `
+    <div style="font-size:28px;width:44px;text-align:center;">${icon}</div>
+    <div><div style="font-weight:600;font-size:14px;color:#fff;">${title}</div><div style="font-size:12px;color:#888;margin-top:2px;">${desc}</div></div>
+  `;
+  return card;
+}
+
+function startQuiz(modal: HTMLElement, editor: Editor) {
+  const seed = Math.floor(Math.random() * 100000);
+  const json = editor.engine.generate_quiz(seed);
+  const questions: QuizQuestion[] = JSON.parse(json);
+
+  if (questions.length === 0) {
+    modal.innerHTML = `<div style="padding:40px;text-align:center;"><p style="font-size:16px;color:#888;">No quiz questions could be generated.<br>Add more content to your design file.</p><button id="qz-back" style="margin-top:16px;${btnStyle("#6c5ce7")}">Back</button></div>`;
+    modal.querySelector("#qz-back")!.addEventListener("click", () => renderMenu(modal, editor));
+    return;
   }
 
-  function showReview() {
-    const content = document.getElementById("quiz-content")!;
-    const items = generateDesignReview(editor);
-    content.innerHTML = "";
-
-    const title = document.createElement("div");
-    title.style.cssText = "font-size:12px;font-weight:600;margin-bottom:12px;color:#89b4fa;";
-    const passed = items.filter(i => i.passed).length;
-    title.textContent = `Design Review: ${passed}/${items.length} passed`;
-    content.appendChild(title);
-
-    items.forEach(item => {
-      const row = document.createElement("div");
-      row.style.cssText = `padding:8px 10px;margin-bottom:6px;border-radius:6px;font-size:11px;background:${item.passed ? "#1a2a1a" : item.severity === "error" ? "#2a1a1a" : "#2a2a1a"};border:1px solid ${item.passed ? "#2d4a2d" : item.severity === "error" ? "#4a2d2d" : "#4a4a2d"};`;
-      row.innerHTML = `<span style="margin-right:6px;">${item.passed ? "✅" : item.severity === "error" ? "❌" : "⚠️"}</span>
-        <span style="color:#888;font-size:10px;">[${item.category}]</span> ${item.message}`;
-      content.appendChild(row);
-    });
-  }
-
-  function startQuiz() {
-    const questions = generateQuiz(editor);
-    if (questions.length === 0) {
-      const content = document.getElementById("quiz-content")!;
-      content.innerHTML = `<div style="color:#f38ba8;font-size:12px;padding:20px;">No quiz questions could be generated. Add some nodes to the scene first.</div>`;
-      return;
-    }
-    quizState = { questions, currentIndex: 0, answers: questions.map(() => null), finished: false };
-    renderQuestion();
-  }
+  let current = 0;
+  const answers: (number | null)[] = new Array(questions.length).fill(null);
 
   function renderQuestion() {
-    if (!quizState) return;
-    const content = document.getElementById("quiz-content")!;
-    content.innerHTML = "";
-
-    if (quizState.finished) {
-      renderResults();
-      return;
-    }
-
-    const q = quizState.questions[quizState.currentIndex];
-    const progress = document.createElement("div");
-    progress.style.cssText = "font-size:10px;color:#666;margin-bottom:8px;";
-    progress.textContent = `Question ${quizState.currentIndex + 1} of ${quizState.questions.length} • ${q.category}`;
-    content.appendChild(progress);
+    const q = questions[current];
+    modal.innerHTML = "";
 
     // Progress bar
-    const bar = document.createElement("div");
-    bar.style.cssText = "height:3px;background:#333;border-radius:2px;margin-bottom:16px;overflow:hidden;";
-    const fill = document.createElement("div");
-    fill.style.cssText = `height:100%;background:#89b4fa;border-radius:2px;width:${((quizState.currentIndex + 1) / quizState.questions.length) * 100}%;transition:width 0.3s;`;
-    bar.appendChild(fill);
-    content.appendChild(bar);
-
-    const qText = document.createElement("div");
-    qText.style.cssText = "font-size:13px;font-weight:500;margin-bottom:16px;line-height:1.5;";
-    qText.textContent = q.question;
-    content.appendChild(qText);
-
-    const userAnswer = quizState.answers[quizState.currentIndex];
-
-    q.options.forEach((opt, idx) => {
-      const optBtn = document.createElement("button");
-      optBtn.style.cssText = `display:block;width:100%;text-align:left;padding:10px 12px;margin-bottom:8px;border-radius:8px;font-size:12px;cursor:pointer;border:1px solid #444;background:${userAnswer === idx ? (idx === q.correctIndex ? "#1a3a1a" : "#3a1a1a") : "#1e1e2e"};color:#cdd6f4;transition:all 0.15s;`;
-      optBtn.textContent = `${String.fromCharCode(65 + idx)}. ${opt}`;
-
-      if (userAnswer === null) {
-        optBtn.onmouseenter = () => { optBtn.style.background = "#2a2a3e"; };
-        optBtn.onmouseleave = () => { optBtn.style.background = "#1e1e2e"; };
-        optBtn.onclick = () => {
-          quizState!.answers[quizState!.currentIndex] = idx;
-          renderQuestion(); // re-render to show feedback
-          setTimeout(() => {
-            if (quizState!.currentIndex < quizState!.questions.length - 1) {
-              quizState!.currentIndex++;
-              renderQuestion();
-            } else {
-              quizState!.finished = true;
-              renderQuestion();
-            }
-          }, 1200);
-        };
-      }
-      content.appendChild(optBtn);
-    });
-
-    // Show explanation if answered
-    if (userAnswer !== null) {
-      const expl = document.createElement("div");
-      expl.style.cssText = "margin-top:12px;padding:10px;background:#1e1e3e;border-radius:6px;font-size:11px;color:#a6adc8;border-left:3px solid #89b4fa;";
-      expl.textContent = q.explanation;
-      content.appendChild(expl);
-    }
-  }
-
-  function renderResults() {
-    if (!quizState) return;
-    const content = document.getElementById("quiz-content")!;
-    content.innerHTML = "";
-
-    const correct = quizState.answers.filter((a, i) => a === quizState!.questions[i].correctIndex).length;
-    const total = quizState.questions.length;
-    const pct = Math.round((correct / total) * 100);
-
-    const scoreDiv = document.createElement("div");
-    scoreDiv.style.cssText = "text-align:center;padding:20px 0;";
-    scoreDiv.innerHTML = `
-      <div style="font-size:36px;font-weight:700;color:${pct >= 70 ? "#a6e3a1" : pct >= 40 ? "#f9e2af" : "#f38ba8"};">${pct}%</div>
-      <div style="font-size:13px;color:#888;margin-top:4px;">${correct}/${total} correct</div>
-      <div style="font-size:11px;color:#666;margin-top:8px;">${pct >= 70 ? "Great job! 🎉" : pct >= 40 ? "Keep learning! 📚" : "Review the fundamentals 💪"}</div>
+    const progress = el("div", "padding:16px 24px 0;");
+    const pct = ((current + 1) / questions.length * 100).toFixed(0);
+    progress.innerHTML = `
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:#888;margin-bottom:6px;">
+        <span>Question ${current + 1} / ${questions.length}</span>
+        <span style="padding:2px 8px;border-radius:8px;background:${diffColor(q.difficulty)};color:#fff;font-size:10px;">${q.difficulty}</span>
+      </div>
+      <div style="height:4px;background:#333;border-radius:2px;overflow:hidden;">
+        <div style="height:100%;width:${pct}%;background:#6c5ce7;border-radius:2px;transition:width 0.3s;"></div>
+      </div>
+      <div style="margin-top:6px;font-size:10px;color:#666;text-transform:uppercase;letter-spacing:0.5px;">${q.category}</div>
     `;
-    content.appendChild(scoreDiv);
+    modal.appendChild(progress);
 
-    // Retry button
-    const retryBtn = document.createElement("button");
-    retryBtn.textContent = "🔄 Try Again";
-    retryBtn.style.cssText = btnStyle() + "display:block;margin:12px auto;";
-    retryBtn.onclick = () => startQuiz();
-    content.appendChild(retryBtn);
+    // Question
+    const qDiv = el("div", "padding:16px 24px;");
+    qDiv.innerHTML = `<div style="font-size:16px;font-weight:600;color:#fff;line-height:1.5;">${q.question}</div>`;
+    modal.appendChild(qDiv);
 
-    // Detail
-    quizState.questions.forEach((q, i) => {
-      const isCorrect = quizState!.answers[i] === q.correctIndex;
-      const row = document.createElement("div");
-      row.style.cssText = `padding:8px 10px;margin-bottom:6px;border-radius:6px;font-size:11px;background:${isCorrect ? "#1a2a1a" : "#2a1a1a"};border:1px solid ${isCorrect ? "#2d4a2d" : "#4a2d2d"};`;
-      row.innerHTML = `${isCorrect ? "✅" : "❌"} <strong>${q.question}</strong><br/>
-        <span style="color:#888;">${q.explanation}</span>`;
-      content.appendChild(row);
+    // Options
+    const optDiv = el("div", "padding:0 24px;display:flex;flex-direction:column;gap:8px;");
+    const answered = answers[current] !== null;
+    q.options.forEach((opt, i) => {
+      const btn = el("button", `width:100%;text-align:left;padding:12px 16px;border-radius:10px;font-size:14px;cursor:pointer;border:2px solid #333;background:#2a2a3e;color:#e0e0e0;transition:all 0.2s;`);
+      btn.textContent = opt;
+
+      if (answered) {
+        if (i === q.correct_index) {
+          btn.style.borderColor = "#00b894";
+          btn.style.background = "rgba(0,184,148,0.15)";
+        }
+        if (i === answers[current] && i !== q.correct_index) {
+          btn.style.borderColor = "#d63031";
+          btn.style.background = "rgba(214,48,49,0.15)";
+        }
+        btn.style.cursor = "default";
+      } else {
+        btn.onmouseenter = () => { btn.style.borderColor = "#6c5ce7"; };
+        btn.onmouseleave = () => { btn.style.borderColor = "#333"; };
+        btn.onclick = () => { answers[current] = i; renderQuestion(); };
+      }
+      optDiv.appendChild(btn);
     });
+    modal.appendChild(optDiv);
+
+    // Explanation
+    if (answered) {
+      const explDiv = el("div", "padding:12px 24px;");
+      const isCorrect = answers[current] === q.correct_index;
+      explDiv.innerHTML = `
+        <div style="padding:12px 16px;border-radius:10px;background:${isCorrect ? "rgba(0,184,148,0.1)" : "rgba(214,48,49,0.1)"};border:1px solid ${isCorrect ? "#00b894" : "#d63031"};">
+          <div style="font-weight:600;font-size:13px;color:${isCorrect ? "#00b894" : "#d63031"};margin-bottom:4px;">${isCorrect ? "✓ Correct!" : "✗ Incorrect"}</div>
+          <div style="font-size:12px;color:#aaa;">${q.explanation}</div>
+        </div>
+      `;
+      modal.appendChild(explDiv);
+    }
+
+    // Navigation
+    const nav = el("div", "padding:16px 24px 24px;display:flex;justify-content:space-between;gap:8px;");
+    if (current > 0) {
+      const prev = el("button", btnStyle("#555"));
+      prev.textContent = "← Previous";
+      prev.onclick = () => { current--; renderQuestion(); };
+      nav.appendChild(prev);
+    } else {
+      nav.appendChild(el("div", ""));
+    }
+
+    if (answered && current < questions.length - 1) {
+      const next = el("button", btnStyle("#6c5ce7"));
+      next.textContent = "Next →";
+      next.onclick = () => { current++; renderQuestion(); };
+      nav.appendChild(next);
+    } else if (answered && current === questions.length - 1) {
+      const finish = el("button", btnStyle("#00b894"));
+      finish.textContent = "See Results";
+      finish.onclick = () => showResults(modal, editor, questions, answers as number[]);
+      nav.appendChild(finish);
+    }
+    modal.appendChild(nav);
   }
 
-  function btnStyle() {
-    return "padding:8px 14px;font-size:11px;border:1px solid #444;border-radius:6px;background:#2a2a3e;color:#cdd6f4;cursor:pointer;font-weight:500;";
-  }
+  renderQuestion();
+}
 
-  render();
+function showResults(modal: HTMLElement, editor: Editor, questions: QuizQuestion[], answers: number[]) {
+  const correct = questions.filter((q, i) => answers[i] === q.correct_index).length;
+  const pct = Math.round(correct / questions.length * 100);
+
+  const byCategory: Record<string, [number, number]> = {};
+  questions.forEach((q, i) => {
+    if (!byCategory[q.category]) byCategory[q.category] = [0, 0];
+    byCategory[q.category][1]++;
+    if (answers[i] === q.correct_index) byCategory[q.category][0]++;
+  });
+
+  modal.innerHTML = "";
+  const pad = "padding:32px;text-align:center;";
+  const header = el("div", pad);
+  const emoji = pct >= 80 ? "🏆" : pct >= 60 ? "👍" : pct >= 40 ? "📚" : "💪";
+  const grade = pct >= 80 ? "Excellent!" : pct >= 60 ? "Good job!" : pct >= 40 ? "Keep learning!" : "Room to grow!";
+  header.innerHTML = `
+    <div style="font-size:48px;margin-bottom:8px;">${emoji}</div>
+    <h2 style="margin:0;font-size:22px;color:#fff;">${grade}</h2>
+    <div style="margin-top:12px;font-size:48px;font-weight:700;color:${pct >= 60 ? "#00b894" : "#fdcb6e"};">${pct}%</div>
+    <div style="font-size:14px;color:#888;margin-top:4px;">${correct} / ${questions.length} correct</div>
+  `;
+  modal.appendChild(header);
+
+  // Category breakdown
+  const catDiv = el("div", "padding:0 32px 16px;");
+  for (const [cat, [c, t]] of Object.entries(byCategory)) {
+    const row = el("div", "display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#2a2a3e;border-radius:8px;margin-bottom:6px;");
+    const catPct = Math.round(c / t * 100);
+    row.innerHTML = `
+      <span style="font-size:13px;color:#ccc;">${cat}</span>
+      <span style="font-size:12px;color:${catPct >= 60 ? "#00b894" : "#fdcb6e"};font-weight:600;">${c}/${t} (${catPct}%)</span>
+    `;
+    catDiv.appendChild(row);
+  }
+  modal.appendChild(catDiv);
+
+  const nav = el("div", "padding:16px 32px 32px;display:flex;gap:10px;justify-content:center;");
+  const retry = el("button", btnStyle("#6c5ce7"));
+  retry.textContent = "🔄 Retry";
+  retry.onclick = () => startQuiz(modal, editor);
+  nav.appendChild(retry);
+  const back = el("button", btnStyle("#555"));
+  back.textContent = "Back to Menu";
+  back.onclick = () => renderMenu(modal, editor);
+  nav.appendChild(back);
+  modal.appendChild(nav);
+}
+
+function showChecklist(modal: HTMLElement, editor: Editor) {
+  const json = editor.engine.generate_review_checklist();
+  const items: ChecklistItem[] = JSON.parse(json);
+
+  modal.innerHTML = "";
+  const header = el("div", "padding:24px 24px 12px;");
+  const passed = items.filter(i => i.passed).length;
+  header.innerHTML = `
+    <h2 style="margin:0;font-size:18px;color:#fff;">📋 Design Review Checklist</h2>
+    <p style="margin:6px 0 0;font-size:13px;color:#888;">${passed} / ${items.length} checks passed</p>
+    <div style="height:4px;background:#333;border-radius:2px;overflow:hidden;margin-top:10px;">
+      <div style="height:100%;width:${(passed / items.length * 100).toFixed(0)}%;background:${passed === items.length ? "#00b894" : "#fdcb6e"};border-radius:2px;"></div>
+    </div>
+  `;
+  modal.appendChild(header);
+
+  const body = el("div", "padding:0 24px 24px;");
+  let lastCat = "";
+  for (const item of items) {
+    if (item.category !== lastCat) {
+      lastCat = item.category;
+      const catLabel = el("div", "font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin:16px 0 6px;");
+      catLabel.textContent = item.category;
+      body.appendChild(catLabel);
+    }
+    const row = el("div", "display:flex;align-items:flex-start;gap:10px;padding:10px 12px;background:#2a2a3e;border-radius:8px;margin-bottom:6px;");
+    const icon = item.passed ? "✅" : "⚠️";
+    row.innerHTML = `
+      <span style="font-size:16px;flex-shrink:0;">${icon}</span>
+      <div>
+        <div style="font-size:13px;color:${item.passed ? "#ccc" : "#fdcb6e"};">${item.text}</div>
+        ${item.suggestion ? `<div style="font-size:11px;color:#888;margin-top:3px;">💡 ${item.suggestion}</div>` : ""}
+      </div>
+    `;
+    body.appendChild(row);
+  }
+  modal.appendChild(body);
+
+  const nav = el("div", "padding:0 24px 24px;text-align:center;");
+  const back = el("button", btnStyle("#555"));
+  back.textContent = "← Back";
+  back.onclick = () => renderMenu(modal, editor);
+  nav.appendChild(back);
+  modal.appendChild(nav);
+}
+
+// LLM Agent integration
+export function generateQuiz(editor: Editor): QuizQuestion[] {
+  const seed = Math.floor(Math.random() * 100000);
+  const json = editor.engine.generate_quiz(seed);
+  return JSON.parse(json);
+}
+
+export function formatQuizResult(correct: number, total: number): string {
+  return `Score: ${correct}/${total} (${Math.round(correct / total * 100)}%)`;
+}
+
+// Helpers
+function el(tag: string, css: string): HTMLElement {
+  const e = document.createElement(tag);
+  e.style.cssText = css;
+  return e;
+}
+
+function btnStyle(bg: string): string {
+  return `padding:10px 20px;border:none;border-radius:8px;background:${bg};color:#fff;font-size:13px;font-weight:600;cursor:pointer;`;
+}
+
+function diffColor(d: string): string {
+  return d === "Easy" ? "#00b894" : d === "Medium" ? "#fdcb6e" : "#d63031";
 }
