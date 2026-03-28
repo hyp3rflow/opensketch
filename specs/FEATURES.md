@@ -1429,3 +1429,13 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - Toolbar: moon icon button, keyboard shortcut Cmd+Shift+D
 - Undo integration (full snapshot before transform)
 - Color utility: `Color::to_hsl()`, `Color::from_hsl()`, `Color::to_dark_mode()` in types.rs
+
+### Component Variant Interaction (Prototype)
+- InteractionAction::SwapVariant — prototype viewer에서 hover/click 시 인스턴스 variant 전환
+- Interaction.variant_key_json 필드: 타겟 variant key (e.g. {"State":"Hover"})
+- Hover trigger: 마우스 진입 시 variant swap, 마우스 이탈 시 원래 variant 자동 복원
+- Click trigger: variant swap (복원 없음, 영구 전환)
+- Properties panel: Action 드롭다운에 "Swap Variant" 옵션, variant key JSON 입력
+- Prototype viewer: 보라색 핫스팟 힌트 (SwapVariant 인터랙션 표시)
+- WASM: set_interaction_variant_key(id, index, json) 바인딩
+- Backward-compatible serde (variant_key_json 기본값 빈 문자열)

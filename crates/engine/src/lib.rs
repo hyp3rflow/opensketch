@@ -2340,6 +2340,7 @@ impl Engine {
             "scroll-to" => InteractionAction::ScrollTo,
             "open-overlay" => InteractionAction::OpenOverlay,
             "close-overlay" => InteractionAction::CloseOverlay,
+            "swap-variant" => InteractionAction::SwapVariant,
             _ => InteractionAction::NavigateTo,
         };
         let trans = match transition {
@@ -2358,6 +2359,7 @@ impl Engine {
                 target_page_id,
                 transition: trans,
                 transition_duration_ms,
+                variant_key_json: String::new(),
             };
             node.interactions.push(interaction);
             (node.interactions.len() - 1) as i32
@@ -2383,6 +2385,17 @@ impl Engine {
         if let Some(node) = self.scene.get_node_mut(id) {
             node.interactions.clear();
         }
+    }
+
+    /// Set the variant_key_json on an existing interaction (for SwapVariant action)
+    pub fn set_interaction_variant_key(&mut self, id: u64, index: u32, variant_key_json: &str) -> bool {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let Some(inter) = node.interactions.get_mut(index as usize) {
+                inter.variant_key_json = variant_key_json.to_string();
+                return true;
+            }
+        }
+        false
     }
 
     /// Get interactions as JSON array

@@ -510,13 +510,16 @@ export function createPrototypeViewer(editor: Editor): {
       const w = node.width * totalScale;
       const h = node.height * totalScale;
 
-      // Color-code by trigger type: blue=click, green=gesture, orange=hover
+      // Color-code by trigger type: blue=click, green=gesture, orange=hover, purple=variant
       const triggers = (nwi.interactions as any[]).map((i: any) => i.trigger);
+      const actions = (nwi.interactions as any[]).map((i: any) => i.action);
+      const hasVariant = actions.includes("SwapVariant");
       const hasGesture = triggers.some((t: string) =>
         t.startsWith("OnSwipe") || t === "OnLongPress" || t.startsWith("OnPinch")
       );
       const hasHover = triggers.includes("OnHover");
-      ctx.strokeStyle = hasGesture ? "rgba(16, 185, 129, 0.6)" :
+      ctx.strokeStyle = hasVariant ? "rgba(168, 85, 247, 0.6)" :
+                         hasGesture ? "rgba(16, 185, 129, 0.6)" :
                          hasHover ? "rgba(245, 158, 11, 0.5)" :
                          "rgba(59, 130, 246, 0.5)";
       ctx.lineWidth = 2;
@@ -566,8 +569,11 @@ export function createPrototypeViewer(editor: Editor): {
     return null;
   }
 
+  // Track original variant keys for hover revert
+  const originalVariants = new Map<number, string>(); // nodeId → original variant_key_json
+
   /** Execute a matched interaction */
-  function executeInteraction(inter: any) {
+  function executeInteraction(inter: any, sourceNodeId?: number) {
     const targetId = Number(inter.target_node_id);
     if (inter.action === "NavigateTo" && targetId > 0) {
       const targetPageId = Number(inter.target_page_id);
@@ -575,6 +581,34 @@ export function createPrototypeViewer(editor: Editor): {
       navigateTo(targetId, inter.transition || "Instant", inter.transition_duration_ms || 300);
     } else if (inter.action === "Back") {
       navigateBack();
+    } else if (inter.action === "SwapVariant" && inter.variant_key_json) {
+      // Find the instance node: use target_node_id if set, otherwise the source node itself
+      const instanceId = targetId > 0 ? targetId : (sourceNodeId || 0);
+      if (instanceId > 0) {
+        try {
+          // Save original variant for revert (hover triggers)
+          if (inter.trigger === "OnHover" && !originalVariants.has(instanceId)) {
+            const info = JSON.parse(editor.engine.get_instance_component_info(BigInt(instanceId)));
+            if (info.current_variant_values) {
+              originalVariants.set(instanceId, JSON.stringify(info.current_variant_values));
+            }
+          }
+          editor.engine.set_instance_variant(BigInt(instanceId), inter.variant_key_json);
+          renderCurrentFrame();
+        } catch {}
+      }
+    }
+  }
+
+  /** Revert hover-triggered variant swaps when mouse leaves */
+  function revertHoverVariants(nodeId: number) {
+    const orig = originalVariants.get(nodeId);
+    if (orig) {
+      try {
+        editor.engine.set_instance_variant(BigInt(nodeId), orig);
+        renderCurrentFrame();
+      } catch {}
+      originalVariants.delete(nodeId);
     }
   }
 
@@ -611,9 +645,14 @@ export function createPrototypeViewer(editor: Editor): {
     if (nodeId !== lastHoveredNodeId) {
       if (lastHoveredNodeId !== null) {
         eventRuntime.handleHoverLeave(lastHoveredNodeId);
+        // Revert any hover-triggered variant swaps on the old node (walk up ancestors too)
+        revertHoverVariants(lastHoveredNodeId);
       }
       if (nodeId !== null) {
         eventRuntime.handleHoverEnter(nodeId, e.clientX, e.clientY);
+        // Check for OnHover interactions (including SwapVariant)
+        const hoverMatch = findInteractionAtPoint(e.clientX, e.clientY, "OnHover");
+        if (hoverMatch) executeInteraction(hoverMatch.interaction, nodeId);
       }
       lastHoveredNodeId = nodeId;
     }
@@ -676,7 +715,7 @@ export function createPrototypeViewer(editor: Editor): {
     }
     // Then handle interaction navigation
     const match = findInteractionAtPoint(e.clientX, e.clientY, "OnClick");
-    if (match) executeInteraction(match.interaction);
+    if (match) executeInteraction(match.interaction, Number(match.node?.node_id || 0));
   }
 
   // ─── Touch / Gesture handling ───────────────────────

@@ -2285,11 +2285,14 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         trigSelect.addEventListener("change", () => {
           ensureUndo();
           editor.engine.remove_interaction(id, idx);
-          editor.engine.add_interaction(
+          const newIdx = editor.engine.add_interaction(
             id, trigSelect.value, actSelect.value,
             BigInt(inter.target_node_id || 0), BigInt(inter.target_page_id || 0),
             transSelect.value, parseInt(durInput.value) || 300
           );
+          if (newIdx >= 0 && inter.variant_key_json) {
+            editor.engine.set_interaction_variant_key(id, newIdx, inter.variant_key_json);
+          }
           editor.requestRender();
           refresh(ids);
         });
@@ -2306,11 +2309,11 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         const actSelect = document.createElement("select");
         actSelect.className = "prop-input";
         actSelect.style.flex = "1";
-        for (const a of ["navigate-to", "back", "scroll-to", "open-overlay", "close-overlay"]) {
+        for (const a of ["navigate-to", "back", "scroll-to", "open-overlay", "close-overlay", "swap-variant"]) {
           const opt = document.createElement("option");
           opt.value = a;
           opt.textContent = a.split("-").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
-          const actMap: Record<string, string> = { NavigateTo: "navigate-to", Back: "back", ScrollTo: "scroll-to", OpenOverlay: "open-overlay", CloseOverlay: "close-overlay" };
+          const actMap: Record<string, string> = { NavigateTo: "navigate-to", Back: "back", ScrollTo: "scroll-to", OpenOverlay: "open-overlay", CloseOverlay: "close-overlay", SwapVariant: "swap-variant" };
           if ((actMap[inter.action] || "navigate-to") === a) opt.selected = true;
           actSelect.appendChild(opt);
         }
@@ -2333,16 +2336,45 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         targetInput.addEventListener("change", () => {
           ensureUndo();
           editor.engine.remove_interaction(id, idx);
-          editor.engine.add_interaction(
+          const newIdx = editor.engine.add_interaction(
             id, trigSelect.value, actSelect.value,
             BigInt(parseInt(targetInput.value) || 0), BigInt(inter.target_page_id || 0),
             transSelect.value, parseInt(durInput.value) || 300
           );
+          if (newIdx >= 0 && variantInput.value) {
+            editor.engine.set_interaction_variant_key(id, newIdx, variantInput.value);
+          }
           editor.requestRender();
           refresh(ids);
         });
         targetRow.appendChild(targetInput);
         interEl.appendChild(targetRow);
+
+        // Variant key JSON input (shown when action is SwapVariant)
+        const variantRow = document.createElement("div");
+        variantRow.style.cssText = "display:flex;gap:4px;margin-bottom:4px;align-items:center;";
+        variantRow.style.display = inter.action === "SwapVariant" ? "flex" : "none";
+        const variantLbl = document.createElement("span");
+        variantLbl.style.cssText = "font-size:10px;color:#666;width:50px;flex-shrink:0;";
+        variantLbl.textContent = "Variant";
+        variantRow.appendChild(variantLbl);
+        const variantInput = document.createElement("input");
+        variantInput.className = "prop-input";
+        variantInput.style.flex = "1";
+        variantInput.placeholder = '{"State":"Hover"}';
+        variantInput.value = inter.variant_key_json || "";
+        variantInput.addEventListener("change", () => {
+          ensureUndo();
+          editor.engine.set_interaction_variant_key(id, idx, variantInput.value);
+          editor.requestRender();
+        });
+        variantRow.appendChild(variantInput);
+        interEl.appendChild(variantRow);
+
+        // Show/hide variant row based on action
+        actSelect.addEventListener("change", () => {
+          variantRow.style.display = actSelect.value === "swap-variant" ? "flex" : "none";
+        });
 
         // Transition select
         const transRow = document.createElement("div");
