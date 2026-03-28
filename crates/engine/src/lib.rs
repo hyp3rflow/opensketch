@@ -36,6 +36,7 @@ pub mod whiteboard;
 mod email_export;
 pub mod snapshot_test;
 mod design_quiz;
+pub mod migration_assistant;
 
 use wasm_bindgen::prelude::*;
 use web_sys::CanvasRenderingContext2d;
@@ -5209,6 +5210,60 @@ impl Engine {
         removed
     }
 
+    // =============================================
+    // Migration Assistant
+    // =============================================
+
+    /// Scan scene for hardcoded styles and suggest migrations to shared styles
+    pub fn scan_migration_suggestions(&self) -> String {
+        let suggestions = migration_assistant::scan_for_migration_suggestions(&self.scene, &self.styles);
+        serde_json::to_string(&suggestions).unwrap_or_else(|_| "[]".to_string())
+    }
+
+    /// Apply a migration suggestion: link node to existing style
+    pub fn apply_migration_suggestion(&mut self, node_id: u64, style_id: u64, property: &str) -> bool {
+        let prop = match property {
+            "Fill" => migration_assistant::MigrationProperty::Fill,
+            "Stroke" => migration_assistant::MigrationProperty::Stroke,
+            "TextStyle" => migration_assistant::MigrationProperty::TextStyle,
+            _ => return false,
+        };
+        self.push_undo();
+        migration_assistant::apply_migration(&mut self.scene, &self.styles, node_id, style_id, &prop)
+    }
+
+    /// Create a new color style from suggestion and apply to node
+    pub fn migration_create_and_apply_color(&mut self, node_id: u64, name: &str, r: u8, g: u8, b: u8, a: f64) -> u64 {
+        self.push_undo();
+        let style_id = self.styles.add_color_style(name.to_string(), r, g, b, a);
+        if let Some(node) = self.scene.get_node_mut(node_id) {
+            node.color_style_id = Some(style_id);
+        }
+        style_id
+    }
+
+    /// Create a new text style from suggestion and apply to node
+    pub fn migration_create_and_apply_text(&mut self, node_id: u64, name: &str) -> u64 {
+        self.push_undo();
+        // Extract current text props from node
+        if let Some(node) = self.scene.get_node(node_id) {
+            if let NodeKind::Text { ref font_family, font_size, font_weight, ref font_style, line_height, ref text_align, .. } = node.kind {
+                let fill_color = node.fills.first().map(|f| f.color()).unwrap_or(crate::types::Color::black());
+                let style_id = self.styles.add_text_style(
+                    name.to_string(), font_family.clone(), font_size, font_weight,
+                    font_style.clone(), line_height, text_align.clone(),
+                    fill_color.r, fill_color.g, fill_color.b, fill_color.a,
+                );
+                // Need mutable access now
+                if let Some(node_mut) = self.scene.get_node_mut(node_id) {
+                    node_mut.text_style_id = Some(style_id);
+                }
+                return style_id;
+            }
+        }
+        0
+    }
+
     pub fn run_design_lint(&self) -> String {
         let config = design_lint::LintConfig::default();
         let issues = design_lint::run_lint(self.scene.nodes_map(), &config);
@@ -7211,4 +7266,5 @@ impl Engine {
         let items = design_quiz::generate_review_checklist(&self.scene, &self.components, &self.styles);
         serde_json::to_string(&items).unwrap_or_else(|_| "[]".into())
     }
+
 }

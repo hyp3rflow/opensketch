@@ -1354,6 +1354,23 @@ Design review checklist auto-generation + interactive quiz mode for design knowl
 - [x] **UI**: `ui/design-review.ts` — pure TS checklist generation, `ui/quiz-panel.ts` — quiz UI with progress, scoring, explanations
 - [x] **Integration**: Right pane "Quiz" tab, LLM agent tools for programmatic access
 
+## Design System Migration Assistant
+Scan scene for hardcoded styles and suggest migrations to shared StyleStore styles.
+
+### Features
+- [x] **Scene scanning**: Analyze all nodes for hardcoded fill colors, stroke colors, and text styles not linked to shared styles
+- [x] **Style matching**: Match hardcoded values against existing ColorStyle and TextStyle entries in StyleStore
+- [x] **New style suggestions**: Detect repeated unmatched styles (2+ occurrences) and suggest creating new shared styles
+- [x] **One-click apply**: Apply matched style to node (links color_style_id / text_style_id)
+- [x] **Create & apply**: Create new shared style from suggestion and apply to all matching nodes
+- [x] **Batch apply**: "Apply All Matched" button for bulk migration
+
+### Architecture
+- [x] **Rust**: `migration_assistant.rs` — `MigrationSuggestion`, `MigrationProperty` (Fill/Stroke/TextStyle), `scan_for_migration_suggestions()`, `apply_migration()`
+- [x] **WASM**: `scan_migration_suggestions()` → JSON, `apply_migration_suggestion(node_id, style_id, property)`, `migration_create_and_apply_color()`, `migration_create_and_apply_text()`
+- [x] **UI**: Right pane "Migration" tab — scan button, grouped results (matched existing / suggested new), per-item apply buttons
+- [x] **Undo integration**: All apply operations push undo state
+
 ## Smart Grid Distribute
 - [x] **Grid detection**: Clusters selected nodes by Y-proximity into rows, X-sort into columns
 - [x] **2D distribution**: Uniform row gap + column gap, center-aligned within cells

@@ -1347,6 +1347,18 @@
   - Context menu: "Grid Distribute" (4+ 노드 선택 시)
   - 단축키: Cmd/Ctrl+Alt+G
 
+## 완료된 기능 (추가 — Design System Migration Assistant)
+- Design system migration assistant:
+  - Rust migration_assistant.rs: MigrationSuggestion, MigrationProperty (Fill/Stroke/TextStyle)
+  - scan_for_migration_suggestions(): 씬 전체 노드의 하드코딩된 fill/stroke/text 스타일 스캔
+  - 기존 StyleStore의 color/text styles와 자동 매칭 (RGBA 일치)
+  - 반복 사용(2+) 미매칭 스타일 → 새 스타일 후보 제안
+  - apply_migration(): 노드에 기존 스타일 링크 (color_style_id/text_style_id)
+  - WASM: scan_migration_suggestions(), apply_migration_suggestion(), migration_create_and_apply_color/text()
+  - UI: Right pane "Migration" 탭 — Scan 버튼, 매칭/신규 스타일 그룹별 결과, Apply/Create&Apply 버튼
+  - Apply All Matched 일괄 적용, Undo 통합
+  - specs/FEATURES.md 업데이트
+
 ## 다음 할 것
 - Content-aware image cropping — 이미지 노드에서 subject detection 기반 스마트 크롭 영역 추천, focal point 설정
 - Multi-player follow mode — "Follow" 버튼으로 특정 유저의 뷰포트(zoom+pan) 실시간 추적, Cmd+클릭으로 follow/unfollow 토글

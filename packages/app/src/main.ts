@@ -24,6 +24,7 @@ import { setupVariablesPanel } from "./ui/variables-panel";
 import { setupAssetPanel } from "./ui/asset-panel";
 import { setupBookmarksPanel } from "./ui/bookmarks-panel";
 import { setupAccessibilityPanel } from "./ui/accessibility-panel";
+import { createMigrationPanel } from "./ui/migration-panel";
 import { initComponentLibrary, renderComponentLibraryPanel } from "./ui/component-library";
 import { PluginManager, loremIpsumPlugin, colorPalettePlugin } from "./plugins";
 import { setupPluginPanel } from "./ui/plugin-panel";
@@ -160,6 +161,11 @@ async function main() {
   setupBookmarksPanel(document.getElementById("bookmarks-panel")!, editor);
   setupAccessibilityPanel(document.getElementById("accessibility-panel")!, editor);
 
+  // Migration assistant panel
+  const migrationContainer = document.getElementById("migration-panel")!;
+  const migrationPanel = createMigrationPanel((editor as any).engine, editor);
+  migrationContainer.appendChild(migrationPanel.container);
+
   // Permissions panel — init default owner user
   (editor as any).engine.perm_add_user("local", "Local User", "owner");
   const permPanel = document.getElementById("permissions-panel")!;
@@ -270,7 +276,7 @@ async function main() {
     tab.addEventListener("click", () => {
       const target = (tab as HTMLElement).dataset.tab!;
       rightPaneTabs.forEach((t) => t.classList.toggle("active", (t as HTMLElement).dataset.tab === target));
-      const tabContentMap: Record<string, string> = { agent: "agent-panel", properties: "properties-panel", history: "history-panel", handoff: "handoff-panel", comments: "comments-panel", variables: "variables-panel", assets: "assets-panel", bookmarks: "bookmarks-panel", accessibility: "accessibility-panel", plugins: "plugins-panel", palette: "palette-panel", docs: "docs-panel", permissions: "permissions-panel", quiz: "quiz-panel" };
+      const tabContentMap: Record<string, string> = { agent: "agent-panel", properties: "properties-panel", history: "history-panel", handoff: "handoff-panel", comments: "comments-panel", variables: "variables-panel", assets: "assets-panel", bookmarks: "bookmarks-panel", accessibility: "accessibility-panel", plugins: "plugins-panel", palette: "palette-panel", docs: "docs-panel", permissions: "permissions-panel", quiz: "quiz-panel", migration: "migration-panel" };
       rightPaneContents.forEach((c) => c.classList.toggle("active", c.id === tabContentMap[target]));
       if (target === "agent") {
         agentPanel.querySelector<HTMLInputElement>(".agent-input")?.focus();
