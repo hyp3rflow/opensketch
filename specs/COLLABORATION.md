@@ -99,6 +99,13 @@
 3. Remote ops arrive → `apply_remote_operations()` → merge with LWW/tombstone → scene updated
 4. MergeResult tells caller which ops were applied vs rejected
 
+## Cursor Chat Improvements
+- **Emoji quick reactions**: 8 quick-pick emojis (👍❤️😂🎉🔥👀✅❌) in input bar, rendered as floating emojis on canvas
+- **@mention autocomplete**: Type `@` to see presence users dropdown, arrow keys + Tab/Enter to complete
+- **Chat history panel**: Toolbar button toggles right-bottom panel with timestamped message log, @mention highlighting
+- **Implementation**: `ui/cursor-chat.ts` (CursorChat class), integrated into `editor.ts`
+- **Reactions**: Float upward and fade out over 2.5s, rendered in canvas overlay
+
 ## Integration Points
 - `editor.ts`: CursorPresence renders remote cursors on canvas
 - `main.ts`: Wires collab callbacks to engine import/export

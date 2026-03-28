@@ -10,6 +10,7 @@ import { showContextMenu, hideContextMenu, type MenuItem } from "./ui/context-me
 import { openResponsivePreview, isResponsivePreviewOpen, closeResponsivePreview } from "./ui/responsive-preview";
 import { openResponsiveTokensPanel, closeResponsiveTokensPanel, isResponsiveTokensPanelOpen } from "./ui/responsive-tokens";
 import { CursorPresence } from "./ui/cursor-presence";
+import { CursorChat } from "./ui/cursor-chat";
 import { openComponentSwapModal } from "./ui/component-swap";
 import { openSmartReplace, closeSmartReplace, isSmartReplaceOpen } from "./ui/smart-replace";
 import { renderStamps as renderStampsOverlay, hitTestStamp, isStampModeActive, getActiveStampKind, setActiveStampKind, toggleStampPalette, closeStampPalette } from "./ui/stamp-tool";
@@ -157,6 +158,8 @@ export class Editor {
   private _chatInputActive = false;
   private _chatInputEl: HTMLInputElement | null = null;
   private _chatInputContainer: HTMLDivElement | null = null;
+  private _chatInputCleanup: (() => void) | null = null;
+  private _cursorChat = new CursorChat();
   private _lastPointerScreenX = 0;
   private _lastPointerScreenY = 0;
 
@@ -181,6 +184,23 @@ export class Editor {
     this._diffOverlay = setupDiffOverlay(this);
     this._devModeOverlay = new DevModeOverlay(this);
     this.whiteboardMode = new WhiteboardMode(this);
+    this._cursorChat.init({
+      onSend: (text, x, y, isReaction) => {
+        if (isReaction) {
+          this._cursorPresence.setLocalChat(text, x, y);
+          this._collabClient?.sendChat(text, x, y);
+        } else {
+          this._cursorPresence.setLocalChat(text, x, y);
+          this._collabClient?.sendChat(text, x, y);
+        }
+        this.needsRender = true;
+      },
+      getUsers: () => {
+        return this._cursorPresence.getCursors().map(c => ({
+          id: c.id, name: c.name, color: c.color,
+        }));
+      },
+    });
     this.startLoop();
   }
 
@@ -3556,8 +3576,10 @@ export class Editor {
     const panX = this.engine.get_pan_x();
     const panY = this.engine.get_pan_y();
     this._cursorPresence.render(this.ctx, zoom, panX, panY);
-    // Re-render if cursors are animating (fade-out)
-    if (this._cursorPresence.getCursors().length > 0) {
+    // Render floating emoji reactions
+    this._cursorChat.renderReactions(this.ctx, zoom, panX, panY);
+    // Re-render if cursors are animating (fade-out) or reactions active
+    if (this._cursorPresence.getCursors().length > 0 || this._cursorChat.getActiveReactions().length > 0) {
       this.needsRender = true;
     }
   }
@@ -3641,33 +3663,6 @@ export class Editor {
     const sx = this._lastPointerScreenX;
     const sy = this._lastPointerScreenY;
 
-    // Create container
-    const container = document.createElement('div');
-    container.style.cssText = `
-      position: absolute; left: ${sx + 16}px; top: ${sy + 20}px; z-index: 9999;
-      display: flex; align-items: center; gap: 4px;
-      background: #fff; border-radius: 8px; padding: 4px 8px;
-      box-shadow: 0 2px 12px rgba(0,0,0,0.15); border: 2px solid #4ecdc4;
-      min-width: 120px;
-    `;
-
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.placeholder = 'Say something…';
-    input.style.cssText = `
-      border: none; outline: none; font-size: 12px; background: transparent;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      width: 160px; color: #1a1a1a;
-    `;
-
-    container.appendChild(input);
-    this.canvas.parentElement!.appendChild(container);
-    input.focus();
-
-    this._chatInputEl = input;
-    this._chatInputContainer = container;
-
-    // Notify typing
     const zoom = this.engine.get_zoom();
     const panX = this.engine.get_pan_x();
     const panY = this.engine.get_pan_y();
@@ -3678,62 +3673,48 @@ export class Editor {
     this._collabClient?.sendTyping(true);
     this.needsRender = true;
 
-    let typingTimeout: ReturnType<typeof setTimeout> | null = null;
-
-    input.addEventListener('input', () => {
-      // Re-broadcast typing on input
-      if (typingTimeout) clearTimeout(typingTimeout);
-      this._collabClient?.sendTyping(true);
-      typingTimeout = setTimeout(() => {
-        this._collabClient?.sendTyping(false);
-      }, 2000);
-    });
-
-    input.addEventListener('keydown', (e) => {
-      e.stopPropagation(); // prevent editor shortcuts
-      if (e.key === 'Enter' && input.value.trim()) {
-        const text = input.value.trim();
-        // Show locally
-        this._cursorPresence.setLocalChat(text, worldX, worldY);
-        this._cursorPresence.setLocalTyping(false, worldX, worldY);
-        // Broadcast
-        this._collabClient?.sendChat(text, worldX, worldY);
-        this._collabClient?.sendTyping(false);
-        this.closeCursorChat();
-        this.needsRender = true;
-      } else if (e.key === 'Escape') {
+    const { container, cleanup } = this._cursorChat.createEnhancedInput({
+      screenX: sx,
+      screenY: sy,
+      worldX,
+      worldY,
+      onClose: () => {
         this._cursorPresence.setLocalTyping(false, worldX, worldY);
         this._collabClient?.sendTyping(false);
         this.closeCursorChat();
         this.needsRender = true;
-      }
+      },
+      onTyping: (isTyping) => {
+        this._cursorPresence.setLocalTyping(isTyping, worldX, worldY);
+        this._collabClient?.sendTyping(isTyping);
+      },
     });
 
-    input.addEventListener('blur', () => {
-      // Close on blur (clicking elsewhere)
-      setTimeout(() => {
-        if (this._chatInputActive) {
-          this._cursorPresence.setLocalTyping(false, worldX, worldY);
-          this._collabClient?.sendTyping(false);
-          this.closeCursorChat();
-          this.needsRender = true;
-        }
-      }, 100);
-    });
+    this.canvas.parentElement!.appendChild(container);
+    this._chatInputContainer = container as HTMLDivElement;
+    this._chatInputCleanup = cleanup;
   }
 
   private closeCursorChat() {
-    if (this._chatInputContainer) {
-      this._chatInputContainer.remove();
-      this._chatInputContainer = null;
-    }
+    this._chatInputCleanup?.();
+    this._chatInputCleanup = null;
+    this._chatInputContainer = null;
     this._chatInputEl = null;
     this._chatInputActive = false;
   }
 
+  /** Toggle chat history panel */
+  toggleChatHistory() {
+    this._cursorChat.toggleHistoryPanel(this.canvas.parentElement!);
+  }
+
+  /** Get the CursorChat instance */
+  get cursorChat() { return this._cursorChat; }
+
   /** Handle incoming chat message from collab */
   handleRemoteChat(userId: string, userName: string, text: string, x: number, y: number) {
     this._cursorPresence.setChatBubble(userId, userName, text, x, y);
+    this._cursorChat.addMessage({ userId, userName, text, timestamp: Date.now(), x, y });
     this.needsRender = true;
   }
 
