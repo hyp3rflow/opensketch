@@ -55,6 +55,7 @@ const DEFAULTS: ShortcutDef[] = [
   { id: "edit.backspace",  category: "Edit", description: "Delete (Backspace)", defaultBinding: { key: "Backspace" } },
   { id: "edit.selectAll",  category: "Edit", description: "Select all",    defaultBinding: { key: "a", meta: true } },
   { id: "edit.flatten",    category: "Edit", description: "Flatten to path", defaultBinding: { key: "e", meta: true } },
+  { id: "edit.darkMode",   category: "Edit", description: "Auto dark mode",  defaultBinding: { key: "d", meta: true, shift: true } },
 
   // View
   { id: "view.zoom100",      category: "View", description: "Zoom to 100%",     defaultBinding: { key: "0", meta: true } },

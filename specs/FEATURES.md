@@ -1417,3 +1417,14 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - Properties panel: "▶ Playground" button on Instance/Component nodes
 - Keyboard shortcut: Cmd+Shift+G to open, Escape to close
 - Scene save/restore for non-destructive temporary instance creation
+
+### Auto Dark Mode
+- Automatic light → dark theme conversion for all node colors
+- HSL-based lightness inversion with saturation boost for dark backgrounds
+- Converts: solid fills, gradient stops, noise/dot/crosshatch/mesh fills, strokes, shadows
+- Shadow blur auto-increased (+20%) and opacity boosted for dark background visibility
+- Scope: all nodes or selection only (with descendants)
+- WASM: `auto_dark_mode_all()`, `auto_dark_mode_selection()`
+- Toolbar: moon icon button, keyboard shortcut Cmd+Shift+D
+- Undo integration (full snapshot before transform)
+- Color utility: `Color::to_hsl()`, `Color::from_hsl()`, `Color::to_dark_mode()` in types.rs

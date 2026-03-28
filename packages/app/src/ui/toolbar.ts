@@ -216,6 +216,23 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
   };
   editor.onSelection(updateBoolState);
 
+  // Auto Dark Mode button
+  const darkModeSep = document.createElement("div");
+  darkModeSep.className = "tool-btn-separator";
+  container.appendChild(darkModeSep);
+
+  const darkModeBtn = document.createElement("button");
+  darkModeBtn.className = "tool-btn";
+  darkModeBtn.title = "Auto Dark Mode (⌘⇧D)";
+  darkModeBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`;
+  darkModeBtn.addEventListener("click", () => {
+    const count = editor.autoDarkModeSelection();
+    if (count > 0) {
+      console.log(`Auto dark mode: ${count} nodes converted`);
+    }
+  });
+  container.appendChild(darkModeBtn);
+
   // SVG export button
   const sepSvg = document.createElement("div");
   sepSvg.className = "tool-btn-separator";

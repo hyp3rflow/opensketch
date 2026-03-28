@@ -406,6 +406,12 @@ export class Editor {
         this.flattenSelection();
         return;
       }
+      // Auto dark mode
+      if (_sm.matches(e, "edit.darkMode")) {
+        e.preventDefault();
+        this.autoDarkModeSelection();
+        return;
+      }
       // Bookmark toggle: Cmd+Shift+B
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "b" || e.key === "B")) {
         e.preventDefault();
@@ -4343,6 +4349,29 @@ export class Editor {
       (this as any).onLayersChanges?.forEach?.((fn: any) => fn());
       this.requestRender();
     }
+  }
+
+  // =============================================
+  // Auto Dark Mode
+  // =============================================
+  autoDarkModeAll() {
+    const count = this.engine.auto_dark_mode_all();
+    if (count > 0) {
+      (this as any).onLayersChanges?.forEach?.((fn: any) => fn());
+      this.requestRender();
+    }
+    return Number(count);
+  }
+
+  autoDarkModeSelection() {
+    const sel = Array.from(this.engine.get_selection()).map(Number);
+    if (sel.length === 0) return this.autoDarkModeAll();
+    const count = this.engine.auto_dark_mode_selection();
+    if (count > 0) {
+      (this as any).onLayersChanges?.forEach?.((fn: any) => fn());
+      this.requestRender();
+    }
+    return Number(count);
   }
 
   // =============================================

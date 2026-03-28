@@ -7377,4 +7377,19 @@ impl Engine {
         self.scene.get_stamp_count() as u32
     }
 
+    // ── Auto Dark Mode ─────────────────────────────────────────
+    /// Convert all nodes in the scene to dark mode colors.
+    /// Returns the number of nodes affected.
+    pub fn auto_dark_mode_all(&mut self) -> u32 {
+        self.push_undo();
+        self.scene.auto_dark_mode()
+    }
+
+    /// Convert selected nodes (and their descendants) to dark mode colors.
+    /// Returns the number of nodes affected.
+    pub fn auto_dark_mode_selection(&mut self) -> u32 {
+        self.push_undo();
+        self.scene.auto_dark_mode_selection()
+    }
+
 }

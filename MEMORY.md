@@ -1371,9 +1371,20 @@
   - icons.ts에 playground 아이콘 추가
   - 기존 create_playground_instance 빌드 오류 수정 (Node::new signature)
 
+## 완료된 기능 (추가 — Auto Dark Mode)
+- Auto dark mode:
+  - HSL 기반 lightness 반전 (Color::to_dark_mode): L → 1-L, 채도 10% 부스트, 0.06~0.94 클램프
+  - Color::to_hsl(), Color::from_hsl() 유틸리티 (types.rs)
+  - Scene::auto_dark_mode() — 전체 노드 변환, auto_dark_mode_selection() — 선택 + descendants
+  - 지원 fill 타입: Solid, LinearGradient, RadialGradient, NoiseFill, DotPattern, CrosshatchFill, GradientMesh
+  - Stroke 색상 변환, Shadow 색상 + blur 1.2x + opacity 1.3x 부스트
+  - WASM: auto_dark_mode_all(), auto_dark_mode_selection()
+  - Editor: autoDarkModeAll(), autoDarkModeSelection()
+  - 툴바: 달 아이콘 버튼, 단축키 Cmd+Shift+D
+  - Undo 통합 (push_undo before transform)
+
 ## 다음 할 것
-- Spatial audio for collaboration
-- Cursor chat improvements
-- Auto dark mode — 라이트 테마 디자인을 다크 테마로 자동 변환: 배경/텍스트 색상 반전, 채도/명도 조정, 그림자 강화
+- Spatial audio for collaboration — 멀티플레이어 캔버스에서 거리 기반 음성/효과음, 가까운 유저일수록 소리 크게
+- Cursor chat improvements — 커서 채팅에 이모지 리액션, @멘션, 메시지 히스토리 패널
 - Component variant interaction — variant 간 hover/click 상태 전환 프로토타이핑: 컴포넌트 내 트리거 설정으로 variant swap 애니메이션
 - Design handoff checklist — 개발자 인수인계 체크리스트 자동 생성: 미완성 에셋/스타일/토큰 감지, 진행률 트래킹, 팀 공유

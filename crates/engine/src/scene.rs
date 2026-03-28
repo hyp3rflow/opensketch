@@ -2678,4 +2678,134 @@ impl Scene {
     pub fn get_stamp_count(&self) -> usize {
         self.stamps.len()
     }
+
+    // ── Auto Dark Mode ───────────────────────────────────────────────
+    /// Convert all nodes in the scene to dark mode theme.
+    /// Inverts lightness of fills, strokes, shadows, and text colors.
+    /// Returns the number of nodes affected.
+    pub fn auto_dark_mode(&mut self) -> u32 {
+        use crate::node::FillType;
+        let ids: Vec<NodeId> = self.nodes.keys().cloned().collect();
+        let mut count = 0u32;
+        for id in ids {
+            if let Some(node) = self.nodes.get_mut(&id) {
+                let mut changed = false;
+                // Convert fills
+                for fill in node.fills.iter_mut() {
+                    if !fill.visible { continue; }
+                    match &mut fill.fill_type {
+                        FillType::Solid { color } => {
+                            *color = color.to_dark_mode();
+                            changed = true;
+                        }
+                        FillType::LinearGradient { stops, .. } |
+                        FillType::RadialGradient { stops, .. } => {
+                            for stop in stops.iter_mut() {
+                                stop.color = stop.color.to_dark_mode();
+                            }
+                            changed = true;
+                        }
+                        FillType::NoiseFill { color1, color2, .. } => {
+                            *color1 = color1.to_dark_mode();
+                            *color2 = color2.to_dark_mode();
+                            changed = true;
+                        }
+                        FillType::DotPattern { color, bg_color, .. } => {
+                            *color = color.to_dark_mode();
+                            *bg_color = bg_color.to_dark_mode();
+                            changed = true;
+                        }
+                        FillType::CrosshatchFill { color, bg_color, .. } => {
+                            *color = color.to_dark_mode();
+                            *bg_color = bg_color.to_dark_mode();
+                            changed = true;
+                        }
+                        FillType::GradientMesh { mesh } => {
+                            for pt in mesh.points.iter_mut() {
+                                pt.color = pt.color.to_dark_mode();
+                            }
+                            changed = true;
+                        }
+                        _ => {} // Pattern/Image fills left as-is
+                    }
+                }
+                // Convert strokes
+                for stroke in node.strokes.iter_mut() {
+                    if stroke.visible {
+                        stroke.color = stroke.color.to_dark_mode();
+                        changed = true;
+                    }
+                }
+                // Convert shadows — also boost blur slightly for dark mode
+                for shadow in node.shadows.iter_mut() {
+                    if shadow.visible {
+                        shadow.color = shadow.color.to_dark_mode();
+                        // Increase shadow opacity for visibility on dark bg
+                        shadow.color.a = (shadow.color.a * 1.3).min(1.0);
+                        shadow.blur *= 1.2;
+                        changed = true;
+                    }
+                }
+                if changed { count += 1; }
+            }
+        }
+        count
+    }
+
+    /// Convert selected nodes to dark mode theme.
+    /// Returns the number of nodes affected.
+    pub fn auto_dark_mode_selection(&mut self) -> u32 {
+        use crate::node::FillType;
+        let ids = self.selection.clone();
+        let mut all_ids = Vec::new();
+        for &id in &ids {
+            for child_id in self.collect_subtree_ids(id) {
+                all_ids.push(child_id);
+            }
+        }
+        let mut count = 0u32;
+        for id in all_ids {
+            if let Some(node) = self.nodes.get_mut(&id) {
+                let mut changed = false;
+                for fill in node.fills.iter_mut() {
+                    if !fill.visible { continue; }
+                    match &mut fill.fill_type {
+                        FillType::Solid { color } => { *color = color.to_dark_mode(); changed = true; }
+                        FillType::LinearGradient { stops, .. } |
+                        FillType::RadialGradient { stops, .. } => {
+                            for stop in stops.iter_mut() { stop.color = stop.color.to_dark_mode(); }
+                            changed = true;
+                        }
+                        FillType::NoiseFill { color1, color2, .. } => {
+                            *color1 = color1.to_dark_mode(); *color2 = color2.to_dark_mode(); changed = true;
+                        }
+                        FillType::DotPattern { color, bg_color, .. } => {
+                            *color = color.to_dark_mode(); *bg_color = bg_color.to_dark_mode(); changed = true;
+                        }
+                        FillType::CrosshatchFill { color, bg_color, .. } => {
+                            *color = color.to_dark_mode(); *bg_color = bg_color.to_dark_mode(); changed = true;
+                        }
+                        FillType::GradientMesh { mesh } => {
+                            for pt in mesh.points.iter_mut() { pt.color = pt.color.to_dark_mode(); }
+                            changed = true;
+                        }
+                        _ => {}
+                    }
+                }
+                for stroke in node.strokes.iter_mut() {
+                    if stroke.visible { stroke.color = stroke.color.to_dark_mode(); changed = true; }
+                }
+                for shadow in node.shadows.iter_mut() {
+                    if shadow.visible {
+                        shadow.color = shadow.color.to_dark_mode();
+                        shadow.color.a = (shadow.color.a * 1.3).min(1.0);
+                        shadow.blur *= 1.2;
+                        changed = true;
+                    }
+                }
+                if changed { count += 1; }
+            }
+        }
+        count
+    }
 }
