@@ -750,6 +750,17 @@ Frame overflow control and content scrolling.
 - [x] Integrated into editor render loop and pointer event pipeline
 - [x] Visual: colored handles (indigo start, emerald end), white outline for visibility
 
+### Flex Wrap (Smart Auto-Layout Wrapping)
+- [x] FlexWrap enum (NoWrap/Wrap) in Rust engine
+- [x] compute_flex wraps children into multiple lines when total exceeds container main axis
+- [x] Per-line cross-axis sizing (each wrap line gets its own height/width)
+- [x] Per-line justify/align calculations (SpaceBetween, SpaceAround, SpaceEvenly work per line)
+- [x] Fill sizing distributed per-line (not globally)
+- [x] WASM: set_flex_wrap(id, "wrap"/"nowrap")
+- [x] Properties panel: Wrap toggle button in Auto Layout direction row
+- [x] Breakpoint overrides support wrap field
+- [x] Backward-compatible (default NoWrap)
+
 ### Auto Layout Spacing Handles
 - [x] SpacingHandle interface (packages/app/src/tools/spacing-handles.ts)
 - [x] findSpacingHandles(): detects gap regions between auto-layout children

@@ -8,6 +8,7 @@ import { openCodeToDesignModal } from "./code-to-design";
 import { openDesignPolish } from "./design-polish";
 import { openDesignHealth } from "./design-health";
 import { setupVoiceControl } from "./voice-control";
+import { openFileDiffMerge } from "./file-diff-merge";
 import { togglePerfProfiler } from "./perf-profiler";
 
 const tools: { id: ToolType; icon: string; label: string }[] = [
@@ -397,6 +398,18 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
 
   // Voice control button
   setupVoiceControl(container, editor);
+
+  // File Diff / Merge button
+  const diffSep = document.createElement("div");
+  diffSep.className = "tool-btn-separator";
+  container.appendChild(diffSep);
+  const diffBtn = document.createElement("button");
+  diffBtn.className = "tool-btn";
+  diffBtn.title = "File Diff & Merge (⌘⇧D)";
+  diffBtn.innerHTML = icons.fileDiff;
+  diffBtn.addEventListener("click", () => openFileDiffMerge(editor));
+  container.appendChild(diffBtn);
+  (window as any).__openFileDiffMerge = () => openFileDiffMerge(editor);
 
   // Mode toggle (rightmost)
   const sep2 = document.createElement("div");

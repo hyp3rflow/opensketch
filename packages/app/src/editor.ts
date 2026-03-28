@@ -624,6 +624,7 @@ export class Editor {
       else if (_sm.matches(e, "tool.slice")) this.setTool("slice");
       else if (_sm.matches(e, "tool.connector")) this.setTool("connector");
       else if (_sm.matches(e, "misc.voice")) { (window as any).__toggleVoice?.(); }
+      else if (_sm.matches(e, "misc.fileDiff")) { (window as any).__openFileDiffMerge?.(); }
       if (e.key === "Delete" || e.key === "Backspace") {
         if (this._vnEditMode && this._vnEditNodeId != null) {
           if (this._vnSelectedVertex != null) {

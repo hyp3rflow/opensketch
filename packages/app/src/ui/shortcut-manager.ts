@@ -94,6 +94,7 @@ const DEFAULTS: ShortcutDef[] = [
   { id: "misc.presentation",category: "Misc", description: "Presentation mode", defaultBinding: { key: "Enter", meta: true } },
   { id: "misc.comment",     category: "Misc", description: "Comment mode",      defaultBinding: { key: "c" } },
   { id: "misc.voice",       category: "Misc", description: "Voice command",     defaultBinding: { key: "v", meta: true, shift: true } },
+  { id: "misc.fileDiff",    category: "Misc", description: "File diff & merge", defaultBinding: { key: "d", meta: true, shift: true } },
 ];
 
 function bindingKey(b: KeyBinding): string {

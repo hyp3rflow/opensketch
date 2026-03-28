@@ -165,6 +165,7 @@ fn compute_flex(scene: &mut Scene, layout: &Layout, px: f64, py: f64, pw: f64, p
 
     let is_row = layout.direction == FlexDirection::Row;
     let gap = layout.gap;
+    let do_wrap = layout.wrap == FlexWrap::Wrap;
 
     // Collect child info including sizing modes
     struct ChildInfo {
@@ -194,128 +195,159 @@ fn compute_flex(scene: &mut Scene, layout: &Layout, px: f64, py: f64, pw: f64, p
 
     if child_infos.is_empty() { return; }
 
-    let n = child_infos.len() as f64;
     let avail_main = if is_row { content_w } else { content_h };
     let avail_cross = if is_row { content_h } else { content_w };
 
-    // Calculate fill sizes: distribute remaining space among fill children
-    let fill_count = child_infos.iter().filter(|c| c.fill_main).count() as f64;
-    let fixed_total: f64 = child_infos.iter()
-        .filter(|c| !c.fill_main)
-        .map(|c| if is_row { c.w } else { c.h })
-        .sum();
-    let total_gaps = gap * (n - 1.0);
-    let fill_each = if fill_count > 0.0 {
-        ((avail_main - fixed_total - total_gaps) / fill_count).max(0.0)
-    } else {
-        0.0
-    };
-
-    // Update fill children sizes
-    for ci in child_infos.iter_mut() {
-        if ci.fill_main {
-            if is_row { ci.w = fill_each; } else { ci.h = fill_each; }
+    // --- Wrap: split children into lines ---
+    let lines: Vec<Vec<usize>> = if do_wrap {
+        let mut lines: Vec<Vec<usize>> = vec![vec![]];
+        let mut line_main = 0.0;
+        for (i, ci) in child_infos.iter().enumerate() {
+            let child_main = if is_row { ci.w } else { ci.h };
+            let needed = if lines.last().unwrap().is_empty() { child_main } else { line_main + gap + child_main };
+            if !lines.last().unwrap().is_empty() && needed > avail_main {
+                // Start new line
+                lines.push(vec![i]);
+                line_main = child_main;
+            } else {
+                line_main = needed;
+                lines.last_mut().unwrap().push(i);
+            }
         }
-    }
-
-    // Total size along main axis (after fill distribution)
-    let total_main: f64 = if is_row {
-        child_infos.iter().map(|c| c.w).sum::<f64>() + gap * (n - 1.0)
+        lines
     } else {
-        child_infos.iter().map(|c| c.h).sum::<f64>() + gap * (n - 1.0)
+        vec![(0..child_infos.len()).collect()]
     };
 
-    // Main axis start position based on justify
-    let mut main_pos = match layout.justify_content {
-        Justify::Start => 0.0,
-        Justify::Center => (avail_main - total_main) / 2.0,
-        Justify::End => avail_main - total_main,
-        Justify::SpaceBetween => 0.0,
-        Justify::SpaceAround => 0.0,
-        Justify::SpaceEvenly => 0.0,
-    };
+    let num_lines = lines.len();
 
-    // Calculate spacing for distribute modes
-    let extra_gap = match layout.justify_content {
-        Justify::SpaceBetween if n > 1.0 => {
-            let total_child: f64 = if is_row {
-                child_infos.iter().map(|c| c.w).sum()
-            } else {
-                child_infos.iter().map(|c| c.h).sum()
-            };
-            (avail_main - total_child) / (n - 1.0)
-        },
-        Justify::SpaceAround => {
-            let total_child: f64 = if is_row {
-                child_infos.iter().map(|c| c.w).sum()
-            } else {
-                child_infos.iter().map(|c| c.h).sum()
-            };
-            let space = (avail_main - total_child) / n;
-            main_pos = space / 2.0;
-            space
-        },
-        Justify::SpaceEvenly => {
-            let total_child: f64 = if is_row {
-                child_infos.iter().map(|c| c.w).sum()
-            } else {
-                child_infos.iter().map(|c| c.h).sum()
-            };
-            let space = (avail_main - total_child) / (n + 1.0);
-            main_pos = space;
-            space
-        },
-        _ => gap,
-    };
+    // Calculate per-line cross sizes
+    let line_cross_sizes: Vec<f64> = lines.iter().map(|line| {
+        line.iter().map(|&i| {
+            if is_row { child_infos[i].h } else { child_infos[i].w }
+        }).fold(0.0_f64, f64::max)
+    }).collect();
 
-    let use_gap = match layout.justify_content {
-        Justify::SpaceBetween | Justify::SpaceAround | Justify::SpaceEvenly => extra_gap,
-        _ => gap,
-    };
+    let total_cross: f64 = line_cross_sizes.iter().sum::<f64>() + gap * (num_lines as f64 - 1.0).max(0.0);
+    let mut cross_offset = 0.0;
 
-    for (i, ci) in child_infos.iter().enumerate() {
-        let child_main = if is_row { ci.w } else { ci.h };
-        let child_cross = if is_row { ci.h } else { ci.w };
+    for (line_idx, line) in lines.iter().enumerate() {
+        let n = line.len() as f64;
+        let line_cross = line_cross_sizes[line_idx];
 
-        // Cross axis position based on align (fill_cross acts like stretch)
-        let should_stretch = layout.align_items == Align::Stretch || ci.fill_cross;
-        let cross_pos = if should_stretch {
+        // Calculate fill sizes for this line
+        let fill_count = line.iter().filter(|&&i| child_infos[i].fill_main).count() as f64;
+        let fixed_total: f64 = line.iter()
+            .filter(|&&i| !child_infos[i].fill_main)
+            .map(|&i| if is_row { child_infos[i].w } else { child_infos[i].h })
+            .sum();
+        let total_gaps = gap * (n - 1.0).max(0.0);
+        let fill_each = if fill_count > 0.0 {
+            ((avail_main - fixed_total - total_gaps) / fill_count).max(0.0)
+        } else {
             0.0
-        } else {
-            match layout.align_items {
-                Align::Start => 0.0,
-                Align::Center => (avail_cross - child_cross) / 2.0,
-                Align::End => avail_cross - child_cross,
-                Align::Stretch => 0.0,
-            }
         };
 
-        let (new_x, new_y) = if is_row {
-            (content_x + main_pos, content_y + cross_pos)
-        } else {
-            (content_x + cross_pos, content_y + main_pos)
+        // Update fill children sizes for this line
+        for &i in line {
+            if child_infos[i].fill_main {
+                if is_row { child_infos[i].w = fill_each; } else { child_infos[i].h = fill_each; }
+            }
+        }
+
+        // Total size along main axis for this line
+        let total_main: f64 = line.iter().map(|&i| {
+            if is_row { child_infos[i].w } else { child_infos[i].h }
+        }).sum::<f64>() + gap * (n - 1.0).max(0.0);
+
+        // Main axis start position based on justify
+        let mut main_pos = match layout.justify_content {
+            Justify::Start => 0.0,
+            Justify::Center => (avail_main - total_main) / 2.0,
+            Justify::End => avail_main - total_main,
+            Justify::SpaceBetween => 0.0,
+            Justify::SpaceAround => 0.0,
+            Justify::SpaceEvenly => 0.0,
         };
 
-        if let Some(child) = scene.get_node_mut(ci.id) {
-            child.x = new_x;
-            child.y = new_y;
-            // Apply fill main axis size
-            if ci.fill_main {
-                if is_row { child.width = ci.w; } else { child.height = ci.h; }
+        // Calculate spacing for distribute modes
+        let extra_gap = match layout.justify_content {
+            Justify::SpaceBetween if n > 1.0 => {
+                let total_child: f64 = line.iter().map(|&i| {
+                    if is_row { child_infos[i].w } else { child_infos[i].h }
+                }).sum();
+                (avail_main - total_child) / (n - 1.0)
+            },
+            Justify::SpaceAround => {
+                let total_child: f64 = line.iter().map(|&i| {
+                    if is_row { child_infos[i].w } else { child_infos[i].h }
+                }).sum();
+                let space = (avail_main - total_child) / n;
+                main_pos = space / 2.0;
+                space
+            },
+            Justify::SpaceEvenly => {
+                let total_child: f64 = line.iter().map(|&i| {
+                    if is_row { child_infos[i].w } else { child_infos[i].h }
+                }).sum();
+                let space = (avail_main - total_child) / (n + 1.0);
+                main_pos = space;
+                space
+            },
+            _ => gap,
+        };
+
+        let use_gap = match layout.justify_content {
+            Justify::SpaceBetween | Justify::SpaceAround | Justify::SpaceEvenly => extra_gap,
+            _ => gap,
+        };
+
+        // Cross axis for this line (when wrapping, each line gets its own cross region)
+        let line_avail_cross = if do_wrap { line_cross } else { avail_cross };
+
+        for (j, &i) in line.iter().enumerate() {
+            let ci = &child_infos[i];
+            let child_main = if is_row { ci.w } else { ci.h };
+            let child_cross = if is_row { ci.h } else { ci.w };
+
+            let should_stretch = layout.align_items == Align::Stretch || ci.fill_cross;
+            let cross_pos = if should_stretch {
+                0.0
+            } else {
+                match layout.align_items {
+                    Align::Start => 0.0,
+                    Align::Center => (line_avail_cross - child_cross) / 2.0,
+                    Align::End => line_avail_cross - child_cross,
+                    Align::Stretch => 0.0,
+                }
+            };
+
+            let (new_x, new_y) = if is_row {
+                (content_x + main_pos, content_y + cross_offset + cross_pos)
+            } else {
+                (content_x + cross_offset + cross_pos, content_y + main_pos)
+            };
+
+            if let Some(child) = scene.get_node_mut(ci.id) {
+                child.x = new_x;
+                child.y = new_y;
+                if ci.fill_main {
+                    if is_row { child.width = ci.w; } else { child.height = ci.h; }
+                }
+                if should_stretch {
+                    if is_row { child.height = line_avail_cross; }
+                    else { child.width = line_avail_cross; }
+                }
+                child.clamp_size();
             }
-            // Apply stretch/fill cross axis
-            if should_stretch {
-                if is_row { child.height = avail_cross; }
-                else { child.width = avail_cross; }
+
+            main_pos += child_main;
+            if j < line.len() - 1 {
+                main_pos += use_gap;
             }
-            // Apply min/max size constraints
-            child.clamp_size();
         }
 
-        main_pos += child_main;
-        if i < child_infos.len() - 1 {
-            main_pos += use_gap;
-        }
+        cross_offset += line_cross + gap;
     }
 }
 

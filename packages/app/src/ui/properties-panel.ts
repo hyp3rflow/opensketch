@@ -3854,7 +3854,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           });
 
           // Wrap toggle
-          const isWrap = layout.wrap === true;
+          const isWrap = layout.wrap === "Wrap";
           const wrapBtn = document.createElement("button");
           wrapBtn.style.cssText = `
             padding:5px 8px;border:1px solid ${isWrap ? "#4f46e5" : "#3a3a3a"};
@@ -3863,10 +3863,10 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             align-items:center;justify-content:center;transition:all 0.15s;
           `;
           wrapBtn.innerHTML = icons.wrap.replace(/width="\d+"/, 'width="14"').replace(/height="\d+"/, 'height="14"');
-          wrapBtn.title = "Wrap";
+          wrapBtn.title = isWrap ? "Disable Wrap" : "Enable Wrap";
           wrapBtn.addEventListener("click", () => {
             editor.engine.push_undo();
-            // Toggle wrap via layout mode re-set (TODO: add dedicated wrap API)
+            editor.engine.set_flex_wrap(BigInt(id), isWrap ? "nowrap" : "wrap");
             editor.requestRender();
             refresh(ids);
           });
