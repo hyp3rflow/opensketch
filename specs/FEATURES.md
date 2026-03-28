@@ -1275,3 +1275,16 @@ Frame overflow control and content scrolling.
 - [x] **Floating indicator**: Top-center transcript display with status colors (red=listening, amber=processing, green=done)
 - [x] **Browser support detection**: Graceful fallback when Web Speech API unavailable
 - [x] **Implementation**: `ui/voice-control.ts` (TypeScript), `ui/shortcut-manager.ts` shortcut registration
+
+## 120. File Diff & Merge
+- [x] **Scene-level diff**: Node-by-node comparison of two exported scene JSON files
+- [x] **Diff categories**: Added (green), Modified (yellow), Removed (red) with per-property change details
+- [x] **Property diff**: Compares name, kind, position, size, rotation, opacity, fill, corner_radius, visibility, etc.
+- [x] **Selective merge**: Cherry-pick individual changes via checkboxes — added nodes created, modified properties applied, removed nodes deleted
+- [x] **Batch selection**: Select All / Select None / Select Added quick filters
+- [x] **Source options**: Compare current scene vs loaded JSON file, or two arbitrary files
+- [x] **Canvas integration**: Click diff entry to pan camera to node location
+- [x] **Undo support**: All merge operations wrapped in single undo snapshot
+- [x] **Keyboard shortcut**: ⌘⇧D (Cmd+Shift+D) to open
+- [x] **Toolbar button**: File diff icon in toolbar
+- [x] **Implementation**: `ui/file-diff-merge.ts` (TypeScript), `ui/shortcut-manager.ts`, `ui/toolbar.ts`

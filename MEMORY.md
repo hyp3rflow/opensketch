@@ -829,8 +829,14 @@
 - Layers panel 아이콘 지원
 - Rust render.rs에서 rounded rect + 테마 색상 + 투표 dot 렌더링
 
+## 완료된 기능 (추가 — File Diff & Merge)
+- Files: ui/file-diff-merge.ts, toolbar.ts, shortcut-manager.ts, icons.ts
+- Scene JSON 비교: 노드별 added/modified/removed 분류
+- 선택적 머지: 체크박스로 개별 변경사항 cherry-pick 적용
+- Property diff: name, kind, position, size, rotation, opacity, fill 등 비교
+- 단축키 ⌘⇧D, 툴바 버튼, 캔버스 pan-to-node
+
 ## 다음 할 것
-- Figma file diff / merge (Figma 파일 간 노드 비교, 변경사항 시각화, 선택적 머지)
 - Plugin marketplace (커뮤니티 플러그인 브라우저, 설치/제거, 버전 관리)
 - Smart component variants (조건부 variant 전환 — hover/press/focus state 자동 교체)
 - Shared component library (팀 간 컴포넌트 라이브러리 퍼블리싱/구독, 버전 동기화)
