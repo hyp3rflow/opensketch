@@ -40,6 +40,7 @@ use crate::animation::AnimationStore;
 use crate::whiteboard::WhiteboardState;
 use crate::branch::{Branch, BranchSnapshot, BranchDiff, VisualDiff, compute_diff, compute_visual_diff, merge_snapshots, ReviewRequest, ReviewComment, ReviewStatus};
 use crate::component::ComponentLibrary;
+use crate::stamp::{Stamp, StampKind};
 
 fn parse_hex_color(hex: &str) -> Option<Color> {
     let hex = hex.trim_start_matches('#');
@@ -130,6 +131,10 @@ pub struct SceneData {
     pub whiteboard_state: WhiteboardState,
     #[serde(default)]
     pub token_store: TokenStore,
+    #[serde(default)]
+    pub stamps: Vec<Stamp>,
+    #[serde(default, rename = "next_stamp_id")]
+    pub next_stamp_id: u64,
 }
 
 pub struct Scene {
@@ -165,6 +170,9 @@ pub struct Scene {
     next_review_comment_id: u64,
     pub whiteboard_state: WhiteboardState,
     pub token_store: TokenStore,
+    // Stamps
+    stamps: Vec<Stamp>,
+    next_stamp_id: u64,
 }
 
 impl Scene {
@@ -206,6 +214,8 @@ impl Scene {
             next_review_comment_id: 1,
             whiteboard_state: WhiteboardState::default(),
             token_store: TokenStore::new(),
+            stamps: vec![],
+            next_stamp_id: 1,
         }
     }
 
@@ -532,6 +542,8 @@ impl Scene {
             next_review_comment_id: self.next_review_comment_id,
             whiteboard_state: self.whiteboard_state.clone(),
             token_store: self.token_store.clone(),
+            stamps: self.stamps.clone(),
+            next_stamp_id: self.next_stamp_id,
         }
     }
 
@@ -608,6 +620,8 @@ impl Scene {
                 next_review_comment_id: if data.next_review_comment_id > 0 { data.next_review_comment_id } else { 1 },
                 whiteboard_state: data.whiteboard_state.clone(),
                 token_store: data.token_store.clone(),
+                stamps: data.stamps.clone(),
+                next_stamp_id: if data.next_stamp_id > 0 { data.next_stamp_id } else { 1 },
             }
         } else {
             // Legacy single-page format
@@ -661,6 +675,8 @@ impl Scene {
                 next_review_comment_id: 1,
                 whiteboard_state: data.whiteboard_state.clone(),
                 token_store: data.token_store.clone(),
+                stamps: data.stamps.clone(),
+                next_stamp_id: if data.next_stamp_id > 0 { data.next_stamp_id } else { 1 },
             }
         }
     }
@@ -2547,5 +2563,85 @@ impl Scene {
     pub fn get_review_comments(&self, review_id: u64) -> String {
         let comments: Vec<&ReviewComment> = self.review_comments.iter().filter(|c| c.review_id == review_id).collect();
         serde_json::to_string(&comments).unwrap_or_else(|_| "[]".to_string())
+    }
+
+    // ---- Stamps ----
+
+    pub fn add_stamp(&mut self, kind_str: &str, x: f64, y: f64, author: &str, page_id: u64) -> u64 {
+        let kind = StampKind::from_str(kind_str).unwrap_or(StampKind::Todo);
+        let id = self.next_stamp_id;
+        self.next_stamp_id += 1;
+        self.stamps.push(Stamp {
+            id,
+            kind,
+            x,
+            y,
+            rotation: 0.0,
+            scale: 1.0,
+            author: author.to_string(),
+            timestamp: 0.0, // set from JS side
+            page_id,
+            note: String::new(),
+            node_id: None,
+        });
+        id
+    }
+
+    pub fn add_stamp_with_note(&mut self, kind_str: &str, x: f64, y: f64, author: &str, page_id: u64, note: &str, node_id: Option<u64>, timestamp: f64) -> u64 {
+        let kind = StampKind::from_str(kind_str).unwrap_or(StampKind::Todo);
+        let id = self.next_stamp_id;
+        self.next_stamp_id += 1;
+        self.stamps.push(Stamp {
+            id,
+            kind,
+            x,
+            y,
+            rotation: 0.0,
+            scale: 1.0,
+            author: author.to_string(),
+            timestamp,
+            page_id,
+            note: note.to_string(),
+            node_id,
+        });
+        id
+    }
+
+    pub fn remove_stamp(&mut self, stamp_id: u64) -> bool {
+        let len = self.stamps.len();
+        self.stamps.retain(|s| s.id != stamp_id);
+        self.stamps.len() < len
+    }
+
+    pub fn update_stamp_position(&mut self, stamp_id: u64, x: f64, y: f64) -> bool {
+        if let Some(s) = self.stamps.iter_mut().find(|s| s.id == stamp_id) {
+            s.x = x;
+            s.y = y;
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn update_stamp_note(&mut self, stamp_id: u64, note: &str) -> bool {
+        if let Some(s) = self.stamps.iter_mut().find(|s| s.id == stamp_id) {
+            s.note = note.to_string();
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn get_stamps_for_page(&self, page_id: u64) -> String {
+        let page_stamps: Vec<&Stamp> = self.stamps.iter().filter(|s| s.page_id == page_id).collect();
+        serde_json::to_string(&page_stamps).unwrap_or_else(|_| "[]".to_string())
+    }
+
+    pub fn get_all_stamps(&self) -> String {
+        serde_json::to_string(&self.stamps).unwrap_or_else(|_| "[]".to_string())
+    }
+
+    pub fn get_stamp_count(&self) -> usize {
+        self.stamps.len()
     }
 }

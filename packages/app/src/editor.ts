@@ -12,6 +12,7 @@ import { openResponsiveTokensPanel, closeResponsiveTokensPanel, isResponsiveToke
 import { CursorPresence } from "./ui/cursor-presence";
 import { openComponentSwapModal } from "./ui/component-swap";
 import { openSmartReplace, closeSmartReplace, isSmartReplaceOpen } from "./ui/smart-replace";
+import { renderStamps as renderStampsOverlay, hitTestStamp, isStampModeActive, getActiveStampKind, setActiveStampKind, toggleStampPalette, closeStampPalette } from "./ui/stamp-tool";
 import { openComponentLibraryPanel } from "./ui/component-library";
 import { openComponentAnalytics, closeComponentAnalytics, isComponentAnalyticsOpen } from "./ui/component-analytics";
 import { openSmartSuggestions, closeSmartSuggestions, isSmartSuggestionsOpen } from "./ui/smart-suggestions";
@@ -747,6 +748,16 @@ export class Editor {
       this.lastPanY = e.clientY;
       this.canvas.style.cursor = "grabbing";
       this.canvas.setPointerCapture(e.pointerId);
+      return;
+    }
+
+    // Stamp mode: place stamp on click
+    if (isStampModeActive()) {
+      const kind = getActiveStampKind();
+      if (kind) {
+        this.placeStamp(kind, x, y);
+        // Stay in stamp mode for rapid placement; ESC or tool change exits
+      }
       return;
     }
 
@@ -2844,6 +2855,7 @@ export class Editor {
         this.renderGradientEditor();
         this.renderSpacingHandles();
         this.renderCursorPresence();
+        this.renderStamps();
         this.renderDiffOverlay();
         this.renderPixelPreviewOverlay();
         this._rulers?.render();
@@ -3525,6 +3537,31 @@ export class Editor {
     if (this._cursorPresence.getCursors().length > 0) {
       this.needsRender = true;
     }
+  }
+
+  private renderStamps() {
+    const zoom = this.engine.get_zoom();
+    const panX = this.engine.get_pan_x();
+    const panY = this.engine.get_pan_y();
+    const pageId = Number(this.engine.get_active_page_id());
+    renderStampsOverlay(this.ctx, this.engine, pageId, zoom, panX, panY);
+  }
+
+  /** Place a stamp at canvas coordinates */
+  placeStamp(kind: string, canvasX: number, canvasY: number, author = "User") {
+    const zoom = this.engine.get_zoom();
+    const panX = this.engine.get_pan_x();
+    const panY = this.engine.get_pan_y();
+    const worldX = (canvasX - panX) / zoom;
+    const worldY = (canvasY - panY) / zoom;
+    const pageId = this.engine.get_active_page_id();
+    this.engine.add_stamp(kind, worldX, worldY, author, pageId, "", Date.now());
+    this.needsRender = true;
+  }
+
+  removeStamp(stampId: number) {
+    this.engine.remove_stamp(BigInt(stampId));
+    this.needsRender = true;
   }
 
   /** Get cursor presence instance for external integration */

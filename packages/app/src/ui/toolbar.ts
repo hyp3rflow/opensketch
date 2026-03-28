@@ -10,6 +10,7 @@ import { openDesignHealth } from "./design-health";
 import { setupVoiceControl } from "./voice-control";
 import { openFileDiffMerge } from "./file-diff-merge";
 import { togglePerfProfiler } from "./perf-profiler";
+import { toggleStampPalette, isStampModeActive, setActiveStampKind, closeStampPalette } from "./stamp-tool";
 
 const tools: { id: ToolType; icon: string; label: string }[] = [
   { id: "select", icon: icons.select, label: "Select (V)" },
@@ -134,6 +135,38 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
       wbBtn.classList.toggle("active");
     });
     container.appendChild(wbBtn);
+  }
+
+  // Stamp tool button
+  {
+    const sep = document.createElement("div");
+    sep.className = "tool-btn-separator";
+    container.appendChild(sep);
+
+    const stampBtn = document.createElement("button");
+    stampBtn.className = "tool-btn";
+    stampBtn.id = "stamp-tool-btn";
+    stampBtn.title = "Annotation Stamp (⇧T)";
+    stampBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21h14"/><path d="M12 17V9"/><path d="M8 17h8"/><circle cx="12" cy="5" r="3"/></svg>`;
+    stampBtn.addEventListener("click", (ev) => {
+      const rect = stampBtn.getBoundingClientRect();
+      toggleStampPalette(rect.left, rect.top - 8, (kind) => {
+        setActiveStampKind(kind);
+        stampBtn.classList.add("active");
+        editor.canvas.style.cursor = "crosshair";
+        // Listen for ESC to exit
+        const escFn = (e: KeyboardEvent) => {
+          if (e.key === "Escape") {
+            setActiveStampKind(null);
+            stampBtn.classList.remove("active");
+            editor.canvas.style.cursor = "";
+            window.removeEventListener("keydown", escFn);
+          }
+        };
+        window.addEventListener("keydown", escFn);
+      });
+    });
+    container.appendChild(stampBtn);
   }
 
   // Boolean operations buttons

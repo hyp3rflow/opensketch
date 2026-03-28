@@ -1386,3 +1386,12 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
   - Configurable insert size (16/24/32/48/64px)
   - One-click insert to canvas via SVG import
   - Right pane "Icons" tab
+
+- [x] **Canvas Annotation Stamps**: predefined review stamps for design workflows
+  - 8 stamp types: Approved, Rejected, WIP, Todo, Needs Revision, Final, On Hold, Question
+  - Toolbar stamp button with palette picker (⇧T)
+  - Click-to-place on canvas, persistent per page
+  - Color-coded badges with icons, zoom-aware rendering
+  - Note attachment support, optional node binding
+  - Rust engine storage (Scene stamps vec) + WASM bindings
+  - ESC to exit stamp mode, drag for rapid placement

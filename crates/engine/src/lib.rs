@@ -37,6 +37,7 @@ mod email_export;
 pub mod snapshot_test;
 mod design_quiz;
 pub mod migration_assistant;
+pub mod stamp;
 
 use wasm_bindgen::prelude::*;
 use web_sys::CanvasRenderingContext2d;
@@ -7265,6 +7266,40 @@ impl Engine {
     pub fn generate_review_checklist(&self) -> String {
         let items = design_quiz::generate_review_checklist(&self.scene, &self.components, &self.styles);
         serde_json::to_string(&items).unwrap_or_else(|_| "[]".into())
+    }
+
+    // ---- Stamps ----
+
+    pub fn add_stamp(&mut self, kind: &str, x: f64, y: f64, author: &str, page_id: u64, note: &str, timestamp: f64) -> u64 {
+        self.scene.add_stamp_with_note(kind, x, y, author, page_id, note, None, timestamp)
+    }
+
+    pub fn add_stamp_on_node(&mut self, kind: &str, x: f64, y: f64, author: &str, page_id: u64, note: &str, node_id: u32, timestamp: f64) -> u64 {
+        self.scene.add_stamp_with_note(kind, x, y, author, page_id, note, Some(node_id as u64), timestamp)
+    }
+
+    pub fn remove_stamp(&mut self, stamp_id: u64) -> bool {
+        self.scene.remove_stamp(stamp_id)
+    }
+
+    pub fn update_stamp_position(&mut self, stamp_id: u64, x: f64, y: f64) -> bool {
+        self.scene.update_stamp_position(stamp_id, x, y)
+    }
+
+    pub fn update_stamp_note(&mut self, stamp_id: u64, note: &str) -> bool {
+        self.scene.update_stamp_note(stamp_id, note)
+    }
+
+    pub fn get_stamps(&self, page_id: u64) -> String {
+        self.scene.get_stamps_for_page(page_id)
+    }
+
+    pub fn get_all_stamps(&self) -> String {
+        self.scene.get_all_stamps()
+    }
+
+    pub fn get_stamp_count(&self) -> u32 {
+        self.scene.get_stamp_count() as u32
     }
 
 }
