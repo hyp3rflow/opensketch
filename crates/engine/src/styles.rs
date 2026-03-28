@@ -5,6 +5,29 @@ use std::collections::HashMap;
 
 pub type StyleId = u64;
 
+// ── Style Versioning ─────────────────────────────────────
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct StyleVersion {
+    pub id: u64,
+    pub tag: String,
+    pub timestamp: u64,
+    pub description: String,
+    pub color_styles: HashMap<StyleId, ColorStyle>,
+    pub text_styles: HashMap<StyleId, TextStyle>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct StyleDiffEntry {
+    pub kind: String,   // "color" | "text"
+    pub change: String, // "added" | "removed" | "modified"
+    pub style_id: StyleId,
+    pub name: String,
+    pub details: String,
+}
+
+const MAX_VERSIONS: usize = 50;
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ColorStyle {
     pub id: StyleId,
@@ -36,6 +59,10 @@ pub struct StyleStore {
     pub color_styles: HashMap<StyleId, ColorStyle>,
     pub text_styles: HashMap<StyleId, TextStyle>,
     next_id: u64,
+    #[serde(default)]
+    pub versions: Vec<StyleVersion>,
+    #[serde(default)]
+    next_version_id: u64,
 }
 
 impl StyleStore {
@@ -44,6 +71,8 @@ impl StyleStore {
             color_styles: HashMap::new(),
             text_styles: HashMap::new(),
             next_id: 1,
+            versions: Vec::new(),
+            next_version_id: 1,
         }
     }
 
@@ -181,5 +210,146 @@ impl StyleStore {
             );
         }
         (cc, tc)
+    }
+
+    // ── Versioning ───────────────────────────────────────
+
+    fn next_ver_id(&mut self) -> u64 {
+        let id = self.next_version_id;
+        self.next_version_id += 1;
+        id
+    }
+
+    /// Snapshot current styles as a named version.
+    pub fn create_version(&mut self, tag: &str, description: &str, timestamp: u64) -> u64 {
+        let id = self.next_ver_id();
+        self.versions.push(StyleVersion {
+            id,
+            tag: tag.to_string(),
+            timestamp,
+            description: description.to_string(),
+            color_styles: self.color_styles.clone(),
+            text_styles: self.text_styles.clone(),
+        });
+        // Trim oldest if exceeding cap
+        while self.versions.len() > MAX_VERSIONS {
+            self.versions.remove(0);
+        }
+        id
+    }
+
+    pub fn list_versions(&self) -> &[StyleVersion] {
+        &self.versions
+    }
+
+    pub fn remove_version(&mut self, id: u64) -> bool {
+        let before = self.versions.len();
+        self.versions.retain(|v| v.id != id);
+        self.versions.len() < before
+    }
+
+    /// Rollback to a version. Auto-saves current state first.
+    pub fn rollback_to_version(&mut self, id: u64, timestamp: u64) -> bool {
+        let ver = match self.versions.iter().find(|v| v.id == id) {
+            Some(v) => v.clone(),
+            None => return false,
+        };
+        // Auto-save current state before rollback
+        self.create_version("auto (pre-rollback)", "", timestamp);
+        self.color_styles = ver.color_styles;
+        self.text_styles = ver.text_styles;
+        true
+    }
+
+    /// Diff two versions.
+    pub fn diff_versions(&self, a_id: u64, b_id: u64) -> Vec<StyleDiffEntry> {
+        let a = self.versions.iter().find(|v| v.id == a_id);
+        let b = self.versions.iter().find(|v| v.id == b_id);
+        match (a, b) {
+            (Some(a), Some(b)) => Self::diff_style_sets(&a.color_styles, &a.text_styles, &b.color_styles, &b.text_styles),
+            _ => vec![],
+        }
+    }
+
+    /// Diff a version against current styles.
+    pub fn diff_with_current(&self, version_id: u64) -> Vec<StyleDiffEntry> {
+        match self.versions.iter().find(|v| v.id == version_id) {
+            Some(ver) => Self::diff_style_sets(&ver.color_styles, &ver.text_styles, &self.color_styles, &self.text_styles),
+            None => vec![],
+        }
+    }
+
+    fn diff_style_sets(
+        a_colors: &HashMap<StyleId, ColorStyle>,
+        a_texts: &HashMap<StyleId, TextStyle>,
+        b_colors: &HashMap<StyleId, ColorStyle>,
+        b_texts: &HashMap<StyleId, TextStyle>,
+    ) -> Vec<StyleDiffEntry> {
+        let mut entries = Vec::new();
+
+        // Color styles
+        for (id, a) in a_colors {
+            match b_colors.get(id) {
+                None => entries.push(StyleDiffEntry {
+                    kind: "color".into(), change: "removed".into(),
+                    style_id: *id, name: a.name.clone(), details: String::new(),
+                }),
+                Some(b) => {
+                    let mut diffs = Vec::new();
+                    if a.name != b.name { diffs.push(format!("name: {} → {}", a.name, b.name)); }
+                    let ac = format!("#{:02x}{:02x}{:02x}", a.fill_r, a.fill_g, a.fill_b);
+                    let bc = format!("#{:02x}{:02x}{:02x}", b.fill_r, b.fill_g, b.fill_b);
+                    if ac != bc { diffs.push(format!("color: {} → {}", ac, bc)); }
+                    if (a.fill_a - b.fill_a).abs() > 0.001 { diffs.push(format!("opacity: {} → {}", a.fill_a, b.fill_a)); }
+                    if !diffs.is_empty() {
+                        entries.push(StyleDiffEntry {
+                            kind: "color".into(), change: "modified".into(),
+                            style_id: *id, name: b.name.clone(), details: diffs.join(", "),
+                        });
+                    }
+                }
+            }
+        }
+        for (id, b) in b_colors {
+            if !a_colors.contains_key(id) {
+                entries.push(StyleDiffEntry {
+                    kind: "color".into(), change: "added".into(),
+                    style_id: *id, name: b.name.clone(), details: String::new(),
+                });
+            }
+        }
+
+        // Text styles
+        for (id, a) in a_texts {
+            match b_texts.get(id) {
+                None => entries.push(StyleDiffEntry {
+                    kind: "text".into(), change: "removed".into(),
+                    style_id: *id, name: a.name.clone(), details: String::new(),
+                }),
+                Some(b) => {
+                    let mut diffs = Vec::new();
+                    if a.name != b.name { diffs.push(format!("name: {} → {}", a.name, b.name)); }
+                    if a.font_family != b.font_family { diffs.push(format!("font: {} → {}", a.font_family, b.font_family)); }
+                    if (a.font_size - b.font_size).abs() > 0.01 { diffs.push(format!("size: {} → {}", a.font_size, b.font_size)); }
+                    if a.font_weight != b.font_weight { diffs.push(format!("weight: {} → {}", a.font_weight, b.font_weight)); }
+                    if !diffs.is_empty() {
+                        entries.push(StyleDiffEntry {
+                            kind: "text".into(), change: "modified".into(),
+                            style_id: *id, name: b.name.clone(), details: diffs.join(", "),
+                        });
+                    }
+                }
+            }
+        }
+        for (id, b) in b_texts {
+            if !a_texts.contains_key(id) {
+                entries.push(StyleDiffEntry {
+                    kind: "text".into(), change: "added".into(),
+                    style_id: *id, name: b.name.clone(), details: String::new(),
+                });
+            }
+        }
+
+        entries
     }
 }

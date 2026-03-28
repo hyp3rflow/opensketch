@@ -416,6 +416,17 @@
 - [x] **CSS Variables format**: :root { --color-*, --font-family-*, --font-size-*, --font-weight-*, --line-height-* } + variable collections
 - [x] **Design Token Export modal**: Format selection cards (W3C/Style Dictionary/Tailwind/CSS Variables), live preview, copy to clipboard, download
 
+### Style Versioning
+- [x] **Version snapshots**: Save current style library state as a named version (tag + description + timestamp)
+- [x] **Version list**: Browse all saved versions (max 50, auto-trimmed)
+- [x] **Diff**: Compare any version against current styles — shows added/removed/modified color & text styles with details
+- [x] **Diff between versions**: Compare any two saved versions
+- [x] **Rollback**: Restore styles to a previous version (auto-saves current state before rollback)
+- [x] **Rust StyleStore**: StyleVersion, StyleDiffEntry structs, create/list/remove/rollback/diff methods
+- [x] **WASM**: style_version_create, style_version_list, style_version_remove, style_version_rollback, style_version_diff, style_version_diff_current
+- [x] **UI**: Properties panel empty state "Style Versions" section — create modal, version list, diff modal, rollback confirm, delete
+- [x] **Backward-compatible serde**: versions field with #[serde(default)]
+
 ### Comments / Annotations
 - [x] **Comment struct**: id, x, y, author, text, timestamp, resolved, replies[], node_id, page_id
 - [x] **Scene-level storage**: Comments stored at Scene level (not per-node), serialized in SceneData
@@ -1288,3 +1299,20 @@ Frame overflow control and content scrolling.
 - [x] **Keyboard shortcut**: ⌘⇧D (Cmd+Shift+D) to open
 - [x] **Toolbar button**: File diff icon in toolbar
 - [x] **Implementation**: `ui/file-diff-merge.ts` (TypeScript), `ui/shortcut-manager.ts`, `ui/toolbar.ts`
+
+## Design System Versioning
+Track style library changes with version history, diff comparison, and rollback.
+
+### Features
+- [x] **Version snapshots**: Save current color + text styles as named versions (tag + description)
+- [x] **Version list**: Browse all versions with timestamp, style counts
+- [x] **Diff comparison**: Compare any version against current styles — shows added/removed/modified entries with details
+- [x] **Rollback**: Restore styles to a previous version (auto-saves current state before rollback)
+- [x] **Max 50 versions**: Oldest auto-trimmed when cap exceeded
+- [x] **Backward-compatible**: `#[serde(default)]` on versions field — existing saves load fine
+
+### Architecture
+- [x] **Rust**: `StyleVersion` / `StyleDiffEntry` structs in `styles.rs`, versioning methods on `StyleStore`
+- [x] **WASM**: 6 bindings (`style_version_create/list/remove/rollback/diff/diff_current`)
+- [x] **UI**: `ui/style-versioning.ts` — panel in Properties empty state, diff modal overlay
+- [x] **Integration**: Dynamic import in `properties-panel.ts` alongside Styles Library section

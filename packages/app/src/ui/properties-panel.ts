@@ -2,6 +2,7 @@ import type { Editor } from "../editor";
 import { icons } from "./icons";
 import { createExportPresetsSection } from "./export-presets";
 import { openComponentSwapDialog } from "./component-search";
+import { renderStyleVersioningSection } from "./style-versioning";
 
 // Stage 4: Google Fonts list
 const googleFonts = [
@@ -128,6 +129,12 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       libSection.appendChild(btnRow);
       emptyDiv.appendChild(libSection);
 
+      // Style Versioning section
+      import('../ui/style-versioning').then(({ createStyleVersioningPanel }) => {
+        const vPanel = createStyleVersioningPanel(editor);
+        emptyDiv.appendChild(vPanel);
+      });
+
       // Design Tokens section
       const tokensSection = document.createElement("div");
       tokensSection.style.cssText = "width:100%;padding:12px 16px;border-top:1px solid #333;";
@@ -152,6 +159,9 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       }
       tokensSection.appendChild(tokenBtnRow);
       emptyDiv.appendChild(tokensSection);
+
+      // Style Versioning section
+      renderStyleVersioningSection(emptyDiv, editor);
 
       container.appendChild(emptyDiv);
       return;

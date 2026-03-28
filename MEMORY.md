@@ -665,28 +665,159 @@
   - Backward-compatible serde (existing files → single "main" branch)
   - Undo integration for all branch operations
 
-## 완료된 기능 (추가 64)
-- AI layout suggestion:
-  - 선택된 노드들의 공간 배치 분석 (row/column/grid 패턴 감지)
-  - Gap 계산 (평균 간격, nice value 반올림), cross-axis 정렬 감지 (start/center/end/stretch)
-  - Grid 감지: Y좌표 기반 행 그룹핑, 컬럼 수 추론
-  - Confidence score (0-1), 배치 일관성 기반
-  - Floating suggestion card UI: 모드/gap/정렬 표시, Apply/Dismiss 버튼
-  - Apply: 선택 노드를 auto-layout Frame으로 래핑 + 설정 적용
-  - 단축키: Cmd/Ctrl+Shift+L, 컨텍스트 메뉴 "✨ Suggest Layout"
-  - LLM Agent tool: suggest_layout, apply_layout_suggestion
-  - Agent panel 명령: suggest-layout, apply-layout
-  - ai-layout-suggest.ts 단일 파일 구현
+## 완료된 기능 (추가 67)
+- Vector network editing (Figma-style):
+  - Rust vector_network.rs: VectorVertex, VectorSegment (bezier handles), VectorRegion (closed loop), VectorNetwork struct
+  - NodeKind::VectorNetwork — 기존 Path와 별도, backward-compatible serde
+  - Methods: add/remove/update vertex, add/remove segment (with handles), detect_regions (planar face algorithm)
+  - Region detection: adjacency graph + angle-based next-edge traversal → minimal closed cycles
+  - Path → VectorNetwork 변환: from_path(), convert_path_to_vector_network WASM binding
+  - Bounds calculation from all vertices + bezier handles
+  - WASM bindings 10개: add_vector_network, vn_add/remove_vertex, vn_add/remove_segment, vn_get_data, vn_update_vertex, vn_update_segment_handles, vn_detect_regions, convert_path_to_vector_network
+  - Canvas rendering: regions → filled paths, segments → stroked paths, shadow support
+  - SVG export: regions as <path fill>, segments as <path stroke> in <g>
+  - Editor VN edit mode: double-click to enter, click empty to add vertex, Shift+click to connect, drag to move, Delete to remove, Escape to exit
+  - Properties panel: vertex/segment/region count, "Convert to Vector Network" button, "Detect Regions" button
+  - Layers panel: VectorNetwork icon
 
-## 완료된 기능 (추가 65)
-- Node search spotlight (Cmd+P):
-  - 플로팅 검색 패널: Cmd+P 토글, Escape 닫기, backdrop 클릭 닫기
-  - 엔진 find_text 활용: 노드 이름 + Text 콘텐츠 case-insensitive 검색
-  - 결과 리스트: kind badge, text preview, 최대 50개
-  - 키보드 네비게이션: ↑↓ 선택, Enter 확정
-  - 선택 + 줌: 노드 select + zoomToSelection 자동 이동
-  - 80ms 디바운스, auto-focus input
-  - ui/spotlight.ts 단일 파일 구현
+## 완료된 기능 (추가 68)
+- Smart object snapping (point-level):
+  - Path anchor drag: 다른 path/VN 포인트, 노드 edges/centers, ruler guides에 스냅
+  - VN vertex drag: 동일한 스냅 동작
+  - Pen tool: 새 포인트 배치 시 기존 geometry에 스냅
+  - Angle constraint: Shift 키 → 0°/45°/90° 증분 스냅 (pen, anchor, handle_in, handle_out)
+  - Visual feedback: 다이아몬드 마커 (blue=point, green=grid, magenta=edge) + crosshair 라인
+  - tools/point-snap.ts: computePointSnap, constrainAngle, collectPathPointTargets, addRulerTargets, renderPointSnapIndicators
+  - 기존 smart-guides 인프라 재사용, SNAP_THRESHOLD_PX / zoom 적용
+
+## 완료된 기능 (추가 69)
+- AI layout suggestion (heuristic 기반):
+  - 선택 노드 패턴 분석: row/column/grid 감지, gap/alignment 추론
+  - Floating suggestion card: Apply/Dismiss (15s auto-dismiss)
+  - Apply → 노드를 auto-layout Frame으로 감싸고 추천 설정 적용
+  - Keyboard: Cmd+Shift+L, context menu: ✨ Suggest Layout
+  - LLM agent tools: suggest_layout, apply_layout_suggestion
+  - 순수 TypeScript heuristic (ai-layout-suggest.ts, 381 lines)
+
+## 완료된 기능 (추가 69)
+- AI layout suggestion (heuristic-based auto-layout recommendation):
+  - Rust layout_suggest.rs: 선택 노드들의 위치/크기 패턴 분석
+  - 패턴 감지: horizontal row, vertical column, grid-like (cluster 기반)
+  - 간격 분석: median gap 계산, nice number 라운딩 (4/8/12/16/20/24/32)
+  - 정렬 감지: cross-axis variance → start/center/end/stretch 추천
+  - Confidence score: alignment + overlap ratio 기반 (0.0-1.0)
+  - WASM: suggest_auto_layout(ids) → JSON, apply_auto_layout_suggestion(ids) → frame_id
+  - Apply: bounding box Frame 생성 → Flex layout 설정 → 노드 reparent (visual order 정렬)
+  - Properties panel: 2+ 노드 선택 시 "AI Layout" 섹션 + preview card + Apply 버튼
+
+## 완료된 기능 (추가 70)
+- Find & Replace:
+  - Rust find_replace.rs: Scene 메서드 (find_text, replace_text_in_node, replace_all_text, find_by_color, replace_color)
+  - Text search: Text 노드 content + 노드 이름 매칭 (case-sensitive 토글)
+  - Text replace: 단일 노드 / 전체 노드 일괄 치환
+  - Color search: fill color hex 검색 (±2 tolerance), Color replace: fill + stroke 일괄 교체
+  - WASM: find_text, replace_text, replace_all_text, find_by_color, replace_color (5개 바인딩)
+  - UI: find-replace-panel.ts — 플로팅 패널, Text/Color 모드 탭, 결과 리스트 + 네비게이션
+  - Cmd+F 토글, Esc 닫기, 결과 클릭 시 노드 선택 + pan-to-center
+  - Undo 통합 (push_undo before replace)
+
+## 완료된 기능 (추가 71)
+- Annotation export (Markdown report):
+  - Rust Scene.export_comments_markdown(): 페이지별 그룹핑, Open/Resolved 구분, 답글 포함
+  - WASM: Engine.export_comments_markdown() 바인딩
+  - TS: Comments 패널 "↓ Export" 버튼 → comments-report.md 다운로드
+  - format_comment 헬퍼: 작성자, 좌표, node ID, replies 포맷팅
+
+## 완료된 기능 (추가 71)
+- Annotation export (Markdown + JSON):
+  - Rust: export_annotations_markdown() — 코멘트 (페이지별 그룹, open/resolved, 노드 이름 해석) + 노드 notes (tags, content)
+  - Rust: export_annotations_json() — 구조화된 JSON (comments + notes, 페이지명/노드명 resolve)
+  - WASM: export_annotations_markdown(), export_annotations_json() 바인딩
+  - Node.kind_name() 헬퍼 추가, 기존 export_comments_markdown은 새 함수로 위임
+  - TS: Comments 패널 "↓ MD" + "↓ JSON" 두 개 export 버튼
+
+## 완료된 기능 (추가 72)
+- PDF export:
+  - 순수 TypeScript PDF 1.4 빌더 (zero-dependency)
+  - 멀티페이지 지원: 모든 페이지 또는 현재 페이지만 내보내기
+  - Canvas → JPEG (configurable quality) → DCTDecode PDF stream
+  - 각 PDF 페이지 크기 = 캔버스 콘텐츠 bounding box
+  - 옵션: scale (default 2x), quality (default 0.92), filename
+  - 툴바 PDF 버튼 (SVG 옆), Cmd+Shift+E 단축키
+  - Editor.downloadPDF(options?) async API
+  - ui/pdf-export.ts: exportPDF(), buildPDF(), captureCurrentPage()
+
+## 완료된 기능 (추가 73)
+- Component documentation panel:
+  - ComponentDoc 구조체: guidelines(markdown), tags, links, prop_docs, examples, changelog
+  - PropDoc: name/description/default_display, ComponentExample: title/description/variant_key
+  - Backward-compatible serde (#[serde(default)])
+  - WASM: get_component_doc, set_component_description, set_component_guidelines, set_component_tags, add/remove_component_link, set/remove_component_prop_doc, add/remove_component_example, add_component_changelog, export_component_docs
+  - Right pane "Docs" 탭: 컴포넌트/인스턴스 선택 시 문서 편집 UI
+  - Description, Guidelines(markdown), Tags(chips), Property Docs, Examples, Links, Changelog 섹션
+  - Export all docs as JSON
+  - LLM Agent: 8개 도구 (get/set/add/remove component docs)
+
+## 완료된 기능 (추가 74)
+- Diff overlay (visual branch comparison):
+  - Rust: VisualDiff + VisualDiffNode 구조체 (id, name, x, y, width, height, prev_*)
+  - compute_visual_diff(): 두 BranchSnapshot 비교, 노드 위치/크기 포함
+  - Scene: get_visual_diff(a, b), get_branch_visual_diff(id) — 두 브랜치 간 또는 브랜치 자체 변경 비교
+  - WASM: get_visual_diff, get_branch_visual_diff 바인딩
+  - Canvas overlay: green=added, yellow=modified, red=removed (translucent fill + dashed border)
+  - Modified nodes: 이전 위치를 ghost outline으로 표시
+  - Diff panel: 통계 요약, opacity 슬라이더, label 토글, 클릭 시 pan-to-node
+  - Branch panel: 각 브랜치에 diff 버튼, active 브랜치에 self-diff 버튼
+  - diff-overlay.ts 단일 파일 구현
+
+## 완료된 기능 (추가 75)
+- Figma → OpenSketch import (REST API):
+  - Figma REST API (v1/files) 기반 파일 가져오기
+  - URL 파싱: figma.com/file/ 또는 figma.com/design/ URL, 또는 file key 직접 입력
+  - 노드 변환: Frame/Component/Instance/Group → Frame, Rectangle → Rect, Ellipse → Ellipse, Text → Text, Star/RegularPolygon → Star/Polygon, Section/Slice, Vector/BooleanOp/Line → Rect fallback
+  - 속성 매핑: Fill (solid/linear/radial gradient), Stroke, Opacity, Visibility, Corner radius, Blend mode, Drop shadow, Layer blur
+  - Text 속성: font family/size/weight/italic, text-align, line-height
+  - Auto layout: Flex mode, gap, padding
+  - 계층 구조: 재귀 children 변환 + reparent + position offset
+  - Import modal UI: URL + token 입력, 진행 상태, token localStorage 저장
+  - 툴바 Figma 로고 아이콘 버튼
+  - Undo 통합 (import 전 push_undo)
+  - ui/figma-import.ts 단일 파일 구현
+
+## 완료된 기능 (추가 76)
+- Shared component library (팀 간 공유):
+  - Rust ComponentLibrary struct: id(String), name, version, components HashMap
+  - ComponentStore: linked_libraries Vec, export_library, import_library, get_linked_libraries_info, unlink_library, sync_library
+  - WASM: export_component_library, import_component_library, get_linked_libraries, unlink_library, sync_library
+  - UI: component-library.ts — 모달 패널 (Export 선택→JSON, Import 파일→머지, Linked libraries 목록 + Sync/Unlink)
+  - Editor: openComponentLibrary(), Cmd/Ctrl+Alt+L 단축키
+  - Backward-compatible serde (#[serde(default)] on linked_libraries)
+
+## 완료된 기능 (추가 77)
+- Responsive token system:
+  - ResponsivePreset 구조체: id, label, width, height, mode_mappings (collection→mode)
+  - ResponsiveState: Scene-level presets 배열 + active preset tracking
+  - set_preview_width(w): 뷰포트 너비에 맞는 프리셋 자동 매칭 → 컬렉션 모드 전환 → apply_variables
+  - activate_preset(id): 수동 프리셋 활성화
+  - WASM: 8개 바인딩 (add/remove/update_responsive_preset, set/remove_preset_mode_mapping, activate_responsive_preset, set_preview_width, get_responsive_presets, get_active_preset_id)
+  - UI: responsive-tokens.ts 모달 패널 (프리셋 칩 바, 카드별 모드 매핑 드롭다운)
+  - 기본 디바이스 프리셋 6종 (Mobile S/Mobile/Tablet/Laptop/Desktop/Wide)
+  - 반응형 프리뷰와 통합: 각 브레이크포인트별 SVG 생성 시 토큰 모드 자동 전환
+  - 툴바 ⚡ 버튼, Cmd+Alt+T 단축키
+  - Backward-compatible serde
+
+## 완료된 기능 (추가 78)
+- Gesture-based interactions (모바일 프로토타입):
+  - Rust: InteractionTrigger에 OnSwipeLeft/Right/Up/Down, OnLongPress, OnPinchIn/Out 추가
+  - WASM: add_interaction trigger 파싱 확장 (swipe-left/right/up/down, long-press, pinch-in/out)
+  - Properties panel: 11개 트리거 옵션 (Click, Hover, Press, Drag + 7 gestures)
+  - Prototype viewer: touch event 기반 제스처 인식
+    - Swipe: >50px 이동, <500ms, 4방향 판별
+    - Long press: 500ms 타이머, 10px 이동 시 취소
+    - Pinch: 두 손가락 거리 비율 (0.8 미만=in, 1.2 초과=out)
+    - 짧은 탭(<10px, <300ms)은 OnClick으로 폴백
+  - Hotspot 힌트: 색상 구분 (파란=click, 초록=gesture, 주황=hover) + 제스처 라벨 표시
+  - Backward-compatible serde (기존 Interaction 데이터 호환)
 
 ## 완료된 기능 (추가 79)
 - Vector network editing (enhanced):
@@ -697,199 +828,493 @@
   - Connection preview: dashed line from selected vertex to mouse cursor
   - Auto-connect: click empty space → add vertex + auto-connect from selected vertex
   - WASM: vn_split_segment, vn_hit_test_segment 바인딩 추가
-  - renderVNEditOverlay 개선: segment highlight/hover, handle visualization, connection preview
+
+## 완료된 기능 (추가 80)
+- Multi-user permissions (역할 기반 접근 제어):
+  - Rust permissions.rs: Role (Owner/Editor/Viewer), ProjectUser, Lock, PermissionStore
+  - 노드/페이지별 잠금 (lock/unlock), 만료 지원, Owner 오버라이드
+  - WASM: 14개 바인딩 (set_current_user, perm_add/remove_user, perm_set/get_role, perm_get_users, perm_can_edit_node/page, perm_lock/unlock_node/page, perm_get_locks, perm_get_node/page_lock, perm_cleanup_expired)
+  - UI: Right pane "Perms" 탭 — 팀 멤버 관리, 역할 변경, 잠금 현황, 선택 노드 잠금/해제
+  - Backward-compatible (기본 "local" owner 유저)
+
+## 완료된 기능 (추가 81)
+- Canvas presentation mode (풀스크린 슬라이드쇼):
+  - 페이지 기반 프레젠테이션 (각 페이지 = 1 슬라이드)
+  - 트랜지션: None, Fade, Slide Left/Right/Up, Zoom (ease 400ms)
+  - 네비게이션: ←/→, Space, PageUp/Down, Home/End, 캔버스 좌/우 클릭
+  - 발표자 노트: N 키 토글, 현재 페이지 top-level 노드 notes 수집 표시
+  - 컨트롤 바: 하단 auto-hide, 프로그레스 바 (클릭 seek), 슬라이드 카운터, 트랜지션 선택
+  - F 키 브라우저 풀스크린, Esc 종료
+  - 툴바 프레젠테이션 아이콘 버튼, Cmd+Shift+Enter 단축키
+  - Dynamic import (코드 스플릿), 뷰포트/페이지 복원
+
+## 완료된 기능 (추가 82)
+- Component analytics (사용 통계):
+  - Rust Scene::get_component_analytics(): 모든 페이지 노드 순회, Instance 카운트
+  - ComponentStat: component_id, name, instance_count, locations(node_id/name/page), variant_usage
+  - 미사용 컴포넌트 감지 (instance_count == 0)
+  - WASM: component_analytics() -> JSON
+  - UI: component-analytics.ts — 플로팅 모달 (Cmd/Ctrl+Alt+A)
+  - 요약 카드 (Components/Instances/Unused), 컴포넌트별 인스턴스 수, variant 칩
+  - 클릭 시 locations 토글, location 클릭 시 해당 페이지/노드로 이동+선택
+  - 미사용 컴포넌트 경고 섹션
+
+## 완료된 기능 (추가 83)
+- Smart component suggestions (반복 패턴 감지 → 컴포넌트 추출 제안):
+  - Rust smart_component.rs: 3가지 탐지 전략
+    - Structural duplicates: 서브트리 fingerprint 비교 (kind + children 재귀)
+    - Sibling patterns: Frame 내 동일 구조 자식 반복 (리스트/그리드 아이템)
+    - Visual clones: 같은 kind + 유사 크기(8px 버킷) + 같은 fill + 같은 children 수
+  - Confidence scoring: count/depth/fill 일치율 기반 (0.0-1.0)
+  - Deduplication: 고신뢰도 suggestion이 저신뢰도를 포함하면 제거
+  - WASM: suggest_components() → JSON
+  - UI: smart-suggestions.ts — 플로팅 모달 (Cmd/Ctrl+Alt+S)
+  - Suggestion 카드: 이름, 이유, 신뢰도 %, 추천 컴포넌트명, 인스턴스 수
+  - Select All 버튼으로 해당 노드들 선택
+
+## 완료된 기능 (추가 84)
+- Cursor chat bubbles (실시간 커서 채팅):
+  - `/` 키로 채팅 입력 모드 진입: 커서 위치에 인라인 input 필드 표시
+  - Enter → 메시지 전송 (collab WebSocket broadcast + 로컬 즉시 표시)
+  - Escape → 입력 취소, blur → 자동 닫힘
+  - 말풍선 렌더링: Canvas 위 흰색 버블 + 유저 색상 accent bar, word wrap 지원
+  - 타이핑 인디케이터: 입력 중 "···" 말풍선 표시
+  - 자동 사라짐: 4초 표시 + 0.5초 fade out
+  - collab.ts: sendChat, sendTyping, ChatMessage type, onChat/onTyping 콜백
+  - cursor-presence.ts: ChatBubble, drawChatBubble, setLocalChat/setLocalTyping
+  - editor.ts: openCursorChat/closeCursorChat, handleRemoteChat/handleRemoteTyping
+  - collab 서버 없이도 로컬 채팅 즉시 표시
+
+## 완료된 기능 (추가 85)
+- Design handoff mode:
+  - Handoff 탭 (기존 Inspect 탭 리브랜딩+확장): packages/app/src/ui/handoff-panel.ts
+  - Design Spec Summary: 크기/위치/회전/투명도/radius/fill(hex+RGB swatch)/stroke/font 속성/layout 정보
+  - Code gen tabs: CSS / Tailwind / SwiftUI / Kotlin / SVG (5개 언어)
+  - Tailwind 코드젠: 유틸리티 클래스 생성 (size, position, radius, color, text, layout 등)
+  - Asset export: PNG @1x, PNG @2x, SVG 다운로드
+  - Spacing overlay toggle: Alt+Hover 측정 모드 on/off
+  - Design tokens export: W3C DTCG, Style Dictionary, Tailwind Config
 
 ## 완료된 기능 (추가 86)
-- Canvas recording / replay:
-  - Rust RecordingStore: 프레임 캡처 (scene snapshot per frame), 재생/탐색 (seek by index)
-  - WASM: recording_start, recording_stop, recording_capture, recording_seek, recording_clear, recording_frame_count, recording_duration_ms, recording_has_data, recording_is_active, recording_set_max_frames, recording_export_json, recording_import_json, recording_get_frame
-  - Floating recorder bar UI (canvas-recorder.ts): 녹화 시작/정지, 재생/일시정지/정지, 타임라인 슬라이더, 속도 조절(0.5x/1x/2x/4x), JSON export/import
-  - 툴바 ⏺ 버튼 + Shift+Alt+R 단축키
-  - 녹화 중 빨간 펄스 인디케이터, 재생 시 자동 프레임 진행, 재생 전 장면 스냅샷 보존/복원
+- Text list styles:
+  - ListStyle enum: None, Bullet, Numbered, Dash, Checkbox, CheckboxChecked
+  - indent_level: u8 (0-10), 인덴트 오프셋 = level × font_size × 1.5
+  - Bullet: depth별 마커 변경 (•, ◦, ▪), Numbered: 단락별 자동 번호
+  - Canvas 렌더링: 각 단락 첫 줄에 prefix 렌더, indent offset 적용
+  - SVG export: prefix 문자열 포함, indent 반영
+  - WASM: set_list_style, get_list_style, set_indent_level, get_indent_level
+  - Properties panel: List 드롭다운 (6 옵션) + Indent 숫자 입력
+  - Handoff panel: list-style-type + padding-left CSS 코드젠
+  - Backward-compatible serde (기본값 None/0)
 
-## 완료된 기능 (추가 — Text Transform & Typography)
-- TextTransform enum: None/Uppercase/Lowercase/Capitalize (Rust node.rs)
-- text_indent: f64 first-line indent (pixels, per paragraph)
-- Canvas rendering: text_transform.apply() before display, text_indent on first line of each paragraph
-- SVG export: transformed text content, text-transform attribute support
-- WASM bindings: set_text_transform/get_text_transform, set_text_indent/get_text_indent
-- Properties panel: Transform dropdown + Text Indent number input
-- Handoff panel: text-transform, text-indent in CSS/Tailwind codegen + Design Specs
-- Backward-compatible serde (default values)
-- OpenType features: ligatures, small caps, old-style numerals, tabular numerals (OpenTypeFeatures struct in node.rs)
-- OpenType WASM bindings: set_opentype_ligatures/small_caps/old_style_numerals/tabular_numerals + get_opentype_features (JSON)
-- OpenType Properties panel: 4 checkbox toggles in text section
-- OpenType SVG export: font-feature-settings + font-variant-caps style attributes
-- OpenType Handoff: font-feature-settings CSS codegen + spec row display
+## 완료된 기능 (추가 87)
+- Text transform & advanced typography:
+  - TextTransform enum: None, Uppercase, Lowercase, Capitalize — apply() 메서드로 텍스트 변환
+  - text_indent: f64 — 첫 줄 들여쓰기 (픽셀, -500~500 범위)
+  - OpenTypeFeatures struct: ligatures, old_style_numerals, small_caps, tabular_numerals
+  - Canvas 렌더링: text_transform.apply() 적용, text_indent 첫 줄 오프셋, measure_text_nodes에서도 transform 적용
+  - SVG export: text-transform CSS, text-indent CSS, font-feature-settings CSS, font-variant: small-caps
+  - WASM: set/get_text_transform, set/get_text_indent, set_opentype_ligatures/old_style_numerals/small_caps/tabular_numerals, get_opentype_features
+  - Properties panel: Text Transform 드롭다운 (None/Uppercase/Lowercase/Capitalize), Text Indent 숫자 입력, OpenType 토글 (Ligatures/Small Caps/Old-style Nums/Tabular Nums)
+  - Handoff panel: text-transform, text-indent, font-feature-settings CSS 코드젠 + Tailwind 클래스
+  - Backward-compatible serde (기본값 None/0.0/default features)
 
-## 완료된 기능 (추가 — Pattern Fills)
-- Pattern fills: FillType::Pattern variant (src, scale, rotation, pattern_type, tile_width, tile_height)
-- PatternType enum: Tile / Brick / Hex (offset tile layouts)
-- Canvas rendering: JS createPattern with tile canvas compositing (brick/hex offset), rotation, clipping
-- SVG export: <pattern> defs with <image> tiles, patternTransform rotation
-- WASM: set_fill_pattern_at(id, index, src, scale, rotation, pattern_type, tile_width, tile_height)
-- get_fills / get_fill_info: Pattern type JSON output
-- Properties panel: Pattern fill type in dropdown, image file picker, scale/rotation/type/tile size controls
-- Inspect panel: CSS background-image/background-size/background-repeat codegen
-- Backward-compatible serde (기존 파일 호환)
+## 완료된 기능 (추가 88)
+- Layers panel search/filter:
+  - 헤더에 돋보기 아이콘 토글 버튼 (검색 바 show/hide)
+  - 텍스트 입력 시 노드 이름/종류 실시간 필터링
+  - 매칭 노드 + 조상 노드만 표시, 검색 중 트리 자동 확장
+  - 매칭 텍스트 하이라이트 (파란 마크)
+  - 매칭 수 표시 ("N matches" / "No matches")
+  - Escape 키로 검색 닫기 + 필터 초기화
+  - Ctrl/Cmd+F 단축키 (layers panel 내)
 
-## 완료된 기능 (추가 — Table Node)
-- NodeKind::Table { rows, cols, cells, col_widths, row_heights }
-- TableCell: row, col, row_span, col_span, content, fill, text_align
-- WASM: add_table, table_set_cell, table_get_cell, table_set_cell_fill, table_merge_cells
-- WASM: table_add_row/col, table_remove_row/col, table_set_col_width/row_height
-- WASM: table_import_csv (CSV 파싱), table_sort (열 기준 정렬), table_get_info
-- Canvas 렌더링: 그리드 라인, 셀 fill, 셀 텍스트 (text_align 지원)
-- SVG export: <g> + <rect>/<line>/<text> 구조
-- Toolbar: Table 버튼 (B 키 단축키)
-- Properties panel: Rows/Cols 표시, +/- Row/Col, CSV import, Sort 버튼
+## 완료된 기능 (추가 89)
+- Keyboard-driven node nudge:
+  - Arrow keys: 선택된 노드 1px 이동
+  - Shift+Arrow: 10px 이동
+  - Alt+Arrow: 0.1px sub-pixel nudge
+  - 멀티 셀렉션 지원, Undo 통합
 
-## 완료된 기능 (추가 — Smart Spacing Distribution)
-- Multi-selection (3+) spacing distribution: 노드 간 gap 시각화 + 드래그로 uniform spacing 조절
-- Auto-detect primary axis (horizontal/vertical), gap handles with pink overlay + dashed border
-- Uniform indicator: gaps turn green when evenly spaced, pill labels show px values
-- Rust: distribute_with_spacing, get_spacing_between (이미 존재), WASM: distribute_selection_with_spacing, get_selection_spacing
-- TS: spacing-handles.ts 확장 (multiselect mode), editor.ts 드래그 핸들링 통합
-- Auto-layout frame gap 핸들도 기존대로 동작 (backward compatible)
+## 완료된 기능 (추가 89)
+- Multi-edit mode (Edit All Matching Layers):
+  - Rust: select_same_name, select_same_name_and_kind (Scene 메서드)
+  - WASM: select_same_name, select_same_name_and_kind 바인딩
+  - Context menu: "Edit All Matching Layers" (같은 이름+종류 노드 전체 선택)
+  - Context menu: "Select All with Same Name" (같은 이름 노드 전체 선택)
+  - 선택 후 Properties panel에서 일괄 편집 (기존 멀티 셀렉션 편집 활용)
+  - Backward-compatible (신규 API만 추가)
 
-## 완료된 기능 (추가 — Smart Spacing Distribution)
-- Smart spacing distribution (Figma-style):
-  - 3+ 노드 멀티 셀렉션 시 노드 사이 핑크 간격 핸들 자동 표시
-  - 주축 자동 감지 (수평/수직 spread 비교), 겹침 시 스킵
-  - 핸들 드래그로 간격 실시간 균등 조절 (distribute_selection_with_spacing)
-  - 균등 간격 시 초록 "= Equal spacing" 배지 표시
-  - 각 갭에 px 값 라벨 pill, 대시 테두리 라인
-  - Rust: Scene.distribute_with_spacing(ids, axis, spacing), get_spacing_between(ids, axis)
-  - WASM: distribute_selection_with_spacing(axis, spacing), get_selection_spacing(axis) → JSON
-  - 기존 auto-layout 간격 핸들과 통합 (mode: autolayout | selection)
-  - Undo 통합
+## 완료된 기능 (추가 91)
+- Table node:
+  - NodeKind::Table { rows, cols, cells, col_widths, row_heights }
+  - TableCell: row, col, row_span, col_span, content, fill, text_align
+  - Canvas 렌더링: 셀 그리드, 배경색, 텍스트 (L/C/R align), cell merge 지원
+  - SVG export: <rect>/<text> 그룹으로 내보내기
+  - WASM: add_table, table_set_cell, table_get_cell, table_set_cell_fill, table_merge_cells, table_add_row/col, table_remove_row/col, table_set_col_width/row_height, table_import_csv, table_sort, table_get_info
+  - CSV 가져오기: 파싱 → 자동 행/열 리사이즈 → 셀 채우기
+  - 정렬: 컬럼 기준 stable sort (오름/내림차순, 숫자 인식)
+  - 셀 병합: merge_cells(row, col, row_span, col_span)
+  - 툴바: Table 버튼 (B 단축키)
+  - Properties panel: Rows/Cols 표시, +/- Row/Col, CSV Import, Sort ↑/↓
+  - find_replace.rs: Table 케이스 추가 (빌드 오류 수정)
+  - Backward-compatible serde
 
-## 완료된 기능 (추가 — Noise/Texture Fills)
-- FillType에 NoiseFill, DotPattern, CrosshatchFill 3개 텍스처 fill 추가
-- NoiseFill: scale, color1, color2, intensity(0–1), seed — hash-based procedural noise
-- DotPattern: dot_radius, spacing, color, bg_color, angle — regular dot grid pattern
-- CrosshatchFill: spacing, line_width, color, bg_color, angle, density(1=단방향, 2=교차) — hatching lines
-- Canvas 렌더링: 각 텍스처 타입별 절차적 생성 (clip to bounds, rotation 지원)
-- SVG export: NoiseFill → feTurbulence+feColorMatrix, DotPattern → <pattern>+<circle>, CrosshatchFill → <pattern>+<line>
-- WASM: set_fill_noise_at, set_fill_dot_pattern_at, set_fill_crosshatch_at + get_fills/get_fill_info 확장
-- Properties panel: Fill type dropdown에 Noise/Dots/Crosshatch 옵션 추가, 각 타입별 파라미터 편집 UI (scale/density/angle/colors)
-- Backward-compatible serde (기존 파일 호환)
+## 완료된 기능 (추가 92)
+- Pixel preview mode:
+  - Alt+P 토글, zoom bar에 픽셀 미리보기 버튼
+  - imageSmoothingEnabled = false로 anti-aliasing 비활성화
+  - Pixel grid overlay: zoom ≥ 8x에서 CSS 픽셀 그리드 표시, adaptive opacity
+  - Device frame simulation: 10개 프리셋 (iPhone 15 Pro, Pixel 8, iPad Pro 등)
+  - Right-click → device picker dropdown (카테고리별 분류: phone/tablet/desktop)
+  - DPR info 표시, 디바이스 영역 외부 dimming (40% black)
+  - UI overlay (rulers 등)는 smoothing 유지
+  - 순수 TypeScript 구현 (ui/pixel-preview.ts)
+
+## 완료된 기능 (추가 93)
+- Unified spotlight search (Cmd+K / Cmd+P):
+  - 노드/페이지/컴포넌트/변수 통합 검색
+  - 카테고리 필터 (Tab 키 또는 클릭): All/Node/Page/Component/Variable
+  - 색상 코딩 아이콘 + 카테고리 뱃지 (파랑/골드/보라/초록)
+  - 결과 카테고리별 그룹 헤더
+  - Node → select + zoom, Page → switch + zoom-to-fit, Component → find instance + zoom
+  - Variable 검색: collection 이름/변수 이름 모두 매칭
+  - 키보드: ↑↓ 네비게이트, Enter 선택, Tab 필터 순환, Escape 닫기
+
+## 완료된 기능 (추가 94)
+- Batch export (ZIP):
+  - Cmd+Shift+E 또는 툴바 버튼으로 배치 익스포트 다이얼로그 열기
+  - 페이지 + 노드 체크박스 리스트 (선택된 노드 자동 체크)
+  - 항목별 포맷(PNG/SVG) + 배율(0.5x~4x) 설정
+  - Quick actions: Select All/None, All PNG/SVG, 글로벌 스케일, 프리셋 적용
+  - fflate ZIP 압축 → 자동 다운로드
+  - 페이지 내보내기: 임시 페이지 전환 → 복원
+  - 파일명 중복 방지, sanitize
+  - batch-export.ts 단일 파일 구현
+
+## 완료된 기능 (추가 95)
+- Variable-width stroke:
+  - PathPoint.stroke_width 필드 (0.0 = inherit from stroke, >0 = custom width at point)
+  - Canvas 렌더링: polyline flattening → left/right offset curves → filled outline
+  - SVG export: variable-width paths → filled `<path>` outline
+  - WASM: path_set/get_point_stroke_width, has_variable_stroke, path_get_stroke_profile
+  - Properties panel: Variable Stroke 토글, Start/End width 입력, profile preview canvas
+  - Backward-compatible serde (기존 PathPoint 호환)
+
+## 완료된 기능 (추가 96)
+- Gradient mesh fills:
+  - FillType::GradientMesh { mesh: MeshGradient } 추가
+  - MeshGradient { rows, cols, points: Vec<MeshPoint> } — 2D 격자 색상 보간
+  - MeshPoint { x, y, color } — normalized 좌표 (0~1) + Color
+  - 기본 2×2 grid (4코너: indigo/emerald/amber/red)
+  - Canvas 렌더링: 셀별 8×8 subdivision bilinear color interpolation (tessellation)
+  - SVG export: 래스터 폴백 (rect 그리드)
+  - WASM: set_fill_gradient_mesh_at, set_fill_gradient_mesh_default_at, mesh_set_point_color, mesh_set_point_position, mesh_add_row/col, mesh_remove_row/col, mesh_get_info
+  - Properties panel: Fill type "Mesh" 선택, Grid 크기 표시, +/-Row/Col 버튼, 포인트별 color swatch grid
+  - Mesh edit mode: 더블클릭 → 진입, Escape → 종료
+    - 포인트 드래그로 위치 이동
+    - 선택된 포인트 클릭 → native color picker
+    - Grid 라인 overlay (dashed white)
+    - 포인트 핸들 (색상 swatch + 선택 링)
+  - color_palette.rs: mesh 포인트 색상 추출 지원
+  - Backward-compatible serde
+
+## 완료된 기능 (추가 97)
+- Motion path animation:
+  - AnimProperty::MotionPath: 노드가 Path 노드를 따라 이동, value = progress (0.0–1.0)
+  - MotionPathConfig: path_node_id, orient_to_path (경로 접선 방향 자동 회전), rotation_offset
+  - AnimationTrack.motion_path: Option<MotionPathConfig> (MotionPath 트랙 전용)
+  - Scene anim_apply: path_utils로 경로 길이 계산 → progress 거리에서 좌표+접선 샘플링
+  - 노드 중심을 경로 위 지점에 배치, orient_to_path 시 접선 각도로 회전
+  - WASM: anim_set_motion_path, anim_update_motion_path, anim_remove_motion_path, anim_get_motion_path, get_path_nodes
+  - Timeline UI: 🛤 버튼으로 모션 패스 부착/해제, 경로 선택, duration 입력, orient 토글
+  - 기존 playback/looping/easing/snapshot 복원과 완전 호환
+  - Backward-compatible serde
 
 ## 완료된 기능 (추가 98)
-- Dev Mode Enhancement:
-  - Dev 모드에서 Alt 없이 호버만으로 자동 측정 가이드라인 표시
-  - 400ms 딜레이 후 CSS 스니펫 툴팁 (syntax highlighting, Catppuccin Mocha 테마)
-  - 원클릭 PNG/SVG export 버튼 (2x 스케일)
-  - Copy CSS 버튼 + 코드 클릭 → 클립보드 복사 + 토스트
-  - 노드 이름/종류 헤더, fill/stroke/shadow/blur/layout CSS 생성
-  - editor.setDevMode(true/false), DevModeOverlay 클래스 (ui/dev-mode-overlay.ts)
+- Node-level event system (JS callback bindings):
+  - EventTrigger enum: onClick, onDoubleClick, onHover, onHoverEnd, onPress, onRelease, onDrag, onDragEnd, onFocus, onBlur
+  - NodeEvent struct: id, trigger, handler (JS code), enabled, label
+  - Node.events: Vec<NodeEvent>, backward-compatible serde
+  - WASM: add_node_event, remove_node_event, update_node_event_handler, update_node_event_trigger, set_node_event_enabled, get_node_events, get_node_event_count, get_all_node_events
+  - EventRuntime: sandboxed JS execution with node API (setProperty, setVisible, setOpacity, setPosition, setSize, setFillColor, setText, setRotation, getNode, navigateTo, log, delay)
+  - Prototype viewer: click/hover/press/drag/dblclick event firing, hover tracking, drag state
+  - Event hotspot hints: orange dotted border + ⚡ icon in prototype viewer
+  - Properties panel: "Events" section (add/remove, trigger dropdown, JS code editor, enable toggle)
 
-## 완료된 기능 (추가 — Comments @mention threading)
-- Comment struct에 assignee(Option<String>), mentions(Vec<String>) 필드 추가
-- Rust parse_mentions() — @username 패턴 파싱 (alphanumeric, _, -, .)
-- Comment.extract_mentions() — text + 모든 replies에서 mention 추출, 중복 제거
-- add_comment, edit_comment, add_reply 시 자동 extract_mentions() 호출
-- set_comment_assignee(comment_id, assignee) — Scene + WASM 바인딩
-- get_comments_by_mention(username), get_unresolved_comment_count — WASM 바인딩
-- TS UI: highlightMentions() — @username을 파란 span으로 렌더링 (thread popup + panel card)
-- TS UI: @mention autocomplete — textarea에서 @ 입력 시 사용자 목록 드롭다운
-- TS UI: 👤 assignee 버튼 (thread popup header) + assignee 표시
-- TS UI: 댓글 패널 필터 탭 — All / Unresolved (count) / @Me (mentions + assigned)
-- Backward-compatible serde(default)
+## 완료된 기능 (추가 99)
+- Auto-animate between pages (Smart Animate) — Rust 엔진 + TS 프로토타입 뷰어 통합:
+  - Rust: auto_animate.rs — NodeSnapshot (rel_x/y, width, height, rotation, opacity, corner_radius, blur, fill RGBA, stroke_width)
+  - Scene.compute_auto_animate(from, to): 재귀적 descendant 매칭 by name, AnimatePair + removed/added 분류
+  - WASM: compute_auto_animate(from_frame_id, to_frame_id) → JSON
+  - TS: prototype-viewer.ts performSmartAnimate — 엔진 데이터 기반 풀 프로퍼티 보간
+  - 매칭 노드: position, size, rotation (canvas transform), opacity, corner_radius (roundRect clip) 보간
+  - 비매칭 노드: removed → fade out, added → fade in
+  - 기존 Dissolve/SlideIn/SlideOut/Push 전환과 호환
+  - icons.ts 중복 키 수정 (alignLeft 등)
+
+## 완료된 기능 (추가 100)
+- 3D perspective transform (이미 구현 완료 확인):
+  - Perspective3D struct: rotate_x/y/z, perspective distance, origin_x/y
+  - WASM: set/get/clear_perspective, set_perspective_rotation/distance/origin
+  - Canvas 렌더링: DOMMatrix 3D 투영 + strip-based texture warp
+  - SVG export: CSS transform: perspective() rotateX/Y/Z()
+  - Inspect panel: CSS 코드 생성
+  - Properties panel: 3D Transform 섹션 (Enable 토글, X/Y/Z 슬라이더, distance, origin)
+
+## 완료된 기능 (추가 101)
+- Figma import 개선:
+  - Constraints import: Figma constraints → OpenSketch constraints 자동 매핑
+  - Rotation import: Figma rotation → OpenSketch rotation 변환
+  - Vector path import: VECTOR 노드를 fillGeometry SVG path data → Path 노드로 변환 (M/L/C/Z + relative 지원)
+  - Prototype/Interaction import: Figma reactions → OpenSketch interactions (trigger/action/transition/duration)
+  - ID mapping: Figma node ID → OpenSketch node ID 추적으로 cross-reference 지원
+
+## 완료된 기능 (추가 102)
+- Design token export UI + CSS Variables 포맷:
+  - CSS Variables 포맷 추가: :root { --color-*, --font-family-*, --font-size-* ... } + variable collections
+  - Rust: TokenFormat::CssVariables, export_css_variables() 함수
+  - WASM: "css-variables" | "css" format 파라미터 지원
+  - TS Editor: downloadDesignTokens() CSS mime type + .css 확장자 지원
+  - Design Token Export 모달 패널 (design-token-export.ts):
+    - 4개 포맷 카드 (W3C DTCG, Style Dictionary, Tailwind CSS, CSS Variables)
+    - 라이브 프리뷰 (syntax-highlighted pre block)
+    - 클립보드 복사 버튼
+    - 다운로드 버튼
+    - Escape / 오버레이 클릭 닫기
+  - 툴바 Design Token Export 버튼 (☀ 아이콘)
+  - SVG import stub 수정 (깨진 미완성 파일 → 컴파일 가능 stub)
+
+## 완료된 기능 (추가 103)
+- Canvas comments threading with @mention — notification badge:
+  - Comments 탭 버튼에 미해결 코멘트 수 빨간 배지 자동 표시
+  - comments-changed 이벤트 연동 실시간 업데이트
+  - (기존 구현 확인 완료: @mention autocomplete, unresolved/mentions filter, assignee, parse_mentions, set_comment_assignee 모두 이미 구현됨)
+
+## 완료된 기능 (추가 104)
+- SVG import (full parser):
+  - Rust: svg_import.rs — roxmltree 기반 SVG 파싱
+  - 지원 요소: rect, circle, ellipse, line, polyline, polygon, path, text, g (group), image
+  - Path 파싱: M/m, L/l, H/h, V/v, C/c, S/s, Q/q (cubic 변환), A/a (simplified), Z/z
+  - Style: fill (solid + gradient url(#id)), stroke (color/width/dash/cap/join), opacity
+  - Gradient defs: linearGradient, radialGradient with stops
+  - Color: hex (#rgb/#rrggbb/#rrggbbaa), rgb()/rgba(), named colors (12종)
+  - Transform: translate() + rotate() 파싱 적용
+  - Inline style 파싱 (style="...")
+  - WASM: import_svg(svg_text, offset_x, offset_y) → JSON node IDs
+  - TS: Editor.importSVG(text), importSVGFile() (파일 피커)
+  - 툴바 Import SVG 버튼, 드래그&드롭 SVG 파일 지원
+  - Undo 통합, 자동 선택
+
+## 완료된 기능 (추가 105)
+- Canvas recording → Video export (WebM & GIF):
+  - WebM: MediaRecorder + canvas.captureStream(), configurable bitrate (quality 0-1)
+  - GIF: Custom GIF89a encoder — median-cut color quantization (256 colors), LZW compression, Netscape looping
+  - Offscreen rendering: 각 프레임을 seek → offscreen canvas (1280×720) 렌더링
+  - Auto viewport fitting: scene bounds 기반 zoom/pan 자동 계산
+  - Progress modal: 풀스크린 오버레이, 프로그레스 바, phase 표시
+  - UI: recorder bar에 "WebM" / "GIF" 버튼 (recording 데이터 있을 때 표시)
+  - State preservation: export 전후 scene + viewport 저장/복원
+  - Files: video-export.ts (encoder), canvas-recorder.ts (UI 통합)
+
+## 완료된 기능 (추가 106)
+- AI code-to-design (HTML/CSS → 노드 자동 생성):
+  - DOMParser 기반 HTML 파싱 + <style> 블록 + inline style 병합
+  - CSS 파싱: class/id/tag selector 매칭, 30+ named colors, hex/rgb/rgba 지원
+  - 노드 생성: container → Frame (auto-layout), text → Text, img → Image, input/button → Frame+label
+  - Flexbox 매핑: display:flex, flex-direction, gap, align-items, justify-content → OpenSketch auto-layout
+  - 스타일 매핑: background-color, color, border-radius, border, opacity, font-*, text-align, line-height, padding
+  - 자동 크기 계산: children 기반 컨테이너 auto-size
+  - 예제 스니펫 4개: Card, Nav, Form, Hero
+  - 모달 UI: 코드 에디터 + 라이브 노드 카운트 프리뷰
+  - 툴바 Code 아이콘 버튼 + Cmd+Shift+D 단축키
+  - Undo 통합, 선택 자동 설정
+  - Rust 엔진 리팩토링: code_to_design.rs (순수 Rust HTML/CSS 파서 → WASM 바인딩)
+  - CSS `<style>` 블록 파서, Flexbox/Grid 지원, box-shadow/overflow/min-max 크기 매핑
+
+## 완료된 기능 (Conditional visibility — 이미 구현 확인)
+- Conditional visibility (변수 기반 노드 표시/숨김):
+  - Rust VisibilityCondition + WASM set/get/clear_conditional_visibility
+  - TS properties-panel UI
+
+## 완료된 기능 (추가 107)
+- AI-powered design polish (one-click design cleanup):
+  - Rust `design_polish.rs`: 6가지 분석 규칙 (spacing normalization, corner radius standardization, near-miss color merge, padding symmetrization, 4px grid size snap, pixel position snap)
+  - WASM: `analyze_polish()` → JSON fixes, `apply_polish(fix_ids_json)` → 선택 적용
+  - Modal UI: 카테고리별 그룹, 체크박스 선택, before/after 프리뷰, 노드 선택 링크
+  - LLM agent tools: `analyze_polish` + `apply_polish`
+  - 툴바 sparkle 아이콘 버튼
+  - Undo 통합
+
+## 완료된 기능 (추가 108)
+- Design system health dashboard (enhanced):
+  - Rust design_health.rs: HealthReport 구조체 — score, components, styles, colors, typography, issues
+  - Overall health score (0–100): component adoption/unused/detached, style adoption, hardcoded colors, near-duplicates 가중 감점
+  - Component health: total/instances/unused/detached, adoption rate (instances vs raw shapes)
+  - Style health: color/text style 사용 추적, unused 감지, adoption rate
+  - Color health: unique color count, hardcoded colors (≥2회 style 없이 사용), near-duplicate 감지 (distance <15)
+  - Typography health: font family 사용량, font size 인벤토리, 미표준 sizes (text style에 없는)
+  - Issues: severity (error/warning/info), category, suggestion 포함
+  - WASM: get_design_health() → JSON, remove_unused_color_styles(), remove_unused_text_styles()
+  - UI: 6탭 모달 (Overview/Components/Styles/Colors/Typography/Issues)
+  - 스타일 cleanup 버튼, 노드 네비게이션, 실시간 새로고침
+  - 툴바 🩺 (pulse icon) 버튼
 
 ## 완료된 기능 (추가 109)
-- Canvas minimap (이미 구현 완료 확인): 우하단 미니맵 오버레이, 뷰포트 사각형, 클릭/드래그 네비게이션, 토글 접기
-- 3D Perspective Transform (이미 구현 완료 확인): rotate_x/y/z, perspective, origin, Properties panel, Inspect CSS export
+- Smart object replace:
+  - Rust smart_replace.rs: SimilarityThreshold (ratio + size), find_similar_nodes (aspect ratio/area 유사도), replace_node_content (fills/strokes/opacity/corner_radius/shadows/blur/blend_mode/Image src 복사)
+  - WASM: find_similar_nodes(target_id, ratio_threshold, size_threshold), replace_with_node(source_id, target_ids_json), replace_selection_with(source_id)
+  - UI: smart-replace.ts 모달 (유사 노드 목록, 유사도%, 체크박스 선택, Replace Selected/All 버튼)
+  - 툴바 swap 아이콘 버튼, Cmd+Shift+H 단축키
+  - Context menu: "Smart Replace…" (단일 노드 선택 시)
+  - Undo 통합
 
 ## 완료된 기능 (추가 110)
-- Pen tool pressure sensitivity:
-  - PointerEvent.pressure 캡처 (pointerType === "pen" 시 자동 감지)
-  - Pressure → per-point stroke_width 매핑 (baseWidth × (0.1 + pressure × 1.9))
-  - Pen drag 중에도 pressure 업데이트 (bezier handle 생성 시)
-  - Editor.penPressureEnabled getter/setter (기본 on)
-  - Properties panel: Path 노드 Variable Stroke 섹션에 Pressure On/Off 토글
-  - 기존 variable-width stroke 렌더링 엔진 활용 (render_variable_width_stroke)
+- Canvas presentation annotations:
+  - 프레젠테이션 모드에서 실시간 드로잉/하이라이트 오버레이
+  - 5가지 도구: Laser pointer (1), Pen (2), Highlighter (3), Arrow (4), Eraser (5)
+  - 7색 컬러 스와치, quadratic curve 스무딩
+  - Undo (Cmd+Z), Clear (C), A키/✏️ 버튼 토글
+  - 슬라이드 전환 시 자동 클리어, HiDPI 지원
+  - 플로팅 툴바 (도구/색상 선택)
+  - presentation-annotations.ts 단일 파일, presentation-mode.ts 통합
+
+## 완료된 기능 (추가 111)
+- Smart animate between pages (프레젠테이션 모드):
+  - Rust: Scene.compute_auto_animate_pages(from_page_id, to_page_id) — 페이지 간 노드 이름 매칭
+  - WASM: compute_auto_animate_pages 바인딩
+  - 매칭된 노드: position/size/rotation/opacity/corner_radius 보간, 클립 라운드 렉트
+  - 미매칭 노드: fade in/out
+  - 매칭 없으면 자동 fade fallback
+  - 프레젠테이션 모드 트랜지션 선택에 "Smart animate" 옵션 추가
+  - 500ms ease-in-out cubic 애니메이션
 
 ## 완료된 기능 (추가 — Offline-first Sync)
 - IndexedDB 스토리지 (offline-store.ts): idb-keyval 패턴 직접 구현, DB "opensketch" / store "files"
-- AutoSave IndexedDB 마이그레이션: localStorage → IndexedDB 자동 이전 (첫 실행), async API 전환
-- Service Worker (public/sw.js): cache-first (정적 에셋), network-first (네비게이션), CACHE_VERSION 기반 캐시 관리
-- SW 등록: main.ts에서 navigator.serviceWorker.register, online/offline 이벤트 처리
-- Sync Queue (sync-queue.ts): 오프라인 변경사항 큐잉, online 복귀 시 flush (서버 sync는 stub)
+- AutoSave IndexedDB 마이그레이션: localStorage → IndexedDB 자동 전환, 비동기 API
+- Service Worker (public/sw.js): cache-first 정적 에셋, 네비게이션 fallback, 버전 기반 캐시 관리
+- Sync Queue (sync-queue.ts): 오프라인 ops 큐잉, online 복귀 시 자동 flush, 서버 sync stub
 - UI 인디케이터 (ui/sync-status.ts): 🟢 Online / 🔴 Offline + pending count, 자동 숨김
-- 외부 패키지 추가 없음, 기존 AutoSave API 호환 유지 (async 전환)
 
-## 완료된 기능 (추가 — Canvas Annotations / Sticky Notes)
-- FigJam-style sticky notes: NodeKind::StickyNote (content, font_size, theme, votes)
-- 7가지 색상 테마: yellow, blue, pink, green, orange, purple, gray
-- Voting dots: user별 투표 추가/제거, 총 투표 수 표시
-- Toolbar 버튼 (N shortcut), Properties panel 테마 선택 + 폰트 크기 + 투표 UI
-- Double-click 텍스트 편집 (overlay textarea)
-- Connector 노드로 sticky notes 간 연결 가능 (이미 구현됨)
-- Layers panel 아이콘 지원
-- Rust render.rs에서 rounded rect + 테마 색상 + 투표 dot 렌더링
+## 완료된 기능 (추가 112)
+- Multiplayer conflict resolution (CRDT 기반 씬 동기화):
+  - Rust crdt.rs: VectorClock (site_id → counter), CRDTDoc (op log, pending, tombstones, LWW state)
+  - Operation + OpKind: AddNode, RemoveNode, UpdateProperty (24+ PropKey), MoveNode, ReparentNode, ReorderChildren, Page ops
+  - LWW conflict resolution: timestamp wins, site_id tiebreak (lexicographic)
+  - TombstoneSet: delete wins over concurrent property updates
+  - MergeResult: applied/rejected op tracking
+  - Op log compaction (max 10,000, halve on overflow)
+  - WASM: 13개 바인딩 (set/get_site_id, get_vector_clock, get/take_pending_operations, ack_operations, apply_remote_operations, crdt_add/remove_node, crdt_update_property, crdt_move/reparent_node, get_crdt_state)
+  - apply_crdt_op_to_scene: remote ops → actual scene mutation (add/remove/update/move/reparent/reorder/page ops)
+  - apply_prop_value: 24+ property keys → node field mutation (fills, strokes, shadows as JSON blobs)
+  - TS sync-queue.ts: CRDTOperation/MergeResult types, enqueueCRDT, onCRDTSync, flush CRDT ops
+  - TS collab.ts: sendCRDTOps, onRemoteCRDTOps callback, remote_crdt_ops protocol message
+  - specs/COLLABORATION.md 업데이트
+  - Backward-compatible (기존 full_replace 경로 유지, CRDT는 opt-in)
 
-## 완료된 기능 (추가 — File Diff & Merge)
-- Files: ui/file-diff-merge.ts, toolbar.ts, shortcut-manager.ts, icons.ts
-- Scene JSON 비교: 노드별 added/modified/removed 분류
-- 선택적 머지: 체크박스로 개별 변경사항 cherry-pick 적용
-- Property diff: name, kind, position, size, rotation, opacity, fill 등 비교
-- 단축키 ⌘⇧D, 툴바 버튼, 캔버스 pan-to-node
+## 완료된 기능 (추가 113)
+- Smart color accessibility fix:
+  - Rust design_lint.rs: HSL 기반 색상 보정 — hue/saturation 보존하면서 lightness binary search로 WCAG 대비율 충족하는 최소 변경 색상 계산
+  - 양방향 탐색 (darker/lighter) 중 원본에 가까운 결과 선택, fallback black/white
+  - A11yFix struct: node_id, current/suggested color, current/fixed ratio, RGB값
+  - get_accessibility_fixes(): 씬 전체 text 노드 contrast 위반 자동 탐지 + 수정 색상 계산
+  - WASM: get_a11y_fixes() → JSON, apply_a11y_fix(node_id, r, g, b), apply_all_a11y_fixes() → count
+  - UI: 이슈별 "Fix" 버튼 (색상 프리뷰 current→suggested + 비율 표시)
+  - UI: 헤더 "Fix All (N)" 버튼으로 일괄 수정
+  - Undo 통합 (push_undo)
+
+## 완료된 기능 (추가 114)
+- Figma plugin compatibility layer:
+  - figma-compat.ts: Figma Plugin API subset 에뮬레이션 (createRectangle/Ellipse/Frame/Text/Star/Polygon, group, currentPage, viewport, notify, closePlugin, showUI, loadFontAsync, on/once/off)
+  - FigmaNode proxy: x/y/width/height/name/opacity/visible/locked/rotation/cornerRadius/fills/strokes/strokeWeight/characters/fontSize/children/parent/remove/resize/appendChild
+  - FigmaPage: selection get/set, children, findAll, findOne
+  - FigmaViewport: zoom, center, scrollAndZoomIntoView
+  - showUI: iframe 샌드박싱 + 메시지 브릿지 (pluginMessage)
+  - runFigmaPlugin(): 코드 문자열 → Function scope에서 figma 객체와 함께 실행
+  - Plugin panel UI: "▶ Run Figma Plugin" 버튼 → 코드 에디터 모달, Run/Stop 기능
+  - 샘플 Color Grid plugin (Figma/OpenSketch 양쪽 호환)
+  - specs/PLUGINS.md 업데이트
+
+## 완료된 기능 (추가 115)
+- Collaborative whiteboard mode:
+  - Rust whiteboard.rs: WhiteboardState (active, timer, voting_enabled), WhiteboardTimer (duration/remaining/running)
+  - Scene.whiteboard_state 필드 추가, backward-compatible serde
+  - WASM: toggle_whiteboard_mode, start/stop/reset_timer, tick_timer, get_timer_state, set/get_voting_enabled, get_whiteboard_active
+  - Whiteboard mode toggle: W 단축키, 툴바 버튼
+  - 모드 진입 시: 배경 도트 그리드 (CSS radial-gradient), 간소화 툴바 (select/sticky/pen/text만)
+  - Timer 위젯: 좌상단 floating panel, 시간 설정(1-60분)/시작/정지/리셋, 30초 미만 빨간색, 0초 플래시
+  - Voting dots: V 키 토글, 캔버스 클릭 시 유저별 색상 dot 배치 (4px circle + white border)
+  - WhiteboardMode 클래스 (whiteboard-mode.ts), editor.ts 통합
+
+## 완료된 기능 (추가 116)
+- Freehand drawing tool (Whiteboard mode enhancement):
+  - ToolType "freehand" 추가 (D 단축키)
+  - 마우스/펜 드래그로 자유 곡선 그리기 → Path 노드 생성
+  - Catmull-Rom → Bezier 스무딩 (tension 0.3), 최대 100포인트 다운샘플링
+  - 최소 거리 필터링 (2px) — 과도한 포인트 방지
+  - Whiteboard mode 도구 팔레트에 freehand + connector 추가
+  - 툴바에 Freehand 버튼, crosshair 커서
+  - icons.ts: freehand, whiteboard, timer, vote 아이콘 추가
+
+## 완료된 기능 (추가 117)
+- Responsive Email Template Builder
+  - `email_export.rs`: Frame→table, Text→p, Rect→div, Image→img, 자동 inline styles
+  - Flex Row → 단일 tr에 td 나열, Flex Column → 각 child가 tr
+  - XHTML Transitional DOCTYPE, Outlook 조건부 주석, MSO 네임스페이스
+  - 툴바에 이메일 아이콘 버튼 → export_email_html() → .html 다운로드
+
+## 완료된 기능 (추가 118)
+- Snapshot testing (visual regression):
+  - Rust snapshot_test.rs: SnapshotStore, Snapshot metadata (id, name, target_type, target_id, width, height, timestamp, hash)
+  - pixel_diff(): RGBA 버퍼 비교, channel tolerance (anti-aliasing 보정), DiffResult (total/changed/percentage/passed/threshold/max_channel_diff)
+  - generate_diff_image(): 변경 픽셀 빨간 하이라이트 + 미변경 dimmed 표시
+  - hash_image_data(): FNV-1a 해시
+  - WASM: snapshot_register/remove/list/list_for_target/diff/diff_image/set_threshold/get_threshold/set_channel_tolerance/hash (10개 바인딩)
+  - IndexedDB 스토리지: 픽셀 데이터 브라우저 저장 (opensketch-snapshots DB)
+  - UI: 플로팅 패널 (⌘⌥N), 캡처/비교/삭제, threshold 설정
+  - Diff report 모달: Pass/Fail 상태, diff %, 변경 픽셀 수, 3탭 뷰 (Diff/Baseline/Current)
+  - 툴바 카메라 아이콘 버튼
+  - Backward-compatible (Engine에 snapshot_store 필드 추가)
+
+## 완료된 기능 (추가 119)
+- Voice-controlled design:
+  - Web Speech API 기반 음성 인식 (voice-control.ts)
+  - 직접 명령 파싱 (undo/redo/delete/select all/deselect/zoom fit/zoom 100)
+  - 복잡한 명령은 LLM agent 패널로 전달 ("[Voice] ..." prefix)
+  - 툴바 마이크 버튼, ⌘⇧V 단축키
+  - 실시간 transcript 표시 (listening/processing/done/error 상태)
+  - 빨간 펄스 애니메이션 (녹음 중)
+
+## 완료된 기능 (추가 120)
+- Smart auto-layout wrapping (Figma wrap):
+  - compute_flex에 FlexWrap::Wrap 로직 구현 — children이 main axis 초과 시 자동 줄바꿈
+  - 라인별 cross-axis 크기 계산 (각 wrap line이 독립 높이)
+  - 라인별 justify/align 계산 (SpaceBetween/Around/Evenly 등 모두 지원)
+  - Fill sizing 라인별 분배
+  - Properties panel: Wrap 토글 버튼 (set_flex_wrap WASM 호출 연결)
+  - Breakpoint wrap 오버라이드 기존 지원
+
+## 완료된 기능 (추가 — Design System Versioning)
+- Design system versioning:
+  - StyleVersion struct (id, tag, timestamp, description, snapshot of color+text styles)
+  - StyleDiffEntry struct (kind, change, style_id, name, details)
+  - StyleStore versioning: create_version, list_versions, remove_version, rollback_to_version, diff_versions, diff_with_current
+  - Max 50 versions, auto-trim oldest, auto-save before rollback
+  - WASM: 6 bindings (style_version_create/list/remove/rollback/diff/diff_current)
+  - UI: style-versioning.ts — Properties panel empty state "Style Versions" section
+  - Create version modal (tag + description), version list (newest first), diff modal (color-coded changes), rollback confirm, delete
+  - Properties panel integration via import in properties-panel.ts
+  - Backward-compatible serde (#[serde(default)] on versions/next_version_id)
+  - Diff: color/text별 added/removed/modified 감지, 속성 변경 상세 (color, font, size, weight 등)
+  - WASM: 6 bindings (style_version_create/list/remove/rollback/diff/diff_current)
+  - UI: style-versioning.ts — Properties empty state에 패널, 버전 목록, diff 모달
+  - Backward-compatible serde (#[serde(default)])
 
 ## 다음 할 것
-- Plugin marketplace (커뮤니티 플러그인 브라우저, 설치/제거, 버전 관리)
-- Smart component variants (조건부 variant 전환 — hover/press/focus state 자동 교체)
-- Shared component library (팀 간 컴포넌트 라이브러리 퍼블리싱/구독, 버전 동기화)
-- Auto-documentation generator (컴포넌트/스타일 기반 디자인 시스템 문서 자동 생성, Markdown/HTML export)
-- Component playground/sandbox (컴포넌트 독립 테스트 환경, 다양한 props 조합 미리보기)
-- Multi-cursor text editing (텍스트 노드 내 다중 커서/선택 영역, Cmd+D 단어 선택 추가)
-- Canvas annotation stamps (날짜/승인/서명 스탬프 도구, 리뷰 워크플로우 보조)
-
-## 완료된 기능 (추가 — Version Comments & Review Workflow)
-- Branch review workflow: ReviewRequest (Open/Approved/Rejected/Merged) + ReviewComment (node-attached, resolvable)
-- Rust: branch.rs structs, Scene 9 methods (create/approve/reject/merge_review, add/resolve comment, get queries)
-- WASM: 9 bindings with undo integration
-- UI: review-panel.ts (floating panel, Open/Closed tabs, detail view with diff summary + comment thread + action buttons)
-- Create review modal from branch panel, review status badges, toolbar toggle button
-- Merge via approved review triggers branch merge
-- Backward-compatible serde
-
-## 완료된 기능 (추가 — Smart Replace)
-- Smart Object Replace: 선택 노드와 유사 크기/비율 노드를 찾아 일괄 교체 (smart_replace.rs + ui/smart-replace.ts)
-  - Rust: find_similar_nodes, replace_node_content (aspect ratio ±10%, area ±50% threshold)
-  - WASM: find_similar_nodes, replace_with_node, replace_selection_with
-  - UI: 모달 (유사 노드 목록 + 유사도% + 체크박스 + threshold 조절)
-  - 단축키: Cmd+Shift+H, 컨텍스트 메뉴, 툴바 버튼
-
-## 완료된 기능 (추가 — Voice-Controlled Design)
-- Web Speech API 기반 음성 인식 → 디자인 명령 실행
-- Direct commands: undo, redo, delete, select all, deselect, zoom fit/100 (LLM 없이 즉시)
-- LLM 연동: 복잡한 명령은 Agent panel로 전달 → tool calling 실행
-- 툴바 마이크 버튼 (pulse animation), ⌘⇧V 단축키
-- 플로팅 transcript 인디케이터 (listening/processing/done 상태)
-- 브라우저 미지원 시 graceful fallback
-- Files: ui/voice-control.ts
-
-## 완료된 기능 (추가 — Keyboard Shortcut Customization)
-- Keyboard shortcut customization (사용자 정의 단축키 매핑):
-  - ShortcutManager 싱글턴: 60+ 액션 정의 (Tools/Edit/View/Panels/Boolean/Misc 카테고리)
-  - `matches(event, actionId)` API로 에디터 keydown 핸들러 통합
-  - localStorage 저장/복원, JSON export/import
-  - Conflict detection: 바인딩 충돌 시 경고 + 덮어쓰기 옵션
-  - Shortcuts panel UI 업그레이드: ✎ 편집 버튼 (hover 시 표시), "Press keys…" 리바인딩 모드
-  - 커스텀 바인딩 보라색 kbd 하이라이트, per-shortcut ↺ 리셋, "Reset All" 버튼
-  - Files: shortcut-manager.ts, shortcuts-panel.ts
-
-## 완료된 기능 (추가 — Canvas Performance Profiler)
-- Canvas Performance Profiler Panel (⌘⇧P):
-  - Rolling FPS graph (120-sample, 200ms interval, color-coded bars: green/yellow/red)
-  - Per-node render complexity scoring (Rust): fills, strokes, shadows, blur, gradients, blend modes, path points, children, images 등 가중치 합산
-  - Top-10 expensive nodes 랭킹 (complexity bar + node name/kind)
-  - Heatmap overlay: 캔버스 위에 노드별 complexity를 green→red 색상으로 시각화
-  - Optimization suggestions: 씬 크기, FPS, 고비용 노드, 대형 이미지 자동 감지 + 개선 제안
-  - Memory usage tracking (Chrome Performance.memory API)
-  - Node stats: rendered/culled/total 실시간 표시
-  - WASM: get_node_complexity_report() → JSON, get_node_complexity(id) → u32
-  - Rust: Node.render_complexity() 메서드 (가중치 기반 복잡도 점수)
-  - 툴바 Activity 아이콘 버튼, ⌘⇧P 단축키
-  - Files: ui/perf-profiler.ts, node.rs (render_complexity), lib.rs (WASM bindings)
+- Shared cursor / follow mode — 멀티플레이어 환경에서 다른 유저 커서 실시간 표시 + "Follow" 모드로 특정 유저 시점 추적
+- Design quiz / interview mode — 컴포넌트 디자인 가이드라인 퀴즈 생성, 디자인 리뷰 체크리스트 자동 생성
+- Multi-player live cursors with viewport sync — "Follow mode"로 특정 유저의 뷰포트(zoom+pan) 실시간 추적, Cmd+클릭으로 follow/unfollow 토글
+- Content-aware image cropping — 이미지 노드에서 subject detection 기반 스마트 크롭 영역 추천, focal point 설정
+- Measurement overlay tool — 두 노드 사이 거리/간격 자동 표시, Alt+hover로 선택 노드와 hover 노드 간 간격 측정, 빨간 화살표 + px 라벨
+- Responsive breakpoint preview — 캔버스 내에서 여러 화면 크기(Mobile/Tablet/Desktop) 동시 프리뷰, Frame에 breakpoint 설정 → 리사이즈 시뮬레이션
+- Design token theme switching — Light/Dark/Custom 테마 정의 → 버튼 하나로 전체 캔버스 스타일 전환, 토큰 매핑 기반

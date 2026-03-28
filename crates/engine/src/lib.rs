@@ -4783,6 +4783,50 @@ impl Engine {
         format!("{},{}", cc, tc)
     }
 
+    // ── Style Versioning ─────────────────────────────────
+
+    /// Create a style version snapshot. Returns version ID.
+    pub fn style_version_create(&mut self, tag: &str, description: &str, timestamp: f64) -> u64 {
+        self.styles.create_version(tag, description, timestamp as u64)
+    }
+
+    /// List all style versions as JSON array.
+    pub fn style_version_list(&self) -> String {
+        let versions: Vec<serde_json::Value> = self.styles.list_versions().iter().map(|v| {
+            serde_json::json!({
+                "id": v.id,
+                "tag": v.tag,
+                "timestamp": v.timestamp,
+                "description": v.description,
+                "colorCount": v.color_styles.len(),
+                "textCount": v.text_styles.len(),
+            })
+        }).collect();
+        serde_json::to_string(&versions).unwrap_or_default()
+    }
+
+    /// Remove a style version.
+    pub fn style_version_remove(&mut self, id: u64) -> bool {
+        self.styles.remove_version(id)
+    }
+
+    /// Rollback styles to a version. Auto-saves current state first.
+    pub fn style_version_rollback(&mut self, id: u64, timestamp: f64) -> bool {
+        self.styles.rollback_to_version(id, timestamp as u64)
+    }
+
+    /// Diff two style versions. Returns JSON array of diff entries.
+    pub fn style_version_diff(&self, a: u64, b: u64) -> String {
+        let diffs = self.styles.diff_versions(a, b);
+        serde_json::to_string(&diffs).unwrap_or_default()
+    }
+
+    /// Diff a style version against current styles.
+    pub fn style_version_diff_current(&self, id: u64) -> String {
+        let diffs = self.styles.diff_with_current(id);
+        serde_json::to_string(&diffs).unwrap_or_default()
+    }
+
     /// Export design tokens in the specified format.
     /// format: "w3c" | "style-dictionary" | "tailwind"
     /// Returns JSON string.
