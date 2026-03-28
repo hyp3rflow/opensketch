@@ -1333,3 +1333,18 @@ Define Light/Dark/Custom themes with token name→value mappings. Bind node fill
 - [x] **Scene integration**: `apply_token_theme()` resolves bindings on active theme change
 - [x] **WASM**: 14 bindings (`token_create_theme`, `token_remove_theme`, `token_rename_theme`, `token_set_active_theme`, `token_get_active_theme`, `token_get_themes`, `token_add_token`, `token_remove_token`, `token_update_token`, `token_get_tokens`, `token_bind_node`, `token_unbind_node`, `token_get_bindings`, `token_export_json`, `token_import_json`)
 - [x] **UI**: `ui/token-panel.ts` — theme switcher (empty state) + per-node token binding section in properties panel
+
+## Design Review & Quiz Mode
+Design review checklist auto-generation + interactive quiz mode for design knowledge testing.
+
+### Features
+- [x] **Design Review Checklist**: Auto-analyzes scene for naming conventions, consistency, layout usage, component coverage, documentation, accessibility hints
+- [x] **Quiz Mode**: Interactive quiz with questions about the current scene (node counts, types, components) + general design knowledge (accessibility, tokens, best practices)
+- [x] **Scene Analysis**: WASM `get_scene_analysis()` returns node count, type distribution, fill/stroke/layout/notes stats, component/instance counts
+- [x] **LLM Agent Tools**: `generate_design_review`, `generate_quiz`, `get_scene_analysis` integrated as agent tools
+- [x] **Right Pane Tab**: "Quiz" tab with review + quiz UI
+
+### Architecture
+- [x] **Rust**: `get_scene_analysis()` in `lib.rs` — scene statistics as JSON
+- [x] **UI**: `ui/design-review.ts` — pure TS checklist generation, `ui/quiz-panel.ts` — quiz UI with progress, scoring, explanations
+- [x] **Integration**: Right pane "Quiz" tab, LLM agent tools for programmatic access

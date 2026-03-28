@@ -5076,6 +5076,57 @@ impl Engine {
         count
     }
 
+    /// Analyze scene and return statistics as JSON (node count, type distribution, style usage, component coverage)
+    #[wasm_bindgen]
+    pub fn get_scene_analysis(&self) -> String {
+        use std::collections::HashMap;
+        let nodes = self.scene.nodes_map();
+        let total = nodes.len();
+        let mut kind_counts: HashMap<String, usize> = HashMap::new();
+        let mut has_fill = 0usize;
+        let mut has_stroke = 0usize;
+        let mut has_layout = 0usize;
+        let mut has_notes = 0usize;
+        let mut instance_count = 0usize;
+        let mut names: Vec<String> = Vec::new();
+
+        for (_id, node) in nodes.iter() {
+            let kind_str = match &node.kind {
+                NodeKind::Rect => "Rect", NodeKind::Ellipse => "Ellipse",
+                NodeKind::Text { .. } => "Text", NodeKind::Frame => "Frame",
+                NodeKind::Group => "Group", NodeKind::Slot { .. } => "Slot",
+                NodeKind::Instance(_) => "Instance", NodeKind::Image { .. } => "Image",
+                NodeKind::Star { .. } => "Star", NodeKind::Polygon { .. } => "Polygon",
+                NodeKind::Section => "Section", NodeKind::Slice => "Slice",
+                NodeKind::Connector { .. } => "Connector",
+                NodeKind::Path { .. } => "Path",
+                NodeKind::VectorNetwork(_) => "VectorNetwork",
+                NodeKind::StickyNote { .. } => "StickyNote",
+                NodeKind::Table { .. } => "Table",
+            }.to_string();
+            *kind_counts.entry(kind_str).or_insert(0) += 1;
+            if !node.fills.is_empty() { has_fill += 1; }
+            if node.stroke.is_some() { has_stroke += 1; }
+            if node.layout.mode != LayoutMode::None { has_layout += 1; }
+            if !node.notes.is_empty() { has_notes += 1; }
+            names.push(node.name.clone());
+            if let NodeKind::Instance(_) = &node.kind { instance_count += 1; }
+        }
+
+        let result = serde_json::json!({
+            "total_nodes": total,
+            "kind_distribution": kind_counts,
+            "fill_count": has_fill,
+            "stroke_count": has_stroke,
+            "layout_count": has_layout,
+            "notes_count": has_notes,
+            "component_count": self.components.list().len(),
+            "instance_count": instance_count,
+            "node_names": names,
+        });
+        serde_json::to_string(&result).unwrap_or_else(|_| "{}".to_string())
+    }
+
     /// Analyze design and return polish suggestions as JSON
     #[wasm_bindgen]
     pub fn analyze_polish(&self) -> String {

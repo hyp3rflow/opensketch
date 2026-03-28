@@ -1321,8 +1321,14 @@
   - UI: token-panel.ts — 테마 스위처 (Properties empty state) + 노드별 토큰 바인딩 섹션
   - Import/Export JSON 지원
 
+## 완료된 기능 (추가 121)
+- Design review & quiz mode:
+  - Rust: get_scene_analysis() — 노드 수, 타입 분포, fill/stroke/layout/notes 통계, component/instance 카운트
+  - design-review.ts: 순수 TS 체크리스트 (naming, consistency, layout, components, accessibility, complexity)
+  - quiz-panel.ts: 인터랙티브 퀴즈 UI (씬 기반 문제 + 디자인 지식 문제, 진행률/채점/해설)
+  - Right pane "Quiz" 탭, LLM agent tools (generate_design_review, generate_quiz, get_scene_analysis)
+
 ## 다음 할 것
-- Design quiz / interview mode — 컴포넌트 디자인 가이드라인 퀴즈 생성, 디자인 리뷰 체크리스트 자동 생성
 - Content-aware image cropping — 이미지 노드에서 subject detection 기반 스마트 크롭 영역 추천, focal point 설정
 - Multi-player follow mode — "Follow" 버튼으로 특정 유저의 뷰포트(zoom+pan) 실시간 추적, Cmd+클릭으로 follow/unfollow 토글
 - Smart tidy up — 같은 부모 내 여러 노드 선택 시 간격 균등 조정 핸들, Tidy up 기능 (정렬+간격 한번에)

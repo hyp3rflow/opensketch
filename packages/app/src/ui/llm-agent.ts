@@ -4,6 +4,8 @@
  */
 
 import { suggestLayout, suggestLayoutJSON, applyLayoutSuggestion } from "./ai-layout-suggest";
+import { generateDesignReview, formatChecklist } from "./design-review";
+import { generateQuiz, formatQuizResult } from "./quiz-panel";
 
 export interface LLMConfig {
   apiKey: string;
@@ -192,6 +194,9 @@ export function buildToolDefs(): ToolDef[] {
     // Scene tools
     tool("select_node", "Select a node (highlights it)", { node_id: num("Node ID") }, ["node_id"]),
     tool("export_scene", "Export entire scene as JSON", {}),
+    tool("generate_design_review", "Run a design review checklist on the current scene — analyzes naming, consistency, layout, components, accessibility", {}),
+    tool("generate_quiz", "Generate a design quiz based on the current scene — returns questions about components, styles, accessibility, best practices", {}),
+    tool("get_scene_analysis", "Get scene statistics: node count, type distribution, style usage, component coverage", {}),
   ];
 }
 
@@ -417,6 +422,16 @@ export function executeTool(name: string, args: Record<string, any>, editor: any
         return "ok";
       case "export_scene":
         return engine.export_scene();
+      case "generate_design_review": {
+        const items = generateDesignReview(editor);
+        return formatChecklist(items);
+      }
+      case "generate_quiz": {
+        const questions = generateQuiz(editor);
+        return JSON.stringify(questions);
+      }
+      case "get_scene_analysis":
+        return engine.get_scene_analysis();
 
       default:
         return `Unknown tool: ${name}`;
