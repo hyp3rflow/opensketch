@@ -1439,3 +1439,13 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - Prototype viewer: 보라색 핫스팟 힌트 (SwapVariant 인터랙션 표시)
 - WASM: set_interaction_variant_key(id, index, json) 바인딩
 - Backward-compatible serde (variant_key_json 기본값 빈 문자열)
+
+### Canvas Object Search & Filter
+- Filter/search nodes by: node type, fill color, text content, font family, width size range
+- Matching nodes highlighted with blue dashed border, non-matching dimmed (50% opacity overlay)
+- Results list with click to pan + select node
+- UI: Floating panel (left side), Cmd+Shift+F shortcut toggle
+- Color picker + hex input for fill color filter
+- Node type dropdown (17 types), text search matches node name + text content
+- Clear button resets all filters and removes dimming
+- Pure TypeScript implementation (ui/search-filter.ts)

@@ -1383,8 +1383,22 @@
   - 툴바: 달 아이콘 버튼, 단축키 Cmd+Shift+D
   - Undo 통합 (push_undo before transform)
 
+## 완료된 기능 (추가 — Canvas Object Search & Filter)
+- Canvas object search & filter:
+  - 노드 속성 기반 필터링: node type, fill color, text content, font family, width size range
+  - 매칭 노드: 파란 대시 하이라이트 테두리, 비매칭 노드: 50% opacity 딤밍 오버레이
+  - 검색 결과 리스트 클릭 시 해당 노드로 pan + select
+  - UI: 좌측 플로팅 패널, Cmd+Shift+F 단축키 토글
+  - Color picker + hex 입력 fill color 필터
+  - Node type 드롭다운 (17종), 텍스트 검색 (노드 이름 + text content 매칭)
+  - Clear 버튼으로 필터 초기화 + 딤밍 제거
+  - 순수 TypeScript 구현 (ui/search-filter.ts)
+
 ## 다음 할 것
 - Spatial audio for collaboration — 멀티플레이어 캔버스에서 거리 기반 음성/효과음, 가까운 유저일수록 소리 크게
 - Cursor chat improvements — 커서 채팅에 이모지 리액션, @멘션, 메시지 히스토리 패널
 - Component variant interaction — variant 간 hover/click 상태 전환 프로토타이핑: 컴포넌트 내 트리거 설정으로 variant swap 애니메이션
 - Design handoff checklist — 개발자 인수인계 체크리스트 자동 생성: 미완성 에셋/스타일/토큰 감지, 진행률 트래킹, 팀 공유
+- Smart layout suggestions on paste — 붙여넣은 노드를 기존 레이아웃에 자동 맞춤 (gap/alignment 추론)
+- Node link/reference system — 노드 간 의존성 링크 (참조 표시, 변경 시 연관 노드 알림)
+- Canvas minimap interaction — 미니맵에서 직접 노드 선택/이동, 영역 줌

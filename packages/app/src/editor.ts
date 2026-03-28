@@ -23,6 +23,7 @@ import type { CollabClient } from "./collab";
 import { findSpacingHandles, hitTestSpacingHandle, renderSpacingHandles, type SpacingHandle } from "./tools/spacing-handles";
 import { showLayoutSuggestion, dismissSuggestion } from "./ui/ai-layout-suggest";
 import { toggleFindReplace, closeFindReplace } from "./ui/find-replace-panel";
+import { toggleSearchFilter, closeSearchFilter, renderSearchFilterDimming } from "./ui/search-filter";
 import { toggleRecorderBar } from "./ui/canvas-recorder";
 import { toggleSpotlight, closeSpotlight, isSpotlightVisible } from "./ui/spotlight";
 import { exportPDF, type PDFExportOptions } from "./ui/pdf-export";
@@ -402,6 +403,12 @@ export class Editor {
       if (_sm.matches(e, "panel.findReplace")) {
         e.preventDefault();
         toggleFindReplace(this);
+        return;
+      }
+      // Search & Filter (Cmd+Shift+F)
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "f" || e.key === "F") && !e.altKey) {
+        e.preventDefault();
+        openSearchFilter(this);
         return;
       }
       // Copy
@@ -2975,6 +2982,7 @@ export class Editor {
         this.renderCursorPresence();
         this.renderStamps();
         this.renderDiffOverlay();
+        this.renderSearchFilterOverlay();
         this.renderPixelPreviewOverlay();
         this._rulers?.render();
         this.needsRender = false;
@@ -3645,6 +3653,10 @@ export class Editor {
 
   /** Get diff overlay for branch panel integration */
   get diffOverlay() { return this._diffOverlay; }
+
+  private renderSearchFilterOverlay() {
+    drawSearchFilterOverlay(this.ctx, this);
+  }
 
   private renderCursorPresence() {
     // Follow mode: sync viewport to followed user's cursor position
