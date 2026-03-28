@@ -1379,3 +1379,10 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] **UI**: Properties panel "Grid distribute" button (4+ nodes), context menu item
 - [x] **Shortcut**: Cmd/Ctrl+Alt+G
 - [x] **Undo**: Integrated with snapshot system
+
+- [x] **Icon Search Panel**: searchable icon library with ~80 curated Lucide-inspired icons
+  - Category filtering (Navigation, Actions, Media, etc.)
+  - Tag-based fuzzy search
+  - Configurable insert size (16/24/32/48/64px)
+  - One-click insert to canvas via SVG import
+  - Right pane "Icons" tab
