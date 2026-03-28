@@ -2,629 +2,494 @@
  * Component Playground
  *
  * Fullscreen overlay for testing components in isolation:
- * - Left: variant list with click-to-switch
- * - Center: rendered preview of selected variant instance
- * - Right: override props editor (fills, text, visibility)
- * - Bottom: responsive breakpoint bar (Mobile 375 / Tablet 768 / Desktop 1440)
+ * - Variant list (left sidebar)
+ * - Live canvas preview (center)
+ * - Override props editor (right sidebar)
+ * - Responsive breakpoint bar (bottom)
  */
 
-import { icons } from "./icons";
+interface PlaygroundInfo {
+  id: number;
+  name: string;
+  description: string;
+  properties: PlaygroundProp[];
+  slots: string[];
+  variants: PlaygroundVariant[];
+  variant_count: number;
+}
 
 interface PlaygroundProp {
   name: string;
   prop_type: string;
-  options: string[];
   default_value: string;
-}
-
-interface PlaygroundSlot {
-  name: string;
-  placeholder_node_id: number;
-  default_children_count: number;
+  options: string[];
 }
 
 interface PlaygroundVariant {
   key_string: string;
-  key_values: Record<string, string>;
+  key_display: string;
   root_node_id: number;
   node_count: number;
-  is_default: boolean;
+  properties: { name: string; value: string }[];
 }
 
-interface PlaygroundInfo {
-  component_id: number;
-  component_name: string;
-  description: string;
-  properties: PlaygroundProp[];
-  slots: PlaygroundSlot[];
-  variants: PlaygroundVariant[];
-}
-
-interface Breakpoint {
+interface BreakpointDef {
   label: string;
   width: number;
   color: string;
 }
 
-const BREAKPOINTS: Breakpoint[] = [
+const BREAKPOINTS: BreakpointDef[] = [
   { label: "Mobile", width: 375, color: "#4a90d9" },
   { label: "Tablet", width: 768, color: "#7b61ff" },
   { label: "Desktop", width: 1440, color: "#2ecc71" },
 ];
 
 let overlay: HTMLDivElement | null = null;
-let activeComponentId: number | null = null;
-let activeVariantKey: string | null = null;
-let activeBreakpoint: number | null = null; // null = show all breakpoints
-let instanceNodeId: number | null = null;
-let savedScene: string | null = null;
+let currentEngine: any = null;
+let currentCompId: number = 0;
+let currentInfo: PlaygroundInfo | null = null;
+let selectedVariantKey: string = "";
+let activeBreakpoint: number | null = null; // null = auto (no constraint)
+let playgroundInstances: number[] = [];
 
-// Override state
-let overrides: Record<string, { text?: string; fill_hex?: string; visible?: boolean }> = {};
+export function isPlaygroundOpen(): boolean {
+  return overlay !== null;
+}
 
 export function isComponentPlaygroundOpen(): boolean {
   return overlay !== null;
 }
 
 export function closeComponentPlayground() {
+  closePlayground();
+}
+
+export function openComponentPlayground(engine: any, compId?: number) {
+  openPlayground(engine, compId);
+}
+
+export function closePlayground() {
+  // Clean up playground instances
+  if (currentEngine) {
+    for (const id of playgroundInstances) {
+      try { currentEngine.remove_playground_instance(BigInt(id)); } catch {}
+    }
+  }
+  playgroundInstances = [];
   if (overlay) {
     overlay.remove();
     overlay = null;
   }
-  activeComponentId = null;
-  activeVariantKey = null;
-  activeBreakpoint = null;
-  instanceNodeId = null;
-  overrides = {};
-  // Restore scene if saved
-  if (savedScene) {
-    savedScene = null;
-  }
+  currentEngine = null;
+  currentCompId = 0;
+  currentInfo = null;
 }
 
-function showToast(msg: string) {
-  const t = document.createElement("div");
-  t.textContent = msg;
-  t.style.cssText = "position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:8px 16px;border-radius:8px;font-size:12px;z-index:100001;pointer-events:none;";
-  document.body.appendChild(t);
-  setTimeout(() => t.remove(), 2500);
-}
-
-export function openComponentPlayground(engine: any, componentId?: number) {
+export function openPlayground(engine: any, compId?: number) {
   if (overlay) {
-    closeComponentPlayground();
+    closePlayground();
     return;
   }
 
-  // Determine component ID
-  let compId = componentId;
-  if (!compId) {
-    // Try to get from selection
-    const selJson = engine.get_selection();
-    const sel: number[] = JSON.parse(selJson || "[]");
-    if (sel.length !== 1) {
-      showToast("Select a component or instance to open playground");
-      return;
-    }
-    const nodeId = sel[0];
-    const nodeInfoStr = engine.get_node_json(BigInt(nodeId));
-    if (!nodeInfoStr) {
-      showToast("Node not found");
-      return;
-    }
-    const nodeInfo = JSON.parse(nodeInfoStr);
-    const kind = nodeInfo.kind;
-    const kindStr = typeof kind === "string" ? kind : Object.keys(kind)[0];
+  currentEngine = engine;
 
-    if (kindStr === "Instance") {
-      // Get component_id from instance
-      const compInfoStr = engine.get_instance_component_info(BigInt(nodeId));
-      const compInfo = JSON.parse(compInfoStr);
-      if (compInfo && compInfo.component_id) {
-        compId = compInfo.component_id;
-      }
-    } else {
-      // Try to find a component with a matching source node
-      const compsStr = engine.get_components();
-      const comps = JSON.parse(compsStr || "[]");
-      // Check if any component's name matches or source node matches
-      for (const c of comps) {
-        if (nodeInfo.name && (nodeInfo.name === c.name || nodeInfo.name.startsWith("⬥ " + c.name))) {
-          compId = c.id;
-          break;
-        }
-      }
-    }
+  // If no compId provided, try to get from selected instance/component
+  if (!compId) {
+    compId = getComponentIdFromSelection(engine);
   }
-
   if (!compId) {
-    showToast("No component found for selection");
+    showToast("Select a component or instance to open playground");
     return;
   }
 
-  // Get playground info
-  const infoStr = engine.get_playground_info(BigInt(compId));
-  const info: PlaygroundInfo | null = JSON.parse(infoStr);
-  if (!info) {
+  currentCompId = compId;
+
+  // Fetch playground info
+  const infoJson = engine.get_playground_info(BigInt(compId));
+  if (!infoJson || infoJson === "null") {
     showToast("Component not found");
     return;
   }
+  currentInfo = JSON.parse(infoJson) as PlaygroundInfo;
+  if (currentInfo.variants.length > 0) {
+    selectedVariantKey = currentInfo.variants[0].key_string;
+  }
 
-  activeComponentId = compId;
-  activeVariantKey = info.variants.find(v => v.is_default)?.key_string || (info.variants[0]?.key_string ?? null);
-  overrides = {};
-
-  // Save scene state
-  savedScene = engine.export_scene();
-
-  buildOverlay(engine, info);
+  buildOverlay();
 }
 
-function buildOverlay(engine: any, info: PlaygroundInfo) {
+function getComponentIdFromSelection(engine: any): number | undefined {
+  try {
+    const selJson = engine.get_selection();
+    const sel: number[] = JSON.parse(selJson || "[]");
+    if (sel.length !== 1) return undefined;
+    const nodeJson = engine.get_node_json(BigInt(sel[0]));
+    if (!nodeJson) return undefined;
+    const node = JSON.parse(nodeJson);
+    const kind = node.kind;
+    if (typeof kind === "object") {
+      if (kind.Instance) return kind.Instance.component_id;
+    }
+    // Check if node itself is a component source
+    const compsJson = engine.get_components();
+    const comps = JSON.parse(compsJson || "[]");
+    // Match by name or check component_info
+    const infoJson = engine.get_instance_component_info(BigInt(sel[0]));
+    if (infoJson && infoJson !== "null") {
+      const info = JSON.parse(infoJson);
+      if (info.component_id) return info.component_id;
+    }
+    return undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function buildOverlay() {
+  if (!currentInfo) return;
+
   overlay = document.createElement("div");
+  overlay.id = "component-playground-overlay";
   overlay.style.cssText = `
-    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-    background: #1a1a2e; z-index: 99999;
-    display: flex; flex-direction: column;
-    font-family: 'Inter', system-ui, sans-serif;
+    position: fixed; inset: 0; z-index: 99999;
+    background: #1e1e2e; display: flex; flex-direction: column;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     color: #e0e0e0;
   `;
 
   // Header
   const header = document.createElement("div");
   header.style.cssText = `
-    display: flex; align-items: center; gap: 12px;
-    padding: 12px 20px; border-bottom: 1px solid #333;
-    background: #16162a; flex-shrink: 0;
+    height: 48px; background: #252535; display: flex; align-items: center;
+    padding: 0 16px; border-bottom: 1px solid #333; gap: 12px; flex-shrink: 0;
   `;
-
-  const icon = document.createElement("span");
-  icon.innerHTML = icons.component.replace(/width="\d+"/, 'width="20"').replace(/height="\d+"/, 'height="20"');
-  icon.style.cssText = "color:#7b61ff;display:flex;";
-  header.appendChild(icon);
-
-  const title = document.createElement("div");
-  title.style.cssText = "font-size:14px;font-weight:600;flex:1;";
-  title.textContent = `Playground — ${info.component_name}`;
-  header.appendChild(title);
-
-  if (info.description) {
-    const desc = document.createElement("div");
-    desc.style.cssText = "font-size:11px;color:#888;flex:1;";
-    desc.textContent = info.description;
-    header.appendChild(desc);
-  }
-
-  const closeBtn = document.createElement("button");
-  closeBtn.style.cssText = `
-    background: rgba(255,255,255,0.08); border: 1px solid #444;
-    border-radius: 6px; padding: 6px 14px; color: #ccc;
-    cursor: pointer; font-size: 12px; transition: all 0.15s;
+  header.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7b61ff" stroke-width="2">
+        <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/><path d="M3 9h6"/>
+      </svg>
+      <span style="font-weight:600;font-size:14px;color:#fff;">${escHtml(currentInfo!.name)}</span>
+      <span style="font-size:12px;color:#888;">${currentInfo!.variant_count} variant${currentInfo!.variant_count !== 1 ? 's' : ''}</span>
+    </div>
+    <div style="flex:1;"></div>
+    <span style="font-size:12px;color:#666;">⌘⇧P to toggle</span>
+    <button id="pg-close" style="background:none;border:none;color:#888;cursor:pointer;font-size:18px;padding:4px 8px;">&times;</button>
   `;
-  closeBtn.textContent = "Close (Esc)";
-  closeBtn.onclick = () => closeComponentPlayground();
-  header.appendChild(closeBtn);
   overlay.appendChild(header);
 
-  // Main content area
-  const main = document.createElement("div");
-  main.style.cssText = "display:flex;flex:1;overflow:hidden;";
+  // Body: left sidebar + center + right sidebar
+  const body = document.createElement("div");
+  body.style.cssText = "display:flex; flex:1; overflow:hidden;";
 
-  // Left panel — Variants
-  const leftPanel = document.createElement("div");
-  leftPanel.style.cssText = `
-    width: 220px; border-right: 1px solid #333;
-    overflow-y: auto; padding: 12px; flex-shrink: 0;
-    background: #1e1e36;
+  // Left: Variant list
+  const left = document.createElement("div");
+  left.id = "pg-left";
+  left.style.cssText = `
+    width: 220px; background: #252535; border-right: 1px solid #333;
+    overflow-y: auto; flex-shrink: 0; padding: 8px 0;
   `;
+  left.innerHTML = buildVariantList();
+  body.appendChild(left);
 
-  const varTitle = document.createElement("div");
-  varTitle.style.cssText = "font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;";
-  varTitle.textContent = `Variants (${info.variants.length})`;
-  leftPanel.appendChild(varTitle);
-
-  function renderVariantList() {
-    // Clear existing variant buttons
-    const existing = leftPanel.querySelectorAll(".pg-variant-btn");
-    existing.forEach(el => el.remove());
-
-    for (const variant of info.variants) {
-      const btn = document.createElement("div");
-      btn.className = "pg-variant-btn";
-      const isActive = variant.key_string === activeVariantKey;
-      btn.style.cssText = `
-        padding: 8px 10px; margin-bottom: 4px; border-radius: 6px;
-        cursor: pointer; font-size: 12px; transition: all 0.15s;
-        border: 1px solid ${isActive ? '#7b61ff' : 'transparent'};
-        background: ${isActive ? 'rgba(123,97,255,0.15)' : 'rgba(255,255,255,0.03)'};
-      `;
-
-      const label = variant.key_string || "Default";
-      const displayLabel = label.length > 28 ? label.substring(0, 28) + "…" : label;
-      btn.textContent = displayLabel;
-      btn.title = label;
-
-      if (variant.is_default) {
-        const badge = document.createElement("span");
-        badge.style.cssText = "font-size:9px;color:#7b61ff;margin-left:4px;";
-        badge.textContent = "★";
-        btn.appendChild(badge);
-      }
-
-      btn.addEventListener("click", () => {
-        activeVariantKey = variant.key_string;
-        renderVariantList();
-        renderPreview();
-      });
-
-      btn.addEventListener("mouseenter", () => {
-        if (!isActive) btn.style.background = "rgba(255,255,255,0.06)";
-      });
-      btn.addEventListener("mouseleave", () => {
-        if (variant.key_string !== activeVariantKey) btn.style.background = "rgba(255,255,255,0.03)";
-      });
-
-      leftPanel.appendChild(btn);
-    }
-
-    // If no variants, show message
-    if (info.variants.length === 0) {
-      const noVar = document.createElement("div");
-      noVar.style.cssText = "font-size:11px;color:#666;padding:8px;";
-      noVar.textContent = "No variants defined";
-      leftPanel.appendChild(noVar);
-    }
-  }
-
-  renderVariantList();
-  main.appendChild(leftPanel);
-
-  // Center — Preview area
-  const centerPanel = document.createElement("div");
-  centerPanel.id = "pg-preview-area";
-  centerPanel.style.cssText = `
-    flex: 1; display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    overflow: auto; padding: 24px;
-    background: #1a1a2e;
+  // Center: Preview
+  const center = document.createElement("div");
+  center.id = "pg-center";
+  center.style.cssText = `
+    flex: 1; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; padding: 32px; overflow: auto;
+    background: repeating-conic-gradient(#2a2a3a 0% 25%, #252535 0% 50%) 0 0 / 20px 20px;
   `;
-  main.appendChild(centerPanel);
+  center.innerHTML = buildPreview();
+  body.appendChild(center);
 
-  // Right panel — Props editor
-  const rightPanel = document.createElement("div");
-  rightPanel.id = "pg-props-panel";
-  rightPanel.style.cssText = `
-    width: 260px; border-left: 1px solid #333;
-    overflow-y: auto; padding: 12px; flex-shrink: 0;
-    background: #1e1e36;
+  // Right: Props editor
+  const right = document.createElement("div");
+  right.id = "pg-right";
+  right.style.cssText = `
+    width: 260px; background: #252535; border-left: 1px solid #333;
+    overflow-y: auto; flex-shrink: 0; padding: 12px;
   `;
-  buildPropsPanel(rightPanel, engine, info);
-  main.appendChild(rightPanel);
+  right.innerHTML = buildPropsEditor();
+  body.appendChild(right);
 
-  overlay.appendChild(main);
+  overlay.appendChild(body);
 
-  // Bottom — Breakpoint bar
-  const bottomBar = document.createElement("div");
-  bottomBar.style.cssText = `
-    display: flex; align-items: center; gap: 8px;
-    padding: 10px 20px; border-top: 1px solid #333;
-    background: #16162a; flex-shrink: 0;
-    justify-content: center;
+  // Bottom: Breakpoint bar
+  const bottom = document.createElement("div");
+  bottom.id = "pg-bottom";
+  bottom.style.cssText = `
+    height: 44px; background: #252535; border-top: 1px solid #333;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    flex-shrink: 0; padding: 0 16px;
   `;
-
-  const bpLabel = document.createElement("span");
-  bpLabel.style.cssText = "font-size:11px;color:#888;margin-right:8px;";
-  bpLabel.textContent = "Breakpoints:";
-  bottomBar.appendChild(bpLabel);
-
-  // "All" button
-  const allBtn = document.createElement("button");
-  allBtn.style.cssText = `
-    padding: 5px 12px; border-radius: 4px; font-size: 11px;
-    cursor: pointer; transition: all 0.15s;
-    border: 1px solid ${activeBreakpoint === null ? '#7b61ff' : '#444'};
-    background: ${activeBreakpoint === null ? 'rgba(123,97,255,0.2)' : 'rgba(255,255,255,0.05)'};
-    color: ${activeBreakpoint === null ? '#b4a0ff' : '#999'};
-  `;
-  allBtn.textContent = "All";
-  allBtn.onclick = () => {
-    activeBreakpoint = null;
-    renderBreakpointButtons();
-    renderPreview();
-  };
-  bottomBar.appendChild(allBtn);
-
-  for (const bp of BREAKPOINTS) {
-    const btn = document.createElement("button");
-    btn.className = "pg-bp-btn";
-    btn.dataset.width = String(bp.width);
-    const isActive = activeBreakpoint === bp.width;
-    btn.style.cssText = `
-      padding: 5px 12px; border-radius: 4px; font-size: 11px;
-      cursor: pointer; transition: all 0.15s;
-      border: 1px solid ${isActive ? bp.color : '#444'};
-      background: ${isActive ? bp.color + '22' : 'rgba(255,255,255,0.05)'};
-      color: ${isActive ? bp.color : '#999'};
-    `;
-    btn.textContent = `${bp.label} (${bp.width}px)`;
-    btn.onclick = () => {
-      activeBreakpoint = bp.width;
-      renderBreakpointButtons();
-      renderPreview();
-    };
-    bottomBar.appendChild(btn);
-  }
-
-  function renderBreakpointButtons() {
-    // Update "All" button
-    allBtn.style.border = `1px solid ${activeBreakpoint === null ? '#7b61ff' : '#444'}`;
-    allBtn.style.background = activeBreakpoint === null ? 'rgba(123,97,255,0.2)' : 'rgba(255,255,255,0.05)';
-    allBtn.style.color = activeBreakpoint === null ? '#b4a0ff' : '#999';
-
-    bottomBar.querySelectorAll(".pg-bp-btn").forEach((el) => {
-      const btn = el as HTMLButtonElement;
-      const w = Number(btn.dataset.width);
-      const bp = BREAKPOINTS.find(b => b.width === w)!;
-      const isActive = activeBreakpoint === w;
-      btn.style.border = `1px solid ${isActive ? bp.color : '#444'}`;
-      btn.style.background = isActive ? bp.color + '22' : 'rgba(255,255,255,0.05)';
-      btn.style.color = isActive ? bp.color : '#999';
-    });
-  }
-
-  overlay.appendChild(bottomBar);
-
-  // Escape handler
-  const keyHandler = (e: KeyboardEvent) => {
-    if (e.key === "Escape") {
-      e.preventDefault();
-      e.stopPropagation();
-      closeComponentPlayground();
-      document.removeEventListener("keydown", keyHandler, true);
-    }
-  };
-  document.addEventListener("keydown", keyHandler, true);
+  bottom.innerHTML = buildBreakpointBar();
+  overlay.appendChild(bottom);
 
   document.body.appendChild(overlay);
 
-  // Initial render
-  renderPreview();
+  // Event listeners
+  overlay.querySelector("#pg-close")!.addEventListener("click", closePlayground);
+  attachVariantListeners();
+  attachBreakpointListeners();
+  attachPropsListeners();
 
-  function renderPreview() {
-    if (!centerPanel) return;
-    centerPanel.innerHTML = "";
-
-    const breakpointsToShow = activeBreakpoint !== null
-      ? BREAKPOINTS.filter(bp => bp.width === activeBreakpoint)
-      : BREAKPOINTS;
-
-    // Container for breakpoint previews
-    const previewContainer = document.createElement("div");
-    previewContainer.style.cssText = `
-      display: flex; gap: 24px; align-items: flex-start;
-      flex-wrap: wrap; justify-content: center;
-    `;
-
-    for (const bp of breakpointsToShow) {
-      const card = document.createElement("div");
-      card.style.cssText = `
-        display: flex; flex-direction: column; align-items: center;
-        background: #222244; border-radius: 12px;
-        border: 1px solid ${bp.color}33; overflow: hidden;
-        max-width: ${Math.min(bp.width, 500)}px;
-      `;
-
-      // Card header
-      const cardHeader = document.createElement("div");
-      cardHeader.style.cssText = `
-        width: 100%; padding: 8px 12px; font-size: 11px;
-        background: ${bp.color}15; color: ${bp.color};
-        border-bottom: 1px solid ${bp.color}33;
-        display: flex; justify-content: space-between;
-      `;
-      cardHeader.innerHTML = `<span>${bp.label}</span><span>${bp.width}px</span>`;
-      card.appendChild(cardHeader);
-
-      // Preview content — render instance SVG at this breakpoint width
-      const previewEl = document.createElement("div");
-      previewEl.style.cssText = `
-        padding: 16px; background: #2a2a4e;
-        display: flex; align-items: center; justify-content: center;
-        min-height: 120px; width: 100%;
-      `;
-
-      // Try to create instance and export SVG
-      try {
-        if (activeComponentId && activeVariantKey !== null) {
-          // Create a temp instance
-          const tempId = engine.create_instance(BigInt(activeComponentId), 0, 0);
-          if (tempId) {
-            const numId = Number(tempId);
-            // Apply variant
-            if (activeVariantKey) {
-              try {
-                engine.set_instance_variant_by_key(BigInt(numId), activeVariantKey);
-              } catch (_) {}
-            }
-            // Apply overrides
-            for (const [nodeIdStr, ov] of Object.entries(overrides)) {
-              try {
-                const nid = BigInt(parseInt(nodeIdStr));
-                if (ov.text !== undefined) engine.set_instance_override_text(BigInt(numId), nid, ov.text);
-                if (ov.fill_hex !== undefined) engine.set_instance_override_fill(BigInt(numId), nid, ov.fill_hex);
-                if (ov.visible !== undefined) engine.set_instance_override_visible(BigInt(numId), nid, ov.visible);
-              } catch (_) {}
-            }
-
-            // Resize to breakpoint width
-            try {
-              const nodeJson = engine.get_node_json(BigInt(numId));
-              if (nodeJson) {
-                const node = JSON.parse(nodeJson);
-                const scale = bp.width / Math.max(node.width, 1);
-                const newH = node.height * scale;
-                engine.resize_node_with_constraints(BigInt(numId), bp.width, newH);
-              }
-            } catch (_) {}
-
-            // Export SVG
-            try {
-              const svg = engine.export_node_svg(BigInt(numId));
-              if (svg) {
-                previewEl.innerHTML = svg;
-                // Scale SVG to fit
-                const svgEl = previewEl.querySelector("svg");
-                if (svgEl) {
-                  svgEl.style.maxWidth = "100%";
-                  svgEl.style.height = "auto";
-                  svgEl.style.maxHeight = "400px";
-                }
-              } else {
-                previewEl.innerHTML = `<div style="color:#666;font-size:12px;">No preview available</div>`;
-              }
-            } catch (_) {
-              previewEl.innerHTML = `<div style="color:#666;font-size:12px;">Preview rendering failed</div>`;
-            }
-
-            // Remove temp instance
-            try { engine.delete_node(BigInt(numId)); } catch (_) {}
-          }
-        } else {
-          previewEl.innerHTML = `<div style="color:#666;font-size:12px;">Select a variant</div>`;
-        }
-      } catch (e) {
-        previewEl.innerHTML = `<div style="color:#666;font-size:12px;">Error: ${e}</div>`;
-      }
-
-      card.appendChild(previewEl);
-      previewContainer.appendChild(card);
+  // Escape to close
+  const escHandler = (e: KeyboardEvent) => {
+    if (e.key === "Escape") {
+      closePlayground();
+      document.removeEventListener("keydown", escHandler);
     }
+  };
+  document.addEventListener("keydown", escHandler);
+}
 
-    // Active variant label
-    const variantLabel = document.createElement("div");
-    variantLabel.style.cssText = "font-size:12px;color:#888;margin-bottom:16px;text-align:center;";
-    variantLabel.textContent = `Variant: ${activeVariantKey || "Default"}`;
-    centerPanel.appendChild(variantLabel);
+function buildVariantList(): string {
+  if (!currentInfo) return "";
+  const items = currentInfo.variants.map((v) => {
+    const isActive = v.key_string === selectedVariantKey;
+    const propBadges = v.properties.map(p =>
+      `<span style="font-size:10px;background:${isActive ? '#5a4fb8' : '#333'};padding:1px 5px;border-radius:3px;">${escHtml(p.name)}=${escHtml(p.value)}</span>`
+    ).join(" ");
+    return `
+      <div class="pg-variant-item" data-key="${escHtml(v.key_string)}"
+           style="padding:8px 12px;cursor:pointer;border-left:3px solid ${isActive ? '#7b61ff' : 'transparent'};
+                  background:${isActive ? '#2e2b4a' : 'transparent'};margin:2px 0;transition:all .15s;">
+        <div style="font-size:12px;font-weight:${isActive ? '600' : '400'};margin-bottom:2px;">
+          ${escHtml(v.key_display || 'Default')}
+        </div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap;">${propBadges}</div>
+        <div style="font-size:10px;color:#666;margin-top:2px;">${v.node_count} nodes</div>
+      </div>
+    `;
+  }).join("");
 
-    centerPanel.appendChild(previewContainer);
+  return `
+    <div style="padding:8px 12px;font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:0.5px;">
+      Variants (${currentInfo.variant_count})
+    </div>
+    ${items || '<div style="padding:12px;color:#666;font-size:12px;">No variants defined</div>'}
+  `;
+}
 
-    // Restore scene after rendering
-    if (savedScene) {
-      try { engine.import_scene(savedScene); } catch (_) {}
+function buildPreview(): string {
+  if (!currentInfo || currentInfo.variants.length === 0) {
+    return '<div style="color:#666;font-size:14px;">No variants to preview</div>';
+  }
+
+  // Use SVG export for preview
+  if (!currentEngine) return '';
+
+  const variant = currentInfo.variants.find(v => v.key_string === selectedVariantKey);
+  if (!variant) return '<div style="color:#666;">Variant not found</div>';
+
+  // Try to export SVG of the variant's root node
+  try {
+    const svg = currentEngine.export_node_svg(BigInt(variant.root_node_id));
+    if (svg && svg.length > 10) {
+      const maxW = activeBreakpoint || 600;
+      return `
+        <div style="background:#fff;border-radius:8px;padding:24px;box-shadow:0 4px 24px rgba(0,0,0,.3);max-width:${maxW}px;overflow:auto;">
+          <div style="text-align:center;">${svg}</div>
+        </div>
+        <div style="margin-top:12px;font-size:11px;color:#666;">
+          ${escHtml(variant.key_display || 'Default')} · ${variant.node_count} nodes
+          ${activeBreakpoint ? ` · ${activeBreakpoint}px` : ''}
+        </div>
+      `;
+    }
+  } catch {}
+
+  // Fallback: show info card
+  return `
+    <div style="background:#2e2e3e;border-radius:8px;padding:24px;text-align:center;min-width:200px;">
+      <div style="font-size:16px;font-weight:600;margin-bottom:8px;">${escHtml(currentInfo!.name)}</div>
+      <div style="font-size:12px;color:#888;">Variant: ${escHtml(variant.key_display || 'Default')}</div>
+      <div style="font-size:12px;color:#666;margin-top:4px;">${variant.node_count} nodes</div>
+    </div>
+  `;
+}
+
+function buildPropsEditor(): string {
+  if (!currentInfo) return "";
+
+  let html = `<div style="font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px;">Properties</div>`;
+
+  if (currentInfo.properties.length === 0) {
+    html += '<div style="font-size:12px;color:#555;">No properties defined</div>';
+  } else {
+    for (const prop of currentInfo.properties) {
+      const currentVariant = currentInfo.variants.find(v => v.key_string === selectedVariantKey);
+      const currentValue = currentVariant?.properties.find(p => p.name === prop.name)?.value || prop.default_value;
+
+      if (prop.prop_type === "boolean") {
+        html += `
+          <div style="margin-bottom:10px;">
+            <label style="font-size:12px;display:flex;align-items:center;gap:8px;cursor:pointer;">
+              <input type="checkbox" class="pg-prop-toggle" data-prop="${escHtml(prop.name)}"
+                     ${currentValue === "true" ? "checked" : ""}
+                     style="accent-color:#7b61ff;">
+              ${escHtml(prop.name)}
+            </label>
+          </div>
+        `;
+      } else {
+        html += `
+          <div style="margin-bottom:10px;">
+            <div style="font-size:11px;color:#999;margin-bottom:4px;">${escHtml(prop.name)}</div>
+            <select class="pg-prop-select" data-prop="${escHtml(prop.name)}"
+                    style="width:100%;background:#1e1e2e;color:#e0e0e0;border:1px solid #444;border-radius:4px;padding:5px 8px;font-size:12px;">
+              ${prop.options.map(o => `<option value="${escHtml(o)}" ${o === currentValue ? 'selected' : ''}>${escHtml(o)}</option>`).join("")}
+            </select>
+          </div>
+        `;
+      }
+    }
+  }
+
+  // Slots section
+  if (currentInfo.slots.length > 0) {
+    html += `
+      <div style="font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin:16px 0 8px;">
+        Slots (${currentInfo.slots.length})
+      </div>
+    `;
+    for (const slot of currentInfo.slots) {
+      html += `<div style="font-size:12px;padding:4px 0;color:#aaa;">📌 ${escHtml(slot)}</div>`;
+    }
+  }
+
+  // Description
+  if (currentInfo.description) {
+    html += `
+      <div style="font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin:16px 0 8px;">Description</div>
+      <div style="font-size:12px;color:#999;line-height:1.5;">${escHtml(currentInfo.description)}</div>
+    `;
+  }
+
+  return html;
+}
+
+function buildBreakpointBar(): string {
+  const chips = BREAKPOINTS.map(bp => {
+    const isActive = activeBreakpoint === bp.width;
+    return `
+      <button class="pg-bp-btn" data-width="${bp.width}"
+              style="padding:5px 14px;border-radius:12px;font-size:11px;cursor:pointer;
+                     border:1px solid ${isActive ? bp.color : '#444'};
+                     background:${isActive ? bp.color + '22' : 'transparent'};
+                     color:${isActive ? bp.color : '#999'};font-weight:${isActive ? '600' : '400'};">
+        ${bp.label} · ${bp.width}px
+      </button>
+    `;
+  }).join("");
+
+  const autoActive = activeBreakpoint === null;
+  return `
+    <button class="pg-bp-btn" data-width="auto"
+            style="padding:5px 14px;border-radius:12px;font-size:11px;cursor:pointer;
+                   border:1px solid ${autoActive ? '#fff' : '#444'};
+                   background:${autoActive ? '#ffffff11' : 'transparent'};
+                   color:${autoActive ? '#fff' : '#999'};font-weight:${autoActive ? '600' : '400'};">
+      Auto
+    </button>
+    ${chips}
+  `;
+}
+
+function attachVariantListeners() {
+  if (!overlay) return;
+  overlay.querySelectorAll(".pg-variant-item").forEach(el => {
+    el.addEventListener("click", () => {
+      selectedVariantKey = (el as HTMLElement).dataset.key || "";
+      refreshUI();
+    });
+  });
+}
+
+function attachBreakpointListeners() {
+  if (!overlay) return;
+  overlay.querySelectorAll(".pg-bp-btn").forEach(el => {
+    el.addEventListener("click", () => {
+      const w = (el as HTMLElement).dataset.width;
+      activeBreakpoint = w === "auto" ? null : parseInt(w!, 10);
+      refreshUI();
+    });
+  });
+}
+
+function attachPropsListeners() {
+  if (!overlay) return;
+
+  // When a prop changes, find the matching variant and switch to it
+  overlay.querySelectorAll(".pg-prop-toggle, .pg-prop-select").forEach(el => {
+    const evName = el.tagName === "SELECT" ? "change" : "change";
+    el.addEventListener(evName, () => {
+      switchToMatchingVariant();
+    });
+  });
+}
+
+function switchToMatchingVariant() {
+  if (!overlay || !currentInfo) return;
+
+  // Gather current prop values from UI
+  const props: Record<string, string> = {};
+  overlay.querySelectorAll(".pg-prop-toggle").forEach(el => {
+    const inp = el as HTMLInputElement;
+    props[inp.dataset.prop!] = inp.checked ? "true" : "false";
+  });
+  overlay.querySelectorAll(".pg-prop-select").forEach(el => {
+    const sel = el as HTMLSelectElement;
+    props[sel.dataset.prop!] = sel.value;
+  });
+
+  // Find matching variant
+  for (const v of currentInfo.variants) {
+    const matches = v.properties.every(p => props[p.name] === p.value);
+    if (matches) {
+      selectedVariantKey = v.key_string;
+      refreshUI();
+      return;
     }
   }
 }
 
-function buildPropsPanel(container: HTMLElement, engine: any, info: PlaygroundInfo) {
-  const title = document.createElement("div");
-  title.style.cssText = "font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px;";
-  title.textContent = "Override Properties";
-  container.appendChild(title);
-
-  // Properties section
-  if (info.properties.length > 0) {
-    const propSection = document.createElement("div");
-    propSection.style.cssText = "margin-bottom:16px;";
-
-    const propTitle = document.createElement("div");
-    propTitle.style.cssText = "font-size:10px;color:#7b61ff;margin-bottom:8px;font-weight:500;";
-    propTitle.textContent = "VARIANT PROPERTIES";
-    propSection.appendChild(propTitle);
-
-    for (const prop of info.properties) {
-      const row = document.createElement("div");
-      row.style.cssText = "display:flex;align-items:center;gap:6px;margin-bottom:6px;";
-
-      const label = document.createElement("span");
-      label.style.cssText = "font-size:11px;color:#aaa;flex:1;";
-      label.textContent = prop.name;
-      row.appendChild(label);
-
-      if (prop.prop_type === "boolean") {
-        const toggle = document.createElement("input");
-        toggle.type = "checkbox";
-        toggle.checked = prop.default_value === "true";
-        toggle.style.cssText = "accent-color:#7b61ff;";
-        row.appendChild(toggle);
-      } else if (prop.options.length > 0) {
-        const select = document.createElement("select");
-        select.style.cssText = "background:#2a2a4e;border:1px solid #444;border-radius:4px;color:#ccc;font-size:11px;padding:3px 6px;max-width:120px;";
-        for (const opt of prop.options) {
-          const option = document.createElement("option");
-          option.value = opt;
-          option.textContent = opt;
-          if (opt === prop.default_value) option.selected = true;
-          select.appendChild(option);
-        }
-        row.appendChild(select);
-      } else {
-        const input = document.createElement("input");
-        input.type = "text";
-        input.value = prop.default_value;
-        input.style.cssText = "background:#2a2a4e;border:1px solid #444;border-radius:4px;color:#ccc;font-size:11px;padding:3px 6px;width:80px;";
-        row.appendChild(input);
-      }
-
-      propSection.appendChild(row);
-    }
-
-    container.appendChild(propSection);
+function refreshUI() {
+  if (!overlay) return;
+  const left = overlay.querySelector("#pg-left");
+  if (left) {
+    left.innerHTML = buildVariantList();
+    attachVariantListeners();
   }
-
-  // Slots section
-  if (info.slots.length > 0) {
-    const slotSection = document.createElement("div");
-    slotSection.style.cssText = "margin-bottom:16px;";
-
-    const slotTitle = document.createElement("div");
-    slotTitle.style.cssText = "font-size:10px;color:#4a90d9;margin-bottom:8px;font-weight:500;";
-    slotTitle.textContent = "SLOTS";
-    slotSection.appendChild(slotTitle);
-
-    for (const slot of info.slots) {
-      const row = document.createElement("div");
-      row.style.cssText = "padding:6px 8px;background:rgba(74,144,217,0.08);border-radius:4px;margin-bottom:4px;font-size:11px;";
-      row.innerHTML = `<span style="color:#ccc;">${slot.name}</span> <span style="color:#666;font-size:10px;">(${slot.default_children_count} default children)</span>`;
-      slotSection.appendChild(row);
-    }
-
-    container.appendChild(slotSection);
+  const center = overlay.querySelector("#pg-center");
+  if (center) {
+    center.innerHTML = buildPreview();
   }
-
-  // Node overrides section
-  const overrideSection = document.createElement("div");
-  const overrideTitle = document.createElement("div");
-  overrideTitle.style.cssText = "font-size:10px;color:#2ecc71;margin-bottom:8px;font-weight:500;";
-  overrideTitle.textContent = "NODE OVERRIDES";
-  overrideSection.appendChild(overrideTitle);
-
-  const hint = document.createElement("div");
-  hint.style.cssText = "font-size:10px;color:#666;line-height:1.4;";
-  hint.textContent = "Override text, fill, and visibility on individual nodes within the component instance.";
-  overrideSection.appendChild(hint);
-
-  // Show overridable nodes from the active variant
-  const activeVar = info.variants.find(v => v.key_string === activeVariantKey);
-  if (activeVar && activeVar.node_count > 0) {
-    const nodeCount = document.createElement("div");
-    nodeCount.style.cssText = "font-size:10px;color:#888;margin-top:8px;";
-    nodeCount.textContent = `${activeVar.node_count} nodes in variant`;
-    overrideSection.appendChild(nodeCount);
+  const right = overlay.querySelector("#pg-right");
+  if (right) {
+    right.innerHTML = buildPropsEditor();
+    attachPropsListeners();
   }
+  const bottom = overlay.querySelector("#pg-bottom");
+  if (bottom) {
+    bottom.innerHTML = buildBreakpointBar();
+    attachBreakpointListeners();
+  }
+}
 
-  container.appendChild(overrideSection);
-
-  // Component info footer
-  const footer = document.createElement("div");
-  footer.style.cssText = "margin-top:auto;padding-top:16px;border-top:1px solid #333;";
-  const infoBlock = document.createElement("div");
-  infoBlock.style.cssText = "font-size:10px;color:#666;line-height:1.5;";
-  infoBlock.innerHTML = `
-    <div><strong>ID:</strong> ${info.component_id}</div>
-    <div><strong>Variants:</strong> ${info.variants.length}</div>
-    <div><strong>Slots:</strong> ${info.slots.length}</div>
-    <div><strong>Properties:</strong> ${info.properties.length}</div>
+function showToast(msg: string) {
+  const t = document.createElement("div");
+  t.style.cssText = `
+    position: fixed; bottom: 60px; left: 50%; transform: translateX(-50%);
+    background: #333; color: #fff; padding: 8px 16px; border-radius: 6px;
+    font-size: 13px; z-index: 999999; pointer-events: none;
   `;
-  footer.appendChild(infoBlock);
-  container.appendChild(footer);
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2500);
+}
+
+function escHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
