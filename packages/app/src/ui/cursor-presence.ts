@@ -38,7 +38,20 @@ export interface RemoteCursor {
   isTyping?: boolean;
   /** Remote user's viewport (for follow mode) */
   viewport?: RemoteViewport;
+  /** Trail of recent positions */
+  trail: TrailPoint[];
 }
+
+/** Trail point storing position and timestamp */
+interface TrailPoint {
+  x: number;
+  y: number;
+  t: number; // timestamp
+}
+
+const TRAIL_MAX_POINTS = 40;
+const TRAIL_MAX_AGE_MS = 800; // trail fades over 800ms
+const TRAIL_MIN_DIST = 3; // min world-space distance between trail points
 
 const CURSOR_COLORS = [
   '#ff6b6b', '#4ecdc4', '#45b7d1', '#f9ca24', '#6c5ce7',
@@ -125,8 +138,18 @@ export class CursorPresence {
         color: CURSOR_COLORS[this.colorIndex++ % CURSOR_COLORS.length],
         x, y,
         lastSeen: Date.now(),
+        trail: [],
       };
       this.cursors.set(id, cursor);
+    }
+    // Record trail point if moved enough
+    const trail = cursor.trail;
+    const last = trail.length ? trail[trail.length - 1] : null;
+    const dx = last ? x - last.x : Infinity;
+    const dy = last ? y - last.y : Infinity;
+    if (dx * dx + dy * dy >= TRAIL_MIN_DIST * TRAIL_MIN_DIST) {
+      trail.push({ x, y, t: Date.now() });
+      if (trail.length > TRAIL_MAX_POINTS) trail.shift();
     }
     cursor.x = x;
     cursor.y = y;
@@ -147,7 +170,7 @@ export class CursorPresence {
       cursor = {
         id, name,
         color: CURSOR_COLORS[this.colorIndex++ % CURSOR_COLORS.length],
-        x, y, lastSeen: Date.now(),
+        x, y, lastSeen: Date.now(), trail: [],
       };
       this.cursors.set(id, cursor);
     }
@@ -174,7 +197,7 @@ export class CursorPresence {
         cursor = {
           id: this.localUserId, name: this.localUserName,
           color: CURSOR_COLORS[this.colorIndex++ % CURSOR_COLORS.length],
-          x, y, lastSeen: Date.now(),
+          x, y, lastSeen: Date.now(), trail: [],
         };
         this.cursors.set(this.localUserId, cursor);
       }
@@ -222,6 +245,9 @@ export class CursorPresence {
 
       ctx.save();
       ctx.globalAlpha = alpha;
+
+      // Draw cursor trail
+      this.drawTrail(ctx, cursor, zoom, panX, panY, now, alpha);
 
       // Draw cursor arrow
       this.drawCursorArrow(ctx, sx, sy, cursor.color);
@@ -288,6 +314,56 @@ export class CursorPresence {
       ctx.setLineDash([]);
       ctx.restore();
     }
+  }
+
+  private drawTrail(
+    ctx: CanvasRenderingContext2D,
+    cursor: RemoteCursor,
+    zoom: number, panX: number, panY: number,
+    now: number, baseAlpha: number
+  ) {
+    const trail = cursor.trail;
+    // Prune old points
+    while (trail.length > 0 && now - trail[0].t > TRAIL_MAX_AGE_MS) {
+      trail.shift();
+    }
+    if (trail.length < 2) return;
+
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    for (let i = 1; i < trail.length; i++) {
+      const p0 = trail[i - 1];
+      const p1 = trail[i];
+
+      // Fade based on age (older = more transparent)
+      const age = now - p1.t;
+      const segAlpha = (1 - age / TRAIL_MAX_AGE_MS) * 0.6 * baseAlpha;
+      if (segAlpha <= 0) continue;
+
+      // Width based on speed (faster = wider)
+      const dx = p1.x - p0.x;
+      const dy = p1.y - p0.y;
+      const dt = Math.max(1, p1.t - p0.t);
+      const speed = Math.sqrt(dx * dx + dy * dy) / dt; // world units per ms
+      const width = Math.min(8, 1.5 + speed * zoom * 3);
+
+      const sx0 = p0.x * zoom + panX;
+      const sy0 = p0.y * zoom + panY;
+      const sx1 = p1.x * zoom + panX;
+      const sy1 = p1.y * zoom + panY;
+
+      ctx.beginPath();
+      ctx.moveTo(sx0, sy0);
+      ctx.lineTo(sx1, sy1);
+      ctx.strokeStyle = cursor.color;
+      ctx.globalAlpha = segAlpha;
+      ctx.lineWidth = width;
+      ctx.stroke();
+    }
+
+    ctx.restore();
   }
 
   private drawCursorArrow(ctx: CanvasRenderingContext2D, x: number, y: number, color: string) {
