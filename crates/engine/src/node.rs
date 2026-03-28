@@ -1080,6 +1080,7 @@ pub enum InteractionAction {
     ScrollTo,
     OpenOverlay,
     CloseOverlay,
+    SwapVariant,
 }
 
 impl Default for InteractionAction {
@@ -1113,6 +1114,9 @@ pub struct Interaction {
     pub transition: TransitionType,
     /// Transition duration in ms
     pub transition_duration_ms: u32,
+    /// For SwapVariant action: JSON variant key (e.g. {"State":"Hover","Disabled":"false"})
+    #[serde(default)]
+    pub variant_key_json: String,
 }
 
 impl Default for Interaction {
@@ -1124,6 +1128,7 @@ impl Default for Interaction {
             target_page_id: 0,
             transition: TransitionType::Instant,
             transition_duration_ms: 300,
+            variant_key_json: String::new(),
         }
     }
 }
