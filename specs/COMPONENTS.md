@@ -166,6 +166,23 @@ override <instance_id> <child_node_id> {"text":"Click Me!"}
 | `components` | List all components |
 | `override <instance_id> <node_id> <json>` | Override property |
 
+## Style Override Indicators
+
+Visual indicators showing which properties of an instance differ from the original component template.
+
+### Detection (Rust)
+- `get_instance_overridden_props(instance_id) -> JSON` — compares instance children vs template children by tree position
+- Detected properties: fill, stroke, opacity, corner_radius, size, visible, blur, shadow, blend_mode, text, font_size, font_family, font_weight
+
+### Reset (Rust)
+- `reset_instance_overrides(instance_id, target_node_id) -> bool` — restores single child to template values
+- `reset_all_instance_overrides(instance_id) -> bool` — restores all children, clears override data
+
+### UI
+- **Properties panel**: Blue override card showing count + per-node override list with individual reset buttons + "Reset All"
+- **Layers panel**: Blue diamond (◆) badge on Instance nodes with overrides, click to reset all
+- **Context menu**: "Reset Overrides" option for Instance nodes (enabled only when overrides exist)
+
 ## Component Search & Swap
 
 Instances can swap their master component to a different one via a search dialog.

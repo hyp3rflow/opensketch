@@ -4651,6 +4651,31 @@ export class Editor {
       items.push({ separator: true, label: "" });
 
       items.push({ label: "Flatten", shortcut: `${mod}E`, enabled: true, action: () => this.flattenSelection() });
+
+      // Reset overrides for Instance nodes
+      if (selAfter.length === 1) {
+        try {
+          const nj = this.engine.get_node_json(BigInt(selAfter[0]!));
+          if (nj) {
+            const nd = JSON.parse(nj);
+            const kindStr = typeof nd.kind === "string" ? nd.kind : Object.keys(nd.kind)[0];
+            if (kindStr === "Instance") {
+              const ovJson = this.engine.get_instance_overridden_props(BigInt(selAfter[0]!));
+              const ovInfo = JSON.parse(ovJson);
+              const hasOverrides = ovInfo && ovInfo.overrides && ovInfo.overrides.length > 0;
+              items.push({
+                label: "Reset Overrides",
+                enabled: hasOverrides,
+                action: () => {
+                  this.engine.reset_all_instance_overrides(BigInt(selAfter[0]!));
+                  this.requestRender();
+                  this.fireSelectionNow(selAfter);
+                },
+              });
+            }
+          }
+        } catch { /* ignore */ }
+      }
       if (sel.length >= 2) {
         items.push({ label: "Tidy Up", shortcut: `${mod}⇧T`, enabled: true, action: () => this.tidyUpSelection() });
         if (sel.length >= 4) {

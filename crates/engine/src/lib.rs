@@ -3454,6 +3454,220 @@ impl Engine {
     }
 
     // =============================================
+    // Style Override Indicators
+    // =============================================
+
+    /// Detect which visual properties of an instance's children differ from the component template.
+    /// Returns JSON: { overrides: [{ node_id, node_name, properties: ["fill","opacity",...] }] } or "null"
+    #[wasm_bindgen]
+    pub fn get_instance_overridden_props(&self, instance_id: u64) -> String {
+        let (comp_id, variant_values) = match self.scene.get_node(instance_id) {
+            Some(n) => match &n.kind {
+                NodeKind::Instance(data) => (data.component_id, data.variant_values.clone()),
+                _ => return "null".to_string(),
+            },
+            None => return "null".to_string(),
+        };
+
+        let comp = match self.components.get(comp_id) {
+            Some(c) => c,
+            None => return "null".to_string(),
+        };
+
+        let variant = match comp.get_variant(&variant_values) {
+            Some(v) => v,
+            None => match comp.variants.values().next() {
+                Some(v) => v,
+                None => return "null".to_string(),
+            }
+        };
+
+        let template_root = match variant.nodes.first() {
+            Some(r) => r,
+            None => return "null".to_string(),
+        };
+
+        let instance_node = self.scene.get_node(instance_id).unwrap();
+        let mut result: Vec<serde_json::Value> = Vec::new();
+
+        // Compare instance root vs template root
+        let root_overrides = Self::compare_node_props(instance_node, template_root);
+        if !root_overrides.is_empty() {
+            result.push(serde_json::json!({
+                "node_id": instance_id,
+                "node_name": instance_node.name,
+                "properties": root_overrides,
+            }));
+        }
+
+        // Recursively compare children
+        self.compare_children_recursive(
+            &instance_node.children,
+            template_root,
+            &variant.nodes,
+            &mut result,
+        );
+
+        serde_json::to_string(&serde_json::json!({ "overrides": result }))
+            .unwrap_or_else(|_| "null".to_string())
+    }
+
+    /// Reset all overrides on an instance child, restoring template values.
+    /// Returns true on success.
+    #[wasm_bindgen]
+    pub fn reset_instance_overrides(&mut self, instance_id: u64, target_node_id: u64) -> bool {
+        let (comp_id, variant_values) = match self.scene.get_node(instance_id) {
+            Some(n) => match &n.kind {
+                NodeKind::Instance(data) => (data.component_id, data.variant_values.clone()),
+                _ => return false,
+            },
+            None => return false,
+        };
+
+        let comp = match self.components.get(comp_id) {
+            Some(c) => c,
+            None => return false,
+        };
+
+        let variant = match comp.get_variant(&variant_values) {
+            Some(v) => v.clone(),
+            None => match comp.variants.values().next() {
+                Some(v) => v.clone(),
+                None => return false,
+            }
+        };
+
+        // Find the template node that corresponds to this target
+        let template_node = if target_node_id == instance_id {
+            match variant.nodes.first() {
+                Some(r) => r.clone(),
+                None => return false,
+            }
+        } else {
+            // Find by matching tree position
+            let instance_root = match self.scene.get_node(instance_id) {
+                Some(n) => n.clone(),
+                None => return false,
+            };
+            match self.find_template_for_child(target_node_id, &instance_root.children, variant.nodes.first().unwrap(), &variant.nodes) {
+                Some(t) => t.clone(),
+                None => return false,
+            }
+        };
+
+        // Restore properties
+        if let Some(node) = self.scene.get_node_mut(target_node_id) {
+            node.fills = template_node.fills.clone();
+            node.strokes = template_node.strokes.clone();
+            node.opacity = template_node.opacity;
+            node.corner_radius = template_node.corner_radius;
+            node.blur = template_node.blur;
+            node.shadows = template_node.shadows.clone();
+            node.blend_mode = template_node.blend_mode.clone();
+            node.visible = template_node.visible;
+            node.width = template_node.width;
+            node.height = template_node.height;
+            if let (NodeKind::Text { content, .. }, NodeKind::Text { content: tc, .. }) =
+                (&mut node.kind, &template_node.kind) {
+                *content = tc.clone();
+            }
+        }
+
+        // Clear stored overrides
+        if let Some(inst) = self.scene.get_node_mut(instance_id) {
+            if let NodeKind::Instance(data) = &mut inst.kind {
+                data.overrides.remove(&target_node_id);
+            }
+        }
+
+        self.push_undo();
+        true
+    }
+
+    /// Reset ALL overrides on an instance (restore all children to template).
+    #[wasm_bindgen]
+    pub fn reset_all_instance_overrides(&mut self, instance_id: u64) -> bool {
+        // Get all overridden node IDs first
+        let info_json = self.get_instance_overridden_props(instance_id);
+        let info: serde_json::Value = match serde_json::from_str(&info_json) {
+            Ok(v) => v,
+            Err(_) => return false,
+        };
+
+        let overrides = match info.get("overrides").and_then(|o| o.as_array()) {
+            Some(arr) => arr.clone(),
+            None => return false,
+        };
+
+        if overrides.is_empty() { return true; }
+
+        for ov in &overrides {
+            if let Some(nid) = ov.get("node_id").and_then(|v| v.as_u64()) {
+                // Re-fetch comp info each time since we mutate
+                let (comp_id, variant_values) = match self.scene.get_node(instance_id) {
+                    Some(n) => match &n.kind {
+                        NodeKind::Instance(data) => (data.component_id, data.variant_values.clone()),
+                        _ => continue,
+                    },
+                    None => continue,
+                };
+                let comp = match self.components.get(comp_id) {
+                    Some(c) => c,
+                    None => continue,
+                };
+                let variant = match comp.get_variant(&variant_values) {
+                    Some(v) => v.clone(),
+                    None => continue,
+                };
+                let template_root = match variant.nodes.first() {
+                    Some(r) => r,
+                    None => continue,
+                };
+
+                let template_node = if nid == instance_id {
+                    template_root.clone()
+                } else {
+                    let inst = match self.scene.get_node(instance_id) {
+                        Some(n) => n.clone(),
+                        None => continue,
+                    };
+                    match self.find_template_for_child(nid, &inst.children, template_root, &variant.nodes) {
+                        Some(t) => t.clone(),
+                        None => continue,
+                    }
+                };
+
+                if let Some(node) = self.scene.get_node_mut(nid) {
+                    node.fills = template_node.fills.clone();
+                    node.strokes = template_node.strokes.clone();
+                    node.opacity = template_node.opacity;
+                    node.corner_radius = template_node.corner_radius;
+                    node.blur = template_node.blur;
+                    node.shadows = template_node.shadows.clone();
+                    node.blend_mode = template_node.blend_mode.clone();
+                    node.visible = template_node.visible;
+                    node.width = template_node.width;
+                    node.height = template_node.height;
+                    if let (NodeKind::Text { content, .. }, NodeKind::Text { content: tc, .. }) =
+                        (&mut node.kind, &template_node.kind) {
+                        *content = tc.clone();
+                    }
+                }
+            }
+        }
+
+        // Clear all overrides in instance data
+        if let Some(inst) = self.scene.get_node_mut(instance_id) {
+            if let NodeKind::Instance(data) = &mut inst.kind {
+                data.overrides.clear();
+            }
+        }
+
+        self.push_undo();
+        true
+    }
+
+    // =============================================
     // Component Playground
     // =============================================
 
@@ -7338,6 +7552,116 @@ fn apply_prop_value(node: &mut node::Node, key: &crdt::PropKey, value: &crdt::Pr
         _ => {
             // Custom or unhandled properties — ignore for now
         }
+    }
+}
+
+// --- Style Override Indicator helpers (non-wasm) ---
+impl Engine {
+    fn compare_node_props(instance_node: &crate::node::Node, template_node: &crate::node::Node) -> Vec<String> {
+        let mut overridden = Vec::new();
+
+        // Compare fills
+        if instance_node.fills != template_node.fills {
+            overridden.push("fill".to_string());
+        }
+        // Compare strokes
+        if instance_node.strokes != template_node.strokes {
+            overridden.push("stroke".to_string());
+        }
+        // Opacity
+        if (instance_node.opacity - template_node.opacity).abs() > 0.001 {
+            overridden.push("opacity".to_string());
+        }
+        // Corner radius
+        if (instance_node.corner_radius - template_node.corner_radius).abs() > 0.001 {
+            overridden.push("corner_radius".to_string());
+        }
+        // Size
+        if (instance_node.width - template_node.width).abs() > 0.1
+            || (instance_node.height - template_node.height).abs() > 0.1 {
+            overridden.push("size".to_string());
+        }
+        // Visibility
+        if instance_node.visible != template_node.visible {
+            overridden.push("visible".to_string());
+        }
+        // Blur
+        if (instance_node.blur - template_node.blur).abs() > 0.001 {
+            overridden.push("blur".to_string());
+        }
+        // Shadows
+        if instance_node.shadows != template_node.shadows {
+            overridden.push("shadow".to_string());
+        }
+        // Blend mode
+        if instance_node.blend_mode != template_node.blend_mode {
+            overridden.push("blend_mode".to_string());
+        }
+        // Text content
+        if let (NodeKind::Text { content: ic, font_size: ifs, font_family: iff, font_weight: ifw, .. },
+                NodeKind::Text { content: tc, font_size: tfs, font_family: tff, font_weight: tfw, .. }) =
+            (&instance_node.kind, &template_node.kind) {
+            if ic != tc { overridden.push("text".to_string()); }
+            if (ifs - tfs).abs() > 0.1 { overridden.push("font_size".to_string()); }
+            if iff != tff { overridden.push("font_family".to_string()); }
+            if ifw != tfw { overridden.push("font_weight".to_string()); }
+        }
+
+        overridden
+    }
+
+    fn compare_children_recursive(
+        &self,
+        instance_children: &[u64],
+        template_parent: &crate::node::Node,
+        all_template_nodes: &[crate::node::Node],
+        result: &mut Vec<serde_json::Value>,
+    ) {
+        for (i, &child_id) in instance_children.iter().enumerate() {
+            let template_child_id = template_parent.children.get(i);
+            let template_child = template_child_id.and_then(|&tid|
+                all_template_nodes.iter().find(|n| n.id == tid)
+            );
+
+            if let (Some(instance_child), Some(tmpl)) = (self.scene.get_node(child_id), template_child) {
+                let overrides = Self::compare_node_props(instance_child, tmpl);
+                if !overrides.is_empty() {
+                    result.push(serde_json::json!({
+                        "node_id": child_id,
+                        "node_name": instance_child.name,
+                        "properties": overrides,
+                    }));
+                }
+                // Recurse
+                self.compare_children_recursive(&instance_child.children, tmpl, all_template_nodes, result);
+            }
+        }
+    }
+
+    fn find_template_for_child<'a>(
+        &self,
+        target_id: u64,
+        instance_children: &[u64],
+        template_parent: &'a crate::node::Node,
+        all_template_nodes: &'a [crate::node::Node],
+    ) -> Option<&'a crate::node::Node> {
+        for (i, &child_id) in instance_children.iter().enumerate() {
+            let template_child_id = template_parent.children.get(i);
+            let template_child = template_child_id.and_then(|&tid|
+                all_template_nodes.iter().find(|n| n.id == tid)
+            );
+
+            if child_id == target_id {
+                return template_child;
+            }
+
+            if let (Some(instance_child), Some(tmpl)) = (self.scene.get_node(child_id), template_child) {
+                if let Some(found) = self.find_template_for_child(target_id, &instance_child.children, tmpl, all_template_nodes) {
+                    return Some(found);
+                }
+            }
+        }
+        None
     }
 }
 

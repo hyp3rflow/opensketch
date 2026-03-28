@@ -643,7 +643,7 @@ fn default_visible() -> bool { true }
 /// Fill supports backward-compatible deserialization:
 /// Old format: `{"color": {...}}` → Solid
 /// New format: `{"fill_type": {"Solid": ...}}` or `{"fill_type": {"LinearGradient": ...}}`
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, PartialEq)]
 pub struct Fill {
     pub fill_type: FillType,
     #[serde(default = "default_visible")]
@@ -740,7 +740,7 @@ impl Default for StrokeAlign {
     fn default() -> Self { StrokeAlign::Center }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Stroke {
     pub color: Color,
     pub width: f64,
@@ -923,7 +923,7 @@ pub struct Constraints {
 }
 
 /// Drop shadow effect
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Shadow {
     pub color: Color,
     pub offset_x: f64,

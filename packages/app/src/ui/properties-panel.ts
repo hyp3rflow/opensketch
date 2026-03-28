@@ -500,6 +500,70 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
 
         header.appendChild(variantSection);
       }
+
+      // === Style Override Indicators ===
+      try {
+        const overrideJson = editor.engine.get_instance_overridden_props(id);
+        const overrideInfo = JSON.parse(overrideJson);
+        if (overrideInfo && overrideInfo.overrides && overrideInfo.overrides.length > 0) {
+          const overrideCard = document.createElement("div");
+          overrideCard.style.cssText = `
+            margin-bottom:8px; padding:8px 10px;
+            background:rgba(59,130,246,0.06); border:1px solid rgba(59,130,246,0.15);
+            border-radius:8px;
+          `;
+          const overrideHeader = document.createElement("div");
+          overrideHeader.style.cssText = "display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;";
+          const overrideTitle = document.createElement("div");
+          overrideTitle.style.cssText = "font-size:10px;color:#3b82f6;letter-spacing:0.3px;font-weight:600;display:flex;align-items:center;gap:4px;";
+          overrideTitle.innerHTML = `<span style="width:6px;height:6px;border-radius:50%;background:#3b82f6;display:inline-block;"></span> ${overrideInfo.overrides.length} OVERRIDE${overrideInfo.overrides.length > 1 ? 'S' : ''}`;
+          overrideHeader.appendChild(overrideTitle);
+
+          const resetAllBtn = document.createElement("button");
+          resetAllBtn.style.cssText = `
+            background:rgba(59,130,246,0.15); border:1px solid rgba(59,130,246,0.3);
+            border-radius:4px; padding:2px 8px; color:#60a5fa;
+            cursor:pointer; font-size:10px; font-weight:500;
+            transition:all 0.15s;
+          `;
+          resetAllBtn.textContent = "Reset All";
+          resetAllBtn.addEventListener("mouseenter", () => { resetAllBtn.style.background = "rgba(59,130,246,0.25)"; });
+          resetAllBtn.addEventListener("mouseleave", () => { resetAllBtn.style.background = "rgba(59,130,246,0.15)"; });
+          resetAllBtn.addEventListener("click", () => {
+            if (confirm("Reset all overrides to match the main component?")) {
+              editor.engine.reset_all_instance_overrides(BigInt(id));
+              editor.requestRender();
+              refresh([id]);
+            }
+          });
+          overrideHeader.appendChild(resetAllBtn);
+          overrideCard.appendChild(overrideHeader);
+
+          for (const ov of overrideInfo.overrides) {
+            const ovRow = document.createElement("div");
+            ovRow.style.cssText = "display:flex;align-items:center;gap:6px;padding:3px 0;font-size:11px;color:#94a3b8;";
+            ovRow.innerHTML = `<span style="width:5px;height:5px;border-radius:50%;background:#3b82f6;flex-shrink:0;"></span>`;
+            const ovName = document.createElement("span");
+            ovName.style.cssText = "flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
+            ovName.textContent = `${ov.node_name}: ${ov.properties.join(", ")}`;
+            ovRow.appendChild(ovName);
+
+            const resetBtn = document.createElement("button");
+            resetBtn.style.cssText = "background:none;border:none;color:#60a5fa;cursor:pointer;font-size:10px;padding:0 2px;opacity:0.7;";
+            resetBtn.textContent = "↺";
+            resetBtn.title = "Reset this node's overrides";
+            resetBtn.addEventListener("click", () => {
+              editor.engine.reset_instance_overrides(BigInt(id), BigInt(ov.node_id));
+              editor.requestRender();
+              refresh([id]);
+            });
+            ovRow.appendChild(resetBtn);
+            overrideCard.appendChild(ovRow);
+          }
+
+          header.appendChild(overrideCard);
+        }
+      } catch { /* ignore if engine doesn't support */ }
     }
 
     const nameInput = document.createElement("input");

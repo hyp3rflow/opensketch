@@ -237,6 +237,28 @@ export function setupLayersPanel(container: HTMLElement, editor: Editor) {
         maskBadge.textContent = "M";
         item.appendChild(maskBadge);
       }
+      // Style override indicator badge for Instance nodes
+      if (node.kind.startsWith("Instance")) {
+        try {
+          const ovJson = editor.engine.get_instance_overridden_props(BigInt(node.id));
+          const ovInfo = JSON.parse(ovJson);
+          if (ovInfo && ovInfo.overrides && ovInfo.overrides.length > 0) {
+            const ovBadge = document.createElement("span");
+            ovBadge.title = `${ovInfo.overrides.length} override(s) — click to reset`;
+            ovBadge.style.cssText = "font-size:9px;color:#3b82f6;background:#3b82f620;padding:1px 4px;border-radius:3px;margin-left:auto;margin-right:4px;flex-shrink:0;cursor:pointer;";
+            ovBadge.textContent = "◆";
+            ovBadge.addEventListener("click", (e) => {
+              e.stopPropagation();
+              if (confirm("Reset all overrides on this instance?")) {
+                editor.engine.reset_all_instance_overrides(BigInt(node.id));
+                editor.requestRender();
+                refresh();
+              }
+            });
+            item.appendChild(ovBadge);
+          }
+        } catch { /* ignore */ }
+      }
       // Bookmark toggle
       const bookmark = document.createElement("span");
       bookmark.className = "layer-bookmark";
