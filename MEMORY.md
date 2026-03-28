@@ -1359,12 +1359,21 @@
   - Apply All Matched 일괄 적용, Undo 통합
   - specs/FEATURES.md 업데이트
 
+## 완료된 기능 (추가 113)
+- Component Playground: 컴포넌트 독립 샌드박스 테스트
+  - Rust: component_playground.rs (PlaygroundInfo, PlaygroundVariant, PlaygroundProp, PlaygroundSlot)
+  - WASM: get_playground_info(), get_playground_variants()
+  - TS: component-playground.ts — 풀스크린 오버레이 모달
+  - 좌측 variant 리스트, 중앙 SVG 프리뷰, 우측 props 편집, 하단 breakpoint 바
+  - Responsive breakpoints: Mobile 375 / Tablet 768 / Desktop 1440
+  - Properties panel에 "▶ Playground" 버튼 (Instance 노드)
+  - 단축키: Cmd+Shift+G, Escape로 닫기
+  - icons.ts에 playground 아이콘 추가
+  - 기존 create_playground_instance 빌드 오류 수정 (Node::new signature)
+
 ## 다음 할 것
-- Content-aware image cropping — 이미지 노드에서 subject detection 기반 스마트 크롭 영역 추천, focal point 설정
-- Multi-player follow mode — "Follow" 버튼으로 특정 유저의 뷰포트(zoom+pan) 실시간 추적, Cmd+클릭으로 follow/unfollow 토글
-- Design system diff export — 두 브랜치의 디자인 토큰/스타일 차이를 Markdown 리포트로 내보내기
-- Node annotation layers — 개발자/디자이너별 주석 레이어 분리, 레이어별 표시/숨기기 토글
-- Auto dark mode generation — 라이트 테마 디자인에서 자동으로 다크 모드 색상 팔레트 + 토큰 생성
-- Measurement overlay tool — 두 노드 사이 거리/간격 자동 표시, Alt+hover로 선택 노드와 hover 노드 간 간격 측정, 빨간 화살표 + px 라벨
-- Responsive breakpoint preview — 캔버스 내에서 여러 화면 크기(Mobile/Tablet/Desktop) 동시 프리뷰, Frame에 breakpoint 설정 → 리사이즈 시뮬레이션
-- Design token theme switching — Light/Dark/Custom 테마 정의 → 버튼 하나로 전체 캔버스 스타일 전환, 토큰 매핑 기반
+- Spatial audio for collaboration
+- Cursor chat improvements
+- Auto dark mode — 라이트 테마 디자인을 다크 테마로 자동 변환: 배경/텍스트 색상 반전, 채도/명도 조정, 그림자 강화
+- Component variant interaction — variant 간 hover/click 상태 전환 프로토타이핑: 컴포넌트 내 트리거 설정으로 variant swap 애니메이션
+- Design handoff checklist — 개발자 인수인계 체크리스트 자동 생성: 미완성 에셋/스타일/토큰 감지, 진행률 트래킹, 팀 공유

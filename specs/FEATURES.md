@@ -1405,3 +1405,15 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
   - CursorPresence: follow/unfollow/toggleFollow, updateCursorViewport, tickFollow
   - Collab UI: avatar click handler, followed avatar highlight ring
   - Editor: tickFollowMode() in render loop, followUser/unfollowUser/followingUserId
+
+### Component Playground (addition 113)
+- Fullscreen overlay modal for testing components in isolation
+- Rust engine: `component_playground.rs` — PlaygroundInfo, PlaygroundVariant, PlaygroundProp, PlaygroundSlot
+- WASM bindings: `get_playground_info(comp_id)`, `get_playground_variants(comp_id)`
+- Left panel: variant list with click-to-switch, default variant badge
+- Center: SVG preview of selected variant at chosen breakpoint(s)
+- Right panel: override props editor (variant properties, slots, node overrides)
+- Bottom bar: responsive breakpoint bar — Mobile (375px), Tablet (768px), Desktop (1440px), All
+- Properties panel: "▶ Playground" button on Instance/Component nodes
+- Keyboard shortcut: Cmd+Shift+G to open, Escape to close
+- Scene save/restore for non-destructive temporary instance creation

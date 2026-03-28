@@ -407,6 +407,24 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         openComponentSwapDialog(editor, Number(id));
       });
       compCard.appendChild(swapBtn);
+
+      const playgroundBtn = document.createElement("button");
+      playgroundBtn.style.cssText = `
+        background:rgba(123,97,255,0.15); border:1px solid rgba(123,97,255,0.3);
+        border-radius:6px; padding:4px 10px; color:#b4a0ff;
+        cursor:pointer; font-size:11px; font-weight:500;
+        transition:all 0.15s; flex-shrink:0;
+      `;
+      playgroundBtn.textContent = "▶ Playground";
+      playgroundBtn.title = "Open Component Playground (⌘⇧G)";
+      playgroundBtn.addEventListener("mouseenter", () => { playgroundBtn.style.background = "rgba(123,97,255,0.25)"; });
+      playgroundBtn.addEventListener("mouseleave", () => { playgroundBtn.style.background = "rgba(123,97,255,0.15)"; });
+      playgroundBtn.addEventListener("click", () => {
+        import("./component-playground").then(({ openComponentPlayground }) => {
+          openComponentPlayground(editor.engine, compInfo.component_id);
+        });
+      });
+      compCard.appendChild(playgroundBtn);
       header.appendChild(compCard);
 
       // === Variant Picker ===

@@ -85,4 +85,6 @@ export const icons = {
   mic: s('<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/>'),
   fileDiff: s('<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a1 1 0 0 0 1 1h3"/><path d="M9 15h2"/><path d="M12 12v6"/><path d="M9 12h6" stroke="#4ade80" stroke-width="1.5"/><path d="M9 18h6" stroke="#f87171" stroke-width="1.5"/>'),
   grid: s('<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>'),
+  // Component Playground (play + diamond)
+  playground: s('<path d="M12 2l10 10-10 10L2 12z" fill="none"/><polygon points="10,8 10,16 16,12" fill="currentColor" stroke="none"/>'),
 };

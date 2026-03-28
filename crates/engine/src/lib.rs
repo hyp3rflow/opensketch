@@ -33,6 +33,7 @@ mod design_health;
 mod smart_replace;
 pub mod crdt;
 pub mod whiteboard;
+mod component_playground;
 mod email_export;
 pub mod snapshot_test;
 mod design_quiz;
@@ -3437,6 +3438,80 @@ impl Engine {
         } else {
             "null".to_string()
         }
+    }
+
+    // =============================================
+    // Component Playground
+    // =============================================
+
+    /// Get playground info for a component (properties, slots, variants).
+    /// Returns JSON PlaygroundInfo or "null".
+    #[wasm_bindgen]
+    pub fn get_playground_info(&self, comp_id: u64) -> String {
+        match component_playground::get_playground_info(&self.components, comp_id) {
+            Some(info) => serde_json::to_string(&info).unwrap_or_else(|_| "null".to_string()),
+            None => "null".to_string(),
+        }
+    }
+
+    /// Get all variant keys for a component's playground.
+    /// Returns JSON array of variant key strings or "[]".
+    #[wasm_bindgen]
+    pub fn get_playground_variants(&self, comp_id: u64) -> String {
+        let keys = component_playground::get_variant_keys(&self.components, comp_id);
+        serde_json::to_string(&keys).unwrap_or_else(|_| "[]".to_string())
+    }
+
+    /// Create a temporary playground instance. Returns node id or 0.
+    #[wasm_bindgen]
+    pub fn create_playground_instance(&mut self, comp_id: u64, variant_key_json: &str) -> u64 {
+        let variant_key = match component_playground::parse_variant_key_json(variant_key_json) {
+            Some(k) => k,
+            None => {
+                match self.components.get(comp_id) {
+                    Some(c) => c.default_key(),
+                    None => return 0,
+                }
+            }
+        };
+        let comp = match self.components.get(comp_id) {
+            Some(c) => c,
+            None => return 0,
+        };
+        let variant_data = match comp.get_variant(&variant_key) {
+            Some(vd) => vd.clone(),
+            None => return 0,
+        };
+        for node in &variant_data.nodes {
+            self.scene.add_node_direct(node.clone());
+        }
+        let instance_id = self.scene.next_id();
+        let mut instance_node = crate::node::Node::new(instance_id, NodeKind::Instance(Box::new(crate::component::InstanceData {
+            component_id: comp_id,
+            variant_values: variant_key,
+            slot_fills: std::collections::HashMap::new(),
+            overrides: std::collections::HashMap::new(),
+        })));
+        instance_node.name = format!("Playground_{}", comp.name);
+        if let Some(root) = self.scene.get_node(variant_data.root_node_id) {
+            instance_node.width = root.width;
+            instance_node.height = root.height;
+        }
+        if let Some(root) = self.scene.get_node(variant_data.root_node_id) {
+            instance_node.children = root.children.clone();
+        }
+        self.scene.add_node_direct(instance_node);
+        instance_id
+    }
+
+    /// Remove a playground instance and its template nodes
+    #[wasm_bindgen]
+    pub fn remove_playground_instance(&mut self, instance_id: u64) -> bool {
+        let ids = self.scene.collect_subtree_ids(instance_id);
+        for id in ids {
+            self.scene.remove_node(id);
+        }
+        true
     }
 
     // =============================================

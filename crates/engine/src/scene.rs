@@ -234,6 +234,40 @@ impl Scene {
         id
     }
 
+    /// Add a node with its existing ID (no reassignment). Used by playground.
+    pub fn add_node_direct(&mut self, node: Node) {
+        let id = node.id;
+        if id >= self.next_id {
+            self.next_id = id + 1;
+        }
+        if node.parent.is_none() && !self.root_children.contains(&id) {
+            // Don't add to root_children for playground temp nodes
+        }
+        self.nodes.insert(id, node);
+    }
+
+    /// Return the next available node id
+    pub fn next_id(&mut self) -> NodeId {
+        let id = self.next_id;
+        self.next_id += 1;
+        id
+    }
+
+    /// Collect all ids in a subtree (including root)
+    pub fn collect_subtree_ids(&self, root_id: NodeId) -> Vec<NodeId> {
+        let mut result = vec![];
+        let mut stack = vec![root_id];
+        while let Some(id) = stack.pop() {
+            result.push(id);
+            if let Some(node) = self.nodes.get(&id) {
+                for &child in &node.children {
+                    stack.push(child);
+                }
+            }
+        }
+        result
+    }
+
     pub fn get_node(&self, id: NodeId) -> Option<&Node> {
         self.nodes.get(&id)
     }

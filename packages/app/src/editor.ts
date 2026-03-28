@@ -30,6 +30,7 @@ import { DevModeOverlay } from "./ui/dev-mode-overlay";
 import { WhiteboardMode } from "./ui/whiteboard-mode";
 import { initSnapshotPanel } from "./ui/snapshot-panel";
 import { togglePerfProfiler, closePerfProfiler, isPerfProfilerOpen } from "./ui/perf-profiler";
+import { openComponentPlayground, closeComponentPlayground, isComponentPlaygroundOpen } from "./ui/component-playground";
 
 export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "section" | "image" | "pen" | "star" | "polygon" | "slice" | "connector" | "sticky" | "table" | "freehand";
 
@@ -542,6 +543,17 @@ export class Editor {
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "e" || e.key === "E")) {
         e.preventDefault();
         this.downloadPDF();
+        return;
+      }
+
+      // Ctrl/Cmd+Shift+G: Component Playground
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "g" || e.key === "G")) {
+        e.preventDefault();
+        if (isComponentPlaygroundOpen()) {
+          closeComponentPlayground();
+        } else {
+          openComponentPlayground(this.engine);
+        }
         return;
       }
 
