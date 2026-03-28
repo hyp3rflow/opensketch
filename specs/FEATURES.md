@@ -92,6 +92,7 @@
 - [x] **Properties panel UI**: 6 align buttons + 2 distribute buttons (shown on multi-select)
 - [x] **Undo integration**: push_undo before every alignment action
 - [x] **Dual API**: explicit IDs (`align_left(ids)`) + selection-based (`align_selection("left")`)
+- [x] **Smart Tidy Up**: one-click equalize spacing + cross-axis center align (2+ nodes, Cmd/Ctrl+Shift+T, context menu)
 
 ### Agent Panel
 - [x] Toggle button (🤖, bottom-right)

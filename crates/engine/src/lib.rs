@@ -4124,6 +4124,14 @@ impl Engine {
         self.scene.get_spacing_between(&ids, axis)
     }
 
+    /// Smart tidy up: equalize spacing + cross-axis align for selected nodes
+    pub fn tidy_up_selection(&mut self) -> String {
+        let ids: Vec<u64> = self.scene.selection.iter().copied().collect();
+        if ids.len() < 2 { return "{}".to_string(); }
+        self.push_undo();
+        self.scene.tidy_up(&ids)
+    }
+
     // =============================================
     // SVG Export
     // =============================================

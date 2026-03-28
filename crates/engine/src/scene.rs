@@ -870,6 +870,83 @@ impl Scene {
         format!("{{\"axis\":\"{}\",\"gaps\":{:?},\"uniform\":{},\"avg_gap\":{:.1}}}", axis, gaps, uniform, avg)
     }
 
+    /// Smart tidy up: detect dominant axis, equalize spacing, align cross-axis.
+    /// Returns JSON: { axis, gap, count }
+    pub fn tidy_up(&mut self, ids: &[NodeId]) -> String {
+        if ids.len() < 2 { return "{}".to_string(); }
+
+        // Gather bounds
+        let mut items: Vec<(NodeId, f64, f64, f64, f64)> = ids.iter()
+            .filter_map(|&id| self.nodes.get(&id).map(|n| (id, n.x, n.y, n.width, n.height)))
+            .collect();
+        if items.len() < 2 { return "{}".to_string(); }
+
+        // Determine dominant axis by spread
+        let x_spread = items.iter().map(|i| i.1 + i.3).fold(f64::NEG_INFINITY, f64::max)
+            - items.iter().map(|i| i.1).fold(f64::INFINITY, f64::min);
+        let y_spread = items.iter().map(|i| i.2 + i.4).fold(f64::NEG_INFINITY, f64::max)
+            - items.iter().map(|i| i.2).fold(f64::INFINITY, f64::min);
+
+        let horizontal = x_spread >= y_spread;
+        let axis = if horizontal { "horizontal" } else { "vertical" };
+
+        if horizontal {
+            items.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+        } else {
+            items.sort_by(|a, b| a.2.partial_cmp(&b.2).unwrap());
+        }
+
+        // Calculate current gaps and find median
+        let gaps: Vec<f64> = if horizontal {
+            items.windows(2).map(|w| w[1].1 - (w[0].1 + w[0].3)).collect()
+        } else {
+            items.windows(2).map(|w| w[1].2 - (w[0].2 + w[0].4)).collect()
+        };
+
+        // Use median gap, rounded to nearest nice number (multiple of 4, min 0)
+        let mut sorted_gaps = gaps.clone();
+        sorted_gaps.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        let median = if sorted_gaps.is_empty() { 0.0 } else { sorted_gaps[sorted_gaps.len() / 2] };
+        let nice_gap = if median <= 2.0 { 0.0 } else { (median / 4.0).round() * 4.0 };
+        let gap = nice_gap.max(0.0);
+
+        // Distribute along main axis with uniform gap
+        if horizontal {
+            let mut cursor = items[0].1;
+            for &(id, _, _, w, _) in &items {
+                if let Some(node) = self.nodes.get_mut(&id) { node.x = cursor; }
+                cursor += w + gap;
+            }
+        } else {
+            let mut cursor = items[0].2;
+            for &(id, _, _, _, h) in &items {
+                if let Some(node) = self.nodes.get_mut(&id) { node.y = cursor; }
+                cursor += h + gap;
+            }
+        }
+
+        // Align cross-axis: center align
+        if horizontal {
+            // center vertically
+            let min_y = items.iter().map(|i| i.2).fold(f64::INFINITY, f64::min);
+            let max_y2 = items.iter().map(|i| i.2 + i.4).fold(f64::NEG_INFINITY, f64::max);
+            let center_y = (min_y + max_y2) / 2.0;
+            for &(id, _, _, _, h) in &items {
+                if let Some(node) = self.nodes.get_mut(&id) { node.y = center_y - h / 2.0; }
+            }
+        } else {
+            // center horizontally
+            let min_x = items.iter().map(|i| i.1).fold(f64::INFINITY, f64::min);
+            let max_x2 = items.iter().map(|i| i.1 + i.3).fold(f64::NEG_INFINITY, f64::max);
+            let center_x = (min_x + max_x2) / 2.0;
+            for &(id, _, _, w, _) in &items {
+                if let Some(node) = self.nodes.get_mut(&id) { node.x = center_x - w / 2.0; }
+            }
+        }
+
+        format!("{{\"axis\":\"{}\",\"gap\":{:.1},\"count\":{}}}", axis, gap, items.len())
+    }
+
     /// Returns (min_x, min_y, max_x, max_y) bounding box of all nodes, or None if empty.
     pub fn get_bounds(&self) -> Option<(f64, f64, f64, f64)> {
         let mut min_x = f64::INFINITY;

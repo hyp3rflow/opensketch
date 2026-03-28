@@ -1328,7 +1328,19 @@
   - quiz-panel.ts: 인터랙티브 퀴즈 UI (씬 기반 문제 + 디자인 지식 문제, 진행률/채점/해설)
   - Right pane "Quiz" 탭, LLM agent tools (generate_design_review, generate_quiz, get_scene_analysis)
 
+## 완료된 기능 (추가 122)
+- Smart tidy up:
+  - Rust Scene.tidy_up(): dominant axis 감지 (spread 기반), median gap → nice number (4px 배수) 라운딩
+  - Main axis: uniform gap으로 distribute, Cross axis: center align
+  - WASM: tidy_up_selection() → JSON { axis, gap, count }, push_undo 통합
+  - Context menu: "Tidy Up" (2+ 노드 선택 시), Cmd/Ctrl+Shift+T 단축키
+  - specs/FEATURES.md 업데이트
+
 ## 다음 할 것
 - Content-aware image cropping — 이미지 노드에서 subject detection 기반 스마트 크롭 영역 추천, focal point 설정
 - Multi-player follow mode — "Follow" 버튼으로 특정 유저의 뷰포트(zoom+pan) 실시간 추적, Cmd+클릭으로 follow/unfollow 토글
-- Smart tidy up — 같은 부모 내 여러 노드 선택 시 간격 균등 조정 핸들, Tidy up 기능 (정렬+간격 한번에)
+- Smart distribute with grid detection — 2D 그리드 패턴 감지 시 행/열 동시 정렬 + 간격 균등화
+- Canvas minimap navigation — 미니맵에서 직접 클릭/드래그로 뷰포트 이동, 줌 레벨 표시
+- Design system diff export — 두 브랜치의 디자인 토큰/스타일 차이를 Markdown 리포트로 내보내기
+- Node annotation layers — 개발자/디자이너별 주석 레이어 분리, 레이어별 표시/숨기기 토글
+- Auto dark mode generation — 라이트 테마 디자인에서 자동으로 다크 모드 색상 팔레트 + 토큰 생성
