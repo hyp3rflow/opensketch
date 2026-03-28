@@ -152,6 +152,31 @@ impl Engine {
         result
     }
 
+    /// Get per-node render complexity scores for all nodes.
+    /// Returns JSON: [{ "id": number, "name": string, "kind": string, "complexity": number, "w": number, "h": number }]
+    pub fn get_node_complexity_report(&self) -> String {
+        let mut entries = vec![];
+        for node in self.scene.all_nodes() {
+            if !node.visible { continue; }
+            let c = node.render_complexity();
+            entries.push(format!(
+                r#"{{"id":{},"name":"{}","kind":"{}","complexity":{},"w":{},"h":{}}}"#,
+                node.id,
+                node.name.replace('"', r#"\""#),
+                node.kind_name(),
+                c,
+                node.width as u32,
+                node.height as u32,
+            ));
+        }
+        format!("[{}]", entries.join(","))
+    }
+
+    /// Get complexity score for a single node
+    pub fn get_node_complexity(&self, id: u64) -> u32 {
+        self.scene.get_node(id).map(|n| n.render_complexity()).unwrap_or(0)
+    }
+
     // =============================================
     // Undo / Redo
     // =============================================

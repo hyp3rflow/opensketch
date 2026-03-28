@@ -28,6 +28,7 @@ import { setupDiffOverlay } from "./ui/diff-overlay";
 import { DevModeOverlay } from "./ui/dev-mode-overlay";
 import { WhiteboardMode } from "./ui/whiteboard-mode";
 import { initSnapshotPanel } from "./ui/snapshot-panel";
+import { togglePerfProfiler, closePerfProfiler, isPerfProfilerOpen } from "./ui/perf-profiler";
 
 export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "section" | "image" | "pen" | "star" | "polygon" | "slice" | "connector" | "sticky" | "table" | "freehand";
 
@@ -510,6 +511,13 @@ export class Editor {
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "r" || e.key === "R")) {
         e.preventDefault();
         this.showBatchRenameDialog();
+        return;
+      }
+
+      // Ctrl/Cmd+Shift+P: Performance Profiler
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "p" || e.key === "P")) {
+        e.preventDefault();
+        togglePerfProfiler(this.engine, this);
         return;
       }
 
@@ -2830,6 +2838,9 @@ export class Editor {
         const frameTime = performance.now() - frameStart;
         this._frameTimeHistory.push(frameTime);
         if (this._frameTimeHistory.length > 60) this._frameTimeHistory.shift();
+
+        // Update perf heatmap overlay if enabled
+        if ((this as any)._perfHeatmapCb) (this as any)._perfHeatmapCb();
 
         // Update perf overlay if visible
         if (this._perfStatsVisible && performance.now() - this._lastPerfUpdate > 500) {

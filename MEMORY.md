@@ -835,7 +835,6 @@
 - Smart component variants (조건부 variant 전환 — hover/press/focus state 자동 교체)
 - Shared component library (팀 간 컴포넌트 라이브러리 퍼블리싱/구독, 버전 동기화)
 - Auto-documentation generator (컴포넌트/스타일 기반 디자인 시스템 문서 자동 생성, Markdown/HTML export)
-- Canvas performance profiler (렌더링 FPS 모니터, 노드별 렌더 비용 히트맵, 최적화 제안)
 - Component playground/sandbox (컴포넌트 독립 테스트 환경, 다양한 props 조합 미리보기)
 - Multi-cursor text editing (텍스트 노드 내 다중 커서/선택 영역, Cmd+D 단어 선택 추가)
 - Canvas annotation stamps (날짜/승인/서명 스탬프 도구, 리뷰 워크플로우 보조)
@@ -874,3 +873,17 @@
   - Shortcuts panel UI 업그레이드: ✎ 편집 버튼 (hover 시 표시), "Press keys…" 리바인딩 모드
   - 커스텀 바인딩 보라색 kbd 하이라이트, per-shortcut ↺ 리셋, "Reset All" 버튼
   - Files: shortcut-manager.ts, shortcuts-panel.ts
+
+## 완료된 기능 (추가 — Canvas Performance Profiler)
+- Canvas Performance Profiler Panel (⌘⇧P):
+  - Rolling FPS graph (120-sample, 200ms interval, color-coded bars: green/yellow/red)
+  - Per-node render complexity scoring (Rust): fills, strokes, shadows, blur, gradients, blend modes, path points, children, images 등 가중치 합산
+  - Top-10 expensive nodes 랭킹 (complexity bar + node name/kind)
+  - Heatmap overlay: 캔버스 위에 노드별 complexity를 green→red 색상으로 시각화
+  - Optimization suggestions: 씬 크기, FPS, 고비용 노드, 대형 이미지 자동 감지 + 개선 제안
+  - Memory usage tracking (Chrome Performance.memory API)
+  - Node stats: rendered/culled/total 실시간 표시
+  - WASM: get_node_complexity_report() → JSON, get_node_complexity(id) → u32
+  - Rust: Node.render_complexity() 메서드 (가중치 기반 복잡도 점수)
+  - 툴바 Activity 아이콘 버튼, ⌘⇧P 단축키
+  - Files: ui/perf-profiler.ts, node.rs (render_complexity), lib.rs (WASM bindings)

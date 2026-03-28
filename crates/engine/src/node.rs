@@ -1641,4 +1641,73 @@ impl Node {
     pub fn has_stroke(&self) -> bool {
         !self.strokes.is_empty()
     }
+
+    /// Compute a render complexity score for this node (higher = more expensive to render).
+    /// Score factors: fills, strokes, shadows, blur, gradients, blend modes, path points, children, etc.
+    pub fn render_complexity(&self) -> u32 {
+        let mut score: u32 = 1; // base cost
+
+        // Fill cost
+        for f in &self.fills {
+            if !f.visible { continue; }
+            score += match &f.fill_type {
+                FillType::Solid { .. } => 1,
+                FillType::LinearGradient { .. } | FillType::RadialGradient { .. } => 3,
+                FillType::Pattern { .. } => 4,
+                _ => 3, // NoiseFill, DotPattern, etc.
+            };
+        }
+
+        // Stroke cost
+        for s in &self.strokes {
+            if !s.visible { continue; }
+            score += 2;
+            if !s.dash_array.is_empty() { score += 1; } // dashed = extra
+        }
+
+        // Shadow cost (each shadow = separate draw pass)
+        for sh in &self.shadows {
+            if sh.visible { score += 4; }
+        }
+
+        // Blur cost (filter operation)
+        if self.blur > 0.0 { score += 5; }
+
+        // Blend mode cost
+        if self.blend_mode != BlendMode::Normal { score += 2; }
+
+        // Rotation cost (transform)
+        if self.rotation != 0.0 { score += 1; }
+
+        // Opacity cost (transparency compositing)
+        if self.opacity < 1.0 && self.opacity > 0.0 { score += 1; }
+
+        // Bitmap filter cost
+        if self.bitmap_filter.is_some() { score += 3; }
+
+        // Mask cost
+        if self.is_mask { score += 3; }
+
+        // Kind-specific costs
+        match &self.kind {
+            NodeKind::Text { .. } => { score += 3; } // text measurement + rendering
+            NodeKind::Path { points, .. } => { score += (points.len() as u32).min(20); }
+            NodeKind::VectorNetwork(ref vn) => {
+                score += (vn.vertices.len() as u32 / 2).min(15);
+            }
+            NodeKind::Star { points, .. } => { score += *points; }
+            NodeKind::Polygon { sides, .. } => { score += *sides; }
+            NodeKind::Image { .. } => { score += 4; } // image decode + draw
+            NodeKind::Table { rows, cols, .. } => { score += rows * cols; }
+            _ => {}
+        }
+
+        // Perspective 3D
+        if self.perspective.is_some() { score += 5; }
+
+        // Children count (container overhead)
+        score += self.children.len() as u32;
+
+        score
+    }
 }

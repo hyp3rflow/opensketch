@@ -8,6 +8,7 @@ import { openCodeToDesignModal } from "./code-to-design";
 import { openDesignPolish } from "./design-polish";
 import { openDesignHealth } from "./design-health";
 import { setupVoiceControl } from "./voice-control";
+import { togglePerfProfiler } from "./perf-profiler";
 
 const tools: { id: ToolType; icon: string; label: string }[] = [
   { id: "select", icon: icons.select, label: "Select (V)" },
@@ -284,6 +285,16 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
     editor.toggleSnapshotPanel();
   });
   container.appendChild(snapshotBtn);
+
+  // Performance Profiler button
+  const perfBtn = document.createElement("button");
+  perfBtn.className = "tool-btn";
+  perfBtn.title = "Performance Profiler (⌘⇧P)";
+  perfBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>`;
+  perfBtn.addEventListener("click", () => {
+    togglePerfProfiler(editor.engine, editor);
+  });
+  container.appendChild(perfBtn);
 
   // Figma import button
   const figmaBtn = document.createElement("button");

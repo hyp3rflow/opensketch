@@ -176,6 +176,7 @@
 - [x] **Frame time monitoring**: Per-frame timing with 60-frame rolling average, perf stats overlay (`editor.togglePerfStats()`)
 - [x] **Render stats API**: `get_rendered_count()`, `get_culled_count()`, `get_node_count()` for monitoring
 - [x] **Visible nodes query**: `get_visible_nodes(x, y, w, h)` returns node IDs within viewport for TS-side optimizations
+- [x] **Canvas Performance Profiler**: Full profiler panel (⌘⇧P) with rolling FPS graph, per-node complexity scoring (Rust), top-10 expensive nodes ranking, heatmap overlay, optimization suggestions, memory tracking
 
 ### Desktop (Tauri v2)
 - [x] Project scaffolded (`src-tauri/`)
