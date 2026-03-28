@@ -173,6 +173,7 @@
 - [x] **Engine API**: `set_viewport()`, `get_scene_bounds()`, `get_selection_bounds()`
 
 ### Performance
+- [x] **Scroll/Zoom inertia**: smooth deceleration after trackpad/wheel input stops (EMA velocity tracking, 0.92 friction, 80ms debounce)
 - [x] Wheel event batching (accumulate dx/dy per rAF)
 - [x] PointerEvent + setPointerCapture
 - [x] Selection callbacks throttled via rAF

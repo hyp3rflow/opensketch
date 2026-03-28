@@ -226,8 +226,60 @@ export class Editor {
     this.canvas.addEventListener("dblclick", (e) => this.onDoubleClick(e));
     this.canvas.addEventListener("contextmenu", (e) => this.onContextMenu(e));
 
-    // Wheel: batch into rAF
+    // Wheel: batch into rAF with inertia
     let pendingWheel: { dx: number; dy: number; cx: number; cy: number; isZoom: boolean } | null = null;
+    // Inertia state for smooth scroll/zoom deceleration
+    const inertia = {
+      vx: 0, vy: 0,           // pan velocity (px/frame)
+      vz: 0,                   // zoom velocity (delta/frame)
+      cx: 0, cy: 0,           // last cursor position for zoom
+      active: false,
+      rafId: 0,
+      lastWheelTime: 0,
+      wheelTimeout: 0 as any,
+    };
+    const INERTIA_FRICTION = 0.92;  // deceleration factor per frame
+    const INERTIA_MIN_V = 0.5;     // stop threshold (px/frame for pan)
+    const INERTIA_MIN_VZ = 0.01;   // stop threshold for zoom
+
+    const startInertia = () => {
+      if (inertia.active) return;
+      inertia.active = true;
+      const tick = () => {
+        // Apply friction
+        inertia.vx *= INERTIA_FRICTION;
+        inertia.vy *= INERTIA_FRICTION;
+        inertia.vz *= INERTIA_FRICTION;
+
+        const hasPan = Math.abs(inertia.vx) > INERTIA_MIN_V || Math.abs(inertia.vy) > INERTIA_MIN_V;
+        const hasZoom = Math.abs(inertia.vz) > INERTIA_MIN_VZ;
+
+        if (!hasPan && !hasZoom) {
+          inertia.active = false;
+          inertia.vx = inertia.vy = inertia.vz = 0;
+          return;
+        }
+
+        if (hasPan) {
+          this.engine.pan(-inertia.vx, -inertia.vy);
+        }
+        if (hasZoom) {
+          this.engine.zoom(inertia.vz, inertia.cx, inertia.cy);
+        }
+        this.needsRender = true;
+        inertia.rafId = requestAnimationFrame(tick);
+      };
+      inertia.rafId = requestAnimationFrame(tick);
+    };
+
+    const stopInertia = () => {
+      if (inertia.active) {
+        cancelAnimationFrame(inertia.rafId);
+        inertia.active = false;
+        inertia.vx = inertia.vy = inertia.vz = 0;
+      }
+    };
+
     this.canvas.addEventListener("wheel", (e) => {
       e.preventDefault();
       const isZoom = e.ctrlKey || e.metaKey;
@@ -240,6 +292,21 @@ export class Editor {
           return;
         }
       }
+
+      // Stop any running inertia when new wheel events arrive
+      stopInertia();
+
+      // Track velocity for inertia (exponential moving average)
+      const alpha = 0.3; // smoothing factor
+      if (isZoom) {
+        inertia.vz = inertia.vz * (1 - alpha) + e.deltaY * alpha;
+        inertia.cx = e.offsetX;
+        inertia.cy = e.offsetY;
+      } else {
+        inertia.vx = inertia.vx * (1 - alpha) + e.deltaX * alpha;
+        inertia.vy = inertia.vy * (1 - alpha) + e.deltaY * alpha;
+      }
+      inertia.lastWheelTime = performance.now();
 
       if (!pendingWheel) {
         pendingWheel = { dx: 0, dy: 0, cx: e.offsetX, cy: e.offsetY, isZoom };
@@ -263,6 +330,17 @@ export class Editor {
         pendingWheel.cx = e.offsetX;
         pendingWheel.cy = e.offsetY;
       }
+
+      // Start inertia after wheel events stop (80ms debounce)
+      clearTimeout(inertia.wheelTimeout);
+      inertia.wheelTimeout = setTimeout(() => {
+        // Only start if there's meaningful velocity
+        const hasPanV = Math.abs(inertia.vx) > INERTIA_MIN_V || Math.abs(inertia.vy) > INERTIA_MIN_V;
+        const hasZoomV = Math.abs(inertia.vz) > INERTIA_MIN_VZ;
+        if (hasPanV || hasZoomV) {
+          startInertia();
+        }
+      }, 80);
     }, { passive: false });
 
     window.addEventListener("keydown", (e) => {
