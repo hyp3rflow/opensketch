@@ -1395,3 +1395,13 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
   - Note attachment support, optional node binding
   - Rust engine storage (Scene stamps vec) + WASM bindings
   - ESC to exit stamp mode, drag for rapid placement
+
+- [x] **Follow Mode for Cursors**: track another user's viewport in real-time
+  - Click avatar in collab panel to follow/unfollow (toggle)
+  - Smooth viewport lerp (0.15 factor) to followed user's zoom/pan
+  - 👁 badge on followed cursor's name label + white glow border
+  - Auto-unfollow on manual pan/zoom/scroll (any viewport interaction)
+  - Auto-unfollow when followed user disconnects/times out
+  - CursorPresence: follow/unfollow/toggleFollow, updateCursorViewport, tickFollow
+  - Collab UI: avatar click handler, followed avatar highlight ring
+  - Editor: tickFollowMode() in render loop, followUser/unfollowUser/followingUserId

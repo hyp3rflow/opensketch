@@ -9,17 +9,21 @@ let container: HTMLDivElement | null = null;
 let collabClient: CollabClient | null = null;
 let onConnectCb: ((roomId: string, userName: string) => void) | null = null;
 let onDisconnectCb: (() => void) | null = null;
+let onFollowCb: ((userId: string) => void) | null = null;
+let followingUserId: string | null = null;
 
 export function initCollabUI(
   client: CollabClient,
   opts: {
     onConnect: (roomId: string, userName: string) => void;
     onDisconnect: () => void;
+    onFollow?: (userId: string) => void;
   }
 ) {
   collabClient = client;
   onConnectCb = opts.onConnect;
   onDisconnectCb = opts.onDisconnect;
+  onFollowCb = opts.onFollow || null;
 
   if (container) container.remove();
   container = document.createElement("div");
@@ -29,6 +33,14 @@ export function initCollabUI(
 
   applyStyles();
   bindEvents();
+}
+
+export function setFollowingUser(userId: string | null) {
+  followingUserId = userId;
+  // Re-render if connected
+  if (container && collabClient && collabClient.connectionStatus !== "disconnected") {
+    updateCollabUI(collabClient.connectionStatus, collabClient.connectedUsers);
+  }
 }
 
 export function updateCollabUI(status: ConnectionStatus, users: CollabUser[]) {
@@ -60,11 +72,14 @@ function buildConnectedHTML(status: ConnectionStatus, users: CollabUser[]): stri
   const statusColor = status === "connected" ? "#00b894" : status === "reconnecting" ? "#f9ca24" : "#b2bec3";
   const statusLabel = status === "connected" ? "Connected" : status === "reconnecting" ? "Reconnecting…" : "Connecting…";
 
-  const avatars = users.map(u => `
-    <div class="collab-avatar" style="background:${u.color}" title="${u.userName}">
+  const avatars = users.map(u => {
+    const isFollowed = followingUserId === u.userId;
+    return `
+    <div class="collab-avatar${isFollowed ? ' collab-avatar-followed' : ''}" style="background:${u.color}" title="${u.userName}${isFollowed ? ' (following)' : ' (⌘+click to follow)'}" data-user-id="${u.userId}">
       ${u.userName.charAt(0).toUpperCase()}
     </div>
-  `).join("");
+  `;
+  }).join("");
 
   return `
     <div class="collab-status">
@@ -104,6 +119,20 @@ function bindEvents() {
   const disconnectBtn = document.getElementById("collab-disconnect-btn");
   if (disconnectBtn) {
     disconnectBtn.onclick = () => onDisconnectCb?.();
+  }
+
+  // Follow mode: Cmd+click (or just click) on avatar
+  if (container) {
+    const avatars = container.querySelectorAll('.collab-avatar[data-user-id]');
+    avatars.forEach(el => {
+      (el as HTMLElement).style.cursor = 'pointer';
+      (el as HTMLElement).onclick = (ev) => {
+        const userId = (el as HTMLElement).dataset.userId;
+        if (userId && onFollowCb) {
+          onFollowCb(userId);
+        }
+      };
+    });
   }
 }
 
@@ -157,6 +186,11 @@ function applyStyles() {
       margin-left: -4px;
     }
     .collab-avatar:first-child { margin-left: 0; }
+    .collab-avatar:hover { transform: scale(1.15); transition: transform 0.1s; }
+    .collab-avatar-followed {
+      border-color: #fff !important;
+      box-shadow: 0 0 0 2px rgba(74,144,217,0.7);
+    }
     .collab-actions { display: flex; gap: 4px; }
     .collab-copy-btn, .collab-disconnect-btn {
       background: transparent; border: 1px solid #555;

@@ -224,6 +224,8 @@ export class Editor {
         pendingWheel = { dx: 0, dy: 0, cx: e.offsetX, cy: e.offsetY, isZoom };
         requestAnimationFrame(() => {
           if (pendingWheel) {
+            // Break follow mode on manual pan/zoom
+            if (this._cursorPresence.followingId) this._cursorPresence.unfollow();
             if (pendingWheel.isZoom) {
               this.engine.zoom(pendingWheel.dy, pendingWheel.cx, pendingWheel.cy);
             } else {
@@ -3529,6 +3531,9 @@ export class Editor {
   get diffOverlay() { return this._diffOverlay; }
 
   private renderCursorPresence() {
+    // Follow mode: sync viewport to followed user's cursor position
+    this.tickFollowMode();
+
     const zoom = this.engine.get_zoom();
     const panX = this.engine.get_pan_x();
     const panY = this.engine.get_pan_y();
@@ -3537,6 +3542,43 @@ export class Editor {
     if (this._cursorPresence.getCursors().length > 0) {
       this.needsRender = true;
     }
+  }
+
+  /** Sync viewport to followed user */
+  private tickFollowMode() {
+    const viewport = this._cursorPresence.tickFollow();
+    if (viewport) {
+      const currentZoom = this.engine.get_zoom();
+      const currentPanX = this.engine.get_pan_x();
+      const currentPanY = this.engine.get_pan_y();
+      // Smooth lerp toward target viewport
+      const lerpFactor = 0.15;
+      const newZoom = currentZoom + (viewport.zoom - currentZoom) * lerpFactor;
+      const newPanX = currentPanX + (viewport.panX - currentPanX) * lerpFactor;
+      const newPanY = currentPanY + (viewport.panY - currentPanY) * lerpFactor;
+      // Only update if meaningful difference
+      if (Math.abs(newZoom - currentZoom) > 0.001 || Math.abs(newPanX - currentPanX) > 0.5 || Math.abs(newPanY - currentPanY) > 0.5) {
+        this.engine.set_viewport(newZoom, newPanX, newPanY);
+        this.onZoomChange();
+      }
+    }
+  }
+
+  /** Follow a remote user's viewport */
+  followUser(userId: string) {
+    this._cursorPresence.toggleFollow(userId);
+    this.needsRender = true;
+  }
+
+  /** Stop following any user */
+  unfollowUser() {
+    this._cursorPresence.unfollow();
+    this.needsRender = true;
+  }
+
+  /** Get the currently followed user ID */
+  get followingUserId(): string | null {
+    return this._cursorPresence.followingId;
   }
 
   private renderStamps() {
@@ -4116,6 +4158,7 @@ export class Editor {
   }
 
   zoomTo100() {
+    if (this._cursorPresence.followingId) this._cursorPresence.unfollow();
     const cw = this.engine.get_canvas_width();
     const ch = this.engine.get_canvas_height();
     const panX = this.engine.get_pan_x();
@@ -4132,12 +4175,14 @@ export class Editor {
   }
 
   zoomToFit() {
+    if (this._cursorPresence.followingId) this._cursorPresence.unfollow();
     const boundsJson = this.engine.get_scene_bounds();
     if (!boundsJson) return;
     this.zoomToBounds(JSON.parse(boundsJson));
   }
 
   zoomToSelection() {
+    if (this._cursorPresence.followingId) this._cursorPresence.unfollow();
     const boundsJson = this.engine.get_selection_bounds();
     if (!boundsJson) return;
     this.zoomToBounds(JSON.parse(boundsJson));

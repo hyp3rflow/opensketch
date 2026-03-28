@@ -13,6 +13,12 @@ export interface ChatBubble {
   y: number;
 }
 
+export interface RemoteViewport {
+  zoom: number;
+  panX: number;
+  panY: number;
+}
+
 export interface RemoteCursor {
   id: string;
   name: string;
@@ -30,6 +36,8 @@ export interface RemoteCursor {
   chatBubble?: ChatBubble;
   /** Whether this user is currently typing */
   isTyping?: boolean;
+  /** Remote user's viewport (for follow mode) */
+  viewport?: RemoteViewport;
 }
 
 const CURSOR_COLORS = [
@@ -47,10 +55,65 @@ export class CursorPresence {
   private colorIndex = 0;
   private localUserId: string;
   private localUserName: string;
+  /** ID of the user we are following (null = not following anyone) */
+  private _followingId: string | null = null;
+  /** Callback invoked when follow mode wants to sync viewport */
+  onFollowViewportSync: ((viewport: RemoteViewport) => void) | null = null;
 
   constructor(localUserId?: string, localUserName?: string) {
     this.localUserId = localUserId || `user-${Math.random().toString(36).slice(2, 8)}`;
     this.localUserName = localUserName || 'You';
+  }
+
+  // --- Follow mode ---
+
+  /** Start following a remote user's viewport */
+  follow(userId: string) {
+    if (userId === this.localUserId) return;
+    if (!this.cursors.has(userId)) return;
+    this._followingId = userId;
+  }
+
+  /** Stop following */
+  unfollow() {
+    this._followingId = null;
+  }
+
+  /** Toggle follow for a user (Cmd+click) */
+  toggleFollow(userId: string) {
+    if (this._followingId === userId) {
+      this.unfollow();
+    } else {
+      this.follow(userId);
+    }
+  }
+
+  /** Get the user ID we're currently following */
+  get followingId(): string | null { return this._followingId; }
+
+  /** Update a remote cursor's viewport info */
+  updateCursorViewport(id: string, viewport: RemoteViewport) {
+    const cursor = this.cursors.get(id);
+    if (cursor) {
+      cursor.viewport = viewport;
+      // If we're following this user, sync viewport
+      if (this._followingId === id && this.onFollowViewportSync) {
+        this.onFollowViewportSync(viewport);
+      }
+    }
+  }
+
+  /** Tick follow mode: center viewport on followed cursor's position */
+  tickFollow(): RemoteViewport | null {
+    if (!this._followingId) return null;
+    const cursor = this.cursors.get(this._followingId);
+    if (!cursor) {
+      this._followingId = null;
+      return null;
+    }
+    // If cursor has viewport, use that; otherwise center on cursor position
+    if (cursor.viewport) return cursor.viewport;
+    return null;
   }
 
   /** Add or update a remote cursor */
@@ -74,6 +137,7 @@ export class CursorPresence {
 
   removeCursor(id: string) {
     this.cursors.delete(id);
+    if (this._followingId === id) this._followingId = null;
   }
 
   /** Set a chat bubble on a cursor (or local pseudo-cursor) */
@@ -134,6 +198,7 @@ export class CursorPresence {
     for (const [id, c] of this.cursors) {
       if (now - c.lastSeen > CURSOR_TIMEOUT_MS + FADE_DURATION_MS) {
         this.cursors.delete(id);
+        if (this._followingId === id) this._followingId = null;
       }
     }
   }
@@ -161,8 +226,9 @@ export class CursorPresence {
       // Draw cursor arrow
       this.drawCursorArrow(ctx, sx, sy, cursor.color);
 
-      // Draw name label
-      this.drawNameLabel(ctx, sx, sy, cursor.name, cursor.color);
+      // Draw name label (with follow badge if applicable)
+      const isFollowed = this._followingId === cursor.id;
+      this.drawNameLabel(ctx, sx, sy, cursor.name, cursor.color, isFollowed);
 
       // Draw typing indicator
       if (cursor.isTyping && !cursor.chatBubble) {
@@ -255,15 +321,17 @@ export class CursorPresence {
     ctx.restore();
   }
 
-  private drawNameLabel(ctx: CanvasRenderingContext2D, x: number, y: number, name: string, color: string) {
+  private drawNameLabel(ctx: CanvasRenderingContext2D, x: number, y: number, name: string, color: string, isFollowed = false) {
     const labelX = x + 14;
     const labelY = y + 18;
     const fontSize = 11;
     const paddingH = 6;
     const paddingV = 3;
 
+    const displayName = isFollowed ? `👁 ${name}` : name;
+
     ctx.font = `500 ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
-    const metrics = ctx.measureText(name);
+    const metrics = ctx.measureText(displayName);
     const tw = metrics.width;
     const th = fontSize;
 
@@ -277,11 +345,18 @@ export class CursorPresence {
     ctx.fillStyle = color;
     ctx.fill();
 
+    // Glowing border when following
+    if (isFollowed) {
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+
     // Text
     ctx.fillStyle = '#fff';
     ctx.textBaseline = 'top';
     ctx.textAlign = 'left';
-    ctx.fillText(name, labelX + paddingH, labelY + paddingV);
+    ctx.fillText(displayName, labelX + paddingH, labelY + paddingV);
   }
 
   private drawChatBubble(ctx: CanvasRenderingContext2D, x: number, y: number, text: string, color: string, alpha: number) {
