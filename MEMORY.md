@@ -1322,12 +1322,7 @@
   - Import/Export JSON 지원
 
 ## 다음 할 것
-- Shared cursor / follow mode — 멀티플레이어 환경에서 다른 유저 커서 실시간 표시 + "Follow" 모드로 특정 유저 시점 추적
 - Design quiz / interview mode — 컴포넌트 디자인 가이드라인 퀴즈 생성, 디자인 리뷰 체크리스트 자동 생성
-- Multi-player live cursors with viewport sync — "Follow mode"로 특정 유저의 뷰포트(zoom+pan) 실시간 추적, Cmd+클릭으로 follow/unfollow 토글
 - Content-aware image cropping — 이미지 노드에서 subject detection 기반 스마트 크롭 영역 추천, focal point 설정
-- Variable collections (Figma Variables) — 디자인 토큰을 넘어선 변수 시스템, number/string/boolean/color 타입, 모드별 값, 스코핑
-- Smart selection — 같은 부모 내 여러 노드 선택 시 간격 균등 조정 핸들, Tidy up 기능 (정렬+간격 한번에)
-- Dev mode handoff — 개발자용 모드: 자동 spacing/sizing annotation, asset export, code snippet (React/SwiftUI/CSS)
-- Canvas presentation mode — 슬라이드 프레젠테이션 모드 (Frame = Slide, 화살표 키 전환, 전체화면)
-- Plugin/extension system — 유저 스크립트 실행 환경, API 노출, 커뮤니티 플러그인 마켓
+- Multi-player follow mode — "Follow" 버튼으로 특정 유저의 뷰포트(zoom+pan) 실시간 추적, Cmd+클릭으로 follow/unfollow 토글
+- Smart tidy up — 같은 부모 내 여러 노드 선택 시 간격 균등 조정 핸들, Tidy up 기능 (정렬+간격 한번에)
