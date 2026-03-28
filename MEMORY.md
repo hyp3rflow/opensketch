@@ -1310,11 +1310,24 @@
   - UI: style-versioning.ts — Properties empty state에 패널, 버전 목록, diff 모달
   - Backward-compatible serde (#[serde(default)])
 
+## 완료된 기능 (추가 — Design Token Theme Switching)
+- Design token theme switching:
+  - Rust: token.rs — TokenStore, Theme, Token, TokenValue, TokenBinding, TokenProperty
+  - 테마 CRUD (create/rename/delete), 토큰 관리 (add/remove/update per theme)
+  - 노드 바인딩: fill, stroke, opacity, corner_radius를 토큰 이름에 바인딩
+  - apply_token_theme(): 테마 전환 시 모든 바인딩된 노드 자동 업데이트
+  - Scene에 TokenStore 통합 (serde, backward-compatible)
+  - WASM: 15 bindings (token_create/remove/rename/set_active/get_active/get_themes/add/remove/update/get_tokens/bind/unbind/get_bindings/export/import_json)
+  - UI: token-panel.ts — 테마 스위처 (Properties empty state) + 노드별 토큰 바인딩 섹션
+  - Import/Export JSON 지원
+
 ## 다음 할 것
 - Shared cursor / follow mode — 멀티플레이어 환경에서 다른 유저 커서 실시간 표시 + "Follow" 모드로 특정 유저 시점 추적
 - Design quiz / interview mode — 컴포넌트 디자인 가이드라인 퀴즈 생성, 디자인 리뷰 체크리스트 자동 생성
 - Multi-player live cursors with viewport sync — "Follow mode"로 특정 유저의 뷰포트(zoom+pan) 실시간 추적, Cmd+클릭으로 follow/unfollow 토글
 - Content-aware image cropping — 이미지 노드에서 subject detection 기반 스마트 크롭 영역 추천, focal point 설정
-- Measurement overlay tool — 두 노드 사이 거리/간격 자동 표시, Alt+hover로 선택 노드와 hover 노드 간 간격 측정, 빨간 화살표 + px 라벨
-- Responsive breakpoint preview — 캔버스 내에서 여러 화면 크기(Mobile/Tablet/Desktop) 동시 프리뷰, Frame에 breakpoint 설정 → 리사이즈 시뮬레이션
-- Design token theme switching — Light/Dark/Custom 테마 정의 → 버튼 하나로 전체 캔버스 스타일 전환, 토큰 매핑 기반
+- Variable collections (Figma Variables) — 디자인 토큰을 넘어선 변수 시스템, number/string/boolean/color 타입, 모드별 값, 스코핑
+- Smart selection — 같은 부모 내 여러 노드 선택 시 간격 균등 조정 핸들, Tidy up 기능 (정렬+간격 한번에)
+- Dev mode handoff — 개발자용 모드: 자동 spacing/sizing annotation, asset export, code snippet (React/SwiftUI/CSS)
+- Canvas presentation mode — 슬라이드 프레젠테이션 모드 (Frame = Slide, 화살표 키 전환, 전체화면)
+- Plugin/extension system — 유저 스크립트 실행 환경, API 노출, 커뮤니티 플러그인 마켓

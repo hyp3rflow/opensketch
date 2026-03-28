@@ -3,6 +3,7 @@ import { icons } from "./icons";
 import { createExportPresetsSection } from "./export-presets";
 import { openComponentSwapDialog } from "./component-search";
 import { renderStyleVersioningSection } from "./style-versioning";
+import { createTokenThemeSwitcher, createTokenBindingSection } from "./token-panel";
 
 // Stage 4: Google Fonts list
 const googleFonts = [
@@ -75,6 +76,9 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       emptyDiv.innerHTML = `
         <span style="opacity:0.4;margin-bottom:8px;">${icons.cursor}</span>
         <span style="font-size:11px;">Select an element</span>`;
+
+      // Design Token Theme Switcher
+      container.appendChild(createTokenThemeSwitcher(editor, () => refresh(ids)));
 
       // Styles Library section
       const libSection = document.createElement("div");
@@ -4500,6 +4504,9 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
     notesSection.appendChild(addNoteBtn);
 
     container.appendChild(notesSection);
+
+    // === Token Bindings Section ===
+    container.appendChild(createTokenBindingSection(editor, ids[0], () => { editor.render(); refresh(ids); }));
 
     // === Export Presets Section (all node types) ===
     container.appendChild(createExportPresetsSection(editor, ids[0], () => refresh(ids)));

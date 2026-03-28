@@ -1316,3 +1316,20 @@ Track style library changes with version history, diff comparison, and rollback.
 - [x] **WASM**: 6 bindings (`style_version_create/list/remove/rollback/diff/diff_current`)
 - [x] **UI**: `ui/style-versioning.ts` — panel in Properties empty state, diff modal overlay
 - [x] **Integration**: Dynamic import in `properties-panel.ts` alongside Styles Library section
+
+## Design Token Theme Switching
+Define Light/Dark/Custom themes with token name→value mappings. Bind node fill/stroke/opacity/corner-radius to tokens. Switch theme to update all bound nodes instantly.
+
+### Features
+- [x] **Theme CRUD**: Create, rename, delete themes
+- [x] **Token management**: Add/remove/update tokens per theme (color, number, string types)
+- [x] **Node binding**: Bind fill, stroke, opacity, corner_radius to token names
+- [x] **Theme switching**: One-click switch updates all bound nodes
+- [x] **Import/Export**: Full token store serializable as JSON
+- [x] **Persistent**: Token store saved with scene data (serde, backward-compatible)
+
+### Architecture
+- [x] **Rust**: `token.rs` — `TokenStore`, `Theme`, `Token`, `TokenValue`, `TokenBinding`, `TokenProperty`
+- [x] **Scene integration**: `apply_token_theme()` resolves bindings on active theme change
+- [x] **WASM**: 14 bindings (`token_create_theme`, `token_remove_theme`, `token_rename_theme`, `token_set_active_theme`, `token_get_active_theme`, `token_get_themes`, `token_add_token`, `token_remove_token`, `token_update_token`, `token_get_tokens`, `token_bind_node`, `token_unbind_node`, `token_get_bindings`, `token_export_json`, `token_import_json`)
+- [x] **UI**: `ui/token-panel.ts` — theme switcher (empty state) + per-node token binding section in properties panel

@@ -3,6 +3,7 @@ use serde::{Serialize, Deserialize};
 use crate::node::{Node, NodeId, NodeKind, ConstraintH, ConstraintV, Comment, CommentReply};
 use crate::types::Point;
 use crate::variable::{VariableCollection, VariableBinding, VariableScope, CollectionId, ModeId, VariableId, VariableValue};
+use crate::token::TokenStore;
 
 /// A responsive breakpoint preset with variable-mode mappings.
 /// When the preview width matches this preset, variable collections
@@ -127,6 +128,8 @@ pub struct SceneData {
     pub next_review_comment_id: u64,
     #[serde(default)]
     pub whiteboard_state: WhiteboardState,
+    #[serde(default)]
+    pub token_store: TokenStore,
 }
 
 pub struct Scene {
@@ -161,6 +164,7 @@ pub struct Scene {
     next_review_id: u64,
     next_review_comment_id: u64,
     pub whiteboard_state: WhiteboardState,
+    pub token_store: TokenStore,
 }
 
 impl Scene {
@@ -201,6 +205,7 @@ impl Scene {
             next_review_id: 1,
             next_review_comment_id: 1,
             whiteboard_state: WhiteboardState::default(),
+            token_store: TokenStore::new(),
         }
     }
 
@@ -526,6 +531,7 @@ impl Scene {
             next_review_id: self.next_review_id,
             next_review_comment_id: self.next_review_comment_id,
             whiteboard_state: self.whiteboard_state.clone(),
+            token_store: self.token_store.clone(),
         }
     }
 
@@ -601,6 +607,7 @@ impl Scene {
                 next_review_id: if data.next_review_id > 0 { data.next_review_id } else { 1 },
                 next_review_comment_id: if data.next_review_comment_id > 0 { data.next_review_comment_id } else { 1 },
                 whiteboard_state: data.whiteboard_state.clone(),
+                token_store: data.token_store.clone(),
             }
         } else {
             // Legacy single-page format
@@ -653,6 +660,55 @@ impl Scene {
                 next_review_id: 1,
                 next_review_comment_id: 1,
                 whiteboard_state: data.whiteboard_state.clone(),
+                token_store: data.token_store.clone(),
+            }
+        }
+    }
+
+    /// Apply all token bindings from the active theme to bound nodes
+    pub fn apply_token_theme(&mut self) {
+        use crate::token::{TokenProperty, TokenValue};
+        use crate::node::Fill;
+        use crate::types::Color;
+
+        let bindings = self.token_store.bindings.clone();
+        for binding in &bindings {
+            let value = self.token_store.resolve(&binding.token_name).cloned();
+            if let Some(value) = value {
+                if let Some(node) = self.nodes.get_mut(&binding.node_id) {
+                    match &binding.property {
+                        TokenProperty::Fill => {
+                            if let TokenValue::Color(hex) = &value {
+                                if let Some(color) = parse_hex_color(hex) {
+                                    if node.fills.is_empty() {
+                                        node.fills.push(Fill::solid(color));
+                                    } else {
+                                        node.fills[0] = Fill::solid(color);
+                                    }
+                                }
+                            }
+                        }
+                        TokenProperty::Stroke => {
+                            if let TokenValue::Color(hex) = &value {
+                                if let Some(color) = parse_hex_color(hex) {
+                                    if !node.strokes.is_empty() {
+                                        node.strokes[0].color = color;
+                                    }
+                                }
+                            }
+                        }
+                        TokenProperty::Opacity => {
+                            if let TokenValue::Number(n) = &value {
+                                node.opacity = *n;
+                            }
+                        }
+                        TokenProperty::CornerRadius => {
+                            if let TokenValue::Number(n) = &value {
+                                node.corner_radius = *n;
+                            }
+                        }
+                    }
+                }
             }
         }
     }

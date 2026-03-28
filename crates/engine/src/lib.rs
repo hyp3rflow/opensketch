@@ -12,6 +12,7 @@ mod boolean_ops;
 pub mod styles;
 pub mod variable;
 mod design_tokens;
+pub mod token;
 pub mod path_utils;
 pub mod animation;
 mod design_lint;
@@ -4838,6 +4839,155 @@ impl Engine {
             _ => design_tokens::TokenFormat::W3C,
         };
         design_tokens::export_design_tokens(&self.styles, &self.scene.variable_collections, fmt)
+    }
+
+    // ── Design Token Theme Switching ──
+
+    #[wasm_bindgen]
+    pub fn token_create_theme(&mut self, name: &str) -> u64 {
+        self.push_undo();
+        self.scene.token_store.create_theme(name.to_string())
+    }
+
+    #[wasm_bindgen]
+    pub fn token_remove_theme(&mut self, theme_id: u64) -> bool {
+        self.push_undo();
+        self.scene.token_store.remove_theme(theme_id)
+    }
+
+    #[wasm_bindgen]
+    pub fn token_rename_theme(&mut self, theme_id: u64, name: &str) -> bool {
+        self.scene.token_store.rename_theme(theme_id, name.to_string())
+    }
+
+    #[wasm_bindgen]
+    pub fn token_set_active_theme(&mut self, theme_id: u64) -> bool {
+        self.push_undo();
+        let ok = self.scene.token_store.set_active_theme(theme_id);
+        if ok {
+            self.scene.apply_token_theme();
+        }
+        ok
+    }
+
+    #[wasm_bindgen]
+    pub fn token_get_active_theme(&self) -> u64 {
+        self.scene.token_store.active_theme_id
+    }
+
+    #[wasm_bindgen]
+    pub fn token_get_themes(&self) -> String {
+        let themes: Vec<serde_json::Value> = self.scene.token_store.themes.iter().map(|t| {
+            serde_json::json!({
+                "id": t.id,
+                "name": t.name,
+                "tokenCount": t.tokens.len()
+            })
+        }).collect();
+        serde_json::to_string(&themes).unwrap_or_else(|_| "[]".into())
+    }
+
+    #[wasm_bindgen]
+    pub fn token_add_token(&mut self, theme_id: u64, name: &str, value_type: &str, value: &str) -> u64 {
+        self.push_undo();
+        use crate::token::TokenValue;
+        let tv = match value_type {
+            "color" => TokenValue::Color(value.to_string()),
+            "number" => TokenValue::Number(value.parse().unwrap_or(0.0)),
+            _ => TokenValue::String(value.to_string()),
+        };
+        self.scene.token_store.add_token(theme_id, name.to_string(), tv).unwrap_or(0)
+    }
+
+    #[wasm_bindgen]
+    pub fn token_remove_token(&mut self, theme_id: u64, token_id: u64) -> bool {
+        self.push_undo();
+        self.scene.token_store.remove_token(theme_id, token_id)
+    }
+
+    #[wasm_bindgen]
+    pub fn token_update_token(&mut self, theme_id: u64, token_id: u64, value_type: &str, value: &str) -> bool {
+        self.push_undo();
+        use crate::token::TokenValue;
+        let tv = match value_type {
+            "color" => TokenValue::Color(value.to_string()),
+            "number" => TokenValue::Number(value.parse().unwrap_or(0.0)),
+            _ => TokenValue::String(value.to_string()),
+        };
+        let ok = self.scene.token_store.update_token(theme_id, token_id, tv);
+        if ok {
+            self.scene.apply_token_theme();
+        }
+        ok
+    }
+
+    #[wasm_bindgen]
+    pub fn token_get_tokens(&self, theme_id: u64) -> String {
+        if let Some(theme) = self.scene.token_store.get_theme(theme_id) {
+            let tokens: Vec<serde_json::Value> = theme.tokens.iter().map(|t| {
+                let (vtype, vstr) = match &t.value {
+                    token::TokenValue::Color(c) => ("color", c.clone()),
+                    token::TokenValue::Number(n) => ("number", n.to_string()),
+                    token::TokenValue::String(s) => ("string", s.clone()),
+                };
+                serde_json::json!({
+                    "id": t.id,
+                    "name": t.name,
+                    "type": vtype,
+                    "value": vstr
+                })
+            }).collect();
+            serde_json::to_string(&tokens).unwrap_or_else(|_| "[]".into())
+        } else {
+            "[]".into()
+        }
+    }
+
+    #[wasm_bindgen]
+    pub fn token_bind_node(&mut self, node_id: u64, property: &str, token_name: &str) {
+        use crate::token::TokenProperty;
+        self.push_undo();
+        if let Some(prop) = TokenProperty::from_str(property) {
+            self.scene.token_store.bind(node_id, prop, token_name.to_string());
+            self.scene.apply_token_theme();
+        }
+    }
+
+    #[wasm_bindgen]
+    pub fn token_unbind_node(&mut self, node_id: u64, property: &str) {
+        use crate::token::TokenProperty;
+        self.push_undo();
+        if let Some(prop) = TokenProperty::from_str(property) {
+            self.scene.token_store.unbind(node_id, prop);
+        }
+    }
+
+    #[wasm_bindgen]
+    pub fn token_get_bindings(&self, node_id: u64) -> String {
+        let bindings: Vec<serde_json::Value> = self.scene.token_store.get_bindings_for_node(node_id).iter().map(|b| {
+            serde_json::json!({
+                "property": b.property.as_str(),
+                "tokenName": b.token_name
+            })
+        }).collect();
+        serde_json::to_string(&bindings).unwrap_or_else(|_| "[]".into())
+    }
+
+    #[wasm_bindgen]
+    pub fn token_export_json(&self) -> String {
+        self.scene.token_store.export_json()
+    }
+
+    #[wasm_bindgen]
+    pub fn token_import_json(&mut self, json: &str) -> bool {
+        if let Some(store) = token::TokenStore::import_json(json) {
+            self.push_undo();
+            self.scene.token_store = store;
+            self.scene.apply_token_theme();
+            true
+        } else {
+            false
+        }
     }
 
     /// Analyze design system health: component usage, detached instances, unused styles, consistency score
