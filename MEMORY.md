@@ -1445,11 +1445,24 @@
   - 문제 항목 클릭 → 해당 노드 선택 + 줌
   - Re-check 버튼으로 실시간 재분석
 
+## 완료된 기능 (추가 — View Bookmarks)
+- View Bookmarks (캔버스 뷰 북마크):
+  - Rust: ViewBookmark 구조체 (id, name, x, y, zoom, page_id, description, color, created_at)
+  - Scene CRUD: add/remove/update/get_all/get_for_page
+  - WASM: add_view_bookmark, remove_view_bookmark, update_view_bookmark, get_view_bookmarks, get_view_bookmarks_for_page
+  - UI: 📍 View Bookmarks 플로팅 패널 — 리스트, 클릭 네비게이트, 컬러 닷, 줌/좌표 표시
+  - URL hash sharing: #view=x,y,zoom,pN 포맷, 로드 시 자동 네비게이트
+  - 🔗 Copy share link 버튼, 클립보드 복사
+  - Keyboard: Cmd+Alt+B (save view), Cmd+Shift+K (toggle panel), Ctrl+1-9 (quick jump)
+  - Page-aware: 북마크 전환 시 자동 페이지 이동
+  - Backward-compatible serde
+
 ## 다음 할 것
-- Cursor chat improvements — 커서 채팅에 이모지 리액션, @멘션, 메시지 히스토리 패널
-- Smart layout suggestions on paste — 붙여넣은 노드를 기존 레이아웃에 자동 맞춤 (gap/alignment 추론)
-- Redline / measurement annotations — 노드 간 거리/여백을 영구 주석으로 저장, 개발자 공유 모드에서 표시, PDF export 포함
-- Shared cursor bookmarks — 캔버스의 특정 위치+줌 레벨을 북마크로 저장, 팀원과 링크 공유 시 동일 뷰로 점프
+- Artboard templates / presets — 디바이스별 아트보드 프리셋 (iPhone 16/iPad/Desktop/Watch/A4 등), 원클릭 생성, 커스텀 프리셋 저장
+- Smart color contrast checker — 실시간으로 텍스트/배경 간 WCAG 2.1 AA/AAA 대비율 체크, 자동 수정 제안 (가장 가까운 합격 색상), 전체 디자인 스캔
+- Canvas presentation notes — 프레젠테이션 모드에서 발표자 노트 지원, 노드/페이지별 Markdown 노트, 별도 발표자 뷰 (듀얼 모니터)
+- Keyboard shortcut customization — 사용자 정의 단축키 바인딩, JSON import/export, 충돌 감지, 프리셋 (Figma/Sketch/Adobe)
+- Smart text flow — 텍스트 노드 간 자동 흘림 (overflow → 다음 텍스트 프레임으로 연결), 연결 핸들 시각화, 자동 페이지 생성
 ## 완료된 기능 (추가 — Minimap Node Interaction)
 - Canvas minimap에서 직접 노드 선택 + 이동:
   - 클릭: 해당 노드 선택 + 뷰포트 팬

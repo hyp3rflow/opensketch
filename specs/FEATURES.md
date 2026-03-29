@@ -1632,3 +1632,13 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Template instantiation: recursive node creation via WASM API with proper reparenting
 
 - [x] **Content-aware resize**: Image nodes auto-lock aspect ratio during resize, Shift constrains any node, Alt+Shift proportional scale (font size, corner radius, strokes, shadows, padding, gap, children)
+
+## View Bookmarks
+- [x] Save canvas position + zoom as named bookmarks (Rust ViewBookmark struct, persistent in scene)
+- [x] WASM: add/remove/update/get view bookmarks
+- [x] View Bookmarks panel (📍): list all bookmarks, click to navigate, color dots, zoom/position info
+- [x] Share as URL hash fragment (#view=x,y,zoom,pN), auto-navigate on load
+- [x] Copy share link button per bookmark
+- [x] Keyboard: Cmd+Alt+B save view, Cmd+Shift+K toggle panel, Ctrl+1-9 quick jump
+- [x] Page-aware: bookmarks store page_id, auto-switch page on navigate
+- [x] Backward-compatible serde (default empty vec)

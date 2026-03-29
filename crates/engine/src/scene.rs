@@ -54,6 +54,24 @@ impl Default for MeasureUnit {
     fn default() -> Self { MeasureUnit::Px }
 }
 
+/// A saved canvas view (position + zoom) that can be shared as a link
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ViewBookmark {
+    pub id: u64,
+    pub name: String,
+    pub x: f64,
+    pub y: f64,
+    pub zoom: f64,
+    #[serde(default)]
+    pub page_id: u64,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub created_at: f64,
+    #[serde(default)]
+    pub color: String,
+}
+
 /// A persistent measurement line placed on the canvas
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MeasureLine {
@@ -216,6 +234,10 @@ pub struct SceneData {
     pub measure_lines: Vec<MeasureLine>,
     #[serde(default)]
     pub next_measure_id: u64,
+    #[serde(default)]
+    pub view_bookmarks: Vec<ViewBookmark>,
+    #[serde(default)]
+    pub next_view_bookmark_id: u64,
 }
 
 pub struct Scene {
@@ -259,6 +281,9 @@ pub struct Scene {
     // Persistent measure lines
     measure_lines: Vec<MeasureLine>,
     next_measure_id: u64,
+    // View bookmarks
+    view_bookmarks: Vec<ViewBookmark>,
+    next_view_bookmark_id: u64,
 }
 
 impl Scene {
@@ -305,6 +330,8 @@ impl Scene {
             canvas_background: CanvasBackground::default(),
             measure_lines: vec![],
             next_measure_id: 1,
+            view_bookmarks: vec![],
+            next_view_bookmark_id: 1,
         }
     }
 
@@ -774,6 +801,8 @@ impl Scene {
             canvas_background: self.canvas_background.clone(),
             measure_lines: self.measure_lines.clone(),
             next_measure_id: self.next_measure_id,
+            view_bookmarks: self.view_bookmarks.clone(),
+            next_view_bookmark_id: self.next_view_bookmark_id,
         }
     }
 
@@ -855,6 +884,8 @@ impl Scene {
                 canvas_background: data.canvas_background.clone(),
                 measure_lines: data.measure_lines.clone(),
                 next_measure_id: if data.next_measure_id > 0 { data.next_measure_id } else { 1 },
+                view_bookmarks: data.view_bookmarks.clone(),
+                next_view_bookmark_id: if data.next_view_bookmark_id > 0 { data.next_view_bookmark_id } else { 1 },
             }
         } else {
             // Legacy single-page format
@@ -913,6 +944,8 @@ impl Scene {
                 canvas_background: data.canvas_background.clone(),
                 measure_lines: data.measure_lines.clone(),
                 next_measure_id: if data.next_measure_id > 0 { data.next_measure_id } else { 1 },
+                view_bookmarks: data.view_bookmarks.clone(),
+                next_view_bookmark_id: if data.next_view_bookmark_id > 0 { data.next_view_bookmark_id } else { 1 },
             }
         }
     }
@@ -1589,6 +1622,46 @@ impl Scene {
         let before = self.measure_lines.len();
         self.measure_lines.retain(|m| m.page_id != page_id);
         (before - self.measure_lines.len()) as u32
+    }
+
+    // ─── View Bookmarks ──────────────────────────────────────
+
+    pub fn add_view_bookmark(&mut self, name: &str, x: f64, y: f64, zoom: f64, page_id: u64, description: &str, color: &str) -> u64 {
+        let id = self.next_view_bookmark_id;
+        self.next_view_bookmark_id += 1;
+        self.view_bookmarks.push(ViewBookmark {
+            id, name: name.to_string(), x, y, zoom, page_id,
+            description: description.to_string(),
+            created_at: js_sys::Date::now(),
+            color: if color.is_empty() { "#4ecdc4".to_string() } else { color.to_string() },
+        });
+        id
+    }
+
+    pub fn remove_view_bookmark(&mut self, id: u64) -> bool {
+        let len = self.view_bookmarks.len();
+        self.view_bookmarks.retain(|b| b.id != id);
+        self.view_bookmarks.len() < len
+    }
+
+    pub fn update_view_bookmark(&mut self, id: u64, name: &str, description: &str, color: &str) -> bool {
+        if let Some(b) = self.view_bookmarks.iter_mut().find(|b| b.id == id) {
+            if !name.is_empty() { b.name = name.to_string(); }
+            if !description.is_empty() { b.description = description.to_string(); }
+            if !color.is_empty() { b.color = color.to_string(); }
+            true
+        } else { false }
+    }
+
+    pub fn get_view_bookmarks_json(&self) -> String {
+        serde_json::to_string(&self.view_bookmarks).unwrap_or_else(|_| "[]".to_string())
+    }
+
+    pub fn get_view_bookmarks_for_page_json(&self, page_id: u64) -> String {
+        let filtered: Vec<&ViewBookmark> = self.view_bookmarks.iter()
+            .filter(|b| b.page_id == page_id || b.page_id == 0)
+            .collect();
+        serde_json::to_string(&filtered).unwrap_or_else(|_| "[]".to_string())
     }
 
     pub fn reparent(&mut self, node_id: NodeId, new_parent: Option<NodeId>) {

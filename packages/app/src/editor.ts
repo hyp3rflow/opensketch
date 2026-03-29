@@ -39,6 +39,7 @@ import { togglePerfProfiler, closePerfProfiler, isPerfProfilerOpen } from "./ui/
 import { openComponentPlayground, closeComponentPlayground, isComponentPlaygroundOpen } from "./ui/component-playground";
 import { openVariantMatrix, closeVariantMatrix, isVariantMatrixOpen } from "./ui/variant-matrix";
 import { AnnotationHeatmap } from "./ui/annotation-heatmap";
+import { addViewBookmark, toggleViewBookmarksPanel, handleBookmarkShortcut, checkUrlViewHash } from "./ui/view-bookmarks";
 
 export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "section" | "image" | "pen" | "star" | "polygon" | "slice" | "connector" | "callout" | "sticky" | "table" | "freehand" | "measure";
 
@@ -225,6 +226,7 @@ export class Editor {
       },
     });
     this.startLoop();
+    checkUrlViewHash(this);
   }
 
   private setupCanvas() {
@@ -559,6 +561,25 @@ export class Editor {
           this.needsRender = true;
         }
         return;
+      }
+      // View Bookmarks panel: Cmd+Shift+K
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "k" || e.key === "K") && !e.altKey) {
+        e.preventDefault();
+        toggleViewBookmarksPanel(this, this.canvas.parentElement!);
+        return;
+      }
+      // Save current view bookmark: Cmd+Alt+B
+      if ((e.metaKey || e.ctrlKey) && e.altKey && (e.key === "b" || e.key === "B") && !e.shiftKey) {
+        e.preventDefault();
+        addViewBookmark(this);
+        return;
+      }
+      // Quick jump to view bookmarks: Ctrl+1-9
+      if ((e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey) && e.key >= "1" && e.key <= "9") {
+        if (handleBookmarkShortcut(this, e.key)) {
+          e.preventDefault();
+          return;
+        }
       }
       // Code to Design: Cmd+Shift+D
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "d" || e.key === "D")) {

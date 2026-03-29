@@ -8281,6 +8281,30 @@ impl Engine {
         self.scene.clear_measure_lines(page_id)
     }
 
+    // ── View Bookmarks ──────────────────────────────────────────
+
+    pub fn add_view_bookmark(&mut self, name: &str, x: f64, y: f64, zoom: f64, description: &str, color: &str) -> u64 {
+        let page_id = self.scene.get_active_page_id();
+        self.scene.add_view_bookmark(name, x, y, zoom, page_id, description, color)
+    }
+
+    pub fn remove_view_bookmark(&mut self, id: u64) -> bool {
+        self.scene.remove_view_bookmark(id)
+    }
+
+    pub fn update_view_bookmark(&mut self, id: u64, name: &str, description: &str, color: &str) -> bool {
+        self.scene.update_view_bookmark(id, name, description, color)
+    }
+
+    pub fn get_view_bookmarks(&self) -> String {
+        self.scene.get_view_bookmarks_json()
+    }
+
+    pub fn get_view_bookmarks_for_page(&self) -> String {
+        let page_id = self.scene.get_active_page_id();
+        self.scene.get_view_bookmarks_for_page_json(page_id)
+    }
+
     // ── Auto Dark Mode ─────────────────────────────────────────
     /// Convert all nodes in the scene to dark mode colors.
     /// Returns the number of nodes affected.
