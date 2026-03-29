@@ -22,6 +22,8 @@ import { GradientEditor } from "./ui/gradient-editor";
 import { ResponsiveResize } from "./ui/responsive-resize";
 import { SmartSelectPanel } from "./ui/smart-select";
 import type { CollabClient } from "./collab";
+import { SpatialAudio } from "./spatial-audio";
+import { initSpatialAudioPanel, toggleSpatialAudioPanel, closeSpatialAudioPanel, isSpatialAudioPanelOpen } from "./ui/spatial-audio-panel";
 import { findSpacingHandles, hitTestSpacingHandle, renderSpacingHandles, type SpacingHandle } from "./tools/spacing-handles";
 import { showLayoutSuggestion, dismissSuggestion } from "./ui/ai-layout-suggest";
 import { toggleFindReplace, closeFindReplace } from "./ui/find-replace-panel";
@@ -164,6 +166,9 @@ export class Editor {
   // Collaboration
   private _collabClient: CollabClient | null = null;
   private _collabIgnoreRemote = false;
+
+  // Spatial audio
+  private _spatialAudio = new SpatialAudio();
 
   // Cursor chat state
   private _chatInputActive = false;
@@ -3907,6 +3912,17 @@ export class Editor {
     const panX = this.engine.get_pan_x();
     const panY = this.engine.get_pan_y();
     this._cursorPresence.render(this.ctx, zoom, panX, panY);
+
+    // Update spatial audio positions from cursor presence data
+    if (this._spatialAudio.enabled) {
+      const rect = this.canvas.getBoundingClientRect();
+      const listenerX = (rect.width / 2 - panX) / zoom;
+      const listenerY = (rect.height / 2 - panY) / zoom;
+      this._spatialAudio.updateListenerPosition(listenerX, listenerY);
+      for (const c of this._cursorPresence.getCursors()) {
+        this._spatialAudio.updateUserPosition(c.id, c.x, c.y);
+      }
+    }
     // Render floating emoji reactions
     this._cursorChat.renderReactions(this.ctx, zoom, panX, panY);
     // Re-render if cursors are animating (fade-out) or reactions active
@@ -4069,6 +4085,19 @@ export class Editor {
   /** Get cursor presence instance for external integration */
   get cursorPresence() { return this._cursorPresence; }
 
+  /** Get spatial audio instance */
+  get spatialAudio() { return this._spatialAudio; }
+
+  /** Enable spatial audio (requires user gesture) */
+  async enableSpatialAudio(): Promise<boolean> {
+    const ok = await this._spatialAudio.enable();
+    if (ok) initSpatialAudioPanel(this._spatialAudio);
+    return ok;
+  }
+
+  /** Toggle spatial audio panel UI */
+  toggleSpatialAudioPanel() { toggleSpatialAudioPanel(); }
+
   /** Set external collab client for broadcasting */
   setCollabClient(client: CollabClient) {
     this._collabClient = client;
@@ -4135,6 +4164,7 @@ export class Editor {
   handleRemoteChat(userId: string, userName: string, text: string, x: number, y: number) {
     this._cursorPresence.setChatBubble(userId, userName, text, x, y);
     this._cursorChat.addMessage({ userId, userName, text, timestamp: Date.now(), x, y });
+    this._spatialAudio.playChatSound(userId);
     this.needsRender = true;
   }
 

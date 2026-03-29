@@ -10,6 +10,7 @@ let collabClient: CollabClient | null = null;
 let onConnectCb: ((roomId: string, userName: string) => void) | null = null;
 let onDisconnectCb: (() => void) | null = null;
 let onFollowCb: ((userId: string) => void) | null = null;
+let onSpatialAudioCb: (() => void) | null = null;
 let followingUserId: string | null = null;
 
 export function initCollabUI(
@@ -18,12 +19,14 @@ export function initCollabUI(
     onConnect: (roomId: string, userName: string) => void;
     onDisconnect: () => void;
     onFollow?: (userId: string) => void;
+    onSpatialAudio?: () => void;
   }
 ) {
   collabClient = client;
   onConnectCb = opts.onConnect;
   onDisconnectCb = opts.onDisconnect;
   onFollowCb = opts.onFollow || null;
+  onSpatialAudioCb = opts.onSpatialAudio || null;
 
   if (container) container.remove();
   container = document.createElement("div");
@@ -94,6 +97,13 @@ function buildConnectedHTML(status: ConnectionStatus, users: CollabUser[]): stri
           <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
         </svg>
       </button>
+      <button class="collab-copy-btn" id="collab-spatial-audio" title="Spatial Audio settings">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+          <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+          <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+        </svg>
+      </button>
       <button class="collab-disconnect-btn" id="collab-disconnect-btn" title="Disconnect">✕</button>
     </div>
   `;
@@ -119,6 +129,11 @@ function bindEvents() {
   const disconnectBtn = document.getElementById("collab-disconnect-btn");
   if (disconnectBtn) {
     disconnectBtn.onclick = () => onDisconnectCb?.();
+  }
+
+  const spatialBtn = document.getElementById("collab-spatial-audio");
+  if (spatialBtn) {
+    spatialBtn.onclick = () => onSpatialAudioCb?.();
   }
 
   // Follow mode: Cmd+click (or just click) on avatar

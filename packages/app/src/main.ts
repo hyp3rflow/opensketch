@@ -276,6 +276,10 @@ async function main() {
       collabClient.disconnect();
       updateCollabUI("disconnected", []);
     },
+    onSpatialAudio: async () => {
+      await editor.enableSpatialAudio();
+      editor.toggleSpatialAudioPanel();
+    },
   });
 
   // Right pane tab switching

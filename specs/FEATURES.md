@@ -1592,3 +1592,19 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Keyboard: Cmd+Alt+C to open, Escape to close
 - [x] Fullscreen overlay with top controls bar
 - [x] Code-split lazy loading (dynamic import)
+
+### Spatial Audio for Collaboration
+- [x] Web Audio API with HRTF PannerNodes for distance-based spatialization
+- [x] Canvas coordinates → 3D audio space mapping (X/Z plane)
+- [x] Per-user PannerNode with inverse distance attenuation model
+- [x] Configurable: maxDistance, refDistance, rolloff, masterVolume
+- [x] Sound effects: click, select, drop, type — spatialized to user position
+- [x] Chat notification sounds — two-tone chime at sender's location
+- [x] Ambient hum — subtle drone scaled by nearby user count
+- [x] Proximity chime — ascending notes when user enters threshold distance
+- [x] MediaStream support — connect user microphone for voice chat
+- [x] Master volume, mute/unmute, enable/disable toggle
+- [x] Spatial Audio settings panel (floating UI with per-user volume bars)
+- [x] Collab UI integration: 🔊 button in collaboration panel
+- [x] Listener position synced to canvas viewport center each frame
+- [x] Remote cursor positions synced from CursorPresence data
