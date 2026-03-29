@@ -532,6 +532,110 @@ impl Scene {
         }
     }
 
+    /// Scale a node proportionally: resize + scale all visual properties
+    /// (font size, corner radius, stroke widths, shadow offsets/blur, padding, gap, etc.)
+    /// scale_x/scale_y are the ratio of new size / old size.
+    pub fn scale_node_proportional(&mut self, id: NodeId, scale_x: f64, scale_y: f64) {
+        let scale = (scale_x + scale_y) / 2.0; // uniform scale factor for non-directional props
+        if let Some(node) = self.nodes.get_mut(&id) {
+            // Scale size
+            node.width = (node.width * scale_x).max(1.0);
+            node.height = (node.height * scale_y).max(1.0);
+
+            // Scale corner radius
+            if node.corner_radius > 0.0 {
+                node.corner_radius = (node.corner_radius * scale).max(0.0);
+            }
+
+            // Scale strokes
+            for stroke in &mut node.strokes {
+                stroke.width *= scale;
+                if !stroke.dash_array.is_empty() {
+                    for d in &mut stroke.dash_array {
+                        *d *= scale;
+                    }
+                    stroke.dash_offset *= scale;
+                }
+            }
+
+            // Scale shadows
+            for shadow in &mut node.shadows {
+                shadow.offset_x *= scale_x;
+                shadow.offset_y *= scale_y;
+                shadow.blur *= scale;
+                shadow.spread *= scale;
+            }
+
+            // Scale blur
+            if node.blur > 0.0 {
+                node.blur *= scale;
+            }
+
+            // Scale text properties
+            if let NodeKind::Text { ref mut font_size, ref mut line_height, ref mut letter_spacing, ref mut paragraph_spacing, ref mut text_indent, .. } = node.kind {
+                *font_size = (*font_size * scale).max(1.0);
+                *line_height *= scale;
+                *letter_spacing *= scale;
+                *paragraph_spacing *= scale;
+                *text_indent *= scale;
+            }
+
+            // Scale layout padding and gap
+            if node.layout.mode != crate::node::LayoutMode::None {
+                node.layout.gap *= scale;
+                node.layout.padding_top *= scale;
+                node.layout.padding_right *= scale;
+                node.layout.padding_bottom *= scale;
+                node.layout.padding_left *= scale;
+            }
+
+            // Scale min/max constraints
+            if let Some(ref mut v) = node.min_width { *v *= scale_x; }
+            if let Some(ref mut v) = node.max_width { *v *= scale_x; }
+            if let Some(ref mut v) = node.min_height { *v *= scale_y; }
+            if let Some(ref mut v) = node.max_height { *v *= scale_y; }
+        }
+
+        // Recursively scale children (position offset relative to parent + size)
+        let children: Vec<NodeId> = self.nodes.get(&id).map(|n| n.children.clone()).unwrap_or_default();
+        let (parent_x, parent_y) = self.nodes.get(&id).map(|n| (n.x, n.y)).unwrap_or((0.0, 0.0));
+        // We need the old parent position before scale - but we already scaled.
+        // Actually we need to reposition children. Let's compute offsets.
+        for &cid in &children {
+            if let Some(child) = self.nodes.get(&cid) {
+                let local_x = child.x - parent_x;
+                let local_y = child.y - parent_y;
+                let new_local_x = local_x * scale_x;
+                let new_local_y = local_y * scale_y;
+                let new_x = parent_x + new_local_x;
+                let new_y = parent_y + new_local_y;
+                // Store before recursive call
+                let old_w = child.width;
+                let old_h = child.height;
+                if let Some(c) = self.nodes.get_mut(&cid) {
+                    c.x = new_x;
+                    c.y = new_y;
+                }
+                // Recursively scale child with its own scale factors
+                let child_sx = if old_w > 0.0 { (old_w * scale_x) / old_w } else { scale_x };
+                let child_sy = if old_h > 0.0 { (old_h * scale_y) / old_h } else { scale_y };
+                self.scale_node_proportional(cid, child_sx, child_sy);
+            }
+        }
+    }
+
+    /// Get the aspect ratio of a node (width / height). Returns None if height is 0.
+    pub fn get_node_aspect_ratio(&self, id: NodeId) -> Option<f64> {
+        self.nodes.get(&id).and_then(|n| {
+            if n.height > 0.0 { Some(n.width / n.height) } else { None }
+        })
+    }
+
+    /// Check if a node is an Image node
+    pub fn is_image_node(&self, id: NodeId) -> bool {
+        self.nodes.get(&id).map(|n| matches!(n.kind, NodeKind::Image { .. })).unwrap_or(false)
+    }
+
     /// Resize a Frame/Group and apply constraints to its children.
     /// Child positions are absolute in our scene, so we convert to/from local coords.
     pub fn resize_node_with_constraints(&mut self, id: NodeId, new_width: f64, new_height: f64) {

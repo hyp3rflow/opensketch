@@ -1671,11 +1671,53 @@ export class Editor {
           case 3: nw = sx - ox; nh = sy - oy; break;
         }
         if (nw > 0 && nh > 0) {
-          this.engine.set_node_position(this.drag.nodeId, nx, ny);
-          // Use constraint-aware resize with immediate layout recomputation
-          this.engine.resize_node_with_layout(this.drag.nodeId, nw, nh);
-          // Show breakpoint indicator during resize
-          this.updateBreakpointIndicator(Number(this.drag.nodeId), nw);
+          // Content-aware resize:
+          // - Image nodes: auto-lock aspect ratio (unless Alt held)
+          // - Shift: constrain aspect ratio for any node
+          // - Alt+Shift: proportional scale (scales font size, corner radius, strokes, etc.)
+          const isImage = this.engine.is_image_node(Number(this.drag.nodeId));
+          const shiftHeld = e.shiftKey;
+          const altHeld = e.altKey;
+          const constrainAspect = (isImage && !altHeld) || shiftHeld;
+
+          if (constrainAspect && ow > 0 && oh > 0) {
+            const aspect = ow / oh;
+            // Determine which dimension dominates based on drag direction
+            const dw = Math.abs(nw - ow);
+            const dh = Math.abs(nh - oh);
+            if (dw >= dh) {
+              nh = nw / aspect;
+            } else {
+              nw = nh * aspect;
+            }
+            // Re-anchor position for constrained resize
+            switch (this.drag.handleIndex) {
+              case 0: nx = ox + ow - nw; ny = oy + oh - nh; break;
+              case 1: ny = oy + oh - nh; break;
+              case 2: nx = ox + ow - nw; break;
+              case 3: break;
+            }
+          }
+
+          if (nw > 0 && nh > 0) {
+            this.engine.set_node_position(this.drag.nodeId, nx, ny);
+
+            // Alt+Shift: proportional scale (scale all visual properties)
+            if (altHeld && shiftHeld && ow > 0 && oh > 0) {
+              const scaleX = nw / ow;
+              const scaleY = nh / oh;
+              // Reset size first (scale_node_proportional will set it)
+              this.engine.set_node_position(this.drag.nodeId, nx, ny);
+              // Restore original size then scale proportionally
+              this.engine.resize_node_with_layout(this.drag.nodeId, ow, oh);
+              this.engine.scale_node_proportional(Number(this.drag.nodeId), scaleX, scaleY);
+            } else {
+              // Use constraint-aware resize with immediate layout recomputation
+              this.engine.resize_node_with_layout(this.drag.nodeId, nw, nh);
+            }
+            // Show breakpoint indicator during resize
+            this.updateBreakpointIndicator(Number(this.drag.nodeId), nw);
+          }
         }
       } else {
         const zoom = this.engine.get_zoom();

@@ -1449,7 +1449,6 @@
 - Cursor chat improvements — 커서 채팅에 이모지 리액션, @멘션, 메시지 히스토리 패널
 - Smart layout suggestions on paste — 붙여넣은 노드를 기존 레이아웃에 자동 맞춤 (gap/alignment 추론)
 - Redline / measurement annotations — 노드 간 거리/여백을 영구 주석으로 저장, 개발자 공유 모드에서 표시, PDF export 포함
-- Content-aware resize — 이미지/텍스트 노드 리사이즈 시 콘텐츠 비율 유지 + 텍스트 자동 리플로우, Figma scale tool 스타일
 - Shared cursor bookmarks — 캔버스의 특정 위치+줌 레벨을 북마크로 저장, 팀원과 링크 공유 시 동일 뷰로 점프
 ## 완료된 기능 (추가 — Minimap Node Interaction)
 - Canvas minimap에서 직접 노드 선택 + 이동:
@@ -1478,3 +1477,13 @@
 - Grid Generator: rows/cols/cellSize/gap/color 설정, rainbow 모드, 자동 Rect 그리드 생성
 - Plugin API: PluginAPI 인터페이스 (scene ops, UI extensions, events), PluginManager lifecycle
 - Figma Plugin 호환: 코드 붙여넣기 실행 지원
+
+## 완료된 기능 (추가 — Content-aware Resize)
+- Content-aware resize (비율 보존 + 비례 스케일):
+  - Image 노드: 리사이즈 시 자동 종횡비 잠금 (Alt 누르면 해제)
+  - Shift: 모든 노드 종횡비 고정 리사이즈
+  - Alt+Shift: 비례 스케일 — font size, corner radius, stroke width/dash, shadow offset/blur/spread, blur, padding, gap, min/max constraints, children 위치/크기 모두 비례 조정
+  - Rust: Scene.scale_node_proportional(id, scale_x, scale_y) — 재귀적 자식 스케일링
+  - Rust: Scene.get_node_aspect_ratio(id), Scene.is_image_node(id) 헬퍼
+  - WASM: scale_node_proportional, get_node_aspect_ratio, is_image_node 바인딩
+  - TS: editor.ts 리사이즈 핸들 드래그 로직에 통합

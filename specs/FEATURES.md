@@ -1618,3 +1618,5 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Custom template delete, export (JSON), import (JSON merge)
 - [x] localStorage persistence for custom templates
 - [x] Template instantiation: recursive node creation via WASM API with proper reparenting
+
+- [x] **Content-aware resize**: Image nodes auto-lock aspect ratio during resize, Shift constrains any node, Alt+Shift proportional scale (font size, corner radius, strokes, shadows, padding, gap, children)

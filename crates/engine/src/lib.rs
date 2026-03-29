@@ -5179,6 +5179,27 @@ impl Engine {
     }
 
     // =============================================
+    // Content-aware resize (proportional scaling)
+    // =============================================
+
+    /// Scale a node proportionally — resizes + scales all visual properties
+    /// (font size, corner radius, stroke widths, shadows, padding, gap, children).
+    pub fn scale_node_proportional(&mut self, id: u64, scale_x: f64, scale_y: f64) {
+        self.scene.scale_node_proportional(id, scale_x, scale_y);
+        layout::compute_layouts(&mut self.scene);
+    }
+
+    /// Get the aspect ratio (w/h) of a node. Returns 0 if not available.
+    pub fn get_node_aspect_ratio(&self, id: u64) -> f64 {
+        self.scene.get_node_aspect_ratio(id).unwrap_or(0.0)
+    }
+
+    /// Check if a node is an Image node
+    pub fn is_image_node(&self, id: u64) -> bool {
+        self.scene.is_image_node(id)
+    }
+
+    // =============================================
     // Multi-page support
     // =============================================
 
