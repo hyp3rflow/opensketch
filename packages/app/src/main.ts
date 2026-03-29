@@ -27,8 +27,8 @@ import { setupAccessibilityPanel } from "./ui/accessibility-panel";
 import { createMigrationPanel } from "./ui/migration-panel";
 import { createIconSearchPanel } from "./ui/icon-search-panel";
 import { initComponentLibrary, renderComponentLibraryPanel } from "./ui/component-library";
-import { PluginManager, loremIpsumPlugin, colorPalettePlugin } from "./plugins";
-import { setupPluginPanel } from "./ui/plugin-panel";
+import { PluginManager, loremIpsumPlugin, colorPalettePlugin, GridGeneratorPlugin, AutoRenamePlugin, AccessibilityCheckerPlugin } from "./plugins";
+import { setupMarketplacePanel } from "./ui/plugin-marketplace";
 import { createAnimationTimeline } from "./ui/animation-timeline";
 import { createComponentDocsPanel } from "./ui/component-docs-panel";
 import { CollabClient } from "./collab";
@@ -196,9 +196,14 @@ async function main() {
   // Plugin system
   const pluginManager = new PluginManager(editor);
   (window as any).__pluginManager = pluginManager; // expose for external plugins
-  setupPluginPanel(document.getElementById("plugins-panel")!, pluginManager, editor);
+  setupMarketplacePanel(document.getElementById("plugins-panel")!, pluginManager, editor);
+  // Register built-in plugins
   pluginManager.register(loremIpsumPlugin);
   pluginManager.register(colorPalettePlugin);
+  pluginManager.register(GridGeneratorPlugin);
+  pluginManager.register(AutoRenamePlugin);
+  pluginManager.register(AccessibilityCheckerPlugin);
+  // Auto-activate defaults
   pluginManager.activate("lorem-ipsum");
   pluginManager.activate("color-palette");
 

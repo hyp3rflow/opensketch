@@ -175,3 +175,32 @@ pm.activate("my-plugin-id");
 - `packages/app/src/plugins/figma-compat.ts` — Figma Plugin API compatibility layer
 - `packages/app/src/plugins/samples/figma-color-grid.ts` — Sample Figma-compatible plugin
 - `packages/app/src/ui/plugin-panel.ts` — Plugin management UI (+ Figma plugin runner)
+
+## Plugin Marketplace
+
+### Overview
+The Plugins tab in the right pane includes a full marketplace experience with Browse/Installed/Panels views.
+
+### Browse View
+- **Search**: Fuzzy match on plugin name, description, and tags
+- **Categories**: All, Design, Layout, Text, Accessibility, Developer
+- **Plugin Cards**: Icon, name, author, description, rating, download count, Install/Uninstall button
+- **Figma Plugin Runner**: Paste and execute Figma plugin code (compatibility layer)
+
+### Installed View
+- Lists all registered plugins with active status indicator
+- Enable/Disable toggle per plugin
+- Remove button to unregister
+
+### Plugin Catalog (`plugins/catalog.ts`)
+- Built-in catalog of `CatalogEntry` objects with metadata (author, downloads, rating, category, tags)
+- `searchCatalog(query, category)` for filtering
+
+### Built-in Plugins
+| Plugin | Category | Description |
+|--------|----------|-------------|
+| Lorem Ipsum Generator | Text | Generate placeholder text, fill selected text nodes |
+| Color Palette Extractor | Design | Extract fill colors from selected nodes |
+| Grid Generator | Layout | Create configurable grids (rows/cols/gap/color/frame wrap) |
+| Auto Rename | Developer | Batch rename by type+index, type+size, type+color, or content |
+| Accessibility Checker | Accessibility | Check contrast ratios, tap target sizes, missing alt text |

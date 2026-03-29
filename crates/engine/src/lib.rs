@@ -3,6 +3,7 @@ mod transform;
 mod node;
 mod scene;
 mod render;
+pub mod plugin;
 mod hit_test;
 pub mod component;
 mod layout;
@@ -90,6 +91,7 @@ pub struct Engine {
     recording: RecordingStore,
     crdt: crdt::CRDTDoc,
     snapshot_store: snapshot_test::SnapshotStore,
+    plugin_store: plugin::PluginStore,
 }
 
 #[derive(serde::Serialize)]
@@ -197,6 +199,7 @@ impl Engine {
             snapshot_store: snapshot_test::SnapshotStore::new(),
             recording: RecordingStore::new(),
             crdt: crdt::CRDTDoc::new("local"),
+            plugin_store: plugin::PluginStore::new(),
         }
     }
 
@@ -8316,6 +8319,46 @@ impl Engine {
                 pat.visible = visible;
             }
         }
+    }
+
+    // ── Plugin Marketplace WASM bindings ──
+
+    /// Get all plugins in the catalog as JSON
+    pub fn get_plugins(&self) -> String {
+        serde_json::to_string(self.plugin_store.get_all()).unwrap_or_else(|_| "[]".into())
+    }
+
+    /// Get installed plugins as JSON
+    pub fn get_installed_plugins(&self) -> String {
+        let installed: Vec<_> = self.plugin_store.get_installed();
+        serde_json::to_string(&installed).unwrap_or_else(|_| "[]".into())
+    }
+
+    /// Search plugins by query and optional category filter, returns JSON
+    pub fn search_plugins(&self, query: &str, category: &str) -> String {
+        let cat = if category.is_empty() || category == "All" { None } else { Some(category) };
+        let results: Vec<_> = self.plugin_store.search(query, cat);
+        serde_json::to_string(&results).unwrap_or_else(|_| "[]".into())
+    }
+
+    /// Install a plugin by id, returns true on success
+    pub fn install_plugin(&mut self, id: &str) -> bool {
+        self.plugin_store.install(id)
+    }
+
+    /// Uninstall a plugin by id
+    pub fn uninstall_plugin(&mut self, id: &str) -> bool {
+        self.plugin_store.uninstall(id)
+    }
+
+    /// Enable a plugin by id
+    pub fn enable_plugin(&mut self, id: &str) -> bool {
+        self.plugin_store.enable(id)
+    }
+
+    /// Disable a plugin by id
+    pub fn disable_plugin(&mut self, id: &str) -> bool {
+        self.plugin_store.disable(id)
     }
 
 }
