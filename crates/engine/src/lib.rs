@@ -7349,6 +7349,61 @@ impl Engine {
         self.scene.replace_color(from_hex, to_hex)
     }
 
+    #[wasm_bindgen]
+    pub fn find_by_stroke_color(&self, hex: &str) -> String {
+        let results = self.scene.find_by_stroke_color(hex);
+        serde_json::to_string(&results).unwrap_or_default()
+    }
+
+    #[wasm_bindgen]
+    pub fn replace_stroke_color(&mut self, from_hex: &str, to_hex: &str) -> u32 {
+        self.push_undo();
+        self.scene.replace_stroke_color(from_hex, to_hex)
+    }
+
+    #[wasm_bindgen]
+    pub fn find_by_font(&self, query: &str) -> String {
+        let results = self.scene.find_by_font(query);
+        serde_json::to_string(&results).unwrap_or_default()
+    }
+
+    #[wasm_bindgen]
+    pub fn replace_font(&mut self, from_font: &str, to_font: &str) -> u32 {
+        self.push_undo();
+        self.scene.replace_font(from_font, to_font)
+    }
+
+    /// Search nodes by property criteria (JSON). Returns JSON array of matches.
+    #[wasm_bindgen]
+    pub fn search_by_properties(&self, criteria_json: &str) -> String {
+        let criteria: crate::find_replace::PropertySearchCriteria = 
+            serde_json::from_str(criteria_json).unwrap_or_default();
+        let results = self.scene.search_by_properties(&criteria);
+        serde_json::to_string(&results).unwrap_or_else(|_| "[]".to_string())
+    }
+
+    /// Replace properties on specific nodes (JSON node_ids array + replacement JSON). Returns modified count.
+    #[wasm_bindgen]
+    pub fn replace_properties(&mut self, node_ids_json: &str, replacement_json: &str) -> u32 {
+        let node_ids: Vec<u64> = serde_json::from_str(node_ids_json).unwrap_or_default();
+        let replacement: crate::find_replace::PropertyReplacement = 
+            serde_json::from_str(replacement_json).unwrap_or_default();
+        self.push_undo();
+        self.scene.replace_properties(&node_ids, &replacement)
+    }
+
+    /// Search and replace properties in one call. Returns JSON {matched, modified}.
+    #[wasm_bindgen]
+    pub fn search_and_replace_properties(&mut self, criteria_json: &str, replacement_json: &str) -> String {
+        let criteria: crate::find_replace::PropertySearchCriteria = 
+            serde_json::from_str(criteria_json).unwrap_or_default();
+        let replacement: crate::find_replace::PropertyReplacement = 
+            serde_json::from_str(replacement_json).unwrap_or_default();
+        self.push_undo();
+        let (matched, modified) = self.scene.search_and_replace_properties(&criteria, &replacement);
+        format!("{{\"matched\":{},\"modified\":{}}}", matched, modified)
+    }
+
     // ── Permissions ─────────────────────────────────────────────
 
     #[wasm_bindgen]

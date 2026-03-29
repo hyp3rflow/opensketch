@@ -1411,6 +1411,17 @@
   - L키 토글 (show/hide link arrows)
   - Dangling link graceful skip
 
+## 완료된 기능 (추가 — Node Search & Replace Properties)
+- Property-based node search & batch replace:
+  - Rust find_replace.rs: PropertySearchCriteria (fill_color, stroke_color, font_family, font_size/range, opacity, blend_mode, node_kind, corner_radius, stroke_width)
+  - PropertyReplacement: 동일 속성 일괄 변경
+  - Scene.search_by_properties(), replace_properties(), search_and_replace_properties()
+  - AND logic across all criteria
+  - WASM: search_by_properties(json), replace_properties(json,json), search_and_replace_properties(json,json)
+  - UI: Find & Replace panel에 "Properties" 탭 추가 — 검색 조건 빌더 + 교체 값 빌더 + 결과 리스트
+  - Color picker 연동, blend mode/node kind select
+  - Undo 통합
+
 ## 다음 할 것
 - Spatial audio for collaboration — 멀티플레이어 캔버스에서 거리 기반 음성/효과음, 가까운 유저일수록 소리 크게
 - Cursor chat improvements — 커서 채팅에 이모지 리액션, @멘션, 메시지 히스토리 패널

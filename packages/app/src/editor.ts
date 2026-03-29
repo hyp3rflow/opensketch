@@ -422,8 +422,8 @@ export class Editor {
         toggleSpotlight(this);
         return;
       }
-      // Find & Replace
-      if (_sm.matches(e, "panel.findReplace")) {
+      // Find & Replace (Cmd+F or Cmd+H)
+      if (_sm.matches(e, "panel.findReplace") || ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && (e.key === 'h' || e.key === 'H'))) {
         e.preventDefault();
         toggleFindReplace(this);
         return;

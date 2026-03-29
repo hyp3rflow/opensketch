@@ -4,6 +4,7 @@ let panel: HTMLDivElement | null = null;
 let editorRef: Editor | null = null;
 let currentResults: any[] = [];
 let currentIndex = -1;
+let currentMode: 'text' | 'color' | 'stroke' | 'font' = 'text';
 
 export function toggleFindReplace(editor: Editor) {
   editorRef = editor;
@@ -38,17 +39,21 @@ function createPanel() {
     <div class="fr-body">
       <div class="fr-mode-tabs">
         <button class="fr-tab active" data-mode="text">Text</button>
-        <button class="fr-tab" data-mode="color">Color</button>
+        <button class="fr-tab" data-mode="color">Fill</button>
+        <button class="fr-tab" data-mode="stroke">Stroke</button>
+        <button class="fr-tab" data-mode="font">Font</button>
       </div>
-      <div class="fr-text-section">
+
+      <!-- Text mode -->
+      <div class="fr-section fr-text-section">
         <div class="fr-row">
-          <input class="fr-input" id="fr-search" placeholder="Find…" autocomplete="off"/>
+          <input class="fr-input" id="fr-search" placeholder="Find text…" autocomplete="off"/>
           <label class="fr-case" title="Case sensitive">
             <input type="checkbox" id="fr-case"/> Aa
           </label>
         </div>
         <div class="fr-row">
-          <input class="fr-input" id="fr-replace" placeholder="Replace…" autocomplete="off"/>
+          <input class="fr-input" id="fr-replace" placeholder="Replace with…" autocomplete="off"/>
         </div>
         <div class="fr-row fr-actions">
           <span class="fr-count" id="fr-count"></span>
@@ -58,7 +63,9 @@ function createPanel() {
           <button class="fr-btn" id="fr-replace-all">Replace All</button>
         </div>
       </div>
-      <div class="fr-color-section" style="display:none">
+
+      <!-- Fill color mode -->
+      <div class="fr-section fr-color-section" style="display:none">
         <div class="fr-row">
           <input class="fr-input fr-color-input" id="fr-color-search" placeholder="#ff0000" />
           <input type="color" id="fr-color-picker-search" value="#ff0000" />
@@ -73,6 +80,39 @@ function createPanel() {
           <button class="fr-btn" id="fr-color-replace-btn">Replace All</button>
         </div>
       </div>
+
+      <!-- Stroke color mode -->
+      <div class="fr-section fr-stroke-section" style="display:none">
+        <div class="fr-row">
+          <input class="fr-input fr-color-input" id="fr-stroke-search" placeholder="#ff0000" />
+          <input type="color" id="fr-stroke-picker-search" value="#ff0000" />
+        </div>
+        <div class="fr-row">
+          <input class="fr-input fr-color-input" id="fr-stroke-replace" placeholder="#00ff00" />
+          <input type="color" id="fr-stroke-picker-replace" value="#00ff00" />
+        </div>
+        <div class="fr-row fr-actions">
+          <span class="fr-count" id="fr-stroke-count"></span>
+          <button class="fr-btn" id="fr-stroke-find">Find</button>
+          <button class="fr-btn" id="fr-stroke-replace-btn">Replace All</button>
+        </div>
+      </div>
+
+      <!-- Font mode -->
+      <div class="fr-section fr-font-section" style="display:none">
+        <div class="fr-row">
+          <input class="fr-input" id="fr-font-search" placeholder="Find font (e.g. Inter)…" autocomplete="off"/>
+        </div>
+        <div class="fr-row">
+          <input class="fr-input" id="fr-font-replace" placeholder="Replace with font…" autocomplete="off"/>
+        </div>
+        <div class="fr-row fr-actions">
+          <span class="fr-count" id="fr-font-count"></span>
+          <button class="fr-btn" id="fr-font-find">Find</button>
+          <button class="fr-btn" id="fr-font-replace-btn">Replace All</button>
+        </div>
+      </div>
+
       <div class="fr-results" id="fr-results"></div>
     </div>
   `;
@@ -80,7 +120,7 @@ function createPanel() {
     position: 'fixed',
     top: '60px',
     right: '20px',
-    width: '320px',
+    width: '340px',
     background: '#2a2a2a',
     borderRadius: '10px',
     boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
@@ -107,11 +147,13 @@ function setupEvents() {
     tab.addEventListener('click', () => {
       panel!.querySelectorAll('.fr-tab').forEach(t => t.classList.remove('active'));
       tab.classList.add('active');
-      const mode = (tab as HTMLElement).dataset.mode;
-      const textSec = panel!.querySelector('.fr-text-section') as HTMLElement;
-      const colorSec = panel!.querySelector('.fr-color-section') as HTMLElement;
-      textSec.style.display = mode === 'text' ? '' : 'none';
-      colorSec.style.display = mode === 'color' ? '' : 'none';
+      currentMode = (tab as HTMLElement).dataset.mode as any;
+      panel!.querySelectorAll('.fr-section').forEach(s => (s as HTMLElement).style.display = 'none');
+      const sectionMap: Record<string, string> = {
+        text: '.fr-text-section', color: '.fr-color-section',
+        stroke: '.fr-stroke-section', font: '.fr-font-section'
+      };
+      (panel!.querySelector(sectionMap[currentMode]) as HTMLElement).style.display = '';
       clearResults();
     });
   });
@@ -125,103 +167,206 @@ function setupEvents() {
   panel.querySelector('#fr-replace-one')!.addEventListener('click', () => doReplaceOne());
   panel.querySelector('#fr-replace-all')!.addEventListener('click', () => doReplaceAll());
   
-  // Color sync
-  const colorSearch = panel.querySelector('#fr-color-search') as HTMLInputElement;
-  const colorPicker = panel.querySelector('#fr-color-picker-search') as HTMLInputElement;
-  const colorReplace = panel.querySelector('#fr-color-replace') as HTMLInputElement;
-  const colorPickerReplace = panel.querySelector('#fr-color-picker-replace') as HTMLInputElement;
-  
-  colorPicker.addEventListener('input', () => { colorSearch.value = colorPicker.value; });
-  colorSearch.addEventListener('input', () => { try { colorPicker.value = colorSearch.value; } catch {} });
-  colorPickerReplace.addEventListener('input', () => { colorReplace.value = colorPickerReplace.value; });
-  colorReplace.addEventListener('input', () => { try { colorPickerReplace.value = colorReplace.value; } catch {} });
-  
+  // Fill color sync
+  syncColorInputs('fr-color-search', 'fr-color-picker-search');
+  syncColorInputs('fr-color-replace', 'fr-color-picker-replace');
   panel.querySelector('#fr-color-find')!.addEventListener('click', doColorSearch);
   panel.querySelector('#fr-color-replace-btn')!.addEventListener('click', doColorReplace);
 
-  // Escape to close
-  searchInput.addEventListener('keydown', (e) => {
+  // Stroke color sync
+  syncColorInputs('fr-stroke-search', 'fr-stroke-picker-search');
+  syncColorInputs('fr-stroke-replace', 'fr-stroke-picker-replace');
+  panel.querySelector('#fr-stroke-find')!.addEventListener('click', doStrokeSearch);
+  panel.querySelector('#fr-stroke-replace-btn')!.addEventListener('click', doStrokeReplace);
+
+  // Font
+  panel.querySelector('#fr-font-find')!.addEventListener('click', doFontSearch);
+  panel.querySelector('#fr-font-replace-btn')!.addEventListener('click', doFontReplace);
+  (panel.querySelector('#fr-font-search') as HTMLInputElement).addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closePanel();
+    if (e.key === 'Enter') doFontSearch();
+  });
+
+  // Escape to close on all inputs
+  panel.querySelectorAll('input').forEach(inp => {
+    inp.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closePanel();
+    });
+  });
+  searchInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') navigateResult(1);
   });
-  const replaceInput = panel.querySelector('#fr-replace') as HTMLInputElement;
-  replaceInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') closePanel();
-  });
 }
+
+function syncColorInputs(textId: string, pickerId: string) {
+  if (!panel) return;
+  const text = panel.querySelector(`#${textId}`) as HTMLInputElement;
+  const picker = panel.querySelector(`#${pickerId}`) as HTMLInputElement;
+  picker.addEventListener('input', () => { text.value = picker.value; });
+  text.addEventListener('input', () => { try { picker.value = text.value; } catch {} });
+}
+
+function getEngine(): any {
+  return editorRef ? (editorRef as any).engine : null;
+}
+
+// ── Text search/replace ──
 
 function doTextSearch() {
-  if (!editorRef || !panel) return;
+  if (!panel) return;
+  const engine = getEngine();
+  if (!engine) return;
   const query = (panel.querySelector('#fr-search') as HTMLInputElement).value;
   const caseSensitive = (panel.querySelector('#fr-case') as HTMLInputElement).checked;
-  
-  if (!query) {
-    clearResults();
-    return;
-  }
-  
-  const engine = (editorRef as any).engine;
-  if (!engine) return;
-  
+  if (!query) { clearResults(); return; }
   try {
-    const json = engine.find_text(query, caseSensitive);
-    currentResults = JSON.parse(json || '[]');
+    currentResults = JSON.parse(engine.find_text(query, caseSensitive) || '[]');
     currentIndex = currentResults.length > 0 ? 0 : -1;
-    updateCount();
+    updateCount('#fr-count');
     renderResults();
     if (currentIndex >= 0) selectResult(currentIndex);
-  } catch (e) {
-    console.error('Find error:', e);
-  }
+  } catch (e) { console.error('Find error:', e); }
 }
 
+function doReplaceOne() {
+  if (!panel || currentIndex < 0) return;
+  const engine = getEngine();
+  if (!engine) return;
+  const search = (panel.querySelector('#fr-search') as HTMLInputElement).value;
+  const replacement = (panel.querySelector('#fr-replace') as HTMLInputElement).value;
+  const caseSensitive = (panel.querySelector('#fr-case') as HTMLInputElement).checked;
+  const r = currentResults[currentIndex];
+  const nodeId = typeof r.node_id === 'number' ? r.node_id : Number(r.node_id);
+  engine.replace_text(nodeId, search, replacement, caseSensitive);
+  editorRef!.render();
+  doTextSearch();
+}
+
+function doReplaceAll() {
+  if (!panel) return;
+  const engine = getEngine();
+  if (!engine) return;
+  const search = (panel.querySelector('#fr-search') as HTMLInputElement).value;
+  const replacement = (panel.querySelector('#fr-replace') as HTMLInputElement).value;
+  const caseSensitive = (panel.querySelector('#fr-case') as HTMLInputElement).checked;
+  if (!search) return;
+  const count = engine.replace_all_text(search, replacement, caseSensitive);
+  editorRef!.render();
+  clearResults();
+  (panel.querySelector('#fr-count') as HTMLElement).textContent = `${count} replaced`;
+}
+
+// ── Fill color search/replace ──
+
 function doColorSearch() {
-  if (!editorRef || !panel) return;
+  if (!panel) return;
+  const engine = getEngine();
+  if (!engine) return;
   const hex = (panel.querySelector('#fr-color-search') as HTMLInputElement).value;
   if (!hex) return;
-  
-  const engine = (editorRef as any).engine;
-  if (!engine) return;
-  
   try {
-    const json = engine.find_by_color(hex);
-    currentResults = JSON.parse(json || '[]');
+    currentResults = JSON.parse(engine.find_by_color(hex) || '[]');
     currentIndex = currentResults.length > 0 ? 0 : -1;
-    const countEl = panel.querySelector('#fr-color-count') as HTMLElement;
-    countEl.textContent = `${currentResults.length} found`;
+    showCount('#fr-color-count', currentResults.length);
     renderResults();
     if (currentIndex >= 0) selectResult(currentIndex);
-  } catch (e) {
-    console.error('Color find error:', e);
-  }
+  } catch (e) { console.error('Color find error:', e); }
 }
 
 function doColorReplace() {
-  if (!editorRef || !panel) return;
+  if (!panel) return;
+  const engine = getEngine();
+  if (!engine) return;
   const fromHex = (panel.querySelector('#fr-color-search') as HTMLInputElement).value;
   const toHex = (panel.querySelector('#fr-color-replace') as HTMLInputElement).value;
   if (!fromHex || !toHex) return;
-  
-  const engine = (editorRef as any).engine;
+  const count = engine.replace_color(fromHex, toHex);
+  showCount('#fr-color-count', count, true);
+  currentResults = []; currentIndex = -1;
+  renderResults();
+  editorRef!.render();
+}
+
+// ── Stroke color search/replace ──
+
+function doStrokeSearch() {
+  if (!panel) return;
+  const engine = getEngine();
   if (!engine) return;
-  
+  const hex = (panel.querySelector('#fr-stroke-search') as HTMLInputElement).value;
+  if (!hex) return;
   try {
-    const count = engine.replace_color(fromHex, toHex);
-    const countEl = panel.querySelector('#fr-color-count') as HTMLElement;
-    countEl.textContent = `${count} replaced`;
-    currentResults = [];
-    currentIndex = -1;
+    currentResults = JSON.parse(engine.find_by_stroke_color(hex) || '[]');
+    currentIndex = currentResults.length > 0 ? 0 : -1;
+    showCount('#fr-stroke-count', currentResults.length);
     renderResults();
-    editorRef.render();
-  } catch (e) {
-    console.error('Color replace error:', e);
-  }
+    if (currentIndex >= 0) selectResult(currentIndex);
+  } catch (e) { console.error('Stroke find error:', e); }
+}
+
+function doStrokeReplace() {
+  if (!panel) return;
+  const engine = getEngine();
+  if (!engine) return;
+  const fromHex = (panel.querySelector('#fr-stroke-search') as HTMLInputElement).value;
+  const toHex = (panel.querySelector('#fr-stroke-replace') as HTMLInputElement).value;
+  if (!fromHex || !toHex) return;
+  const count = engine.replace_stroke_color(fromHex, toHex);
+  showCount('#fr-stroke-count', count, true);
+  currentResults = []; currentIndex = -1;
+  renderResults();
+  editorRef!.render();
+}
+
+// ── Font search/replace ──
+
+function doFontSearch() {
+  if (!panel) return;
+  const engine = getEngine();
+  if (!engine) return;
+  const query = (panel.querySelector('#fr-font-search') as HTMLInputElement).value;
+  if (!query) { clearResults(); return; }
+  try {
+    currentResults = JSON.parse(engine.find_by_font(query) || '[]');
+    currentIndex = currentResults.length > 0 ? 0 : -1;
+    showCount('#fr-font-count', currentResults.length);
+    renderResults();
+    if (currentIndex >= 0) selectResult(currentIndex);
+  } catch (e) { console.error('Font find error:', e); }
+}
+
+function doFontReplace() {
+  if (!panel) return;
+  const engine = getEngine();
+  if (!engine) return;
+  const fromFont = (panel.querySelector('#fr-font-search') as HTMLInputElement).value;
+  const toFont = (panel.querySelector('#fr-font-replace') as HTMLInputElement).value;
+  if (!fromFont || !toFont) return;
+  const count = engine.replace_font(fromFont, toFont);
+  showCount('#fr-font-count', count, true);
+  currentResults = []; currentIndex = -1;
+  renderResults();
+  editorRef!.render();
+}
+
+// ── Shared helpers ──
+
+function showCount(selector: string, n: number, replaced = false) {
+  if (!panel) return;
+  (panel.querySelector(selector) as HTMLElement).textContent = replaced ? `${n} replaced` : `${n} found`;
+}
+
+function updateCount(selector: string) {
+  if (!panel) return;
+  const el = panel.querySelector(selector) as HTMLElement;
+  if (currentResults.length === 0) { el.textContent = 'No results'; }
+  else { el.textContent = `${currentIndex + 1} / ${currentResults.length}`; }
 }
 
 function navigateResult(dir: number) {
   if (currentResults.length === 0) return;
   currentIndex = (currentIndex + dir + currentResults.length) % currentResults.length;
-  updateCount();
+  updateCount('#fr-count');
   selectResult(currentIndex);
   highlightResultItem();
 }
@@ -232,9 +377,8 @@ function selectResult(idx: number) {
   const nodeId = typeof r.node_id === 'number' ? r.node_id : Number(r.node_id);
   (editorRef as any).selectedIds = [nodeId];
   editorRef.render();
-  // Try to center on node
   try {
-    const engine = (editorRef as any).engine;
+    const engine = getEngine();
     const info = JSON.parse(engine.get_node_info(nodeId));
     if (info) {
       const cx = info.x + info.width / 2;
@@ -247,61 +391,18 @@ function selectResult(idx: number) {
   } catch {}
 }
 
-function doReplaceOne() {
-  if (!editorRef || !panel || currentIndex < 0) return;
-  const search = (panel.querySelector('#fr-search') as HTMLInputElement).value;
-  const replacement = (panel.querySelector('#fr-replace') as HTMLInputElement).value;
-  const caseSensitive = (panel.querySelector('#fr-case') as HTMLInputElement).checked;
-  
-  const engine = (editorRef as any).engine;
-  const r = currentResults[currentIndex];
-  const nodeId = typeof r.node_id === 'number' ? r.node_id : Number(r.node_id);
-  engine.replace_text(nodeId, search, replacement, caseSensitive);
-  editorRef.render();
-  // Re-search
-  doTextSearch();
-}
-
-function doReplaceAll() {
-  if (!editorRef || !panel) return;
-  const search = (panel.querySelector('#fr-search') as HTMLInputElement).value;
-  const replacement = (panel.querySelector('#fr-replace') as HTMLInputElement).value;
-  const caseSensitive = (panel.querySelector('#fr-case') as HTMLInputElement).checked;
-  
-  if (!search) return;
-  const engine = (editorRef as any).engine;
-  const count = engine.replace_all_text(search, replacement, caseSensitive);
-  editorRef.render();
-  clearResults();
-  const countEl = panel.querySelector('#fr-count') as HTMLElement;
-  countEl.textContent = `${count} replaced`;
-}
-
-function updateCount() {
-  if (!panel) return;
-  const el = panel.querySelector('#fr-count') as HTMLElement;
-  if (currentResults.length === 0) {
-    el.textContent = 'No results';
-  } else {
-    el.textContent = `${currentIndex + 1} / ${currentResults.length}`;
-  }
-}
-
 function clearResults() {
   currentResults = [];
   currentIndex = -1;
   if (!panel) return;
-  (panel.querySelector('#fr-count') as HTMLElement).textContent = '';
+  panel.querySelectorAll('.fr-count').forEach(el => (el as HTMLElement).textContent = '');
   (panel.querySelector('#fr-results') as HTMLElement).innerHTML = '';
 }
 
 function renderResults() {
   if (!panel) return;
   const container = panel.querySelector('#fr-results') as HTMLElement;
-  if (currentResults.length === 0) {
-    container.innerHTML = '';
-    return;
-  }
+  if (currentResults.length === 0) { container.innerHTML = ''; return; }
   container.innerHTML = currentResults.map((r, i) => `
     <div class="fr-result-item ${i === currentIndex ? 'active' : ''}" data-idx="${i}">
       <span class="fr-result-kind">${r.node_kind}</span>
@@ -315,7 +416,6 @@ function renderResults() {
     item.addEventListener('click', () => {
       const idx = parseInt((item as HTMLElement).dataset.idx || '0');
       currentIndex = idx;
-      updateCount();
       selectResult(idx);
       highlightResultItem();
     });

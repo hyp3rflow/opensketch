@@ -211,3 +211,384 @@ fn colors_close(a: &Color, b: &Color) -> bool {
     let db = (a.b as i16 - b.b as i16).abs();
     dr <= 2 && dg <= 2 && db <= 2
 }
+
+impl Scene {
+    /// Find nodes by stroke color (hex string like "#ff0000")
+    pub fn find_by_stroke_color(&self, hex: &str) -> Vec<FindResult> {
+        let target = match parse_color_approx(hex) {
+            Some(c) => c,
+            None => return vec![],
+        };
+        let page_id = self.get_active_page_id();
+        let mut results = Vec::new();
+
+        for node in self.nodes.values() {
+            // Check legacy stroke
+            if let Some(ref stroke) = node.stroke {
+                if colors_close(&stroke.color, &target) {
+                    results.push(FindResult {
+                        node_id: node.id,
+                        node_name: node.name.clone(),
+                        node_kind: kind_str(&node.kind),
+                        matched_text: None,
+                        matched_color: Some(format!("#{:02x}{:02x}{:02x}", stroke.color.r, stroke.color.g, stroke.color.b)),
+                        page_id,
+                    });
+                    continue;
+                }
+            }
+            // Check strokes vec
+            for stroke in &node.strokes {
+                if colors_close(&stroke.color, &target) {
+                    results.push(FindResult {
+                        node_id: node.id,
+                        node_name: node.name.clone(),
+                        node_kind: kind_str(&node.kind),
+                        matched_text: None,
+                        matched_color: Some(format!("#{:02x}{:02x}{:02x}", stroke.color.r, stroke.color.g, stroke.color.b)),
+                        page_id,
+                    });
+                    break;
+                }
+            }
+        }
+        results
+    }
+
+    /// Replace stroke color across all nodes
+    pub fn replace_stroke_color(&mut self, from_hex: &str, to_hex: &str) -> u32 {
+        let from = match parse_color_approx(from_hex) {
+            Some(c) => c,
+            None => return 0,
+        };
+        let to = match parse_color_approx(to_hex) {
+            Some(c) => c,
+            None => return 0,
+        };
+        let mut count = 0u32;
+        let ids: Vec<NodeId> = self.nodes.keys().cloned().collect();
+        for id in ids {
+            if let Some(node) = self.nodes.get_mut(&id) {
+                let mut changed = false;
+                if let Some(ref mut stroke) = node.stroke {
+                    if colors_close(&stroke.color, &from) {
+                        stroke.color = to.clone();
+                        changed = true;
+                    }
+                }
+                for stroke in &mut node.strokes {
+                    if colors_close(&stroke.color, &from) {
+                        stroke.color = to.clone();
+                        changed = true;
+                    }
+                }
+                if changed { count += 1; }
+            }
+        }
+        count
+    }
+
+    /// Find nodes by font family (case-insensitive partial match)
+    pub fn find_by_font(&self, query: &str) -> Vec<FindResult> {
+        let query_lower = query.to_lowercase();
+        let page_id = self.get_active_page_id();
+        let mut results = Vec::new();
+
+        for node in self.nodes.values() {
+            if let NodeKind::Text { ref font_family, .. } = node.kind {
+                if font_family.to_lowercase().contains(&query_lower) {
+                    results.push(FindResult {
+                        node_id: node.id,
+                        node_name: node.name.clone(),
+                        node_kind: kind_str(&node.kind),
+                        matched_text: Some(font_family.clone()),
+                        matched_color: None,
+                        page_id,
+                    });
+                }
+            }
+        }
+        results
+    }
+
+    /// Replace font family across all matching text nodes
+    pub fn replace_font(&mut self, from_font: &str, to_font: &str) -> u32 {
+        let from_lower = from_font.to_lowercase();
+        let mut count = 0u32;
+        let ids: Vec<NodeId> = self.nodes.keys().cloned().collect();
+        for id in ids {
+            if let Some(node) = self.nodes.get_mut(&id) {
+                if let NodeKind::Text { ref mut font_family, .. } = node.kind {
+                    if font_family.to_lowercase().contains(&from_lower) {
+                        *font_family = to_font.to_string();
+                        count += 1;
+                    }
+                }
+            }
+        }
+        count
+    }
+}
+
+// ── Advanced Property Search & Replace ──────────────────────
+
+use serde::Deserialize;
+use crate::node::{BlendMode, FillType, Fill};
+
+/// Search criteria for property-based node search
+#[derive(Deserialize, Default)]
+pub struct PropertySearchCriteria {
+    /// Fill color hex (e.g. "#ff0000")
+    #[serde(default)]
+    pub fill_color: Option<String>,
+    /// Stroke color hex
+    #[serde(default)]
+    pub stroke_color: Option<String>,
+    /// Font family substring (case-insensitive)
+    #[serde(default)]
+    pub font_family: Option<String>,
+    /// Exact font size
+    #[serde(default)]
+    pub font_size: Option<f64>,
+    /// Font size range [min, max]
+    #[serde(default)]
+    pub font_size_min: Option<f64>,
+    #[serde(default)]
+    pub font_size_max: Option<f64>,
+    /// Exact opacity
+    #[serde(default)]
+    pub opacity: Option<f64>,
+    /// Blend mode string (e.g. "multiply")
+    #[serde(default)]
+    pub blend_mode: Option<String>,
+    /// Node kind filter (e.g. "Rect", "Text")
+    #[serde(default)]
+    pub node_kind: Option<String>,
+    /// Corner radius exact match
+    #[serde(default)]
+    pub corner_radius: Option<f64>,
+    /// Stroke width exact match
+    #[serde(default)]
+    pub stroke_width: Option<f64>,
+}
+
+/// What to replace on matched nodes
+#[derive(Deserialize, Default)]
+pub struct PropertyReplacement {
+    #[serde(default)]
+    pub fill_color: Option<String>,
+    #[serde(default)]
+    pub stroke_color: Option<String>,
+    #[serde(default)]
+    pub font_family: Option<String>,
+    #[serde(default)]
+    pub font_size: Option<f64>,
+    #[serde(default)]
+    pub opacity: Option<f64>,
+    #[serde(default)]
+    pub blend_mode: Option<String>,
+    #[serde(default)]
+    pub corner_radius: Option<f64>,
+    #[serde(default)]
+    pub stroke_width: Option<f64>,
+}
+
+#[derive(Serialize)]
+pub struct PropertySearchResult {
+    pub node_id: u64,
+    pub node_name: String,
+    pub node_kind: String,
+    pub matched_properties: Vec<String>,
+}
+
+impl Scene {
+    /// Search nodes by multiple property criteria (AND logic)
+    pub fn search_by_properties(&self, criteria: &PropertySearchCriteria) -> Vec<PropertySearchResult> {
+        let mut results = Vec::new();
+
+        for node in self.nodes.values() {
+            let mut matched_props: Vec<String> = Vec::new();
+
+            // Fill color
+            if let Some(ref hex) = criteria.fill_color {
+                if let Some(target) = parse_color_approx(hex) {
+                    let has_match = node.fills.iter().any(|f| {
+                        if let FillType::Solid { color } = &f.fill_type {
+                            colors_close(color, &target)
+                        } else { false }
+                    });
+                    if !has_match { continue; }
+                    matched_props.push("fill_color".into());
+                }
+            }
+
+            // Stroke color
+            if let Some(ref hex) = criteria.stroke_color {
+                if let Some(target) = parse_color_approx(hex) {
+                    let has_match = node.strokes.iter().any(|s| colors_close(&s.color, &target));
+                    if !has_match { continue; }
+                    matched_props.push("stroke_color".into());
+                }
+            }
+
+            // Font family
+            if let Some(ref ff) = criteria.font_family {
+                if let NodeKind::Text { ref font_family, .. } = node.kind {
+                    if !font_family.to_lowercase().contains(&ff.to_lowercase()) { continue; }
+                    matched_props.push("font_family".into());
+                } else { continue; }
+            }
+
+            // Font size (exact or range)
+            if criteria.font_size.is_some() || criteria.font_size_min.is_some() || criteria.font_size_max.is_some() {
+                if let NodeKind::Text { font_size, .. } = &node.kind {
+                    if let Some(exact) = criteria.font_size {
+                        if (*font_size - exact).abs() > 0.01 { continue; }
+                    }
+                    if let Some(min) = criteria.font_size_min {
+                        if *font_size < min { continue; }
+                    }
+                    if let Some(max) = criteria.font_size_max {
+                        if *font_size > max { continue; }
+                    }
+                    matched_props.push("font_size".into());
+                } else { continue; }
+            }
+
+            // Opacity
+            if let Some(op) = criteria.opacity {
+                if (node.opacity - op).abs() > 0.01 { continue; }
+                matched_props.push("opacity".into());
+            }
+
+            // Blend mode
+            if let Some(ref bm) = criteria.blend_mode {
+                if node.blend_mode.to_css() != bm.as_str() { continue; }
+                matched_props.push("blend_mode".into());
+            }
+
+            // Node kind
+            if let Some(ref kind) = criteria.node_kind {
+                if node.kind_name() != kind.as_str() { continue; }
+                matched_props.push("node_kind".into());
+            }
+
+            // Corner radius
+            if let Some(cr) = criteria.corner_radius {
+                if (node.corner_radius - cr).abs() > 0.01 { continue; }
+                matched_props.push("corner_radius".into());
+            }
+
+            // Stroke width
+            if let Some(sw) = criteria.stroke_width {
+                let has_match = node.strokes.iter().any(|s| (s.width - sw).abs() < 0.01);
+                if !has_match { continue; }
+                matched_props.push("stroke_width".into());
+            }
+
+            if matched_props.is_empty() { continue; }
+
+            results.push(PropertySearchResult {
+                node_id: node.id,
+                node_name: node.name.clone(),
+                node_kind: node.kind_name().to_string(),
+                matched_properties: matched_props,
+            });
+        }
+        results
+    }
+
+    /// Replace properties on specific nodes. Returns count of modified nodes.
+    pub fn replace_properties(&mut self, node_ids: &[u64], replacement: &PropertyReplacement) -> u32 {
+        let mut count = 0u32;
+        for &id in node_ids {
+            if let Some(node) = self.nodes.get_mut(&id) {
+                let mut changed = false;
+
+                // Fill color
+                if let Some(ref hex) = replacement.fill_color {
+                    if let Some(color) = parse_color_approx(hex) {
+                        for fill in &mut node.fills {
+                            if let FillType::Solid { color: ref mut c } = fill.fill_type {
+                                *c = color;
+                                changed = true;
+                            }
+                        }
+                        if node.fills.is_empty() {
+                            node.fills.push(Fill::solid(color));
+                            changed = true;
+                        }
+                    }
+                }
+
+                // Stroke color
+                if let Some(ref hex) = replacement.stroke_color {
+                    if let Some(color) = parse_color_approx(hex) {
+                        for stroke in &mut node.strokes {
+                            stroke.color = color;
+                            changed = true;
+                        }
+                    }
+                }
+
+                // Font family
+                if let Some(ref ff) = replacement.font_family {
+                    if let NodeKind::Text { ref mut font_family, .. } = node.kind {
+                        *font_family = ff.clone();
+                        changed = true;
+                    }
+                }
+
+                // Font size
+                if let Some(fs) = replacement.font_size {
+                    if let NodeKind::Text { ref mut font_size, .. } = node.kind {
+                        *font_size = fs;
+                        changed = true;
+                    }
+                }
+
+                // Opacity
+                if let Some(op) = replacement.opacity {
+                    node.opacity = op.clamp(0.0, 1.0);
+                    changed = true;
+                }
+
+                // Blend mode
+                if let Some(ref bm) = replacement.blend_mode {
+                    node.blend_mode = BlendMode::from_str(bm);
+                    changed = true;
+                }
+
+                // Corner radius
+                if let Some(cr) = replacement.corner_radius {
+                    node.corner_radius = cr.max(0.0);
+                    changed = true;
+                }
+
+                // Stroke width
+                if let Some(sw) = replacement.stroke_width {
+                    for stroke in &mut node.strokes {
+                        stroke.width = sw.max(0.0);
+                    }
+                    if !node.strokes.is_empty() { changed = true; }
+                }
+
+                if changed { count += 1; }
+            }
+        }
+        count
+    }
+
+    /// Search and replace in one call: find by criteria, replace matched nodes. Returns (matched_count, modified_count).
+    pub fn search_and_replace_properties(
+        &mut self,
+        criteria: &PropertySearchCriteria,
+        replacement: &PropertyReplacement,
+    ) -> (u32, u32) {
+        let results = self.search_by_properties(criteria);
+        let ids: Vec<u64> = results.iter().map(|r| r.node_id).collect();
+        let matched = ids.len() as u32;
+        let modified = self.replace_properties(&ids, replacement);
+        (matched, modified)
+    }
+}

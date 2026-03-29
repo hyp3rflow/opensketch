@@ -939,6 +939,11 @@ Frame overflow control and content scrolling.
 - [x] WASM: find_text, replace_text, replace_all_text, find_by_color, replace_color
 - [x] TS: find-replace-panel.ts, Cmd+F shortcut, Esc to close
 - [x] Undo integration (push_undo before replace operations)
+- [x] **Property search**: Search nodes by fill color, stroke color, font family, font size (exact/range), opacity, blend mode, corner radius, stroke width, node kind — AND logic across all criteria
+- [x] **Property replace**: Batch replace fill color, stroke color, font family, font size, opacity, blend mode, corner radius, stroke width on matched nodes
+- [x] **Properties tab**: Third tab in Find & Replace panel with search criteria builder + replacement builder + results
+- [x] Rust: PropertySearchCriteria, PropertyReplacement structs; Scene.search_by_properties(), Scene.replace_properties(), Scene.search_and_replace_properties()
+- [x] WASM: search_by_properties(json), replace_properties(json, json), search_and_replace_properties(json, json)
 
 ### Annotation Export (Markdown + JSON)
 - [x] Rust: Scene.export_annotations_markdown() — comments (grouped by page, open/resolved, node name resolution) + node notes (tags, content)
