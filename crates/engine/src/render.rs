@@ -187,9 +187,11 @@ impl Renderer {
         self.last_culled_count.set(0);
         let vp = self.get_viewport_bounds();
 
-        ctx.set_fill_style_str("#1a1a1a");
+        let bg = &scene.canvas_background;
+        let bg_css = format!("#{}", bg.bg_color);
+        ctx.set_fill_style_str(&bg_css);
         ctx.fill_rect(0.0, 0.0, self.canvas_width, self.canvas_height);
-        self.draw_grid(ctx);
+        self.draw_background_pattern(ctx, bg);
 
         ctx.save();
         ctx.transform(
@@ -849,6 +851,13 @@ impl Renderer {
         if has_scroll {
             ctx.save();
             ctx.translate(node.scroll_x, node.scroll_y).ok();
+        }
+
+        // Render per-frame background pattern (after fills, before children)
+        if let Some(ref pat) = node.background_pattern {
+            if pat.visible && pat.pattern != "none" {
+                self.draw_frame_bg_pattern(ctx, node, pat);
+            }
         }
 
         // Render children hierarchically (for mask support)
@@ -2124,31 +2133,204 @@ impl Renderer {
         (h & 0xFF) as u8
     }
 
-    fn draw_grid(&self, ctx: &CanvasRenderingContext2d) {
+    fn draw_background_pattern(&self, ctx: &CanvasRenderingContext2d, bg: &crate::scene::CanvasBackground) {
+        if bg.pattern == "none" || bg.opacity <= 0.0 { return; }
+
         let zoom = self.viewport.a;
-        if zoom < 0.3 { return; }
+        if zoom < 0.15 { return; }
 
-        let step = if zoom > 2.0 { 10.0 } else { 50.0 };
-        let offset_x = self.viewport.tx % (step * zoom);
-        let offset_y = self.viewport.ty % (step * zoom);
+        let spacing = bg.spacing;
+        let step = if zoom > 2.0 { (spacing / 5.0).max(5.0) } else { spacing };
+        let screen_step = step * zoom;
+        if screen_step < 4.0 { return; } // too dense to render
 
-        ctx.set_stroke_style_str("rgba(255,255,255,0.04)");
-        ctx.set_line_width(0.5);
+        // Parse pattern color
+        let hex = &bg.pattern_color;
+        let (pr, pg, pb) = if hex.len() >= 6 {
+            (
+                u8::from_str_radix(&hex[0..2], 16).unwrap_or(255),
+                u8::from_str_radix(&hex[2..4], 16).unwrap_or(255),
+                u8::from_str_radix(&hex[4..6], 16).unwrap_or(255),
+            )
+        } else {
+            (255, 255, 255)
+        };
+        let color_str = format!("rgba({},{},{},{})", pr, pg, pb, bg.opacity);
+
+        let offset_x = self.viewport.tx % screen_step;
+        let offset_y = self.viewport.ty % screen_step;
+
+        match bg.pattern.as_str() {
+            "dots" => {
+                ctx.set_fill_style_str(&color_str);
+                let r = bg.dot_size * (zoom.min(2.0));
+                let mut x = offset_x;
+                while x < self.canvas_width + screen_step {
+                    let mut y = offset_y;
+                    while y < self.canvas_height + screen_step {
+                        ctx.begin_path();
+                        ctx.arc(x, y, r, 0.0, std::f64::consts::TAU).ok();
+                        ctx.fill();
+                        y += screen_step;
+                    }
+                    x += screen_step;
+                }
+            }
+            "lines" => {
+                // Horizontal lines only
+                ctx.set_stroke_style_str(&color_str);
+                ctx.set_line_width(0.5);
+                ctx.begin_path();
+                let mut y = offset_y;
+                while y < self.canvas_height + screen_step {
+                    ctx.move_to(0.0, y);
+                    ctx.line_to(self.canvas_width, y);
+                    y += screen_step;
+                }
+                ctx.stroke();
+            }
+            "cross" => {
+                // Cross marks at intersections
+                ctx.set_stroke_style_str(&color_str);
+                ctx.set_line_width(0.5);
+                let arm = 3.0 * zoom.min(2.0);
+                ctx.begin_path();
+                let mut x = offset_x;
+                while x < self.canvas_width + screen_step {
+                    let mut y = offset_y;
+                    while y < self.canvas_height + screen_step {
+                        ctx.move_to(x - arm, y);
+                        ctx.line_to(x + arm, y);
+                        ctx.move_to(x, y - arm);
+                        ctx.line_to(x, y + arm);
+                        y += screen_step;
+                    }
+                    x += screen_step;
+                }
+                ctx.stroke();
+            }
+            _ => {
+                // "grid" — default grid lines
+                ctx.set_stroke_style_str(&color_str);
+                ctx.set_line_width(0.5);
+                ctx.begin_path();
+                let mut x = offset_x;
+                while x < self.canvas_width + screen_step {
+                    ctx.move_to(x, 0.0);
+                    ctx.line_to(x, self.canvas_height);
+                    x += screen_step;
+                }
+                let mut y = offset_y;
+                while y < self.canvas_height + screen_step {
+                    ctx.move_to(0.0, y);
+                    ctx.line_to(self.canvas_width, y);
+                    y += screen_step;
+                }
+                ctx.stroke();
+            }
+        }
+    }
+
+    /// Draw background pattern inside a frame's bounds (in scene coordinates)
+    fn draw_frame_bg_pattern(&self, ctx: &CanvasRenderingContext2d, node: &Node, pat: &crate::node::FrameBackgroundPattern) {
+        let zoom = self.viewport.a;
+        let spacing = pat.spacing;
+        let opacity = pat.opacity;
+        let size = pat.size;
+        let hex = &pat.color;
+        let (pr, pg, pb) = if hex.len() >= 6 {
+            let h = hex.trim_start_matches('#');
+            (
+                u8::from_str_radix(&h[0..2], 16).unwrap_or(255),
+                u8::from_str_radix(&h[2..4], 16).unwrap_or(255),
+                u8::from_str_radix(&h[4..6], 16).unwrap_or(255),
+            )
+        } else { (255, 255, 255) };
+        let color_str = format!("rgba({},{},{},{})", pr, pg, pb, opacity);
+
+        ctx.save();
+        // Clip to frame
         ctx.begin_path();
+        if node.corner_radius > 0.0 {
+            self.draw_rounded_rect(ctx, node.x, node.y, node.width, node.height, node.corner_radius);
+        } else {
+            ctx.rect(node.x, node.y, node.width, node.height);
+        }
+        ctx.clip();
 
-        let mut x = offset_x;
-        while x < self.canvas_width {
-            ctx.move_to(x, 0.0);
-            ctx.line_to(x, self.canvas_height);
-            x += step * zoom;
+        let start_x = node.x - (node.x % spacing).abs();
+        let start_y = node.y - (node.y % spacing).abs();
+        let end_x = node.x + node.width;
+        let end_y = node.y + node.height;
+
+        match pat.pattern.as_str() {
+            "dots" => {
+                let r = size;
+                ctx.set_fill_style_str(&color_str);
+                let mut x = start_x;
+                while x <= end_x {
+                    let mut y = start_y;
+                    while y <= end_y {
+                        ctx.begin_path();
+                        ctx.arc(x, y, r, 0.0, std::f64::consts::TAU).ok();
+                        ctx.fill();
+                        y += spacing;
+                    }
+                    x += spacing;
+                }
+            }
+            "grid" => {
+                ctx.set_stroke_style_str(&color_str);
+                ctx.set_line_width((size / zoom).max(0.5));
+                ctx.begin_path();
+                let mut x = start_x;
+                while x <= end_x {
+                    ctx.move_to(x, node.y);
+                    ctx.line_to(x, end_y);
+                    x += spacing;
+                }
+                let mut y = start_y;
+                while y <= end_y {
+                    ctx.move_to(node.x, y);
+                    ctx.line_to(end_x, y);
+                    y += spacing;
+                }
+                ctx.stroke();
+            }
+            "lines" => {
+                ctx.set_stroke_style_str(&color_str);
+                ctx.set_line_width((size / zoom).max(0.5));
+                ctx.begin_path();
+                let mut y = start_y;
+                while y <= end_y {
+                    ctx.move_to(node.x, y);
+                    ctx.line_to(end_x, y);
+                    y += spacing;
+                }
+                ctx.stroke();
+            }
+            "cross" => {
+                ctx.set_stroke_style_str(&color_str);
+                ctx.set_line_width((size / zoom).max(0.5));
+                let arm = 3.0;
+                let mut x = start_x;
+                while x <= end_x {
+                    let mut y = start_y;
+                    while y <= end_y {
+                        ctx.begin_path();
+                        ctx.move_to(x - arm, y);
+                        ctx.line_to(x + arm, y);
+                        ctx.move_to(x, y - arm);
+                        ctx.line_to(x, y + arm);
+                        ctx.stroke();
+                        y += spacing;
+                    }
+                    x += spacing;
+                }
+            }
+            _ => {}
         }
-        let mut y = offset_y;
-        while y < self.canvas_height {
-            ctx.move_to(0.0, y);
-            ctx.line_to(self.canvas_width, y);
-            y += step * zoom;
-        }
-        ctx.stroke();
+        ctx.restore();
     }
 
     pub fn screen_to_scene(&self, x: f64, y: f64) -> (f64, f64) {

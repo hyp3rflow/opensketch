@@ -42,6 +42,49 @@ use crate::branch::{Branch, BranchSnapshot, BranchDiff, VisualDiff, compute_diff
 use crate::component::ComponentLibrary;
 use crate::stamp::{Stamp, StampKind};
 
+/// Canvas background pattern configuration
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CanvasBackground {
+    /// Pattern type: "none", "grid", "dots", "lines", "cross"
+    #[serde(default = "default_bg_pattern")]
+    pub pattern: String,
+    /// Background color (hex without #)
+    #[serde(default = "default_bg_color")]
+    pub bg_color: String,
+    /// Pattern color (hex without #)
+    #[serde(default = "default_pattern_color")]
+    pub pattern_color: String,
+    /// Grid/dot spacing in scene pixels
+    #[serde(default = "default_bg_spacing")]
+    pub spacing: f64,
+    /// Pattern opacity 0.0-1.0
+    #[serde(default = "default_bg_opacity")]
+    pub opacity: f64,
+    /// Dot radius (for dots pattern)
+    #[serde(default = "default_dot_size")]
+    pub dot_size: f64,
+}
+
+fn default_bg_pattern() -> String { "grid".to_string() }
+fn default_bg_color() -> String { "1a1a1a".to_string() }
+fn default_pattern_color() -> String { "ffffff".to_string() }
+fn default_bg_spacing() -> f64 { 50.0 }
+fn default_bg_opacity() -> f64 { 0.04 }
+fn default_dot_size() -> f64 { 1.5 }
+
+impl Default for CanvasBackground {
+    fn default() -> Self {
+        Self {
+            pattern: default_bg_pattern(),
+            bg_color: default_bg_color(),
+            pattern_color: default_pattern_color(),
+            spacing: default_bg_spacing(),
+            opacity: default_bg_opacity(),
+            dot_size: default_dot_size(),
+        }
+    }
+}
+
 fn parse_hex_color(hex: &str) -> Option<Color> {
     let hex = hex.trim_start_matches('#');
     let (r, g, b, a) = match hex.len() {
@@ -135,6 +178,8 @@ pub struct SceneData {
     pub stamps: Vec<Stamp>,
     #[serde(default, rename = "next_stamp_id")]
     pub next_stamp_id: u64,
+    #[serde(default)]
+    pub canvas_background: CanvasBackground,
 }
 
 pub struct Scene {
@@ -173,6 +218,8 @@ pub struct Scene {
     // Stamps
     stamps: Vec<Stamp>,
     next_stamp_id: u64,
+    // Canvas background
+    pub canvas_background: CanvasBackground,
 }
 
 impl Scene {
@@ -216,6 +263,7 @@ impl Scene {
             token_store: TokenStore::new(),
             stamps: vec![],
             next_stamp_id: 1,
+            canvas_background: CanvasBackground::default(),
         }
     }
 
@@ -578,6 +626,7 @@ impl Scene {
             token_store: self.token_store.clone(),
             stamps: self.stamps.clone(),
             next_stamp_id: self.next_stamp_id,
+            canvas_background: self.canvas_background.clone(),
         }
     }
 
@@ -656,6 +705,7 @@ impl Scene {
                 token_store: data.token_store.clone(),
                 stamps: data.stamps.clone(),
                 next_stamp_id: if data.next_stamp_id > 0 { data.next_stamp_id } else { 1 },
+                canvas_background: data.canvas_background.clone(),
             }
         } else {
             // Legacy single-page format
@@ -711,6 +761,7 @@ impl Scene {
                 token_store: data.token_store.clone(),
                 stamps: data.stamps.clone(),
                 next_stamp_id: if data.next_stamp_id > 0 { data.next_stamp_id } else { 1 },
+                canvas_background: data.canvas_background.clone(),
             }
         }
     }

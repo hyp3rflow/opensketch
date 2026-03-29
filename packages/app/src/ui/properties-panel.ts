@@ -168,6 +168,90 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       // Style Versioning section
       renderStyleVersioningSection(emptyDiv, editor);
 
+      // Canvas Background section
+      const bgSection = document.createElement("div");
+      bgSection.style.cssText = "width:100%;padding:12px 16px;border-top:1px solid #333;";
+      const bgTitle = document.createElement("div");
+      bgTitle.style.cssText = "font-size:11px;font-weight:600;color:#888;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px;";
+      bgTitle.textContent = "Canvas Background";
+      bgSection.appendChild(bgTitle);
+
+      let bgSettings: { pattern: string; bg_color: string; pattern_color: string; spacing: number; opacity: number; dot_size: number };
+      try { bgSettings = JSON.parse(editor.engine.get_bg_settings()); } catch { bgSettings = { pattern: "grid", bg_color: "1a1a1a", pattern_color: "ffffff", spacing: 50, opacity: 0.04, dot_size: 1.5 }; }
+
+      const inputCss = "width:100%;padding:4px 6px;font-size:11px;border:1px solid #444;border-radius:4px;background:#2a2a2a;color:#ccc;box-sizing:border-box;";
+      const labelCss = "font-size:10px;color:#666;margin-bottom:2px;";
+
+      // Pattern type
+      const patternRow = document.createElement("div");
+      patternRow.style.cssText = "margin-bottom:8px;";
+      const patternLabel = document.createElement("div");
+      patternLabel.style.cssText = labelCss;
+      patternLabel.textContent = "Pattern";
+      patternRow.appendChild(patternLabel);
+      const patternSelect = document.createElement("select");
+      patternSelect.style.cssText = inputCss;
+      for (const opt of ["grid", "dots", "lines", "cross", "none"]) {
+        const o = document.createElement("option");
+        o.value = opt; o.textContent = opt.charAt(0).toUpperCase() + opt.slice(1);
+        if (opt === bgSettings.pattern) o.selected = true;
+        patternSelect.appendChild(o);
+      }
+      patternSelect.onchange = () => { editor.engine.set_bg_pattern(patternSelect.value); editor.requestRender(); };
+      patternRow.appendChild(patternSelect);
+      bgSection.appendChild(patternRow);
+
+      // Colors row
+      const colorsRow = document.createElement("div");
+      colorsRow.style.cssText = "display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;";
+      for (const [label, val, setter] of [["BG Color", bgSettings.bg_color, "set_bg_color"], ["Pattern Color", bgSettings.pattern_color, "set_bg_pattern_color"]] as const) {
+        const col = document.createElement("div");
+        const lbl = document.createElement("div");
+        lbl.style.cssText = labelCss; lbl.textContent = label;
+        col.appendChild(lbl);
+        const colorWrap = document.createElement("div");
+        colorWrap.style.cssText = "display:flex;gap:4px;align-items:center;";
+        const swatch = document.createElement("input");
+        swatch.type = "color"; swatch.value = "#" + val;
+        swatch.style.cssText = "width:24px;height:24px;border:1px solid #555;border-radius:4px;padding:0;cursor:pointer;background:none;";
+        const hexInput = document.createElement("input");
+        hexInput.value = val; hexInput.style.cssText = inputCss + "flex:1;";
+        const update = (hex: string) => {
+          const clean = hex.replace("#", "");
+          (editor.engine as any)[setter](clean);
+          editor.requestRender();
+        };
+        swatch.oninput = () => { hexInput.value = swatch.value.replace("#", ""); update(swatch.value); };
+        hexInput.onchange = () => { swatch.value = "#" + hexInput.value; update(hexInput.value); };
+        colorWrap.appendChild(swatch);
+        colorWrap.appendChild(hexInput);
+        col.appendChild(colorWrap);
+        colorsRow.appendChild(col);
+      }
+      bgSection.appendChild(colorsRow);
+
+      // Spacing + Opacity + Dot Size row
+      const numRow = document.createElement("div");
+      numRow.style.cssText = "display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:4px;";
+      for (const [label, val, setter, min, max, step] of [
+        ["Spacing", bgSettings.spacing, "set_bg_spacing", 5, 500, 5],
+        ["Opacity", bgSettings.opacity, "set_bg_opacity", 0, 1, 0.01],
+        ["Dot Size", bgSettings.dot_size, "set_bg_dot_size", 0.5, 10, 0.5],
+      ] as const) {
+        const col = document.createElement("div");
+        const lbl = document.createElement("div");
+        lbl.style.cssText = labelCss; lbl.textContent = label;
+        col.appendChild(lbl);
+        const inp = document.createElement("input");
+        inp.type = "number"; inp.value = String(val); inp.min = String(min); inp.max = String(max); inp.step = String(step);
+        inp.style.cssText = inputCss;
+        inp.onchange = () => { (editor.engine as any)[setter](parseFloat(inp.value) || val); editor.requestRender(); };
+        col.appendChild(inp);
+        numRow.appendChild(col);
+      }
+      bgSection.appendChild(numRow);
+      emptyDiv.appendChild(bgSection);
+
       container.appendChild(emptyDiv);
       return;
     }

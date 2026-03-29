@@ -1567,7 +1567,39 @@ pub struct Node {
     /// Design-to-code component mapping
     #[serde(default)]
     pub code_mapping: Option<CodeMapping>,
+    /// Per-frame background pattern override (None = inherit scene-level)
+    #[serde(default)]
+    pub background_pattern: Option<FrameBackgroundPattern>,
 }
+
+/// Per-frame background pattern configuration
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct FrameBackgroundPattern {
+    /// Pattern type: "none", "grid", "dots", "lines", "cross"
+    #[serde(default = "default_frame_bg_pattern")]
+    pub pattern: String,
+    /// Pattern color hex (without #)
+    #[serde(default = "default_frame_bg_color")]
+    pub color: String,
+    /// Spacing in pixels
+    #[serde(default = "default_frame_bg_spacing")]
+    pub spacing: f64,
+    /// Opacity 0.0-1.0
+    #[serde(default = "default_frame_bg_opacity")]
+    pub opacity: f64,
+    /// Dot/line size
+    #[serde(default = "default_frame_bg_size")]
+    pub size: f64,
+    /// Visible toggle
+    #[serde(default = "default_true")]
+    pub visible: bool,
+}
+
+fn default_frame_bg_pattern() -> String { "dots".to_string() }
+fn default_frame_bg_color() -> String { "ffffff".to_string() }
+fn default_frame_bg_spacing() -> f64 { 20.0 }
+fn default_frame_bg_opacity() -> f64 { 0.15 }
+fn default_frame_bg_size() -> f64 { 1.5 }
 
 impl Node {
     pub fn kind_name(&self) -> &str {
@@ -1641,6 +1673,7 @@ impl Node {
             text_path_offset: 0.0,
             perspective: None,
             code_mapping: None,
+            background_pattern: None,
         }
     }
 

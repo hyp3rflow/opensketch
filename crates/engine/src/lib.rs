@@ -6741,6 +6741,45 @@ impl Engine {
     pub fn get_voting_enabled(&self) -> bool {
         self.scene.whiteboard_state.voting_enabled
     }
+
+    // =============================================
+    // Canvas Background Patterns
+    // =============================================
+
+    /// Set canvas background pattern type: "none", "grid", "dots", "lines", "cross"
+    pub fn set_bg_pattern(&mut self, pattern: &str) {
+        self.scene.canvas_background.pattern = pattern.to_string();
+    }
+
+    /// Set canvas background color (hex without #, e.g. "1a1a1a")
+    pub fn set_bg_color(&mut self, hex: &str) {
+        self.scene.canvas_background.bg_color = hex.to_string();
+    }
+
+    /// Set pattern color (hex without #, e.g. "ffffff")
+    pub fn set_bg_pattern_color(&mut self, hex: &str) {
+        self.scene.canvas_background.pattern_color = hex.to_string();
+    }
+
+    /// Set pattern spacing in scene pixels
+    pub fn set_bg_spacing(&mut self, spacing: f64) {
+        self.scene.canvas_background.spacing = spacing.clamp(5.0, 500.0);
+    }
+
+    /// Set pattern opacity (0.0-1.0)
+    pub fn set_bg_opacity(&mut self, opacity: f64) {
+        self.scene.canvas_background.opacity = opacity.clamp(0.0, 1.0);
+    }
+
+    /// Set dot size for dots pattern
+    pub fn set_bg_dot_size(&mut self, size: f64) {
+        self.scene.canvas_background.dot_size = size.clamp(0.5, 10.0);
+    }
+
+    /// Get canvas background settings as JSON
+    pub fn get_bg_settings(&self) -> String {
+        serde_json::to_string(&self.scene.canvas_background).unwrap_or_else(|_| "{}".to_string())
+    }
 }
 
 /// Recalculate a path node's bounding box from its points (including bezier handles).
@@ -7878,6 +7917,73 @@ impl Engine {
     pub fn auto_dark_mode_selection(&mut self) -> u32 {
         self.push_undo();
         self.scene.auto_dark_mode_selection()
+    }
+
+    // ── Canvas Background Pattern ──────────────────────────────
+
+    /// Get the scene-level canvas background configuration as JSON
+    pub fn get_canvas_background(&self) -> String {
+        serde_json::to_string(&self.scene.canvas_background).unwrap_or_else(|_| "{}".to_string())
+    }
+
+    /// Set scene-level canvas background pattern
+    pub fn set_canvas_background(&mut self, pattern: &str, bg_color: &str, pattern_color: &str, spacing: f64, opacity: f64, dot_size: f64) {
+        self.scene.canvas_background.pattern = pattern.to_string();
+        self.scene.canvas_background.bg_color = bg_color.to_string();
+        self.scene.canvas_background.pattern_color = pattern_color.to_string();
+        self.scene.canvas_background.spacing = spacing.max(5.0);
+        self.scene.canvas_background.opacity = opacity.clamp(0.0, 1.0);
+        self.scene.canvas_background.dot_size = dot_size.max(0.5);
+    }
+
+    /// Set only the pattern type for scene background
+    pub fn set_canvas_background_pattern(&mut self, pattern: &str) {
+        self.scene.canvas_background.pattern = pattern.to_string();
+    }
+
+    /// Set only the background color
+    pub fn set_canvas_background_color(&mut self, color: &str) {
+        self.scene.canvas_background.bg_color = color.to_string();
+    }
+
+    /// Get per-frame background pattern as JSON (null if not set)
+    pub fn get_frame_background_pattern(&self, id: u64) -> String {
+        if let Some(node) = self.scene.get_node(id) {
+            if let Some(ref pat) = node.background_pattern {
+                return serde_json::to_string(pat).unwrap_or_else(|_| "null".to_string());
+            }
+        }
+        "null".to_string()
+    }
+
+    /// Set per-frame background pattern
+    pub fn set_frame_background_pattern(&mut self, id: u64, pattern: &str, color: &str, spacing: f64, opacity: f64, size: f64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            node.background_pattern = Some(crate::node::FrameBackgroundPattern {
+                pattern: pattern.to_string(),
+                color: color.to_string(),
+                spacing: spacing.max(5.0),
+                opacity: opacity.clamp(0.0, 1.0),
+                size: size.max(0.5),
+                visible: true,
+            });
+        }
+    }
+
+    /// Remove per-frame background pattern (revert to scene-level)
+    pub fn clear_frame_background_pattern(&mut self, id: u64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            node.background_pattern = None;
+        }
+    }
+
+    /// Set per-frame background pattern visibility
+    pub fn set_frame_background_pattern_visible(&mut self, id: u64, visible: bool) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let Some(ref mut pat) = node.background_pattern {
+                pat.visible = visible;
+            }
+        }
     }
 
 }

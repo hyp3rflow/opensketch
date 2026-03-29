@@ -1480,3 +1480,13 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - Node type dropdown (17 types), text search matches node name + text content
 - Clear button resets all filters and removes dimming
 - Pure TypeScript implementation (ui/search-filter.ts)
+
+
+### Canvas Background Patterns
+- [x] Configurable canvas background pattern: Grid, Dots, Lines, Cross, None
+- [x] Customizable background color and pattern color (hex)
+- [x] Adjustable spacing (5-500px), opacity (0-1), dot size (0.5-10)
+- [x] Scene-level persistence (saved/loaded with project, backward-compatible serde)
+- [x] Rust renderer: zoom-adaptive rendering, density culling
+- [x] WASM: set_bg_pattern, set_bg_color, set_bg_pattern_color, set_bg_spacing, set_bg_opacity, set_bg_dot_size, get_bg_settings
+- [x] Properties panel: Canvas Background section (empty state) with pattern dropdown, color pickers, numeric inputs
