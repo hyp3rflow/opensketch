@@ -42,6 +42,38 @@ use crate::branch::{Branch, BranchSnapshot, BranchDiff, VisualDiff, compute_diff
 use crate::component::ComponentLibrary;
 use crate::stamp::{Stamp, StampKind};
 
+/// Unit for persistent measure lines
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub enum MeasureUnit {
+    Px,
+    Rem,
+    Percent,
+}
+
+impl Default for MeasureUnit {
+    fn default() -> Self { MeasureUnit::Px }
+}
+
+/// A persistent measurement line placed on the canvas
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct MeasureLine {
+    pub id: u64,
+    pub start_x: f64,
+    pub start_y: f64,
+    pub end_x: f64,
+    pub end_y: f64,
+    #[serde(default)]
+    pub unit: MeasureUnit,
+    #[serde(default)]
+    pub label: String,
+    #[serde(default = "default_true")]
+    pub visible: bool,
+    #[serde(default)]
+    pub page_id: u64,
+}
+
+fn default_true() -> bool { true }
+
 /// Canvas background pattern configuration
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CanvasBackground {
@@ -180,6 +212,10 @@ pub struct SceneData {
     pub next_stamp_id: u64,
     #[serde(default)]
     pub canvas_background: CanvasBackground,
+    #[serde(default)]
+    pub measure_lines: Vec<MeasureLine>,
+    #[serde(default)]
+    pub next_measure_id: u64,
 }
 
 pub struct Scene {
@@ -220,6 +256,9 @@ pub struct Scene {
     next_stamp_id: u64,
     // Canvas background
     pub canvas_background: CanvasBackground,
+    // Persistent measure lines
+    measure_lines: Vec<MeasureLine>,
+    next_measure_id: u64,
 }
 
 impl Scene {
@@ -264,6 +303,8 @@ impl Scene {
             stamps: vec![],
             next_stamp_id: 1,
             canvas_background: CanvasBackground::default(),
+            measure_lines: vec![],
+            next_measure_id: 1,
         }
     }
 
@@ -627,6 +668,8 @@ impl Scene {
             stamps: self.stamps.clone(),
             next_stamp_id: self.next_stamp_id,
             canvas_background: self.canvas_background.clone(),
+            measure_lines: self.measure_lines.clone(),
+            next_measure_id: self.next_measure_id,
         }
     }
 
@@ -706,6 +749,8 @@ impl Scene {
                 stamps: data.stamps.clone(),
                 next_stamp_id: if data.next_stamp_id > 0 { data.next_stamp_id } else { 1 },
                 canvas_background: data.canvas_background.clone(),
+                measure_lines: data.measure_lines.clone(),
+                next_measure_id: if data.next_measure_id > 0 { data.next_measure_id } else { 1 },
             }
         } else {
             // Legacy single-page format
@@ -762,6 +807,8 @@ impl Scene {
                 stamps: data.stamps.clone(),
                 next_stamp_id: if data.next_stamp_id > 0 { data.next_stamp_id } else { 1 },
                 canvas_background: data.canvas_background.clone(),
+                measure_lines: data.measure_lines.clone(),
+                next_measure_id: if data.next_measure_id > 0 { data.next_measure_id } else { 1 },
             }
         }
     }
@@ -1308,6 +1355,79 @@ impl Scene {
 
     pub fn get_pages_info(&self) -> Vec<(u64, String)> {
         self.pages.iter().map(|p| (p.id, p.name.clone())).collect()
+    }
+
+    // ── Persistent Measure Lines ─────────────────────────────────────
+
+    pub fn add_measure_line(&mut self, start_x: f64, start_y: f64, end_x: f64, end_y: f64, page_id: u64) -> u64 {
+        let id = self.next_measure_id;
+        self.next_measure_id += 1;
+        self.measure_lines.push(MeasureLine {
+            id, start_x, start_y, end_x, end_y,
+            unit: MeasureUnit::Px,
+            label: String::new(),
+            visible: true,
+            page_id,
+        });
+        id
+    }
+
+    pub fn remove_measure_line(&mut self, id: u64) -> bool {
+        let len = self.measure_lines.len();
+        self.measure_lines.retain(|m| m.id != id);
+        self.measure_lines.len() < len
+    }
+
+    pub fn update_measure_line(&mut self, id: u64, start_x: f64, start_y: f64, end_x: f64, end_y: f64) -> bool {
+        if let Some(m) = self.measure_lines.iter_mut().find(|m| m.id == id) {
+            m.start_x = start_x; m.start_y = start_y;
+            m.end_x = end_x; m.end_y = end_y;
+            true
+        } else { false }
+    }
+
+    pub fn set_measure_unit(&mut self, id: u64, unit: &str) -> bool {
+        if let Some(m) = self.measure_lines.iter_mut().find(|m| m.id == id) {
+            m.unit = match unit {
+                "rem" | "Rem" => MeasureUnit::Rem,
+                "percent" | "Percent" | "%" => MeasureUnit::Percent,
+                _ => MeasureUnit::Px,
+            };
+            true
+        } else { false }
+    }
+
+    pub fn set_measure_label(&mut self, id: u64, label: &str) -> bool {
+        if let Some(m) = self.measure_lines.iter_mut().find(|m| m.id == id) {
+            m.label = label.to_string();
+            true
+        } else { false }
+    }
+
+    pub fn set_measure_visible(&mut self, id: u64, visible: bool) -> bool {
+        if let Some(m) = self.measure_lines.iter_mut().find(|m| m.id == id) {
+            m.visible = visible;
+            true
+        } else { false }
+    }
+
+    pub fn get_measure_lines_json(&self, page_id: u64) -> String {
+        let filtered: Vec<&MeasureLine> = if page_id == 0 {
+            self.measure_lines.iter().collect()
+        } else {
+            self.measure_lines.iter().filter(|m| m.page_id == page_id).collect()
+        };
+        serde_json::to_string(&filtered).unwrap_or_else(|_| "[]".to_string())
+    }
+
+    pub fn snap_measure_to_node(&self, node_id: u64) -> Option<(f64, f64, f64, f64)> {
+        self.nodes.get(&node_id).map(|n| (n.x, n.y, n.x + n.width, n.y + n.height))
+    }
+
+    pub fn clear_measure_lines(&mut self, page_id: u64) -> u32 {
+        let before = self.measure_lines.len();
+        self.measure_lines.retain(|m| m.page_id != page_id);
+        (before - self.measure_lines.len()) as u32
     }
 
     pub fn reparent(&mut self, node_id: NodeId, new_parent: Option<NodeId>) {

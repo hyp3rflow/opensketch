@@ -3,6 +3,7 @@ import { renderPixelGrid, renderDeviceFrame } from "./ui/pixel-preview";
 import { computeSnap, renderGuides, type SnapGuide } from "./tools/smart-guides";
 import { computePointSnap, renderPointSnapIndicators, collectPathPointTargets, addRulerTargets, constrainAngle, type PointSnapIndicator, type PointSnapTarget } from "./tools/point-snap";
 import { computeMeasureLines, renderMeasureLines, renderTargetHighlight, type MeasureLine } from "./tools/measure";
+import { MeasureToolState, renderPersistentMeasures, hitTestMeasureLine } from "./tools/measure-tool";
 import type { RulersAPI } from "./ui/rulers";
 import { toggleShortcutsPanel, isShortcutsPanelVisible, closeShortcutsPanel } from "./ui/shortcuts-panel";
 import { getShortcutManager } from "./ui/shortcut-manager";
@@ -36,7 +37,7 @@ import { togglePerfProfiler, closePerfProfiler, isPerfProfilerOpen } from "./ui/
 import { openComponentPlayground, closeComponentPlayground, isComponentPlaygroundOpen } from "./ui/component-playground";
 import { AnnotationHeatmap } from "./ui/annotation-heatmap";
 
-export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "section" | "image" | "pen" | "star" | "polygon" | "slice" | "connector" | "callout" | "sticky" | "table" | "freehand";
+export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "section" | "image" | "pen" | "star" | "polygon" | "slice" | "connector" | "callout" | "sticky" | "table" | "freehand" | "measure";
 
 /** Snap threshold in screen pixels */
 const SNAP_THRESHOLD_PX = 5;
@@ -131,6 +132,7 @@ export class Editor {
   private _pointSnapIndicators: PointSnapIndicator[] = [];
   private _measureLines: MeasureLine[] = [];
   private _measureTargetBounds: { x: number; y: number; w: number; h: number } | null = null;
+  public measureTool = new MeasureToolState();
   private _altHeld = false;
   private _devMode = false;
   private _devModeOverlay: DevModeOverlay;
@@ -793,6 +795,7 @@ export class Editor {
       else if (_sm.matches(e, "tool.slice")) this.setTool("slice");
       else if (_sm.matches(e, "tool.connector")) this.setTool("connector");
       else if (_sm.matches(e, "tool.callout")) this.setTool("callout");
+      else if (e.key === "m" && !e.metaKey && !e.ctrlKey && !e.altKey) this.setTool("measure");
       else if (_sm.matches(e, "misc.voice")) { (window as any).__toggleVoice?.(); }
       else if (_sm.matches(e, "misc.fileDiff")) { (window as any).__openFileDiffMerge?.(); }
       if (e.key === "Delete" || e.key === "Backspace") {
@@ -829,6 +832,13 @@ export class Editor {
           } else {
             this._pathEditSelectedPoint = null;
           }
+          this.needsRender = true;
+          return;
+        }
+        // Delete selected measure line
+        if (this.currentTool === "measure" && this.measureTool.selectedMeasureId != null) {
+          (this.engine as any).remove_measure(BigInt(this.measureTool.selectedMeasureId));
+          this.measureTool.selectedMeasureId = null;
           this.needsRender = true;
           return;
         }
@@ -1241,6 +1251,22 @@ export class Editor {
       return;
     }
 
+    if (this.currentTool === "measure") {
+      const sx = this.engine.screen_to_scene_x(x, y);
+      const sy = this.engine.screen_to_scene_y(x, y);
+      // Check if clicking on existing measure line
+      const hitId = hitTestMeasureLine(this, sx, sy, this.engine.get_zoom());
+      if (hitId != null) {
+        this.measureTool.selectedMeasureId = hitId;
+        this.needsRender = true;
+        return;
+      }
+      this.measureTool.selectedMeasureId = null;
+      this.measureTool.onPointerDown(this, sx, sy, this.engine.get_zoom());
+      this.canvas.setPointerCapture(e.pointerId);
+      return;
+    }
+
     if (["rect", "ellipse", "text", "frame", "section", "image", "slice"].includes(this.currentTool)) {
       const sx = this.engine.screen_to_scene_x(x, y);
       const sy = this.engine.screen_to_scene_y(x, y);
@@ -1514,6 +1540,15 @@ export class Editor {
       return;
     }
 
+    // Measure tool: update preview during drag
+    if (this.currentTool === "measure" && this.measureTool.dragging) {
+      const sx = this.engine.screen_to_scene_x(e.offsetX, e.offsetY);
+      const sy = this.engine.screen_to_scene_y(e.offsetX, e.offsetY);
+      this.measureTool.onPointerMove(this, sx, sy, this.engine.get_zoom());
+      this.needsRender = true;
+      return;
+    }
+
     // Connector tool: update preview during drag
     if (this._connectorDrag) {
       this._connectorDrag.ex = this.engine.screen_to_scene_x(e.offsetX, e.offsetY);
@@ -1734,6 +1769,13 @@ export class Editor {
       this._freehandPathId = null;
       this._freehandPoints = [];
       this._freehandDrawing = false;
+      this.needsRender = true;
+      return;
+    }
+
+    // Measure tool: finish placing line
+    if (this.currentTool === "measure" && this.measureTool.dragging) {
+      this.measureTool.onPointerUp(this);
       this.needsRender = true;
       return;
     }
@@ -2879,6 +2921,17 @@ export class Editor {
     renderMeasureLines(this.ctx, this._measureLines);
   }
 
+  private renderPersistentMeasures() {
+    const zoom = this.engine.get_zoom();
+    const panX = this.engine.get_pan_x();
+    const panY = this.engine.get_pan_y();
+    renderPersistentMeasures(this.ctx, this, zoom, panX, panY, this.measureTool.selectedMeasureId);
+    // Render preview if measure tool is active
+    if (this.currentTool === "measure") {
+      this.measureTool.renderPreview(this.ctx, zoom, panX, panY);
+    }
+  }
+
   private updateBreakpointIndicator(nodeId: number, currentWidth: number) {
     try {
       const bpJson = this.engine.get_active_breakpoint_info(BigInt(nodeId));
@@ -3115,6 +3168,7 @@ export class Editor {
         this.renderSmartGuides();
         this.renderPointSnap();
         this.renderMeasure();
+        this.renderPersistentMeasures();
         this.renderPathEditOverlay();
         this.renderVNEditOverlay();
         this.renderMeshEditOverlay();
@@ -3246,6 +3300,7 @@ export class Editor {
       section: "crosshair", image: "crosshair", pen: "crosshair",
       star: "crosshair", polygon: "crosshair",
       slice: "crosshair", connector: "crosshair", callout: "crosshair", sticky: "crosshair", freehand: "crosshair",
+      measure: "crosshair",
     };
     this.canvas.style.cursor = cursors[this.currentTool] || "default";
   }

@@ -558,6 +558,21 @@
 - [x] **End ticks**: Perpendicular tick marks at measurement endpoints
 - [x] **Pure TypeScript**: tools/measure.ts, no Rust changes needed
 
+### Persistent Measure Tool
+- [x] **Measure tool mode**: Toolbar button (M shortcut), crosshair cursor
+- [x] **Click+drag to place**: Permanent measurement lines on canvas
+- [x] **Scene storage**: MeasureLine struct in Rust (id, start/end points, unit, label, visible, page_id)
+- [x] **Node edge snapping**: Snap to edges, centers, and midpoints of nodes (8px threshold)
+- [x] **Distance label**: Auto-calculated px distance with pill background
+- [x] **Selection**: Click existing line to select (orange highlight + glow)
+- [x] **Delete**: Delete/Backspace removes selected measure line
+- [x] **Unit support**: px/rem/% units (WASM set_measure_unit)
+- [x] **Visibility toggle**: Show/hide individual lines
+- [x] **Preview while dragging**: Semi-transparent preview line during placement
+- [x] **Undo/Redo**: Full undo integration
+- [x] **Per-page**: Measure lines are page-scoped
+- [x] **Backward-compatible serde**: #[serde(default)] on all new fields
+
 ### Batch Rename
 - [x] **Pattern-based rename**: {name} = original name, {n} = sequential number, {N} = zero-padded number
 - [x] **Rust engine**: Scene.batch_rename() method with id list, pattern, start number
@@ -1525,3 +1540,16 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Configurable cell size (50-500 canvas units)
 - [x] Keyboard shortcut: Cmd+Alt+H toggle
 - [x] Editor integration: render loop, keyboard handler, public API
+
+### Persistent Measure Tool
+- [x] Rust: MeasureLine struct (id, start/end x/y, unit Px/Rem/Percent, label, visible, page_id)
+- [x] Scene-level storage: measure_lines Vec, CRUD methods
+- [x] WASM: add_measure_line, remove_measure_line, update_measure_line, set_measure_unit, set_measure_visible, get_measure_lines, clear_measure_lines
+- [x] TS: MeasureToolState (click+drag to create, node edge snapping)
+- [x] Canvas rendering: dashed cyan lines + endpoint dots + distance label pill
+- [x] Selected measure highlight (orange), Delete key to remove
+- [x] Hit-test for clicking existing lines
+- [x] Toolbar: Measure button (M shortcut), crosshair cursor
+- [x] Unit support: px/rem/% with auto-computed labels
+- [x] Page-scoped measure lines
+- [x] Backward-compatible serde (#[serde(default)])

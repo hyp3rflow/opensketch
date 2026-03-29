@@ -26,10 +26,12 @@ const tools: { id: ToolType; icon: string; label: string }[] = [
   { id: "polygon", icon: icons.polygon, label: "Polygon (G)" },
   { id: "slice", icon: icons.slice, label: "Slice (K)" },
   { id: "connector", icon: icons.connector, label: "Connector (L)" },
+  { id: "measure", icon: icons.measureTool, label: "Measure (M)" },
   { id: "callout", icon: icons.callout, label: "Callout (O)" },
   { id: "sticky", icon: icons.stickyNote, label: "Sticky Note (N)" },
   { id: "table", icon: icons.table, label: "Table (B)" },
   { id: "freehand", icon: icons.freehand, label: "Freehand (D)" },
+  { id: "measure", icon: icons.measure, label: "Measure (M)" },
 ];
 
 export type AppMode = "edit" | "dev";

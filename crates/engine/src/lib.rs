@@ -8077,6 +8077,53 @@ impl Engine {
         self.scene.get_stamp_count() as u32
     }
 
+    // ── Persistent Measure Lines ────────────────────────────────
+
+    pub fn add_measure(&mut self, start_x: f64, start_y: f64, end_x: f64, end_y: f64) -> u64 {
+        self.push_undo();
+        let page_id = self.scene.get_active_page_id();
+        self.scene.add_measure_line(start_x, start_y, end_x, end_y, page_id)
+    }
+
+    pub fn remove_measure(&mut self, id: u64) -> bool {
+        self.push_undo();
+        self.scene.remove_measure_line(id)
+    }
+
+    pub fn update_measure(&mut self, id: u64, start_x: f64, start_y: f64, end_x: f64, end_y: f64) -> bool {
+        self.scene.update_measure_line(id, start_x, start_y, end_x, end_y)
+    }
+
+    pub fn get_measures(&self) -> String {
+        let page_id = self.scene.get_active_page_id();
+        self.scene.get_measure_lines_json(page_id)
+    }
+
+    pub fn set_measure_unit(&mut self, id: u64, unit: &str) -> bool {
+        self.scene.set_measure_unit(id, unit)
+    }
+
+    pub fn set_measure_label(&mut self, id: u64, label: &str) -> bool {
+        self.scene.set_measure_label(id, label)
+    }
+
+    pub fn set_measure_visible(&mut self, id: u64, visible: bool) -> bool {
+        self.scene.set_measure_visible(id, visible)
+    }
+
+    pub fn snap_measure_to_node(&self, node_id: u64) -> String {
+        match self.scene.snap_measure_to_node(node_id) {
+            Some((x1, y1, x2, y2)) => format!("{{\"x1\":{},\"y1\":{},\"x2\":{},\"y2\":{}}}", x1, y1, x2, y2),
+            None => "null".to_string(),
+        }
+    }
+
+    pub fn clear_measures(&mut self) -> u32 {
+        self.push_undo();
+        let page_id = self.scene.get_active_page_id();
+        self.scene.clear_measure_lines(page_id)
+    }
+
     // ── Auto Dark Mode ─────────────────────────────────────────
     /// Convert all nodes in the scene to dark mode colors.
     /// Returns the number of nodes affected.
