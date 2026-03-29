@@ -3935,6 +3935,18 @@ impl Engine {
         true
     }
 
+    /// Generate a variant matrix for a component.
+    /// Returns JSON VariantMatrix or "null".
+    /// extra_values_json: optional JSON { "propName": "value" } for 3+ prop filtering.
+    #[wasm_bindgen]
+    pub fn get_variant_matrix(&self, comp_id: u64, extra_values_json: &str) -> String {
+        let extra = if extra_values_json.is_empty() { None } else { Some(extra_values_json) };
+        match component_playground::generate_variant_matrix(&self.components, comp_id, extra) {
+            Some(matrix) => serde_json::to_string(&matrix).unwrap_or_else(|_| "null".to_string()),
+            None => "null".to_string(),
+        }
+    }
+
     // =============================================
     // Component Search & Swap
     // =============================================

@@ -35,6 +35,7 @@ import { WhiteboardMode } from "./ui/whiteboard-mode";
 import { initSnapshotPanel } from "./ui/snapshot-panel";
 import { togglePerfProfiler, closePerfProfiler, isPerfProfilerOpen } from "./ui/perf-profiler";
 import { openComponentPlayground, closeComponentPlayground, isComponentPlaygroundOpen } from "./ui/component-playground";
+import { openVariantMatrix, closeVariantMatrix, isVariantMatrixOpen } from "./ui/variant-matrix";
 import { AnnotationHeatmap } from "./ui/annotation-heatmap";
 
 export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "section" | "image" | "pen" | "star" | "polygon" | "slice" | "connector" | "callout" | "sticky" | "table" | "freehand" | "measure";
@@ -687,6 +688,42 @@ export class Editor {
           closeComponentPlayground();
         } else {
           openComponentPlayground(this.engine);
+        }
+        return;
+      }
+
+      // Ctrl/Cmd+Shift+M: Component Variant Matrix
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "m" || e.key === "M") && !e.altKey) {
+        e.preventDefault();
+        if (isVariantMatrixOpen()) {
+          closeVariantMatrix();
+        } else {
+          // Use first selected instance's comp_id, or prompt to pick
+          const sel = this.getSelection();
+          let compId = 0;
+          if (sel.length > 0) {
+            try {
+              const nj = this.engine.get_node_json(BigInt(sel[0]));
+              if (nj) {
+                const node = JSON.parse(nj);
+                if (node.kind && typeof node.kind === 'object' && node.kind.Instance) {
+                  compId = node.kind.Instance.component_id || 0;
+                }
+              }
+            } catch {}
+          }
+          if (compId > 0) {
+            openVariantMatrix(this, compId);
+          } else {
+            // Try to get first component from store
+            try {
+              const compsJson = this.engine.list_components();
+              const comps = JSON.parse(compsJson);
+              if (comps.length > 0) {
+                openVariantMatrix(this, comps[0].id);
+              }
+            } catch {}
+          }
         }
         return;
       }

@@ -237,3 +237,30 @@ struct ComponentExample { title, description, variant_key? }
 
 ### Backward Compatibility
 - `ComponentDoc` uses `#[serde(default)]` — existing files load with empty docs
+
+## Variant Matrix View
+
+A fullscreen overlay displaying all variant combinations of a component in a grid.
+
+### Concept
+- **Row axis**: first variant property (e.g. Size: S/M/L)
+- **Column axis**: second variant property (e.g. State: default/hover/disabled)
+- **Extra filters**: 3+ properties appear as dropdown filters above the grid
+- Each cell renders a mini canvas preview of that variant combination
+- Click a cell to create a playground instance
+
+### Rust API
+- `component_playground::generate_variant_matrix(store, comp_id, extra_values_json) -> VariantMatrix`
+- `VariantMatrix` struct: component_id, component_name, row_prop, col_prop, extra_props, cells, row_count, col_count
+
+### WASM
+- `get_variant_matrix(comp_id, extra_values_json) -> JSON`
+
+### UI
+- **Keyboard**: Cmd/Ctrl+Shift+M (opens for selected instance's component, or first component)
+- Fullscreen dark overlay with grid layout
+- Column/row headers labeled with property values
+- Cells: 160×120 canvas previews with size labels
+- Missing variants shown as dashed empty cells
+- Filter dropdowns for extra properties (live refresh)
+- `variant-matrix.ts`
