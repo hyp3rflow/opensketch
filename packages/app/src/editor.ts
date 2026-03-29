@@ -4577,6 +4577,36 @@ export class Editor {
   }
 
   /**
+   * Export animation clip as Lottie JSON
+   */
+  exportLottie(clipId: number | bigint): string {
+    return this.engine.export_lottie(BigInt(clipId));
+  }
+
+  /**
+   * Export all animation clips as Lottie JSON array
+   */
+  exportAllLottie(): string {
+    return this.engine.export_all_lottie();
+  }
+
+  /**
+   * Download animation clip as Lottie JSON file
+   */
+  downloadLottie(clipId: number | bigint, filename?: string) {
+    const json = this.engine.export_lottie(BigInt(clipId));
+    if (!json || json === "null") return false;
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename || "animation.json";
+    a.click();
+    URL.revokeObjectURL(url);
+    return true;
+  }
+
+  /**
    * Export active page as email-compatible HTML and trigger download
    */
   downloadEmailHtml(filename?: string) {

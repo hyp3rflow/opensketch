@@ -41,6 +41,7 @@ pub mod snapshot_test;
 mod design_quiz;
 pub mod migration_assistant;
 pub mod stamp;
+mod lottie_export;
 
 use wasm_bindgen::prelude::*;
 use web_sys::CanvasRenderingContext2d;
@@ -7263,6 +7264,18 @@ impl Engine {
     #[wasm_bindgen]
     pub fn anim_get_duration(&self, clip_id: u64) -> u32 {
         self.scene.animations.get_clip(clip_id).map(|c| c.effective_duration()).unwrap_or(0)
+    }
+
+    /// Export animation clip as Lottie JSON
+    #[wasm_bindgen]
+    pub fn export_lottie(&self, clip_id: u64) -> String {
+        lottie_export::export_lottie(&self.scene, clip_id).unwrap_or_else(|| "null".to_string())
+    }
+
+    /// Export all animation clips as Lottie JSON array
+    #[wasm_bindgen]
+    pub fn export_all_lottie(&self) -> String {
+        lottie_export::export_all_lottie(&self.scene)
     }
 
     /// Record current property values as keyframes for selected nodes

@@ -853,6 +853,18 @@ Frame overflow control and content scrolling.
 - [x] Zoom/scroll on timeline, right-click to delete keyframes
 - [x] Keyboard shortcut: Alt+T to toggle timeline panel
 
+## Lottie Animation Export
+- [x] Rust: lottie_export.rs — bodymovin v5.7+ JSON export from AnimationClip + Scene nodes
+- [x] Supported shapes: Rect, Ellipse, Star, Polygon, Path (bezier), Text, Frame/Group (pre-comp)
+- [x] Animated properties: position (X/Y), rotation, opacity, scale (ScaleX/ScaleY)
+- [x] Easing mapping: Linear, EaseIn, EaseOut, EaseInOut, CubicBezier → Lottie in/out tangents
+- [x] Fill support: Solid, LinearGradient, RadialGradient (other types → fallback solid)
+- [x] Stroke support: color, width, dash, lineCap, lineJoin
+- [x] Blend modes: all 16 modes mapped to Lottie blend mode values
+- [x] WASM: export_lottie(clip_id), export_all_lottie()
+- [x] TS: Editor.exportLottie(), exportAllLottie(), downloadLottie()
+- [x] Timeline UI: 📦 Lottie export button
+
 ## Motion Path Animation
 - [x] AnimProperty::MotionPath — node follows a Path node, value = progress (0.0–1.0)
 - [x] MotionPathConfig: path_node_id, orient_to_path (auto-rotate along tangent), rotation_offset

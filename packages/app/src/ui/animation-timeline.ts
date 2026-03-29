@@ -149,7 +149,13 @@ export function createAnimationTimeline(editor: Editor): {
     renderTracks();
   });
 
-  topBar.append(clipSelect, addClipBtn, removeClipBtn, sep(), playBtn, stopBtn, loopBtn, sep(), recordBtn, motionPathBtn, timeDisplay);
+  // Lottie export button
+  const lottieBtn = makeBtn("📦", "Export as Lottie JSON", () => {
+    if (state.activeClipId == null) { alert("Select a clip first"); return; }
+    editor.downloadLottie(state.activeClipId);
+  });
+
+  topBar.append(clipSelect, addClipBtn, removeClipBtn, sep(), playBtn, stopBtn, loopBtn, sep(), recordBtn, motionPathBtn, lottieBtn, timeDisplay);
   container.appendChild(topBar);
 
   // ─── Track area ───
