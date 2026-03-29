@@ -3,6 +3,7 @@ import { icons } from "./icons";
 import { createExportPresetsSection } from "./export-presets";
 import { openComponentSwapDialog } from "./component-search";
 import { renderStyleVersioningSection } from "./style-versioning";
+import { createEasingEditor } from "./easing-editor";
 import { createTokenThemeSwitcher, createTokenBindingSection } from "./token-panel";
 
 // Stage 4: Google Fonts list
@@ -2352,7 +2353,8 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           const newIdx = editor.engine.add_interaction(
             id, trigSelect.value, actSelect.value,
             BigInt(inter.target_node_id || 0), BigInt(inter.target_page_id || 0),
-            transSelect.value, parseInt(durInput.value) || 300
+            transSelect.value, parseInt(durInput.value) || 300,
+            inter.easing || "ease_in_out"
           );
           if (newIdx >= 0 && inter.variant_key_json) {
             editor.engine.set_interaction_variant_key(id, newIdx, inter.variant_key_json);
@@ -2403,7 +2405,8 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           const newIdx = editor.engine.add_interaction(
             id, trigSelect.value, actSelect.value,
             BigInt(parseInt(targetInput.value) || 0), BigInt(inter.target_page_id || 0),
-            transSelect.value, parseInt(durInput.value) || 300
+            transSelect.value, parseInt(durInput.value) || 300,
+            inter.easing || "ease_in_out"
           );
           if (newIdx >= 0 && variantInput.value) {
             editor.engine.set_interaction_variant_key(id, newIdx, variantInput.value);
@@ -2481,7 +2484,8 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           editor.engine.add_interaction(
             id, trigSelect.value, actSelect.value,
             BigInt(inter.target_node_id || 0), BigInt(inter.target_page_id || 0),
-            transSelect.value, parseInt(durInput.value) || 300
+            transSelect.value, parseInt(durInput.value) || 300,
+            inter.easing || "ease_in_out"
           );
           editor.requestRender();
           refresh(ids);
@@ -2493,6 +2497,24 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         durRow.appendChild(durMs);
         interEl.appendChild(durRow);
 
+        // --- Easing Curve Editor ---
+        {
+          const easingRow = document.createElement("div");
+          easingRow.style.cssText = "margin-top:6px;";
+          const easingLbl = document.createElement("span");
+          easingLbl.style.cssText = "font-size:10px;color:#666;display:block;margin-bottom:4px;";
+          easingLbl.textContent = "Easing";
+          easingRow.appendChild(easingLbl);
+
+          const easingEditor = createEasingEditor(inter.easing || "ease_in_out", (newEasing: string) => {
+            ensureUndo();
+            editor.engine.set_interaction_easing(id, idx, newEasing);
+            editor.requestRender();
+          });
+          easingRow.appendChild(easingEditor);
+          interEl.appendChild(easingRow);
+        }
+
         interSection.appendChild(interEl);
       });
 
@@ -2502,7 +2524,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       addInterBtn.textContent = "+ Add interaction";
       addInterBtn.addEventListener("click", () => {
         ensureUndo();
-        editor.engine.add_interaction(id, "click", "navigate-to", BigInt(0), BigInt(0), "instant", 300);
+        editor.engine.add_interaction(id, "click", "navigate-to", BigInt(0), BigInt(0), "instant", 300, "ease_in_out");
         editor.requestRender();
         refresh(ids);
       });

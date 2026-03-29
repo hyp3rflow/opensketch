@@ -1114,10 +1114,15 @@ pub struct Interaction {
     pub transition: TransitionType,
     /// Transition duration in ms
     pub transition_duration_ms: u32,
+    /// Easing curve for transition: "linear"|"ease_in"|"ease_out"|"ease_in_out"|"cubic_bezier:x1,y1,x2,y2"
+    #[serde(default = "default_easing_str")]
+    pub easing: String,
     /// For SwapVariant action: JSON variant key (e.g. {"State":"Hover","Disabled":"false"})
     #[serde(default)]
     pub variant_key_json: String,
 }
+
+fn default_easing_str() -> String { "ease_in_out".to_string() }
 
 impl Default for Interaction {
     fn default() -> Self {
@@ -1128,6 +1133,7 @@ impl Default for Interaction {
             target_page_id: 0,
             transition: TransitionType::Instant,
             transition_duration_ms: 300,
+            easing: "ease_in_out".to_string(),
             variant_key_json: String::new(),
         }
     }

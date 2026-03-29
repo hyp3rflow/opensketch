@@ -1394,6 +1394,13 @@
   - Clear 버튼으로 필터 초기화 + 딤밍 제거
   - 순수 TypeScript 구현 (ui/search-filter.ts)
 
+### Custom Easing Curve Editor (2026-03-29)
+- Interaction struct에 `easing` 필드 추가 (linear/ease_in/ease_out/ease_in_out/cubic_bezier:x1,y1,x2,y2)
+- `add_interaction`에 easing 파라미터 추가, `set_interaction_easing` API 추가
+- Properties panel: `createEasingEditor` (ui/easing-editor.ts) — SVG 기반 cubic-bezier 에디터, 드래그 가능한 컨트롤 포인트, 프리셋 버튼
+- Prototype viewer: 인터랙션별 easing 적용 (performTransition, performSmartAnimate)
+- `applyEasing` 함수: cubic-bezier Newton-Raphson 평가
+
 ## 다음 할 것
 - Spatial audio for collaboration — 멀티플레이어 캔버스에서 거리 기반 음성/효과음, 가까운 유저일수록 소리 크게
 - Cursor chat improvements — 커서 채팅에 이모지 리액션, @멘션, 메시지 히스토리 패널

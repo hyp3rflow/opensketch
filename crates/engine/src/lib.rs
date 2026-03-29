@@ -2321,6 +2321,7 @@ impl Engine {
         trigger: &str, action: &str,
         target_node_id: u64, target_page_id: u64,
         transition: &str, transition_duration_ms: u32,
+        easing: &str,
     ) -> i32 {
         let trig = match trigger {
             "hover" => InteractionTrigger::OnHover,
@@ -2352,6 +2353,7 @@ impl Engine {
             _ => TransitionType::Instant,
         };
         if let Some(node) = self.scene.get_node_mut(id) {
+            let easing_str = if easing.is_empty() { "ease_in_out" } else { easing };
             let interaction = Interaction {
                 trigger: trig,
                 action: act,
@@ -2359,6 +2361,7 @@ impl Engine {
                 target_page_id,
                 transition: trans,
                 transition_duration_ms,
+                easing: easing_str.to_string(),
                 variant_key_json: String::new(),
             };
             node.interactions.push(interaction);
@@ -2388,6 +2391,16 @@ impl Engine {
     }
 
     /// Set the variant_key_json on an existing interaction (for SwapVariant action)
+    pub fn set_interaction_easing(&mut self, id: u64, index: u32, easing: &str) -> bool {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let Some(inter) = node.interactions.get_mut(index as usize) {
+                inter.easing = easing.to_string();
+                return true;
+            }
+        }
+        false
+    }
+
     pub fn set_interaction_variant_key(&mut self, id: u64, index: u32, variant_key_json: &str) -> bool {
         if let Some(node) = self.scene.get_node_mut(id) {
             if let Some(inter) = node.interactions.get_mut(index as usize) {

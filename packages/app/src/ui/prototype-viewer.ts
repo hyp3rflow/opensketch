@@ -1,4 +1,5 @@
 import type { Editor } from "../editor";
+import { applyEasing } from "./easing-editor";
 
 /**
  * Prototype presentation mode viewer.
@@ -109,7 +110,7 @@ export function createPrototypeViewer(editor: Editor): {
     else if (e.key === "ArrowLeft" || e.key === "Backspace") navigateBack();
   }
 
-  function navigateTo(frameId: number, transition: string = "Instant", durationMs: number = 300) {
+  function navigateTo(frameId: number, transition: string = "Instant", durationMs: number = 300, easing: string = "ease_in_out") {
     if (transitioning) return;
     const prevFrameId = currentFrameId;
     if (currentFrameId !== null) navigationStack.push(currentFrameId);
@@ -120,7 +121,7 @@ export function createPrototypeViewer(editor: Editor): {
       return;
     }
 
-    performTransition(prevFrameId, frameId, transition, durationMs);
+    performTransition(prevFrameId, frameId, transition, durationMs, easing);
   }
 
   function navigateBack() {
@@ -192,7 +193,7 @@ export function createPrototypeViewer(editor: Editor): {
   }
 
   /** Perform animated transition between two frames */
-  function performTransition(fromId: number, toId: number, transition: string, durationMs: number) {
+  function performTransition(fromId: number, toId: number, transition: string, durationMs: number, easingStr: string = "ease_in_out") {
     if (!viewCanvas) return;
     transitioning = true;
 
@@ -217,13 +218,13 @@ export function createPrototypeViewer(editor: Editor): {
     const ctx = viewCanvas.getContext("2d")!;
     const startTime = performance.now();
 
-    // Easing: ease-in-out cubic
+    // Easing: use interaction's easing curve
     function ease(t: number): number {
-      return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+      return applyEasing(easingStr, t);
     }
 
     if (transition === "SmartAnimate") {
-      performSmartAnimate(fromId, toId, fromCanvas, toCanvas, durationMs);
+      performSmartAnimate(fromId, toId, fromCanvas, toCanvas, durationMs, easingStr);
       return;
     }
 
@@ -284,7 +285,7 @@ export function createPrototypeViewer(editor: Editor): {
   }
 
   /** Smart Animate: match nodes by name via engine, interpolate all properties */
-  function performSmartAnimate(fromId: number, toId: number, fromCanvas: HTMLCanvasElement, toCanvas: HTMLCanvasElement, durationMs: number) {
+  function performSmartAnimate(fromId: number, toId: number, fromCanvas: HTMLCanvasElement, toCanvas: HTMLCanvasElement, durationMs: number, easingStr: string = "ease_in_out") {
     if (!viewCanvas) { transitioning = false; return; }
 
     const animData = computeAutoAnimate(fromId, toId);
@@ -294,7 +295,7 @@ export function createPrototypeViewer(editor: Editor): {
 
     // If no matches, fall back to dissolve
     if (animData.pairs.length === 0) {
-      performTransition(fromId, toId, "Dissolve", durationMs);
+      performTransition(fromId, toId, "Dissolve", durationMs, easingStr);
       return;
     }
 
@@ -302,7 +303,7 @@ export function createPrototypeViewer(editor: Editor): {
     const startTime = performance.now();
 
     function ease(t: number): number {
-      return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+      return applyEasing(easingStr, t);
     }
 
     function lerp(a: number, b: number, t: number): number {
@@ -578,7 +579,7 @@ export function createPrototypeViewer(editor: Editor): {
     if (inter.action === "NavigateTo" && targetId > 0) {
       const targetPageId = Number(inter.target_page_id);
       if (targetPageId > 0) editor.engine.set_active_page(BigInt(targetPageId));
-      navigateTo(targetId, inter.transition || "Instant", inter.transition_duration_ms || 300);
+      navigateTo(targetId, inter.transition || "Instant", inter.transition_duration_ms || 300, inter.easing || "ease_in_out");
     } else if (inter.action === "Back") {
       navigateBack();
     } else if (inter.action === "SwapVariant" && inter.variant_key_json) {
