@@ -1418,3 +1418,9 @@
 - Design handoff checklist — 개발자 인수인계 체크리스트 자동 생성: 미완성 에셋/스타일/토큰 감지, 진행률 트래킹, 팀 공유
 - Smart layout suggestions on paste — 붙여넣은 노드를 기존 레이아웃에 자동 맞춤 (gap/alignment 추론)
 - Canvas minimap interaction — 미니맵에서 직접 노드 선택/이동, 영역 줌
+
+## 완료된 기능 (추가 — Auto-Spacing Tool)
+- Properties panel Align 섹션에 Auto-spacing UI 추가
+- 2+ 노드 선택 시 Spacing 입력 + H/V 버튼 표시
+- 기존 distribute_selection_with_spacing WASM 바인딩 활용
+- 사용자 지정 gap으로 수평/수직 균등 간격 배치

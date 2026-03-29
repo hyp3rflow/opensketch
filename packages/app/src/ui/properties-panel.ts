@@ -324,6 +324,41 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         alignSection.appendChild(gridBtn);
       }
 
+      // Auto-spacing section (2+ nodes)
+      if (ids.length >= 2) {
+        const spacingRow = document.createElement("div");
+        spacingRow.style.cssText = "display:flex;gap:4px;align-items:center;margin-top:6px;";
+        const spacingLabel = document.createElement("span");
+        spacingLabel.textContent = "Spacing";
+        spacingLabel.style.cssText = "font-size:10px;color:#888;flex-shrink:0;";
+        const spacingInput = document.createElement("input");
+        spacingInput.type = "number";
+        spacingInput.value = "20";
+        spacingInput.min = "0";
+        spacingInput.step = "1";
+        spacingInput.style.cssText = "width:48px;padding:4px 6px;font-size:11px;border:1px solid #3a3a3a;border-radius:4px;background:#1e1e1e;color:#ccc;text-align:center;";
+        const makeSpBtn = (label: string, axis: string) => {
+          const btn = document.createElement("button");
+          btn.title = `Auto-space ${label}`;
+          btn.style.cssText = "padding:4px 8px;border:1px solid #3a3a3a;border-radius:4px;background:#2a2a2a;color:#888;cursor:pointer;font-size:10px;transition:all 0.15s;flex:1;";
+          btn.textContent = label;
+          btn.addEventListener("mouseenter", () => { btn.style.borderColor = "#4f46e5"; btn.style.color = "#818cf8"; });
+          btn.addEventListener("mouseleave", () => { btn.style.borderColor = "#3a3a3a"; btn.style.color = "#888"; });
+          btn.addEventListener("click", () => {
+            const gap = parseFloat(spacingInput.value) || 0;
+            editor.engine.push_undo();
+            (editor.engine as any).distribute_selection_with_spacing(axis, gap);
+            editor.requestRender();
+          });
+          return btn;
+        };
+        spacingRow.appendChild(spacingLabel);
+        spacingRow.appendChild(spacingInput);
+        spacingRow.appendChild(makeSpBtn("H", "horizontal"));
+        spacingRow.appendChild(makeSpBtn("V", "vertical"));
+        alignSection.appendChild(spacingRow);
+      }
+
       wrap.appendChild(alignSection);
 
       // Auto-suggest Layout section (2+ nodes)

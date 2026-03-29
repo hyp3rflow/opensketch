@@ -1507,3 +1507,8 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] L key toggle to show/hide link arrows
 - [x] Backward-compatible serde (#[serde(default)])
 - [x] Dangling link graceful handling (target deleted → skip rendering)
+
+### Auto-Spacing Tool
+- [x] Properties panel: "Spacing" input + H/V buttons in Align section (2+ nodes selected)
+- [x] Uses existing `distribute_selection_with_spacing(axis, gap)` WASM binding
+- [x] User-configurable gap value, horizontal and vertical auto-spacing
