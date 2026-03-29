@@ -162,3 +162,14 @@ Available: select, hand, rect, ellipse, text, frame, eye, eyeOff, rotation, corn
 - ShortcutManager singleton: central registry with `matches(event, actionId)` API
 - Editor keydown handler uses ShortcutManager for all tool + action shortcuts
 - Files: `packages/app/src/ui/shortcut-manager.ts`, `packages/app/src/ui/shortcuts-panel.ts`
+
+## Contextual Toolbar
+- Floating bar appears above selection with type-aware quick-edit actions
+- Shape nodes: fill color, stroke color, opacity, corner radius
+- Text nodes: font size, bold toggle, text align
+- Frame nodes: auto layout toggle
+- Common: duplicate, group, flatten, delete
+- Color picker with 18 presets + custom color input
+- Auto-repositions on zoom/pan, clamped to viewport
+- Hides during pointer drag, re-shows on pointer up
+- File: `packages/app/src/ui/contextual-toolbar.ts`

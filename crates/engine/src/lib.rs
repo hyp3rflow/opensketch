@@ -2826,6 +2826,11 @@ impl Engine {
         self.scene.get_node(id).map(|n| n.name.clone())
     }
 
+    /// Returns the kind name of a node (e.g. "Rect", "Text", "Frame").
+    pub fn get_node_kind(&self, id: u64) -> Option<String> {
+        self.scene.get_node(id).map(|n| n.kind_name().to_string())
+    }
+
     /// Returns compact JSON array of node rects for minimap rendering.
     /// Each entry: [id, x, y, w, h, "fillColor", "kindChar"]
     /// Only includes visible nodes.

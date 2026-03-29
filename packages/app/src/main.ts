@@ -35,6 +35,7 @@ import { CollabClient } from "./collab";
 import { initCollabUI, updateCollabUI } from "./ui/collab-ui";
 import { renderPermissionsPanel } from "./ui/permissions-panel";
 import { setupCanvasRecorder, toggleRecorderBar } from "./ui/canvas-recorder";
+import { setupContextualToolbar } from "./ui/contextual-toolbar";
 
 async function main() {
   const wasm = await loadEngine();
@@ -83,6 +84,9 @@ async function main() {
 
   // Canvas recorder (floating bar)
   setupCanvasRecorder(editor);
+
+  // Contextual toolbar (floating quick-edit bar above selection)
+  setupContextualToolbar(editor);
 
   // Whiteboard mode — already setup via editor.whiteboardMode
   (window as any).__toggleWhiteboard = () => editor.whiteboardMode.toggle();

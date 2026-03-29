@@ -1560,3 +1560,14 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Unit support: px/rem/% with auto-computed labels
 - [x] Page-scoped measure lines
 - [x] Backward-compatible serde (#[serde(default)])
+
+### Contextual Toolbar
+- [x] Floating quick-edit bar that appears above selected node(s)
+- [x] Dynamic actions based on node type: fill/stroke color pickers, opacity slider, corner radius
+- [x] Text nodes: font size input, bold toggle, text alignment cycle
+- [x] Frame nodes: auto layout toggle
+- [x] Common actions: duplicate, group (2+ selection), flatten, delete
+- [x] Color presets (18 colors) + native color picker for custom colors
+- [x] Hides during drag/pan, re-positions on zoom/pan changes
+- [x] Viewport-clamped positioning (centered above selection, fallback below)
+- [x] WASM: get_node_kind(id) → lightweight kind name query
