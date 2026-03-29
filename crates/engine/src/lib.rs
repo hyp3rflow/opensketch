@@ -2522,6 +2522,108 @@ impl Engine {
         serde_json::to_string(&result).unwrap_or_else(|_| "[]".to_string())
     }
 
+    // ── Node Links / References ──────────────────────────────
+
+    /// Add a link from node `id` to `target_id`. Returns index or -1.
+    pub fn add_node_link(&mut self, id: u64, target_id: u64, link_type: &str, label: &str) -> i32 {
+        if id == target_id { return -1; }
+        if self.scene.get_node(target_id).is_none() { return -1; }
+        if let Some(node) = self.scene.get_node_mut(id) {
+            node.links.push(crate::node::NodeLink {
+                target_id,
+                link_type: crate::node::LinkType::from_str(link_type),
+                label: label.to_string(),
+            });
+            (node.links.len() - 1) as i32
+        } else {
+            -1
+        }
+    }
+
+    /// Remove a link by index from a node. Returns true on success.
+    pub fn remove_node_link(&mut self, id: u64, index: u32) -> bool {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            let idx = index as usize;
+            if idx < node.links.len() {
+                node.links.remove(idx);
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Clear all links on a node.
+    pub fn clear_node_links(&mut self, id: u64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            node.links.clear();
+        }
+    }
+
+    /// Get outgoing links of a node as JSON array.
+    pub fn get_node_links(&self, id: u64) -> String {
+        if let Some(node) = self.scene.get_node(id) {
+            let links: Vec<serde_json::Value> = node.links.iter().map(|l| {
+                let target_name = self.scene.get_node(l.target_id)
+                    .map(|n| n.name.clone())
+                    .unwrap_or_else(|| format!("#{}", l.target_id));
+                serde_json::json!({
+                    "target_id": l.target_id,
+                    "target_name": target_name,
+                    "link_type": l.link_type.as_str(),
+                    "label": l.label,
+                })
+            }).collect();
+            serde_json::to_string(&links).unwrap_or_else(|_| "[]".to_string())
+        } else {
+            "[]".to_string()
+        }
+    }
+
+    /// Get incoming links (all nodes that link TO this node) as JSON array.
+    pub fn get_incoming_links(&self, id: u64) -> String {
+        let mut result: Vec<serde_json::Value> = vec![];
+        for node in self.scene.all_nodes() {
+            for (i, link) in node.links.iter().enumerate() {
+                if link.target_id == id {
+                    result.push(serde_json::json!({
+                        "source_id": node.id,
+                        "source_name": node.name,
+                        "link_type": link.link_type.as_str(),
+                        "label": link.label,
+                        "index": i,
+                    }));
+                }
+            }
+        }
+        serde_json::to_string(&result).unwrap_or_else(|_| "[]".to_string())
+    }
+
+    /// Get all links in the scene for canvas rendering.
+    pub fn get_all_links(&self) -> String {
+        let mut result: Vec<serde_json::Value> = vec![];
+        for node in self.scene.all_nodes() {
+            for link in &node.links {
+                if let Some(target) = self.scene.get_node(link.target_id) {
+                    result.push(serde_json::json!({
+                        "source_id": node.id,
+                        "source_x": node.x,
+                        "source_y": node.y,
+                        "source_w": node.width,
+                        "source_h": node.height,
+                        "target_id": target.id,
+                        "target_x": target.x,
+                        "target_y": target.y,
+                        "target_w": target.width,
+                        "target_h": target.height,
+                        "link_type": link.link_type.as_str(),
+                        "label": link.label,
+                    }));
+                }
+            }
+        }
+        serde_json::to_string(&result).unwrap_or_else(|_| "[]".to_string())
+    }
+
     // ── Auto-Animate (Smart Animate) ────────────────────────────
 
     /// Compute auto-animate matched node pairs between two frames.

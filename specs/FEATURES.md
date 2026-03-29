@@ -1495,3 +1495,15 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] WASM: get/set/clear_frame_background_pattern, set_frame_background_pattern_visible
 - [x] Canvas rendering: Clipped pattern rendering inside frame bounds (dots/grid/lines/cross)
 - [x] Properties panel: "Background Pattern" section for Frame/Section nodes (enable toggle, type/color/spacing/opacity/size controls, visibility)
+
+
+### Node Links / References
+- [x] NodeLink struct: target_id, link_type (Reference/DependsOn/Related), label
+- [x] Node.links: Vec<NodeLink> — outgoing references per node
+- [x] WASM: add_node_link, remove_node_link, clear_node_links, get_node_links, get_incoming_links, get_all_links
+- [x] Canvas rendering: Colored arrow overlays (blue dashed=Reference, amber solid=DependsOn, gray dashed=Related)
+- [x] Arrowheads + optional label at midpoint
+- [x] Properties panel: "Links" section with outgoing/incoming lists, click to navigate, add/remove UI
+- [x] L key toggle to show/hide link arrows
+- [x] Backward-compatible serde (#[serde(default)])
+- [x] Dangling link graceful handling (target deleted → skip rendering)

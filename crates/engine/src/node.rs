@@ -1127,6 +1127,44 @@ impl Default for TransitionType {
     fn default() -> Self { TransitionType::Instant }
 }
 
+/// Link type for node references
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub enum LinkType {
+    Reference,
+    DependsOn,
+    Related,
+}
+
+impl Default for LinkType {
+    fn default() -> Self { LinkType::Reference }
+}
+
+impl LinkType {
+    pub fn from_str(s: &str) -> Self {
+        match s {
+            "DependsOn" | "depends_on" => LinkType::DependsOn,
+            "Related" | "related" => LinkType::Related,
+            _ => LinkType::Reference,
+        }
+    }
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            LinkType::Reference => "Reference",
+            LinkType::DependsOn => "DependsOn",
+            LinkType::Related => "Related",
+        }
+    }
+}
+
+/// A link/reference from this node to another node
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct NodeLink {
+    pub target_id: NodeId,
+    pub link_type: LinkType,
+    #[serde(default)]
+    pub label: String,
+}
+
 /// A prototype interaction link
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Interaction {
@@ -1570,6 +1608,9 @@ pub struct Node {
     /// Per-frame background pattern override (None = inherit scene-level)
     #[serde(default)]
     pub background_pattern: Option<FrameBackgroundPattern>,
+    /// Links/references to other nodes
+    #[serde(default)]
+    pub links: Vec<NodeLink>,
 }
 
 /// Per-frame background pattern configuration
@@ -1674,6 +1715,7 @@ impl Node {
             perspective: None,
             code_mapping: None,
             background_pattern: None,
+            links: vec![],
         }
     }
 

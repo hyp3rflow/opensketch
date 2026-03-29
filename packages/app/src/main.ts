@@ -309,6 +309,10 @@ async function main() {
       e.preventDefault();
       prototypeViewer.show();
     }
+    // L → toggle node link arrows
+    if (e.key === "l" && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+      editor.toggleNodeLinks();
+    }
     // Cmd+Shift+E → export all mapped components
     if (e.key === "E" && (e.metaKey || e.ctrlKey) && e.shiftKey) {
       e.preventDefault();

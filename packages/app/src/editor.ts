@@ -70,6 +70,7 @@ export class Editor {
   private spaceHeld = false;
   private _clipboard: string | null = null;
   private _pasteCount = 0;
+  private _nodeLinksVisible = true;
 
   whiteboardMode: WhiteboardMode;
 
@@ -3116,6 +3117,7 @@ export class Editor {
         this.renderCursorPresence();
         this.renderBreakpointIndicator();
         this.renderStamps();
+        this.renderNodeLinks();
         this.renderDiffOverlay();
         this.renderSearchFilterOverlay();
         this.renderPixelPreviewOverlay();
@@ -3857,6 +3859,90 @@ export class Editor {
     if (this._responsiveResize?.isActive) {
       this._responsiveResize.renderOverlay(this.ctx);
     }
+  }
+
+  /** Toggle node link arrows visibility (L key) */
+  toggleNodeLinks() {
+    this._nodeLinksVisible = !this._nodeLinksVisible;
+    this.needsRender = true;
+  }
+
+  get nodeLinksVisible() { return this._nodeLinksVisible; }
+
+  private renderNodeLinks() {
+    if (!this._nodeLinksVisible) return;
+    const allLinksJson = (this.engine as any).get_all_links?.();
+    if (!allLinksJson) return;
+    let links: any[];
+    try { links = JSON.parse(allLinksJson); } catch { return; }
+    if (links.length === 0) return;
+
+    const ctx = this.ctx;
+    const zoom = this.engine.get_zoom();
+    const panX = this.engine.get_pan_x();
+    const panY = this.engine.get_pan_y();
+
+    ctx.save();
+    for (const link of links) {
+      // Compute center of source and target bounding boxes
+      const srcCx = link.source_x + link.source_w / 2;
+      const srcCy = link.source_y + link.source_h / 2;
+      const tgtCx = link.target_x + link.target_w / 2;
+      const tgtCy = link.target_y + link.target_h / 2;
+      const sx = srcCx * zoom + panX;
+      const sy = srcCy * zoom + panY;
+      const tx = tgtCx * zoom + panX;
+      const ty = tgtCy * zoom + panY;
+
+      // Style by type
+      let color: string;
+      let dash: number[];
+      switch (link.link_type) {
+        case "DependsOn":
+          color = "#f59e0b"; // amber
+          dash = [];
+          break;
+        case "Related":
+          color = "#888888"; // gray
+          dash = [6, 4];
+          break;
+        default: // Reference
+          color = "#4a90d9"; // blue
+          dash = [6, 4];
+          break;
+      }
+
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash(dash);
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(tx, ty);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Arrowhead
+      const angle = Math.atan2(ty - sy, tx - sx);
+      const headLen = 8;
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(tx, ty);
+      ctx.lineTo(tx - headLen * Math.cos(angle - 0.4), ty - headLen * Math.sin(angle - 0.4));
+      ctx.lineTo(tx - headLen * Math.cos(angle + 0.4), ty - headLen * Math.sin(angle + 0.4));
+      ctx.closePath();
+      ctx.fill();
+
+      // Label
+      if (link.label) {
+        const mx = (sx + tx) / 2;
+        const my = (sy + ty) / 2;
+        ctx.font = "10px Inter, sans-serif";
+        ctx.fillStyle = color;
+        ctx.textAlign = "center";
+        ctx.fillText(link.label, mx, my - 4);
+      }
+    }
+    ctx.restore();
   }
 
   /** Place a stamp at canvas coordinates */

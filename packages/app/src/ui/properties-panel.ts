@@ -5,6 +5,7 @@ import { openComponentSwapDialog } from "./component-search";
 import { renderStyleVersioningSection } from "./style-versioning";
 import { createEasingEditor } from "./easing-editor";
 import { createTokenThemeSwitcher, createTokenBindingSection } from "./token-panel";
+import { createNodeLinksSection } from "./node-links";
 
 // Stage 4: Google Fonts list
 const googleFonts = [
@@ -2358,6 +2359,13 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       }
 
       container.appendChild(section3d);
+    }
+
+    // --- Node Links ---
+    {
+      const linksSection = createSection("Links");
+      createNodeLinksSection(linksSection, editor, Number(id), () => refresh(ids));
+      container.appendChild(linksSection);
     }
 
     // --- Prototype Interactions ---

@@ -1401,11 +1401,20 @@
 - Prototype viewer: 인터랙션별 easing 적용 (performTransition, performSmartAnimate)
 - `applyEasing` 함수: cubic-bezier Newton-Raphson 평가
 
+## 완료된 기능 (추가 — Node Links / References)
+- Node link/reference system:
+  - NodeLink struct (target_id, LinkType, label), LinkType enum (Reference/DependsOn/Related)
+  - Node.links: Vec<NodeLink> per node, backward-compatible serde
+  - WASM: add_node_link, remove_node_link, clear_node_links, get_node_links, get_incoming_links, get_all_links
+  - Canvas: 색상별 화살표 오버레이 (Reference=파란 점선, DependsOn=주황 실선, Related=회색 점선) + arrowhead + label
+  - Properties panel: "Links" 섹션 — outgoing/incoming 리스트, 클릭으로 타겟 선택, add/remove UI
+  - L키 토글 (show/hide link arrows)
+  - Dangling link graceful skip
+
 ## 다음 할 것
 - Spatial audio for collaboration — 멀티플레이어 캔버스에서 거리 기반 음성/효과음, 가까운 유저일수록 소리 크게
 - Cursor chat improvements — 커서 채팅에 이모지 리액션, @멘션, 메시지 히스토리 패널
 - Component variant interaction — variant 간 hover/click 상태 전환 프로토타이핑: 컴포넌트 내 트리거 설정으로 variant swap 애니메이션
 - Design handoff checklist — 개발자 인수인계 체크리스트 자동 생성: 미완성 에셋/스타일/토큰 감지, 진행률 트래킹, 팀 공유
 - Smart layout suggestions on paste — 붙여넣은 노드를 기존 레이아웃에 자동 맞춤 (gap/alignment 추론)
-- Node link/reference system — 노드 간 의존성 링크 (참조 표시, 변경 시 연관 노드 알림)
 - Canvas minimap interaction — 미니맵에서 직접 노드 선택/이동, 영역 줌
