@@ -319,7 +319,29 @@ pub enum NodeKind {
         /// Show arrowhead at start
         start_arrow: bool,
     },
+    /// A callout shape — rounded rect body with a triangular tail pointing to a target
+    Callout {
+        /// Text content inside the callout
+        content: String,
+        /// Font size for the text
+        #[serde(default = "default_callout_font_size")]
+        font_size: f64,
+        /// Tail target X position (absolute canvas coordinate)
+        tail_x: f64,
+        /// Tail target Y position (absolute canvas coordinate)
+        tail_y: f64,
+        /// Tail width at the base (where it meets the body)
+        #[serde(default = "default_callout_tail_width")]
+        tail_width: f64,
+        /// Theme color: "blue", "yellow", "red", "green", "gray"
+        #[serde(default = "default_callout_theme")]
+        theme: String,
+    },
 }
+
+fn default_callout_font_size() -> f64 { 14.0 }
+fn default_callout_tail_width() -> f64 { 20.0 }
+fn default_callout_theme() -> String { "blue".to_string() }
 
 /// Table cell alignment
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -1567,6 +1589,7 @@ impl Node {
             NodeKind::Table { .. } => "Table",
             NodeKind::Connector { .. } => "Connector",
             NodeKind::VectorNetwork { .. } => "VectorNetwork",
+            NodeKind::Callout { .. } => "Callout",
         }
     }
 

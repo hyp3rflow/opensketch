@@ -4106,6 +4106,90 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       container.appendChild(connSection);
     }
 
+    // === Callout properties ===
+    if (typeof node.kind === "object" && node.kind.Callout) {
+      const calloutSection = createSection("Callout");
+      const info = JSON.parse(editor.engine.get_callout_info(BigInt(id)));
+
+      // Content textarea
+      const contentRow = document.createElement("div");
+      contentRow.style.cssText = "display:flex;flex-direction:column;gap:4px;";
+      const contentLabel = document.createElement("label");
+      contentLabel.textContent = "Content";
+      contentLabel.style.cssText = "font-size:11px;color:#aaa;";
+      const contentTA = document.createElement("textarea");
+      contentTA.value = info.content || "";
+      contentTA.rows = 3;
+      contentTA.style.cssText = "width:100%;background:#2a2a2a;color:#eee;border:1px solid #444;border-radius:4px;padding:4px;font-size:12px;resize:vertical;";
+      contentTA.addEventListener("input", () => {
+        editor.engine.push_undo();
+        editor.engine.set_callout_content(BigInt(id), contentTA.value);
+        editor.requestRender();
+      });
+      contentRow.appendChild(contentLabel);
+      contentRow.appendChild(contentTA);
+      calloutSection.appendChild(contentRow);
+
+      // Theme selector
+      const themeRow = document.createElement("div");
+      themeRow.style.cssText = "display:flex;align-items:center;gap:8px;";
+      const themeLabel = document.createElement("span");
+      themeLabel.textContent = "Theme";
+      themeLabel.style.cssText = "font-size:11px;color:#aaa;width:50px;";
+      themeRow.appendChild(themeLabel);
+      const themes = ["blue", "yellow", "red", "green", "gray"];
+      const themeColors: Record<string, string> = { blue: "#1E88E5", yellow: "#F9A825", red: "#E53935", green: "#43A047", gray: "#9E9E9E" };
+      for (const name of themes) {
+        const dot = document.createElement("div");
+        dot.style.cssText = `width:20px;height:20px;border-radius:50%;background:${themeColors[name]};cursor:pointer;border:2px solid ${info.theme === name ? '#fff' : 'transparent'};`;
+        dot.title = name;
+        dot.addEventListener("click", () => {
+          editor.engine.push_undo();
+          editor.engine.set_callout_theme(BigInt(id), name);
+          editor.requestRender();
+          refresh();
+        });
+        themeRow.appendChild(dot);
+      }
+      calloutSection.appendChild(themeRow);
+
+      // Font size
+      const fsRow = document.createElement("div");
+      fsRow.style.cssText = "display:flex;align-items:center;gap:8px;";
+      const fsLabel = document.createElement("span");
+      fsLabel.textContent = "Font size";
+      fsLabel.style.cssText = "font-size:11px;color:#aaa;width:50px;";
+      const fsInput = createNumberInput(info.font_size, 8, 72, 1);
+      fsInput.style.width = "60px";
+      fsInput.addEventListener("change", () => {
+        editor.engine.push_undo();
+        editor.engine.set_callout_font_size(BigInt(id), parseFloat(fsInput.value) || 14);
+        editor.requestRender();
+      });
+      fsRow.appendChild(fsLabel);
+      fsRow.appendChild(fsInput);
+      calloutSection.appendChild(fsRow);
+
+      // Tail width
+      const twRow = document.createElement("div");
+      twRow.style.cssText = "display:flex;align-items:center;gap:8px;";
+      const twLabel = document.createElement("span");
+      twLabel.textContent = "Tail width";
+      twLabel.style.cssText = "font-size:11px;color:#aaa;width:50px;";
+      const twInput = createNumberInput(info.tail_width, 5, 100, 1);
+      twInput.style.width = "60px";
+      twInput.addEventListener("change", () => {
+        editor.engine.push_undo();
+        editor.engine.set_callout_tail_width(BigInt(id), parseFloat(twInput.value) || 20);
+        editor.requestRender();
+      });
+      twRow.appendChild(twLabel);
+      twRow.appendChild(twInput);
+      calloutSection.appendChild(twRow);
+
+      container.appendChild(calloutSection);
+    }
+
     // === Sticky Note properties ===
     if (typeof node.kind === "object" && node.kind.StickyNote) {
       const stickySection = createSection("Sticky Note");

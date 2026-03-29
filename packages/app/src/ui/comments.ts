@@ -95,8 +95,8 @@ export class CommentOverlay {
   }
 
   renderPins() {
-    // Remove old pins but keep popup
-    this.container.querySelectorAll(".comment-pin").forEach((el) => el.remove());
+    // Remove old pins and arrows but keep popup
+    this.container.querySelectorAll(".comment-pin, .comment-arrow").forEach((el) => el.remove());
     const comments = this.getComments();
     const zoom = this.editor.engine.get_zoom();
     const panX = this.editor.engine.get_pan_x();
@@ -127,6 +127,30 @@ export class CommentOverlay {
       });
 
       this.container.appendChild(pin);
+
+      // Draw arrow from comment pin to associated node
+      if (c.node_id && c.node_id > 0) {
+        try {
+          const nodeJson = this.editor.engine.get_node_json(BigInt(c.node_id));
+          const nodeInfo = nodeJson ? JSON.parse(nodeJson) : null;
+          if (nodeInfo && nodeInfo.x !== undefined) {
+            const nodeCX = (nodeInfo.x + nodeInfo.width / 2) * zoom + panX;
+            const nodeCY = (nodeInfo.y + nodeInfo.height / 2) * zoom + panY;
+            const pinCX = screenX;
+            const pinCY = screenY;
+            const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+            svg.classList.add("comment-arrow");
+            svg.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:49;";
+            svg.innerHTML = `
+              <defs><marker id="ca-${c.id}" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="8" markerHeight="6" orient="auto">
+                <polygon points="0 0, 10 3.5, 0 7" fill="${c.resolved ? '#666' : '#4a90d9'}" opacity="0.6"/>
+              </marker></defs>
+              <line x1="${pinCX}" y1="${pinCY}" x2="${nodeCX}" y2="${nodeCY}" stroke="${c.resolved ? '#666' : '#4a90d9'}" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.5" marker-end="url(#ca-${c.id})"/>
+            `;
+            this.container.appendChild(svg);
+          }
+        } catch (_) { /* node may not exist */ }
+      }
     }
   }
 

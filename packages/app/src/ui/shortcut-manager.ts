@@ -38,6 +38,7 @@ const DEFAULTS: ShortcutDef[] = [
   { id: "tool.table",    category: "Tools", description: "Table",          defaultBinding: { key: "b" } },
   { id: "tool.slice",    category: "Tools", description: "Slice",          defaultBinding: { key: "k" } },
   { id: "tool.connector",category: "Tools", description: "Connector",      defaultBinding: { key: "l" } },
+  { id: "tool.callout",  category: "Tools", description: "Callout",        defaultBinding: { key: "o" } },
   { id: "tool.section",  category: "Tools", description: "Section",        defaultBinding: { key: "s", shift: true } },
   { id: "tool.freehand", category: "Tools", description: "Freehand draw",  defaultBinding: { key: "d" } },
   { id: "whiteboard.toggle", category: "Whiteboard", description: "Toggle whiteboard mode", defaultBinding: { key: "w", shift: true } },

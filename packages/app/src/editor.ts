@@ -35,7 +35,7 @@ import { initSnapshotPanel } from "./ui/snapshot-panel";
 import { togglePerfProfiler, closePerfProfiler, isPerfProfilerOpen } from "./ui/perf-profiler";
 import { openComponentPlayground, closeComponentPlayground, isComponentPlaygroundOpen } from "./ui/component-playground";
 
-export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "section" | "image" | "pen" | "star" | "polygon" | "slice" | "connector" | "sticky" | "table" | "freehand";
+export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "section" | "image" | "pen" | "star" | "polygon" | "slice" | "connector" | "callout" | "sticky" | "table" | "freehand";
 
 /** Snap threshold in screen pixels */
 const SNAP_THRESHOLD_PX = 5;
@@ -781,6 +781,7 @@ export class Editor {
       else if (_sm.matches(e, "tool.table")) this.setTool("table");
       else if (_sm.matches(e, "tool.slice")) this.setTool("slice");
       else if (_sm.matches(e, "tool.connector")) this.setTool("connector");
+      else if (_sm.matches(e, "tool.callout")) this.setTool("callout");
       else if (_sm.matches(e, "misc.voice")) { (window as any).__toggleVoice?.(); }
       else if (_sm.matches(e, "misc.fileDiff")) { (window as any).__openFileDiffMerge?.(); }
       if (e.key === "Delete" || e.key === "Backspace") {
@@ -1800,6 +1801,13 @@ export class Editor {
           case "slice": id = this.engine.add_slice("", x, y, w, h); break;
           case "sticky": id = this.engine.add_sticky_note(x, y, Math.max(w, 150), Math.max(h, 150), "", "yellow"); break;
           case "table": id = this.engine.add_table(x, y, 3, 3, Math.max(w / 3, 80), Math.max(h / 3, 32)); break;
+          case "callout": {
+            const cw = Math.max(w, 160);
+            const ch = Math.max(h, 80);
+            // Tail points down from bottom-center by default
+            id = this.engine.add_callout(x, y, cw, ch, "", x + cw / 2, y + ch + 40);
+            break;
+          }
           default: id = 0;
         }
         if (id > 0) {
@@ -3224,7 +3232,7 @@ export class Editor {
       ellipse: "crosshair", text: "text", frame: "crosshair",
       section: "crosshair", image: "crosshair", pen: "crosshair",
       star: "crosshair", polygon: "crosshair",
-      slice: "crosshair", connector: "crosshair", sticky: "crosshair", freehand: "crosshair",
+      slice: "crosshair", connector: "crosshair", callout: "crosshair", sticky: "crosshair", freehand: "crosshair",
     };
     this.canvas.style.cursor = cursors[this.currentTool] || "default";
   }

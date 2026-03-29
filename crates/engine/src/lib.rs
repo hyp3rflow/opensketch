@@ -1356,6 +1356,84 @@ impl Engine {
         result
     }
 
+    // --- Callout ---
+
+    pub fn add_callout(&mut self, x: f64, y: f64, w: f64, h: f64, content: &str, tail_x: f64, tail_y: f64) -> u64 {
+        let mut node = Node::new(0, NodeKind::Callout {
+            content: content.to_string(),
+            font_size: 14.0,
+            tail_x,
+            tail_y,
+            tail_width: 20.0,
+            theme: "blue".to_string(),
+        });
+        node.x = x;
+        node.y = y;
+        node.width = w;
+        node.height = h;
+        node.corner_radius = 8.0;
+        node.name = format!("Callout {}", self.scene.node_count() + 1);
+        node.fills = vec![];  // Use theme colors by default
+        self.scene.add_node(node)
+    }
+
+    pub fn set_callout_content(&mut self, id: u64, content: &str) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Callout { content: ref mut c, .. } = node.kind {
+                *c = content.to_string();
+            }
+        }
+    }
+
+    pub fn set_callout_tail(&mut self, id: u64, tail_x: f64, tail_y: f64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Callout { tail_x: ref mut tx, tail_y: ref mut ty, .. } = node.kind {
+                *tx = tail_x;
+                *ty = tail_y;
+            }
+        }
+    }
+
+    pub fn set_callout_tail_width(&mut self, id: u64, width: f64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Callout { tail_width: ref mut tw, .. } = node.kind {
+                *tw = width;
+            }
+        }
+    }
+
+    pub fn set_callout_theme(&mut self, id: u64, theme: &str) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Callout { theme: ref mut t, .. } = node.kind {
+                *t = theme.to_string();
+            }
+        }
+    }
+
+    pub fn set_callout_font_size(&mut self, id: u64, size: f64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Callout { font_size: ref mut fs, .. } = node.kind {
+                *fs = size;
+            }
+        }
+    }
+
+    pub fn get_callout_info(&self, id: u64) -> String {
+        if let Some(node) = self.scene.get_node(id) {
+            if let NodeKind::Callout { ref content, font_size, tail_x, tail_y, tail_width, ref theme } = node.kind {
+                return serde_json::json!({
+                    "content": content,
+                    "font_size": font_size,
+                    "tail_x": tail_x,
+                    "tail_y": tail_y,
+                    "tail_width": tail_width,
+                    "theme": theme,
+                }).to_string();
+            }
+        }
+        "null".to_string()
+    }
+
     pub fn add_frame(&mut self, x: f64, y: f64, w: f64, h: f64) -> u64 {
         let mut node = Node::new(0, NodeKind::Frame);
         node.x = x; node.y = y; node.width = w; node.height = h;
@@ -5723,6 +5801,7 @@ impl Engine {
                 NodeKind::VectorNetwork(_) => "VectorNetwork",
                 NodeKind::StickyNote { .. } => "StickyNote",
                 NodeKind::Table { .. } => "Table",
+                NodeKind::Callout { .. } => "Callout",
             }.to_string();
             *kind_counts.entry(kind_str).or_insert(0) += 1;
             if !node.fills.is_empty() { has_fill += 1; }

@@ -13,6 +13,17 @@ fn escape_xml(s: &str) -> String {
         .replace('\'', "&apos;")
 }
 
+fn first_fill_color(node: &Node) -> Option<String> {
+    node.visible_fills().next().map(|f| {
+        let c = f.color();
+        color_to_hex(c.r, c.g, c.b)
+    })
+}
+
+fn first_stroke_color(node: &Node) -> Option<String> {
+    node.first_stroke().map(|s| color_to_hex(s.color.r, s.color.g, s.color.b))
+}
+
 fn build_filter_defs(node: &Node, filter_id: &str) -> Option<String> {
     let has_shadows = node.shadows.iter().any(|s| s.visible);
     let has_blur = node.blur > 0.0;
@@ -742,6 +753,59 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
             if has_opacity { attrs.push_str(&format!(r#" opacity="{}""#, node.opacity)); }
             attrs.push_str("/>\n");
             buf.push_str(&attrs);
+        }
+        NodeKind::Callout { ref content, font_size, tail_x, tail_y, tail_width, ref theme } => {
+            let x = node.x;
+            let y = node.y;
+            let w = node.width;
+            let h = node.height;
+            let r = node.corner_radius.min(w / 2.0).min(h / 2.0);
+
+            let (bg, border, txt) = match theme.as_str() {
+                "yellow" => ("#FFF9C4", "#F9A825", "#5D4037"),
+                "red"    => ("#FFCDD2", "#E53935", "#B71C1C"),
+                "green"  => ("#C8E6C9", "#43A047", "#1B5E20"),
+                "gray"   => ("#F5F5F5", "#9E9E9E", "#424242"),
+                _        => ("#BBDEFB", "#1E88E5", "#0D47A1"),
+            };
+
+            let fill_str = first_fill_color(node).unwrap_or_else(|| bg.to_string());
+            let stroke_str = first_stroke_color(node).unwrap_or_else(|| border.to_string());
+
+            // Body rect
+            buf.push_str(&format!(
+                r#"<rect x="{}" y="{}" width="{}" height="{}" rx="{}" fill="{}" stroke="{}" stroke-width="1.5"/>"#,
+                x, y, w, h, r, fill_str, stroke_str
+            ));
+            buf.push('\n');
+
+            // Tail triangle
+            let cx = x + w / 2.0;
+            let cy = y + h / 2.0;
+            let hw = tail_width / 2.0;
+            let dx = tail_x - cx;
+            let dy = tail_y - cy;
+            let (bx, by, px, py) = if dx.abs() / w > dy.abs() / h {
+                if dx > 0.0 { (x + w, cy.max(y + r).min(y + h - r), 0.0, 1.0) }
+                else { (x, cy.max(y + r).min(y + h - r), 0.0, 1.0) }
+            } else {
+                if dy > 0.0 { (cx.max(x + r).min(x + w - r), y + h, 1.0, 0.0) }
+                else { (cx.max(x + r).min(x + w - r), y, 1.0, 0.0) }
+            };
+            buf.push_str(&format!(
+                r#"<polygon points="{},{} {},{} {},{}" fill="{}" stroke="{}" stroke-width="1.5"/>"#,
+                bx - px * hw, by - py * hw, *tail_x, *tail_y, bx + px * hw, by + py * hw, fill_str, stroke_str
+            ));
+            buf.push('\n');
+
+            // Text
+            if !content.is_empty() {
+                buf.push_str(&format!(
+                    r#"<text x="{}" y="{}" font-size="{}" fill="{}" font-family="Inter, system-ui, sans-serif">{}</text>"#,
+                    x + 8.0, y + 8.0 + font_size, font_size, txt, escape_xml(content)
+                ));
+                buf.push('\n');
+            }
         }
         NodeKind::Slot { .. } | NodeKind::Instance(_) => {
             // Render as group with children

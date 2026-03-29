@@ -20,7 +20,7 @@ Pure Rust crate compiled to WASM via `wasm-pack`. No NAPI — runs entirely in t
 - `ListStyle` enum: `None`, `Bullet`, `Numbered`, `Dash`, `Checkbox`, `CheckboxChecked`
 - Text node fields: `list_style: ListStyle`, `indent_level: u8` (0-10)
 - Text node fields: `text_transform: TextTransform` (None/Uppercase/Lowercase/Capitalize), `text_indent: f64` (px)
-- `NodeKind` enum: `Rect`, `Ellipse`, `Text { ... }`, `Frame`, `Group`, `Path { points, closed }`, `VectorNetwork(Box<VectorNetwork>)`, `Image { src, fit }`, `Star { points, inner_radius }`, `Polygon { sides }`, `Table { rows, cols, cells, col_widths, row_heights }`
+- `NodeKind` enum: `Rect`, `Ellipse`, `Text { ... }`, `Frame`, `Group`, `Path { points, closed }`, `VectorNetwork(Box<VectorNetwork>)`, `Image { src, fit }`, `Star { points, inner_radius }`, `Polygon { sides }`, `Table { rows, cols, cells, col_widths, row_heights }`, `Callout { content, font_size, tail_x, tail_y, tail_width, theme }`
 - `PathPoint { x, y, handle_in_x, handle_in_y, handle_out_x, handle_out_y }` — anchor + bezier control handles (absolute coords)
 - `VectorNetwork { vertices, segments, regions }` — Figma-style vector network with multi-connection vertices
 - `VectorVertex { id, x, y }`, `VectorSegment { id, start_vertex_id, end_vertex_id, handle_start, handle_end }`, `VectorRegion { segment_ids }`

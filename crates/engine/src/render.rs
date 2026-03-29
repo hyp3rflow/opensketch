@@ -480,6 +480,9 @@ impl Renderer {
             NodeKind::Connector { start_node_id, end_node_id, start_x, end_x, start_y, end_y, ref path_type, end_arrow, start_arrow } => {
                 self.render_connector(ctx, node, scene, *start_node_id, *end_node_id, *start_x, *start_y, *end_x, *end_y, path_type, *end_arrow, *start_arrow);
             }
+            NodeKind::Callout { ref content, font_size, tail_x, tail_y, tail_width, ref theme } => {
+                self.render_callout(ctx, node, content, *font_size, *tail_x, *tail_y, *tail_width, theme);
+            }
         }
 
         ctx.restore();
@@ -1615,6 +1618,122 @@ impl Renderer {
         }
         if t == f64::INFINITY { return (cx, cy); }
         (cx + dx * t, cy + dy * t)
+    }
+
+    fn render_callout(&self, ctx: &CanvasRenderingContext2d, node: &Node, content: &str, font_size: f64, tail_x: f64, tail_y: f64, tail_width: f64, theme: &str) {
+        let x = node.x;
+        let y = node.y;
+        let w = node.width;
+        let h = node.height;
+        let r = node.corner_radius.min(w / 2.0).min(h / 2.0);
+
+        // Theme colors
+        let (bg_color, border_color, text_color) = match theme {
+            "yellow" => ("#FFF9C4", "#F9A825", "#5D4037"),
+            "red"    => ("#FFCDD2", "#E53935", "#B71C1C"),
+            "green"  => ("#C8E6C9", "#43A047", "#1B5E20"),
+            "gray"   => ("#F5F5F5", "#9E9E9E", "#424242"),
+            _        => ("#BBDEFB", "#1E88E5", "#0D47A1"), // blue default
+        };
+
+        // Determine tail base: find closest edge center to tail point
+        let cx = x + w / 2.0;
+        let cy = y + h / 2.0;
+        let hw = tail_width / 2.0;
+
+        // Tail direction from body center to tail tip
+        let dx = tail_x - cx;
+        let dy = tail_y - cy;
+
+        // Calculate base point on body edge
+        let (base_x, base_y, perp_x, perp_y) = if dx.abs() / w > dy.abs() / h {
+            // Tail exits from left or right
+            if dx > 0.0 {
+                (x + w, cy.max(y + r).min(y + h - r), 0.0, 1.0)
+            } else {
+                (x, cy.max(y + r).min(y + h - r), 0.0, 1.0)
+            }
+        } else {
+            // Tail exits from top or bottom
+            if dy > 0.0 {
+                (cx.max(x + r).min(x + w - r), y + h, 1.0, 0.0)
+            } else {
+                (cx.max(x + r).min(x + w - r), y, 1.0, 0.0)
+            }
+        };
+
+        // Draw body (rounded rect) + tail
+        ctx.begin_path();
+        // Rounded rect body
+        self.draw_rounded_rect(ctx, x, y, w, h, r);
+
+        // Draw tail as separate triangle
+        ctx.move_to(base_x - perp_x * hw, base_y - perp_y * hw);
+        ctx.line_to(tail_x, tail_y);
+        ctx.line_to(base_x + perp_x * hw, base_y + perp_y * hw);
+        ctx.close_path();
+
+        // Fill
+        if node.visible_fills().count() > 0 {
+            self.apply_fill_stroke(ctx, node);
+        } else {
+            ctx.set_fill_style_str(bg_color);
+            ctx.fill();
+            ctx.set_stroke_style_str(border_color);
+            ctx.set_line_width(1.5);
+            // Stroke the body
+            self.draw_rounded_rect(ctx, x, y, w, h, r);
+            ctx.stroke();
+            // Stroke the tail
+            ctx.begin_path();
+            ctx.move_to(base_x - perp_x * hw, base_y - perp_y * hw);
+            ctx.line_to(tail_x, tail_y);
+            ctx.line_to(base_x + perp_x * hw, base_y + perp_y * hw);
+            ctx.stroke();
+        }
+
+        // Render text content
+        if !content.is_empty() {
+            let fill_css = if node.visible_fills().count() > 0 {
+                node.visible_fills().last().map(|f| f.color().to_css()).unwrap_or_else(|| text_color.to_string())
+            } else {
+                text_color.to_string()
+            };
+            // Use node fill for text color, or theme text color
+            let actual_text_color = if node.visible_fills().count() > 0 { text_color.to_string() } else { text_color.to_string() };
+            ctx.set_fill_style_str(&actual_text_color);
+            let font_str = format!("{}px Inter, system-ui, sans-serif", font_size);
+            ctx.set_font(&font_str);
+            ctx.set_text_baseline("top");
+
+            let padding = 8.0;
+            let max_w = w - padding * 2.0;
+            // Simple word wrap
+            let words: Vec<&str> = content.split_whitespace().collect();
+            let line_h = font_size * 1.4;
+            let mut lines: Vec<String> = vec![];
+            let mut current_line = String::new();
+
+            for word in &words {
+                let test = if current_line.is_empty() {
+                    word.to_string()
+                } else {
+                    format!("{} {}", current_line, word)
+                };
+                let metrics = ctx.measure_text(&test).unwrap();
+                if metrics.width() > max_w && !current_line.is_empty() {
+                    lines.push(current_line);
+                    current_line = word.to_string();
+                } else {
+                    current_line = test;
+                }
+            }
+            if !current_line.is_empty() { lines.push(current_line); }
+
+            for (i, line) in lines.iter().enumerate() {
+                ctx.fill_text(line, x + padding, y + padding + i as f64 * line_h).ok();
+            }
+        }
     }
 
     fn render_selection(&self, ctx: &CanvasRenderingContext2d, node: &Node) {
