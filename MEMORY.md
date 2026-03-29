@@ -1433,12 +1433,24 @@
   - localStorage 영속, backward-compatible
   - 순수 TypeScript 구현 (ui/template-panel.ts, ~600 lines)
 
+## 완료된 기능 (추가 — Design Handoff Checklist)
+- Design handoff checklist:
+  - Rust: handoff_checklist.rs — 씬 분석 엔진 (7개 카테고리, 13개 체크 항목)
+  - 카테고리: Naming, Styles, Components, Assets, Text, Layout, Export
+  - 체크 항목: 레이어 네이밍, 색상 스타일 연결, 텍스트 스타일 정의, 디태치된 인스턴스, 이미지 alt text, 이미지 소스, 빈 텍스트, 최소 텍스트 크기, 픽셀 정렬, 제로 사이즈, 탑레벨 프레임 네이밍, 씬 복잡도
+  - Severity 레벨: Error/Warning/Info
+  - WASM: get_handoff_checklist() → JSON
+  - TS: Handoff panel 빈 상태에서 체크리스트 자동 표시
+  - 진행률 바 (컬러: 초록/노랑/빨강), 카테고리별 섹션 접기
+  - 문제 항목 클릭 → 해당 노드 선택 + 줌
+  - Re-check 버튼으로 실시간 재분석
+
 ## 다음 할 것
-- Spatial audio for collaboration — 멀티플레이어 캔버스에서 거리 기반 음성/효과음, 가까운 유저일수록 소리 크게
 - Cursor chat improvements — 커서 채팅에 이모지 리액션, @멘션, 메시지 히스토리 패널
-- Component variant interaction — variant 간 hover/click 상태 전환 프로토타이핑: 컴포넌트 내 트리거 설정으로 variant swap 애니메이션
-- Design handoff checklist — 개발자 인수인계 체크리스트 자동 생성: 미완성 에셋/스타일/토큰 감지, 진행률 트래킹, 팀 공유
 - Smart layout suggestions on paste — 붙여넣은 노드를 기존 레이아웃에 자동 맞춤 (gap/alignment 추론)
+- Redline / measurement annotations — 노드 간 거리/여백을 영구 주석으로 저장, 개발자 공유 모드에서 표시, PDF export 포함
+- Content-aware resize — 이미지/텍스트 노드 리사이즈 시 콘텐츠 비율 유지 + 텍스트 자동 리플로우, Figma scale tool 스타일
+- Shared cursor bookmarks — 캔버스의 특정 위치+줌 레벨을 북마크로 저장, 팀원과 링크 공유 시 동일 뷰로 점프
 ## 완료된 기능 (추가 — Minimap Node Interaction)
 - Canvas minimap에서 직접 노드 선택 + 이동:
   - 클릭: 해당 노드 선택 + 뷰포트 팬

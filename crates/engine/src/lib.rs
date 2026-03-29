@@ -31,6 +31,7 @@ mod svg_import;
 pub mod code_to_design;
 pub mod code_export;
 mod design_health;
+mod handoff_checklist;
 mod smart_replace;
 pub mod crdt;
 pub mod whiteboard;
@@ -5791,6 +5792,13 @@ impl Engine {
     #[wasm_bindgen]
     pub fn get_design_health(&self) -> String {
         let report = design_health::analyze_health(&self.scene, &self.components, &self.styles);
+        serde_json::to_string(&report).unwrap_or_else(|_| "{}".to_string())
+    }
+
+    /// Run handoff checklist analysis — returns JSON with all checks, pass/fail, node IDs
+    #[wasm_bindgen]
+    pub fn get_handoff_checklist(&self) -> String {
+        let report = handoff_checklist::analyze(&self.scene, &self.components, &self.styles);
         serde_json::to_string(&report).unwrap_or_else(|_| "{}".to_string())
     }
 

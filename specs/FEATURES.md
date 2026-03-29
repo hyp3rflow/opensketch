@@ -788,6 +788,7 @@ Frame overflow control and content scrolling.
 - [x] Kotlin Compose code gen: Text, Box, Image, Modifier chain (size, offset, clip, background, border, rotate, alpha, shadow, blur), layout (Column/Row), font/text properties
 - [x] **Asset export**: PNG @1x, PNG @2x, SVG — per-node one-click download
 - [x] **Spacing overlay toggle**: enables Alt+Hover measurement mode from within handoff panel
+- [x] **Handoff checklist**: Auto-generated dev handoff readiness report — naming, styles, components, assets, text, layout, export checks with severity levels, progress bar, click-to-select offending nodes
 - [x] Design tokens export: W3C DTCG, Style Dictionary, Tailwind Config
 - [x] Syntax highlighting for all languages (VS Code-style colors)
 - [x] CSS gen: bitmap filter support, gradients, blend modes, layout, text properties

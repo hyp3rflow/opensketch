@@ -16,11 +16,7 @@ export function setupHandoffPanel(container: HTMLElement, editor: Editor) {
     currentIds = ids;
     container.innerHTML = "";
     if (ids.length === 0) {
-      container.innerHTML = `
-        <div style="display:flex;flex-direction:column;align-items:center;padding-top:60px;color:#555;">
-          <span style="opacity:0.4;margin-bottom:8px;">${icons.cursor}</span>
-          <span style="font-size:11px;">Select an element for handoff specs</span>
-        </div>`;
+      renderChecklist(container, editor);
       return;
     }
     if (ids.length > 1) {
@@ -915,4 +911,113 @@ function highlightTailwind(code: string): string {
     return `<span style="color:#c586c0;">class</span>=&quot;${highlighted}&quot;`;
   });
   return out;
+}
+
+/* ── Handoff Checklist (shown when no node selected) ── */
+
+interface ChecklistItemData {
+  id: string;
+  category: string;
+  title: string;
+  description: string;
+  severity: "Error" | "Warning" | "Info";
+  node_ids: number[];
+  passed: boolean;
+}
+
+interface CategorySummaryData {
+  name: string;
+  total: number;
+  passed: number;
+}
+
+interface HandoffChecklistData {
+  total_items: number;
+  passed_items: number;
+  completion_pct: number;
+  categories: CategorySummaryData[];
+  items: ChecklistItemData[];
+}
+
+function renderChecklist(container: HTMLElement, editor: Editor) {
+  let checklist: HandoffChecklistData;
+  try {
+    const json = (editor.engine as any).get_handoff_checklist();
+    checklist = JSON.parse(json);
+  } catch {
+    container.innerHTML = `<div style="padding:16px;color:#666;font-size:12px;">Checklist unavailable</div>`;
+    return;
+  }
+
+  const wrap = document.createElement("div");
+  wrap.style.cssText = "padding:12px;font-size:12px;color:#ccc;overflow-y:auto;max-height:100%;";
+
+  const pct = checklist.completion_pct;
+  const barColor = pct >= 80 ? "#36b37e" : pct >= 50 ? "#ffab00" : "#ff5630";
+
+  wrap.innerHTML = `
+    <div style="margin-bottom:12px;">
+      <div style="font-size:14px;font-weight:600;margin-bottom:4px;">📋 Handoff Checklist</div>
+      <div style="font-size:11px;color:#888;margin-bottom:8px;">
+        ${checklist.passed_items}/${checklist.total_items} checks passed
+      </div>
+      <div style="background:#333;border-radius:4px;height:6px;overflow:hidden;">
+        <div style="width:${pct}%;height:100%;background:${barColor};border-radius:4px;transition:width 0.3s;"></div>
+      </div>
+      <div style="text-align:right;font-size:10px;color:#888;margin-top:2px;">${pct}%</div>
+    </div>
+  `;
+
+  const grouped = new Map<string, ChecklistItemData[]>();
+  for (const item of checklist.items) {
+    if (!grouped.has(item.category)) grouped.set(item.category, []);
+    grouped.get(item.category)!.push(item);
+  }
+
+  for (const [cat, items] of grouped) {
+    const catSummary = checklist.categories.find(c => c.name === cat);
+    const catDiv = document.createElement("div");
+    catDiv.style.cssText = "margin-bottom:12px;";
+
+    const catHeader = document.createElement("div");
+    catHeader.style.cssText = "font-size:11px;font-weight:600;color:#aaa;margin-bottom:6px;display:flex;justify-content:space-between;";
+    catHeader.innerHTML = `<span>${cat}</span><span style="color:#666;">${catSummary?.passed ?? 0}/${catSummary?.total ?? items.length}</span>`;
+    catDiv.appendChild(catHeader);
+
+    for (const item of items) {
+      const row = document.createElement("div");
+      row.style.cssText = `display:flex;align-items:flex-start;gap:6px;padding:6px 8px;border-radius:4px;margin-bottom:2px;background:${item.passed ? "transparent" : "#1a1a1a"};cursor:${item.node_ids.length ? "pointer" : "default"};`;
+
+      const icon = item.passed ? "✅" : item.severity === "Error" ? "❌" : "⚠️";
+      row.innerHTML = `
+        <span style="flex-shrink:0;font-size:11px;">${icon}</span>
+        <div>
+          <div style="font-size:11px;font-weight:500;color:${item.passed ? "#888" : "#ddd"};">${item.title}</div>
+          <div style="font-size:10px;color:#666;margin-top:1px;">${item.description}</div>
+        </div>
+      `;
+
+      if (item.node_ids.length > 0) {
+        row.addEventListener("click", () => {
+          const nid = item.node_ids[0]!;
+          editor.selectNode(nid);
+          try { (editor as any).zoomToSelection?.(); } catch {}
+        });
+        row.addEventListener("mouseenter", () => { row.style.background = "#252525"; });
+        row.addEventListener("mouseleave", () => { row.style.background = item.passed ? "transparent" : "#1a1a1a"; });
+      }
+
+      catDiv.appendChild(row);
+    }
+    wrap.appendChild(catDiv);
+  }
+
+  const refreshBtn = document.createElement("button");
+  refreshBtn.textContent = "↻ Re-check";
+  refreshBtn.style.cssText = "width:100%;padding:6px;border:1px solid #444;border-radius:4px;background:#2a2a2a;color:#ccc;cursor:pointer;font-size:11px;";
+  refreshBtn.addEventListener("click", () => renderChecklist(container, editor));
+  wrap.appendChild(refreshBtn);
+
+  container.innerHTML = "";
+  container.appendChild(wrap);
 }
