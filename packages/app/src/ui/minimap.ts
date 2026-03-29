@@ -136,8 +136,12 @@ export function setupMinimap(container: HTMLElement, editor: Editor) {
     const dataJson = editor.engine.get_minimap_data();
     let entries: MinimapEntry[] = [];
     try { entries = JSON.parse(dataJson); } catch { /* empty */ }
+    cachedEntries = entries;
 
-    for (const [_id, x, y, w, h, fillColor, kindChar] of entries) {
+    // Get selected node ids
+    const selIds = new Set(Array.from(editor.engine.get_selection()).map(Number));
+
+    for (const [nodeId, x, y, w, h, fillColor, kindChar] of entries) {
       const [mx, my] = sceneToMinimap(x, y);
       const mw = w * scale;
       const mh = h * scale;
@@ -161,6 +165,13 @@ export function setupMinimap(container: HTMLElement, editor: Editor) {
         ctx.strokeRect(mx, my, Math.max(mw, 1), Math.max(mh, 1));
       } else {
         ctx.fillRect(mx, my, Math.max(mw, 1), Math.max(mh, 1));
+      }
+
+      // Highlight selected nodes
+      if (selIds.has(nodeId)) {
+        ctx.strokeStyle = "#ff5c5c";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(mx - 1, my - 1, Math.max(mw, 1) + 2, Math.max(mh, 1) + 2);
       }
     }
 
@@ -213,12 +224,39 @@ export function setupMinimap(container: HTMLElement, editor: Editor) {
   }
 
   // --- Drag interactions ---
-  type DragMode = "pan" | "resize-top" | "resize-bottom" | "resize-left" | "resize-right" | null;
+  type DragMode = "pan" | "resize-top" | "resize-bottom" | "resize-left" | "resize-right" | "node-drag" | null;
   let dragMode: DragMode = null;
   let dragStartScene: [number, number] = [0, 0];
   let dragStartZoom = 1;
+  let dragNodeId: number | null = null;
+  let dragNodeStartX = 0;
+  let dragNodeStartY = 0;
+  let hasDragged = false;
 
   const EDGE_THRESHOLD = 8; // CSS pixels
+  const NODE_HIT_THRESHOLD = 4; // CSS pixels for node hit test
+
+  /** Cached entries for hit testing */
+  let cachedEntries: MinimapEntry[] = [];
+
+  /** Hit-test nodes in minimap coordinates (CSS pixels). Returns node id or null. */
+  function hitTestMinimapNode(mx: number, my: number): number | null {
+    updateMapping();
+    // Iterate in reverse (top-most first)
+    for (let i = cachedEntries.length - 1; i >= 0; i--) {
+      const [id, x, y, w, h] = cachedEntries[i];
+      const [nx, ny] = sceneToMinimap(x, y);
+      const nw = w * scale;
+      const nh = h * scale;
+      // Convert to CSS coords (÷2)
+      const cx = nx / 2, cy = ny / 2, cw2 = nw / 2, ch2 = nh / 2;
+      const pad = NODE_HIT_THRESHOLD;
+      if (mx >= cx - pad && mx <= cx + cw2 + pad && my >= cy - pad && my <= cy + ch2 + pad) {
+        return id;
+      }
+    }
+    return null;
+  }
 
   function hitTestViewportEdge(mx: number, my: number): DragMode {
     updateMapping();
@@ -242,12 +280,57 @@ export function setupMinimap(container: HTMLElement, editor: Editor) {
     const rect = canvas.getBoundingClientRect();
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
-    dragMode = hitTestViewportEdge(mx, my);
+    hasDragged = false;
+
+    // First: check viewport edge resize
+    const edgeHit = hitTestViewportEdge(mx, my);
+    if (edgeHit !== "pan") {
+      dragMode = edgeHit;
+      dragStartScene = minimapToScene(mx, my);
+      dragStartZoom = editor.engine.get_zoom();
+      return;
+    }
+
+    // Second: check node hit (Alt+click = direct node interaction)
+    const nodeId = hitTestMinimapNode(mx, my);
+    if (nodeId !== null && e.altKey) {
+      // Start node drag
+      dragMode = "node-drag";
+      dragNodeId = nodeId;
+      dragStartScene = minimapToScene(mx, my);
+      // Get node's current position
+      const nodeJson = editor.engine.get_node_json(BigInt(nodeId));
+      if (nodeJson) {
+        try {
+          const nd = JSON.parse(nodeJson);
+          dragNodeStartX = nd.x ?? 0;
+          dragNodeStartY = nd.y ?? 0;
+        } catch { /* ignore */ }
+      }
+      // Select the node
+      editor.engine.set_selection(new BigUint64Array([BigInt(nodeId)]));
+      editor.fireSelectionNow([nodeId]);
+      editor.requestRender();
+      return;
+    }
+
+    // Click on node without Alt: select + pan to it
+    if (nodeId !== null) {
+      dragMode = "pan";
+      dragNodeId = nodeId; // track for click detection
+      editor.engine.set_selection(new BigUint64Array([BigInt(nodeId)]));
+      editor.fireSelectionNow([nodeId]);
+      editor.requestRender();
+      panToMouse(e);
+      return;
+    }
+
+    // Default: viewport pan
+    dragMode = "pan";
+    dragNodeId = null;
     dragStartScene = minimapToScene(mx, my);
     dragStartZoom = editor.engine.get_zoom();
-    if (dragMode === "pan") {
-      panToMouse(e);
-    }
+    panToMouse(e);
   });
 
   window.addEventListener("mousemove", (e) => {
@@ -257,25 +340,44 @@ export function setupMinimap(container: HTMLElement, editor: Editor) {
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
       if (mx >= 0 && mx <= MINIMAP_W && my >= 0 && my <= MINIMAP_H) {
-        const hit = hitTestViewportEdge(mx, my);
-        if (hit === "resize-top" || hit === "resize-bottom") {
+        const edgeHit = hitTestViewportEdge(mx, my);
+        if (edgeHit === "resize-top" || edgeHit === "resize-bottom") {
           canvas.style.cursor = "ns-resize";
-        } else if (hit === "resize-left" || hit === "resize-right") {
+        } else if (edgeHit === "resize-left" || edgeHit === "resize-right") {
           canvas.style.cursor = "ew-resize";
         } else {
-          canvas.style.cursor = "grab";
+          const nodeHit = hitTestMinimapNode(mx, my);
+          canvas.style.cursor = nodeHit !== null ? (e.altKey ? "move" : "pointer") : "grab";
         }
       }
       return;
     }
-    if (dragMode === "pan") {
+    hasDragged = true;
+    if (dragMode === "node-drag" && dragNodeId !== null) {
+      // Move node in scene space
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+      const [sx, sy] = minimapToScene(mx, my);
+      const dx = sx - dragStartScene[0];
+      const dy = sy - dragStartScene[1];
+      editor.engine.move_node(BigInt(dragNodeId), dx, dy);
+      dragStartScene = [sx, sy];
+      editor.requestRender();
+    } else if (dragMode === "pan") {
       panToMouse(e);
     } else {
       resizeViewport(e);
     }
   });
 
-  window.addEventListener("mouseup", () => { dragMode = null; });
+  window.addEventListener("mouseup", () => {
+    if (dragMode === "node-drag" && hasDragged) {
+      editor.engine.push_undo();
+    }
+    dragMode = null;
+    dragNodeId = null;
+  });
 
   function panToMouse(e: MouseEvent) {
     const rect = canvas.getBoundingClientRect();

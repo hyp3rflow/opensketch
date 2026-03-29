@@ -1417,7 +1417,14 @@
 - Component variant interaction — variant 간 hover/click 상태 전환 프로토타이핑: 컴포넌트 내 트리거 설정으로 variant swap 애니메이션
 - Design handoff checklist — 개발자 인수인계 체크리스트 자동 생성: 미완성 에셋/스타일/토큰 감지, 진행률 트래킹, 팀 공유
 - Smart layout suggestions on paste — 붙여넣은 노드를 기존 레이아웃에 자동 맞춤 (gap/alignment 추론)
-- Canvas minimap interaction — 미니맵에서 직접 노드 선택/이동, 영역 줌
+## 완료된 기능 (추가 — Minimap Node Interaction)
+- Canvas minimap에서 직접 노드 선택 + 이동:
+  - 클릭: 해당 노드 선택 + 뷰포트 팬
+  - Alt+드래그: 미니맵 내에서 직접 노드 이동 (scene 좌표 반영)
+  - 선택된 노드 빨간 테두리 하이라이트
+  - 노드 위 호버 시 커서 변경 (pointer / Alt=move)
+  - Undo 통합 (드래그 완료 시 push_undo)
+  - 기존 뷰포트 pan/resize 기능 유지
 
 ## 완료된 기능 (추가 — Auto-Spacing Tool)
 - Properties panel Align 섹션에 Auto-spacing UI 추가
