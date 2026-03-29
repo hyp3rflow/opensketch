@@ -515,6 +515,26 @@
 - [x] **Toolbar button**: Responsive icon + Cmd+Alt+R shortcut
 - [x] **Keyboard**: Cmd+Alt+R toggle, Escape to close
 
+### Responsive Auto-Layout Preview (Interactive)
+- [x] **On-canvas drag resize**: Frame edge handles (left/right/bottom) for real-time auto-layout preview
+- [x] **Breakpoint indicator**: Top bar ruler with breakpoint markers, active breakpoint label on canvas
+- [x] **Breakpoint snapping**: Width snaps to nearby breakpoint values while dragging (8px threshold)
+- [x] **Live dimension display**: Shows current width × height near frame, width measurement arrows below
+- [x] **Breakpoint guide lines**: Vertical dashed lines at each breakpoint width on canvas
+- [x] **Reset/Done/Cancel**: Top bar controls — Reset to original, Done (apply), Cancel (Esc to restore)
+- [x] **Auto-layout recalculation**: Flex/Grid layout, Hug/Fill sizing, breakpoint overrides all update in real-time
+- [x] **Keyboard**: Cmd+Alt+R toggle, Escape to cancel, Enter to apply
+- [x] **Default breakpoints**: Mobile S (320), Mobile (375), Tablet (768), Laptop (1024), Desktop (1440)
+- [x] **Pure TypeScript**: ui/responsive-resize.ts, integrated into Editor pointer/render pipeline
+
+### Responsive Auto-Layout Preview
+- [x] **Real-time layout recomputation**: During resize handle drag, auto-layout children (Flex/Grid) are repositioned every frame
+- [x] **Hug/Fill sizing**: Children with Fill sizing expand/shrink with parent; Hug parents auto-shrink to fit
+- [x] **Breakpoint indicator**: Shows active breakpoint label + current width as floating pill above the resized frame
+- [x] **resize_node_with_layout**: Combined WASM method for resize + immediate layout recomputation
+- [x] **compute_layout**: Explicit WASM method for triggering layout recomputation from TypeScript
+- [x] **get_active_breakpoint_info**: Returns active breakpoint label/max_width as JSON for UI indicators
+
 ### Responsive Token System
 - [x] **Global breakpoint presets**: Scene-level responsive presets (id, label, width, height)
 - [x] **Variable-mode mapping**: Each preset maps variable collections to specific modes

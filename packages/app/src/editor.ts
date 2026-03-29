@@ -18,6 +18,7 @@ import { openComponentLibraryPanel } from "./ui/component-library";
 import { openComponentAnalytics, closeComponentAnalytics, isComponentAnalyticsOpen } from "./ui/component-analytics";
 import { openSmartSuggestions, closeSmartSuggestions, isSmartSuggestionsOpen } from "./ui/smart-suggestions";
 import { GradientEditor } from "./ui/gradient-editor";
+import { ResponsiveResize } from "./ui/responsive-resize";
 import { SmartSelectPanel } from "./ui/smart-select";
 import type { CollabClient } from "./collab";
 import { findSpacingHandles, hitTestSpacingHandle, renderSpacingHandles, type SpacingHandle } from "./tools/spacing-handles";
@@ -121,6 +122,10 @@ export class Editor {
 
   // Smart guides state
   private _snapGuides: SnapGuide[] = [];
+
+  // Breakpoint indicator for responsive resize preview
+  private _breakpointIndicator: { label: string; maxWidth: number; currentWidth: number } | null = null;
+  private _breakpointIndicatorTimeout: ReturnType<typeof setTimeout> | null = null;
   private _pointSnapIndicators: PointSnapIndicator[] = [];
   private _measureLines: MeasureLine[] = [];
   private _measureTargetBounds: { x: number; y: number; w: number; h: number } | null = null;
@@ -164,6 +169,9 @@ export class Editor {
   private _lastPointerScreenX = 0;
   private _lastPointerScreenY = 0;
 
+  // Responsive auto-layout preview
+  private _responsiveResize: ResponsiveResize | null = null;
+
   // Throttle selection callbacks during drag
   private selectionDirty = false;
   private selectionThrottleId = 0;
@@ -185,6 +193,8 @@ export class Editor {
     this._diffOverlay = setupDiffOverlay(this);
     this._devModeOverlay = new DevModeOverlay(this);
     this.whiteboardMode = new WhiteboardMode(this);
+    this._responsiveResize = new ResponsiveResize(engine, canvas);
+    this._responsiveResize.setRenderCallback(() => { this.needsRender = true; });
     this._cursorChat.init({
       onSend: (text, x, y, isReaction) => {
         if (isReaction) {
@@ -359,6 +369,13 @@ export class Editor {
         if (e.key === "Escape") {
           closeShortcutsPanel();
         }
+        return;
+      }
+
+      // Responsive resize mode keyboard
+      if (this._responsiveResize?.isActive && this._responsiveResize.handleKeydown(e.key)) {
+        e.preventDefault();
+        this.needsRender = true;
         return;
       }
       if (e.code === "Space") {
@@ -682,14 +699,15 @@ export class Editor {
         return;
       }
 
-      // Ctrl/Cmd+Alt+R: responsive resize preview
+      // Ctrl/Cmd+Alt+R: responsive resize preview (interactive on-canvas)
       if ((e.metaKey || e.ctrlKey) && e.altKey && (e.key === "r" || e.key === "®")) {
         e.preventDefault();
-        if (isResponsivePreviewOpen()) {
-          closeResponsivePreview();
+        if (this._responsiveResize?.isActive) {
+          this._responsiveResize.deactivate(false);
         } else {
-          openResponsivePreview(this.engine);
+          this._responsiveResize?.activate();
         }
+        this.needsRender = true;
         return;
       }
 
@@ -874,6 +892,14 @@ export class Editor {
       this.canvas.style.cursor = "grabbing";
       this.canvas.setPointerCapture(e.pointerId);
       return;
+    }
+
+    // Responsive resize mode: handle edge drag
+    if (this._responsiveResize?.isActive) {
+      if (this._responsiveResize.onPointerDown(x, y)) {
+        this.canvas.setPointerCapture(e.pointerId);
+        return;
+      }
     }
 
     // Stamp mode: place stamp on click
@@ -1224,6 +1250,14 @@ export class Editor {
       return;
     }
 
+    // Responsive resize dragging
+    if (this._responsiveResize?.isActive) {
+      if (this._responsiveResize.onPointerMove(e.offsetX, e.offsetY)) return;
+      // Update cursor
+      const cursor = this._responsiveResize.getCursor(e.offsetX, e.offsetY);
+      if (cursor) { this.canvas.style.cursor = cursor; return; }
+    }
+
     // Spacing handle dragging
     if (this._spacingDragging) {
       const zoom = this.engine.get_zoom();
@@ -1549,8 +1583,10 @@ export class Editor {
         }
         if (nw > 0 && nh > 0) {
           this.engine.set_node_position(this.drag.nodeId, nx, ny);
-          // Use constraint-aware resize for frames/groups
-          this.engine.resize_node_with_constraints(this.drag.nodeId, nw, nh);
+          // Use constraint-aware resize with immediate layout recomputation
+          this.engine.resize_node_with_layout(this.drag.nodeId, nw, nh);
+          // Show breakpoint indicator during resize
+          this.updateBreakpointIndicator(Number(this.drag.nodeId), nw);
         }
       } else {
         const zoom = this.engine.get_zoom();
@@ -1614,6 +1650,12 @@ export class Editor {
     if (this.isPanning) {
       this.isPanning = false;
       this.updateCursor();
+      return;
+    }
+
+    // Responsive resize release
+    if (this._responsiveResize?.isActive && this._responsiveResize.onPointerUp()) {
+      this.needsRender = true;
       return;
     }
 
@@ -1777,6 +1819,14 @@ export class Editor {
 
     this._snapGuides = [];
     this._pointSnapIndicators = [];
+    // Clear breakpoint indicator with delay for visibility
+    if (this._breakpointIndicator) {
+      if (this._breakpointIndicatorTimeout) clearTimeout(this._breakpointIndicatorTimeout);
+      this._breakpointIndicatorTimeout = setTimeout(() => {
+        this._breakpointIndicator = null;
+        this.needsRender = true;
+      }, 800);
+    }
     this.drag = null;
   }
 
@@ -2810,6 +2860,76 @@ export class Editor {
     renderMeasureLines(this.ctx, this._measureLines);
   }
 
+  private updateBreakpointIndicator(nodeId: number, currentWidth: number) {
+    try {
+      const bpJson = this.engine.get_active_breakpoint_info(BigInt(nodeId));
+      const bp = JSON.parse(bpJson);
+      if (bp) {
+        this._breakpointIndicator = { label: bp.label, maxWidth: bp.max_width, currentWidth: Math.round(currentWidth) };
+      } else {
+        // Show width even without breakpoints during resize
+        this._breakpointIndicator = { label: "", maxWidth: 0, currentWidth: Math.round(currentWidth) };
+      }
+      // Auto-clear indicator after drag ends
+      if (this._breakpointIndicatorTimeout) clearTimeout(this._breakpointIndicatorTimeout);
+      this._breakpointIndicatorTimeout = setTimeout(() => {
+        this._breakpointIndicator = null;
+        this.needsRender = true;
+      }, 1500);
+    } catch (_) {
+      this._breakpointIndicator = null;
+    }
+  }
+
+  private renderBreakpointIndicator() {
+    const ind = this._breakpointIndicator;
+    if (!ind) return;
+
+    const sel = Array.from(this.engine.get_selection()).map(Number);
+    if (sel.length !== 1) return;
+    const nodeId = sel[0]!;
+
+    const zoom = this.engine.get_zoom();
+    const panX = this.engine.get_pan_x();
+    const panY = this.engine.get_pan_y();
+
+    // Get node position for placing indicator
+    const nx = this.engine.get_node_x(BigInt(nodeId));
+    const ny = this.engine.get_node_y(BigInt(nodeId));
+    const nw = this.engine.get_node_width(BigInt(nodeId));
+
+    // Screen coords: top-center of node, above it
+    const screenX = (nx + nw / 2) * zoom + panX;
+    const screenY = ny * zoom + panY - 32;
+
+    const ctx = this.ctx;
+    ctx.save();
+
+    const label = ind.label ? `${ind.label} · ${ind.currentWidth}px` : `${ind.currentWidth}px`;
+    ctx.font = "600 11px -apple-system, BlinkMacSystemFont, sans-serif";
+    const textWidth = ctx.measureText(label).width;
+    const padH = 8, padV = 4;
+    const bgW = textWidth + padH * 2;
+    const bgH = 20;
+    const bx = screenX - bgW / 2;
+    const by = screenY - bgH / 2;
+
+    // Background pill
+    const color = ind.label ? "#7b61ff" : "#4a90d9";
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.roundRect(bx, by, bgW, bgH, 4);
+    ctx.fill();
+
+    // Text
+    ctx.fillStyle = "#fff";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(label, screenX, screenY);
+
+    ctx.restore();
+  }
+
   private renderSmartGuides() {
     if (this._snapGuides.length === 0) return;
     const zoom = this.engine.get_zoom();
@@ -2986,6 +3106,7 @@ export class Editor {
         this.renderGradientEditor();
         this.renderSpacingHandles();
         this.renderCursorPresence();
+        this.renderBreakpointIndicator();
         this.renderStamps();
         this.renderDiffOverlay();
         this.renderSearchFilterOverlay();
@@ -3723,6 +3844,11 @@ export class Editor {
     const panY = this.engine.get_pan_y();
     const pageId = Number(this.engine.get_active_page_id());
     renderStampsOverlay(this.ctx, this.engine, pageId, zoom, panX, panY);
+
+    // Responsive resize overlay
+    if (this._responsiveResize?.isActive) {
+      this._responsiveResize.renderOverlay(this.ctx);
+    }
   }
 
   /** Place a stamp at canvas coordinates */
@@ -4462,6 +4588,20 @@ export class Editor {
   // =============================================
   openComponentLibrary() {
     openComponentLibraryPanel(this.engine, () => this.requestRender());
+  }
+
+  /** Toggle responsive auto-layout preview mode on selected frame */
+  toggleResponsiveResize() {
+    if (this._responsiveResize?.isActive) {
+      this._responsiveResize.deactivate(false);
+    } else {
+      this._responsiveResize?.activate();
+    }
+    this.needsRender = true;
+  }
+
+  get responsiveResize() {
+    return this._responsiveResize;
   }
 
   openSmartReplacePanel(sourceNodeId: number) {

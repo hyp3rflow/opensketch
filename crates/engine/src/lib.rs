@@ -4348,6 +4348,26 @@ impl Engine {
     }
 
     /// Set gap between children
+    /// Explicitly recompute all auto-layouts. Called during interactive resize.
+    pub fn compute_layout(&mut self) {
+        layout::compute_layouts(&mut self.scene);
+    }
+
+    /// Get active breakpoint info for a node during resize. Returns JSON with label/max_width or "null".
+    pub fn get_active_breakpoint_info(&self, id: u64) -> String {
+        if let Some(node) = self.scene.get_node(id) {
+            if node.breakpoints.is_empty() { return "null".to_string(); }
+            let mut candidates: Vec<&Breakpoint> = node.breakpoints.iter()
+                .filter(|bp| node.width <= bp.max_width)
+                .collect();
+            candidates.sort_by(|a, b| a.max_width.partial_cmp(&b.max_width).unwrap());
+            if let Some(bp) = candidates.first() {
+                return format!(r#"{{"label":"{}","max_width":{}}}"#, bp.label, bp.max_width);
+            }
+        }
+        "null".to_string()
+    }
+
     pub fn set_layout_gap(&mut self, id: u64, gap: f64) {
         if let Some(node) = self.scene.get_node_mut(id) {
             node.layout.gap = gap;
@@ -4949,6 +4969,12 @@ impl Engine {
     /// Resize a frame with constraint-aware child repositioning
     pub fn resize_node_with_constraints(&mut self, id: u64, w: f64, h: f64) {
         self.scene.resize_node_with_constraints(id, w, h);
+    }
+
+    /// Resize + immediately recompute layouts (for interactive drag preview)
+    pub fn resize_node_with_layout(&mut self, id: u64, w: f64, h: f64) {
+        self.scene.resize_node_with_constraints(id, w, h);
+        layout::compute_layouts(&mut self.scene);
     }
 
     // =============================================
