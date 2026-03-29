@@ -1512,3 +1512,16 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Properties panel: "Spacing" input + H/V buttons in Align section (2+ nodes selected)
 - [x] Uses existing `distribute_selection_with_spacing(axis, gap)` WASM binding
 - [x] User-configurable gap value, horizontal and vertical auto-spacing
+
+### Annotation Heatmap
+- [x] Rust: `generate_annotation_heatmap(cell_size)` — grid-based density calculation from comments + callout nodes
+- [x] Returns JSON with cells (x, y, width, height, density, count), max_density, total_comments
+- [x] WASM binding: `generate_annotation_heatmap(cell_size) -> String`
+- [x] TS: `AnnotationHeatmap` class (ui/annotation-heatmap.ts)
+- [x] Canvas overlay: Color-coded heatmap cells (blue→green→yellow→red gradient by density)
+- [x] Cell count labels for cells with enough screen space
+- [x] Legend panel: top-right corner with total count + color gradient bar
+- [x] Tooltip on hover: shows annotation count per cell
+- [x] Configurable cell size (50-500 canvas units)
+- [x] Keyboard shortcut: Cmd+Alt+H toggle
+- [x] Editor integration: render loop, keyboard handler, public API

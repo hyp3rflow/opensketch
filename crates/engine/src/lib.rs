@@ -6333,6 +6333,77 @@ impl Engine {
         self.scene.export_annotations_markdown()
     }
 
+    /// Generate annotation heatmap data.
+    /// Returns JSON: { cells: [{x, y, width, height, density, count}], max_density, total_comments, grid_size }
+    pub fn generate_annotation_heatmap(&self, cell_size: f64) -> String {
+        let comments = self.scene.get_all_comments();
+        let stamps: Vec<(f64, f64)> = self.scene.all_nodes()
+            .filter(|n| matches!(n.kind, crate::node::NodeKind::Callout { .. }))
+            .map(|n| (n.x + n.width / 2.0, n.y + n.height / 2.0))
+            .collect();
+
+        if comments.is_empty() && stamps.is_empty() {
+            return r#"{"cells":[],"max_density":0,"total_comments":0,"grid_size":0}"#.to_string();
+        }
+
+        // Collect all annotation points
+        let mut points: Vec<(f64, f64)> = comments.iter().map(|c| (c.x, c.y)).collect();
+        points.extend(stamps);
+
+        // Find bounds
+        let min_x = points.iter().map(|p| p.0).fold(f64::INFINITY, f64::min);
+        let min_y = points.iter().map(|p| p.1).fold(f64::INFINITY, f64::min);
+        let max_x = points.iter().map(|p| p.0).fold(f64::NEG_INFINITY, f64::max);
+        let max_y = points.iter().map(|p| p.1).fold(f64::NEG_INFINITY, f64::max);
+
+        let cell = if cell_size > 0.0 { cell_size } else { 100.0 };
+        // Add padding
+        let pad = cell;
+        let x0 = min_x - pad;
+        let y0 = min_y - pad;
+        let x1 = max_x + pad;
+        let y1 = max_y + pad;
+
+        let cols = ((x1 - x0) / cell).ceil() as usize;
+        let rows = ((y1 - y0) / cell).ceil() as usize;
+
+        let mut grid = vec![0u32; cols * rows];
+        for (px, py) in &points {
+            let c = ((px - x0) / cell).floor() as usize;
+            let r = ((py - y0) / cell).floor() as usize;
+            if c < cols && r < rows {
+                grid[r * cols + c] += 1;
+            }
+        }
+
+        let max_density = grid.iter().copied().max().unwrap_or(0);
+
+        let mut cells = Vec::new();
+        for r in 0..rows {
+            for c in 0..cols {
+                let count = grid[r * cols + c];
+                if count > 0 {
+                    let density = if max_density > 0 { count as f64 / max_density as f64 } else { 0.0 };
+                    cells.push(serde_json::json!({
+                        "x": x0 + c as f64 * cell,
+                        "y": y0 + r as f64 * cell,
+                        "width": cell,
+                        "height": cell,
+                        "density": density,
+                        "count": count
+                    }));
+                }
+            }
+        }
+
+        serde_json::json!({
+            "cells": cells,
+            "max_density": max_density,
+            "total_comments": points.len(),
+            "grid_size": cell
+        }).to_string()
+    }
+
     pub fn export_annotations_json(&self) -> String {
         self.scene.export_annotations_json()
     }

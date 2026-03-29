@@ -34,6 +34,7 @@ import { WhiteboardMode } from "./ui/whiteboard-mode";
 import { initSnapshotPanel } from "./ui/snapshot-panel";
 import { togglePerfProfiler, closePerfProfiler, isPerfProfilerOpen } from "./ui/perf-profiler";
 import { openComponentPlayground, closeComponentPlayground, isComponentPlaygroundOpen } from "./ui/component-playground";
+import { AnnotationHeatmap } from "./ui/annotation-heatmap";
 
 export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "section" | "image" | "pen" | "star" | "polygon" | "slice" | "connector" | "callout" | "sticky" | "table" | "freehand";
 
@@ -172,6 +173,7 @@ export class Editor {
 
   // Responsive auto-layout preview
   private _responsiveResize: ResponsiveResize | null = null;
+  private _annotationHeatmap: AnnotationHeatmap | null = null;
 
   // Throttle selection callbacks during drag
   private selectionDirty = false;
@@ -195,6 +197,7 @@ export class Editor {
     this._devModeOverlay = new DevModeOverlay(this);
     this.whiteboardMode = new WhiteboardMode(this);
     this._responsiveResize = new ResponsiveResize(engine, canvas);
+    this._annotationHeatmap = new AnnotationHeatmap(this);
     this._responsiveResize.setRenderCallback(() => { this.needsRender = true; });
     this._cursorChat.init({
       onSend: (text, x, y, isReaction) => {
@@ -697,6 +700,13 @@ export class Editor {
       if (e.altKey && !e.metaKey && !e.ctrlKey && !e.shiftKey && (e.key === "p" || e.key === "π")) {
         e.preventDefault();
         this.togglePixelPreview();
+        return;
+      }
+
+      // Ctrl/Cmd+Alt+H: annotation heatmap toggle
+      if ((e.metaKey || e.ctrlKey) && e.altKey && (e.key === "h" || e.key === "˙")) {
+        e.preventDefault();
+        this._annotationHeatmap?.toggle();
         return;
       }
 
@@ -3118,6 +3128,7 @@ export class Editor {
         this.renderBreakpointIndicator();
         this.renderStamps();
         this.renderNodeLinks();
+        this._annotationHeatmap?.render(this.ctx, this.zoom, this.panX, this.panY);
         this.renderDiffOverlay();
         this.renderSearchFilterOverlay();
         this.renderPixelPreviewOverlay();
@@ -3790,6 +3801,7 @@ export class Editor {
 
   /** Get diff overlay for branch panel integration */
   get diffOverlay() { return this._diffOverlay; }
+  get annotationHeatmap() { return this._annotationHeatmap; }
 
   private renderSearchFilterOverlay() {
     drawSearchFilterOverlay(this.ctx, this);
