@@ -4742,6 +4742,25 @@ export class Editor {
     return this._presentationMode?.isActive() ?? false;
   }
 
+  // ── Canvas Comparison ──
+  private _canvasComparison: ReturnType<typeof import("./ui/canvas-comparison").createCanvasComparison> | null = null;
+
+  openCanvasComparison() {
+    if (this._canvasComparison?.isActive()) return;
+    import("./ui/canvas-comparison").then(({ createCanvasComparison }) => {
+      this._canvasComparison = createCanvasComparison(this);
+      this._canvasComparison.show();
+    });
+  }
+
+  closeCanvasComparison() {
+    this._canvasComparison?.hide();
+  }
+
+  isCanvasComparisonActive(): boolean {
+    return this._canvasComparison?.isActive() ?? false;
+  }
+
   openResponsiveTokens() {
     openResponsiveTokensPanel(this.engine, () => this.render());
   }

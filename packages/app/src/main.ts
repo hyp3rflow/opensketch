@@ -308,6 +308,12 @@ async function main() {
       editor.openPresentationMode();
       return;
     }
+    // Cmd+Alt+C → canvas comparison
+    if (e.key === "c" && (e.metaKey || e.ctrlKey) && e.altKey) {
+      e.preventDefault();
+      editor.openCanvasComparison();
+      return;
+    }
     // Cmd+Enter or Ctrl+Enter → prototype mode
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();

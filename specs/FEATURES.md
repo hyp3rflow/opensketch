@@ -1571,3 +1571,18 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Hides during drag/pan, re-positions on zoom/pan changes
 - [x] Viewport-clamped positioning (centered above selection, fallback below)
 - [x] WASM: get_node_kind(id) → lightweight kind name query
+
+### Multi-Canvas Comparison
+- [x] Side-by-side page comparison with synchronized pan/zoom
+- [x] Page selector dropdowns for left/right panes
+- [x] Visual diff overlay: added (green), removed (red), modified (yellow) node highlights
+- [x] Diff computation: name+kind matching across pages, detects position/size/fill changes
+- [x] Diff summary bar: unchanged/added/removed/modified counts
+- [x] Toggle diff overlay visibility
+- [x] Synchronized mouse drag panning and scroll-wheel zoom (zoom toward cursor)
+- [x] Rust: get_page_node_summaries(page_id) — node summary extraction without page switch
+- [x] Rust: render_page(ctx, page_id) — temporary page switch + render + restore
+- [x] WASM: get_page_node_summaries, render_page bindings
+- [x] Keyboard: Cmd+Alt+C to open, Escape to close
+- [x] Fullscreen overlay with top controls bar
+- [x] Code-split lazy loading (dynamic import)

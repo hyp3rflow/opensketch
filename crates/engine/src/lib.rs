@@ -637,7 +637,7 @@ impl Engine {
 
     pub fn table_sort(&mut self, id: u64, col: u32, ascending: bool) {
         if let Some(node) = self.scene.get_node_mut(id) {
-            if let NodeKind::Table { rows, cols, ref mut cells, .. } = node.kind {
+            if let NodeKind::Table { rows, cols: _, ref mut cells, .. } = node.kind {
                 // Build row data
                 let mut row_contents: Vec<(u32, String)> = (0..rows).map(|r| {
                     let val = cells.iter().find(|c| c.row == r && c.col == col)
@@ -5212,6 +5212,37 @@ impl Engine {
 
     pub fn get_page_count(&self) -> usize {
         self.scene.get_page_count()
+    }
+
+    // =============================================
+    // Page Comparison
+    // =============================================
+
+    /// Get node summaries for a page (for diff computation).
+    /// Returns JSON array of {id, name, kind, x, y, width, height, fill, parentId}.
+    pub fn get_page_node_summaries(&mut self, page_id: u64) -> String {
+        let summaries = self.scene.get_page_node_summaries(page_id);
+        let arr: Vec<serde_json::Value> = summaries.into_iter().map(|(id, name, kind, x, y, w, h, fill, pid)| {
+            serde_json::json!({
+                "id": id, "name": name, "kind": kind,
+                "x": x, "y": y, "width": w, "height": h,
+                "fill": fill, "parentId": pid
+            })
+        }).collect();
+        serde_json::to_string(&arr).unwrap_or_else(|_| "[]".into())
+    }
+
+    /// Render a specific page to the given canvas context.
+    /// Temporarily switches page, renders, then restores.
+    pub fn render_page(&mut self, ctx: &CanvasRenderingContext2d, page_id: u64) {
+        let saved_id = self.scene.get_active_page_id();
+        if self.scene.switch_to_page_temporarily(page_id) {
+            self.scene.apply_variables();
+            self.renderer.measure_text_nodes(ctx, &mut self.scene);
+            layout::compute_layouts(&mut self.scene);
+            self.renderer.render(ctx, &self.scene, None);
+            self.scene.restore_page(saved_id);
+        }
     }
 
     // =============================================

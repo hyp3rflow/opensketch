@@ -1357,6 +1357,63 @@ impl Scene {
         self.pages.iter().map(|p| (p.id, p.name.clone())).collect()
     }
 
+    // ── Page Comparison Helpers ─────────────────────────────────────
+
+    /// Get node summaries for a specific page (without switching active page).
+    /// Returns Vec of (id, name, kind_str, x, y, width, height, fill_hex, parent_id).
+    pub fn get_page_node_summaries(&mut self, page_id: u64) -> Vec<(u64, String, String, f64, f64, f64, f64, String, u64)> {
+        // Save current state
+        self.save_active_page();
+        let saved_idx = self.active_page_index;
+
+        let target_idx = match self.pages.iter().position(|p| p.id == page_id) {
+            Some(i) => i,
+            None => return vec![],
+        };
+
+        self.load_page(target_idx);
+
+        let summaries: Vec<_> = self.nodes.values().map(|n| {
+            let kind_str = format!("{:?}", n.kind).split('(').next().unwrap_or("Unknown").split('{').next().unwrap_or("Unknown").trim().to_string();
+            let fill_hex = if let Some(f) = n.fills.first() {
+                match &f.fill_type {
+                    crate::node::FillType::Solid { color } => format!("#{:02x}{:02x}{:02x}", color.r, color.g, color.b),
+                    _ => String::new(),
+                }
+            } else {
+                String::new()
+            };
+            let parent_id = n.parent.unwrap_or(0);
+            (n.id, n.name.clone(), kind_str, n.x, n.y, n.width, n.height, fill_hex, parent_id)
+        }).collect();
+
+        // Restore
+        self.load_page(saved_idx);
+        self.active_page_index = saved_idx;
+
+        summaries
+    }
+
+    /// Temporarily switch to a page, render, then switch back.
+    /// Returns true if rendered successfully.
+    pub fn switch_to_page_temporarily(&mut self, page_id: u64) -> bool {
+        self.save_active_page();
+        let target_idx = match self.pages.iter().position(|p| p.id == page_id) {
+            Some(i) => i,
+            None => return false,
+        };
+        self.active_page_index = target_idx;
+        self.load_page(target_idx);
+        true
+    }
+
+    pub fn restore_page(&mut self, saved_page_id: u64) {
+        self.save_active_page();
+        let idx = self.pages.iter().position(|p| p.id == saved_page_id).unwrap_or(0);
+        self.active_page_index = idx;
+        self.load_page(idx);
+    }
+
     // ── Persistent Measure Lines ─────────────────────────────────────
 
     pub fn add_measure_line(&mut self, start_x: f64, start_y: f64, end_x: f64, end_y: f64, page_id: u64) -> u64 {
