@@ -683,7 +683,7 @@ fn create_text_node(scene: &mut Scene, text: &str, styles: &CssProps) -> u64 {
         indent_level: 0,
         text_transform: crate::node::TextTransform::default(),
         text_indent: 0.0,
-        opentype_features: crate::node::OpenTypeFeatures::default(),
+        opentype_features: crate::node::OpenTypeFeatures::default(), font_variation_settings: std::collections::BTreeMap::new(),
     });
     node.width = estimated_width.min(600.0).max(20.0);
     node.height = estimated_height;
@@ -1102,7 +1102,7 @@ fn create_button_node(scene: &mut Scene, text: &str, styles: &CssProps) -> u64 {
         indent_level: 0,
         text_transform: crate::node::TextTransform::default(),
         text_indent: 0.0,
-        opentype_features: crate::node::OpenTypeFeatures::default(),
+        opentype_features: crate::node::OpenTypeFeatures::default(), font_variation_settings: std::collections::BTreeMap::new(),
     });
     text_node.fills = vec![Fill::solid(text_color)];
     text_node.name = "Label".to_string();

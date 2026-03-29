@@ -2620,6 +2620,12 @@ export class Editor {
 
     this.ctx.save();
     this.ctx.font = `${fontStyleStr}${fontWeight} ${fontSize}px ${fontFamily}, system-ui, sans-serif`;
+    // Apply variable font axes for caret rendering
+    const caretFvs = text.font_variation_settings;
+    if (caretFvs && typeof caretFvs === 'object' && Object.keys(caretFvs).length > 0) {
+      const fvsStr = Object.entries(caretFvs).map(([tag, val]: [string, any]) => `"${tag}" ${val}`).join(', ');
+      (this.ctx as any).fontVariationSettings = fvsStr;
+    }
 
     // Get ascent
     const mMetrics = this.ctx.measureText("M");
@@ -4047,6 +4053,12 @@ export class Editor {
       const fontStyleStr = text.font_style === "Italic" ? "italic " : "";
       const lineHeight = text.line_height ?? 1.2;
       ctx.font = `${fontStyleStr}${fontWeight} ${fontSize}px ${fontFamily}, system-ui, sans-serif`;
+      // Apply variable font axes
+      const fvs = text.font_variation_settings;
+      if (fvs && typeof fvs === 'object' && Object.keys(fvs).length > 0) {
+        const fvsStr = Object.entries(fvs).map(([tag, val]) => `"${tag}" ${val}`).join(', ');
+        (ctx as any).fontVariationSettings = fvsStr;
+      }
       if (fill) {
         ctx.fillStyle = `rgba(${fill.r},${fill.g},${fill.b},${fill.a})`;
       } else {

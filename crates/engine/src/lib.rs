@@ -376,6 +376,7 @@ impl Engine {
             text_transform: crate::node::TextTransform::default(),
             text_indent: 0.0,
             opentype_features: crate::node::OpenTypeFeatures::default(),
+            font_variation_settings: std::collections::BTreeMap::new(),
         });
         node.x = x; node.y = y;
         node.width = content.len() as f64 * font_size * 0.6;
@@ -4244,6 +4245,38 @@ impl Engine {
                     "small_caps": opentype_features.small_caps,
                     "tabular_numerals": opentype_features.tabular_numerals,
                 }).to_string();
+            }
+        }
+        "{}".to_string()
+    }
+
+    // =============================================
+    // Variable Font Axes
+    // =============================================
+
+    /// Set a variable font axis value (e.g. "wght" -> 700, "wdth" -> 75)
+    pub fn set_font_variation_axis(&mut self, id: u64, tag: &str, value: f64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Text { ref mut font_variation_settings, .. } = node.kind {
+                font_variation_settings.insert(tag.to_string(), value);
+            }
+        }
+    }
+
+    /// Remove a variable font axis
+    pub fn remove_font_variation_axis(&mut self, id: u64, tag: &str) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Text { ref mut font_variation_settings, .. } = node.kind {
+                font_variation_settings.remove(tag);
+            }
+        }
+    }
+
+    /// Get all variable font axis settings as JSON
+    pub fn get_font_variation_settings(&self, id: u64) -> String {
+        if let Some(n) = self.scene.get_node(id) {
+            if let NodeKind::Text { ref font_variation_settings, .. } = n.kind {
+                return serde_json::to_string(font_variation_settings).unwrap_or_else(|_| "{}".to_string());
             }
         }
         "{}".to_string()

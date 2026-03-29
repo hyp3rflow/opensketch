@@ -319,7 +319,7 @@ fn import_text(scene: &mut Scene, elem: &roxmltree::Node, parent_id: Option<Node
         indent_level: 0,
         text_transform: TextTransform::None,
         text_indent: 0.0,
-        opentype_features: OpenTypeFeatures::default(),
+        opentype_features: OpenTypeFeatures::default(), font_variation_settings: std::collections::BTreeMap::new(),
     });
     // Position text: SVG y is baseline, approximate by shifting up by font_size
     node.x = x;

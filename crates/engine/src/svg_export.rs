@@ -161,7 +161,7 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
             attrs.push_str("/>\n");
             buf.push_str(&attrs);
         }
-        NodeKind::Text { content, font_size, font_family, line_height, text_align, font_weight, font_style, text_decoration, letter_spacing, paragraph_spacing, list_style, indent_level, text_transform, text_indent, opentype_features } => {
+        NodeKind::Text { content, font_size, font_family, line_height, text_align, font_weight, font_style, text_decoration, letter_spacing, paragraph_spacing, list_style, indent_level, text_transform, text_indent, opentype_features, font_variation_settings } => {
             // Apply text transform for display
             let display_content = text_transform.apply(content);
             let content = &display_content;
@@ -280,6 +280,12 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
                 }
                 if opentype_features.small_caps {
                     style_parts.push("font-variant-caps:small-caps".to_string());
+                }
+                if !font_variation_settings.is_empty() {
+                    let fvs: Vec<String> = font_variation_settings.iter()
+                        .map(|(tag, val)| format!("\"{}\" {}", tag, val))
+                        .collect();
+                    style_parts.push(format!("font-variation-settings:{}", fvs.join(",")));
                 }
                 if !style_parts.is_empty() {
                     attrs.push_str(&format!(r#" style="{}""#, style_parts.join(";")));

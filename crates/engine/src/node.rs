@@ -221,6 +221,9 @@ pub enum NodeKind {
         /// OpenType feature settings
         #[serde(default)]
         opentype_features: OpenTypeFeatures,
+        /// Variable font axis settings (e.g. {"wght": 400, "wdth": 100, "slnt": 0})
+        #[serde(default)]
+        font_variation_settings: std::collections::BTreeMap<String, f64>,
     },
     Frame,
     Group,

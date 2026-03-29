@@ -361,6 +361,10 @@ function generateCSS(ctx: CodeCtx): string {
     if (node.font_size) lines.push(`font-size: ${node.font_size}px;`);
     if (node.font_weight && node.font_weight !== 400) lines.push(`font-weight: ${node.font_weight};`);
     if (node.font_style && node.font_style !== "normal") lines.push(`font-style: ${node.font_style};`);
+    if (node.font_variation_settings && typeof node.font_variation_settings === 'object' && Object.keys(node.font_variation_settings).length > 0) {
+      const fvs = Object.entries(node.font_variation_settings).map(([t, v]) => `"${t}" ${v}`).join(', ');
+      lines.push(`font-variation-settings: ${fvs};`);
+    }
     if (node.line_height && node.line_height !== 1.2) lines.push(`line-height: ${node.line_height};`);
     if (node.text_align && node.text_align !== "left") lines.push(`text-align: ${node.text_align};`);
     const deco = node.text_decoration;

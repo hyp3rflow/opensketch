@@ -1080,6 +1080,16 @@ Frame overflow control and content scrolling.
 - [x] **OpenType SVG export**: font-feature-settings + font-variant-caps style attributes
 - [x] **OpenType Handoff**: CSS codegen for font-feature-settings in CSS & spec rows
 
+## Variable Font Axes
+- [x] **font_variation_settings**: BTreeMap<String, f64> on Text node (serde default, backward-compatible)
+- [x] **Standard axes UI**: Weight (wght), Width (wdth), Slant (slnt), Optical Size (opsz) — sliders + number inputs
+- [x] **Custom axis support**: 4-char tag + value input, add/remove
+- [x] **Canvas rendering**: ctx.fontVariationSettings CSS property per text node
+- [x] **SVG export**: font-variation-settings style attribute
+- [x] **Inspect panel**: CSS font-variation-settings codegen
+- [x] **WASM API**: set_font_variation_axis, remove_font_variation_axis, get_font_variation_settings
+- [x] **Double-click reset**: axis label double-click removes override, dims inactive axes
+
 ## Pattern Fills
 - [x] **FillType::Pattern**: src (image URL/data URI), scale, rotation, pattern_type (Tile/Brick/Hex), tile_width, tile_height
 - [x] **Canvas rendering**: JS createPattern with tile compositing (brick offset, hex offset), rotation transform, node clipping

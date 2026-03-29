@@ -3037,6 +3037,157 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         textSection.appendChild(otRow);
       }
 
+      // Variable Font Axes
+      {
+        const fvsRaw = editor.engine.get_font_variation_settings(BigInt(id));
+        const fvs: Record<string, number> = JSON.parse(fvsRaw || "{}");
+        const fvsSection = document.createElement("div");
+        fvsSection.className = "prop-row";
+        fvsSection.style.cssText = "flex-wrap:wrap;gap:4px;";
+        const fvsLabel = document.createElement("span");
+        fvsLabel.className = "prop-label";
+        fvsLabel.textContent = "Variable Axes";
+        fvsSection.appendChild(fvsLabel);
+
+        const fvsGrid = document.createElement("div");
+        fvsGrid.style.cssText = "display:flex;flex-direction:column;gap:4px;flex:1;";
+
+        // Standard axes with default ranges
+        const standardAxes: [string, string, number, number, number, number][] = [
+          ["Weight", "wght", 100, 900, 400, 1],
+          ["Width", "wdth", 25, 200, 100, 1],
+          ["Slant", "slnt", -90, 90, 0, 1],
+          ["Optical Size", "opsz", 6, 144, 14, 1],
+        ];
+
+        for (const [label, tag, min, max, defaultVal, step] of standardAxes) {
+          const val = fvs[tag];
+          const axisRow = document.createElement("div");
+          axisRow.style.cssText = "display:flex;align-items:center;gap:6px;";
+
+          const axisLabel = document.createElement("span");
+          axisLabel.style.cssText = "font-size:10px;color:#aaa;width:50px;flex-shrink:0;";
+          axisLabel.textContent = label;
+          axisRow.appendChild(axisLabel);
+
+          const slider = document.createElement("input");
+          slider.type = "range";
+          slider.min = String(min);
+          slider.max = String(max);
+          slider.step = String(step);
+          slider.value = String(val ?? defaultVal);
+          slider.style.cssText = "flex:1;height:4px;accent-color:#7c3aed;";
+
+          const numInput = document.createElement("input");
+          numInput.type = "number";
+          numInput.min = String(min);
+          numInput.max = String(max);
+          numInput.step = String(step);
+          numInput.value = String(val ?? defaultVal);
+          numInput.className = "prop-input";
+          numInput.style.cssText = "width:48px;text-align:center;";
+
+          const isActive = val !== undefined;
+          if (!isActive) {
+            slider.style.opacity = "0.4";
+            numInput.style.opacity = "0.4";
+          }
+
+          const update = (newVal: number) => {
+            ensureUndo();
+            editor.engine.set_font_variation_axis(BigInt(id), tag, newVal);
+            editor.requestRender();
+            slider.value = String(newVal);
+            numInput.value = String(newVal);
+            slider.style.opacity = "1";
+            numInput.style.opacity = "1";
+          };
+
+          slider.addEventListener("input", () => update(Number(slider.value)));
+          numInput.addEventListener("change", () => update(Number(numInput.value)));
+
+          // Double-click to reset/remove axis
+          axisLabel.title = "Double-click to reset";
+          axisLabel.style.cursor = "pointer";
+          axisLabel.addEventListener("dblclick", () => {
+            ensureUndo();
+            editor.engine.remove_font_variation_axis(BigInt(id), tag);
+            editor.requestRender();
+            refresh(ids);
+          });
+
+          axisRow.appendChild(slider);
+          axisRow.appendChild(numInput);
+          fvsGrid.appendChild(axisRow);
+        }
+
+        // Custom axis add
+        const addRow = document.createElement("div");
+        addRow.style.cssText = "display:flex;align-items:center;gap:4px;margin-top:2px;";
+        const addTagInput = document.createElement("input");
+        addTagInput.type = "text";
+        addTagInput.placeholder = "tag";
+        addTagInput.maxLength = 4;
+        addTagInput.className = "prop-input";
+        addTagInput.style.cssText = "width:40px;text-align:center;font-size:10px;";
+        const addValInput = document.createElement("input");
+        addValInput.type = "number";
+        addValInput.placeholder = "val";
+        addValInput.className = "prop-input";
+        addValInput.style.cssText = "width:48px;text-align:center;font-size:10px;";
+        const addBtn = document.createElement("button");
+        addBtn.textContent = "+";
+        addBtn.style.cssText = "background:#333;color:#ccc;border:1px solid #555;border-radius:3px;padding:0 6px;cursor:pointer;font-size:11px;";
+        addBtn.addEventListener("click", () => {
+          const tag = addTagInput.value.trim();
+          const val = Number(addValInput.value);
+          if (tag.length === 4 && !isNaN(val)) {
+            ensureUndo();
+            editor.engine.set_font_variation_axis(BigInt(id), tag, val);
+            editor.requestRender();
+            refresh(ids);
+          }
+        });
+        addRow.appendChild(addTagInput);
+        addRow.appendChild(addValInput);
+        addRow.appendChild(addBtn);
+        fvsGrid.appendChild(addRow);
+
+        // Show custom (non-standard) axes that are already set
+        const standardTags = new Set(standardAxes.map(a => a[1]));
+        for (const [tag, val] of Object.entries(fvs)) {
+          if (standardTags.has(tag)) continue;
+          const customRow = document.createElement("div");
+          customRow.style.cssText = "display:flex;align-items:center;gap:6px;";
+          const tagSpan = document.createElement("span");
+          tagSpan.style.cssText = "font-size:10px;color:#7c3aed;width:50px;flex-shrink:0;cursor:pointer;";
+          tagSpan.textContent = tag;
+          tagSpan.title = "Double-click to remove";
+          tagSpan.addEventListener("dblclick", () => {
+            ensureUndo();
+            editor.engine.remove_font_variation_axis(BigInt(id), tag);
+            editor.requestRender();
+            refresh(ids);
+          });
+          const valInput = document.createElement("input");
+          valInput.type = "number";
+          valInput.value = String(val);
+          valInput.className = "prop-input";
+          valInput.style.cssText = "width:60px;text-align:center;";
+          valInput.addEventListener("change", () => {
+            ensureUndo();
+            editor.engine.set_font_variation_axis(BigInt(id), tag, Number(valInput.value));
+            editor.requestRender();
+          });
+          customRow.appendChild(tagSpan);
+          customRow.appendChild(valInput);
+          fvsGrid.appendChild(customRow);
+        }
+
+        fvsSection.appendChild(fvsGrid);
+        textSection.appendChild(fvsSection);
+      }
+
       // Text on Path
       {
         const topInfo = editor.engine.get_text_path_info(BigInt(id));
