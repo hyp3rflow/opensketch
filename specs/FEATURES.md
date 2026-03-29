@@ -874,6 +874,12 @@ Frame overflow control and content scrolling.
 - [x] Scene Colors view: grid of all used colors, click to generate harmonies, right-click to apply
 - [x] Harmonies view: hex input + 5 generated palettes, click to apply or copy
 - [x] Contrast view: all color pairs with ratio + AA/AAA badges, color-coded pass/fail
+- [x] **Smart Design Theme Generation**: brand color → full design system palette
+  - [x] Rust: generate_design_theme() — primary/secondary/accent/neutral + semantic (success/warning/error/info) scales
+  - [x] 10-step lightness scale per group (50–900), semantic colors with fixed hues
+  - [x] Neutrals derived from brand hue with low saturation
+  - [x] WASM: generate_design_theme(brand_hex)
+  - [x] TS: "Theme" tab in color palette panel — color picker + hex input, visual scale strips, click-to-apply
 
 ## Branching / Forking (Design Version Control)
 - [x] Branch struct: id, name, parent_branch_id, created_at, base_snapshot, current_snapshot

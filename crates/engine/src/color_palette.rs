@@ -249,6 +249,86 @@ pub fn generate_palettes(base_hex: &str) -> Vec<Palette> {
     palettes
 }
 
+/// A design theme role (e.g. primary-500, neutral-100)
+#[derive(Clone, Debug, Serialize)]
+pub struct ThemeColor {
+    pub role: String,
+    pub hex: String,
+    pub r: u8,
+    pub g: u8,
+    pub b: u8,
+}
+
+/// A full design theme generated from a brand color
+#[derive(Clone, Debug, Serialize)]
+pub struct DesignTheme {
+    pub name: String,
+    pub brand_hex: String,
+    pub groups: Vec<ThemeGroup>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct ThemeGroup {
+    pub name: String,
+    pub colors: Vec<ThemeColor>,
+}
+
+fn make_theme_color(role: &str, r: u8, g: u8, b: u8) -> ThemeColor {
+    ThemeColor { role: role.into(), hex: format!("#{:02x}{:02x}{:02x}", r, g, b), r, g, b }
+}
+
+fn generate_scale(name: &str, h: f64, s: f64) -> ThemeGroup {
+    // Generate 50, 100, 200, ..., 900 lightness scale
+    let steps = [
+        ("50",  0.97), ("100", 0.93), ("200", 0.85), ("300", 0.74),
+        ("400", 0.62), ("500", 0.50), ("600", 0.40), ("700", 0.32),
+        ("800", 0.23), ("900", 0.15),
+    ];
+    let colors = steps.iter().map(|(suffix, l)| {
+        let (r, g, b) = hsl_to_rgb(h, s, *l);
+        make_theme_color(&format!("{}-{}", name, suffix), r, g, b)
+    }).collect();
+    ThemeGroup { name: name.into(), colors }
+}
+
+fn generate_neutral_scale(h: f64) -> ThemeGroup {
+    // Desaturated version of brand hue for neutrals
+    let s = 0.08;
+    let steps = [
+        ("50",  0.98), ("100", 0.96), ("200", 0.90), ("300", 0.83),
+        ("400", 0.64), ("500", 0.46), ("600", 0.33), ("700", 0.24),
+        ("800", 0.15), ("900", 0.09), ("950", 0.04),
+    ];
+    let colors = steps.iter().map(|(suffix, l)| {
+        let (r, g, b) = hsl_to_rgb(h, s, *l);
+        make_theme_color(&format!("neutral-{}", suffix), r, g, b)
+    }).collect();
+    ThemeGroup { name: "Neutral".into(), colors }
+}
+
+/// Generate a full design theme from a single brand color
+pub fn generate_design_theme(brand_hex: &str) -> Option<DesignTheme> {
+    let (r, g, b) = hex_to_rgb(brand_hex)?;
+    let (h, s, _l) = rgb_to_hsl(r, g, b);
+
+    let primary = generate_scale("primary", h, s.max(0.5));
+    let secondary = generate_scale("secondary", (h + 30.0) % 360.0, (s * 0.85).max(0.4));
+    let accent = generate_scale("accent", (h + 180.0) % 360.0, (s * 0.9).max(0.5));
+    let neutral = generate_neutral_scale(h);
+
+    // Semantic colors (fixed hues, moderate saturation)
+    let success = generate_scale("success", 142.0, 0.60);
+    let warning = generate_scale("warning", 38.0, 0.85);
+    let error = generate_scale("error", 0.0, 0.72);
+    let info = generate_scale("info", 210.0, 0.65);
+
+    Some(DesignTheme {
+        name: format!("Theme from {}", brand_hex),
+        brand_hex: brand_hex.into(),
+        groups: vec![primary, secondary, accent, neutral, success, warning, error, info],
+    })
+}
+
 /// Check contrast between all pairs of extracted colors
 pub fn check_contrast_pairs(colors: &[ColorEntry]) -> Vec<ContrastPair> {
     let mut pairs = vec![];

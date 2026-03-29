@@ -20,7 +20,8 @@ interface ContrastPair {
  */
 export function setupColorPalettePanel(container: HTMLElement, editor: Editor) {
   let selectedHex: string | null = null;
-  let view: "colors" | "palettes" | "contrast" = "colors";
+  let view: "colors" | "palettes" | "contrast" | "theme" = "colors";
+  let themeHex: string = "#3b82f6";
 
   function refresh() {
     container.innerHTML = "";
@@ -28,9 +29,9 @@ export function setupColorPalettePanel(container: HTMLElement, editor: Editor) {
     // Tab bar
     const tabBar = document.createElement("div");
     tabBar.style.cssText = "display:flex;border-bottom:1px solid #333;";
-    for (const tab of ["colors", "palettes", "contrast"] as const) {
+    for (const tab of ["colors", "palettes", "theme", "contrast"] as const) {
       const btn = document.createElement("button");
-      btn.textContent = tab === "colors" ? "Scene Colors" : tab === "palettes" ? "Harmonies" : "Contrast";
+      btn.textContent = tab === "colors" ? "Colors" : tab === "palettes" ? "Harmonies" : tab === "theme" ? "Theme" : "Contrast";
       btn.style.cssText = `flex:1;padding:8px 4px;border:none;background:${view === tab ? "#333" : "transparent"};color:${view === tab ? "#fff" : "#888"};font-size:11px;cursor:pointer;border-bottom:2px solid ${view === tab ? "#4a90d9" : "transparent"};`;
       btn.onclick = () => { view = tab; refresh(); };
       tabBar.appendChild(btn);
@@ -43,6 +44,7 @@ export function setupColorPalettePanel(container: HTMLElement, editor: Editor) {
 
     if (view === "colors") renderSceneColors(content);
     else if (view === "palettes") renderPalettes(content);
+    else if (view === "theme") renderTheme(content);
     else renderContrast(content);
   }
 
@@ -168,6 +170,86 @@ export function setupColorPalettePanel(container: HTMLElement, editor: Editor) {
     }
 
     el.innerHTML += `<div style="font-size:10px;color:#555;margin-top:4px;">Click color to apply to selection (or copy hex if nothing selected)</div>`;
+  }
+
+  function renderTheme(el: HTMLElement) {
+    // Brand color input
+    const inputRow = document.createElement("div");
+    inputRow.style.cssText = "display:flex;align-items:center;gap:8px;margin-bottom:12px;";
+    const colorPicker = document.createElement("input");
+    colorPicker.type = "color";
+    colorPicker.value = themeHex;
+    colorPicker.style.cssText = "width:36px;height:36px;border:none;background:none;cursor:pointer;padding:0;";
+    colorPicker.oninput = () => { themeHex = colorPicker.value; hexInput.value = themeHex; };
+    colorPicker.onchange = () => { themeHex = colorPicker.value; hexInput.value = themeHex; refresh(); };
+    const hexInput = document.createElement("input");
+    hexInput.type = "text";
+    hexInput.value = themeHex;
+    hexInput.placeholder = "#3b82f6";
+    hexInput.style.cssText = "flex:1;padding:6px 8px;border-radius:6px;border:1px solid #444;background:#2a2a2a;color:#ccc;font-size:12px;font-family:monospace;";
+    hexInput.onchange = () => {
+      const v = hexInput.value.trim();
+      if (/^#[0-9a-fA-F]{6}$/.test(v)) { themeHex = v; colorPicker.value = v; refresh(); }
+    };
+    const genBtn = document.createElement("button");
+    genBtn.textContent = "Generate";
+    genBtn.style.cssText = "padding:6px 12px;border-radius:6px;border:none;background:#4a90d9;color:#fff;font-size:11px;cursor:pointer;font-weight:500;";
+    genBtn.onclick = () => refresh();
+    inputRow.appendChild(colorPicker);
+    inputRow.appendChild(hexInput);
+    inputRow.appendChild(genBtn);
+    el.appendChild(inputRow);
+
+    // Generate theme
+    interface ThemeColor { role: string; hex: string; r: number; g: number; b: number }
+    interface ThemeGroup { name: string; colors: ThemeColor[] }
+    interface DesignTheme { name: string; brand_hex: string; groups: ThemeGroup[] }
+
+    let theme: DesignTheme | null = null;
+    try {
+      const raw = (editor.engine as any).generate_design_theme(themeHex);
+      theme = JSON.parse(raw);
+    } catch { /* */ }
+
+    if (!theme) {
+      el.innerHTML += `<div style="text-align:center;color:#666;padding-top:20px;font-size:12px;">Enter a valid hex color above</div>`;
+      return;
+    }
+
+    for (const group of theme.groups) {
+      const section = document.createElement("div");
+      section.style.cssText = "margin-bottom:10px;";
+
+      const title = document.createElement("div");
+      title.style.cssText = "font-size:10px;color:#888;margin-bottom:3px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;";
+      title.textContent = group.name;
+      section.appendChild(title);
+
+      const row = document.createElement("div");
+      row.style.cssText = "display:flex;gap:2px;";
+
+      for (const c of group.colors) {
+        const s = document.createElement("div");
+        s.style.cssText = `flex:1;height:28px;background:${c.hex};cursor:pointer;position:relative;`;
+        if (c === group.colors[0]) s.style.borderRadius = "4px 0 0 4px";
+        if (c === group.colors[group.colors.length - 1]) s.style.borderRadius = "0 4px 4px 0";
+        s.title = `${c.role}: ${c.hex}`;
+        s.onclick = () => {
+          const sel = Array.from(editor.engine.get_selection()).map(Number);
+          if (sel.length === 0) { navigator.clipboard.writeText(c.hex); return; }
+          for (const id of sel) {
+            editor.engine.set_fill_color(BigInt(id), c.r, c.g, c.b, 1.0);
+          }
+          editor.render();
+        };
+        row.appendChild(s);
+      }
+      section.appendChild(row);
+      el.appendChild(section);
+    }
+
+    // Apply all primary-500 to selection hint
+    el.innerHTML += `<div style="font-size:10px;color:#555;margin-top:8px;">Click any swatch to apply to selection (or copy hex). Enter your brand color to generate a full design system palette.</div>`;
   }
 
   function renderContrast(el: HTMLElement) {

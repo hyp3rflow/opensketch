@@ -7249,6 +7249,15 @@ impl Engine {
         serde_json::to_string(&palettes).unwrap_or_else(|_| "[]".into())
     }
 
+    /// Generate a full design theme from a single brand color hex
+    #[wasm_bindgen]
+    pub fn generate_design_theme(&self, brand_hex: &str) -> String {
+        match color_palette::generate_design_theme(brand_hex) {
+            Some(theme) => serde_json::to_string(&theme).unwrap_or_else(|_| "null".into()),
+            None => "null".into(),
+        }
+    }
+
     /// Check contrast between extracted scene colors (WCAG AA/AAA)
     #[wasm_bindgen]
     pub fn check_color_contrast(&self) -> String {
