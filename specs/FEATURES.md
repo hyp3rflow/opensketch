@@ -932,11 +932,13 @@ Frame overflow control and content scrolling.
 - [x] **Text replace**: Replace in single node or all matching nodes
 - [x] **Color search**: Find nodes by fill color (hex, with tolerance ±2)
 - [x] **Color replace**: Replace fill + stroke colors across all matching nodes
-- [x] **Floating panel**: Cmd+F toggle, Text/Color mode tabs
+- [x] **Stroke color search/replace**: Find nodes by stroke color, batch replace stroke colors
+- [x] **Font search/replace**: Find Text nodes by font family, batch replace font family
+- [x] **Floating panel**: Cmd+F / Cmd+H toggle, Text/Fill/Stroke/Font 4-tab mode
 - [x] **Result navigation**: Previous/Next with auto-select + pan-to-node
 - [x] **Result list**: Scrollable results with kind badge, name, matched text/color preview
 - [x] Rust: find_replace.rs (Scene methods: find_text, replace_text_in_node, replace_all_text, find_by_color, replace_color)
-- [x] WASM: find_text, replace_text, replace_all_text, find_by_color, replace_color
+- [x] WASM: find_text, replace_text, replace_all_text, find_by_color, replace_color, find_by_stroke_color, replace_stroke_color, find_by_font, replace_font
 - [x] TS: find-replace-panel.ts, Cmd+F shortcut, Esc to close
 - [x] Undo integration (push_undo before replace operations)
 - [x] **Property search**: Search nodes by fill color, stroke color, font family, font size (exact/range), opacity, blend mode, corner radius, stroke width, node kind — AND logic across all criteria
