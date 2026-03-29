@@ -5088,6 +5088,144 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       container.appendChild(gridSection);
     }
 
+    // === Frame Background Pattern Section (Frame/Section only) ===
+    if (["Frame", "Section"].includes(kindStr || "")) {
+      const fbpSection = document.createElement("div");
+      fbpSection.className = "prop-section";
+      const fbpTitle = document.createElement("div");
+      fbpTitle.className = "prop-section-title";
+      fbpTitle.textContent = "Background Pattern";
+      fbpSection.appendChild(fbpTitle);
+
+      let fbpData: any = null;
+      try {
+        const raw = editor.engine.get_frame_background_pattern(BigInt(id));
+        if (raw && raw !== "null") fbpData = JSON.parse(raw);
+      } catch {}
+
+      const inputCss2 = "width:100%;padding:4px 6px;font-size:11px;border:1px solid #444;border-radius:4px;background:#2a2a2a;color:#ccc;box-sizing:border-box;";
+      const labelCss2 = "font-size:10px;color:#666;margin-bottom:2px;";
+
+      // Enable toggle
+      const enableRow = document.createElement("div");
+      enableRow.style.cssText = "display:flex;align-items:center;gap:8px;margin-bottom:8px;";
+      const enableCb = document.createElement("input");
+      enableCb.type = "checkbox";
+      enableCb.checked = !!fbpData;
+      enableCb.style.cssText = "accent-color:#4f46e5;";
+      const enableLabel = document.createElement("span");
+      enableLabel.style.cssText = "font-size:11px;color:#999;";
+      enableLabel.textContent = fbpData ? "Custom pattern" : "Use scene default";
+      enableRow.appendChild(enableCb);
+      enableRow.appendChild(enableLabel);
+      fbpSection.appendChild(enableRow);
+
+      enableCb.onchange = () => {
+        ensureUndo();
+        if (enableCb.checked) {
+          editor.engine.set_frame_background_pattern(BigInt(id), "dots", "ffffff", 20, 0.15, 1.5);
+        } else {
+          editor.engine.clear_frame_background_pattern(BigInt(id));
+        }
+        editor.requestRender();
+        refresh(ids);
+      };
+
+      if (fbpData) {
+        // Pattern type
+        const patRow = document.createElement("div");
+        patRow.style.cssText = "margin-bottom:6px;";
+        const patLabel = document.createElement("div");
+        patLabel.style.cssText = labelCss2;
+        patLabel.textContent = "Type";
+        patRow.appendChild(patLabel);
+        const patSelect = document.createElement("select");
+        patSelect.style.cssText = inputCss2;
+        for (const opt of ["dots", "grid", "lines", "cross", "none"]) {
+          const o = document.createElement("option");
+          o.value = opt; o.textContent = opt.charAt(0).toUpperCase() + opt.slice(1);
+          if (opt === fbpData.pattern) o.selected = true;
+          patSelect.appendChild(o);
+        }
+        patSelect.onchange = () => {
+          ensureUndo();
+          editor.engine.set_frame_background_pattern(BigInt(id), patSelect.value, fbpData.color, fbpData.spacing, fbpData.opacity, fbpData.size);
+          editor.requestRender();
+          refresh(ids);
+        };
+        patRow.appendChild(patSelect);
+        fbpSection.appendChild(patRow);
+
+        // Color + visibility row
+        const colorRow = document.createElement("div");
+        colorRow.style.cssText = "display:flex;gap:6px;align-items:center;margin-bottom:6px;";
+        const colorLabel = document.createElement("div");
+        colorLabel.style.cssText = labelCss2 + "flex-shrink:0;";
+        colorLabel.textContent = "Color";
+        colorRow.appendChild(colorLabel);
+        const colorSwatch = document.createElement("input");
+        colorSwatch.type = "color";
+        colorSwatch.value = "#" + fbpData.color;
+        colorSwatch.style.cssText = "width:24px;height:24px;border:1px solid #555;border-radius:4px;padding:0;cursor:pointer;background:none;";
+        colorSwatch.oninput = () => {
+          ensureUndo();
+          const c = colorSwatch.value.replace("#", "");
+          editor.engine.set_frame_background_pattern(BigInt(id), fbpData.pattern, c, fbpData.spacing, fbpData.opacity, fbpData.size);
+          editor.requestRender();
+        };
+        colorRow.appendChild(colorSwatch);
+
+        const visCb = document.createElement("input");
+        visCb.type = "checkbox";
+        visCb.checked = fbpData.visible !== false;
+        visCb.style.cssText = "accent-color:#4f46e5;margin-left:auto;";
+        visCb.title = "Visible";
+        visCb.onchange = () => {
+          ensureUndo();
+          editor.engine.set_frame_background_pattern_visible(BigInt(id), visCb.checked);
+          editor.requestRender();
+        };
+        const visLabel = document.createElement("span");
+        visLabel.style.cssText = "font-size:10px;color:#666;";
+        visLabel.textContent = "👁";
+        colorRow.appendChild(visLabel);
+        colorRow.appendChild(visCb);
+        fbpSection.appendChild(colorRow);
+
+        // Spacing / Opacity / Size
+        const numRow2 = document.createElement("div");
+        numRow2.style.cssText = "display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;";
+        for (const [label, val, key, min, max, step] of [
+          ["Spacing", fbpData.spacing, "spacing", 5, 200, 1],
+          ["Opacity", fbpData.opacity, "opacity", 0, 1, 0.01],
+          ["Size", fbpData.size, "size", 0.5, 10, 0.5],
+        ] as const) {
+          const col = document.createElement("div");
+          const lbl = document.createElement("div");
+          lbl.style.cssText = labelCss2; lbl.textContent = label;
+          col.appendChild(lbl);
+          const inp = document.createElement("input");
+          inp.type = "number"; inp.value = String(val); inp.min = String(min); inp.max = String(max); inp.step = String(step);
+          inp.style.cssText = inputCss2;
+          inp.onchange = () => {
+            ensureUndo();
+            const newVal = parseFloat(inp.value) || val;
+            const s = key === "spacing" ? newVal : fbpData.spacing;
+            const o = key === "opacity" ? newVal : fbpData.opacity;
+            const sz = key === "size" ? newVal : fbpData.size;
+            editor.engine.set_frame_background_pattern(BigInt(id), fbpData.pattern, fbpData.color, s, o, sz);
+            editor.requestRender();
+            refresh(ids);
+          };
+          col.appendChild(inp);
+          numRow2.appendChild(col);
+        }
+        fbpSection.appendChild(numRow2);
+      }
+
+      container.appendChild(fbpSection);
+    }
+
     // === Notes Section ===
     const notes: any[] = JSON.parse(editor.engine.get_notes(BigInt(id)));
     const notesSection = document.createElement("div");

@@ -1490,3 +1490,8 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Rust renderer: zoom-adaptive rendering, density culling
 - [x] WASM: set_bg_pattern, set_bg_color, set_bg_pattern_color, set_bg_spacing, set_bg_opacity, set_bg_dot_size, get_bg_settings
 - [x] Properties panel: Canvas Background section (empty state) with pattern dropdown, color pickers, numeric inputs
+- [x] Per-frame background patterns: Frame/Section nodes can have independent background patterns
+- [x] FrameBackgroundPattern struct (pattern/color/spacing/opacity/size/visible)
+- [x] WASM: get/set/clear_frame_background_pattern, set_frame_background_pattern_visible
+- [x] Canvas rendering: Clipped pattern rendering inside frame bounds (dots/grid/lines/cross)
+- [x] Properties panel: "Background Pattern" section for Frame/Section nodes (enable toggle, type/color/spacing/opacity/size controls, visibility)
