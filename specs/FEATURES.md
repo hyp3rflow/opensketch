@@ -1608,3 +1608,12 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Collab UI integration: 🔊 button in collaboration panel
 - [x] Listener position synced to canvas viewport center each frame
 - [x] Remote cursor positions synced from CursorPresence data
+
+## Smart Layout Templates
+- [x] Pre-defined layout templates: Card (Basic, Profile), Navigation (Top bar, Sidebar), Hero (Centered), Forms (Login, Contact), Lists (Settings), Footers (Simple), Modals (Confirm Dialog)
+- [x] Template browser: Right pane "Templates" tab with search and category filter
+- [x] One-click insertion at viewport center with auto-layout properties
+- [x] Custom template save: selection → template (captures hierarchy, fills, strokes, layout, text props)
+- [x] Custom template delete, export (JSON), import (JSON merge)
+- [x] localStorage persistence for custom templates
+- [x] Template instantiation: recursive node creation via WASM API with proper reparenting

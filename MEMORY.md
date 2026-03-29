@@ -1422,6 +1422,17 @@
   - Color picker 연동, blend mode/node kind select
   - Undo 통합
 
+## 완료된 기능 (추가 — Smart Layout Templates)
+- Smart layout templates (원클릭 레이아웃 삽입):
+  - 10개 빌트인 템플릿: Basic Card, Profile Card, Top Navigation, Sidebar Navigation, Centered Hero, Login Form, Contact Form, Settings List, Simple Footer, Confirm Dialog
+  - 카테고리: Cards, Navigation, Hero, Forms, Lists, Footers, Modals, Custom
+  - Right pane "Templates" 탭: 검색, 카테고리 필터, 카드형 UI
+  - 원클릭 삽입: 뷰포트 중심에 배치, 계층 구조 + auto-layout + fill/stroke/radius/text 모두 적용
+  - 커스텀 템플릿: selection → template 저장 (노드 트리 재귀 직렬화)
+  - 커스텀 삭제, Export JSON, Import JSON (머지)
+  - localStorage 영속, backward-compatible
+  - 순수 TypeScript 구현 (ui/template-panel.ts, ~600 lines)
+
 ## 다음 할 것
 - Spatial audio for collaboration — 멀티플레이어 캔버스에서 거리 기반 음성/효과음, 가까운 유저일수록 소리 크게
 - Cursor chat improvements — 커서 채팅에 이모지 리액션, @멘션, 메시지 히스토리 패널
