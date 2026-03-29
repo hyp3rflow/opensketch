@@ -1442,3 +1442,16 @@
 - 2+ 노드 선택 시 Spacing 입력 + H/V 버튼 표시
 - 기존 distribute_selection_with_spacing WASM 바인딩 활용
 - 사용자 지정 gap으로 수평/수직 균등 간격 배치
+
+## 완료된 기능 (추가 — Plugin Marketplace UI)
+- Rust: plugin.rs — PluginEntry 구조체 (id, name, version, author, description, category, installed, enabled, downloads, rating)
+- Rust: PluginStore — CRUD, enable/disable, search (fuzzy query + category filter), 7개 빌트인 카탈로그
+- WASM 바인딩: get_plugins, get_installed_plugins, search_plugins, install_plugin, uninstall_plugin, enable_plugin, disable_plugin
+- TS: plugin-marketplace.ts — Right pane "Plugins" 탭, Installed/Browse 두 섹션
+- Browse: 검색 바 (name/description fuzzy match), 카테고리 필터 (All/Design/Layout/Export/Accessibility/Developer)
+- Plugin 카드: icon, name, author, description, rating, downloads, install/uninstall 버튼
+- Installed: 토글 스위치 (enable/disable), uninstall 버튼, 플러그인 패널 탭
+- Demo plugins: Lorem Ipsum Generator, Color Palette, Grid Generator (실제 동작)
+- Grid Generator: rows/cols/cellSize/gap/color 설정, rainbow 모드, 자동 Rect 그리드 생성
+- Plugin API: PluginAPI 인터페이스 (scene ops, UI extensions, events), PluginManager lifecycle
+- Figma Plugin 호환: 코드 붙여넣기 실행 지원
