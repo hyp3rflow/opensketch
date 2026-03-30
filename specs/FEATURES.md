@@ -719,6 +719,11 @@ Simulated multi-user cursor display for collaboration readiness.
 
 Right pane "A11y" tab — automated accessibility audit for design nodes.
 
+### Engine
+- [x] Rust `accessibility.rs`: Dedicated WCAG 2.1 module (relative luminance, contrast ratio, check_accessibility → Vec<A11yIssue>)
+- [x] Issue types: LowContrast, MissingAltText, SmallText (< 12px), TouchTargetTooSmall (< 44×44)
+- [x] WASM: `check_accessibility()` → JSON array (serde)
+
 ### Checks
 - [x] WCAG 2.1 contrast ratio: Text foreground vs parent fill background, AA (4.5:1 / 3:1 large) and AAA (7:1 / 4.5:1 large) levels
 - [x] Touch target size: Warns leaf nodes smaller than 44×44px (WCAG 2.5.5)

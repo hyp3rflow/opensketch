@@ -460,6 +460,8 @@
   - Right pane "A11y" 탭: 카테고리별 이슈 그룹핑, severity 배지 (error/warning/info)
   - 이슈 클릭 시 해당 노드 선택 + zoom to selection
   - Re-check 버튼으로 수동 재검사
+  - Rust accessibility.rs: WCAG 2.1 전용 모듈 (check_accessibility → Vec<A11yIssue>, LowContrast/MissingAltText/SmallText/TouchTargetTooSmall)
+  - WASM: check_accessibility() → JSON (serde)
   - 순수 TypeScript 구현 (ui/accessibility-panel.ts)
 
 ## 완료된 기능 (추가 49)
@@ -1508,6 +1510,9 @@
 - Eyedropper tool — 캔버스 픽셀에서 색상 추출, 클릭 시 선택 노드 fill 적용, I 단축키, 미리보기 루페
 - Outline view mode — 와이어프레임 토글 (fill 숨기고 stroke만 표시), 복잡한 디자인 구조 파악용, Cmd+Y 단축키
 - Anchor / Link points on shapes — 노드 가장자리에 커넥터 앵커 포인트 정의, Connector 자동 스냅
+- Measure tool overlay improvements — ruler 단위 전환 (px/dp/pt/rem), 3-way distance (gap + padding + margin)
+- Selection filter toolbar — 종류별 선택 필터 토글 (Text/Shape/Image/Frame 등), 잠금 노드 포함/제외
+- Auto-layout spacing visualization — 패딩/갭 인라인 표시 (Figma 스타일 핑크 영역), 드래그 조절
 ## 완료된 기능 (추가 — Smart Distribute)
 - 3+ 노드 선택 시 불균등 간격 감지 및 정규화
 - Rust: smart_distribute_preview() → 현재 H/V gaps, 추천 gap (mode/median), 이동량 JSON

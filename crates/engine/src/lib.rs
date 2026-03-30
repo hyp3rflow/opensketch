@@ -17,6 +17,7 @@ pub mod token;
 pub mod path_utils;
 pub mod animation;
 mod design_lint;
+pub mod accessibility;
 mod design_polish;
 mod color_palette;
 mod smart_select;
@@ -6085,6 +6086,12 @@ impl Engine {
             }
         }
         0
+    }
+
+    /// Run focused accessibility checks (WCAG 2.1) → JSON array of A11yIssue
+    pub fn check_accessibility(&self) -> String {
+        let issues = accessibility::check_accessibility(self.scene.nodes_map());
+        serde_json::to_string(&issues).unwrap_or_else(|_| "[]".to_string())
     }
 
     pub fn run_design_lint(&self) -> String {
