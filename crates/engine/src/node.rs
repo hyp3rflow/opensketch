@@ -879,6 +879,18 @@ impl Default for TextSizing {
     fn default() -> Self { TextSizing::Fit }
 }
 
+/// Text overflow behavior when content exceeds node bounds
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub enum TextOverflow {
+    Visible,
+    Clip,
+    Ellipsis,
+}
+
+impl Default for TextOverflow {
+    fn default() -> Self { TextOverflow::Visible }
+}
+
 /// Auto layout sizing mode for children (Figma-style hug/fill)
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub enum SizingMode {
@@ -1566,6 +1578,9 @@ pub struct Node {
     /// Text sizing mode (Fit = auto-size to content, Fixed = manual)
     #[serde(default)]
     pub text_sizing: TextSizing,
+    /// Text overflow behavior (Visible/Clip/Ellipsis)
+    #[serde(default)]
+    pub text_overflow: TextOverflow,
     /// Layout properties
     #[serde(default)]
     pub layout: Layout,
@@ -1736,6 +1751,7 @@ impl Node {
             children: vec![],
             parent: None,
             text_sizing: TextSizing::default(),
+            text_overflow: TextOverflow::default(),
             layout: Layout::default(),
             notes: vec![],
             shadows: vec![],

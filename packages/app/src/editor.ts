@@ -4756,14 +4756,89 @@ export class Editor {
       const mMetrics = ctx.measureText("M");
       const ascent = mMetrics.actualBoundingBoxAscent || fontSize * 0.8;
       const content = text.content || "";
-      const lines = content.split('\n');
       const lineH = fontSize * lineHeight;
       const letterSpacing = text.letter_spacing ?? 0;
       if (letterSpacing !== 0) {
         (ctx as any).letterSpacing = `${letterSpacing}px`;
       }
-      for (let i = 0; i < lines.length; i++) {
-        ctx.fillText(lines[i], x, y + ascent + lineH * i);
+      const textOverflow = node.text_overflow ?? "Visible";
+      const isFixed = node.text_sizing === "Fixed";
+      const maxW = isFixed ? w : undefined;
+      const maxLines = isFixed && h > 0 ? Math.max(1, Math.floor(h / lineH)) : undefined;
+
+      // Word-wrap lines if fixed width
+      let lines: string[];
+      if (maxW && maxW > 0) {
+        lines = [];
+        for (const para of content.split('\n')) {
+          if (!para) { lines.push(""); continue; }
+          const words = para.split(' ');
+          let current = "";
+          for (const word of words) {
+            const test = current ? `${current} ${word}` : word;
+            if (ctx.measureText(test).width > maxW && current) {
+              lines.push(current);
+              current = word;
+            } else {
+              current = test;
+            }
+          }
+          if (current) lines.push(current);
+        }
+        if (lines.length === 0) lines.push("");
+      } else {
+        lines = content.split('\n');
+      }
+
+      // Apply text overflow clipping/ellipsis
+      const clipNeeded = isFixed && textOverflow !== "Visible";
+      if (clipNeeded) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(x, y, w, h);
+        ctx.clip();
+      }
+
+      // Truncate lines to max visible lines with ellipsis
+      let renderLines = lines;
+      if (maxLines && lines.length > maxLines && textOverflow === "Ellipsis") {
+        renderLines = lines.slice(0, maxLines);
+        // Add ellipsis to last visible line
+        let lastLine = renderLines[maxLines - 1];
+        const ellipsis = "…";
+        if (maxW && maxW > 0) {
+          while (ctx.measureText(lastLine + ellipsis).width > maxW && lastLine.length > 0) {
+            lastLine = lastLine.slice(0, -1);
+          }
+        }
+        renderLines[maxLines - 1] = lastLine + ellipsis;
+      } else if (maxLines && textOverflow === "Clip") {
+        renderLines = lines.slice(0, maxLines);
+      }
+
+      // Also truncate single lines that exceed maxW with ellipsis
+      if (maxW && maxW > 0 && textOverflow === "Ellipsis") {
+        for (let i = 0; i < renderLines.length; i++) {
+          if (ctx.measureText(renderLines[i]).width > maxW) {
+            let truncated = renderLines[i];
+            const ellipsis = "…";
+            while (ctx.measureText(truncated + ellipsis).width > maxW && truncated.length > 0) {
+              truncated = truncated.slice(0, -1);
+            }
+            renderLines[i] = truncated + ellipsis;
+          }
+        }
+      }
+
+      const textAlign = text.text_align ?? "Left";
+      for (let i = 0; i < renderLines.length; i++) {
+        let tx = x;
+        if (isFixed) {
+          const lw = ctx.measureText(renderLines[i]).width;
+          if (textAlign === "Center") tx = x + (w - lw) / 2;
+          else if (textAlign === "Right") tx = x + w - lw;
+        }
+        ctx.fillText(renderLines[i], tx, y + ascent + lineH * i);
       }
       // Text decorations
       const deco = text.text_decoration ?? "None";
@@ -4772,8 +4847,8 @@ export class Editor {
         const hasS = deco === "Strikethrough" || deco === "UnderlineStrikethrough";
         ctx.strokeStyle = ctx.fillStyle as string;
         ctx.lineWidth = Math.max(1, fontSize / 14);
-        for (let i = 0; i < lines.length; i++) {
-          const lw = ctx.measureText(lines[i]).width;
+        for (let i = 0; i < renderLines.length; i++) {
+          const lw = ctx.measureText(renderLines[i]).width;
           if (hasU) {
             const uy = y + ascent + lineH * i + fontSize * 0.15;
             ctx.beginPath(); ctx.moveTo(x, uy); ctx.lineTo(x + lw, uy); ctx.stroke();
@@ -4783,6 +4858,9 @@ export class Editor {
             ctx.beginPath(); ctx.moveTo(x, sy); ctx.lineTo(x + lw, sy); ctx.stroke();
           }
         }
+      }
+      if (clipNeeded) {
+        ctx.restore();
       }
       if (letterSpacing !== 0) {
         (ctx as any).letterSpacing = "0px";

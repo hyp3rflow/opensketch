@@ -51,7 +51,7 @@ use web_sys::CanvasRenderingContext2d;
 use i_overlay::core::fill_rule::FillRule;
 use i_overlay::core::overlay_rule::OverlayRule;
 use i_overlay::float::single::SingleFloatOverlay;
-use crate::node::{Node, NodeKind, Fill, FillType, GradientStop, Stroke, StrokeAlign, LayoutMode, FlexDirection, Align, Justify, FlexWrap, TextSizing, TextAlign, FontStyle, PathPoint, ConstraintH, ConstraintV, BlendMode, LayoutGrid, SizingMode, Breakpoint};
+use crate::node::{Node, NodeKind, Fill, FillType, GradientStop, Stroke, StrokeAlign, LayoutMode, FlexDirection, Align, Justify, FlexWrap, TextSizing, TextOverflow, TextAlign, FontStyle, PathPoint, ConstraintH, ConstraintV, BlendMode, LayoutGrid, SizingMode, Breakpoint};
 
 fn parse_align(s: &str) -> Align {
     match s {
@@ -4526,6 +4526,30 @@ impl Engine {
             }
         } else {
             "fit".to_string()
+        }
+    }
+
+    /// Set text overflow mode (visible/clip/ellipsis)
+    pub fn set_text_overflow(&mut self, id: u64, mode: &str) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            node.text_overflow = match mode {
+                "clip" => TextOverflow::Clip,
+                "ellipsis" => TextOverflow::Ellipsis,
+                _ => TextOverflow::Visible,
+            };
+        }
+    }
+
+    /// Get text overflow mode
+    pub fn get_text_overflow(&self, id: u64) -> String {
+        if let Some(node) = self.scene.get_node(id) {
+            match node.text_overflow {
+                TextOverflow::Visible => "visible".to_string(),
+                TextOverflow::Clip => "clip".to_string(),
+                TextOverflow::Ellipsis => "ellipsis".to_string(),
+            }
+        } else {
+            "visible".to_string()
         }
     }
 

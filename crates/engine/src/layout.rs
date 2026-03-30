@@ -113,6 +113,8 @@ fn apply_hug_sizing(scene: &mut Scene, parent_id: NodeId) {
             let new_h = (max_y - parent.y) + layout.padding_bottom;
             parent.height = new_h.max(1.0);
         }
+        // Apply min/max constraints after hug sizing
+        parent.clamp_size();
     }
 }
 

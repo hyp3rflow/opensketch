@@ -3716,6 +3716,40 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         textSection.appendChild(dimRow);
       }
 
+      // Text overflow mode (only relevant for Fixed sizing)
+      if (currentSizing === "fixed") {
+        const overflowRow = document.createElement("div");
+        overflowRow.className = "prop-row";
+        overflowRow.style.marginTop = "4px";
+        const overflowLabel = document.createElement("span");
+        overflowLabel.className = "prop-label";
+        overflowLabel.style.width = "54px";
+        overflowLabel.textContent = "Overflow";
+        overflowRow.appendChild(overflowLabel);
+        const currentOverflow = editor.engine.get_text_overflow(BigInt(id));
+        const overflowGroup = document.createElement("div");
+        overflowGroup.style.cssText = "display:flex;gap:2px;flex:1;";
+        for (const mode of ["visible", "clip", "ellipsis"] as const) {
+          const btn = document.createElement("button");
+          btn.textContent = mode.charAt(0).toUpperCase() + mode.slice(1);
+          btn.style.cssText = `
+            flex:1; padding:3px 6px; border:1px solid #444; border-radius:4px;
+            background:${mode === currentOverflow ? "#4f46e5" : "#2a2a2a"};
+            color:${mode === currentOverflow ? "#fff" : "#999"};
+            cursor:pointer; font-size:10px; transition:all 0.15s;
+          `;
+          btn.addEventListener("click", () => {
+            ensureUndo();
+            editor.engine.set_text_overflow(BigInt(id), mode);
+            editor.requestRender();
+            refresh(ids);
+          });
+          overflowGroup.appendChild(btn);
+        }
+        overflowRow.appendChild(overflowGroup);
+        textSection.appendChild(overflowRow);
+      }
+
       container.appendChild(textSection);
 
       // --- Text Flow section ---

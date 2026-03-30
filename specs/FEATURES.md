@@ -531,6 +531,8 @@
 ### Responsive Auto-Layout Preview
 - [x] **Real-time layout recomputation**: During resize handle drag, auto-layout children (Flex/Grid) are repositioned every frame
 - [x] **Hug/Fill sizing**: Children with Fill sizing expand/shrink with parent; Hug parents auto-shrink to fit
+- [x] **Min/Max content sizing**: Hug mode respects min_width/max_width/min_height/max_height constraints via clamp_size()
+- [x] **Text overflow (Clip/Ellipsis)**: TextOverflow enum (Visible/Clip/Ellipsis), word-wrapping in Fixed text sizing, single-line and multi-line ellipsis truncation, clip region for overflow hidden, text-align support in rendering, Properties panel overflow mode toggle
 - [x] **Breakpoint indicator**: Shows active breakpoint label + current width as floating pill above the resized frame
 - [x] **resize_node_with_layout**: Combined WASM method for resize + immediate layout recomputation
 - [x] **compute_layout**: Explicit WASM method for triggering layout recomputation from TypeScript
