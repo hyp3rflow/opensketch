@@ -5001,6 +5001,28 @@ impl Engine {
         self.scene.smart_distribute_grid(&ids)
     }
 
+    /// Smart distribute preview: returns JSON with detected gaps and recommended gap.
+    pub fn smart_distribute_preview(&self, ids_json: &str) -> String {
+        let ids: Vec<u64> = serde_json::from_str(ids_json).unwrap_or_default();
+        self.scene.smart_distribute_preview(&ids)
+    }
+
+    /// Smart distribute horizontally with optional custom gap.
+    pub fn smart_distribute_h(&mut self, ids_json: &str, gap: f64) {
+        let ids: Vec<u64> = serde_json::from_str(ids_json).unwrap_or_default();
+        let reference = if gap < 0.0 { None } else { Some(gap) };
+        self.push_undo();
+        self.scene.smart_distribute_h(&ids, reference);
+    }
+
+    /// Smart distribute vertically with optional custom gap.
+    pub fn smart_distribute_v(&mut self, ids_json: &str, gap: f64) {
+        let ids: Vec<u64> = serde_json::from_str(ids_json).unwrap_or_default();
+        let reference = if gap < 0.0 { None } else { Some(gap) };
+        self.push_undo();
+        self.scene.smart_distribute_v(&ids, reference);
+    }
+
     // =============================================
     // SVG Export
     // =============================================

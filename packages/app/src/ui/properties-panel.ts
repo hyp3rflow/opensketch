@@ -324,6 +324,128 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         alignSection.appendChild(gridBtn);
       }
 
+      // Smart Distribute (3+ nodes) — detect uneven spacing and normalize
+      if (ids.length >= 3) {
+        const smartBtn = document.createElement("button");
+        smartBtn.title = "Smart distribute — normalize uneven spacing";
+        smartBtn.style.cssText = "padding:6px;border:1px solid #3a3a3a;border-radius:6px;background:#2a2a2a;color:#888;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;font-size:10px;transition:all 0.15s;margin-top:4px;width:100%;position:relative;";
+        smartBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 18h18"/><rect x="5" y="10" width="3" height="4" rx="0.5"/><rect x="10.5" y="10" width="3" height="4" rx="0.5"/><rect x="16" y="10" width="3" height="4" rx="0.5"/><path d="M8 12h2.5M13.5 12h2.5" stroke-dasharray="1.5 1.5"/></svg><span>Smart Distribute</span>`;
+        smartBtn.addEventListener("mouseenter", () => { smartBtn.style.borderColor = "#4f46e5"; smartBtn.style.color = "#818cf8"; });
+        smartBtn.addEventListener("mouseleave", () => { if (!smartBtn.querySelector(".smart-dist-popover")) { smartBtn.style.borderColor = "#3a3a3a"; smartBtn.style.color = "#888"; } });
+        smartBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          // Remove existing popover
+          const existing = smartBtn.querySelector(".smart-dist-popover");
+          if (existing) { existing.remove(); smartBtn.style.borderColor = "#3a3a3a"; smartBtn.style.color = "#888"; return; }
+          // Get preview
+          const idsJson = JSON.stringify(ids.map(Number));
+          const preview = JSON.parse((editor.engine as any).smart_distribute_preview(idsJson) || "{}");
+          if (!preview.h_gaps) return;
+          // Build popover
+          const pop = document.createElement("div");
+          pop.className = "smart-dist-popover";
+          pop.style.cssText = "position:absolute;left:0;top:calc(100% + 4px);width:100%;background:#1e1e1e;border:1px solid #3a3a3a;border-radius:8px;padding:8px;z-index:100;box-shadow:0 4px 12px rgba(0,0,0,0.5);";
+          pop.addEventListener("click", (ev) => ev.stopPropagation());
+
+          const hGaps = (preview.h_gaps as number[]).map((g: number) => g.toFixed(0)).join(", ");
+          const vGaps = (preview.v_gaps as number[]).map((g: number) => g.toFixed(0)).join(", ");
+
+          pop.innerHTML = `
+            <div style="font-size:10px;color:#aaa;margin-bottom:6px;">
+              <div>H gaps: <span style="color:#ccc;">${hGaps}</span> → rec: <b style="color:#818cf8;">${preview.h_recommended.toFixed(0)}</b></div>
+              <div>V gaps: <span style="color:#ccc;">${vGaps}</span> → rec: <b style="color:#818cf8;">${preview.v_recommended.toFixed(0)}</b></div>
+            </div>
+            <div style="display:flex;gap:4px;align-items:center;margin-bottom:6px;">
+              <span style="font-size:10px;color:#888;">Gap:</span>
+              <input type="number" class="sd-gap-input" value="" placeholder="auto" style="width:48px;padding:3px 5px;font-size:11px;border:1px solid #3a3a3a;border-radius:4px;background:#1e1e1e;color:#ccc;text-align:center;" />
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;">
+              <button class="sd-apply-h" style="padding:5px;border:1px solid rgba(79,70,229,0.4);border-radius:4px;background:rgba(79,70,229,0.15);color:#818cf8;cursor:pointer;font-size:10px;transition:all 0.15s;">Apply H</button>
+              <button class="sd-apply-v" style="padding:5px;border:1px solid rgba(79,70,229,0.4);border-radius:4px;background:rgba(79,70,229,0.15);color:#818cf8;cursor:pointer;font-size:10px;transition:all 0.15s;">Apply V</button>
+            </div>
+          `;
+          smartBtn.appendChild(pop);
+
+          const gapInput = pop.querySelector(".sd-gap-input") as HTMLInputElement;
+          const applyH = pop.querySelector(".sd-apply-h") as HTMLButtonElement;
+          const applyV = pop.querySelector(".sd-apply-v") as HTMLButtonElement;
+
+          applyH.addEventListener("click", (ev) => {
+            ev.stopPropagation();
+            const gap = gapInput.value ? parseFloat(gapInput.value) : -1;
+            (editor.engine as any).smart_distribute_h(idsJson, gap);
+            editor.requestRender();
+            pop.remove();
+          });
+          applyV.addEventListener("click", (ev) => {
+            ev.stopPropagation();
+            const gap = gapInput.value ? parseFloat(gapInput.value) : -1;
+            (editor.engine as any).smart_distribute_v(idsJson, gap);
+            editor.requestRender();
+            pop.remove();
+          });
+
+          // Close on outside click
+          const closeHandler = (ev: MouseEvent) => {
+            if (!pop.contains(ev.target as Node) && ev.target !== smartBtn) {
+              pop.remove();
+              smartBtn.style.borderColor = "#3a3a3a"; smartBtn.style.color = "#888";
+              document.removeEventListener("click", closeHandler);
+            }
+          };
+          setTimeout(() => document.addEventListener("click", closeHandler), 0);
+        });
+        alignSection.appendChild(smartBtn);
+      }
+
+      // Tidy Up button (3+ nodes) — normalizes uneven spacing
+      if (ids.length >= 3) {
+        const tidyRow = document.createElement("div");
+        tidyRow.style.cssText = "display:flex;gap:4px;align-items:stretch;margin-top:4px;";
+
+        // Spacing info badge
+        const infoSpan = document.createElement("span");
+        infoSpan.style.cssText = "font-size:9px;color:#666;display:flex;align-items:center;padding:0 4px;flex-shrink:0;min-width:0;";
+        try {
+          const hInfo = JSON.parse((editor.engine as any).get_spacing_between(new BigUint64Array(ids.map(i => BigInt(i))), "horizontal") || "{}");
+          const vInfo = JSON.parse((editor.engine as any).get_spacing_between(new BigUint64Array(ids.map(i => BigInt(i))), "vertical") || "{}");
+          const hUniform = hInfo.uniform;
+          const vUniform = vInfo.uniform;
+          if (!hUniform || !vUniform) {
+            infoSpan.textContent = "⚠ uneven";
+            infoSpan.style.color = "#f59e0b";
+          } else {
+            infoSpan.textContent = "✓ even";
+            infoSpan.style.color = "#22c55e";
+          }
+        } catch { infoSpan.textContent = ""; }
+
+        const tidyBtn = document.createElement("button");
+        tidyBtn.title = "Tidy up — normalize spacing & align";
+        tidyBtn.style.cssText = "flex:1;padding:6px;border:1px solid #3a3a3a;border-radius:6px;background:#2a2a2a;color:#888;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;font-size:10px;transition:all 0.15s;";
+        tidyBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h18M3 18h18"/><circle cx="7" cy="6" r="1.5" fill="currentColor"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/><circle cx="17" cy="18" r="1.5" fill="currentColor"/></svg><span>Tidy up</span>`;
+        tidyBtn.addEventListener("mouseenter", () => { tidyBtn.style.borderColor = "#4f46e5"; tidyBtn.style.color = "#818cf8"; });
+        tidyBtn.addEventListener("mouseleave", () => { tidyBtn.style.borderColor = "#3a3a3a"; tidyBtn.style.color = "#888"; });
+        tidyBtn.addEventListener("click", () => {
+          editor.engine.push_undo();
+          const result = (editor.engine as any).tidy_up_selection();
+          editor.requestRender();
+          try {
+            const r = JSON.parse(result);
+            if (r.axis) {
+              infoSpan.textContent = `${r.axis === "horizontal" ? "H" : "V"} gap: ${r.gap}px`;
+              infoSpan.style.color = "#22c55e";
+            }
+          } catch {}
+          // Refresh properties panel
+          editor.onSelectionChanged?.();
+        });
+
+        tidyRow.appendChild(infoSpan);
+        tidyRow.appendChild(tidyBtn);
+        alignSection.appendChild(tidyRow);
+      }
+
       // Auto-spacing section (2+ nodes)
       if (ids.length >= 2) {
         const spacingRow = document.createElement("div");

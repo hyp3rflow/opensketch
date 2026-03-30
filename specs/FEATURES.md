@@ -94,6 +94,7 @@
 - [x] **Undo integration**: push_undo before every alignment action
 - [x] **Dual API**: explicit IDs (`align_left(ids)`) + selection-based (`align_selection("left")`)
 - [x] **Smart Tidy Up**: one-click equalize spacing + cross-axis center align (2+ nodes, Cmd/Ctrl+Shift+T, context menu)
+- [x] **Smart Distribute**: detect uneven spacing between 3+ selected nodes, analyze gaps (mode/median), preview recommended gap with per-node move deltas, apply horizontal/vertical normalization with optional custom gap override. Popover UI in properties panel align section.
 
 ### Agent Panel
 - [x] Toggle button (🤖, bottom-right)

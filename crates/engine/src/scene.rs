@@ -1378,6 +1378,133 @@ impl Scene {
             num_rows, max_cols, row_gap, col_gap, items.len())
     }
 
+    /// Smart distribute: analyze gaps between nodes and return preview JSON.
+    /// Returns { h_gaps: [f64], v_gaps: [f64], h_recommended: f64, v_recommended: f64, moves_h: [{id, from, to, delta}], moves_v: [...] }
+    pub fn smart_distribute_preview(&self, ids: &[NodeId]) -> String {
+        if ids.len() < 3 { return "{}".to_string(); }
+
+        let items: Vec<(NodeId, f64, f64, f64, f64)> = ids.iter()
+            .filter_map(|&id| self.nodes.get(&id).map(|n| (id, n.x, n.y, n.width, n.height)))
+            .collect();
+        if items.len() < 3 { return "{}".to_string(); }
+
+        // Horizontal analysis
+        let mut h_sorted = items.clone();
+        h_sorted.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+        let h_gaps: Vec<f64> = h_sorted.windows(2)
+            .map(|w| w[1].1 - (w[0].1 + w[0].3))
+            .collect();
+        let h_rec = Self::find_recommended_gap(&h_gaps);
+
+        // Vertical analysis
+        let mut v_sorted = items.clone();
+        v_sorted.sort_by(|a, b| a.2.partial_cmp(&b.2).unwrap());
+        let v_gaps: Vec<f64> = v_sorted.windows(2)
+            .map(|w| w[1].2 - (w[0].2 + w[0].4))
+            .collect();
+        let v_rec = Self::find_recommended_gap(&v_gaps);
+
+        // Compute moves for H
+        let moves_h = Self::compute_moves_h(&h_sorted, h_rec);
+        let moves_v = Self::compute_moves_v(&v_sorted, v_rec);
+
+        let h_gaps_json: Vec<String> = h_gaps.iter().map(|g| format!("{:.1}", g)).collect();
+        let v_gaps_json: Vec<String> = v_gaps.iter().map(|g| format!("{:.1}", g)).collect();
+
+        format!("{{\"h_gaps\":[{}],\"v_gaps\":[{}],\"h_recommended\":{:.1},\"v_recommended\":{:.1},\"moves_h\":[{}],\"moves_v\":[{}]}}",
+            h_gaps_json.join(","), v_gaps_json.join(","), h_rec, v_rec,
+            moves_h.join(","), moves_v.join(","))
+    }
+
+    fn find_recommended_gap(gaps: &[f64]) -> f64 {
+        if gaps.is_empty() { return 0.0; }
+        // Round gaps to nearest integer for mode detection
+        let rounded: Vec<i64> = gaps.iter().map(|g| g.round() as i64).collect();
+        // Find mode (most frequent)
+        let mut counts = std::collections::HashMap::new();
+        for &r in &rounded {
+            *counts.entry(r).or_insert(0usize) += 1;
+        }
+        let mode = counts.into_iter().max_by_key(|&(_, c)| c).map(|(v, _)| v).unwrap_or(0);
+        // If mode has count > 1, use it; otherwise use median
+        let mode_count = rounded.iter().filter(|&&r| r == mode).count();
+        if mode_count > 1 {
+            mode as f64
+        } else {
+            let mut sorted = gaps.to_vec();
+            sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            sorted[sorted.len() / 2]
+        }
+    }
+
+    fn compute_moves_h(sorted: &[(NodeId, f64, f64, f64, f64)], gap: f64) -> Vec<String> {
+        let mut moves = Vec::new();
+        let mut cursor = sorted[0].1;
+        for &(id, orig_x, _, w, _) in sorted {
+            let delta = cursor - orig_x;
+            if delta.abs() > 0.1 {
+                moves.push(format!("{{\"id\":{},\"from\":{:.1},\"to\":{:.1},\"delta\":{:.1}}}", id, orig_x, cursor, delta));
+            }
+            cursor += w + gap;
+        }
+        moves
+    }
+
+    fn compute_moves_v(sorted: &[(NodeId, f64, f64, f64, f64)], gap: f64) -> Vec<String> {
+        let mut moves = Vec::new();
+        let mut cursor = sorted[0].2;
+        for &(id, _, orig_y, _, h) in sorted {
+            let delta = cursor - orig_y;
+            if delta.abs() > 0.1 {
+                moves.push(format!("{{\"id\":{},\"from\":{:.1},\"to\":{:.1},\"delta\":{:.1}}}", id, orig_y, cursor, delta));
+            }
+            cursor += h + gap;
+        }
+        moves
+    }
+
+    /// Smart distribute horizontally: normalize gaps using recommended or custom gap.
+    pub fn smart_distribute_h(&mut self, ids: &[NodeId], reference_gap: Option<f64>) {
+        if ids.len() < 3 { return; }
+        let mut items: Vec<(NodeId, f64, f64)> = ids.iter()
+            .filter_map(|&id| self.nodes.get(&id).map(|n| (id, n.x, n.width)))
+            .collect();
+        if items.len() < 3 { return; }
+        items.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+
+        let gap = reference_gap.unwrap_or_else(|| {
+            let gaps: Vec<f64> = items.windows(2).map(|w| w[1].1 - (w[0].1 + w[0].2)).collect();
+            Self::find_recommended_gap(&gaps)
+        });
+
+        let mut cursor = items[0].1;
+        for &(id, _, w) in &items {
+            if let Some(node) = self.nodes.get_mut(&id) { node.x = cursor; }
+            cursor += w + gap;
+        }
+    }
+
+    /// Smart distribute vertically: normalize gaps using recommended or custom gap.
+    pub fn smart_distribute_v(&mut self, ids: &[NodeId], reference_gap: Option<f64>) {
+        if ids.len() < 3 { return; }
+        let mut items: Vec<(NodeId, f64, f64)> = ids.iter()
+            .filter_map(|&id| self.nodes.get(&id).map(|n| (id, n.y, n.height)))
+            .collect();
+        if items.len() < 3 { return; }
+        items.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+
+        let gap = reference_gap.unwrap_or_else(|| {
+            let gaps: Vec<f64> = items.windows(2).map(|w| w[1].1 - (w[0].1 + w[0].2)).collect();
+            Self::find_recommended_gap(&gaps)
+        });
+
+        let mut cursor = items[0].1;
+        for &(id, _, h) in &items {
+            if let Some(node) = self.nodes.get_mut(&id) { node.y = cursor; }
+            cursor += h + gap;
+        }
+    }
+
     /// Returns (min_x, min_y, max_x, max_y) bounding box of all nodes, or None if empty.
     pub fn get_bounds(&self) -> Option<(f64, f64, f64, f64)> {
         let mut min_x = f64::INFINITY;
