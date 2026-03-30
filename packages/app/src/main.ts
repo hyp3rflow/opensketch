@@ -325,6 +325,13 @@ async function main() {
   window.addEventListener("keydown", (e) => {
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
     if (e.key === "d" || e.key === "D") toggleDesignSystem();
+    // Cmd+Shift+A → open Accessibility panel tab
+    if ((e.key === "A" || e.key === "a") && (e.metaKey || e.ctrlKey) && e.shiftKey) {
+      e.preventDefault();
+      const accTab = document.querySelector('.right-pane-tab[data-tab="accessibility"]') as HTMLElement | null;
+      if (accTab) accTab.click();
+      return;
+    }
     // Alt+T → toggle animation timeline
     if (e.key === "t" && e.altKey) { e.preventDefault(); animTimeline.toggle(); }
     // Cmd+Shift+Enter → presentation mode

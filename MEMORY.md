@@ -1638,3 +1638,13 @@
 - 클릭 시 hex 클립보드 복사
 - 선택된 Image 노드 우선 표시, 없으면 씬 내 Image 노드 최대 5개 표시
 - Pure TypeScript 구현 (k-means algorithm, canvas pixel sampling)
+
+## 완료된 기능 (추가 — Accessibility Checker Panel 강화)
+- Node에 alt_text: Option<String> 필드 추가 (serde default, backward compatible)
+- accessibility.rs: suggest_fix_color() — WCAG AA 대비율 충족하는 색상 자동 추천
+- LowContrast 이슈에 구체적 수정 색상 제안 (hex 코드 포함)
+- Image 노드 alt_text 필드 기반 MissingAltText 검사 강화 (이름 폴백 + 명시적 alt text 우선)
+- WASM: run_accessibility_audit(), set_alt_text(id, text), get_alt_text(id)
+- UI: A11y 패널 타이틀 "Accessibility (A11y)"로 변경
+- UI: alt-text 이슈에 인라인 텍스트 입력 + "Set" 버튼 추가
+- Cmd+Shift+A 단축키로 A11y 패널 탭 열기

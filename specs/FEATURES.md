@@ -745,6 +745,14 @@ Right pane "A11y" tab — automated accessibility audit for design nodes.
 - [x] WASM: apply_a11y_fix(node_id, r, g, b) — apply single fix with undo
 - [x] WASM: apply_all_a11y_fixes() → batch fix all contrast violations with undo
 - [x] UI: Per-issue "Fix" button with color preview (current → suggested, ratio display)
+
+### Enhanced (v2)
+- [x] Node `alt_text: Option<String>` field — explicit alt text for Image nodes (serde default, backward compatible)
+- [x] `suggest_fix_color()` — luminance-based WCAG AA color suggestion in accessibility.rs
+- [x] LowContrast issues include specific suggested hex color in message
+- [x] WASM: `run_accessibility_audit()`, `set_alt_text(id, text)`, `get_alt_text(id)`
+- [x] UI: Inline alt text editor for MissingAltText issues (input + Set button)
+- [x] Cmd+Shift+A shortcut to open A11y panel tab
 - [x] UI: "Fix All (N)" button in header to batch-fix all contrast issues
 - [x] Undo integration for all fixes
 

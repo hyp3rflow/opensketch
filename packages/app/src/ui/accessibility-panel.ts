@@ -161,7 +161,7 @@ export function setupAccessibilityPanel(container: HTMLElement, editor: Editor) 
     titleArea.appendChild(titleIcon);
     const title = document.createElement("span");
     title.style.cssText = "font-size:13px;font-weight:600;color:#e0e0e0;";
-    title.textContent = "Design Lint";
+    title.textContent = "Accessibility (A11y)";
     titleArea.appendChild(title);
     header.appendChild(titleArea);
 
@@ -273,6 +273,31 @@ export function setupAccessibilityPanel(container: HTMLElement, editor: Editor) 
             sug.style.cssText = "font-size:10px;color:#818cf8;margin-top:2px;font-style:italic;";
             sug.textContent = `💡 ${issue.suggestion}`;
             row.appendChild(sug);
+          }
+
+          // Alt text inline editor for alt-text issues
+          if (issue.category === "alt-text") {
+            const altRow = document.createElement("div");
+            altRow.style.cssText = "display:flex;align-items:center;gap:6px;margin-top:6px;";
+            const altInput = document.createElement("input");
+            altInput.type = "text";
+            altInput.placeholder = "Enter alt text…";
+            altInput.value = (editor.engine as any).get_alt_text(BigInt(issue.nodeId)) || "";
+            altInput.style.cssText = "flex:1;background:#2a2a2a;border:1px solid #444;border-radius:4px;padding:3px 6px;color:#ccc;font-size:10px;outline:none;";
+            altInput.addEventListener("focus", () => altInput.style.borderColor = "#818cf8");
+            altInput.addEventListener("blur", () => altInput.style.borderColor = "#444");
+            const setBtn = document.createElement("button");
+            setBtn.style.cssText = "background:#4f46e5;border:none;border-radius:4px;padding:3px 8px;color:white;cursor:pointer;font-size:10px;font-weight:600;";
+            setBtn.textContent = "Set";
+            setBtn.addEventListener("click", (e) => {
+              e.stopPropagation();
+              (editor.engine as any).set_alt_text(BigInt(issue.nodeId), altInput.value);
+              editor.render();
+              render();
+            });
+            altRow.appendChild(altInput);
+            altRow.appendChild(setBtn);
+            row.appendChild(altRow);
           }
 
           // Auto-fix button for contrast issues

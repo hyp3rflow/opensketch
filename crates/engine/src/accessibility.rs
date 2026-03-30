@@ -93,13 +93,15 @@ pub fn check_accessibility(node_map: &HashMap<NodeId, Node>) -> Vec<A11yIssue> {
                         let min_ratio = if is_large { 3.0 } else { 4.5 };
 
                         if ratio < min_ratio {
+                            let fixed = suggest_fix_color(&text_color, &bg_color, min_ratio);
+                            let fixed_hex = format!("#{:02x}{:02x}{:02x}", fixed.r, fixed.g, fixed.b);
                             issues.push(A11yIssue {
                                 node_id: node.id,
                                 node_name: node.name.clone(),
                                 issue_type: A11yIssueType::LowContrast,
                                 severity: if ratio < 3.0 { A11ySeverity::Error } else { A11ySeverity::Warning },
                                 message: format!("Contrast ratio {:.1}:1 fails WCAG AA (min {:.1}:1)", ratio, min_ratio),
-                                suggestion: Some("Increase contrast between text and background colors".into()),
+                                suggestion: Some(format!("Change text color to {} for AA compliance", fixed_hex)),
                             });
                         }
                     }
@@ -119,16 +121,26 @@ pub fn check_accessibility(node_map: &HashMap<NodeId, Node>) -> Vec<A11yIssue> {
             }
 
             NodeKind::Image { .. } => {
-                // MissingAltText: image with default name
-                let is_default = node.name.starts_with("Image ") && node.name[6..].parse::<u32>().is_ok();
-                if is_default {
+                // MissingAltText: check alt_text field first, then fall back to name check
+                let has_alt = node.alt_text.as_ref().map_or(false, |t| !t.trim().is_empty());
+                let is_default_name = node.name.starts_with("Image ") && node.name[6..].parse::<u32>().is_ok();
+                if !has_alt && is_default_name {
                     issues.push(A11yIssue {
                         node_id: node.id,
                         node_name: node.name.clone(),
                         issue_type: A11yIssueType::MissingAltText,
                         severity: A11ySeverity::Error,
-                        message: "Image has no descriptive name (used as alt text)".into(),
-                        suggestion: Some("Rename to describe the image content".into()),
+                        message: "Image has no alt text for screen readers".into(),
+                        suggestion: Some("Add alt text describing the image content".into()),
+                    });
+                } else if !has_alt {
+                    issues.push(A11yIssue {
+                        node_id: node.id,
+                        node_name: node.name.clone(),
+                        issue_type: A11yIssueType::MissingAltText,
+                        severity: A11ySeverity::Warning,
+                        message: "Image has no explicit alt text (using layer name as fallback)".into(),
+                        suggestion: Some("Set alt text for better accessibility".into()),
                     });
                 }
 
@@ -177,6 +189,49 @@ fn severity_order(s: &A11ySeverity) -> u8 {
         A11ySeverity::Warning => 1,
         A11ySeverity::Info => 2,
     }
+}
+
+/// Suggest a fix color that meets WCAG AA contrast ratio against the background.
+/// Adjusts luminance of the foreground color to meet the target ratio.
+pub fn suggest_fix_color(fg: &Color, bg: &Color, target_ratio: f64) -> Color {
+    let bg_lum = relative_luminance(bg);
+    let fg_lum = relative_luminance(fg);
+    let current_ratio = contrast_ratio(fg_lum, bg_lum);
+    if current_ratio >= target_ratio {
+        return fg.clone(); // already passes
+    }
+
+    // Try darkening or lightening the foreground
+    let mut best = fg.clone();
+    let mut best_ratio = current_ratio;
+
+    // Determine direction: if fg is lighter than bg, darken; else lighten
+    let darken = fg_lum > bg_lum;
+
+    for step in 1..=255 {
+        let factor = if darken {
+            1.0 - (step as f64 / 255.0)
+        } else {
+            1.0 + (step as f64 / 255.0) * 2.0
+        };
+        let r = (fg.r as f64 * factor).round().clamp(0.0, 255.0) as u8;
+        let g = (fg.g as f64 * factor).round().clamp(0.0, 255.0) as u8;
+        let b = (fg.b as f64 * factor).round().clamp(0.0, 255.0) as u8;
+        let candidate = Color { r, g, b, a: fg.a };
+        let ratio = contrast_ratio(relative_luminance(&candidate), bg_lum);
+        if ratio >= target_ratio {
+            if ratio < best_ratio || best_ratio < target_ratio {
+                best = candidate;
+                best_ratio = ratio;
+            }
+            break;
+        }
+        if ratio > best_ratio {
+            best = candidate;
+            best_ratio = ratio;
+        }
+    }
+    best
 }
 
 fn first_solid_color(node: &Node) -> Option<Color> {

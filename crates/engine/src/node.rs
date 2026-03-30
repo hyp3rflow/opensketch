@@ -1677,6 +1677,9 @@ pub struct Node {
     /// External resource links (GitHub, Storybook, Jira, etc.)
     #[serde(default)]
     pub resource_links: Vec<ResourceLink>,
+    /// Alt text for Image nodes (accessibility / screen readers)
+    #[serde(default)]
+    pub alt_text: Option<String>,
 }
 
 /// Per-frame background pattern configuration
@@ -1785,6 +1788,7 @@ impl Node {
             links: vec![],
             text_flow_next: None,
             resource_links: vec![],
+            alt_text: None,
         }
     }
 

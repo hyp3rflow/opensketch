@@ -6151,6 +6151,31 @@ impl Engine {
         count
     }
 
+    /// Run accessibility audit → JSON array (alias for check_accessibility)
+    #[wasm_bindgen]
+    pub fn run_accessibility_audit(&self) -> String {
+        self.check_accessibility()
+    }
+
+    /// Set alt text on a node (for Image accessibility)
+    #[wasm_bindgen]
+    pub fn set_alt_text(&mut self, node_id: u64, text: &str) {
+        self.push_undo();
+        let nid = node_id as crate::node::NodeId;
+        if let Some(node) = self.scene.get_node_mut(nid) {
+            node.alt_text = if text.is_empty() { None } else { Some(text.to_string()) };
+        }
+    }
+
+    /// Get alt text from a node
+    #[wasm_bindgen]
+    pub fn get_alt_text(&self, node_id: u64) -> String {
+        let nid = node_id as crate::node::NodeId;
+        self.scene.nodes_map().get(&nid)
+            .and_then(|n| n.alt_text.clone())
+            .unwrap_or_default()
+    }
+
     /// Analyze scene and return statistics as JSON (node count, type distribution, style usage, component coverage)
     #[wasm_bindgen]
     pub fn get_scene_analysis(&self) -> String {
