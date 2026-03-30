@@ -107,6 +107,10 @@ function openPanel() {
           <input class="sf-input sf-size" id="sf-max-w" placeholder="Max W" type="number" min="0"/>
         </div>
       </div>
+      <div class="sf-section sf-checkboxes">
+        <label class="sf-check-label"><input type="checkbox" id="sf-hidden"/> Include hidden</label>
+        <label class="sf-check-label"><input type="checkbox" id="sf-locked"/> Locked only</label>
+      </div>
       <div class="sf-actions">
         <button class="sf-btn sf-btn-primary" id="sf-apply">Filter</button>
         <button class="sf-btn" id="sf-clear">Clear</button>
@@ -187,7 +191,10 @@ function applyFilter() {
   const minW = parseFloat((panel.querySelector('#sf-min-w') as HTMLInputElement).value) || 0;
   const maxW = parseFloat((panel.querySelector('#sf-max-w') as HTMLInputElement).value) || Infinity;
 
-  const hasAnyFilter = textQuery || typeFilter || fillFilter || fontFilter || minW > 0 || maxW < Infinity;
+  const includeHidden = (panel.querySelector('#sf-hidden') as HTMLInputElement).checked;
+  const lockedOnly = (panel.querySelector('#sf-locked') as HTMLInputElement).checked;
+
+  const hasAnyFilter = textQuery || typeFilter || fillFilter || fontFilter || minW > 0 || maxW < Infinity || lockedOnly;
   if (!hasAnyFilter) {
     clearDimming();
     clearInputs();
@@ -206,6 +213,12 @@ function applyFilter() {
     try { node = JSON.parse(nj); } catch { continue; }
 
     const reasons: string[] = [];
+
+    // Hidden filter: skip invisible nodes unless "Include hidden" is checked
+    if (!includeHidden && node.visible === false) continue;
+
+    // Locked filter: if "Locked only" is checked, skip unlocked nodes
+    if (lockedOnly && !node.locked) continue;
 
     // Type filter
     if (typeFilter) {
@@ -467,5 +480,8 @@ style.textContent = `
 }
 #search-filter-panel .sf-result-reason { font-size: 9px; color: #4a90d9; flex-shrink: 0; }
 #search-filter-panel .sf-empty { text-align: center; color: #666; padding: 12px; font-size: 11px; }
+#search-filter-panel .sf-checkboxes { display: flex; gap: 12px; }
+#search-filter-panel .sf-check-label { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #aaa; cursor: pointer; }
+#search-filter-panel .sf-check-label input { accent-color: #4a90d9; }
 `;
 document.head.appendChild(style);

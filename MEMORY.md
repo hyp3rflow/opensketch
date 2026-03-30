@@ -1478,8 +1478,18 @@
   - Undo integration, cursor feedback (col-resize/row-resize)
   - tools/spacing-handles.ts: SpacingHandle + PaddingHandle, find/hitTest/render functions
 
+## 완료된 기능 (추가 — Search Filter Enhancement)
+- search-filter.ts에 hidden/locked 필터 체크박스 추가
+- "Include hidden" 체크 시 visible=false 노드도 검색 결과에 포함
+- "Locked only" 체크 시 locked=true 노드만 표시
+- editor.ts: openSearchFilter → toggleSearchFilter 참조 수정 (빌드 오류 방지)
+
 ## 다음 할 것
 - Variable-driven conditional visibility — Variable 값에 따라 노드 show/hide 조건 설정 (if color_mode == "dark" then visible), 프로토타입 뷰어에서 실시간 전환
+- Multi-window / detachable panels — 패널을 별도 창으로 분리, 듀얼 모니터 지원, 드래그&드롭 도킹
+- Auto-layout gap expression — gap에 수식 입력 (예: `parent.width / 4`), 반응형 간격 계산
+- Canvas minimap enhancements — 미니맵에서 멀티 셀렉트, 줌 레벨 표시, 페이지 썸네일 전환
+- Shared cursor trails — 협업 시 커서 이동 궤적 잔상 표시 (1초 fade), 리뷰 시 동선 파악
 ## 완료된 기능 (추가 — Motion Path Animation)
 - Rust: evaluate_motion_path(path_node_id, progress) → {x, y, angle} standalone WASM binding
 - Rust: get_motion_path_samples(path_node_id, count) → sampled points for visualization

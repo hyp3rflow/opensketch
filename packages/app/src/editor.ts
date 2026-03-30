@@ -38,6 +38,7 @@ import { DevModeOverlay } from "./ui/dev-mode-overlay";
 import { WhiteboardMode } from "./ui/whiteboard-mode";
 import { initSnapshotPanel } from "./ui/snapshot-panel";
 import { togglePerfProfiler, closePerfProfiler, isPerfProfilerOpen } from "./ui/perf-profiler";
+import { showNudgeHint } from "./ui/nudge-hint";
 import { openComponentPlayground, closeComponentPlayground, isComponentPlaygroundOpen } from "./ui/component-playground";
 import { openVariantMatrix, closeVariantMatrix, isVariantMatrixOpen } from "./ui/variant-matrix";
 import { AnnotationHeatmap } from "./ui/annotation-heatmap";
@@ -454,7 +455,7 @@ export class Editor {
       // Search & Filter (Cmd+Shift+F)
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "f" || e.key === "F") && !e.altKey) {
         e.preventDefault();
-        openSearchFilter(this);
+        toggleSearchFilter(this);
         return;
       }
       // Copy
@@ -882,6 +883,19 @@ export class Editor {
           }
           this.needsRender = true;
           this.fireSelectionNow(sel);
+          // Show nudge hint overlay
+          try {
+            const first = sel[0];
+            const nx = Number(this.engine.get_x(BigInt(first)));
+            const ny = Number(this.engine.get_y(BigInt(first)));
+            const nw = Number(this.engine.get_width(BigInt(first)));
+            const nh = Number(this.engine.get_height(BigInt(first)));
+            const cx = nx + nw / 2;
+            const cy = ny + nh / 2;
+            const sx = (cx - this.panX) * this.zoom + this.canvas.width / (2 * this.dpr);
+            const sy = (cy - this.panY) * this.zoom + this.canvas.height / (2 * this.dpr);
+            showNudgeHint({ screenX: sx, screenY: sy, nodeX: nx, nodeY: ny, dx, dy, nodeW: nw, nodeH: nh });
+          } catch (_) { /* ignore */ }
         }
         return;
       }
