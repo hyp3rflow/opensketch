@@ -1178,6 +1178,23 @@ export class Editor {
         }
       }
 
+      // Text flow linking mode: click on a text node to link
+      if ((this as any)._textFlowLinkFrom != null) {
+        const fromId = (this as any)._textFlowLinkFrom as number;
+        (this as any)._textFlowLinkFrom = null;
+        const targetHit = this.engine.hit_test(x, y);
+        if (targetHit != null) {
+          const targetId = Number(targetHit);
+          if (targetId !== fromId) {
+            this.engine.link_text_flow(BigInt(fromId), BigInt(targetId));
+            this.needsRender = true;
+            this.fireSelectionNow(Array.from(this.engine.get_selection()).map(Number));
+            this.canvas.setPointerCapture(e.pointerId);
+            return;
+          }
+        }
+      }
+
       // Cmd+click (Meta on Mac, Ctrl on others) → deep select into groups/frames
       const isMeta = e.metaKey || (e.ctrlKey && !navigator.platform.includes("Mac"));
       const hit = isMeta ? (this.engine.deep_hit_test(x, y) ?? this.engine.hit_test(x, y)) : this.engine.hit_test(x, y);
