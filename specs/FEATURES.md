@@ -1642,3 +1642,19 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Keyboard: Cmd+Alt+B save view, Cmd+Shift+K toggle panel, Ctrl+1-9 quick jump
 - [x] Page-aware: bookmarks store page_id, auto-switch page on navigate
 - [x] Backward-compatible serde (default empty vec)
+
+## Artboard Templates / Presets
+- [x] Built-in device presets: 35+ presets across 7 categories (Phone, Tablet, Desktop, Watch, Paper, Social, Custom)
+- [x] Phone: iPhone 16/Pro/Pro Max/SE, Pixel 9, Galaxy S24, Android Small/Large
+- [x] Tablet: iPad Mini/10.9"/Air/Pro 11"/Pro 13", Surface Pro
+- [x] Desktop: MacBook Air/Pro 14"/Pro 16", 1080p/1440p/4K, iMac 24"
+- [x] Watch: Apple Watch 41mm/45mm/Ultra 49mm
+- [x] Paper: A4, A3, US Letter, US Legal
+- [x] Social: Instagram Post/Story, X/Twitter Post, Facebook Cover, YouTube Thumbnail, LinkedIn Banner
+- [x] Right pane "Artboards" tab: search, category filter, portrait/landscape toggle
+- [x] One-click creation: Frame node at viewport center with preset dimensions and name
+- [x] Orientation toggle: portrait ↕ / landscape ↔ (swaps width/height)
+- [x] Aspect ratio thumbnail preview per preset
+- [x] Custom preset: name + width + height, localStorage persistence
+- [x] Custom preset delete
+- [x] Pure TypeScript implementation (ui/artboard-presets.ts)
