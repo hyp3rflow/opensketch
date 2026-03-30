@@ -1507,6 +1507,14 @@
 - Variable fonts & OpenType features — 가변 폰트 축(weight/width/slant) 슬라이더, OT 피처 토글 (ligatures, small-caps 등)
 - Slice / Export regions — Figma Slice 도구: 사용자 지정 영역 export, 다중 해상도 (@1x/@2x/@3x), 포맷 선택 (PNG/JPG/SVG/PDF)
 - Shared component library (cross-file) — 파일 간 컴포넌트 공유, 팀 라이브러리 publish/consume, 외부 라이브러리 링크
+## 완료된 기능 (추가 — Smart Distribute)
+- 3+ 노드 선택 시 불균등 간격 감지 및 정규화
+- Rust: smart_distribute_preview() → 현재 H/V gaps, 추천 gap (mode/median), 이동량 JSON
+- Rust: smart_distribute_h/v(ids, reference_gap) → 자동 또는 커스텀 gap으로 재배치
+- WASM: smart_distribute_preview(ids_json), smart_distribute_h/v(ids_json, gap) — gap < 0 이면 자동
+- Properties panel: "Smart Distribute" 버튼 → 팝오버 (감지된 gaps, 추천값, 커스텀 입력, Apply H/V)
+- push_undo 통합
+
 ## 완료된 기능 (추가 — Canvas Performance Mode)
 - Rust LOD (Level of Detail): lod_level() 함수로 zoom/screen_area 기반 3단계 (0=full, 1=simplified, 2=box-only)
   - zoom < 0.15 또는 screen area < 16px²: 모든 노드를 단색 fill rect로 대체 (Frame/Group은 children 계속 렌더)
