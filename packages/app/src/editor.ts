@@ -3,6 +3,7 @@ import { showBatchRenameDialog } from "./ui/batch-rename";
 import { renderPixelGrid, renderDeviceFrame } from "./ui/pixel-preview";
 import { computeSnap, renderGuides, type SnapGuide } from "./tools/smart-guides";
 import { computePointSnap, renderPointSnapIndicators, collectPathPointTargets, addRulerTargets, constrainAngle, type PointSnapIndicator, type PointSnapTarget } from "./tools/point-snap";
+import { renderGrid, computeGridSnap } from "./tools/grid-snap";
 import { computeMeasureLines, renderMeasureLines, renderTargetHighlight, type MeasureLine } from "./tools/measure";
 import { MeasureToolState, renderPersistentMeasures, hitTestMeasureLine } from "./tools/measure-tool";
 import type { RulersAPI } from "./ui/rulers";
@@ -86,6 +87,8 @@ export class Editor {
   // Grid snapping
   public gridSnapEnabled = false;
   public gridSize = 8;
+  public gridStyle: "dots" | "lines" = "dots";
+  private _onGridSnapChanges: (() => void)[] = [];
 
   whiteboardMode: WhiteboardMode;
 
@@ -765,11 +768,10 @@ export class Editor {
         return;
       }
 
-      // Ctrl/Cmd+' (backtick): Toggle grid snapping
+      // Ctrl/Cmd+' or Ctrl/Cmd+Shift+G: Toggle grid snapping
       if ((e.metaKey || e.ctrlKey) && (e.key === "'" || e.key === "'")) {
         e.preventDefault();
-        this.gridSnapEnabled = !this.gridSnapEnabled;
-        this.requestRender();
+        this.toggleGridSnap();
         return;
       }
 
@@ -1924,32 +1926,56 @@ export class Editor {
           }
         }
         const bbox = this.getSelectionBBox(sel);
+        // Compute both smart guide snap and grid snap, pick closer one
+        let sgDx = 0, sgDy = 0;
+        let sgGuides: SnapGuide[] = [];
         if (bbox && others.length > 0) {
           const threshold = SNAP_THRESHOLD_PX / zoom;
           const snap = computeSnap(bbox, others, threshold);
-          if (snap.dx !== 0 || snap.dy !== 0) {
-            for (const id of sel) {
-              this.engine.move_node(id, snap.dx, snap.dy);
-            }
+          sgDx = snap.dx; sgDy = snap.dy; sgGuides = snap.guides;
+        }
+        let gdDx = 0, gdDy = 0;
+        if (this.gridSnapEnabled && this.gridSize > 0 && bbox) {
+          const gs = this.gridSize;
+          // Grid snap based on post-smart-guide position
+          const gx = bbox.x + sgDx;
+          const gy = bbox.y + sgDy;
+          gdDx = Math.round(gx / gs) * gs - gx;
+          gdDy = Math.round(gy / gs) * gs - gy;
+        }
+        // If both active, pick axis-wise closer snap (smart guide vs grid)
+        let finalDx = 0, finalDy = 0;
+        if (this.gridSnapEnabled && this.gridSize > 0 && bbox) {
+          // Compare distances: smart guide snap vs grid snap (from raw position)
+          const rawGSnap = computeGridSnap(bbox.x, bbox.y, this.gridSize);
+          // X axis: pick closer
+          if (sgDx !== 0 && Math.abs(sgDx) <= Math.abs(rawGSnap.dx)) {
+            finalDx = sgDx;
+          } else if (rawGSnap.dx !== 0) {
+            finalDx = rawGSnap.dx;
+            sgGuides = sgGuides.filter(g => g.axis !== "v"); // remove vertical guides if grid wins X
+          } else {
+            finalDx = sgDx;
           }
-          this._snapGuides = snap.guides;
+          // Y axis: pick closer
+          if (sgDy !== 0 && Math.abs(sgDy) <= Math.abs(rawGSnap.dy)) {
+            finalDy = sgDy;
+          } else if (rawGSnap.dy !== 0) {
+            finalDy = rawGSnap.dy;
+            sgGuides = sgGuides.filter(g => g.axis !== "h"); // remove horizontal guides if grid wins Y
+          } else {
+            finalDy = sgDy;
+          }
         } else {
-          this._snapGuides = [];
+          finalDx = sgDx;
+          finalDy = sgDy;
         }
-        // Grid snapping: snap selection top-left to nearest grid point
-        if (this.gridSnapEnabled && this.gridSize > 0) {
-          const gbox = this.getSelectionBBox(sel);
-          if (gbox) {
-            const gs = this.gridSize;
-            const snapX = Math.round(gbox.x / gs) * gs - gbox.x;
-            const snapY = Math.round(gbox.y / gs) * gs - gbox.y;
-            if (snapX !== 0 || snapY !== 0) {
-              for (const id of sel) {
-                this.engine.move_node(id, snapX, snapY);
-              }
-            }
+        if (finalDx !== 0 || finalDy !== 0) {
+          for (const id of sel) {
+            this.engine.move_node(id, finalDx, finalDy);
           }
         }
+        this._snapGuides = sgGuides;
         this.drag.currentX = x;
         this.drag.currentY = y;
         // Update connector bounds for all moved nodes
@@ -3402,6 +3428,14 @@ export class Editor {
     ctx.restore();
   }
 
+  private renderCanvasGrid() {
+    if (!this.gridSnapEnabled || this.gridSize <= 0) return;
+    const zoom = this.engine.get_zoom();
+    const panX = this.engine.get_pan_x();
+    const panY = this.engine.get_pan_y();
+    renderGrid(this.ctx, zoom, panX, panY, this.canvas.width / (window.devicePixelRatio || 1), this.canvas.height / (window.devicePixelRatio || 1), this.gridSize, this.gridStyle);
+  }
+
   private renderSmartGuides() {
     if (this._snapGuides.length === 0) return;
     const zoom = this.engine.get_zoom();
@@ -3636,6 +3670,7 @@ export class Editor {
         this.renderImages();
         this.render3DPerspective();
         this.renderPatternFills();
+        this.renderCanvasGrid();
         this.renderLayoutGrids();
         this.renderGuideLines();
         this.renderSmartGuides();
@@ -3703,6 +3738,28 @@ export class Editor {
       this.rafId = requestAnimationFrame(loop);
     };
     this.rafId = requestAnimationFrame(loop);
+  }
+
+  // --- Grid snap API ---
+  toggleGridSnap() {
+    this.gridSnapEnabled = !this.gridSnapEnabled;
+    this._onGridSnapChanges.forEach(cb => cb());
+    this.requestRender();
+  }
+
+  setGridSize(size: number) {
+    this.gridSize = Math.max(1, Math.round(size));
+    this._onGridSnapChanges.forEach(cb => cb());
+    this.requestRender();
+  }
+
+  setGridStyle(style: "dots" | "lines") {
+    this.gridStyle = style;
+    this.requestRender();
+  }
+
+  onGridSnapChanged(cb: () => void) {
+    this._onGridSnapChanges.push(cb);
   }
 
   /** Toggle performance stats overlay (Shift+P in dev) */

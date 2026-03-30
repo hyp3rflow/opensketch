@@ -28,6 +28,27 @@ export function setupZoomControls(container: HTMLElement, editor: Editor) {
     <button class="zoom-btn zoom-fit" title="Zoom to fit (⌘1)">
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="2" y="2" width="10" height="10" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M5 2v10M9 2v10M2 5h10M2 9h10" stroke="currentColor" stroke-width="0.6" opacity="0.4"/></svg>
     </button>
+    <span class="zoom-divider" style="width:1px;height:16px;background:rgba(255,255,255,0.15);margin:0 2px"></span>
+    <button class="zoom-btn grid-snap-btn" title="Grid Snap (⌘')">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <circle cx="3" cy="3" r="1" fill="currentColor"/>
+        <circle cx="7" cy="3" r="1" fill="currentColor"/>
+        <circle cx="11" cy="3" r="1" fill="currentColor"/>
+        <circle cx="3" cy="7" r="1" fill="currentColor"/>
+        <circle cx="7" cy="7" r="1" fill="currentColor"/>
+        <circle cx="11" cy="7" r="1" fill="currentColor"/>
+        <circle cx="3" cy="11" r="1" fill="currentColor"/>
+        <circle cx="7" cy="11" r="1" fill="currentColor"/>
+        <circle cx="11" cy="11" r="1" fill="currentColor"/>
+      </svg>
+    </button>
+    <select class="grid-size-select" title="Grid Size" style="background:rgba(255,255,255,0.08);color:#ccc;border:1px solid rgba(255,255,255,0.12);border-radius:4px;font-size:11px;padding:1px 2px;height:22px;outline:none;cursor:pointer;display:none">
+      <option value="4">4px</option>
+      <option value="8" selected>8px</option>
+      <option value="16">16px</option>
+      <option value="32">32px</option>
+      <option value="custom">Custom…</option>
+    </select>
   `;
 
   const levelBtn = el.querySelector(".zoom-level") as HTMLButtonElement;
@@ -57,6 +78,51 @@ export function setupZoomControls(container: HTMLElement, editor: Editor) {
     ppBtn.classList.toggle("active", editor.isPixelPreviewEnabled());
   };
   editor.onPixelPreviewChanged(updatePP);
+
+  // Grid snap button
+  const gridBtn = el.querySelector(".grid-snap-btn") as HTMLButtonElement;
+  const gridSelect = el.querySelector(".grid-size-select") as HTMLSelectElement;
+
+  gridBtn.addEventListener("click", () => {
+    editor.toggleGridSnap();
+  });
+  gridBtn.addEventListener("contextmenu", (ev) => {
+    ev.preventDefault();
+    // Toggle size selector visibility
+    const shown = gridSelect.style.display !== "none";
+    gridSelect.style.display = shown ? "none" : "inline-block";
+  });
+
+  const updateGridUI = () => {
+    gridBtn.classList.toggle("active", editor.gridSnapEnabled);
+    gridSelect.style.display = editor.gridSnapEnabled ? "inline-block" : "none";
+    // Sync select value
+    const val = String(editor.gridSize);
+    const opts = Array.from(gridSelect.options).map(o => o.value);
+    if (opts.includes(val)) {
+      gridSelect.value = val;
+    } else {
+      gridSelect.value = "custom";
+    }
+  };
+
+  gridSelect.addEventListener("change", () => {
+    if (gridSelect.value === "custom") {
+      const input = prompt("Grid size (px):", String(editor.gridSize));
+      if (input) {
+        const n = parseInt(input, 10);
+        if (n > 0 && n <= 256) {
+          editor.setGridSize(n);
+        }
+      }
+      updateGridUI();
+    } else {
+      editor.setGridSize(parseInt(gridSelect.value, 10));
+    }
+  });
+
+  editor.onGridSnapChanged(updateGridUI);
+  updateGridUI();
 
   editor.onZoomChanged(update);
 

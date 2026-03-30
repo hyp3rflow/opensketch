@@ -1770,3 +1770,12 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Drag overlay UI with visual feedback
 - [x] Import modal with URL/token input and progress display
 - [x] Undo support (push_undo before import)
+
+## Canvas Grid Snapping Mode
+- [x] Toggleable grid snap (8px/16px/custom grid size)
+- [x] Drag move + resize auto-align to grid (snap to grid)
+- [x] ⌘+' (Ctrl+') toggle shortcut
+- [x] Canvas grid dot visualization (zoom-aware, auto-hide when too dense)
+- [x] Zoom controls area: grid toggle button + size selector (4/8/16/32/custom)
+- [x] Coexistence with smart guides (when both enabled, axis-wise closer snap wins)
+- [x] Pure TypeScript implementation (tools/grid-snap.ts)
