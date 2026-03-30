@@ -4586,6 +4586,20 @@ impl Engine {
         }
     }
 
+    /// Set individual padding sides
+    pub fn set_layout_padding_top(&mut self, id: u64, val: f64) {
+        if let Some(node) = self.scene.get_node_mut(id) { node.layout.padding_top = val; }
+    }
+    pub fn set_layout_padding_right(&mut self, id: u64, val: f64) {
+        if let Some(node) = self.scene.get_node_mut(id) { node.layout.padding_right = val; }
+    }
+    pub fn set_layout_padding_bottom(&mut self, id: u64, val: f64) {
+        if let Some(node) = self.scene.get_node_mut(id) { node.layout.padding_bottom = val; }
+    }
+    pub fn set_layout_padding_left(&mut self, id: u64, val: f64) {
+        if let Some(node) = self.scene.get_node_mut(id) { node.layout.padding_left = val; }
+    }
+
     /// Set grid columns
     pub fn set_grid_columns(&mut self, id: u64, cols: u32) {
         if let Some(node) = self.scene.get_node_mut(id) {

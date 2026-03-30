@@ -24,7 +24,7 @@ import { SmartSelectPanel } from "./ui/smart-select";
 import type { CollabClient } from "./collab";
 import { SpatialAudio } from "./spatial-audio";
 import { initSpatialAudioPanel, toggleSpatialAudioPanel, closeSpatialAudioPanel, isSpatialAudioPanelOpen } from "./ui/spatial-audio-panel";
-import { findSpacingHandles, hitTestSpacingHandle, renderSpacingHandles, type SpacingHandle } from "./tools/spacing-handles";
+import { findSpacingHandles, hitTestSpacingHandle, renderSpacingHandles, type SpacingHandle, findPaddingHandles, hitTestPaddingHandle, renderPaddingHandles, type PaddingHandle } from "./tools/spacing-handles";
 import { showLayoutSuggestion, dismissSuggestion } from "./ui/ai-layout-suggest";
 import { toggleFindReplace, closeFindReplace } from "./ui/find-replace-panel";
 import { toggleSearchFilter, closeSearchFilter, renderSearchFilterDimming } from "./ui/search-filter";
@@ -159,6 +159,13 @@ export class Editor {
   private _spacingDragStartY = 0;
   private _spacingDragStartX = 0;
   private _spacingDragStartGap = 0;
+
+  // Padding handles (auto-layout padding drag)
+  private _paddingHandles: PaddingHandle[] = [];
+  private _paddingHovered: PaddingHandle | null = null;
+  private _paddingDragging: PaddingHandle | null = null;
+  private _paddingDragStart = 0;
+  private _paddingDragStartValue = 0;
 
   // Cursor presence
   private _cursorPresence = new CursorPresence();
@@ -1146,6 +1153,19 @@ export class Editor {
       }
     }
 
+    // Padding handle drag
+    if (this.currentTool === "select" && this._paddingHandles.length > 0) {
+      const phit = hitTestPaddingHandle(this._paddingHandles, x, y);
+      if (phit) {
+        this.engine.push_undo();
+        this._paddingDragging = phit;
+        this._paddingDragStartValue = phit.value;
+        this._paddingDragStart = (phit.side === "left" || phit.side === "right") ? x : y;
+        this.canvas.setPointerCapture(e.pointerId);
+        return;
+      }
+    }
+
     // Gradient handle drag
     if (this.currentTool === "select" && this._gradientEditor) {
       const zoom = this.engine.get_zoom();
@@ -1398,6 +1418,28 @@ export class Editor {
       return;
     }
 
+    // Padding handle dragging
+    if (this._paddingDragging) {
+      const zoom = this.engine.get_zoom();
+      const isH = this._paddingDragging.side === "left" || this._paddingDragging.side === "right";
+      const pos = isH ? e.offsetX : e.offsetY;
+      const sign = (this._paddingDragging.side === "right" || this._paddingDragging.side === "bottom") ? -1 : 1;
+      const delta = (pos - this._paddingDragStart) * sign / zoom;
+      const newVal = Math.max(0, Math.round(this._paddingDragStartValue + delta));
+      try {
+        const side = this._paddingDragging.side;
+        const pid = BigInt(this._paddingDragging.parentId);
+        if (side === "top") this.engine.set_layout_padding_top(pid, newVal);
+        else if (side === "bottom") this.engine.set_layout_padding_bottom(pid, newVal);
+        else if (side === "left") this.engine.set_layout_padding_left(pid, newVal);
+        else this.engine.set_layout_padding_right(pid, newVal);
+        this.engine.compute_layout();
+      } catch { /* ignore */ }
+      this._paddingHandles = findPaddingHandles(this.engine);
+      this.needsRender = true;
+      return;
+    }
+
     // Spacing handle hover
     if (this.currentTool === "select" && this._spacingHandles.length > 0 && !this.engine.is_dragging()) {
       const prev = this._spacingHovered;
@@ -1405,6 +1447,19 @@ export class Editor {
       if (this._spacingHovered) {
         this.canvas.style.cursor = this._spacingHovered.direction === "row" ? "col-resize" : "row-resize";
         if (prev !== this._spacingHovered) this.needsRender = true;
+      } else if (prev) {
+        this.needsRender = true;
+      }
+    }
+
+    // Padding handle hover
+    if (this.currentTool === "select" && this._paddingHandles.length > 0 && !this.engine.is_dragging()) {
+      const prev = this._paddingHovered;
+      this._paddingHovered = hitTestPaddingHandle(this._paddingHandles, e.offsetX, e.offsetY);
+      if (this._paddingHovered) {
+        const isH = this._paddingHovered.side === "left" || this._paddingHovered.side === "right";
+        this.canvas.style.cursor = isH ? "col-resize" : "row-resize";
+        if (prev !== this._paddingHovered) this.needsRender = true;
       } else if (prev) {
         this.needsRender = true;
       }
@@ -1832,6 +1887,17 @@ export class Editor {
     if (this._spacingDragging) {
       this._spacingDragging = null;
       this._spacingHandles = findSpacingHandles(this.engine);
+      this._paddingHandles = findPaddingHandles(this.engine);
+      this.fireSelectionNow(Array.from(this.engine.get_selection()).map(Number));
+      this.needsRender = true;
+      return;
+    }
+
+    // Padding handle release
+    if (this._paddingDragging) {
+      this._paddingDragging = null;
+      this._paddingHandles = findPaddingHandles(this.engine);
+      this._spacingHandles = findSpacingHandles(this.engine);
       this.fireSelectionNow(Array.from(this.engine.get_selection()).map(Number));
       this.needsRender = true;
       return;
@@ -2020,6 +2086,7 @@ export class Editor {
     }
     this._gradientEditor?.updateFromSelection();
     this._spacingHandles = findSpacingHandles(this.engine);
+    this._paddingHandles = findPaddingHandles(this.engine);
     this.onSelectionChanges.forEach(fn => fn(ids));
   }
 
@@ -3943,6 +4010,9 @@ export class Editor {
   }
 
   private renderSpacingHandles() {
+    if (this._paddingHandles.length > 0) {
+      renderPaddingHandles(this.ctx, this._paddingHandles, this._paddingHovered, this._paddingDragging);
+    }
     if (this._spacingHandles.length === 0) return;
     renderSpacingHandles(this.ctx, this._spacingHandles, this._spacingHovered, this._spacingDragging);
   }

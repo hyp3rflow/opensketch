@@ -1,7 +1,8 @@
 /**
- * Smart spacing handles — Figma-style gap indicators for:
+ * Smart spacing handles — Figma-style gap/padding indicators for:
  * 1. Auto-layout frames: drag to adjust gap value
- * 2. Multi-selection (3+ nodes): show spacing between free nodes, drag to set uniform spacing
+ * 2. Auto-layout frames: padding overlay visualization + drag to adjust padding
+ * 3. Multi-selection (3+ nodes): show spacing between free nodes, drag to set uniform spacing
  */
 import type { Engine } from "../wasm/opensketch_engine";
 
@@ -18,6 +19,17 @@ export interface SpacingHandle {
   mode: "autolayout" | "selection";
   /** For selection mode: the axis */
   axis?: "horizontal" | "vertical";
+}
+
+export interface PaddingHandle {
+  /** Parent frame ID */
+  parentId: number;
+  /** Which padding edge: top/right/bottom/left */
+  side: "top" | "right" | "bottom" | "left";
+  /** Screen-space bounds of the padding region */
+  sx: number; sy: number; sw: number; sh: number;
+  /** Current padding value in scene pixels */
+  value: number;
 }
 
 /** Find all gap regions for auto-layout frames OR multi-selected free nodes. */
@@ -303,5 +315,135 @@ export function renderSpacingHandles(
     ctx.fillText(txt, bx, by + 1);
     ctx.textAlign = "start";
     ctx.textBaseline = "alphabetic";
+  }
+}
+
+/** Find padding regions for the selected auto-layout frame. */
+export function findPaddingHandles(engine: Engine): PaddingHandle[] {
+  const handles: PaddingHandle[] = [];
+  try {
+    const sel = Array.from(engine.get_selection()).map(Number);
+    if (sel.length !== 1) return handles;
+    const id = sel[0];
+    const json = engine.get_node_json(BigInt(id));
+    if (!json) return handles;
+    const node = JSON.parse(json);
+    if (node.kind !== "Frame" && node.kind !== "Group" && node.kind !== "Section") return handles;
+    const layout = node.layout;
+    if (!layout || layout.mode === "None") return handles;
+
+    const zoom = engine.get_zoom();
+    const panX = engine.get_pan_x();
+    const panY = engine.get_pan_y();
+
+    const pt = layout.padding_top ?? layout.padding ?? 0;
+    const pr = layout.padding_right ?? layout.padding ?? 0;
+    const pb = layout.padding_bottom ?? layout.padding ?? 0;
+    const pl = layout.padding_left ?? layout.padding ?? 0;
+
+    const fx = node.x, fy = node.y, fw = node.width, fh = node.height;
+
+    // Top padding
+    if (pt > 0) {
+      handles.push({
+        parentId: id, side: "top", value: pt,
+        sx: fx * zoom + panX, sy: fy * zoom + panY,
+        sw: fw * zoom, sh: pt * zoom,
+      });
+    }
+    // Bottom padding
+    if (pb > 0) {
+      handles.push({
+        parentId: id, side: "bottom", value: pb,
+        sx: fx * zoom + panX, sy: (fy + fh - pb) * zoom + panY,
+        sw: fw * zoom, sh: pb * zoom,
+      });
+    }
+    // Left padding
+    if (pl > 0) {
+      handles.push({
+        parentId: id, side: "left", value: pl,
+        sx: fx * zoom + panX, sy: (fy + pt) * zoom + panY,
+        sw: pl * zoom, sh: (fh - pt - pb) * zoom,
+      });
+    }
+    // Right padding
+    if (pr > 0) {
+      handles.push({
+        parentId: id, side: "right", value: pr,
+        sx: (fx + fw - pr) * zoom + panX, sy: (fy + pt) * zoom + panY,
+        sw: pr * zoom, sh: (fh - pt - pb) * zoom,
+      });
+    }
+  } catch { /* ignore */ }
+  return handles;
+}
+
+/** Hit test padding handle. */
+export function hitTestPaddingHandle(handles: PaddingHandle[], sx: number, sy: number): PaddingHandle | null {
+  for (const h of handles) {
+    if (sx >= h.sx && sx <= h.sx + h.sw && sy >= h.sy && sy <= h.sy + h.sh) {
+      return h;
+    }
+  }
+  return null;
+}
+
+/** Render padding overlays — green-tinted regions with value labels. */
+export function renderPaddingHandles(
+  ctx: CanvasRenderingContext2D,
+  handles: PaddingHandle[],
+  hovered: PaddingHandle | null,
+  dragging: PaddingHandle | null,
+) {
+  for (const h of handles) {
+    const isActive = (dragging && dragging.side === h.side && dragging.parentId === h.parentId) ||
+                     (hovered && hovered.side === h.side && hovered.parentId === h.parentId);
+
+    if (Math.abs(h.sw) < 0.5 || Math.abs(h.sh) < 0.5) continue;
+
+    // Green tint for padding (distinct from pink gap overlays)
+    const alpha = isActive ? 0.35 : 0.15;
+    ctx.fillStyle = `rgba(52, 211, 153, ${alpha})`;
+    ctx.fillRect(h.sx, h.sy, h.sw, h.sh);
+
+    // Dashed inner edge
+    ctx.save();
+    ctx.strokeStyle = "rgba(52, 211, 153, 0.5)";
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    if (h.side === "top") {
+      ctx.moveTo(h.sx, h.sy + h.sh); ctx.lineTo(h.sx + h.sw, h.sy + h.sh);
+    } else if (h.side === "bottom") {
+      ctx.moveTo(h.sx, h.sy); ctx.lineTo(h.sx + h.sw, h.sy);
+    } else if (h.side === "left") {
+      ctx.moveTo(h.sx + h.sw, h.sy); ctx.lineTo(h.sx + h.sw, h.sy + h.sh);
+    } else {
+      ctx.moveTo(h.sx, h.sy); ctx.lineTo(h.sx, h.sy + h.sh);
+    }
+    ctx.stroke();
+    ctx.restore();
+
+    // Value label (always show on hover/drag, or if actively selected)
+    if (isActive) {
+      const mx = h.sx + h.sw / 2;
+      const my = h.sy + h.sh / 2;
+      const label = Math.round(h.value).toString();
+      ctx.font = "10px Inter, system-ui, sans-serif";
+      const tw = ctx.measureText(label).width;
+
+      ctx.fillStyle = "rgba(16, 185, 129, 0.85)";
+      ctx.beginPath();
+      ctx.roundRect(mx - tw / 2 - 4, my - 7, tw + 8, 14, 3);
+      ctx.fill();
+
+      ctx.fillStyle = "#fff";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(label, mx, my);
+      ctx.textAlign = "start";
+      ctx.textBaseline = "alphabetic";
+    }
   }
 }

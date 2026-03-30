@@ -1659,3 +1659,16 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Custom preset: name + width + height, localStorage persistence
 - [x] Custom preset delete
 - [x] Pure TypeScript implementation (ui/artboard-presets.ts)
+
+## Auto-layout Spacing Visualizer
+- [x] Gap overlay: pink translucent regions between auto-layout children, dashed edge lines
+- [x] Padding overlay: green translucent regions at frame edges (top/right/bottom/left)
+- [x] Gap value labels: pink pill with px value on hover/drag
+- [x] Padding value labels: green pill with px value on hover/drag
+- [x] Gap drag: drag gap region to adjust auto-layout gap value
+- [x] Padding drag: drag padding region to adjust individual padding (top/right/bottom/left)
+- [x] Multi-selection spacing: 3+ free nodes show uniform spacing indicators
+- [x] Equal spacing badge: green "= Equal spacing" indicator when gaps are uniform
+- [x] Individual padding WASM setters: set_layout_padding_top/right/bottom/left
+- [x] Undo integration (push_undo before drag)
+- [x] Cursor feedback: col-resize / row-resize on handle hover

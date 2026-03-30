@@ -1466,8 +1466,19 @@
   - Orientation 토글: ↕/↔ 전환 시 width/height 자동 스왑
   - 순수 TypeScript 구현 (ui/artboard-presets.ts)
 
+## 완료된 기능 (추가 — Auto-layout Spacing Visualizer)
+- Auto-layout spacing visualizer:
+  - Gap overlay: pink translucent regions between auto-layout children + dashed edge lines
+  - Padding overlay: green translucent regions at frame edges (top/right/bottom/left), dashed inner edge
+  - Value labels: hover/drag → pill badge with px value (pink=gap, green=padding)
+  - Gap drag: drag gap region to adjust auto-layout gap value in real-time
+  - Padding drag: drag padding region to adjust individual padding (top/right/bottom/left)
+  - Multi-selection spacing: 3+ free nodes show inter-node gap indicators + equal spacing badge
+  - Individual padding WASM setters: set_layout_padding_top/right/bottom/left
+  - Undo integration, cursor feedback (col-resize/row-resize)
+  - tools/spacing-handles.ts: SpacingHandle + PaddingHandle, find/hitTest/render functions
+
 ## 다음 할 것
-- Auto-layout spacing visualizer — Frame 선택 시 자식 간 gap/padding을 색상 오버레이로 시각화, 드래그로 gap 직접 조절 (Figma spacing overlay 스타일)
 - Canvas annotation drawing — 프리핸드 마커/하이라이터, 리뷰 시 직접 위에 스케치, 지우기/색상/두께 조절, 임시 레이어
 - Design system migration assistant — 기존 씬을 분석하여 hardcoded 색상→color style, 반복 텍스트 속성→text style 자동 변환 제안, 원클릭 적용
 - Responsive breakpoint preview — 다양한 디바이스 프리셋(iPhone/iPad/Desktop/Custom) 실시간 프리뷰, Frame 자동 리사이즈 + constraints 적용, 사이드바이사이드 비교
