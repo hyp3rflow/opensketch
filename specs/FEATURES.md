@@ -596,11 +596,22 @@
 - [x] **NodeKind::Slice**: Non-rendering node that defines a rectangular export region
 - [x] **Canvas overlay**: Green (#36b37e) dashed outline + name label
 - [x] **Toolbar**: Slice button with K keyboard shortcut
-- [x] **Properties panel**: Export section with scale selector (1x–4x) + Export PNG button
-- [x] **WASM**: add_slice(name, x, y, w, h), get_slices() → JSON
+- [x] **Properties panel**: Full export section with per-slice export item list
+  - Multiple export items per slice (add/remove)
+  - Scale selector (0.5x–4x) per item
+  - Format selector (PNG/JPG/SVG) per item
+  - Suffix input per item (e.g. "@2x", "-thumb")
+  - Quick "iOS set" button (adds @1x/@2x/@3x PNG presets)
+  - Batch export all variants at once
+- [x] **WASM**: add_slice(name, x, y, w, h), get_slices() → JSON, export_region_svg(x, y, w, h)
 - [x] **Layers panel**: Slice icon in node tree
-- [x] **Export**: Crops canvas region at specified scale → PNG download
+- [x] **Export formats**:
+  - PNG: Canvas crop at specified scale → PNG download
+  - JPG: Canvas crop with white background → JPEG download (quality 0.92)
+  - SVG: Engine-side region export via export_region_svg → SVG download
+- [x] **Multi-resolution export**: exportSliceBatch() downloads multiple scale/format variants with staggered timing
 - [x] **Render/SVG skip**: Slice nodes excluded from normal rendering and SVG export
+- [x] **Per-slice settings persistence**: Export items saved to localStorage per slice ID
 
 ### Flow Connectors (Arrow Lines)
 - [x] **NodeKind::Connector**: Arrow/line connecting two nodes or free points

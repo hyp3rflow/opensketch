@@ -4969,11 +4969,27 @@ export class Editor {
     }
   }
 
-  /** Export a slice region as PNG (crops the canvas area) */
-  exportSlice(sliceId: number, scale: number = 2): void {
+  /** Export a slice region as PNG/JPG/SVG (crops the canvas area) */
+  exportSlice(sliceId: number, scale: number = 2, format: "png" | "jpg" | "svg" = "png", suffix: string = ""): void {
     const slices: Array<{id: number; name: string; x: number; y: number; width: number; height: number}> = JSON.parse(this.engine.get_slices());
     const slice = slices.find(s => s.id === sliceId);
     if (!slice) return;
+
+    const baseName = slice.name || "slice";
+    const fileName = `${baseName}${suffix}.${format === "jpg" ? "jpg" : format}`;
+
+    // SVG export: use engine's SVG exporter for the slice region
+    if (format === "svg") {
+      const svg = this.engine.export_region_svg(slice.x, slice.y, slice.width, slice.height);
+      const blob = new Blob([svg], { type: "image/svg+xml" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      return;
+    }
 
     const w = Math.ceil(slice.width * scale);
     const h = Math.ceil(slice.height * scale);
@@ -4981,6 +4997,12 @@ export class Editor {
     offscreen.width = w;
     offscreen.height = h;
     const ctx = offscreen.getContext("2d")!;
+
+    // For JPG, fill white background first
+    if (format === "jpg") {
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, w, h);
+    }
 
     // Set up transform: scale and translate so the slice region fills the canvas
     ctx.scale(scale, scale);
@@ -4991,15 +5013,27 @@ export class Editor {
     // Also render images
     this.renderImagesToCtx(ctx, -slice.x, -slice.y, scale);
 
+    const mimeType = format === "jpg" ? "image/jpeg" : "image/png";
+    const quality = format === "jpg" ? 0.92 : undefined;
     offscreen.toBlob((blob) => {
       if (!blob) return;
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${slice.name || "slice"}.png`;
+      a.download = fileName;
       a.click();
       URL.revokeObjectURL(url);
-    }, "image/png");
+    }, mimeType, quality);
+  }
+
+  /** Export a slice in multiple scales/formats at once */
+  exportSliceBatch(sliceId: number, configs: Array<{scale: number; format: "png" | "jpg" | "svg"; suffix: string}>): void {
+    for (const cfg of configs) {
+      // Stagger downloads slightly to avoid browser blocking
+      setTimeout(() => {
+        this.exportSlice(sliceId, cfg.scale, cfg.format, cfg.suffix);
+      }, configs.indexOf(cfg) * 200);
+    }
   }
 
   /** Render images to an offscreen context (for slice export) */

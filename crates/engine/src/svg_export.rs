@@ -1464,6 +1464,28 @@ fn build_variable_width_outline_d(points: &[PathPoint], closed: bool, default_wi
     d
 }
 
+/// Export a rectangular region of the scene as SVG (for slice export)
+pub fn export_region_svg(scene: &Scene, rx: f64, ry: f64, rw: f64, rh: f64) -> String {
+    let mut body = String::new();
+    let data = scene.export();
+    for &id in &data.root_children {
+        if let Some(node) = scene.get_node(id) {
+            // Include nodes that intersect the region
+            if node.x + node.width >= rx && node.x <= rx + rw
+                && node.y + node.height >= ry && node.y <= ry + rh
+                && !matches!(node.kind, NodeKind::Slice)
+            {
+                render_node_svg(scene, node, &mut body);
+            }
+        }
+    }
+    format!(
+        r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="{} {} {} {}" width="{}" height="{}">
+{}</svg>"#,
+        rx, ry, rw, rh, rw, rh, body
+    )
+}
+
 /// Export entire scene as SVG
 pub fn export_scene_svg(scene: &Scene) -> String {
     let data = scene.export();

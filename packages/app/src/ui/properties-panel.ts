@@ -4684,28 +4684,121 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
 
     // === Slice export section ===
     if (node.kind === "Slice") {
-      const sliceSection = createSection("Export");
-      const scaleRow = document.createElement("div");
-      scaleRow.style.cssText = "display:flex;gap:6px;align-items:center;margin-bottom:8px;";
-      const scaleLabel = document.createElement("span");
-      scaleLabel.style.cssText = "font-size:11px;color:#999;";
-      scaleLabel.textContent = "Scale:";
-      scaleRow.appendChild(scaleLabel);
-      const scaleSelect = document.createElement("select");
-      scaleSelect.style.cssText = "background:#2a2a2a;color:#ccc;border:1px solid #444;border-radius:4px;padding:2px 6px;font-size:11px;";
-      for (const s of [1, 2, 3, 4]) {
-        const opt = document.createElement("option");
-        opt.value = String(s); opt.textContent = `${s}x`; if (s === 2) opt.selected = true;
-        scaleSelect.appendChild(opt);
-      }
-      scaleRow.appendChild(scaleSelect);
-      sliceSection.appendChild(scaleRow);
+      const sliceSection = createSection("Slice Export");
 
+      // Export items list
+      type SliceExportItem = { scale: number; format: "png" | "jpg" | "svg"; suffix: string };
+      const storageKey = `opensketch-slice-exports-${id}`;
+      let exportItems: SliceExportItem[] = [];
+      try {
+        const raw = localStorage.getItem(storageKey);
+        if (raw) exportItems = JSON.parse(raw);
+      } catch { /* ignore */ }
+      if (exportItems.length === 0) {
+        exportItems = [{ scale: 1, format: "png", suffix: "" }];
+      }
+
+      const saveItems = () => localStorage.setItem(storageKey, JSON.stringify(exportItems));
+
+      const listEl = document.createElement("div");
+      listEl.style.cssText = "margin-bottom:8px;";
+
+      const renderItems = () => {
+        listEl.innerHTML = "";
+        exportItems.forEach((item, idx) => {
+          const row = document.createElement("div");
+          row.style.cssText = "display:flex;gap:4px;align-items:center;margin-bottom:4px;";
+
+          // Scale select
+          const scaleSel = document.createElement("select");
+          scaleSel.style.cssText = "width:55px;background:#2a2a2a;color:#ccc;border:1px solid #444;border-radius:4px;padding:2px 4px;font-size:10px;";
+          for (const s of [0.5, 1, 1.5, 2, 3, 4]) {
+            const opt = document.createElement("option");
+            opt.value = String(s); opt.textContent = `${s}x`;
+            if (s === item.scale) opt.selected = true;
+            scaleSel.appendChild(opt);
+          }
+          scaleSel.addEventListener("change", () => { item.scale = parseFloat(scaleSel.value); saveItems(); });
+          row.appendChild(scaleSel);
+
+          // Format select
+          const fmtSel = document.createElement("select");
+          fmtSel.style.cssText = "width:55px;background:#2a2a2a;color:#ccc;border:1px solid #444;border-radius:4px;padding:2px 4px;font-size:10px;";
+          for (const f of ["png", "jpg", "svg"] as const) {
+            const opt = document.createElement("option");
+            opt.value = f; opt.textContent = f.toUpperCase();
+            if (f === item.format) opt.selected = true;
+            fmtSel.appendChild(opt);
+          }
+          fmtSel.addEventListener("change", () => { item.format = fmtSel.value as any; saveItems(); });
+          row.appendChild(fmtSel);
+
+          // Suffix input
+          const suffixInput = document.createElement("input");
+          suffixInput.type = "text";
+          suffixInput.placeholder = "suffix";
+          suffixInput.value = item.suffix;
+          suffixInput.style.cssText = "flex:1;min-width:40px;background:#2a2a2a;color:#ccc;border:1px solid #444;border-radius:4px;padding:2px 4px;font-size:10px;";
+          suffixInput.addEventListener("change", () => { item.suffix = suffixInput.value; saveItems(); });
+          row.appendChild(suffixInput);
+
+          // Remove button
+          const removeBtn = document.createElement("button");
+          removeBtn.style.cssText = "background:none;border:none;color:#888;cursor:pointer;font-size:12px;padding:0 2px;";
+          removeBtn.textContent = "×";
+          removeBtn.addEventListener("click", () => {
+            exportItems.splice(idx, 1);
+            if (exportItems.length === 0) exportItems.push({ scale: 1, format: "png", suffix: "" });
+            saveItems();
+            renderItems();
+          });
+          row.appendChild(removeBtn);
+
+          listEl.appendChild(row);
+        });
+      };
+      renderItems();
+      sliceSection.appendChild(listEl);
+
+      // Add item button
+      const addRow = document.createElement("div");
+      addRow.style.cssText = "display:flex;gap:6px;margin-bottom:8px;";
+      const addBtn = document.createElement("button");
+      addBtn.style.cssText = "flex:1;padding:4px;background:#2a2a2a;color:#4a90d9;border:1px dashed #444;border-radius:4px;font-size:10px;cursor:pointer;";
+      addBtn.textContent = "+ Add export";
+      addBtn.addEventListener("click", () => {
+        const lastScale = exportItems[exportItems.length - 1]?.scale || 1;
+        const nextScale = lastScale < 3 ? lastScale * 2 : 4;
+        const suffix = nextScale !== 1 ? `@${nextScale}x` : "";
+        exportItems.push({ scale: Math.min(nextScale, 4), format: "png", suffix });
+        saveItems();
+        renderItems();
+      });
+      addRow.appendChild(addBtn);
+
+      // Quick add @1x/@2x/@3x
+      const quickBtn = document.createElement("button");
+      quickBtn.style.cssText = "padding:4px 8px;background:#2a2a2a;color:#888;border:1px solid #444;border-radius:4px;font-size:10px;cursor:pointer;white-space:nowrap;";
+      quickBtn.textContent = "iOS set";
+      quickBtn.title = "Add @1x, @2x, @3x PNG presets";
+      quickBtn.addEventListener("click", () => {
+        exportItems = [
+          { scale: 1, format: "png", suffix: "" },
+          { scale: 2, format: "png", suffix: "@2x" },
+          { scale: 3, format: "png", suffix: "@3x" },
+        ];
+        saveItems();
+        renderItems();
+      });
+      addRow.appendChild(quickBtn);
+      sliceSection.appendChild(addRow);
+
+      // Export button
       const exportBtn = document.createElement("button");
-      exportBtn.style.cssText = "width:100%;padding:6px;background:#36b37e;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;";
-      exportBtn.textContent = "Export PNG";
+      exportBtn.style.cssText = "width:100%;padding:7px;background:#36b37e;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;";
+      exportBtn.textContent = exportItems.length > 1 ? `Export ${exportItems.length} variants` : "Export";
       exportBtn.addEventListener("click", () => {
-        editor.exportSlice(id, parseInt(scaleSelect.value) || 2);
+        editor.exportSliceBatch(id, exportItems);
       });
       sliceSection.appendChild(exportBtn);
       container.appendChild(sliceSection);

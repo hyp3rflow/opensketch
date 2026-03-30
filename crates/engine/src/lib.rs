@@ -5028,6 +5028,11 @@ impl Engine {
         svg_export::export_node_svg(&self.scene, node_id)
     }
 
+    /// Export a rectangular region as SVG (for slice export)
+    pub fn export_region_svg(&self, x: f64, y: f64, w: f64, h: f64) -> String {
+        svg_export::export_region_svg(&self.scene, x, y, w, h)
+    }
+
     /// Import SVG markup into the scene. Returns JSON array of created top-level node IDs.
     /// Convert HTML/CSS code to OpenSketch design nodes.
     /// Returns JSON: { "root_id": number, "node_count": number }
