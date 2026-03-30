@@ -2473,7 +2473,7 @@ impl Scene {
     /// pattern: use `{name}` for original name, `{n}` for sequential number, `{N}` for zero-padded number
     /// Example: "{name} - {n}" with ids [a,b,c] starting at 1 → "Rect - 1", "Ellipse - 2", "Text - 3"
     pub fn batch_rename(&mut self, ids: &[NodeId], pattern: &str, start_num: u32) {
-        let pad_width = ((ids.len() as f64).log10().floor() as usize) + 1;
+        let pad_width = if ids.is_empty() { 1 } else { ((ids.len() as f64).log10().floor() as usize) + 1 };
         for (i, &id) in ids.iter().enumerate() {
             let num = start_num as usize + i;
             if let Some(node) = self.get_node_mut(id) {
@@ -2485,6 +2485,85 @@ impl Scene {
                 node.name = new_name;
             }
         }
+    }
+
+    /// Batch find/replace in node names.
+    pub fn batch_find_replace(&mut self, ids: &[NodeId], find: &str, replace: &str, use_regex: bool) -> u32 {
+        let mut count = 0u32;
+        if find.is_empty() { return 0; }
+        for &id in ids {
+            if let Some(node) = self.get_node_mut(id) {
+                let old = node.name.clone();
+                let new_name = if use_regex {
+                    match regex::Regex::new(find) {
+                        Ok(re) => re.replace_all(&old, replace).to_string(),
+                        Err(_) => continue,
+                    }
+                } else {
+                    old.replace(find, replace)
+                };
+                if new_name != old {
+                    node.name = new_name;
+                    count += 1;
+                }
+            }
+        }
+        count
+    }
+
+    /// Preview batch rename results without modifying nodes. Returns JSON array of {id, original, preview}.
+    /// mode: "prefix" | "find_replace" | "regex"
+    pub fn batch_rename_preview(&self, ids: &[NodeId], mode: &str, pattern: &str, find: &str, replace_with: &str, start_num: u32, case_sensitive: bool) -> String {
+        let pad_width = if ids.is_empty() { 1 } else { ((ids.len() as f64).log10().floor() as usize) + 1 };
+        let re = if mode == "regex" && !find.is_empty() {
+            regex::Regex::new(find).ok()
+        } else { None };
+
+        let mut entries = Vec::new();
+        for (i, &id) in ids.iter().enumerate() {
+            if let Some(node) = self.get_node(id) {
+                let original = &node.name;
+                let preview = match mode {
+                    "prefix" => {
+                        let num = start_num as usize + i;
+                        pattern
+                            .replace("{name}", original)
+                            .replace("{N}", &format!("{:0>width$}", num, width = pad_width))
+                            .replace("{n}", &num.to_string())
+                    }
+                    "find_replace" => {
+                        if find.is_empty() { original.clone() }
+                        else if case_sensitive { original.replace(find, replace_with) }
+                        else {
+                            let lower = original.to_lowercase();
+                            let find_lower = find.to_lowercase();
+                            let mut result = String::new();
+                            let mut start = 0;
+                            while let Some(pos) = lower[start..].find(&find_lower) {
+                                result.push_str(&original[start..start + pos]);
+                                result.push_str(replace_with);
+                                start += pos + find.len();
+                            }
+                            result.push_str(&original[start..]);
+                            result
+                        }
+                    }
+                    "regex" => {
+                        if let Some(ref re) = re {
+                            re.replace_all(original, replace_with).to_string()
+                        } else { original.clone() }
+                    }
+                    _ => original.clone(),
+                };
+                entries.push(format!(
+                    r#"{{"id":{},"original":"{}","preview":"{}"}}"#,
+                    id,
+                    original.replace('\\', "\\\\").replace('"', "\\\""),
+                    preview.replace('\\', "\\\\").replace('"', "\\\""),
+                ));
+            }
+        }
+        format!("[{}]", entries.join(","))
     }
 
     // ─── Animation methods ───

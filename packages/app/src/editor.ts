@@ -1,4 +1,5 @@
 import type { Engine } from "./wasm/opensketch_engine";
+import { showBatchRenameDialog } from "./ui/batch-rename";
 import { renderPixelGrid, renderDeviceFrame } from "./ui/pixel-preview";
 import { computeSnap, renderGuides, type SnapGuide } from "./tools/smart-guides";
 import { computePointSnap, renderPointSnapIndicators, collectPathPointTargets, addRulerTargets, constrainAngle, type PointSnapIndicator, type PointSnapTarget } from "./tools/point-snap";
@@ -5374,57 +5375,7 @@ export class Editor {
   }
 
   showBatchRenameDialog() {
-    const sel = Array.from(this.engine.get_selection()).map(Number);
-    if (sel.length < 2) return;
-
-    // Remove any existing dialog
-    document.querySelector('.os-batch-rename-overlay')?.remove();
-
-    const overlay = document.createElement('div');
-    overlay.className = 'os-batch-rename-overlay';
-    overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.5)';
-
-    const dialog = document.createElement('div');
-    dialog.style.cssText = 'background:#2a2a2a;border-radius:12px;padding:24px;width:360px;color:#eee;font-family:Inter,system-ui,sans-serif;font-size:13px;box-shadow:0 8px 32px rgba(0,0,0,0.4)';
-    dialog.innerHTML = `
-      <div style="font-size:15px;font-weight:600;margin-bottom:16px">Batch Rename (${sel.length} nodes)</div>
-      <label style="display:block;margin-bottom:4px;color:#aaa">Pattern</label>
-      <input id="br-pattern" type="text" value="{name}" style="width:100%;box-sizing:border-box;padding:8px;background:#1a1a1a;border:1px solid #444;border-radius:6px;color:#eee;font-size:13px;margin-bottom:8px" />
-      <div style="color:#888;font-size:11px;margin-bottom:12px">{name} = original, {n} = number, {N} = zero-padded</div>
-      <label style="display:block;margin-bottom:4px;color:#aaa">Start number</label>
-      <input id="br-start" type="number" value="1" min="0" style="width:80px;padding:8px;background:#1a1a1a;border:1px solid #444;border-radius:6px;color:#eee;font-size:13px;margin-bottom:16px" />
-      <div style="display:flex;gap:8px;justify-content:flex-end">
-        <button id="br-cancel" style="padding:8px 16px;background:#444;border:none;border-radius:6px;color:#eee;cursor:pointer">Cancel</button>
-        <button id="br-apply" style="padding:8px 16px;background:#4a90d9;border:none;border-radius:6px;color:#fff;cursor:pointer;font-weight:600">Rename</button>
-      </div>
-    `;
-    overlay.appendChild(dialog);
-    document.body.appendChild(overlay);
-
-    const patternInput = dialog.querySelector('#br-pattern') as HTMLInputElement;
-    const startInput = dialog.querySelector('#br-start') as HTMLInputElement;
-    patternInput.focus();
-    patternInput.select();
-
-    const close = () => overlay.remove();
-
-    overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) close(); });
-    dialog.querySelector('#br-cancel')!.addEventListener('click', close);
-
-    const apply = () => {
-      const pattern = patternInput.value || '{name}';
-      const start = parseInt(startInput.value) || 1;
-      const count = this.engine.batch_rename_selection(pattern, start);
-      if (count > 0) {
-        (this as any).onLayersChanges?.forEach?.((fn: any) => fn());
-        this.requestRender();
-      }
-      close();
-    };
-
-    dialog.querySelector('#br-apply')!.addEventListener('click', apply);
-    patternInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') apply(); if (e.key === 'Escape') close(); });
-    startInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') apply(); if (e.key === 'Escape') close(); });
+    showBatchRenameDialog(this);
   }
 
   // =============================================

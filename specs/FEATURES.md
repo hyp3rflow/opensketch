@@ -578,10 +578,14 @@
 
 ### Batch Rename
 - [x] **Pattern-based rename**: {name} = original name, {n} = sequential number, {N} = zero-padded number
-- [x] **Rust engine**: Scene.batch_rename() method with id list, pattern, start number
-- [x] **WASM binding**: batch_rename_selection(pattern, start_num) with undo integration
-- [x] **Dialog UI**: Modal dialog with pattern input, start number, live preview of tokens
+- [x] **Find/Replace mode**: case-sensitive/insensitive text find & replace in node names
+- [x] **Regex mode**: regex pattern matching with capture group references ($1, $2)
+- [x] **Rust engine**: Scene.batch_rename(), batch_find_replace(), batch_rename_preview() methods
+- [x] **WASM bindings**: batch_rename_selection, batch_find_replace_selection, batch_rename_preview, batch_find_replace_preview, batch_rename_preview_ex
+- [x] **Dialog UI**: Modal dialog with mode tabs (Pattern / Find & Replace), live preview, regex toggle
+- [x] **Separate module**: ui/batch-rename.ts standalone file
 - [x] **Context menu**: "Batch Rename…" option when 2+ nodes selected
+- [x] **Layers panel**: Right-click context menu with "Batch Rename…" for multi-selection
 - [x] **Keyboard shortcut**: Cmd/Ctrl+Shift+R
 - [x] **Undo support**: Full undo via push_undo() before rename
 

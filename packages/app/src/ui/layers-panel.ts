@@ -1,5 +1,7 @@
 import type { Editor } from "../editor";
 import { icons } from "./icons";
+import { showContextMenu } from "./context-menu";
+import { showBatchRenameDialog } from "./batch-rename";
 
 const kindIcons: Record<string, string> = {
   Rect: icons.rect,
@@ -281,6 +283,31 @@ export function setupLayersPanel(container: HTMLElement, editor: Editor) {
 
       item.addEventListener("click", () => {
         editor.selectNode(node.id);
+      });
+
+      item.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const sel = Array.from(editor.engine.get_selection()).map(Number);
+        // If right-clicked node is not in selection, select it
+        if (!sel.includes(node.id)) {
+          editor.selectNode(node.id);
+        }
+        const currentSel = Array.from(editor.engine.get_selection()).map(Number);
+        const isMac = navigator.platform.includes("Mac");
+        const mod = isMac ? "⌘" : "Ctrl+";
+        const items: { label: string; shortcut?: string; action?: () => void; enabled?: boolean; separator?: boolean }[] = [];
+        items.push({ label: "Rename", action: () => editor.startRenameNode?.(node.id) });
+        if (currentSel.length >= 2) {
+          items.push({ label: "Batch Rename…", shortcut: `${mod}⇧R`, action: () => showBatchRenameDialog(editor) });
+        }
+        items.push({ separator: true, label: "" });
+        items.push({ label: "Delete", shortcut: "⌫", action: () => { editor.engine.push_undo(); for (const id of currentSel) editor.engine.remove_node(BigInt(id)); editor.requestRender(); refresh(); } });
+        items.push({ label: "Duplicate", shortcut: `${mod}D`, action: () => { (editor as any).ctxDuplicate?.(); refresh(); } });
+        items.push({ separator: true, label: "" });
+        items.push({ label: node.visible ? "Hide" : "Show", action: () => { editor.engine.set_visible(BigInt(node.id), !node.visible); editor.requestRender(); refresh(); } });
+        items.push({ label: node.locked ? "Unlock" : "Lock", action: () => { editor.engine.set_locked(BigInt(node.id), !node.locked); editor.requestRender(); refresh(); } });
+        showContextMenu(e.clientX, e.clientY, items);
       });
 
       list.appendChild(item);

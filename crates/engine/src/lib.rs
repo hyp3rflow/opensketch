@@ -2318,6 +2318,64 @@ impl Engine {
         ids.len() as u32
     }
 
+    /// Batch find/replace in selected node names.
+    /// use_regex: if true, `find` is treated as a regex pattern.
+    pub fn batch_find_replace_selection(&mut self, find: &str, replace: &str, use_regex: bool) -> u32 {
+        let ids = self.scene.selection.clone();
+        if ids.is_empty() { return 0; }
+        self.push_undo();
+        self.scene.batch_find_replace(&ids, find, replace, use_regex)
+    }
+
+    /// Preview batch rename (returns JSON array of {id, oldName, newName}).
+    pub fn batch_rename_preview(&self, pattern: &str, start_num: u32) -> String {
+        let ids = &self.scene.selection;
+        let pad_width = if ids.is_empty() { 1 } else { ((ids.len() as f64).log10().floor() as usize) + 1 };
+        let mut results = Vec::new();
+        for (i, &id) in ids.iter().enumerate() {
+            let num = start_num as usize + i;
+            if let Some(node) = self.scene.get_node(id) {
+                let original = &node.name;
+                let new_name = pattern
+                    .replace("{name}", original)
+                    .replace("{N}", &format!("{:0>width$}", num, width = pad_width))
+                    .replace("{n}", &num.to_string());
+                results.push(serde_json::json!({"id": id, "oldName": original, "newName": new_name}));
+            }
+        }
+        serde_json::to_string(&results).unwrap_or_else(|_| "[]".to_string())
+    }
+
+    /// Preview batch find/replace (returns JSON array of {id, oldName, newName}).
+    pub fn batch_find_replace_preview(&self, find: &str, replace: &str, use_regex: bool) -> String {
+        let ids = &self.scene.selection;
+        let mut results = Vec::new();
+        if find.is_empty() { return "[]".to_string(); }
+        for &id in ids {
+            if let Some(node) = self.scene.get_node(id) {
+                let old = &node.name;
+                let new_name = if use_regex {
+                    match regex::Regex::new(find) {
+                        Ok(re) => re.replace_all(old, replace).to_string(),
+                        Err(_) => continue,
+                    }
+                } else {
+                    old.replace(find, replace)
+                };
+                if new_name != *old {
+                    results.push(serde_json::json!({"id": id, "oldName": old, "newName": new_name}));
+                }
+            }
+        }
+        serde_json::to_string(&results).unwrap_or_else(|_| "[]".to_string())
+    }
+
+    /// Enhanced batch rename preview with mode support. mode: "prefix" | "find_replace" | "regex"
+    pub fn batch_rename_preview_ex(&self, mode: &str, pattern: &str, find: &str, replace_with: &str, start_num: u32, case_sensitive: bool) -> String {
+        let ids = self.scene.selection.clone();
+        self.scene.batch_rename_preview(&ids, mode, pattern, find, replace_with, start_num, case_sensitive)
+    }
+
     // =============================================
     // Bookmarks
     // =============================================
