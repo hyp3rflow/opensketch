@@ -7486,6 +7486,55 @@ impl Engine {
         "null".to_string()
     }
 
+    /// Evaluate a motion path at a given progress (0.0–1.0).
+    /// Returns JSON: { "x": f64, "y": f64, "angle": f64 } or "null" if invalid.
+    #[wasm_bindgen]
+    pub fn evaluate_motion_path(&self, path_node_id: u64, progress: f64) -> String {
+        if let Some(path_node) = self.scene.get_node(path_node_id) {
+            if let NodeKind::Path { ref points, closed } = path_node.kind {
+                let total_len = crate::path_utils::path_length(points, closed);
+                let dist = progress.clamp(0.0, 1.0) * total_len;
+                if let Some(sample) = crate::path_utils::point_at_length(points, closed, dist) {
+                    return serde_json::json!({
+                        "x": sample.x,
+                        "y": sample.y,
+                        "angle": sample.angle.to_degrees(),
+                    }).to_string();
+                }
+            }
+        }
+        "null".to_string()
+    }
+
+    /// Get motion path visualization data: sampled points along a path for canvas overlay.
+    /// Returns JSON array of {x, y} points (up to 50 samples).
+    #[wasm_bindgen]
+    pub fn get_motion_path_samples(&self, path_node_id: u64, sample_count: u32) -> String {
+        let count = (sample_count.max(2).min(100)) as usize;
+        if let Some(path_node) = self.scene.get_node(path_node_id) {
+            if let NodeKind::Path { ref points, closed } = path_node.kind {
+                let total_len = crate::path_utils::path_length(points, closed);
+                let mut samples = Vec::with_capacity(count);
+                for i in 0..count {
+                    let progress = i as f64 / (count - 1) as f64;
+                    let dist = progress * total_len;
+                    if let Some(s) = crate::path_utils::point_at_length(points, closed, dist) {
+                        samples.push(serde_json::json!({"x": s.x, "y": s.y}));
+                    }
+                }
+                return serde_json::to_string(&samples).unwrap_or_else(|_| "[]".to_string());
+            }
+        }
+        "[]".to_string()
+    }
+
+    /// Export SVG with animateMotion elements for motion path tracks.
+    /// Returns full SVG string with embedded animations.
+    #[wasm_bindgen]
+    pub fn export_svg_with_animations(&self, clip_id: u64) -> String {
+        svg_export::export_scene_svg_with_animations(&self.scene, clip_id)
+    }
+
     /// Get all Path nodes in the scene (for motion path picker)
     #[wasm_bindgen]
     pub fn get_path_nodes(&self) -> String {

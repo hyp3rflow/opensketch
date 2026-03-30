@@ -82,6 +82,7 @@ export function createPrototypeViewer(editor: Editor): {
     });
 
     renderCurrentView();
+    startMotionPathPlayback();
     viewCanvas.addEventListener("click", onCanvasClick);
     viewCanvas.addEventListener("mousemove", onCanvasMouseMove);
     viewCanvas.addEventListener("mousedown", onCanvasMouseDown);
@@ -92,10 +93,44 @@ export function createPrototypeViewer(editor: Editor): {
     viewCanvas.addEventListener("touchend", onTouchEnd, { passive: false });
   }
 
+  let motionPathAnimId: number | null = null;
+
+  function startMotionPathPlayback() {
+    // Find animation clips with motion path tracks and play them
+    try {
+      const clipsJson = editor.engine.anim_get_clips();
+      const clips: { id: number; name: string }[] = JSON.parse(clipsJson || "[]");
+      if (clips.length === 0) return;
+
+      const startTime = performance.now();
+
+      function animateMotionPaths() {
+        if (!active) return;
+        const elapsed = performance.now() - startTime;
+        for (const clip of clips) {
+          editor.engine.anim_apply(BigInt(clip.id), Math.round(elapsed));
+        }
+        renderCurrentView();
+        motionPathAnimId = requestAnimationFrame(animateMotionPaths);
+      }
+      motionPathAnimId = requestAnimationFrame(animateMotionPaths);
+    } catch {
+      // No animation support or no clips
+    }
+  }
+
+  function stopMotionPathPlayback() {
+    if (motionPathAnimId !== null) {
+      cancelAnimationFrame(motionPathAnimId);
+      motionPathAnimId = null;
+    }
+  }
+
   function hide() {
     if (!active || !overlay) return;
     active = false;
     transitioning = false;
+    stopMotionPathPlayback();
     document.removeEventListener("keydown", onKeyDown);
     overlay.remove();
     overlay = null;

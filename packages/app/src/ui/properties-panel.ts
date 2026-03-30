@@ -2403,6 +2403,186 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       container.appendChild(linksSection);
     }
 
+    // --- Motion Path ---
+    {
+      const mpSection = createSection("Motion Path");
+      const pathNodesJson = editor.engine.get_path_nodes();
+      const pathNodes: {id: number; name: string}[] = JSON.parse(pathNodesJson || "[]");
+
+      if (pathNodes.length > 0) {
+        // Get animation clips
+        const clipsJson = editor.engine.anim_get_clips();
+        const clips: {id: number; name: string}[] = JSON.parse(clipsJson || "[]");
+
+        // Clip selector
+        const clipRow = document.createElement("div");
+        clipRow.style.cssText = "display:flex;gap:4px;margin-bottom:6px;align-items:center;";
+        const clipLbl = document.createElement("span");
+        clipLbl.style.cssText = "font-size:10px;color:#666;width:50px;flex-shrink:0;";
+        clipLbl.textContent = "Clip";
+        clipRow.appendChild(clipLbl);
+        const clipSel = document.createElement("select");
+        clipSel.className = "prop-input";
+        clipSel.style.flex = "1";
+        if (clips.length === 0) {
+          const opt = document.createElement("option");
+          opt.textContent = "(no clips)";
+          clipSel.appendChild(opt);
+          clipSel.disabled = true;
+        } else {
+          for (const c of clips) {
+            const opt = document.createElement("option");
+            opt.value = String(c.id);
+            opt.textContent = c.name;
+            clipSel.appendChild(opt);
+          }
+        }
+        clipRow.appendChild(clipSel);
+        mpSection.appendChild(clipRow);
+
+        const getClipId = () => {
+          const v = clipSel.value;
+          return v ? Number(v) : 0;
+        };
+
+        // Check existing motion path
+        const checkExisting = () => {
+          const clipId = getClipId();
+          if (!clipId) return null;
+          try {
+            const info = JSON.parse(editor.engine.anim_get_motion_path(BigInt(clipId), id));
+            return info;
+          } catch { return null; }
+        };
+
+        let existing = checkExisting();
+
+        // Path selector
+        const pathRow = document.createElement("div");
+        pathRow.style.cssText = "display:flex;gap:4px;margin-bottom:6px;align-items:center;";
+        const pathLbl = document.createElement("span");
+        pathLbl.style.cssText = "font-size:10px;color:#666;width:50px;flex-shrink:0;";
+        pathLbl.textContent = "Path";
+        pathRow.appendChild(pathLbl);
+        const pathSel = document.createElement("select");
+        pathSel.className = "prop-input";
+        pathSel.style.flex = "1";
+        const noneOpt = document.createElement("option");
+        noneOpt.value = "0";
+        noneOpt.textContent = "(none)";
+        pathSel.appendChild(noneOpt);
+        for (const p of pathNodes) {
+          const opt = document.createElement("option");
+          opt.value = String(p.id);
+          opt.textContent = p.name || `Path ${p.id}`;
+          if (existing && existing.path_node_id === p.id) opt.selected = true;
+          pathSel.appendChild(opt);
+        }
+        pathRow.appendChild(pathSel);
+        mpSection.appendChild(pathRow);
+
+        // Duration
+        const durRow = document.createElement("div");
+        durRow.style.cssText = "display:flex;gap:4px;margin-bottom:6px;align-items:center;";
+        const durLbl = document.createElement("span");
+        durLbl.style.cssText = "font-size:10px;color:#666;width:50px;flex-shrink:0;";
+        durLbl.textContent = "Duration";
+        durRow.appendChild(durLbl);
+        const durInput = document.createElement("input");
+        durInput.type = "number";
+        durInput.className = "prop-input";
+        durInput.style.flex = "1";
+        durInput.value = "1000";
+        durInput.min = "100";
+        durInput.step = "100";
+        durRow.appendChild(durInput);
+        const durUnit = document.createElement("span");
+        durUnit.style.cssText = "font-size:10px;color:#666;";
+        durUnit.textContent = "ms";
+        durRow.appendChild(durUnit);
+        mpSection.appendChild(durRow);
+
+        // Easing
+        const easeRow = document.createElement("div");
+        easeRow.style.cssText = "display:flex;gap:4px;margin-bottom:6px;align-items:center;";
+        const easeLbl = document.createElement("span");
+        easeLbl.style.cssText = "font-size:10px;color:#666;width:50px;flex-shrink:0;";
+        easeLbl.textContent = "Easing";
+        easeRow.appendChild(easeLbl);
+        const easeSel = document.createElement("select");
+        easeSel.className = "prop-input";
+        easeSel.style.flex = "1";
+        for (const e of ["ease-in-out", "linear", "ease-in", "ease-out"]) {
+          const opt = document.createElement("option");
+          opt.value = e;
+          opt.textContent = e;
+          easeSel.appendChild(opt);
+        }
+        easeRow.appendChild(easeSel);
+        mpSection.appendChild(easeRow);
+
+        // Auto-orient toggle
+        const orientRow = document.createElement("div");
+        orientRow.style.cssText = "display:flex;gap:4px;margin-bottom:6px;align-items:center;";
+        const orientLbl = document.createElement("span");
+        orientLbl.style.cssText = "font-size:10px;color:#666;width:50px;flex-shrink:0;";
+        orientLbl.textContent = "Orient";
+        orientRow.appendChild(orientLbl);
+        const orientCb = document.createElement("input");
+        orientCb.type = "checkbox";
+        orientCb.checked = existing ? existing.orient_to_path : true;
+        orientRow.appendChild(orientCb);
+        const orientTxt = document.createElement("span");
+        orientTxt.style.cssText = "font-size:10px;color:#aaa;";
+        orientTxt.textContent = "Auto-orient to path";
+        orientRow.appendChild(orientTxt);
+        mpSection.appendChild(orientRow);
+
+        // Apply / Remove buttons
+        const btnRow = document.createElement("div");
+        btnRow.style.cssText = "display:flex;gap:4px;margin-top:4px;";
+        const applyBtn = document.createElement("button");
+        applyBtn.style.cssText = "flex:1;padding:4px 8px;border:none;border-radius:4px;background:#3b82f6;color:#fff;font-size:11px;cursor:pointer;";
+        applyBtn.textContent = existing ? "Update" : "Apply";
+        applyBtn.addEventListener("click", () => {
+          const clipId = getClipId();
+          const pathId = Number(pathSel.value);
+          if (!clipId || !pathId) return;
+          ensureUndo();
+          editor.engine.anim_set_motion_path(
+            BigInt(clipId), id, BigInt(pathId),
+            Number(durInput.value) || 1000,
+            orientCb.checked, 0.0, easeSel.value
+          );
+          editor.requestRender();
+          refresh(ids);
+        });
+        btnRow.appendChild(applyBtn);
+
+        if (existing) {
+          const removeBtn = document.createElement("button");
+          removeBtn.style.cssText = "flex:1;padding:4px 8px;border:1px solid #444;border-radius:4px;background:#2a2a2a;color:#e0e0e0;font-size:11px;cursor:pointer;";
+          removeBtn.textContent = "Remove";
+          removeBtn.addEventListener("click", () => {
+            const clipId = getClipId();
+            if (!clipId) return;
+            ensureUndo();
+            editor.engine.anim_remove_motion_path(BigInt(clipId), id);
+            editor.requestRender();
+            refresh(ids);
+          });
+          btnRow.appendChild(removeBtn);
+        }
+        mpSection.appendChild(btnRow);
+      } else {
+        const noPath = document.createElement("div");
+        noPath.style.cssText = "font-size:10px;color:#666;padding:4px;";
+        noPath.textContent = "No path nodes in scene. Draw a path first.";
+        mpSection.appendChild(noPath);
+      }
+      container.appendChild(mpSection);
+    }
+
     // --- Prototype Interactions ---
     {
       const interSection = createSection("Interactions");

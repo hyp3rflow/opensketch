@@ -3372,6 +3372,7 @@ export class Editor {
         this.renderStamps();
         this.renderNodeLinks();
         this.renderTextFlowLinks();
+        this.renderMotionPathOverlay();
         this._annotationHeatmap?.render(this.ctx, this.zoom, this.panX, this.panY);
         this.renderDiffOverlay();
         this.renderSearchFilterOverlay();
@@ -4139,6 +4140,80 @@ export class Editor {
   }
 
   get nodeLinksVisible() { return this._nodeLinksVisible; }
+
+  private renderMotionPathOverlay() {
+    // Visualize motion path connections: dashed line from source node to path
+    try {
+      const clipsJson = this.engine.anim_get_clips();
+      const clips: { id: number; name: string }[] = JSON.parse(clipsJson || "[]");
+      if (clips.length === 0) return;
+
+      const ctx = this.ctx;
+      const zoom = this.engine.get_zoom();
+      const panX = this.engine.get_pan_x();
+      const panY = this.engine.get_pan_y();
+
+      ctx.save();
+
+      for (const clip of clips) {
+        // Check all selected nodes for motion paths
+        const selArr = this.engine.get_selection();
+        const selIds = Array.from(selArr).map(Number);
+        for (const nodeId of selIds) {
+          const mpJson = this.engine.anim_get_motion_path(BigInt(clip.id), BigInt(nodeId));
+          if (!mpJson || mpJson === "null") continue;
+          const mp = JSON.parse(mpJson);
+          if (!mp || !mp.path_node_id) continue;
+
+          // Get path samples for visualization
+          const samplesJson = this.engine.get_motion_path_samples(BigInt(mp.path_node_id), 50);
+          const samples: { x: number; y: number }[] = JSON.parse(samplesJson || "[]");
+          if (samples.length < 2) continue;
+
+          // Draw dashed path
+          ctx.beginPath();
+          ctx.setLineDash([6, 4]);
+          ctx.strokeStyle = "#3b82f6";
+          ctx.lineWidth = 2;
+          ctx.moveTo(samples[0].x * zoom + panX, samples[0].y * zoom + panY);
+          for (let i = 1; i < samples.length; i++) {
+            ctx.lineTo(samples[i].x * zoom + panX, samples[i].y * zoom + panY);
+          }
+          ctx.stroke();
+
+          // Draw arrowhead at end
+          const last = samples[samples.length - 1];
+          const prev = samples[samples.length - 2];
+          const angle = Math.atan2(
+            (last.y - prev.y),
+            (last.x - prev.x)
+          );
+          const ax = last.x * zoom + panX;
+          const ay = last.y * zoom + panY;
+          const arrowLen = 10;
+          ctx.setLineDash([]);
+          ctx.beginPath();
+          ctx.moveTo(ax, ay);
+          ctx.lineTo(ax - arrowLen * Math.cos(angle - 0.4), ay - arrowLen * Math.sin(angle - 0.4));
+          ctx.moveTo(ax, ay);
+          ctx.lineTo(ax - arrowLen * Math.cos(angle + 0.4), ay - arrowLen * Math.sin(angle + 0.4));
+          ctx.stroke();
+
+          // Draw small circle at path start
+          ctx.beginPath();
+          ctx.arc(samples[0].x * zoom + panX, samples[0].y * zoom + panY, 4, 0, Math.PI * 2);
+          ctx.fillStyle = "#3b82f6";
+          ctx.fill();
+
+          ctx.setLineDash([]);
+        }
+      }
+
+      ctx.restore();
+    } catch {
+      // Motion path visualization not available
+    }
+  }
 
   private renderNodeLinks() {
     if (!this._nodeLinksVisible) return;

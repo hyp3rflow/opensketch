@@ -1501,3 +1501,108 @@ pub fn export_scene_svg(scene: &Scene) -> String {
         min_x, min_y, w, h, w, h, body
     )
 }
+
+/// Export scene SVG with <animateMotion> elements for motion path tracks in a clip.
+pub fn export_scene_svg_with_animations(scene: &Scene, clip_id: u64) -> String {
+    use crate::animation::AnimProperty;
+
+    let data = scene.export();
+    if data.nodes.is_empty() {
+        return r#"<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0"></svg>"#.to_string();
+    }
+
+    // Compute bounding box
+    let mut min_x = f64::INFINITY;
+    let mut min_y = f64::INFINITY;
+    let mut max_x = f64::NEG_INFINITY;
+    let mut max_y = f64::NEG_INFINITY;
+    for n in &data.nodes {
+        min_x = min_x.min(n.x);
+        min_y = min_y.min(n.y);
+        max_x = max_x.max(n.x + n.width);
+        max_y = max_y.max(n.y + n.height);
+    }
+    let w = max_x - min_x;
+    let h = max_y - min_y;
+
+    // Collect motion path tracks from the clip
+    let motion_tracks: Vec<(NodeId, u64, bool, f64, u32, bool)> = if let Some(clip) = data.animations.get_clip(clip_id) {
+        clip.tracks.iter().filter_map(|t| {
+            if t.property == AnimProperty::MotionPath {
+                if let Some(ref config) = t.motion_path {
+                    let dur = t.duration_ms();
+                    return Some((t.node_id, config.path_node_id, config.orient_to_path, config.rotation_offset, dur, clip.looping));
+                }
+            }
+            None
+        }).collect()
+    } else {
+        vec![]
+    };
+
+    let mut body = String::new();
+    let mut path_defs = String::new();
+
+    // Render root children; for nodes with motion path, wrap with <animateMotion>
+    for &id in &data.root_children {
+        if let Some(node) = scene.get_node(id) {
+            render_node_with_animate_motion(scene, node, &mut body, &mut path_defs, &motion_tracks);
+        }
+    }
+
+    let defs_section = if path_defs.is_empty() {
+        String::new()
+    } else {
+        format!("<defs>\n{}</defs>\n", path_defs)
+    };
+
+    format!(
+        r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="{} {} {} {}" width="{}" height="{}">
+{}{}</svg>"#,
+        min_x, min_y, w, h, w, h, defs_section, body
+    )
+}
+
+fn render_node_with_animate_motion(
+    scene: &Scene,
+    node: &Node,
+    buf: &mut String,
+    path_defs: &mut String,
+    motion_tracks: &[(NodeId, u64, bool, f64, u32, bool)],
+) {
+    if !node.visible { return; }
+
+    // Check if this node has a motion path track
+    let motion = motion_tracks.iter().find(|t| t.0 == node.id);
+
+    if let Some(&(_, path_node_id, orient, _rot_offset, dur_ms, looping)) = motion {
+        if let Some(path_node) = scene.get_node(path_node_id) {
+            if let NodeKind::Path { ref points, closed } = path_node.kind {
+                let path_d = crate::path_utils::path_to_svg_d(points, closed);
+                let dur_s = dur_ms as f64 / 1000.0;
+                let repeat = if looping { "indefinite" } else { "1" };
+                let rotate = if orient { "auto" } else { "0" };
+                let def_id = format!("motion-path-{}", path_node_id);
+
+                // Add path to defs
+                path_defs.push_str(&format!(
+                    r#"<path id="{}" d="{}"/>"#, def_id, path_d
+                ));
+                path_defs.push('\n');
+
+                // Wrap node in a <g> with animateMotion
+                buf.push_str("<g>\n");
+                render_node_svg(scene, node, buf);
+                buf.push_str(&format!(
+                    "  <animateMotion dur=\"{}s\" repeatCount=\"{}\" rotate=\"{}\" fill=\"freeze\"><mpath href=\"#{}\"/></animateMotion>",
+                    dur_s, repeat, rotate, def_id
+                ));
+                buf.push_str("\n</g>\n");
+                return;
+            }
+        }
+    }
+
+    // No motion path — render normally
+    render_node_svg(scene, node, buf);
+}

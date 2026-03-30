@@ -873,7 +873,14 @@ Frame overflow control and content scrolling.
 - [x] Scene anim_apply: resolves path geometry via path_utils, samples point+tangent at progress distance
 - [x] Node centering on path point, optional orientation to tangent angle
 - [x] WASM: anim_set_motion_path, anim_update_motion_path, anim_remove_motion_path, anim_get_motion_path, get_path_nodes
+- [x] WASM: evaluate_motion_path(path_node_id, progress) → {x, y, angle} standalone evaluation
+- [x] WASM: get_motion_path_samples(path_node_id, count) → [{x, y}] for visualization
+- [x] WASM: export_svg_with_animations(clip_id) → SVG with `<animateMotion>` elements
+- [x] SVG export: `<animateMotion>` with `<mpath>`, dur, repeatCount, rotate="auto" for orient
 - [x] Timeline UI: 🛤 button to attach/detach motion path, path picker, duration input, orient toggle
+- [x] Properties panel: "Motion Path" section — clip/path selector, duration, easing, auto-orient toggle, apply/remove buttons
+- [x] Prototype viewer: requestAnimationFrame playback of all animation clips (including motion paths)
+- [x] Canvas overlay: dashed blue arrow visualization of motion path when source node is selected
 - [x] Track label: "🛤 Motion Path" for motion path tracks
 - [x] Works with existing playback, looping, easing, and scene snapshot/restore
 - [x] Backward-compatible serde (motion_path field skipped when None)

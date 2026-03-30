@@ -1479,10 +1479,18 @@
   - tools/spacing-handles.ts: SpacingHandle + PaddingHandle, find/hitTest/render functions
 
 ## 다음 할 것
-- Motion path animation — Path 노드를 따라 다른 노드가 움직이는 애니메이션, 타임라인 연동, progress/orientation 제어, SVG animateMotion export
 - Variable-driven conditional visibility — Variable 값에 따라 노드 show/hide 조건 설정 (if color_mode == "dark" then visible), 프로토타입 뷰어에서 실시간 전환
 - Dev resource linker — 노드에 외부 리소스 링크 (GitHub issue/PR, Storybook URL, Jira ticket), Inspect/Handoff 패널에서 원클릭 열기, 아이콘 배지 표시
 - Smart content fill — 노드에 realistic placeholder 데이터 자동 채우기 (이름, 주소, 날짜, 아바타 이미지, lorem ipsum 변형), 카테고리별 프리셋, 반복 패턴 (리스트 아이템 등)
+## 완료된 기능 (추가 — Motion Path Animation)
+- Rust: evaluate_motion_path(path_node_id, progress) → {x, y, angle} standalone WASM binding
+- Rust: get_motion_path_samples(path_node_id, count) → sampled points for visualization
+- SVG export: export_svg_with_animations(clip_id) — `<animateMotion>` with `<mpath>`, dur, repeatCount, rotate
+- Properties panel: "Motion Path" 섹션 — clip/path selector, duration, easing, auto-orient, apply/remove
+- Prototype viewer: requestAnimationFrame으로 모든 animation clips 자동 재생 (motion path 포함)
+- Canvas overlay: 선택된 노드의 motion path를 dashed blue arrow로 시각화
+- 기존 기능 유지: anim_set/update/remove/get_motion_path, timeline UI 🛤 버튼
+
 ## 완료된 기능 (추가 — Typography Scale Generator)
 - Rust typo_scale.rs: 8 presets (Minor Second ~ Golden Ratio) + custom ratio, 7 levels (Display/H1/H2/H3/Body/Small/Caption)
 - WASM: generate_type_scale() (preview JSON), apply_type_scale() (StyleStore 직접 추가/업데이트)
