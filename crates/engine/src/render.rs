@@ -362,9 +362,59 @@ impl Renderer {
         }
     }
 
+    /// LOD level based on zoom: 0 = full, 1 = simplified (no text detail), 2 = box only
+    fn lod_level(&self, node: &Node) -> u8 {
+        let zoom = self.viewport.a;
+        let screen_area = node.width * node.height * zoom * zoom;
+        if screen_area < 16.0 {
+            return 2; // Tiny on screen: just a colored box
+        }
+        if zoom < 0.15 {
+            return 2;
+        }
+        if zoom < 0.35 {
+            return 1; // Simplified: text becomes box, complex shapes simplified
+        }
+        0
+    }
+
+    /// Render a simplified LOD box for a node (solid fill rectangle)
+    fn render_lod_box(&self, ctx: &CanvasRenderingContext2d, node: &Node) {
+        ctx.save();
+        ctx.set_global_alpha(node.opacity);
+        // Use first fill color or a gray fallback
+        let color = node.fills.first()
+            .map(|f| f.color().to_css())
+            .unwrap_or_else(|| "#cccccc".to_string());
+        ctx.set_fill_style_str(&color);
+        ctx.fill_rect(node.x, node.y, node.width, node.height);
+        ctx.restore();
+    }
+
     fn render_node(&self, ctx: &CanvasRenderingContext2d, node: &Node, scene: &Scene) {
         // Slice nodes are not rendered on canvas (TS draws overlay)
         if matches!(node.kind, NodeKind::Slice) { return; }
+
+        // LOD: simplify rendering at low zoom levels
+        let lod = self.lod_level(node);
+        if lod >= 2 && node.width > 0.0 && node.height > 0.0 {
+            self.render_lod_box(ctx, node);
+            // Still render children for frames/groups at lod 2
+            if matches!(node.kind, NodeKind::Frame | NodeKind::Group | NodeKind::Section) {
+                ctx.save();
+                ctx.set_global_alpha(node.opacity);
+                self.render_children(ctx, &node.children, scene);
+                ctx.restore();
+            }
+            return;
+        }
+        if lod >= 1 {
+            // At lod 1, replace text nodes with simple colored boxes
+            if matches!(node.kind, NodeKind::Text { .. } | NodeKind::StickyNote { .. } | NodeKind::Callout { .. }) {
+                self.render_lod_box(ctx, node);
+                return;
+            }
+        }
 
         ctx.save();
         ctx.set_global_alpha(node.opacity);

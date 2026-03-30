@@ -184,6 +184,9 @@
 - [x] **Render stats API**: `get_rendered_count()`, `get_culled_count()`, `get_node_count()` for monitoring
 - [x] **Visible nodes query**: `get_visible_nodes(x, y, w, h)` returns node IDs within viewport for TS-side optimizations
 - [x] **Canvas Performance Profiler**: Full profiler panel (⌘⇧P) with rolling FPS graph, per-node complexity scoring (Rust), top-10 expensive nodes ranking, heatmap overlay, optimization suggestions, memory tracking
+- [x] **LOD (Level of Detail)**: Zoom-adaptive rendering — at low zoom (<0.35) text nodes render as solid boxes, at very low zoom (<0.15) or tiny screen area all nodes simplified to colored rectangles
+- [x] **FPS Counter**: Dedicated bottom-left FPS overlay (⌘⇧F) showing real-time FPS + rendered/culled node counts, color-coded (green/yellow/red)
+- [x] **requestIdleCallback deferred tasks**: Non-critical work (image cache cleanup) scheduled via `requestIdleCallback` to avoid blocking render frames
 
 ### Desktop (Tauri v2)
 - [x] Project scaffolded (`src-tauri/`)

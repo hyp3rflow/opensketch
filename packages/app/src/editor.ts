@@ -82,6 +82,10 @@ export class Editor {
   private _pasteCount = 0;
   private _nodeLinksVisible = true;
 
+  // Grid snapping
+  public gridSnapEnabled = false;
+  public gridSize = 8;
+
   whiteboardMode: WhiteboardMode;
 
   private _imageCache: Map<string, HTMLImageElement> = new Map();
@@ -735,6 +739,13 @@ export class Editor {
         return;
       }
 
+      // Ctrl/Cmd+Shift+F: Toggle FPS Counter
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "f" || e.key === "F")) {
+        e.preventDefault();
+        this.toggleFpsCounter();
+        return;
+      }
+
       // Ctrl/Cmd+Shift+E: export PDF
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "e" || e.key === "E")) {
         e.preventDefault();
@@ -750,6 +761,14 @@ export class Editor {
         } else {
           openComponentPlayground(this.engine);
         }
+        return;
+      }
+
+      // Ctrl/Cmd+' (backtick): Toggle grid snapping
+      if ((e.metaKey || e.ctrlKey) && (e.key === "'" || e.key === "'")) {
+        e.preventDefault();
+        this.gridSnapEnabled = !this.gridSnapEnabled;
+        this.requestRender();
         return;
       }
 
@@ -1839,6 +1858,15 @@ export class Editor {
             }
           }
 
+          // Grid snap for resize
+          if (this.gridSnapEnabled && this.gridSize > 0) {
+            const gs = this.gridSize;
+            nx = Math.round(nx / gs) * gs;
+            ny = Math.round(ny / gs) * gs;
+            nw = Math.max(gs, Math.round(nw / gs) * gs);
+            nh = Math.max(gs, Math.round(nh / gs) * gs);
+          }
+
           if (nw > 0 && nh > 0) {
             this.engine.set_node_position(this.drag.nodeId, nx, ny);
 
@@ -1893,6 +1921,20 @@ export class Editor {
           this._snapGuides = snap.guides;
         } else {
           this._snapGuides = [];
+        }
+        // Grid snapping: snap selection top-left to nearest grid point
+        if (this.gridSnapEnabled && this.gridSize > 0) {
+          const gbox = this.getSelectionBBox(sel);
+          if (gbox) {
+            const gs = this.gridSize;
+            const snapX = Math.round(gbox.x / gs) * gs - gbox.x;
+            const snapY = Math.round(gbox.y / gs) * gs - gbox.y;
+            if (snapX !== 0 || snapY !== 0) {
+              for (const id of sel) {
+                this.engine.move_node(id, snapX, snapY);
+              }
+            }
+          }
         }
         this.drag.currentX = x;
         this.drag.currentY = y;
@@ -3493,6 +3535,79 @@ export class Editor {
   private _perfStatsVisible = false;
   private _lastPerfUpdate = 0;
 
+  // FPS counter (bottom-left debug overlay)
+  private _fpsCounterEl: HTMLElement | null = null;
+  private _fpsCounterVisible = false;
+  private _fpsFrameTimes: number[] = [];
+  private _fpsLastTime = 0;
+
+  /** Toggle FPS counter overlay (bottom-left) */
+  toggleFpsCounter() {
+    this._fpsCounterVisible = !this._fpsCounterVisible;
+    if (this._fpsCounterVisible) {
+      if (!this._fpsCounterEl) {
+        this._fpsCounterEl = document.createElement("div");
+        this._fpsCounterEl.style.cssText = `
+          position: fixed; bottom: 12px; left: 12px; z-index: 9999;
+          background: rgba(0,0,0,0.75); color: #0f0; font: bold 12px monospace;
+          padding: 4px 8px; border-radius: 4px; pointer-events: none;
+          line-height: 1.4; min-width: 80px;
+        `;
+        document.body.appendChild(this._fpsCounterEl);
+      }
+      this._fpsCounterEl.style.display = "block";
+      this._fpsLastTime = performance.now();
+      this._fpsFrameTimes = [];
+    } else if (this._fpsCounterEl) {
+      this._fpsCounterEl.style.display = "none";
+    }
+  }
+
+  private updateFpsCounter() {
+    if (!this._fpsCounterEl || !this._fpsCounterVisible) return;
+    const now = performance.now();
+    this._fpsFrameTimes.push(now);
+    // Keep last 1 second of frame times
+    while (this._fpsFrameTimes.length > 0 && this._fpsFrameTimes[0] < now - 1000) {
+      this._fpsFrameTimes.shift();
+    }
+    // Update display every 250ms
+    if (now - this._fpsLastTime > 250) {
+      this._fpsLastTime = now;
+      const fps = this._fpsFrameTimes.length;
+      const rendered = this.engine.get_rendered_count?.() ?? 0;
+      const culled = this.engine.get_culled_count?.() ?? 0;
+      const color = fps >= 55 ? "#0f0" : fps >= 30 ? "#ff0" : "#f00";
+      this._fpsCounterEl.innerHTML = `<span style="color:${color}">${fps} FPS</span><br><span style="color:#aaa;font-size:10px">${rendered}r/${culled}c</span>`;
+    }
+  }
+
+  // Deferred render tasks via requestIdleCallback
+  private _deferredTasks: (() => void)[] = [];
+  private _idleCallbackId: number | null = null;
+
+  /** Schedule a low-priority render task to run during idle time */
+  private scheduleDeferredTask(task: () => void) {
+    this._deferredTasks.push(task);
+    if (this._idleCallbackId === null) {
+      this._idleCallbackId = (window as any).requestIdleCallback?.((deadline: any) => {
+        this._idleCallbackId = null;
+        while (this._deferredTasks.length > 0 && deadline.timeRemaining() > 2) {
+          const t = this._deferredTasks.shift();
+          t?.();
+        }
+        // If tasks remain, schedule another
+        if (this._deferredTasks.length > 0) {
+          this.scheduleDeferredTask(this._deferredTasks.shift()!);
+        }
+      }, { timeout: 100 }) ?? setTimeout(() => {
+        this._idleCallbackId = null;
+        const batch = this._deferredTasks.splice(0, 5);
+        batch.forEach(t => t());
+      }, 16);
+    }
+  }
+
   private startLoop() {
     const loop = () => {
       if (this.needsRender) {
@@ -3542,6 +3657,9 @@ export class Editor {
         this._frameTimeHistory.push(frameTime);
         if (this._frameTimeHistory.length > 60) this._frameTimeHistory.shift();
 
+        // FPS counter update
+        this.updateFpsCounter();
+
         // Update perf heatmap overlay if enabled
         if ((this as any)._perfHeatmapCb) (this as any)._perfHeatmapCb();
 
@@ -3550,6 +3668,23 @@ export class Editor {
           this._lastPerfUpdate = performance.now();
           this.updatePerfStats();
         }
+
+        // Defer heavy non-critical updates to idle time
+        if (this._deferredTasks.length === 0) {
+          // Schedule image cache cleanup during idle
+          this.scheduleDeferredTask(() => {
+            // Prune image cache if too large
+            if (this._imageCache.size > 200) {
+              const keys = Array.from(this._imageCache.keys());
+              for (let i = 0; i < 50; i++) {
+                this._imageCache.delete(keys[i]);
+              }
+            }
+          });
+        }
+      } else {
+        // Even when not rendering, update FPS counter (shows actual frame rate)
+        this.updateFpsCounter();
       }
       this.rafId = requestAnimationFrame(loop);
     };
