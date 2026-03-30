@@ -619,6 +619,8 @@
 - [x] **SVG export**: Table → `<g>` with `<rect>`, `<line>`, `<text>` elements
 - [x] **Toolbar**: Table button (B keyboard shortcut)
 - [x] **Properties panel**: Rows/Cols display, +/- row/col buttons, CSV import, sort
+- [x] **Cell editing**: Double-click cell → inline input, Tab to move to next cell, Enter/Escape to finish
+- [x] **CSV paste**: Cmd+V with table selected → auto-detect TSV/CSV and import into table
 
 ## Bookmarks / Favorites
 

@@ -483,6 +483,30 @@ export class Editor {
       // Paste
       if (_sm.matches(e, "edit.paste")) {
         e.preventDefault();
+        // If a table is selected, try CSV/TSV paste
+        const sel = Array.from(this.engine.get_selection()).map(Number);
+        if (sel.length === 1) {
+          const nj = this.engine.get_node_json(BigInt(sel[0]));
+          if (nj) {
+            try {
+              const nd = JSON.parse(nj);
+              if (typeof nd.kind === "object" && nd.kind.Table) {
+                navigator.clipboard.readText().then(text => {
+                  if (text && (text.includes("\t") || text.includes(","))) {
+                    // Convert TSV to CSV for the engine
+                    const csv = text.includes("\t") ? text.split("\n").map(l => l.split("\t").map(c => `"${c.replace(/"/g, '""')}"`).join(",")).join("\n") : text;
+                    this.engine.push_undo();
+                    this.engine.table_import_csv(BigInt(sel[0]), csv);
+                    this.requestRender();
+                    return;
+                  }
+                  this.pasteNodes();
+                }).catch(() => this.pasteNodes());
+                return;
+              }
+            } catch {}
+          }
+        }
         // Try clipboard image paste
         if (navigator.clipboard && navigator.clipboard.read) {
           navigator.clipboard.read().then(items => {
@@ -2680,6 +2704,12 @@ export class Editor {
       return;
     }
 
+    // Table node → edit cell inline
+    if (typeof node.kind === "object" && node.kind.Table) {
+      this.startTableCellEdit(hit, node, e);
+      return;
+    }
+
     if (typeof node.kind !== "object" || !node.kind.Text) return;
 
     // Start inline text editing
@@ -2723,6 +2753,101 @@ export class Editor {
     }
     // Rename the node
     this.engine.set_name(pathId, `Freehand ${pathId}`);
+  }
+
+  private startTableCellEdit(nodeId: bigint | number, node: any, e: MouseEvent) {
+    const id = BigInt(nodeId);
+    const tableInfo = node.kind.Table;
+    const colWidths: number[] = tableInfo.col_widths || [];
+    const rowHeights: number[] = tableInfo.row_heights || [];
+    const cells: any[] = tableInfo.cells || [];
+
+    // Determine which cell was clicked (scene coords)
+    const sx = this.engine.screen_to_scene_x(e.offsetX, e.offsetY);
+    const sy = this.engine.screen_to_scene_y(e.offsetX, e.offsetY);
+    const localX = sx - node.x;
+    const localY = sy - node.y;
+
+    let col = -1, row = -1;
+    let cx = 0;
+    for (let c = 0; c < colWidths.length; c++) {
+      if (localX >= cx && localX < cx + colWidths[c]) { col = c; break; }
+      cx += colWidths[c];
+    }
+    let cy = 0;
+    for (let r = 0; r < rowHeights.length; r++) {
+      if (localY >= cy && localY < cy + rowHeights[r]) { row = r; break; }
+      cy += rowHeights[r];
+    }
+    if (row < 0 || col < 0) return;
+
+    // Find the cell (may be merged — find the anchor cell covering this position)
+    let cell = cells.find((c: any) =>
+      row >= c.row && row < c.row + (c.row_span || 1) &&
+      col >= c.col && col < c.col + (c.col_span || 1)
+    );
+    if (!cell) cell = { row, col, content: "", row_span: 1, col_span: 1 };
+
+    const cellRow = cell.row;
+    const cellCol = cell.col;
+
+    // Calculate cell screen position
+    const zoom = this.engine.get_zoom();
+    const panX = this.engine.get_pan_x();
+    const panY = this.engine.get_pan_y();
+    let cellX = node.x;
+    for (let c = 0; c < cellCol; c++) cellX += colWidths[c] || 0;
+    let cellY = node.y;
+    for (let r = 0; r < cellRow; r++) cellY += rowHeights[r] || 0;
+    let cellW = 0;
+    for (let c = cellCol; c < cellCol + (cell.col_span || 1); c++) cellW += colWidths[c] || 0;
+    let cellH = 0;
+    for (let r = cellRow; r < cellRow + (cell.row_span || 1); r++) cellH += rowHeights[r] || 0;
+
+    const screenX = cellX * zoom + panX;
+    const screenY = cellY * zoom + panY;
+    const screenW = cellW * zoom;
+    const screenH = cellH * zoom;
+
+    const input = document.createElement("input");
+    input.type = "text";
+    input.value = cell.content || "";
+    input.style.cssText = `position:fixed;left:${screenX}px;top:${screenY}px;width:${screenW}px;height:${screenH}px;background:rgba(30,30,30,0.95);color:#fff;border:2px solid #4f8eff;outline:none;font-size:${Math.max(12, 13 * zoom)}px;font-family:Inter,sans-serif;padding:2px 4px;z-index:9999;box-sizing:border-box;`;
+    document.body.appendChild(input);
+    input.focus();
+    input.select();
+
+    const finish = () => {
+      this.engine.push_undo();
+      this.engine.table_set_cell(id, cellRow, cellCol, input.value);
+      input.remove();
+      this.requestRender();
+    };
+
+    input.addEventListener("blur", finish);
+    input.addEventListener("keydown", (ev) => {
+      if (ev.key === "Escape") { input.removeEventListener("blur", finish); input.remove(); }
+      if (ev.key === "Enter") { input.removeEventListener("blur", finish); finish(); }
+      if (ev.key === "Tab") {
+        ev.preventDefault();
+        input.removeEventListener("blur", finish);
+        finish();
+        // Move to next cell
+        const nextCol = cellCol + (cell.col_span || 1);
+        if (nextCol < colWidths.length) {
+          const fakeNode = JSON.parse(this.engine.get_node_json(id) || "null");
+          if (fakeNode) {
+            const fakeCell = { row: cellRow, col: nextCol, content: "", row_span: 1, col_span: 1 };
+            const nextCellData = (fakeNode.kind.Table?.cells || []).find((c: any) => c.row === cellRow && c.col === nextCol) || fakeCell;
+            // Simulate double-click on next cell
+            setTimeout(() => {
+              const nNode = JSON.parse(this.engine.get_node_json(id) || "null");
+              if (nNode) this.startTableCellEdit(id, nNode, e);
+            }, 0);
+          }
+        }
+      }
+    });
   }
 
   private startStickyEdit(nodeId: bigint | number, node: any) {
