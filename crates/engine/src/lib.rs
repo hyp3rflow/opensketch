@@ -8769,4 +8769,32 @@ impl Engine {
         self.scene.get_node(id).map(|n| n.resource_links.len() as u32).unwrap_or(0)
     }
 
+    // =============================================
+    // Annotation strokes (ephemeral review drawings)
+    // =============================================
+
+    pub fn add_annotation(&mut self, color: &str, width: f64, opacity: f64, created_at: f64) -> u64 {
+        self.scene.add_annotation(color, width, opacity, created_at)
+    }
+
+    pub fn annotation_add_point(&mut self, id: u64, x: f64, y: f64) {
+        self.scene.annotation_add_point(id, x, y);
+    }
+
+    pub fn finish_annotation(&mut self, _id: u64) {
+        // No-op on engine side; TS handles timer setup
+    }
+
+    pub fn remove_annotation(&mut self, id: u64) {
+        self.scene.remove_annotation(id);
+    }
+
+    pub fn get_annotations(&self) -> String {
+        self.scene.get_annotations()
+    }
+
+    pub fn clear_expired_annotations(&mut self, now_ms: f64, ttl_ms: f64) -> u32 {
+        self.scene.clear_expired_annotations(now_ms, ttl_ms)
+    }
+
 }

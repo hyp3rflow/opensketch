@@ -1730,3 +1730,25 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Text nodes get text content, Image nodes get avatar URLs
 - [x] Context menu integration: "Fill with {Category}" items for selected nodes
 - [x] Multiple selected nodes each get different data (repeating pattern)
+
+## Cursor Annotation Brush
+- [x] Ephemeral canvas drawing for review (auto-expire after 5 seconds with 0.5s fade-out)
+- [x] Rust: AnnotationStroke struct (id, points, color, width, opacity, created_at)
+- [x] Scene-level annotations storage (not node-based, backward-compatible serde)
+- [x] Scene methods: add_annotation, annotation_add_point, remove_annotation, get_annotations, clear_expired_annotations
+- [x] WASM bindings: add_annotation, annotation_add_point, finish_annotation, remove_annotation, get_annotations, clear_expired_annotations
+- [x] TypeScript: annotation-brush.ts module with functional API (beginStroke, addStrokePoint, finishStroke, etc.)
+- [x] Canvas2D rendering: smooth curves (quadraticCurveTo between midpoints), semi-transparent
+- [x] Mini palette: 5 colors (red/blue/green/yellow/white) + 3 widths (2/4/8px)
+- [x] Toolbar: Annotation Brush button with 'B' keyboard shortcut
+- [x] Tool mode: "annotate" integrated into editor tool system
+
+### Cursor Annotation Brush
+- [x] Ephemeral canvas drawing for review — strokes auto-fade after 5 seconds
+- [x] Pure TypeScript overlay (no engine storage, not persisted)
+- [x] Smooth quadratic curve rendering (midpoint interpolation)
+- [x] Mini palette: 5 colors (red/blue/green/yellow/white) + 3 widths (2/4/8px)
+- [x] Fade-out animation (500ms opacity transition after 5s delay)
+- [x] Screen-space consistent stroke width (zoom-independent)
+- [x] Toolbar button + 'A' keyboard shortcut
+- [x] annotation-brush.ts standalone module

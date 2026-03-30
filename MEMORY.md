@@ -1480,7 +1480,6 @@
 
 ## 다음 할 것
 - Variable-driven conditional visibility — Variable 값에 따라 노드 show/hide 조건 설정 (if color_mode == "dark" then visible), 프로토타입 뷰어에서 실시간 전환
-- Dev resource linker — 노드에 외부 리소스 링크 (GitHub issue/PR, Storybook URL, Jira ticket), Inspect/Handoff 패널에서 원클릭 열기, 아이콘 배지 표시
 ## 완료된 기능 (추가 — Motion Path Animation)
 - Rust: evaluate_motion_path(path_node_id, progress) → {x, y, angle} standalone WASM binding
 - Rust: get_motion_path_samples(path_node_id, count) → sampled points for visualization
@@ -1559,3 +1558,17 @@
   - Context menu: "Fill with {Category}" 항목 9개 (선택 노드 우클릭)
   - 복수 노드 선택 시 각각 다른 데이터 (seed 기반 반복 패턴)
   - Undo 통합 (push_undo)
+
+## 완료된 기능 (추가 — Cursor Annotation Brush)
+- Ephemeral canvas drawing for review (auto-expire 5초 + 0.5초 fade-out)
+- Rust: AnnotationStroke 구조체 (id, points Vec<(f64,f64)>, color, width, opacity, created_at)
+- Scene-level annotations 저장 (Node 아님, 임시 데이터), backward-compatible serde (#[serde(default)])
+- Scene 메서드: add_annotation, annotation_add_point, remove_annotation, get_annotations, clear_expired_annotations
+- WASM: add_annotation, annotation_add_point, finish_annotation, remove_annotation, get_annotations, clear_expired_annotations
+- TS: annotation-brush.ts 모듈 (functional API + class API)
+  - beginStroke, addStrokePoint, finishStroke, isDrawing, tickAnnotations, renderAnnotations
+  - renderAnnotationPalette, removeAnnotationPalette
+  - Canvas2D smooth curve (quadraticCurveTo between midpoints), 반투명 렌더링
+  - Mini palette: 5색 (빨/파/초/노/흰) + 3두께 (2/4/8px)
+- Editor: "annotate" tool mode, 'B' keyboard shortcut
+- Toolbar: Annotation Brush 버튼 (연필+점선원 아이콘)

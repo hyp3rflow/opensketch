@@ -31,6 +31,7 @@ const tools: { id: ToolType; icon: string; label: string }[] = [
   { id: "sticky", icon: icons.stickyNote, label: "Sticky Note (N)" },
   { id: "table", icon: icons.table, label: "Table (B)" },
   { id: "freehand", icon: icons.freehand, label: "Freehand (D)" },
+  { id: "annotate", icon: icons.annotationBrush, label: "Annotation Brush (A)" },
   { id: "measure", icon: icons.measure, label: "Measure (M)" },
 ];
 

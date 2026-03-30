@@ -28,6 +28,7 @@ import { initSpatialAudioPanel, toggleSpatialAudioPanel, closeSpatialAudioPanel,
 import { findSpacingHandles, hitTestSpacingHandle, renderSpacingHandles, type SpacingHandle, findPaddingHandles, hitTestPaddingHandle, renderPaddingHandles, type PaddingHandle } from "./tools/spacing-handles";
 import { showLayoutSuggestion, dismissSuggestion } from "./ui/ai-layout-suggest";
 import { toggleFindReplace, closeFindReplace } from "./ui/find-replace-panel";
+import { beginStroke, addStrokePoint, finishStroke, isDrawing, tickAnnotations, renderAnnotations, renderAnnotationPalette, removeAnnotationPalette } from "./ui/annotation-brush";
 import { toggleSearchFilter, closeSearchFilter, renderSearchFilterDimming } from "./ui/search-filter";
 import { toggleRecorderBar } from "./ui/canvas-recorder";
 import { toggleSpotlight, closeSpotlight, isSpotlightVisible } from "./ui/spotlight";
@@ -41,8 +42,9 @@ import { openComponentPlayground, closeComponentPlayground, isComponentPlaygroun
 import { openVariantMatrix, closeVariantMatrix, isVariantMatrixOpen } from "./ui/variant-matrix";
 import { AnnotationHeatmap } from "./ui/annotation-heatmap";
 import { addViewBookmark, toggleViewBookmarksPanel, handleBookmarkShortcut, checkUrlViewHash } from "./ui/view-bookmarks";
+import { AnnotationBrush } from "./ui/annotation-brush";
 
-export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "section" | "image" | "pen" | "star" | "polygon" | "slice" | "connector" | "callout" | "sticky" | "table" | "freehand" | "measure";
+export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "section" | "image" | "pen" | "star" | "polygon" | "slice" | "connector" | "callout" | "sticky" | "table" | "freehand" | "measure" | "annotate";
 
 /** Snap threshold in screen pixels */
 const SNAP_THRESHOLD_PX = 5;
@@ -867,6 +869,7 @@ export class Editor {
       else if (_sm.matches(e, "tool.connector")) this.setTool("connector");
       else if (_sm.matches(e, "tool.callout")) this.setTool("callout");
       else if (e.key === "m" && !e.metaKey && !e.ctrlKey && !e.altKey) this.setTool("measure");
+      else if (e.key === "a" && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) this.setTool("annotate");
       else if (_sm.matches(e, "misc.voice")) { (window as any).__toggleVoice?.(); }
       else if (_sm.matches(e, "misc.fileDiff")) { (window as any).__openFileDiffMerge?.(); }
       if (e.key === "Delete" || e.key === "Backspace") {
@@ -1326,6 +1329,15 @@ export class Editor {
       return;
     }
 
+    if (this.currentTool === "annotate") {
+      const sx = this.engine.screen_to_scene_x(x, y);
+      const sy = this.engine.screen_to_scene_y(x, y);
+      beginStroke(sx, sy);
+      this.canvas.setPointerCapture(e.pointerId);
+      this.needsRender = true;
+      return;
+    }
+
     if (this.currentTool === "freehand") {
       const sx = this.engine.screen_to_scene_x(x, y);
       const sy = this.engine.screen_to_scene_y(x, y);
@@ -1661,6 +1673,15 @@ export class Editor {
       return;
     }
 
+    // Annotation brush: add points during drag
+    if (isDrawing()) {
+      const sx = this.engine.screen_to_scene_x(e.offsetX, e.offsetY);
+      const sy = this.engine.screen_to_scene_y(e.offsetX, e.offsetY);
+      addStrokePoint(sx, sy);
+      this.needsRender = true;
+      return;
+    }
+
     // Freehand tool: add points during drag
     if (this._freehandDrawing && this._freehandPathId != null) {
       const sx = this.engine.screen_to_scene_x(e.offsetX, e.offsetY);
@@ -1938,6 +1959,13 @@ export class Editor {
 
     if (this._penDragging) {
       this._penDragging = false;
+      this.needsRender = true;
+      return;
+    }
+
+    // Annotation brush: finish stroke
+    if (isDrawing()) {
+      finishStroke();
       this.needsRender = true;
       return;
     }
@@ -3380,6 +3408,8 @@ export class Editor {
         this.renderPixelPreviewOverlay();
         this._rulers?.render();
         this.needsRender = false;
+        // Annotations need continuous rendering during fade
+        if (tickAnnotations()) this.needsRender = true;
 
         // Frame time tracking
         const frameTime = performance.now() - frameStart;
@@ -3465,6 +3495,12 @@ export class Editor {
     document.querySelectorAll(".tool-btn").forEach((btn) => {
       btn.classList.toggle("active", btn.getAttribute("data-tool") === tool);
     });
+    // Annotation palette
+    if (tool === "annotate") {
+      renderAnnotationPalette(document.body);
+    } else {
+      removeAnnotationPalette(document.body);
+    }
   }
 
   private finishPenPath() {
@@ -3492,7 +3528,7 @@ export class Editor {
       section: "crosshair", image: "crosshair", pen: "crosshair",
       star: "crosshair", polygon: "crosshair",
       slice: "crosshair", connector: "crosshair", callout: "crosshair", sticky: "crosshair", freehand: "crosshair",
-      measure: "crosshair",
+      measure: "crosshair", annotate: "crosshair",
     };
     this.canvas.style.cursor = cursors[this.currentTool] || "default";
   }
@@ -4127,6 +4163,9 @@ export class Editor {
     const panY = this.engine.get_pan_y();
     const pageId = Number(this.engine.get_active_page_id());
     renderStampsOverlay(this.ctx, this.engine, pageId, zoom, panX, panY);
+
+    // Annotation brush overlay
+    renderAnnotations(this.ctx, zoom, panX, panY);
 
     // Responsive resize overlay
     if (this._responsiveResize?.isActive) {

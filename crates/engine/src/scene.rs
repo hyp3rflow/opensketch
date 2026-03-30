@@ -42,6 +42,17 @@ use crate::branch::{Branch, BranchSnapshot, BranchDiff, VisualDiff, compute_diff
 use crate::component::ComponentLibrary;
 use crate::stamp::{Stamp, StampKind};
 
+/// An ephemeral annotation stroke (for review, auto-expires)
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct AnnotationStroke {
+    pub id: u64,
+    pub points: Vec<(f64, f64)>,
+    pub color: String,
+    pub width: f64,
+    pub opacity: f64,
+    pub created_at: f64,
+}
+
 /// Unit for persistent measure lines
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub enum MeasureUnit {
@@ -238,6 +249,10 @@ pub struct SceneData {
     pub view_bookmarks: Vec<ViewBookmark>,
     #[serde(default)]
     pub next_view_bookmark_id: u64,
+    #[serde(default)]
+    pub annotations: Vec<AnnotationStroke>,
+    #[serde(default)]
+    pub next_annotation_id: u64,
 }
 
 pub struct Scene {
@@ -284,6 +299,9 @@ pub struct Scene {
     // View bookmarks
     view_bookmarks: Vec<ViewBookmark>,
     next_view_bookmark_id: u64,
+    // Ephemeral annotation strokes
+    annotations: Vec<AnnotationStroke>,
+    next_annotation_id: u64,
 }
 
 impl Scene {
@@ -332,6 +350,8 @@ impl Scene {
             next_measure_id: 1,
             view_bookmarks: vec![],
             next_view_bookmark_id: 1,
+            annotations: vec![],
+            next_annotation_id: 1,
         }
     }
 
@@ -803,6 +823,8 @@ impl Scene {
             next_measure_id: self.next_measure_id,
             view_bookmarks: self.view_bookmarks.clone(),
             next_view_bookmark_id: self.next_view_bookmark_id,
+            annotations: self.annotations.clone(),
+            next_annotation_id: self.next_annotation_id,
         }
     }
 
@@ -886,6 +908,8 @@ impl Scene {
                 next_measure_id: if data.next_measure_id > 0 { data.next_measure_id } else { 1 },
                 view_bookmarks: data.view_bookmarks.clone(),
                 next_view_bookmark_id: if data.next_view_bookmark_id > 0 { data.next_view_bookmark_id } else { 1 },
+                annotations: data.annotations.clone(),
+                next_annotation_id: if data.next_annotation_id > 0 { data.next_annotation_id } else { 1 },
             }
         } else {
             // Legacy single-page format
@@ -946,6 +970,8 @@ impl Scene {
                 next_measure_id: if data.next_measure_id > 0 { data.next_measure_id } else { 1 },
                 view_bookmarks: data.view_bookmarks.clone(),
                 next_view_bookmark_id: if data.next_view_bookmark_id > 0 { data.next_view_bookmark_id } else { 1 },
+                annotations: data.annotations.clone(),
+                next_annotation_id: if data.next_annotation_id > 0 { data.next_annotation_id } else { 1 },
             }
         }
     }
@@ -3374,5 +3400,43 @@ impl Scene {
             remaining = rest.trim_start();
             if remaining.is_empty() { break; }
         }
+    }
+
+    // =============================================
+    // Annotation strokes (ephemeral review drawings)
+    // =============================================
+
+    pub fn add_annotation(&mut self, color: &str, width: f64, opacity: f64, created_at: f64) -> u64 {
+        let id = self.next_annotation_id;
+        self.next_annotation_id += 1;
+        self.annotations.push(AnnotationStroke {
+            id,
+            points: vec![],
+            color: color.to_string(),
+            width,
+            opacity,
+            created_at,
+        });
+        id
+    }
+
+    pub fn annotation_add_point(&mut self, id: u64, x: f64, y: f64) {
+        if let Some(a) = self.annotations.iter_mut().find(|a| a.id == id) {
+            a.points.push((x, y));
+        }
+    }
+
+    pub fn remove_annotation(&mut self, id: u64) {
+        self.annotations.retain(|a| a.id != id);
+    }
+
+    pub fn get_annotations(&self) -> String {
+        serde_json::to_string(&self.annotations).unwrap_or_else(|_| "[]".to_string())
+    }
+
+    pub fn clear_expired_annotations(&mut self, now_ms: f64, ttl_ms: f64) -> u32 {
+        let before = self.annotations.len();
+        self.annotations.retain(|a| (now_ms - a.created_at) < ttl_ms);
+        (before - self.annotations.len()) as u32
     }
 }

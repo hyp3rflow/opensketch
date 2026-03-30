@@ -81,6 +81,7 @@ export const icons = {
   users: s('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'),
   tokens: s('<circle cx="12" cy="12" r="3"/><path d="M12 2v4m0 12v4M2 12h4m12 0h4"/><path d="M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83" opacity="0.5"/>'),
   freehand: s('<path d="M3 17c1-2 3-6 5-6s3 4 5 4 3-5 5-5 3 3 3 3"/>'),
+  annotationBrush: s('<path d="M3 17l4-4 4 2 4-6 4 3"/><circle cx="5" cy="19" r="2" fill="currentColor" stroke="none"/><path d="M2 22l1-3" stroke-width="1.5"/><path d="M19 3l2 2-10 10-2-2z"/>'),
   whiteboard: s('<rect x="2" y="3" width="20" height="18" rx="2"/><circle cx="7" cy="8" r="1.5" fill="currentColor" stroke="none"/><path d="M5 14c1-1 2-2 3-2s2 1 3 1 2-2 3-2" stroke-width="1.5"/><rect x="14" y="7" width="6" height="5" rx="1" fill="none"/>'),
   timer: s('<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M10 2h4"/><path d="M12 2v2"/>'),
   vote: s('<circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="8"/>'),
@@ -89,5 +90,6 @@ export const icons = {
   grid: s('<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>'),
   // Component Playground (play + diamond)
   playground: s('<path d="M12 2l10 10-10 10L2 12z" fill="none"/><polygon points="10,8 10,16 16,12" fill="currentColor" stroke="none"/>'),
+  annotationBrush: s('<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/><circle cx="19" cy="19" r="2" fill="none" stroke-dasharray="2 1"/>'),
   measure: s('<path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.4 2.4 0 0 1 0-3.4l2.6-2.6a2.4 2.4 0 0 1 3.4 0z"/><path d="M14.5 12.5 12 10"/><path d="M11.5 9.5 9 7"/><path d="M8.5 6.5 6 4"/><path d="M17.5 15.5 15 13"/>'),
 };
