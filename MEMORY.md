@@ -959,6 +959,8 @@
   - Properties panel: Rows/Cols 표시, +/- Row/Col, CSV Import, Sort ↑/↓
   - find_replace.rs: Table 케이스 추가 (빌드 오류 수정)
   - Backward-compatible serde
+  - 셀 더블클릭 인라인 편집: row/col 좌표 계산 → input overlay, Tab→다음 셀, Enter/Esc 완료
+  - CSV 붙여넣기: Cmd+V로 테이블 선택 시 TSV/CSV 자동 감지 → table_import_csv
 
 ## 완료된 기능 (추가 92)
 - Pixel preview mode:
@@ -1478,26 +1480,41 @@
   - Undo integration, cursor feedback (col-resize/row-resize)
   - tools/spacing-handles.ts: SpacingHandle + PaddingHandle, find/hitTest/render functions
 
-## 완료된 기능 (추가 — Search Filter Enhancement)
-- search-filter.ts에 hidden/locked 필터 체크박스 추가
-- "Include hidden" 체크 시 visible=false 노드도 검색 결과에 포함
-- "Locked only" 체크 시 locked=true 노드만 표시
-- editor.ts: openSearchFilter → toggleSearchFilter 참조 수정 (빌드 오류 방지)
+## 완료된 기능 (추가 — Min/Max Content Sizing + Text Overflow)
+- Auto-layout min/max content sizing:
+  - Hug 모드에서 compute_hug_sizing 후 clamp_size() 호출로 min/max width/height 제약 적용
+  - 기존 Node.clamp_size() 메서드 활용
+- Text overflow (Clip/Ellipsis):
+  - TextOverflow enum (Visible/Clip/Ellipsis), Node.text_overflow 필드 (#[serde(default)], backward compatible)
+  - WASM: set_text_overflow(id, mode), get_text_overflow(id) 바인딩
+  - Canvas 렌더링: Fixed sizing 시 word-wrap + 줄 수 제한 + ellipsis 자동 truncation
+  - Clip 모드: ctx.clip()으로 텍스트 영역 클리핑
+  - Ellipsis 모드: 줄 넘침 시 마지막 줄에 "…" 추가, 단일 줄 overflow 시에도 truncation
+  - text-align (Left/Center/Right) 렌더링 통합
+  - Properties panel: Fixed sizing 시 Overflow 모드 토글 (Visible/Clip/Ellipsis) 버튼 그룹
+
+## 완료된 기능 (추가 — Nudge Hint Overlay)
+- Arrow key nudge 시 인라인 좌표 + 이동량 힌트 오버레이
+  - 노드 근처에 현재 좌표 (x, y) + 델타 (Δx, Δy) 표시
+  - 800ms 후 자동 페이드아웃, 0.15s transition
+  - Alt+Arrow: 0.1px, Arrow: 1px, Shift+Arrow: 10px 모두 지원
+  - 순수 TypeScript 구현 (ui/nudge-hint.ts)
+  - 기존 nudge 로직에 비침습적 통합
 
 ## 다음 할 것
-- Variable-driven conditional visibility — Variable 값에 따라 노드 show/hide 조건 설정 (if color_mode == "dark" then visible), 프로토타입 뷰어에서 실시간 전환
-- Multi-window / detachable panels — 패널을 별도 창으로 분리, 듀얼 모니터 지원, 드래그&드롭 도킹
-- Auto-layout gap expression — gap에 수식 입력 (예: `parent.width / 4`), 반응형 간격 계산
-- Canvas minimap enhancements — 미니맵에서 멀티 셀렉트, 줌 레벨 표시, 페이지 썸네일 전환
-- Shared cursor trails — 협업 시 커서 이동 궤적 잔상 표시 (1초 fade), 리뷰 시 동선 파악
-## 완료된 기능 (추가 — Motion Path Animation)
-- Rust: evaluate_motion_path(path_node_id, progress) → {x, y, angle} standalone WASM binding
-- Rust: get_motion_path_samples(path_node_id, count) → sampled points for visualization
-- SVG export: export_svg_with_animations(clip_id) — `<animateMotion>` with `<mpath>`, dur, repeatCount, rotate
-- Properties panel: "Motion Path" 섹션 — clip/path selector, duration, easing, auto-orient, apply/remove
-- Prototype viewer: requestAnimationFrame으로 모든 animation clips 자동 재생 (motion path 포함)
-- Canvas overlay: 선택된 노드의 motion path를 dashed blue arrow로 시각화
-- 기존 기능 유지: anim_set/update/remove/get_motion_path, timeline UI 🛤 버튼
+- Multi-window / detachable panels — 패널(Layers, Properties 등)을 별도 브라우저 창으로 분리, BroadcastChannel 동기화
+- Canvas grid snapping mode — 토글 가능한 그리드 스냅 (8px/16px/custom), 드래그/리사이즈 시 자동 정렬, Ctrl+Shift+G 토글
+- Variable fonts & OpenType features — 가변 폰트 축(weight/width/slant) 슬라이더, OT 피처 토글 (ligatures, small-caps 등)
+- Slice / Export regions — Figma Slice 도구: 사용자 지정 영역 export, 다중 해상도 (@1x/@2x/@3x), 포맷 선택 (PNG/JPG/SVG/PDF)
+- Shared component library (cross-file) — 파일 간 컴포넌트 공유, 팀 라이브러리 publish/consume, 외부 라이브러리 링크
+## 완료된 기능 (추가 — Canvas Performance Mode)
+- Rust LOD (Level of Detail): lod_level() 함수로 zoom/screen_area 기반 3단계 (0=full, 1=simplified, 2=box-only)
+  - zoom < 0.15 또는 screen area < 16px²: 모든 노드를 단색 fill rect로 대체 (Frame/Group은 children 계속 렌더)
+  - zoom < 0.35: Text/StickyNote/Callout 노드만 단색 박스로 대체
+  - render_lod_box(): 첫 번째 fill 색상 사용, 없으면 #ccc fallback
+- 기존 viewport culling (AABB + 100px margin) 그대로 활용
+- FPS 카운터: bottom-left 오버레이 (⌘⇧F 토글), 1초 sliding window 기반 실시간 FPS, 색상 코딩 (≥55 green, ≥30 yellow, <30 red), rendered/culled 카운트 표시
+- requestIdleCallback 기반 deferred tasks: 이미지 캐시 정리 등 비핵심 작업을 idle time에 분산, fallback setTimeout 16ms
 
 ## 완료된 기능 (추가 — Typography Scale Generator)
 - Rust typo_scale.rs: 8 presets (Minor Second ~ Golden Ratio) + custom ratio, 7 levels (Display/H1/H2/H3/Body/Small/Caption)
@@ -1559,26 +1576,51 @@
   - Properties Panel: Text Flow 섹션 — Link/Unlink 버튼, 체인 노드 이름 표시
   - packages/app/src/ui/text-flow.ts: 독립 모듈 (getTextFlowLinks, drawTextFlowLinks, distributeTextFlow)
 
-## 완료된 기능 (추가 — Smart Content Fill)
-- Smart content fill: 노드에 realistic placeholder 데이터 자동 채우기
-  - Rust content_fill.rs: ContentFillCategory enum (9종), xorshift32 PRNG, built-in datasets
-  - Categories: Names, Emails, Addresses, Dates, PhoneNumbers, LoremText, AvatarUrls, Numbers, Prices
-  - fill_nodes(): Text 노드 → text content, Image 노드 → avatar URL
-  - WASM: fill_content(node_ids_json, category, seed), fill_selection_content(category, seed)
-  - Context menu: "Fill with {Category}" 항목 9개 (선택 노드 우클릭)
-  - 복수 노드 선택 시 각각 다른 데이터 (seed 기반 반복 패턴)
-  - Undo 통합 (push_undo)
+## 완료된 기능 (추가 — Dev Resource Linker)
+- Dev resource linker:
+  - ResourceLink struct: url, label, ResourceLinkType enum (GitHub/Storybook/Jira/Figma/Custom)
+  - Node.resource_links: Vec<ResourceLink>, backward-compatible serde (#[serde(default)])
+  - WASM: add_resource_link, remove_resource_link, update_resource_link, get_resource_links, get_resource_link_count
+  - Properties panel: "Resources" 섹션 — 링크 리스트 (타입 아이콘 + 라벨 + URL), add/remove, URL 기반 타입 자동 감지
+  - Inspect panel: Resources 섹션 — 클릭 가능한 링크 리스트 (window.open)
+  - Canvas: 파란 도트 배지 (top-left corner) — resource links 있는 노드에 표시, 링크 아이콘 + 개수
+  - Per-type SVG 아이콘: GitHub, Storybook, Jira, Figma, Custom (Lucide-inspired)
+
+## 완료된 기능 (추가 — Batch Rename 강화)
+- Batch Rename 기능 강화 (기존 pattern-only → 3모드):
+  - Rust: Scene.batch_find_replace() — case-sensitive 텍스트 치환 + regex::Regex 지원
+  - Rust: Scene.batch_rename_preview() — 3모드 (prefix/find_replace/regex) 프리뷰 JSON 생성
+  - regex crate 의존성 추가 (Cargo.toml)
+  - WASM: batch_find_replace_selection, batch_find_replace_preview, batch_rename_preview_ex 바인딩
+  - UI: ui/batch-rename.ts — 독립 모달 다이얼로그 (Pattern / Find & Replace 모드 탭, regex 토글, 실시간 프리뷰)
+  - Layers panel: 우클릭 컨텍스트 메뉴에 "Batch Rename…" 항목 추가 (multi-selection 시)
+  - Context menu: 기존 2+ 노드 선택 시 "Batch Rename…" 유지
+  - Keyboard: Cmd/Ctrl+Shift+R
+  - Undo 통합 (push_undo before rename)
 
 ## 완료된 기능 (추가 — Cursor Annotation Brush)
-- Ephemeral canvas drawing for review (auto-expire 5초 + 0.5초 fade-out)
-- Rust: AnnotationStroke 구조체 (id, points Vec<(f64,f64)>, color, width, opacity, created_at)
-- Scene-level annotations 저장 (Node 아님, 임시 데이터), backward-compatible serde (#[serde(default)])
-- Scene 메서드: add_annotation, annotation_add_point, remove_annotation, get_annotations, clear_expired_annotations
-- WASM: add_annotation, annotation_add_point, finish_annotation, remove_annotation, get_annotations, clear_expired_annotations
-- TS: annotation-brush.ts 모듈 (functional API + class API)
-  - beginStroke, addStrokePoint, finishStroke, isDrawing, tickAnnotations, renderAnnotations
-  - renderAnnotationPalette, removeAnnotationPalette
-  - Canvas2D smooth curve (quadraticCurveTo between midpoints), 반투명 렌더링
-  - Mini palette: 5색 (빨/파/초/노/흰) + 3두께 (2/4/8px)
-- Editor: "annotate" tool mode, 'B' keyboard shortcut
-- Toolbar: Annotation Brush 버튼 (연필+점선원 아이콘)
+- 캔버스 위 임시 드로잉/하이라이트 (리뷰용, 자동 5초 소멸)
+- Pure TypeScript overlay (annotation-brush.ts) — 엔진 저장 불필요
+- Smooth quadratic curve 렌더링 (midpoint interpolation)
+- Mini palette: 5색 (빨/파/초/노/흰) + 3 두께 (2/4/8px), 툴바 아래 플로팅 바
+- 500ms fade-out 애니메이션 (5초 딜레이 후)
+- Screen-space 일정 두께 (줌 불변)
+- 'A' 단축키, 툴바 Annotation Brush 버튼
+- editor.ts "annotate" 도구 모드 통합 (pointer events, render loop tick)
+
+## 완료된 기능 (추가 — Figma JSON Import drag & drop)
+- JSON 파일 드래그&드롭으로 Figma REST API 응답 import
+- importFigmaJSON(): 파싱된 JSON 또는 문자열로 직접 import (push_undo 포함)
+- 드래그 오버레이: 파란 대시 테두리 + "Drop Figma JSON to import" 안내
+- editor.ts setupDragDrop()에 .json 파일 핸들링 통합
+- 기존 API 기반 import (URL + token) + 새 JSON 파일 import 양쪽 지원
+
+## 완료된 기능 (추가 — Smart Color Palette Extraction)
+- Color Palette panel에 "Extract" 탭 추가
+- Image 노드에서 k-means++ clustering으로 dominant colors 자동 추출 (최대 8색)
+- 64x64 다운샘플링으로 성능 최적화, 투명 픽셀 스킵
+- 추출된 색상: hex 코드, 비율(%), Apply (선택 노드 fill 적용), Save (ColorStyle로 저장) 버튼
+- "Save All as Color Styles" 일괄 저장 기능
+- 클릭 시 hex 클립보드 복사
+- 선택된 Image 노드 우선 표시, 없으면 씬 내 Image 노드 최대 5개 표시
+- Pure TypeScript 구현 (k-means algorithm, canvas pixel sampling)
