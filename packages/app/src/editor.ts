@@ -3287,6 +3287,7 @@ export class Editor {
         this.renderBreakpointIndicator();
         this.renderStamps();
         this.renderNodeLinks();
+        this.renderTextFlowLinks();
         this._annotationHeatmap?.render(this.ctx, this.zoom, this.panX, this.panY);
         this.renderDiffOverlay();
         this.renderSearchFilterOverlay();
@@ -4127,6 +4128,114 @@ export class Editor {
     }
     ctx.restore();
   }
+
+  /** Render text flow links (blue dashed bezier curves between linked text nodes) */
+  private renderTextFlowLinks() {
+    const ctx = this.ctx;
+    const zoom = this.engine.get_zoom();
+    const panX = this.engine.get_pan_x();
+    const panY = this.engine.get_pan_y();
+    const layers = JSON.parse(this.engine.get_layer_list());
+    const handleSize = 6;
+
+    ctx.save();
+
+    // Draw links for all text nodes with text_flow_next
+    const linked = new Set<number>();
+    for (const layer of layers) {
+      const id = Number(layer.id);
+      const nextVal = this.engine.get_text_flow_next(BigInt(id));
+      if (nextVal == null) continue;
+      const nextId = Number(nextVal);
+      linked.add(id);
+      linked.add(nextId);
+
+      const fromJson = this.engine.get_node_json(BigInt(id));
+      const toJson = this.engine.get_node_json(BigInt(nextId));
+      if (!fromJson || !toJson) continue;
+      const fromNode = JSON.parse(fromJson);
+      const toNode = JSON.parse(toJson);
+
+      // Source: bottom-right, Target: top-left
+      const sx = (fromNode.x + fromNode.width) * zoom + panX;
+      const sy = (fromNode.y + fromNode.height) * zoom + panY;
+      const tx = toNode.x * zoom + panX;
+      const ty = toNode.y * zoom + panY;
+
+      // Blue dashed bezier curve
+      const cpOffset = Math.min(80, Math.abs(tx - sx) * 0.4 + 30);
+      ctx.strokeStyle = "#4a90d9";
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([6, 4]);
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      ctx.bezierCurveTo(sx + cpOffset, sy, tx - cpOffset, ty, tx, ty);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Source handle: blue ▶ at bottom-right
+      ctx.fillStyle = "#4a90d9";
+      ctx.beginPath();
+      ctx.moveTo(sx - handleSize, sy - handleSize);
+      ctx.lineTo(sx + handleSize, sy);
+      ctx.lineTo(sx - handleSize, sy + handleSize);
+      ctx.closePath();
+      ctx.fill();
+
+      // Target handle: blue ● at top-left
+      ctx.beginPath();
+      ctx.arc(tx, ty, handleSize, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Show dimmed ▶ handle on selected unlinked text nodes
+    const sel = Array.from(this.engine.get_selection()).map(Number);
+    if (sel.length === 1 && !linked.has(sel[0])) {
+      const selId = sel[0];
+      const selJson = this.engine.get_node_json(BigInt(selId));
+      if (selJson) {
+        const selNode = JSON.parse(selJson);
+        if (selNode?.kind?.startsWith?.("Text") || (typeof selNode?.kind === "object" && selNode.kind.Text)) {
+          const hx = (selNode.x + selNode.width) * zoom + panX;
+          const hy = (selNode.y + selNode.height) * zoom + panY;
+          ctx.fillStyle = "rgba(74, 144, 217, 0.3)";
+          ctx.beginPath();
+          ctx.moveTo(hx - handleSize, hy - handleSize);
+          ctx.lineTo(hx + handleSize, hy);
+          ctx.lineTo(hx - handleSize, hy + handleSize);
+          ctx.closePath();
+          ctx.fill();
+        }
+      }
+    }
+
+    // Draw drag preview line if currently dragging a text flow handle
+    if (this._textFlowDragFrom != null && this._textFlowDragPos) {
+      const fromJson = this.engine.get_node_json(BigInt(this._textFlowDragFrom));
+      if (fromJson) {
+        const fromNode = JSON.parse(fromJson);
+        const sx = (fromNode.x + fromNode.width) * zoom + panX;
+        const sy = (fromNode.y + fromNode.height) * zoom + panY;
+        const tx = this._textFlowDragPos.x;
+        const ty = this._textFlowDragPos.y;
+        const cpOffset = Math.min(80, Math.abs(tx - sx) * 0.4 + 30);
+        ctx.strokeStyle = "#4a90d9";
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 4]);
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        ctx.bezierCurveTo(sx + cpOffset, sy, tx - cpOffset, ty, tx, ty);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    }
+
+    ctx.restore();
+  }
+
+  // Text flow drag state
+  private _textFlowDragFrom: number | null = null;
+  private _textFlowDragPos: { x: number; y: number } | null = null;
 
   /** Place a stamp at canvas coordinates */
   placeStamp(kind: string, canvasX: number, canvasY: number, author = "User") {

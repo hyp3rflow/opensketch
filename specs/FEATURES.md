@@ -67,6 +67,7 @@
 - [x] Default text fill: black
 - [x] Text transform: None/Uppercase/Lowercase/Capitalize (visual + SVG export + CSS codegen)
 - [x] Text indent: first-line pixel offset (per-paragraph), properties panel number input
+- [x] **Smart Text Flow**: linked text overflow between text nodes — when a text node uses Fixed sizing and content overflows, the overflow text can flow into a connected next text node. Flow chain visualization with dashed indigo bezier curves and arrow indicators. Properties panel UI for linking/unlinking text flow and viewing the chain.
 
 ### Notes System
 - [x] **Markdown notes**: attach multiple notes to any node

@@ -1611,6 +1611,9 @@ pub struct Node {
     /// Links/references to other nodes
     #[serde(default)]
     pub links: Vec<NodeLink>,
+    /// Text flow: ID of next text node in flow chain (None = no flow)
+    #[serde(default)]
+    pub text_flow_next: Option<NodeId>,
 }
 
 /// Per-frame background pattern configuration
@@ -1716,6 +1719,7 @@ impl Node {
             code_mapping: None,
             background_pattern: None,
             links: vec![],
+            text_flow_next: None,
         }
     }
 

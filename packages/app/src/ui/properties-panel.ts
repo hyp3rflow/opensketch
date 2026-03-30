@@ -3530,6 +3530,68 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       }
 
       container.appendChild(textSection);
+
+      // --- Text Flow section ---
+      const flowSection = createSection("Text Flow");
+      const flowRow = document.createElement("div");
+      flowRow.className = "prop-row";
+      flowRow.style.cssText = "flex-direction:column;gap:6px;";
+
+      const nextVal = editor.engine.get_text_flow_next(BigInt(id));
+      if (nextVal != null) {
+        const nextId = Number(nextVal);
+        const nextInfo = JSON.parse(editor.engine.get_node_json(BigInt(nextId)) || "{}");
+        const label = document.createElement("span");
+        label.style.cssText = "font-size:11px;color:#a5b4fc;";
+        label.textContent = `Flow → ${nextInfo?.name || `Node ${nextId}`}`;
+        flowRow.appendChild(label);
+
+        const unlinkBtn = document.createElement("button");
+        unlinkBtn.className = "prop-btn";
+        unlinkBtn.style.cssText = "font-size:11px;padding:2px 8px;background:#3b2020;color:#f87171;border:1px solid #7f1d1d;border-radius:4px;cursor:pointer;";
+        unlinkBtn.textContent = "Unlink";
+        unlinkBtn.addEventListener("click", () => {
+          ensureUndo();
+          editor.engine.unlink_text_flow(BigInt(id));
+          editor.requestRender();
+          refresh(ids);
+        });
+        flowRow.appendChild(unlinkBtn);
+      } else {
+        const label = document.createElement("span");
+        label.style.cssText = "font-size:11px;color:#666;";
+        label.textContent = "No flow link";
+        flowRow.appendChild(label);
+
+        const linkBtn = document.createElement("button");
+        linkBtn.className = "prop-btn";
+        linkBtn.style.cssText = "font-size:11px;padding:2px 8px;background:#1e1b4b;color:#a5b4fc;border:1px solid #4338ca;border-radius:4px;cursor:pointer;";
+        linkBtn.textContent = "Link to next…";
+        linkBtn.addEventListener("click", () => {
+          // Set a mode flag on editor so next text node click links them
+          (editor as any)._textFlowLinkFrom = Number(id);
+          linkBtn.textContent = "Click a Text node…";
+          linkBtn.style.background = "#4338ca";
+        });
+        flowRow.appendChild(linkBtn);
+      }
+
+      // Show chain
+      const chainJson = editor.engine.get_text_flow_chain(BigInt(id));
+      const chain: number[] = JSON.parse(chainJson);
+      if (chain.length > 1) {
+        const chainLabel = document.createElement("div");
+        chainLabel.style.cssText = "font-size:10px;color:#666;margin-top:4px;";
+        const names = chain.map((cid: number) => {
+          const info = JSON.parse(editor.engine.get_node_json(BigInt(cid)) || "{}");
+          return info?.name || `#${cid}`;
+        });
+        chainLabel.textContent = `Chain: ${names.join(" → ")}`;
+        flowRow.appendChild(chainLabel);
+      }
+
+      flowSection.appendChild(flowRow);
+      container.appendChild(flowSection);
     }
 
     // --- Image-specific ---

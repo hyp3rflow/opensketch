@@ -1470,7 +1470,7 @@
 - Smart color contrast checker — 실시간으로 텍스트/배경 간 WCAG 2.1 AA/AAA 대비율 체크, 자동 수정 제안 (가장 가까운 합격 색상), 전체 디자인 스캔
 - Canvas presentation notes — 프레젠테이션 모드에서 발표자 노트 지원, 노드/페이지별 Markdown 노트, 별도 발표자 뷰 (듀얼 모니터)
 - Keyboard shortcut customization — 사용자 정의 단축키 바인딩, JSON import/export, 충돌 감지, 프리셋 (Figma/Sketch/Adobe)
-- Smart text flow — 텍스트 노드 간 자동 흘림 (overflow → 다음 텍스트 프레임으로 연결), 연결 핸들 시각화, 자동 페이지 생성
+- ~~Smart text flow~~ ✅ 완료
 ## 완료된 기능 (추가 — Minimap Node Interaction)
 - Canvas minimap에서 직접 노드 선택 + 이동:
   - 클릭: 해당 노드 선택 + 뷰포트 팬
@@ -1508,3 +1508,12 @@
   - Rust: Scene.get_node_aspect_ratio(id), Scene.is_image_node(id) 헬퍼
   - WASM: scale_node_proportional, get_node_aspect_ratio, is_image_node 바인딩
   - TS: editor.ts 리사이즈 핸들 드래그 로직에 통합
+
+## 완료된 기능 (추가 — Smart Text Flow)
+- Smart Text Flow: 텍스트 노드 간 overflow 흘림
+  - Node.text_flow_next: Option<NodeId> 필드 추가 (serde default, backward compatible)
+  - Scene: link_text_flow (순환 방지), unlink_text_flow, get_text_flow_chain 메서드
+  - WASM: link_text_flow, unlink_text_flow, get_text_flow_chain, get_text_flow_next 바인딩
+  - Editor: renderTextFlowLinks — 인디고 점선 베지어 커브 + 화살표 시각화
+  - Properties Panel: Text Flow 섹션 — Link/Unlink 버튼, 체인 노드 이름 표시
+  - packages/app/src/ui/text-flow.ts: 독립 모듈 (getTextFlowLinks, drawTextFlowLinks, distributeTextFlow)

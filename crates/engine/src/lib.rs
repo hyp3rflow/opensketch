@@ -8427,4 +8427,41 @@ impl Engine {
         self.plugin_store.disable(id)
     }
 
+    // =============================================
+    // Text Flow (linked text overflow)
+    // =============================================
+
+    #[wasm_bindgen]
+    pub fn link_text_flow(&mut self, from_id: u64, to_id: u64) -> bool {
+        self.push_undo();
+        self.scene.link_text_flow(from_id, to_id)
+    }
+
+    #[wasm_bindgen]
+    pub fn unlink_text_flow(&mut self, from_id: u64) {
+        self.push_undo();
+        self.scene.unlink_text_flow(from_id);
+    }
+
+    #[wasm_bindgen]
+    pub fn get_text_flow_chain(&self, start_id: u64) -> String {
+        let chain = self.scene.get_text_flow_chain(start_id);
+        serde_json::to_string(&chain).unwrap_or_else(|_| "[]".to_string())
+    }
+
+    #[wasm_bindgen]
+    pub fn get_text_flow_next(&self, id: u64) -> JsValue {
+        match self.scene.get_node(id).and_then(|n| n.text_flow_next) {
+            Some(next) => JsValue::from_f64(next as f64),
+            None => JsValue::NULL,
+        }
+    }
+
+    #[wasm_bindgen]
+    pub fn distribute_text_flow(&mut self, start_id: u64, full_text: &str, capacities_json: &str) -> bool {
+        let caps: Vec<usize> = serde_json::from_str(capacities_json).unwrap_or_default();
+        self.scene.distribute_text_flow(start_id, full_text, caps);
+        true
+    }
+
 }

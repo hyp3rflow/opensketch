@@ -3213,4 +3213,87 @@ impl Scene {
         }
         count
     }
+
+    // =============================================
+    // Text Flow
+    // =============================================
+
+    /// Link text flow from one text node to another. Returns false if cycle detected or nodes invalid.
+    pub fn link_text_flow(&mut self, from_id: NodeId, to_id: NodeId) -> bool {
+        if from_id == to_id { return false; }
+        // Both must be Text nodes
+        if !matches!(self.get_node(from_id).map(|n| &n.kind), Some(NodeKind::Text { .. })) { return false; }
+        if !matches!(self.get_node(to_id).map(|n| &n.kind), Some(NodeKind::Text { .. })) { return false; }
+        // Cycle detection: walk from to_id forward, ensure we never reach from_id
+        let mut cur = to_id;
+        loop {
+            if cur == from_id { return false; } // cycle
+            match self.get_node(cur).and_then(|n| n.text_flow_next) {
+                Some(next) => cur = next,
+                None => break,
+            }
+        }
+        if let Some(node) = self.get_node_mut(from_id) {
+            node.text_flow_next = Some(to_id);
+        }
+        true
+    }
+
+    /// Unlink text flow from a node.
+    pub fn unlink_text_flow(&mut self, from_id: NodeId) {
+        if let Some(node) = self.get_node_mut(from_id) {
+            node.text_flow_next = None;
+        }
+    }
+
+    /// Get the full text flow chain starting from start_id.
+    pub fn get_text_flow_chain(&self, start_id: NodeId) -> Vec<NodeId> {
+        let mut chain = vec![start_id];
+        let mut cur = start_id;
+        let mut visited = std::collections::HashSet::new();
+        visited.insert(cur);
+        loop {
+            match self.get_node(cur).and_then(|n| n.text_flow_next) {
+                Some(next) if !visited.contains(&next) => {
+                    chain.push(next);
+                    visited.insert(next);
+                    cur = next;
+                }
+                _ => break,
+            }
+        }
+        chain
+    }
+
+    /// Distribute text across a flow chain by setting each node's text content.
+    /// `capacities` is the max character count for each node in the chain.
+    pub fn distribute_text_flow(&mut self, start_id: NodeId, full_text: &str, capacities: Vec<usize>) {
+        let chain = self.get_text_flow_chain(start_id);
+        let mut remaining = full_text;
+        for (i, &nid) in chain.iter().enumerate() {
+            let cap = capacities.get(i).copied().unwrap_or(usize::MAX);
+            let take = remaining.len().min(cap);
+            // Find a char boundary
+            let take = if take < remaining.len() {
+                // Try to break at word boundary
+                let slice = &remaining[..take];
+                match slice.rfind(|c: char| c.is_whitespace()) {
+                    Some(pos) if pos > 0 => pos + 1,
+                    _ => take,
+                }
+            } else {
+                take
+            };
+            // Ensure we're at a char boundary
+            let take = remaining.floor_char_boundary(take);
+            let (chunk, rest) = remaining.split_at(take);
+            if let Some(node) = self.get_node_mut(nid) {
+                if let NodeKind::Text { ref mut content, .. } = node.kind {
+                    *content = chunk.to_string();
+                }
+            }
+            remaining = rest.trim_start();
+            if remaining.is_empty() { break; }
+        }
+    }
 }
