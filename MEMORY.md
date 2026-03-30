@@ -1482,7 +1482,13 @@
 - Canvas annotation drawing — 프리핸드 마커/하이라이터, 리뷰 시 직접 위에 스케치, 지우기/색상/두께 조절, 임시 레이어
 - Design system migration assistant — 기존 씬을 분석하여 hardcoded 색상→color style, 반복 텍스트 속성→text style 자동 변환 제안, 원클릭 적용
 - Responsive breakpoint preview — 다양한 디바이스 프리셋(iPhone/iPad/Desktop/Custom) 실시간 프리뷰, Frame 자동 리사이즈 + constraints 적용, 사이드바이사이드 비교
-- Node dependency graph — 노드 간 참조 관계 (component→instance, text flow, connector endpoints, event targets) 시각화, force-directed layout, 의존성 순환 탐지
+## 완료된 기능 (추가 — Node Dependency Graph)
+- Rust dep_graph 모듈: DependencyEdge (ComponentInstance, Connector, Interaction, Comment)
+- Force-directed graph 시각화 (Canvas2D), 노드 종류별 색상, 엣지 타입별 스타일
+- 호버 하이라이트, 더블클릭 선택, 드래그 위치 조정, 필터 체크박스
+- 순환 의존성 탐지 + 경고 표시
+- Right pane "Deps" 탭 + Cmd+Shift+D 단축키
+
 ## 완료된 기능 (추가 — Minimap Node Interaction)
 - Canvas minimap에서 직접 노드 선택 + 이동:
   - 클릭: 해당 노드 선택 + 뷰포트 팬

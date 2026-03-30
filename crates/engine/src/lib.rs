@@ -42,6 +42,7 @@ mod design_quiz;
 pub mod migration_assistant;
 pub mod stamp;
 mod lottie_export;
+pub mod dep_graph;
 
 use wasm_bindgen::prelude::*;
 use web_sys::CanvasRenderingContext2d;
@@ -1293,6 +1294,22 @@ impl Engine {
                 *en = end_node_id;
             }
         }
+    }
+
+    /// Get the full dependency graph for the active page as JSON.
+    pub fn get_dependency_graph(&self) -> String {
+        let edges = self.scene.get_dependency_graph(&self.components);
+        let cycles = dep_graph::detect_cycles(&edges);
+        serde_json::json!({
+            "edges": edges,
+            "cycles": cycles,
+        }).to_string()
+    }
+
+    /// Get dependencies for a specific node as JSON.
+    pub fn get_node_dependencies(&self, node_id: u64) -> String {
+        let edges = self.scene.get_dependencies_for(node_id, &self.components);
+        serde_json::json!(edges).to_string()
     }
 
     pub fn get_connector_info(&self, id: u64) -> String {

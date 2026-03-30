@@ -1672,3 +1672,20 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Individual padding WASM setters: set_layout_padding_top/right/bottom/left
 - [x] Undo integration (push_undo before drag)
 - [x] Cursor feedback: col-resize / row-resize on handle hover
+
+## Node Dependency Graph
+- [x] Rust dep_graph module: DependencyEdge (ComponentInstance, Connector, Interaction, Comment)
+- [x] Scene.get_dependency_graph() — collects all edges from active page
+- [x] Scene.get_dependencies_for(node_id) — edges involving a specific node
+- [x] detect_cycles() — DFS cycle detection in dependency graph
+- [x] WASM bindings: get_dependency_graph() → JSON, get_node_dependencies(id) → JSON
+- [x] Force-directed graph visualization (Canvas2D, pure TS)
+- [x] Node coloring by kind (Rect=blue, Frame=purple, Instance=green, etc.)
+- [x] Edge styling by type (instance=green solid, connector=orange dash, interaction=blue dots, comment=gray dots)
+- [x] Mouse hover: highlight node + connected edges, fade unrelated
+- [x] Double-click: select node in canvas
+- [x] Drag: reposition nodes in graph
+- [x] Filter checkboxes: toggle edge types
+- [x] Circular dependency warning display
+- [x] Right pane "Deps" tab
+- [x] Cmd+Shift+D shortcut to open dependency graph

@@ -37,6 +37,7 @@ import { renderPermissionsPanel } from "./ui/permissions-panel";
 import { setupCanvasRecorder, toggleRecorderBar } from "./ui/canvas-recorder";
 import { setupContextualToolbar } from "./ui/contextual-toolbar";
 import { setupTemplatePanel } from "./ui/template-panel";
+import { setupDependencyGraphPanel } from "./ui/dependency-graph-panel";
 import { setupArtboardPresetsPanel } from "./ui/artboard-presets";
 
 async function main() {
@@ -184,6 +185,9 @@ async function main() {
   const artboardContainer = document.getElementById("artboards-panel")!;
   setupArtboardPresetsPanel(artboardContainer, editor);
 
+  // Dependency graph panel
+  const depGraphPanel = setupDependencyGraphPanel(document.getElementById("dependencies-panel")!, editor);
+
   // Permissions panel — init default owner user
   (editor as any).engine.perm_add_user("local", "Local User", "owner");
   const permPanel = document.getElementById("permissions-panel")!;
@@ -303,13 +307,16 @@ async function main() {
     tab.addEventListener("click", () => {
       const target = (tab as HTMLElement).dataset.tab!;
       rightPaneTabs.forEach((t) => t.classList.toggle("active", (t as HTMLElement).dataset.tab === target));
-      const tabContentMap: Record<string, string> = { agent: "agent-panel", properties: "properties-panel", history: "history-panel", handoff: "handoff-panel", comments: "comments-panel", variables: "variables-panel", assets: "assets-panel", bookmarks: "bookmarks-panel", accessibility: "accessibility-panel", plugins: "plugins-panel", palette: "palette-panel", docs: "docs-panel", permissions: "permissions-panel", quiz: "quiz-panel", migration: "migration-panel", icons: "icons-panel", templates: "templates-panel", artboards: "artboards-panel" };
+      const tabContentMap: Record<string, string> = { agent: "agent-panel", properties: "properties-panel", history: "history-panel", handoff: "handoff-panel", comments: "comments-panel", variables: "variables-panel", assets: "assets-panel", bookmarks: "bookmarks-panel", accessibility: "accessibility-panel", plugins: "plugins-panel", palette: "palette-panel", docs: "docs-panel", permissions: "permissions-panel", quiz: "quiz-panel", migration: "migration-panel", icons: "icons-panel", templates: "templates-panel", artboards: "artboards-panel", dependencies: "dependencies-panel" };
       rightPaneContents.forEach((c) => c.classList.toggle("active", c.id === tabContentMap[target]));
       if (target === "agent") {
         agentPanel.querySelector<HTMLInputElement>(".agent-input")?.focus();
       }
       if (target === "permissions") {
         renderPermissionsPanel(permPanel, editor);
+      }
+      if (target === "dependencies") {
+        depGraphPanel.refresh();
       }
     });
   });
@@ -345,6 +352,14 @@ async function main() {
     if (e.key === "E" && (e.metaKey || e.ctrlKey) && e.shiftKey) {
       e.preventDefault();
       showExportAllModal(editor);
+    }
+    // Cmd+Shift+D → dependency graph tab
+    if (e.key === "D" && (e.metaKey || e.ctrlKey) && e.shiftKey) {
+      e.preventDefault();
+      // Switch to dependencies tab
+      rightPaneTabs.forEach((t) => t.classList.toggle("active", (t as HTMLElement).dataset.tab === "dependencies"));
+      rightPaneContents.forEach((c) => c.classList.toggle("active", c.id === "dependencies-panel"));
+      depGraphPanel.refresh();
     }
   });
 
