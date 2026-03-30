@@ -1505,8 +1505,9 @@
 - Multi-window / detachable panels — 패널(Layers, Properties 등)을 별도 브라우저 창으로 분리, BroadcastChannel 동기화
 - Canvas grid snapping mode — 토글 가능한 그리드 스냅 (8px/16px/custom), 드래그/리사이즈 시 자동 정렬, Ctrl+Shift+G 토글
 - Variable fonts & OpenType features — 가변 폰트 축(weight/width/slant) 슬라이더, OT 피처 토글 (ligatures, small-caps 등)
-- Slice / Export regions — Figma Slice 도구: 사용자 지정 영역 export, 다중 해상도 (@1x/@2x/@3x), 포맷 선택 (PNG/JPG/SVG/PDF)
-- Shared component library (cross-file) — 파일 간 컴포넌트 공유, 팀 라이브러리 publish/consume, 외부 라이브러리 링크
+- Eyedropper tool — 캔버스 픽셀에서 색상 추출, 클릭 시 선택 노드 fill 적용, I 단축키, 미리보기 루페
+- Outline view mode — 와이어프레임 토글 (fill 숨기고 stroke만 표시), 복잡한 디자인 구조 파악용, Cmd+Y 단축키
+- Anchor / Link points on shapes — 노드 가장자리에 커넥터 앵커 포인트 정의, Connector 자동 스냅
 ## 완료된 기능 (추가 — Smart Distribute)
 - 3+ 노드 선택 시 불균등 간격 감지 및 정규화
 - Rust: smart_distribute_preview() → 현재 H/V gaps, 추천 gap (mode/median), 이동량 JSON
