@@ -3163,6 +3163,21 @@ export class Editor {
       const fvsStr = Object.entries(caretFvs).map(([tag, val]: [string, any]) => `"${tag}" ${val}`).join(', ');
       (this.ctx as any).fontVariationSettings = fvsStr;
     }
+    // Apply OpenType features for accurate caret measurement
+    const caretOt = text.opentype_features;
+    if (caretOt) {
+      const parts: string[] = [];
+      if (caretOt.ligatures === false) parts.push('"liga" 0');
+      if (caretOt.old_style_numerals) parts.push('"onum" 1');
+      if (caretOt.small_caps) parts.push('"smcp" 1');
+      if (caretOt.tabular_numerals) parts.push('"tnum" 1');
+      if (parts.length > 0) {
+        (this.ctx as any).fontFeatureSettings = parts.join(', ');
+      }
+      if (caretOt.small_caps) {
+        (this.ctx as any).fontVariantCaps = 'small-caps';
+      }
+    }
 
     // Get ascent
     const mMetrics = this.ctx.measureText("M");
@@ -5191,6 +5206,22 @@ export class Editor {
       if (fvs && typeof fvs === 'object' && Object.keys(fvs).length > 0) {
         const fvsStr = Object.entries(fvs).map(([tag, val]) => `"${tag}" ${val}`).join(', ');
         (ctx as any).fontVariationSettings = fvsStr;
+      }
+      // Apply OpenType feature settings on canvas
+      const otFeatures = text.opentype_features;
+      if (otFeatures) {
+        const parts: string[] = [];
+        if (otFeatures.ligatures === false) parts.push('"liga" 0');
+        if (otFeatures.old_style_numerals) parts.push('"onum" 1');
+        if (otFeatures.small_caps) parts.push('"smcp" 1');
+        if (otFeatures.tabular_numerals) parts.push('"tnum" 1');
+        if (parts.length > 0) {
+          (ctx as any).fontFeatureSettings = parts.join(', ');
+        }
+        // Use fontVariantCaps for broader browser support
+        if (otFeatures.small_caps) {
+          (ctx as any).fontVariantCaps = 'small-caps';
+        }
       }
       if (fill) {
         ctx.fillStyle = `rgba(${fill.r},${fill.g},${fill.b},${fill.a})`;

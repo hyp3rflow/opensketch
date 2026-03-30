@@ -398,6 +398,21 @@ function generateCSS(ctx: CodeCtx): string {
       const fvs = Object.entries(node.font_variation_settings).map(([t, v]) => `"${t}" ${v}`).join(', ');
       lines.push(`font-variation-settings: ${fvs};`);
     }
+    // OpenType feature settings
+    if (node.opentype_features) {
+      const ot = node.opentype_features;
+      const parts: string[] = [];
+      if (ot.ligatures === false) parts.push('"liga" 0');
+      if (ot.old_style_numerals) parts.push('"onum" 1');
+      if (ot.small_caps) parts.push('"smcp" 1');
+      if (ot.tabular_numerals) parts.push('"tnum" 1');
+      if (parts.length > 0) {
+        lines.push(`font-feature-settings: ${parts.join(', ')};`);
+      }
+      if (ot.small_caps) {
+        lines.push(`font-variant-caps: small-caps;`);
+      }
+    }
     if (node.line_height && node.line_height !== 1.2) lines.push(`line-height: ${node.line_height};`);
     if (node.text_align && node.text_align !== "left") lines.push(`text-align: ${node.text_align};`);
     const deco = node.text_decoration;
