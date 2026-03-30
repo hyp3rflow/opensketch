@@ -692,7 +692,7 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
             // Slice nodes are export regions — not rendered in SVG
             return;
         }
-        NodeKind::Connector { start_node_id, end_node_id, start_x, end_x, start_y, end_y, ref path_type, end_arrow, start_arrow } => {
+        NodeKind::Connector { start_node_id, end_node_id, start_x, end_x, start_y, end_y, ref path_type, end_arrow, start_arrow, .. } => {
             // Resolve endpoints
             let mut sx = *start_x;
             let mut sy = *start_y;

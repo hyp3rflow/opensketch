@@ -20,6 +20,7 @@ mod design_lint;
 pub mod accessibility;
 mod design_polish;
 mod color_palette;
+pub mod anchor;
 mod smart_select;
 pub mod vector_network;
 pub mod auto_animate;
@@ -1250,6 +1251,8 @@ impl Engine {
             path_type: "straight".to_string(),
             end_arrow: true,
             start_arrow: false,
+            start_anchor: None,
+            end_anchor: None,
         });
         node.x = min_x;
         node.y = min_y;
@@ -1317,7 +1320,7 @@ impl Engine {
 
     pub fn get_connector_info(&self, id: u64) -> String {
         if let Some(node) = self.scene.get_node(id) {
-            if let NodeKind::Connector { start_node_id, end_node_id, start_x, start_y, end_x, end_y, ref path_type, end_arrow, start_arrow } = node.kind {
+            if let NodeKind::Connector { start_node_id, end_node_id, start_x, start_y, end_x, end_y, ref path_type, end_arrow, start_arrow, ref start_anchor, ref end_anchor } = node.kind {
                 return serde_json::json!({
                     "start_node_id": start_node_id,
                     "end_node_id": end_node_id,
@@ -1328,6 +1331,8 @@ impl Engine {
                     "path_type": path_type,
                     "end_arrow": end_arrow,
                     "start_arrow": start_arrow,
+                    "start_anchor": start_anchor.as_ref().map(|a| a.as_str()),
+                    "end_anchor": end_anchor.as_ref().map(|a| a.as_str()),
                 }).to_string();
             }
         }
@@ -1336,24 +1341,28 @@ impl Engine {
 
     /// Update connector bounds when connected nodes move
     pub fn update_connector_bounds(&mut self, id: u64) {
-        let (start_node_id, end_node_id, mut sx, mut sy, mut ex, mut ey) = {
+        let (start_node_id, end_node_id, mut sx, mut sy, mut ex, mut ey, start_anchor, end_anchor) = {
             if let Some(node) = self.scene.get_node(id) {
-                if let NodeKind::Connector { start_node_id, end_node_id, start_x, start_y, end_x, end_y, .. } = node.kind {
-                    (start_node_id, end_node_id, start_x, start_y, end_x, end_y)
+                if let NodeKind::Connector { start_node_id, end_node_id, start_x, start_y, end_x, end_y, ref start_anchor, ref end_anchor, .. } = node.kind {
+                    (start_node_id, end_node_id, start_x, start_y, end_x, end_y, start_anchor.clone(), end_anchor.clone())
                 } else { return; }
             } else { return; }
         };
 
         if start_node_id != 0 {
             if let Some(n) = self.scene.get_node(start_node_id) {
-                sx = n.x + n.width / 2.0;
-                sy = n.y + n.height / 2.0;
+                let anchor = start_anchor.as_ref().unwrap_or(&anchor::AnchorPosition::Center);
+                let (ax, ay) = anchor::get_anchor_world_pos(n, anchor);
+                sx = ax;
+                sy = ay;
             }
         }
         if end_node_id != 0 {
             if let Some(n) = self.scene.get_node(end_node_id) {
-                ex = n.x + n.width / 2.0;
-                ey = n.y + n.height / 2.0;
+                let anchor = end_anchor.as_ref().unwrap_or(&anchor::AnchorPosition::Center);
+                let (ax, ay) = anchor::get_anchor_world_pos(n, anchor);
+                ex = ax;
+                ey = ay;
             }
         }
 
@@ -1379,6 +1388,109 @@ impl Engine {
             }
         }
         result
+    }
+
+    // =============================================
+    // Anchor Points API
+    // =============================================
+
+    /// Get all anchor points for a node as JSON: [{position, world_x, world_y}]
+    pub fn get_node_anchors(&self, id: u64) -> String {
+        if let Some(node) = self.scene.get_node(id) {
+            let standard = [
+                anchor::AnchorPosition::Top,
+                anchor::AnchorPosition::Right,
+                anchor::AnchorPosition::Bottom,
+                anchor::AnchorPosition::Left,
+            ];
+            let mut anchors: Vec<serde_json::Value> = standard.iter().map(|ap| {
+                let (wx, wy) = anchor::get_anchor_world_pos(node, ap);
+                serde_json::json!({"position": ap.as_str(), "world_x": wx, "world_y": wy})
+            }).collect();
+            for ap in &node.anchors {
+                let (wx, wy) = anchor::get_anchor_world_pos(node, &ap.position);
+                let pos_str = match &ap.position {
+                    anchor::AnchorPosition::Custom(rx, ry) => format!("custom:{:.3},{:.3}", rx, ry),
+                    other => other.as_str().to_string(),
+                };
+                anchors.push(serde_json::json!({"position": pos_str, "world_x": wx, "world_y": wy, "custom": true}));
+            }
+            return serde_json::to_string(&anchors).unwrap_or_else(|_| "[]".into());
+        }
+        "[]".to_string()
+    }
+
+    /// Add a custom anchor point to a node (rx, ry are 0..1 normalized)
+    pub fn add_custom_anchor(&mut self, id: u64, rx: f64, ry: f64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            node.anchors.push(anchor::AnchorPoint::new(
+                anchor::AnchorPosition::Custom(rx.clamp(0.0, 1.0), ry.clamp(0.0, 1.0))
+            ));
+        }
+    }
+
+    /// Remove a custom anchor by index
+    pub fn remove_custom_anchor(&mut self, id: u64, index: u32) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if (index as usize) < node.anchors.len() {
+                node.anchors.remove(index as usize);
+            }
+        }
+    }
+
+    /// Snap a scene position to the nearest anchor. Returns JSON or "null".
+    /// threshold is in scene units.
+    pub fn snap_to_anchor(&self, x: f64, y: f64, threshold: f64, exclude_node_id: u64) -> String {
+        let nodes: Vec<&Node> = self.scene.all_nodes().collect();
+        let exclude = if exclude_node_id == 0 { None } else { Some(exclude_node_id) };
+        if let Some((node_id, pos, wx, wy)) = anchor::snap_to_nearest_anchor(&nodes, x, y, threshold, exclude) {
+            serde_json::json!({
+                "node_id": node_id,
+                "anchor": pos.as_str(),
+                "world_x": wx,
+                "world_y": wy,
+            }).to_string()
+        } else {
+            "null".to_string()
+        }
+    }
+
+    /// Connect a connector's start/end to a specific node anchor
+    pub fn connect_to_anchor(&mut self, connector_id: u64, is_start: bool, target_node_id: u64, anchor_str: &str) {
+        let anchor_pos = anchor::AnchorPosition::from_str(anchor_str);
+        if let Some(node) = self.scene.get_node_mut(connector_id) {
+            if let NodeKind::Connector {
+                ref mut start_node_id, ref mut end_node_id,
+                ref mut start_anchor, ref mut end_anchor, ..
+            } = node.kind {
+                if is_start {
+                    *start_node_id = target_node_id;
+                    *start_anchor = Some(anchor_pos);
+                } else {
+                    *end_node_id = target_node_id;
+                    *end_anchor = Some(anchor_pos);
+                }
+            }
+        }
+        self.update_connector_bounds(connector_id);
+    }
+
+    /// Disconnect a connector endpoint from its anchor
+    pub fn disconnect_anchor(&mut self, connector_id: u64, is_start: bool) {
+        if let Some(node) = self.scene.get_node_mut(connector_id) {
+            if let NodeKind::Connector {
+                ref mut start_node_id, ref mut end_node_id,
+                ref mut start_anchor, ref mut end_anchor, ..
+            } = node.kind {
+                if is_start {
+                    *start_node_id = 0;
+                    *start_anchor = None;
+                } else {
+                    *end_node_id = 0;
+                    *end_anchor = None;
+                }
+            }
+        }
     }
 
     // --- Callout ---

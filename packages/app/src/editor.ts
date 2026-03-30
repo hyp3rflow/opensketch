@@ -113,7 +113,11 @@ export class Editor {
   private _pathEditDragOffsetY = 0;
 
   // Connector tool state
-  private _connectorDrag: { startNodeId: number; sx: number; sy: number; ex?: number; ey?: number; endNodeId?: number } | null = null;
+  private _connectorDrag: { startNodeId: number; sx: number; sy: number; ex?: number; ey?: number; endNodeId?: number; startAnchor?: string; endAnchor?: string } | null = null;
+
+  // Anchor point rendering state
+  private _anchorHoverNodeId: number = 0;
+  private _anchorSnap: { nodeId: number; anchor: string; wx: number; wy: number } | null = null;
 
   // Freehand drawing state
   private _freehandPathId: number | null = null;
@@ -1419,7 +1423,15 @@ export class Editor {
       // Hit test for start node
       const hit = this.engine.hit_test(x, y);
       const startNodeId = hit != null ? Number(hit) : 0;
-      this._connectorDrag = { startNodeId, sx, sy };
+      // Snap to anchor
+      const threshold = 12 / this.engine.get_zoom();
+      const snapJson = this.engine.snap_to_anchor(sx, sy, threshold, BigInt(0));
+      const snap = snapJson !== "null" ? JSON.parse(snapJson) : null;
+      if (snap) {
+        this._connectorDrag = { startNodeId: snap.node_id, sx: snap.world_x, sy: snap.world_y, startAnchor: snap.anchor };
+      } else {
+        this._connectorDrag = { startNodeId, sx, sy };
+      }
       this.canvas.setPointerCapture(e.pointerId);
       return;
     }
@@ -1768,13 +1780,44 @@ export class Editor {
 
     // Connector tool: update preview during drag
     if (this._connectorDrag) {
-      this._connectorDrag.ex = this.engine.screen_to_scene_x(e.offsetX, e.offsetY);
-      this._connectorDrag.ey = this.engine.screen_to_scene_y(e.offsetX, e.offsetY);
-      // Hit test for end node highlight
-      const hit = this.engine.hit_test(e.offsetX, e.offsetY);
-      this._connectorDrag.endNodeId = hit != null ? Number(hit) : 0;
+      const scX = this.engine.screen_to_scene_x(e.offsetX, e.offsetY);
+      const scY = this.engine.screen_to_scene_y(e.offsetX, e.offsetY);
+      // Snap to anchor
+      const threshold = 12 / this.engine.get_zoom();
+      const excludeId = this._connectorDrag.startNodeId || 0;
+      const snapJson = this.engine.snap_to_anchor(scX, scY, threshold, BigInt(excludeId));
+      const snap = snapJson !== "null" ? JSON.parse(snapJson) : null;
+      if (snap) {
+        this._connectorDrag.ex = snap.world_x;
+        this._connectorDrag.ey = snap.world_y;
+        this._connectorDrag.endNodeId = snap.node_id;
+        this._connectorDrag.endAnchor = snap.anchor;
+        this._anchorSnap = snap;
+      } else {
+        this._connectorDrag.ex = scX;
+        this._connectorDrag.ey = scY;
+        const hit = this.engine.hit_test(e.offsetX, e.offsetY);
+        this._connectorDrag.endNodeId = hit != null ? Number(hit) : 0;
+        this._connectorDrag.endAnchor = undefined;
+        this._anchorSnap = null;
+      }
       this.needsRender = true;
       return;
+    }
+
+    // Show anchor points when hovering with connector tool
+    if (this.currentTool === "connector" && !this._connectorDrag) {
+      const hit = this.engine.hit_test(e.offsetX, e.offsetY);
+      const hitId = hit != null ? Number(hit) : 0;
+      if (hitId !== this._anchorHoverNodeId) {
+        this._anchorHoverNodeId = hitId;
+        this.needsRender = true;
+      }
+    } else if (!this._connectorDrag) {
+      if (this._anchorHoverNodeId !== 0) {
+        this._anchorHoverNodeId = 0;
+        this.needsRender = true;
+      }
     }
 
     if (this.marquee) {
@@ -2117,12 +2160,20 @@ export class Editor {
         const endId = endNodeId !== startId ? endNodeId : 0;
         const id = Number(this.engine.add_connector(cd.sx, cd.sy, ex, ey, BigInt(startId), BigInt(endId)));
         if (id > 0) {
+          // Connect anchors if snapped
+          if (cd.startAnchor && startId) {
+            this.engine.connect_to_anchor(BigInt(id), true, BigInt(startId), cd.startAnchor);
+          }
+          if (cd.endAnchor && endId) {
+            this.engine.connect_to_anchor(BigInt(id), false, BigInt(endId), cd.endAnchor);
+          }
           this.engine.select(id);
           this.fireSelectionNow([id]);
           this.onLayersChanges.forEach(fn => fn());
         }
       }
       this._connectorDrag = null;
+      this._anchorSnap = null;
       this.setTool("select");
       this.needsRender = true;
       return;
@@ -3485,6 +3536,55 @@ export class Editor {
     this.ctx.restore();
   }
 
+  private renderAnchorPoints() {
+    const nodeId = this._anchorHoverNodeId;
+    const snap = this._anchorSnap;
+    // Show anchors on hovered node (connector tool) or during drag
+    const ids: number[] = [];
+    if (nodeId) ids.push(nodeId);
+    if (this._connectorDrag?.endNodeId && !ids.includes(this._connectorDrag.endNodeId)) {
+      ids.push(this._connectorDrag.endNodeId);
+    }
+    if (this._connectorDrag?.startNodeId && !ids.includes(this._connectorDrag.startNodeId)) {
+      ids.push(this._connectorDrag.startNodeId);
+    }
+    if (ids.length === 0 && !snap) return;
+
+    const zoom = this.engine.get_zoom();
+    const panX = this.engine.get_pan_x();
+    const panY = this.engine.get_pan_y();
+    const radius = 4;
+
+    this.ctx.save();
+    for (const nid of ids) {
+      try {
+        const anchorsJson = this.engine.get_node_anchors(BigInt(nid));
+        const anchors: Array<{ position: string; world_x: number; world_y: number }> = JSON.parse(anchorsJson);
+        for (const a of anchors) {
+          const sx = a.world_x * zoom + panX;
+          const sy = a.world_y * zoom + panY;
+          const isSnapped = snap && snap.nodeId === nid && snap.anchor === a.position;
+          this.ctx.beginPath();
+          this.ctx.arc(sx, sy, isSnapped ? radius + 2 : radius, 0, Math.PI * 2);
+          if (isSnapped) {
+            this.ctx.fillStyle = "rgba(59, 130, 246, 1)";
+            this.ctx.fill();
+            this.ctx.strokeStyle = "#fff";
+            this.ctx.lineWidth = 2;
+            this.ctx.stroke();
+          } else {
+            this.ctx.fillStyle = "rgba(59, 130, 246, 0.3)";
+            this.ctx.fill();
+            this.ctx.strokeStyle = "rgba(59, 130, 246, 0.8)";
+            this.ctx.lineWidth = 1.5;
+            this.ctx.stroke();
+          }
+        }
+      } catch (_) { /* ignore */ }
+    }
+    this.ctx.restore();
+  }
+
   private renderConnectorPreview() {
     if (!this._connectorDrag || this._connectorDrag.ex == null) return;
     const cd = this._connectorDrag;
@@ -3697,6 +3797,7 @@ export class Editor {
         this.renderMeshEditOverlay();
         this.renderCaret();
         this.renderMarquee();
+        this.renderAnchorPoints();
         this.renderConnectorPreview();
         this.renderSliceOverlays();
         this.renderGradientEditor();

@@ -529,7 +529,7 @@ impl Renderer {
                 self.render_table(ctx, node, *rows, *cols, cells, col_widths, row_heights);
             }
             NodeKind::Slice => {} // Slice nodes are rendered as overlays in TS
-            NodeKind::Connector { start_node_id, end_node_id, start_x, end_x, start_y, end_y, ref path_type, end_arrow, start_arrow } => {
+            NodeKind::Connector { start_node_id, end_node_id, start_x, end_x, start_y, end_y, ref path_type, end_arrow, start_arrow, .. } => {
                 self.render_connector(ctx, node, scene, *start_node_id, *end_node_id, *start_x, *start_y, *end_x, *end_y, path_type, *end_arrow, *start_arrow);
             }
             NodeKind::Callout { ref content, font_size, tail_x, tail_y, tail_width, ref theme } => {

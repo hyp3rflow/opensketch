@@ -4635,6 +4635,20 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         arrowRow.appendChild(lbl);
       }
       connSection.appendChild(arrowRow);
+
+      // Anchor info
+      const anchorInfoRow = document.createElement("div");
+      anchorInfoRow.style.cssText = "margin-top:8px;font-size:11px;color:#888;";
+      const startAnchorText = info.start_anchor ? `${info.start_anchor}` : "center";
+      const endAnchorText = info.end_anchor ? `${info.end_anchor}` : "center";
+      const startNodeText = info.start_node_id ? `Node ${info.start_node_id}` : "Free";
+      const endNodeText = info.end_node_id ? `Node ${info.end_node_id}` : "Free";
+      anchorInfoRow.innerHTML = `
+        <div style="margin-bottom:4px;"><span style="color:#999;">Start:</span> ${startNodeText} → <span style="color:#7cb3f5;">${startAnchorText}</span></div>
+        <div><span style="color:#999;">End:</span> ${endNodeText} → <span style="color:#7cb3f5;">${endAnchorText}</span></div>
+      `;
+      connSection.appendChild(anchorInfoRow);
+
       container.appendChild(connSection);
     }
 

@@ -318,6 +318,12 @@ pub enum NodeKind {
         end_arrow: bool,
         /// Show arrowhead at start
         start_arrow: bool,
+        /// Anchor position on start node (None = center)
+        #[serde(default)]
+        start_anchor: Option<crate::anchor::AnchorPosition>,
+        /// Anchor position on end node (None = center)
+        #[serde(default)]
+        end_anchor: Option<crate::anchor::AnchorPosition>,
     },
     /// A callout shape — rounded rect body with a triangular tail pointing to a target
     Callout {
@@ -1680,6 +1686,9 @@ pub struct Node {
     /// Alt text for Image nodes (accessibility / screen readers)
     #[serde(default)]
     pub alt_text: Option<String>,
+    /// Custom anchor points (in addition to the default Top/Right/Bottom/Left)
+    #[serde(default)]
+    pub anchors: Vec<crate::anchor::AnchorPoint>,
 }
 
 /// Per-frame background pattern configuration
@@ -1789,6 +1798,7 @@ impl Node {
             text_flow_next: None,
             resource_links: vec![],
             alt_text: None,
+            anchors: vec![],
         }
     }
 

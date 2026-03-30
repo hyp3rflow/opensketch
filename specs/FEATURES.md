@@ -626,6 +626,20 @@
 - [x] **Layers panel**: Connector icon in node tree
 - [x] **Stroke support**: Color, width, dash pattern via existing stroke properties
 
+### Anchor / Link Points on Shapes
+- [x] **AnchorPosition enum**: Top, Right, Bottom, Left, Center, Custom(f64, f64) — position on node bounding box
+- [x] **AnchorPoint struct**: position + offset, stored in Node.anchors (custom anchors, serde-default backward-compatible)
+- [x] **Default anchors**: All nodes get Top/Right/Bottom/Left automatically (no storage needed)
+- [x] **get_anchor_world_pos**: Computes world-space anchor position with rotation support
+- [x] **snap_to_nearest_anchor**: Scene-wide nearest-anchor search with threshold
+- [x] **Connector anchor fields**: start_anchor/end_anchor (Option<AnchorPosition>) on Connector variant
+- [x] **update_connector_bounds**: Uses anchor positions instead of node center when anchors are set
+- [x] **WASM bindings**: get_node_anchors, add_custom_anchor, remove_custom_anchor, snap_to_anchor, connect_to_anchor, disconnect_anchor
+- [x] **UI: Anchor rendering**: Blue circles on node edges when hovering with connector tool
+- [x] **UI: Auto-snap**: Connector drag snaps to nearest anchor (12px screen threshold)
+- [x] **UI: Snap highlight**: Snapped anchor shown as filled blue circle with white border
+- [x] **Properties panel**: Start/end anchor info display for selected connectors
+
 ## Table Node
 - [x] **NodeKind::Table**: Row/column/cell structure with `rows`, `cols`, `cells: Vec<TableCell>`, `col_widths`, `row_heights`
 - [x] **TableCell**: row, col, row_span, col_span, content, fill, text_align
