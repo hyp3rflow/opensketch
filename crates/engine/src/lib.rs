@@ -33,6 +33,7 @@ pub mod code_export;
 mod design_health;
 mod handoff_checklist;
 mod smart_replace;
+mod content_fill;
 pub mod crdt;
 pub mod whiteboard;
 mod component_playground;
@@ -6139,6 +6140,41 @@ impl Engine {
         self.push_undo();
         let nodes = self.scene.nodes_map_mut();
         smart_replace::replace_node_content(nodes, source_id, &sel)
+    }
+
+    // ── Smart Content Fill ──────────────────────────────────
+
+    /// Fill selected nodes with placeholder content.
+    /// category: "names" | "emails" | "addresses" | "dates" | "phones" | "lorem" | "avatars" | "numbers" | "prices"
+    /// node_ids_json: JSON array of u64 node IDs.
+    /// seed: random seed for reproducible content.
+    /// Returns the number of nodes filled.
+    #[wasm_bindgen]
+    pub fn fill_content(&mut self, node_ids_json: &str, category: &str, seed: u32) -> u32 {
+        let node_ids: Vec<u64> = serde_json::from_str(node_ids_json).unwrap_or_default();
+        if node_ids.is_empty() { return 0; }
+        let cat = match content_fill::ContentFillCategory::from_str(category) {
+            Some(c) => c,
+            None => return 0,
+        };
+        self.push_undo();
+        let nodes = self.scene.nodes_map_mut();
+        content_fill::fill_nodes(nodes, &node_ids, &cat, seed)
+    }
+
+    /// Fill currently selected nodes with placeholder content.
+    /// Returns the number of nodes filled.
+    #[wasm_bindgen]
+    pub fn fill_selection_content(&mut self, category: &str, seed: u32) -> u32 {
+        let sel: Vec<u64> = self.scene.selection.clone();
+        if sel.is_empty() { return 0; }
+        let cat = match content_fill::ContentFillCategory::from_str(category) {
+            Some(c) => c,
+            None => return 0,
+        };
+        self.push_undo();
+        let nodes = self.scene.nodes_map_mut();
+        content_fill::fill_nodes(nodes, &sel, &cat, seed)
     }
 
     /// Perform a boolean operation on selected nodes.

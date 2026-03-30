@@ -5448,6 +5448,17 @@ export class Editor {
         items.push({ label: "✨ Suggest Layout", shortcut: `${mod}⇧L`, enabled: true, action: () => showLayoutSuggestion(this) });
       }
       items.push({ separator: true, label: "" });
+      // Smart Content Fill
+      items.push({ label: "Fill with Names", action: () => this.fillSelectionContent("names") });
+      items.push({ label: "Fill with Emails", action: () => this.fillSelectionContent("emails") });
+      items.push({ label: "Fill with Dates", action: () => this.fillSelectionContent("dates") });
+      items.push({ label: "Fill with Phones", action: () => this.fillSelectionContent("phones") });
+      items.push({ label: "Fill with Addresses", action: () => this.fillSelectionContent("addresses") });
+      items.push({ label: "Fill with Lorem", action: () => this.fillSelectionContent("lorem") });
+      items.push({ label: "Fill with Prices", action: () => this.fillSelectionContent("prices") });
+      items.push({ label: "Fill with Numbers", action: () => this.fillSelectionContent("numbers") });
+      items.push({ label: "Fill with Avatars", action: () => this.fillSelectionContent("avatars") });
+      items.push({ separator: true, label: "" });
       items.push({ label: "Edit All Matching Layers", enabled: selAfter.length === 1, action: () => this.selectSameNameAndKind(selAfter[0]!) });
       items.push({ label: "Select All with Same Name", enabled: selAfter.length === 1, action: () => this.selectSameName(selAfter[0]!) });
       items.push({ label: "Select All with Same Fill", enabled: selAfter.length === 1, action: () => this.selectSameFill(selAfter[0]!) });
@@ -5466,6 +5477,17 @@ export class Editor {
     }
 
     showContextMenu(e.clientX, e.clientY, items);
+  }
+
+  private fillSelectionContent(category: string) {
+    const sel = Array.from(this.engine.get_selection()).map(Number);
+    if (sel.length === 0) return;
+    const seed = (Date.now() & 0xFFFFFFFF) >>> 0;
+    const filled = this.engine.fill_selection_content(category, seed);
+    if (filled > 0) {
+      this.requestRender();
+      this.fireSelectionNow(sel);
+    }
   }
 
   private ctxCopy() {

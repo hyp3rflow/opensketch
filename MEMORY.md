@@ -1481,7 +1481,6 @@
 ## 다음 할 것
 - Variable-driven conditional visibility — Variable 값에 따라 노드 show/hide 조건 설정 (if color_mode == "dark" then visible), 프로토타입 뷰어에서 실시간 전환
 - Dev resource linker — 노드에 외부 리소스 링크 (GitHub issue/PR, Storybook URL, Jira ticket), Inspect/Handoff 패널에서 원클릭 열기, 아이콘 배지 표시
-- Smart content fill — 노드에 realistic placeholder 데이터 자동 채우기 (이름, 주소, 날짜, 아바타 이미지, lorem ipsum 변형), 카테고리별 프리셋, 반복 패턴 (리스트 아이템 등)
 ## 완료된 기능 (추가 — Motion Path Animation)
 - Rust: evaluate_motion_path(path_node_id, progress) → {x, y, angle} standalone WASM binding
 - Rust: get_motion_path_samples(path_node_id, count) → sampled points for visualization
@@ -1550,3 +1549,13 @@
   - Editor: renderTextFlowLinks — 인디고 점선 베지어 커브 + 화살표 시각화
   - Properties Panel: Text Flow 섹션 — Link/Unlink 버튼, 체인 노드 이름 표시
   - packages/app/src/ui/text-flow.ts: 독립 모듈 (getTextFlowLinks, drawTextFlowLinks, distributeTextFlow)
+
+## 완료된 기능 (추가 — Smart Content Fill)
+- Smart content fill: 노드에 realistic placeholder 데이터 자동 채우기
+  - Rust content_fill.rs: ContentFillCategory enum (9종), xorshift32 PRNG, built-in datasets
+  - Categories: Names, Emails, Addresses, Dates, PhoneNumbers, LoremText, AvatarUrls, Numbers, Prices
+  - fill_nodes(): Text 노드 → text content, Image 노드 → avatar URL
+  - WASM: fill_content(node_ids_json, category, seed), fill_selection_content(category, seed)
+  - Context menu: "Fill with {Category}" 항목 9개 (선택 노드 우클릭)
+  - 복수 노드 선택 시 각각 다른 데이터 (seed 기반 반복 패턴)
+  - Undo 통합 (push_undo)

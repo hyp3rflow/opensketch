@@ -1715,3 +1715,12 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Inspect panel: Resources section with clickable links (window.open)
 - [x] Canvas badge: blue dot indicator on nodes with resource links (top-left corner)
 - [x] Per-type SVG icons (GitHub, Storybook, Jira, Figma, Custom link)
+
+## Smart Content Fill
+- [x] Rust content_fill module: ContentFillCategory enum, generate_content() with seed-based pseudo-random
+- [x] 9 categories: Names, Emails, Addresses, Dates, PhoneNumbers, LoremText, AvatarUrls, Numbers, Prices
+- [x] Built-in datasets (no external dependencies), xorshift32 PRNG
+- [x] WASM: fill_content(node_ids, category, seed), fill_selection_content(category, seed)
+- [x] Text nodes get text content, Image nodes get avatar URLs
+- [x] Context menu integration: "Fill with {Category}" items for selected nodes
+- [x] Multiple selected nodes each get different data (repeating pattern)
