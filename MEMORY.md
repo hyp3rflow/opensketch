@@ -1457,8 +1457,16 @@
   - Page-aware: 북마크 전환 시 자동 페이지 이동
   - Backward-compatible serde
 
+## 완료된 기능 (추가 — Artboard Presets)
+- Artboard templates / presets (디바이스별 아트보드 프리셋):
+  - 35+ 빌트인 프리셋: Phone (iPhone 16/Pro/Pro Max/SE, Pixel 9, Galaxy S24 등), Tablet (iPad 시리즈, Surface Pro), Desktop (MacBook/iMac/1080p-4K), Watch (Apple Watch 41-49mm), Paper (A4/A3/Letter/Legal), Social (Instagram/X/Facebook/YouTube/LinkedIn)
+  - Right pane "Artboards" 탭: 검색, 카테고리 필터, portrait/landscape 토글
+  - 원클릭 생성: 뷰포트 중심에 Frame 노드 생성 (프리셋 이름 자동 설정)
+  - 커스텀 프리셋: 이름+가로+세로 입력, localStorage 저장, 삭제
+  - Orientation 토글: ↕/↔ 전환 시 width/height 자동 스왑
+  - 순수 TypeScript 구현 (ui/artboard-presets.ts)
+
 ## 다음 할 것
-- Artboard templates / presets — 디바이스별 아트보드 프리셋 (iPhone 16/iPad/Desktop/Watch/A4 등), 원클릭 생성, 커스텀 프리셋 저장
 - Smart color contrast checker — 실시간으로 텍스트/배경 간 WCAG 2.1 AA/AAA 대비율 체크, 자동 수정 제안 (가장 가까운 합격 색상), 전체 디자인 스캔
 - Canvas presentation notes — 프레젠테이션 모드에서 발표자 노트 지원, 노드/페이지별 Markdown 노트, 별도 발표자 뷰 (듀얼 모니터)
 - Keyboard shortcut customization — 사용자 정의 단축키 바인딩, JSON import/export, 충돌 감지, 프리셋 (Figma/Sketch/Adobe)
