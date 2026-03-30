@@ -127,6 +127,39 @@ export function setupInspectPanel(container: HTMLElement, editor: Editor) {
     tokensSection.appendChild(tokensBtns);
     wrap.appendChild(tokensSection);
 
+    // Resource Links section
+    {
+      const resLinksJson = (editor.engine as any).get_resource_links?.(bid);
+      const resLinks: { url: string; label: string; link_type: string }[] = resLinksJson ? JSON.parse(resLinksJson) : [];
+      if (resLinks.length > 0) {
+        const rlSection = document.createElement("div");
+        rlSection.style.cssText = "margin-top:12px;";
+        const rlLabel = document.createElement("div");
+        rlLabel.textContent = "Resources";
+        rlLabel.style.cssText = "color:#aaa;font-size:11px;font-weight:600;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;";
+        rlSection.appendChild(rlLabel);
+        for (const rl of resLinks) {
+          const link = document.createElement("a");
+          link.href = rl.url;
+          link.target = "_blank";
+          link.rel = "noopener";
+          link.style.cssText = "display:flex;align-items:center;gap:6px;padding:5px 8px;background:#1e1e2e;border-radius:4px;margin-bottom:3px;text-decoration:none;color:#7c9aff;font-size:11px;transition:background 0.15s;";
+          link.addEventListener("mouseenter", () => { link.style.background = "#2a2a3e"; });
+          link.addEventListener("mouseleave", () => { link.style.background = "#1e1e2e"; });
+          const badge = document.createElement("span");
+          badge.textContent = rl.link_type;
+          badge.style.cssText = "font-size:9px;padding:1px 4px;border-radius:3px;background:#333;color:#888;";
+          link.appendChild(badge);
+          const text = document.createElement("span");
+          text.textContent = rl.label || rl.url;
+          text.style.cssText = "overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
+          link.appendChild(text);
+          rlSection.appendChild(link);
+        }
+        wrap.appendChild(rlSection);
+      }
+    }
+
     // Code mapping section
     renderCodeMappingSection(wrap, editor, ids[0]!);
 

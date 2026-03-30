@@ -2403,6 +2403,13 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       container.appendChild(linksSection);
     }
 
+    // --- Resource Links (Dev resource linker) ---
+    {
+      const resSection = createSection("Resources");
+      createResourceLinksSection(resSection, editor, Number(id), () => refresh(ids));
+      container.appendChild(resSection);
+    }
+
     // --- Motion Path ---
     {
       const mpSection = createSection("Motion Path");
@@ -5682,4 +5689,118 @@ function rgbToHex(r: number, g: number, b: number): string {
 function hexToRgb(hex: string): [number, number, number] {
   const h = hex.replace("#", "");
   return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+}
+
+// =============================================
+// Resource Links (Dev resource linker)
+// =============================================
+
+const RESOURCE_LINK_TYPES = ["GitHub", "Storybook", "Jira", "Figma", "Custom"] as const;
+
+const RESOURCE_ICONS: Record<string, string> = {
+  GitHub: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>`,
+  Storybook: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>`,
+  Jira: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/></svg>`,
+  Figma: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 5.5A3.5 3.5 0 0 1 8.5 2H12v7H8.5A3.5 3.5 0 0 1 5 5.5z"/><path d="M12 2h3.5a3.5 3.5 0 1 1 0 7H12V2z"/><path d="M12 12.5a3.5 3.5 0 1 1 7 0 3.5 3.5 0 1 1-7 0z"/><path d="M5 19.5A3.5 3.5 0 0 1 8.5 16H12v3.5a3.5 3.5 0 1 1-7 0z"/><path d="M5 12.5A3.5 3.5 0 0 1 8.5 9H12v7H8.5A3.5 3.5 0 0 1 5 12.5z"/></svg>`,
+  Custom: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`,
+};
+
+function createResourceLinksSection(container: HTMLElement, editor: Editor, nodeId: number, onRefresh: () => void) {
+  const bid = BigInt(nodeId);
+  const linksJson = (editor.engine as any).get_resource_links(bid);
+  const links: { url: string; label: string; link_type: string }[] = JSON.parse(linksJson || "[]");
+
+  const inputStyle = "width:100%;padding:3px 6px;background:#1e1e1e;border:1px solid #444;border-radius:3px;color:#ccc;font-size:11px;outline:none;";
+  const btnSmall = "padding:2px 6px;font-size:10px;border:1px solid #444;border-radius:3px;background:#2a2a2a;color:#ccc;cursor:pointer;";
+
+  // List existing links
+  links.forEach((link, i) => {
+    const row = document.createElement("div");
+    row.style.cssText = "display:flex;align-items:center;gap:4px;margin-bottom:4px;padding:4px 6px;background:#1e1e2e;border-radius:4px;";
+
+    // Icon
+    const iconSpan = document.createElement("span");
+    iconSpan.style.cssText = "flex-shrink:0;color:#7c9aff;display:flex;align-items:center;cursor:pointer;";
+    iconSpan.innerHTML = RESOURCE_ICONS[link.link_type] || RESOURCE_ICONS.Custom;
+    iconSpan.title = `Open ${link.label || link.url}`;
+    iconSpan.onclick = () => window.open(link.url, "_blank");
+    row.appendChild(iconSpan);
+
+    // Label / URL
+    const labelSpan = document.createElement("span");
+    labelSpan.style.cssText = "flex:1;font-size:11px;color:#aac;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;";
+    labelSpan.textContent = link.label || link.url;
+    labelSpan.title = link.url;
+    labelSpan.onclick = () => window.open(link.url, "_blank");
+    row.appendChild(labelSpan);
+
+    // Type badge
+    const badge = document.createElement("span");
+    badge.style.cssText = "font-size:9px;color:#666;flex-shrink:0;";
+    badge.textContent = link.link_type;
+    row.appendChild(badge);
+
+    // Remove button
+    const removeBtn = document.createElement("button");
+    removeBtn.textContent = "✕";
+    removeBtn.style.cssText = btnSmall + "color:#f66;border-color:#533;padding:1px 4px;";
+    removeBtn.onclick = () => {
+      editor.engine.push_undo();
+      (editor.engine as any).remove_resource_link(bid, i);
+      onRefresh();
+    };
+    row.appendChild(removeBtn);
+    container.appendChild(row);
+  });
+
+  // Add new link form
+  const addRow = document.createElement("div");
+  addRow.style.cssText = "display:flex;flex-direction:column;gap:3px;margin-top:4px;";
+
+  const urlRow = document.createElement("div");
+  urlRow.style.cssText = "display:flex;gap:3px;";
+  const urlInput = document.createElement("input");
+  urlInput.placeholder = "https://...";
+  urlInput.style.cssText = inputStyle + "flex:1;";
+  urlRow.appendChild(urlInput);
+
+  const typeSelect = document.createElement("select");
+  typeSelect.style.cssText = inputStyle + "width:auto;flex-shrink:0;";
+  RESOURCE_LINK_TYPES.forEach((t) => {
+    const opt = document.createElement("option");
+    opt.value = t;
+    opt.textContent = t;
+    typeSelect.appendChild(opt);
+  });
+  // Auto-detect type from URL
+  urlInput.addEventListener("input", () => {
+    const u = urlInput.value.toLowerCase();
+    if (u.includes("github.com")) typeSelect.value = "GitHub";
+    else if (u.includes("storybook") || u.includes("chromatic")) typeSelect.value = "Storybook";
+    else if (u.includes("jira") || u.includes("atlassian")) typeSelect.value = "Jira";
+    else if (u.includes("figma.com")) typeSelect.value = "Figma";
+  });
+  urlRow.appendChild(typeSelect);
+  addRow.appendChild(urlRow);
+
+  const labelRow = document.createElement("div");
+  labelRow.style.cssText = "display:flex;gap:3px;";
+  const labelInput = document.createElement("input");
+  labelInput.placeholder = "Label (optional)";
+  labelInput.style.cssText = inputStyle + "flex:1;";
+  labelRow.appendChild(labelInput);
+
+  const addBtn = document.createElement("button");
+  addBtn.textContent = "+ Add";
+  addBtn.style.cssText = btnSmall;
+  addBtn.onclick = () => {
+    const url = urlInput.value.trim();
+    if (!url) return;
+    editor.engine.push_undo();
+    (editor.engine as any).add_resource_link(bid, url, labelInput.value.trim(), typeSelect.value);
+    onRefresh();
+  };
+  labelRow.appendChild(addBtn);
+  addRow.appendChild(labelRow);
+  container.appendChild(addRow);
 }

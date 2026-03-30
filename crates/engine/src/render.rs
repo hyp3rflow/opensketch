@@ -833,6 +833,33 @@ impl Renderer {
                 ctx.fill_text(&node.notes.len().to_string(), cx - fs * 0.25, cy).ok();
             }
         }
+        // Resource link indicator (small blue link dot, top-left corner)
+        if !node.resource_links.is_empty() {
+            let r = (5.0 / self.viewport.a).min(5.0);
+            let cx = node.x + r * 2.0;
+            let cy = node.y + r * 2.0;
+            ctx.begin_path();
+            ctx.arc(cx, cy, r, 0.0, std::f64::consts::PI * 2.0).ok();
+            ctx.set_fill_style_str("rgba(59, 130, 246, 0.9)");
+            ctx.fill();
+            // Link icon: small chain-link lines
+            let s = r * 0.55;
+            ctx.set_stroke_style_str("#fff");
+            ctx.set_line_width((1.0 / self.viewport.a).min(1.0));
+            ctx.begin_path();
+            ctx.move_to(cx - s, cy);
+            ctx.line_to(cx + s, cy);
+            ctx.stroke();
+            if node.resource_links.len() > 1 {
+                let fs = (7.0 / self.viewport.a).min(7.0);
+                ctx.set_font(&format!("600 {}px Inter, system-ui, sans-serif", fs));
+                ctx.set_text_baseline("middle");
+                ctx.set_text_align("center");
+                ctx.set_fill_style_str("#fff");
+                ctx.fill_text(&node.resource_links.len().to_string(), cx, cy + r * 2.0).ok();
+                ctx.set_text_align("start");
+            }
+        }
         // Clip children for Hidden/Scroll overflow
         let needs_clip = node.overflow != crate::node::Overflow::Visible;
         if needs_clip {
@@ -945,6 +972,23 @@ impl Renderer {
                 ctx.set_fill_style_str("#1a1a1a");
                 ctx.fill_text(&node.notes.len().to_string(), cx - fs * 0.25, cy).ok();
             }
+        }
+        // Resource link indicator (blue dot, top-left)
+        if !node.resource_links.is_empty() {
+            let r = (5.0 / self.viewport.a).min(5.0);
+            let cx = node.x + r * 2.0;
+            let cy = node.y + r * 2.0;
+            ctx.begin_path();
+            ctx.arc(cx, cy, r, 0.0, std::f64::consts::PI * 2.0).ok();
+            ctx.set_fill_style_str("rgba(59, 130, 246, 0.9)");
+            ctx.fill();
+            let s = r * 0.55;
+            ctx.set_stroke_style_str("#fff");
+            ctx.set_line_width((1.0 / self.viewport.a).min(1.0));
+            ctx.begin_path();
+            ctx.move_to(cx - s, cy);
+            ctx.line_to(cx + s, cy);
+            ctx.stroke();
         }
         // Render children hierarchically (for mask support)
         self.render_children(ctx, &node.children, scene);

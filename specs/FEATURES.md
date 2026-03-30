@@ -1706,3 +1706,12 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Real-time preview: sample "Aa" text at each level with name, size, weight
 - [x] Design System panel integration: "Typography Scale…" button in Type tab
 - [x] Figma-style dark UI with consistent styling
+
+## Dev Resource Linker
+- [x] ResourceLink struct: url, label, link_type (GitHub/Storybook/Jira/Figma/Custom)
+- [x] Node.resource_links: Vec<ResourceLink> with backward-compatible serde (#[serde(default)])
+- [x] WASM: add_resource_link, remove_resource_link, update_resource_link, get_resource_links, get_resource_link_count
+- [x] Properties panel: "Resources" section — link list with type icons, URL auto-detect, add/remove
+- [x] Inspect panel: Resources section with clickable links (window.open)
+- [x] Canvas badge: blue dot indicator on nodes with resource links (top-left corner)
+- [x] Per-type SVG icons (GitHub, Storybook, Jira, Figma, Custom link)

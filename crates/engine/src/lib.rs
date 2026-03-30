@@ -8590,4 +8590,65 @@ impl Engine {
         true
     }
 
+    // =============================================
+    // Resource Links (Dev resource linker)
+    // =============================================
+
+    /// Add an external resource link to a node. Returns the index of the new link.
+    #[wasm_bindgen]
+    pub fn add_resource_link(&mut self, id: u64, url: &str, label: &str, link_type: &str) -> i32 {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            let rl = crate::node::ResourceLink {
+                url: url.to_string(),
+                label: label.to_string(),
+                link_type: crate::node::ResourceLinkType::from_str(link_type),
+            };
+            node.resource_links.push(rl);
+            (node.resource_links.len() - 1) as i32
+        } else {
+            -1
+        }
+    }
+
+    /// Remove a resource link by index.
+    #[wasm_bindgen]
+    pub fn remove_resource_link(&mut self, id: u64, index: u32) -> bool {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if (index as usize) < node.resource_links.len() {
+                node.resource_links.remove(index as usize);
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Update a resource link at the given index.
+    #[wasm_bindgen]
+    pub fn update_resource_link(&mut self, id: u64, index: u32, url: &str, label: &str, link_type: &str) -> bool {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let Some(rl) = node.resource_links.get_mut(index as usize) {
+                rl.url = url.to_string();
+                rl.label = label.to_string();
+                rl.link_type = crate::node::ResourceLinkType::from_str(link_type);
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Get all resource links for a node as JSON array.
+    #[wasm_bindgen]
+    pub fn get_resource_links(&self, id: u64) -> String {
+        if let Some(node) = self.scene.get_node(id) {
+            return serde_json::to_string(&node.resource_links).unwrap_or_else(|_| "[]".to_string());
+        }
+        "[]".to_string()
+    }
+
+    /// Get resource link count for a node.
+    #[wasm_bindgen]
+    pub fn get_resource_link_count(&self, id: u64) -> u32 {
+        self.scene.get_node(id).map(|n| n.resource_links.len() as u32).unwrap_or(0)
+    }
+
 }

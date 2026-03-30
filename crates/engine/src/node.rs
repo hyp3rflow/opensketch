@@ -1127,6 +1127,51 @@ impl Default for TransitionType {
     fn default() -> Self { TransitionType::Instant }
 }
 
+/// Resource link type (external dev resources)
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub enum ResourceLinkType {
+    GitHub,
+    Storybook,
+    Jira,
+    Figma,
+    Custom,
+}
+
+impl Default for ResourceLinkType {
+    fn default() -> Self { ResourceLinkType::Custom }
+}
+
+impl ResourceLinkType {
+    pub fn from_str(s: &str) -> Self {
+        match s.to_lowercase().as_str() {
+            "github" => ResourceLinkType::GitHub,
+            "storybook" => ResourceLinkType::Storybook,
+            "jira" => ResourceLinkType::Jira,
+            "figma" => ResourceLinkType::Figma,
+            _ => ResourceLinkType::Custom,
+        }
+    }
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ResourceLinkType::GitHub => "GitHub",
+            ResourceLinkType::Storybook => "Storybook",
+            ResourceLinkType::Jira => "Jira",
+            ResourceLinkType::Figma => "Figma",
+            ResourceLinkType::Custom => "Custom",
+        }
+    }
+}
+
+/// An external resource link attached to a node (GitHub issue, Storybook URL, Jira ticket, etc.)
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ResourceLink {
+    pub url: String,
+    #[serde(default)]
+    pub label: String,
+    #[serde(default)]
+    pub link_type: ResourceLinkType,
+}
+
 /// Link type for node references
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub enum LinkType {
@@ -1614,6 +1659,9 @@ pub struct Node {
     /// Text flow: ID of next text node in flow chain (None = no flow)
     #[serde(default)]
     pub text_flow_next: Option<NodeId>,
+    /// External resource links (GitHub, Storybook, Jira, etc.)
+    #[serde(default)]
+    pub resource_links: Vec<ResourceLink>,
 }
 
 /// Per-frame background pattern configuration
@@ -1720,6 +1768,7 @@ impl Node {
             background_pattern: None,
             links: vec![],
             text_flow_next: None,
+            resource_links: vec![],
         }
     }
 
