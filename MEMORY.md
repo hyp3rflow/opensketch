@@ -1479,9 +1479,16 @@
   - tools/spacing-handles.ts: SpacingHandle + PaddingHandle, find/hitTest/render functions
 
 ## 다음 할 것
-- Canvas annotation drawing — 프리핸드 마커/하이라이터, 리뷰 시 직접 위에 스케치, 지우기/색상/두께 조절, 임시 레이어
-- Design system migration assistant — 기존 씬을 분석하여 hardcoded 색상→color style, 반복 텍스트 속성→text style 자동 변환 제안, 원클릭 적용
-- Responsive breakpoint preview — 다양한 디바이스 프리셋(iPhone/iPad/Desktop/Custom) 실시간 프리뷰, Frame 자동 리사이즈 + constraints 적용, 사이드바이사이드 비교
+- Motion path animation — Path 노드를 따라 다른 노드가 움직이는 애니메이션, 타임라인 연동, progress/orientation 제어, SVG animateMotion export
+- Variable-driven conditional visibility — Variable 값에 따라 노드 show/hide 조건 설정 (if color_mode == "dark" then visible), 프로토타입 뷰어에서 실시간 전환
+- Dev resource linker — 노드에 외부 리소스 링크 (GitHub issue/PR, Storybook URL, Jira ticket), Inspect/Handoff 패널에서 원클릭 열기, 아이콘 배지 표시
+- Smart content fill — 노드에 realistic placeholder 데이터 자동 채우기 (이름, 주소, 날짜, 아바타 이미지, lorem ipsum 변형), 카테고리별 프리셋, 반복 패턴 (리스트 아이템 등)
+## 완료된 기능 (추가 — Typography Scale Generator)
+- Rust typo_scale.rs: 8 presets (Minor Second ~ Golden Ratio) + custom ratio, 7 levels (Display/H1/H2/H3/Body/Small/Caption)
+- WASM: generate_type_scale() (preview JSON), apply_type_scale() (StyleStore 직접 추가/업데이트)
+- Modal UI: scale 드롭다운, base size, font family, 실시간 프리뷰, update existing 체크박스
+- Design System panel Type 탭에 "Typography Scale…" 버튼 통합
+
 ## 완료된 기능 (추가 — Node Dependency Graph)
 - Rust dep_graph 모듈: DependencyEdge (ComponentInstance, Connector, Interaction, Comment)
 - Force-directed graph 시각화 (Canvas2D), 노드 종류별 색상, 엣지 타입별 스타일

@@ -41,6 +41,7 @@ pub mod snapshot_test;
 mod design_quiz;
 pub mod migration_assistant;
 pub mod stamp;
+pub mod typo_scale;
 mod lottie_export;
 pub mod dep_graph;
 
@@ -5517,6 +5518,51 @@ impl Engine {
             })
         }).collect();
         serde_json::to_string(&styles).unwrap_or_default()
+    }
+
+    /// Generate a typography scale as JSON. scale_name can be "major-third", "perfect-fourth", etc. or a custom ratio like "1.333".
+    pub fn generate_type_scale(&self, base_size: f64, scale_name: &str, font_family: &str) -> String {
+        let ratio = crate::typo_scale::scale_ratio(scale_name).unwrap_or(1.25);
+        let styles = crate::typo_scale::generate_type_scale(base_size, ratio, font_family);
+        serde_json::to_string(&styles).unwrap_or_default()
+    }
+
+    /// Apply a typography scale to the StyleStore. Returns count of styles added/updated.
+    /// If update_existing is true, existing styles with the same name are updated.
+    pub fn apply_type_scale(&mut self, base_size: f64, scale_name: &str, font_family: &str, update_existing: bool) -> u32 {
+        let ratio = crate::typo_scale::scale_ratio(scale_name).unwrap_or(1.25);
+        let defs = crate::typo_scale::generate_type_scale(base_size, ratio, font_family);
+        let mut count = 0u32;
+        for def in &defs {
+            let mut found = false;
+            if update_existing {
+                // Find existing style by name
+                let existing: Vec<_> = self.styles.text_styles.iter()
+                    .filter(|(_, s)| s.name == def.name)
+                    .map(|(id, _)| *id)
+                    .collect();
+                for id in existing {
+                    let json = serde_json::json!({
+                        "font_family": def.font_family,
+                        "font_size": def.font_size,
+                        "font_weight": def.font_weight,
+                        "line_height": def.line_height,
+                    }).to_string();
+                    self.styles.update_text_style(id, &json);
+                    found = true;
+                    count += 1;
+                }
+            }
+            if !found {
+                self.styles.add_text_style(
+                    def.name.clone(), def.font_family.clone(), def.font_size,
+                    def.font_weight, crate::node::FontStyle::Normal, def.line_height,
+                    crate::node::TextAlign::Left, 0, 0, 0, 1.0,
+                );
+                count += 1;
+            }
+        }
+        count
     }
 
     /// Apply a color style to a node (sets fill color + links style ID).

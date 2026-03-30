@@ -1689,3 +1689,13 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Circular dependency warning display
 - [x] Right pane "Deps" tab
 - [x] Cmd+Shift+D shortcut to open dependency graph
+
+## Typography Scale Generator
+- [x] Rust typo_scale module: scale_ratio(), generate_type_scale() with 8 presets + custom ratio
+- [x] 7 text style levels: Display (ratio^4), H1 (^3), H2 (^2), H3 (^1), Body (base), Small (/ratio), Caption (/ratio^2)
+- [x] WASM: generate_type_scale() → JSON preview, apply_type_scale() → StyleStore integration
+- [x] Update existing: find styles by name and update font/size/weight/line-height
+- [x] Modal UI: scale dropdown (8 presets + custom), base size input, font family input
+- [x] Real-time preview: sample "Aa" text at each level with name, size, weight
+- [x] Design System panel integration: "Typography Scale…" button in Type tab
+- [x] Figma-style dark UI with consistent styling

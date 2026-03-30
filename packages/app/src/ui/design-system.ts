@@ -1,5 +1,6 @@
 import type { Editor } from "../editor";
 import { icons } from "./icons";
+import { openTypoScaleModal } from "./typo-scale-panel";
 
 export interface ColorToken {
   name: string;
@@ -250,6 +251,14 @@ function renderTypography(container: HTMLElement, editor: Editor) {
 
     container.appendChild(item);
   });
+
+  // Typography Scale generator button
+  const scaleBtn = document.createElement("button");
+  scaleBtn.className = "prop-add-btn";
+  scaleBtn.textContent = "⚡ Typography Scale…";
+  scaleBtn.style.cssText = "margin-top:12px;background:#6366F1;color:white;border:none;border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer;width:100%;";
+  scaleBtn.addEventListener("click", () => openTypoScaleModal(editor));
+  container.appendChild(scaleBtn);
 
   // Add typography button
   const addBtn = document.createElement("button");
