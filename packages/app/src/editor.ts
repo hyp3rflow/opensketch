@@ -43,6 +43,7 @@ import { openVariantMatrix, closeVariantMatrix, isVariantMatrixOpen } from "./ui
 import { AnnotationHeatmap } from "./ui/annotation-heatmap";
 import { addViewBookmark, toggleViewBookmarksPanel, handleBookmarkShortcut, checkUrlViewHash } from "./ui/view-bookmarks";
 import { AnnotationBrush } from "./ui/annotation-brush";
+import { importFigmaJSON, showFigmaDropOverlay, hideFigmaDropOverlay } from "./ui/figma-import";
 
 export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "section" | "image" | "pen" | "star" | "polygon" | "slice" | "connector" | "callout" | "sticky" | "table" | "freehand" | "measure" | "annotate";
 
@@ -3607,15 +3608,54 @@ export class Editor {
   }
 
   private setupDragDrop() {
+    // Drag overlay for Figma JSON
+    let dragCounter = 0;
+    this.canvas.addEventListener("dragenter", (e) => {
+      e.preventDefault();
+      dragCounter++;
+      const items = e.dataTransfer?.items;
+      if (items && Array.from(items).some(i => i.kind === "file")) {
+        showFigmaDropOverlay();
+      }
+    });
+    this.canvas.addEventListener("dragleave", (_e) => {
+      dragCounter--;
+      if (dragCounter <= 0) {
+        dragCounter = 0;
+        hideFigmaDropOverlay();
+      }
+    });
     this.canvas.addEventListener("dragover", (e) => {
       e.preventDefault();
       e.dataTransfer!.dropEffect = "copy";
     });
     this.canvas.addEventListener("drop", (e) => {
       e.preventDefault();
+      dragCounter = 0;
+      hideFigmaDropOverlay();
       const files = e.dataTransfer?.files;
       if (!files || files.length === 0) return;
       for (const file of Array.from(files)) {
+        // Handle JSON files as Figma JSON import
+        if (file.type === "application/json" || file.name.endsWith(".json")) {
+          const reader = new FileReader();
+          reader.onload = () => {
+            try {
+              const stats = importFigmaJSON(this.engine, reader.result as string);
+              console.log(`Figma JSON import: ${stats.converted} nodes, ${stats.skipped} skipped`);
+              if (stats.errors.length > 0) {
+                console.warn("Import warnings:", stats.errors.slice(0, 10));
+              }
+              this.render();
+              this.emit('selectionChanged');
+              this.onLayersChanges.forEach(fn => fn());
+            } catch (err) {
+              console.error("Figma JSON import failed:", err);
+            }
+          };
+          reader.readAsText(file);
+          continue;
+        }
         // Handle SVG files as import (not as image)
         if (file.type === "image/svg+xml" || file.name.endsWith(".svg")) {
           const reader = new FileReader();

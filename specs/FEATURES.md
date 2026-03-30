@@ -1752,3 +1752,16 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Screen-space consistent stroke width (zoom-independent)
 - [x] Toolbar button + 'A' keyboard shortcut
 - [x] annotation-brush.ts standalone module
+
+### Figma JSON Import
+- [x] Import Figma REST API JSON response (GET /v1/files/:key)
+- [x] Drag & drop .json files onto canvas for import
+- [x] API-based import: enter Figma file URL + personal access token
+- [x] Node type mapping: FRAME→Frame, RECTANGLE→Rect, ELLIPSE→Ellipse, TEXT→Text, GROUP→Frame, VECTOR→Path, SECTION→Section, SLICE→Slice, STAR→Star, POLYGON→Polygon
+- [x] Property mapping: fills (solid/gradient), strokes, effects (shadow/blur), corner radius, opacity, blend mode, constraints, auto-layout
+- [x] Text style mapping: font family, weight, style, alignment, line height
+- [x] SVG path geometry import for VECTOR nodes
+- [x] Prototype interaction import (triggers + navigate actions)
+- [x] Drag overlay UI with visual feedback
+- [x] Import modal with URL/token input and progress display
+- [x] Undo support (push_undo before import)

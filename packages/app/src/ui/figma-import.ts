@@ -264,11 +264,6 @@ function applyCommonProps(engine: Engine, nodeId: number, figmaNode: FigmaNode) 
     }
   }
 
-  // Rotation
-  if (figmaNode.rotation && figmaNode.rotation !== 0) {
-    engine.set_rotation(BigInt(nodeId), figmaNode.rotation * Math.PI / 180);
-  }
-
   // Fills, strokes, effects
   applyFills(engine, nodeId, figmaNode.fills);
   applyStrokes(engine, nodeId, figmaNode.strokes, figmaNode.strokeWeight, figmaNode.strokeAlign);
@@ -818,4 +813,64 @@ export function openFigmaImportModal(engine: Engine, onDone?: () => void) {
 
 export function isFigmaImportOpen(): boolean {
   return modalEl !== null;
+}
+
+// ── JSON file / drag-and-drop import ─────────────────────────────
+
+/**
+ * Import a Figma REST API JSON response (GET /v1/files/:key) directly.
+ * Accepts the parsed JSON object or a raw JSON string.
+ */
+export function importFigmaJSON(
+  engine: Engine,
+  jsonData: string | FigmaFileResponse,
+): ImportStats {
+  const data: FigmaFileResponse = typeof jsonData === "string" ? JSON.parse(jsonData) : jsonData;
+
+  if (!data.document) {
+    throw new Error("Invalid Figma JSON: missing 'document' field");
+  }
+
+  const stats: ImportStats = { total: 0, converted: 0, skipped: 0, errors: [] };
+  engine.push_undo();
+  const idMap = new Map<string, number>();
+  convertNode(engine, data.document, null, 0, 0, stats, idMap);
+  return stats;
+}
+
+/**
+ * Check if a dropped file looks like a Figma JSON export.
+ */
+export function isFigmaJSON(filename: string): boolean {
+  return filename.endsWith(".json");
+}
+
+/**
+ * Show a drag-and-drop overlay for Figma JSON import.
+ */
+let dropOverlay: HTMLElement | null = null;
+
+export function showFigmaDropOverlay() {
+  if (dropOverlay) return;
+  const el = document.createElement("div");
+  el.id = "figma-drop-overlay";
+  el.style.cssText = `
+    position:fixed;inset:0;z-index:9999;
+    background:rgba(74,144,217,0.15);
+    border:3px dashed #4a90d9;
+    display:flex;align-items:center;justify-content:center;
+    pointer-events:none;
+  `;
+  el.innerHTML = `<div style="background:#2c2c2c;padding:24px 40px;border-radius:16px;color:#eee;font-size:18px;font-weight:600;box-shadow:0 8px 32px rgba(0,0,0,0.4);">
+    Drop Figma JSON to import
+  </div>`;
+  document.body.appendChild(el);
+  dropOverlay = el;
+}
+
+export function hideFigmaDropOverlay() {
+  if (dropOverlay) {
+    dropOverlay.remove();
+    dropOverlay = null;
+  }
 }
