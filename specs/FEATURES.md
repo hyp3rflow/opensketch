@@ -1170,6 +1170,8 @@ Frame overflow control and content scrolling.
 - [x] **OpenType Properties panel**: checkbox toggles for all 4 features
 - [x] **OpenType SVG export**: font-feature-settings + font-variant-caps style attributes
 - [x] **OpenType Handoff**: CSS codegen for font-feature-settings in CSS & spec rows
+- [x] **OpenType Canvas rendering**: ctx.fontFeatureSettings + fontVariantCaps applied during text draw & caret measurement
+- [x] **OpenType Inspect panel**: font-feature-settings + font-variant-caps CSS output
 
 ## Variable Font Axes
 - [x] **font_variation_settings**: BTreeMap<String, f64> on Text node (serde default, backward-compatible)
