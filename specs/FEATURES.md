@@ -1820,3 +1820,15 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Zoom controls area: grid toggle button + size selector (4/8/16/32/custom)
 - [x] Coexistence with smart guides (when both enabled, axis-wise closer snap wins)
 - [x] Pure TypeScript implementation (tools/grid-snap.ts)
+
+### Multi-window / Detachable Panels
+- [x] BroadcastChannel API for real-time state sync between main and detached panel windows
+- [x] Panels (Layers, Properties, Agent, Comments, Variables, Assets, Bookmarks) can be popped out to separate browser windows
+- [x] Pop-out button on panel headers (external link icon)
+- [x] window.open() with panel-specific sizing, copies main stylesheets
+- [x] Detached window: header with title + reattach button
+- [x] Panel content rendered via dynamic import of existing setup functions (same editor instance)
+- [x] Main window: panel hidden when detached, restored on reattach
+- [x] Selection/layers changes broadcast via BroadcastChannel for cross-window sync
+- [x] Auto-detect closed detached windows (500ms polling) → auto-reattach
+- [x] Pure TypeScript implementation (ui/panel-detach.ts)

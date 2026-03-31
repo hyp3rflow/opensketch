@@ -2,6 +2,7 @@ import type { Editor } from "../editor";
 import { icons } from "./icons";
 import { showContextMenu } from "./context-menu";
 import { showBatchRenameDialog } from "./batch-rename";
+import { addPopOutButton } from "./panel-detach";
 
 const kindIcons: Record<string, string> = {
   Rect: icons.rect,
@@ -52,6 +53,9 @@ export function setupLayersPanel(container: HTMLElement, editor: Editor) {
   searchToggle.addEventListener("mouseenter", () => { searchToggle.style.opacity = "1"; });
   searchToggle.addEventListener("mouseleave", () => { if (!searchActive) searchToggle.style.opacity = "0.5"; });
   header.appendChild(searchToggle);
+
+  // Pop-out button
+  addPopOutButton(header, "layers", editor);
 
   container.appendChild(header);
 

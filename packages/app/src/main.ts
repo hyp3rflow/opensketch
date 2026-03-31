@@ -39,6 +39,7 @@ import { setupContextualToolbar } from "./ui/contextual-toolbar";
 import { setupTemplatePanel } from "./ui/template-panel";
 import { setupDependencyGraphPanel } from "./ui/dependency-graph-panel";
 import { setupArtboardPresetsPanel } from "./ui/artboard-presets";
+import { setupPanelSync, addPopOutButton } from "./ui/panel-detach";
 
 async function main() {
   const wasm = await loadEngine();
@@ -121,6 +122,57 @@ async function main() {
 
   // Right panel = properties
   setupPropertiesPanel(document.getElementById("properties-panel")!, editor);
+
+  // Multi-window panel sync
+  setupPanelSync(editor);
+
+  // Add pop-out buttons to right-pane tab headers
+  {
+    const rightPaneTabs = document.getElementById("right-pane-tabs");
+    if (rightPaneTabs) {
+      const popOutBar = document.createElement("div");
+      popOutBar.style.cssText = "display:flex;align-items:center;gap:2px;margin-left:auto;padding-right:4px;";
+
+      const detachableTabs: Array<{ id: "layers"|"properties"|"agent"|"comments"|"variables"|"assets"|"bookmarks"; label: string }> = [
+        { id: "properties", label: "Properties" },
+        { id: "agent", label: "Agent" },
+        { id: "comments", label: "Comments" },
+        { id: "variables", label: "Variables" },
+        { id: "assets", label: "Assets" },
+        { id: "bookmarks", label: "Bookmarks" },
+      ];
+
+      for (const { id, label } of detachableTabs) {
+        const btn = document.createElement("button");
+        btn.title = `Pop out ${label} to separate window`;
+        btn.dataset.detachTarget = id;
+        btn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/><path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></svg>`;
+        btn.style.cssText = "background:none;border:none;cursor:pointer;padding:2px;border-radius:3px;opacity:0;display:none;align-items:center;color:currentColor;transition:opacity 0.15s;";
+        btn.addEventListener("mouseenter", () => { btn.style.opacity = "0.8"; });
+        btn.addEventListener("mouseleave", () => { btn.style.opacity = "0.3"; });
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          import("./ui/panel-detach").then(({ detachPanel }) => detachPanel(id, editor));
+        });
+        popOutBar.appendChild(btn);
+      }
+      rightPaneTabs.appendChild(popOutBar);
+
+      // Show only the pop-out button for the active tab
+      function updatePopOutButtons() {
+        const activeTab = document.querySelector(".right-pane-tab.active") as HTMLElement | null;
+        const activeId = activeTab?.dataset.tab;
+        popOutBar.querySelectorAll("button").forEach((b) => {
+          const show = (b as HTMLElement).dataset.detachTarget === activeId;
+          (b as HTMLElement).style.display = show ? "flex" : "none";
+          if (show) (b as HTMLElement).style.opacity = "0.3";
+        });
+      }
+      updatePopOutButtons();
+      // Observe tab clicks
+      rightPaneTabs.addEventListener("click", () => setTimeout(updatePopOutButtons, 10));
+    }
+  }
 
   // Zoom controls (bottom-left, next to layers panel)
   setupZoomControls(document.getElementById("workspace")!, editor);

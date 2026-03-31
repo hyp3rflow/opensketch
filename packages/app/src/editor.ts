@@ -4505,7 +4505,10 @@ export class Editor {
     this.needsRender = true;
   }
   onSelection(fn: (ids: number[]) => void) { this.onSelectionChanges.push(fn); }
+  onSelectionChange(fn: (ids: number[]) => void) { this.onSelectionChanges.push(fn); }
   onLayers(fn: () => void) { this.onLayersChanges.push(fn); }
+  onLayersChange(fn: () => void) { this.onLayersChanges.push(fn); }
+  getSelection(): number[] { return Array.from(this.engine.get_selection()).map(Number); }
   requestRender() { this.needsRender = true; }
 
   get layoutGridsVisible() { return this._layoutGridsVisible; }
