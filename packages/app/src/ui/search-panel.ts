@@ -156,6 +156,7 @@ function doReplaceOne() {
   if (!query) return;
   const engine = (editorRef as any).engine;
   const nodeId = resultIds[currentIndex]!;
+  engine.push_undo();
   engine.replace_in_nodes(query, replacement, JSON.stringify([nodeId]), caseSensitive);
   editorRef.requestRender();
   (editorRef as any).onLayersChanges?.forEach((fn: () => void) => fn());
@@ -168,6 +169,7 @@ function doReplaceAll() {
   const replacement = (panel.querySelector('#sp-replace') as HTMLInputElement).value;
   if (!query) return;
   const engine = (editorRef as any).engine;
+  engine.push_undo();
   const count = engine.replace_in_nodes(query, replacement, JSON.stringify(resultIds), caseSensitive);
   editorRef.requestRender();
   (editorRef as any).onLayersChanges?.forEach((fn: () => void) => fn());
