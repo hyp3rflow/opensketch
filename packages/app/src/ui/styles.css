@@ -207,6 +207,9 @@ select.prop-input { appearance: none; background: #333 url("data:image/svg+xml,%
 .shortcuts-keys kbd { display: inline-block; padding: 2px 6px; background: #383838; border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; font-size: 11px; font-family: inherit; color: #ccc; min-width: 20px; text-align: center; }
 .shortcuts-sep { font-size: 11px; color: #666; }
 .shortcuts-empty { text-align: center; color: #666; font-size: 13px; padding: 32px 0; }
+.shortcuts-preset-select { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1); color: #aaa; font-size: 11px; padding: 3px 6px; border-radius: 4px; cursor: pointer; outline: none; }
+.shortcuts-preset-select:hover { background: rgba(255,255,255,0.14); color: #ddd; }
+.shortcuts-preset-select option { background: #2a2a2a; color: #ddd; }
 .shortcuts-btn { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1); color: #aaa; font-size: 11px; padding: 3px 8px; border-radius: 4px; cursor: pointer; }
 .shortcuts-btn:hover { background: rgba(255,255,255,0.14); color: #ddd; }
 .shortcuts-edit-btn { background: none; border: none; color: #666; font-size: 13px; cursor: pointer; padding: 2px 4px; border-radius: 3px; opacity: 0; transition: opacity 0.15s; }

@@ -7,7 +7,9 @@ import {
   getShortcutManager,
   bindingToDisplayKeys,
   eventToBinding,
+  PRESETS,
   type KeyBinding,
+  type PresetName,
 } from "./shortcut-manager";
 
 let overlayEl: HTMLElement | null = null;
@@ -52,9 +54,16 @@ function openShortcutsPanel() {
   // Header
   const header = document.createElement("div");
   header.className = "shortcuts-header";
+  const currentPreset = mgr.detectPreset();
   header.innerHTML = `
     <span class="shortcuts-title">Keyboard Shortcuts</span>
     <div style="display:flex;gap:6px;align-items:center">
+      <select class="shortcuts-preset-select" title="Preset profile">
+        ${Object.entries(PRESETS).map(([k, p]) =>
+          `<option value="${k}" ${k === currentPreset ? 'selected' : ''}>${p.label}</option>`
+        ).join("")}
+        <option value="custom" ${currentPreset === null ? 'selected' : ''}>Custom</option>
+      </select>
       <button class="shortcuts-btn shortcuts-reset-all" title="Reset all to defaults">Reset All</button>
       <button class="shortcuts-btn shortcuts-export" title="Export custom bindings">Export</button>
       <button class="shortcuts-btn shortcuts-import" title="Import custom bindings">Import</button>
@@ -62,6 +71,17 @@ function openShortcutsPanel() {
     </div>
   `;
   header.querySelector(".shortcuts-close")!.addEventListener("click", closeShortcutsPanel);
+  header.querySelector(".shortcuts-preset-select")!.addEventListener("change", (e) => {
+    const val = (e.target as HTMLSelectElement).value;
+    if (val === "custom") return;
+    if (confirm(`Apply "${PRESETS[val as PresetName].label}" preset? This will replace all custom bindings.`)) {
+      mgr.applyPreset(val as PresetName);
+      renderCategories(searchInput.value);
+    } else {
+      // Revert select
+      (e.target as HTMLSelectElement).value = mgr.detectPreset() ?? "custom";
+    }
+  });
   header.querySelector(".shortcuts-reset-all")!.addEventListener("click", () => {
     if (confirm("Reset all shortcuts to defaults?")) {
       mgr.resetAll();

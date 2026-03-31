@@ -1689,6 +1689,9 @@ pub struct Node {
     /// Custom anchor points (in addition to the default Top/Right/Bottom/Left)
     #[serde(default)]
     pub anchors: Vec<crate::anchor::AnchorPoint>,
+    /// Hyperlink: external URL or internal page link (e.g. "https://..." or "page:PAGE_ID")
+    #[serde(default)]
+    pub hyperlink: Option<String>,
 }
 
 /// Per-frame background pattern configuration
@@ -1799,6 +1802,7 @@ impl Node {
             resource_links: vec![],
             alt_text: None,
             anchors: vec![],
+            hyperlink: None,
         }
     }
 

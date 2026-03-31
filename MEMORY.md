@@ -1648,3 +1648,16 @@
 - UI: A11y 패널 타이틀 "Accessibility (A11y)"로 변경
 - UI: alt-text 이슈에 인라인 텍스트 입력 + "Set" 버튼 추가
 - Cmd+Shift+A 단축키로 A11y 패널 탭 열기
+
+## 완료된 기능 (추가 — Keyboard Shortcut Customization)
+- ShortcutManager 클래스 (shortcut-manager.ts): 커스텀 키 바인딩, 충돌 감지, localStorage 저장
+- 프리셋 프로필: Figma (기본), Sketch, Adobe XD — 드롭다운 선택
+- applyPreset() / detectPreset(): 프리셋 적용 및 현재 프리셋 자동 감지
+- shortcuts-panel.ts: 모달 UI (Cmd+/ or ?)
+  - 카테고리별 그룹 (Tools, Edit, View, Panels, Boolean, Misc)
+  - 클릭 ✎ → 키 녹음 모드, 충돌 시 경고 + override 옵션
+  - 프리셋 드롭다운, Reset All, Reset 개별 (↺)
+  - Export/Import JSON 버튼
+  - 검색 필터
+- editor.ts keydown: ShortcutManager.matches() 기반 (기존 동작 유지)
+- localStorage "opensketch-custom-shortcuts" 저장, 없으면 기본값

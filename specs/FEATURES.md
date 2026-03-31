@@ -45,12 +45,19 @@
   - localStorage persistence
   - System name editing
 
-### Keyboard Shortcuts Panel
+### Keyboard Shortcuts Panel & Customization
 - [x] Modal overlay toggled by Cmd+/ or ? key
 - [x] All shortcuts organized by category (Tools, Edit, View, Boolean & Transform, Selection)
 - [x] Real-time search/filter
 - [x] ESC to close, backdrop click to close
 - [x] Figma-style dark UI with kbd tags
+- [x] **Custom key bindings**: Click ✎ on any shortcut → press new key combo to rebind
+- [x] **Conflict detection**: Warns when binding already used, option to override & clear other
+- [x] **Preset profiles**: Figma (default), Sketch, Adobe XD — dropdown selector
+- [x] **JSON import/export**: Export custom bindings to file, import from file
+- [x] **localStorage persistence**: Custom bindings saved to "opensketch-custom-shortcuts"
+- [x] **Reset**: Per-shortcut reset (↺) and Reset All button
+- [x] **ShortcutManager**: Singleton class with matches(), setBinding(), findConflict(), applyPreset()
 
 ### Toolbar
 - [x] Bottom-center floating Figma-style

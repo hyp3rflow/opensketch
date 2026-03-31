@@ -99,6 +99,71 @@ const DEFAULTS: ShortcutDef[] = [
   { id: "misc.fileDiff",    category: "Misc", description: "File diff & merge", defaultBinding: { key: "d", meta: true, shift: true } },
 ];
 
+// ── Preset profiles ──────────────────────────────────────────────────
+export type PresetName = "figma" | "sketch" | "adobe";
+
+export interface PresetProfile {
+  name: string;
+  label: string;
+  overrides: Record<string, KeyBinding>;
+}
+
+export const PRESETS: Record<PresetName, PresetProfile> = {
+  figma: {
+    name: "figma",
+    label: "Figma (Default)",
+    overrides: {},  // Figma is our default mapping
+  },
+  sketch: {
+    name: "sketch",
+    label: "Sketch",
+    overrides: {
+      "tool.select":    { key: "v" },
+      "tool.hand":      { key: "h" },
+      "tool.rect":      { key: "r" },
+      "tool.ellipse":   { key: "o" },
+      "tool.text":      { key: "t" },
+      "tool.frame":     { key: "a" },           // Sketch uses A for artboard
+      "tool.pen":       { key: "v" },            // Sketch: V for vector
+      "tool.image":     { key: "i" },
+      "tool.slice":     { key: "s" },            // Sketch: S for slice
+      "tool.star":      { key: "s", shift: true },
+      "tool.polygon":   { key: "g" },
+      "edit.flatten":   { key: "f", meta: true, shift: true },  // Sketch: Cmd+Shift+F
+      "view.zoomFit":   { key: "1", meta: true },
+      "view.zoom100":   { key: "0", meta: true },
+      "edit.duplicate":  { key: "d", meta: true },
+      "bool.union":     { key: "u", meta: true, shift: true },
+      "bool.subtract":  { key: "s", meta: true, shift: true },
+      "bool.intersect": { key: "i", meta: true, shift: true },
+      "bool.exclude":   { key: "x", meta: true, shift: true },
+    },
+  },
+  adobe: {
+    name: "adobe",
+    label: "Adobe XD",
+    overrides: {
+      "tool.select":    { key: "v" },
+      "tool.hand":      { key: " " },            // Adobe: Space (hold)
+      "tool.rect":      { key: "r" },
+      "tool.ellipse":   { key: "e" },            // Adobe: E for ellipse
+      "tool.text":      { key: "t" },
+      "tool.frame":     { key: "a" },            // Adobe: A for artboard
+      "tool.pen":       { key: "p" },
+      "tool.image":     { key: "i" },
+      "tool.connector": { key: "l" },
+      "edit.flatten":   { key: "8", meta: true, alt: true },  // Adobe: Cmd+Alt+8
+      "edit.duplicate":  { key: "d", meta: true },
+      "view.zoomFit":   { key: "1", meta: true },
+      "view.zoom100":   { key: "0", meta: true },
+      "bool.union":     { key: "u", meta: true, shift: true },
+      "bool.subtract":  { key: "s", meta: true, alt: true },
+      "bool.intersect": { key: "i", meta: true, alt: true },
+      "bool.exclude":   { key: "x", meta: true, alt: true },
+    },
+  },
+};
+
 function bindingKey(b: KeyBinding): string {
   const parts: string[] = [];
   if (b.meta) parts.push("meta");
@@ -231,6 +296,44 @@ export class ShortcutManager {
     this.saveOverrides();
     this.rebuildIndex();
     return count;
+  }
+
+  /** Apply a preset profile (replaces all overrides) */
+  applyPreset(preset: PresetName) {
+    this.overrides.clear();
+    const profile = PRESETS[preset];
+    if (profile) {
+      for (const [id, binding] of Object.entries(profile.overrides)) {
+        if (this.defs.has(id)) {
+          this.overrides.set(id, binding);
+        }
+      }
+    }
+    this.saveOverrides();
+    this.rebuildIndex();
+  }
+
+  /** Detect which preset (if any) matches current bindings */
+  detectPreset(): PresetName | null {
+    // Check if current overrides exactly match a preset
+    for (const [name, profile] of Object.entries(PRESETS) as [PresetName, PresetProfile][]) {
+      const presetOverrides = profile.overrides;
+      const presetKeys = Object.keys(presetOverrides);
+      if (this.overrides.size === presetKeys.length) {
+        let match = true;
+        for (const [id, binding] of Object.entries(presetOverrides)) {
+          const current = this.overrides.get(id);
+          if (!current || bindingKey(current) !== bindingKey(binding)) {
+            match = false;
+            break;
+          }
+        }
+        if (match) return name;
+      }
+    }
+    // No overrides = figma default
+    if (this.overrides.size === 0) return "figma";
+    return null;
   }
 
   /** Find conflicts for a proposed binding */
