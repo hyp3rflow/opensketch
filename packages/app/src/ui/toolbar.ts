@@ -4,6 +4,7 @@ import { openFigmaImportModal } from "./figma-import";
 import { toggleRecorderBar } from "./canvas-recorder";
 import { openBatchExport } from "./batch-export";
 import { toggleDesignTokenExport } from "./design-token-export";
+import { openLottieExportDialog } from "./lottie-export";
 import { openCodeToDesignModal } from "./code-to-design";
 import { openDesignPolish } from "./design-polish";
 import { openDesignHealth } from "./design-health";
@@ -300,6 +301,14 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
   batchExportBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/><line x1="8" y1="21" x2="8" y2="21"/><line x1="12" y1="21" x2="12" y2="21"/><line x1="16" y1="21" x2="16" y2="21"/></svg>`;
   batchExportBtn.addEventListener("click", () => openBatchExport(editor));
   container.appendChild(batchExportBtn);
+
+  // Lottie Export button
+  const lottieBtn = document.createElement("button");
+  lottieBtn.className = "tool-btn";
+  lottieBtn.title = "Export Lottie Animation";
+  lottieBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8" fill="currentColor" stroke="none"/></svg>`;
+  lottieBtn.addEventListener("click", () => openLottieExportDialog(editor));
+  container.appendChild(lottieBtn);
 
   // Design Token Export button
   const tokenBtn = document.createElement("button");

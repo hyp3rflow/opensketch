@@ -715,6 +715,40 @@ Multi-node/page bulk export with ZIP download.
 ### Files
 - `packages/app/src/ui/batch-export.ts`
 
+## Lottie Animation Export
+
+Export nodes/frames as Lottie JSON (bodymovin v5.7+).
+
+### Engine (Rust)
+- [x] `lottie_export.rs`: Node → Lottie layer conversion
+- [x] Shape layers: Rect, Ellipse, Star, Polygon, Path (bezier)
+- [x] Group/Frame → precomp layers with recursive children
+- [x] Text → text layer (font, size, color)
+- [x] Fill: Solid → fl, Linear/Radial gradient → gf
+- [x] Stroke: color, width, dash, linecap, linejoin
+- [x] Transform: position, scale, rotation, opacity (animated or static)
+- [x] Easing: Linear, EaseIn, EaseOut, EaseInOut, CubicBezier
+- [x] Blend mode mapping (16 modes)
+- [x] LottieExportConfig: fps, duration_secs, looping
+
+### WASM Bindings
+- [x] `export_lottie(clip_id)` — clip-based export
+- [x] `export_all_lottie()` — all clips
+- [x] `export_node_lottie(node_id, config_json)` — single node + children
+- [x] `export_selection_lottie(config_json)` — current selection
+
+### UI
+- [x] Export dialog: FPS selector (24/30/60), duration, loop toggle
+- [x] Animation track info display
+- [x] JSON preview with size indicator
+- [x] Download .json button, clipboard copy
+- [x] Toolbar button (play icon)
+- [x] Animation timeline integration (📦 button)
+
+### Files
+- `crates/engine/src/lottie_export.rs`
+- `packages/app/src/ui/lottie-export.ts`
+
 ## Cursor Presence Indicators
 
 Simulated multi-user cursor display for collaboration readiness.

@@ -7889,6 +7889,22 @@ impl Engine {
         lottie_export::export_all_lottie(&self.scene)
     }
 
+    /// Export a single node (and children) as Lottie JSON
+    /// config_json: { "fps": 30, "duration_secs": 2.0, "looping": false }
+    #[wasm_bindgen]
+    pub fn export_node_lottie(&self, node_id: u64, config_json: &str) -> String {
+        let config: lottie_export::LottieExportConfig = serde_json::from_str(config_json).unwrap_or_default();
+        lottie_export::export_node_lottie(&self.scene, node_id, &config).unwrap_or_else(|| "null".to_string())
+    }
+
+    /// Export current selection as Lottie JSON
+    #[wasm_bindgen]
+    pub fn export_selection_lottie(&self, config_json: &str) -> String {
+        let config: lottie_export::LottieExportConfig = serde_json::from_str(config_json).unwrap_or_default();
+        let sel: Vec<u64> = self.scene.selection.clone();
+        lottie_export::export_selection_lottie(&self.scene, &sel, &config).unwrap_or_else(|| "null".to_string())
+    }
+
     /// Record current property values as keyframes for selected nodes
     #[wasm_bindgen]
     /// Extract all unique colors used in the scene

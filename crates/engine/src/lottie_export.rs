@@ -3,6 +3,113 @@ use crate::animation::{AnimationClip, AnimProperty, Easing, AnimationTrack};
 use crate::node::{Node, NodeId, NodeKind, Fill, FillType, PathPoint};
 use crate::scene::Scene;
 
+/// Configuration for Lottie export
+#[derive(serde::Deserialize)]
+pub struct LottieExportConfig {
+    pub fps: f64,
+    pub duration_secs: f64,
+    pub looping: bool,
+}
+
+impl Default for LottieExportConfig {
+    fn default() -> Self {
+        Self { fps: 30.0, duration_secs: 2.0, looping: false }
+    }
+}
+
+/// Export a single node (and its children) as a static Lottie JSON.
+/// If the node has animation tracks in any clip, those are included.
+pub fn export_node_lottie(scene: &Scene, node_id: NodeId, config: &LottieExportConfig) -> Option<String> {
+    let node = scene.get_node(node_id)?;
+    let fps = config.fps;
+    let total_frames = ((config.duration_secs) * fps).ceil().max(1.0) as u32;
+
+    // Find any clip that has tracks for this node or its descendants
+    let subtree_ids = scene.collect_subtree_ids(node_id);
+    let clip = scene.animations.clips.iter().find(|c| {
+        c.tracks.iter().any(|t| subtree_ids.contains(&t.node_id))
+    });
+
+    let empty_clip = AnimationClip {
+        id: 0, name: String::new(), tracks: vec![], looping: config.looping, duration_ms: (config.duration_secs * 1000.0) as u32,
+    };
+    let clip_ref = clip.unwrap_or(&empty_clip);
+
+    let mut layers: Vec<Value> = Vec::new();
+    let layer = node_to_lottie_layer(scene, node, clip_ref, 0, fps, total_frames);
+    layers.push(layer);
+
+    let lottie = json!({
+        "v": "5.7.4",
+        "fr": fps,
+        "ip": 0,
+        "op": total_frames,
+        "w": node.width as u32,
+        "h": node.height as u32,
+        "nm": node.name,
+        "ddd": 0,
+        "assets": [],
+        "layers": layers
+    });
+
+    Some(serde_json::to_string_pretty(&lottie).unwrap_or_default())
+}
+
+/// Export selected nodes as Lottie JSON
+pub fn export_selection_lottie(scene: &Scene, selection: &[NodeId], config: &LottieExportConfig) -> Option<String> {
+    if selection.is_empty() { return None; }
+    if selection.len() == 1 {
+        return export_node_lottie(scene, selection[0], config);
+    }
+
+    let fps = config.fps;
+    let total_frames = ((config.duration_secs) * fps).ceil().max(1.0) as u32;
+
+    // Find clip with relevant tracks
+    let all_ids: Vec<NodeId> = selection.iter().flat_map(|&id| scene.collect_subtree_ids(id)).collect();
+    let clip = scene.animations.clips.iter().find(|c| {
+        c.tracks.iter().any(|t| all_ids.contains(&t.node_id))
+    });
+    let empty_clip = AnimationClip {
+        id: 0, name: String::new(), tracks: vec![], looping: config.looping, duration_ms: (config.duration_secs * 1000.0) as u32,
+    };
+    let clip_ref = clip.unwrap_or(&empty_clip);
+
+    let mut layers: Vec<Value> = Vec::new();
+    for (i, &nid) in selection.iter().rev().enumerate() {
+        if let Some(node) = scene.get_node(nid) {
+            layers.push(node_to_lottie_layer(scene, node, clip_ref, i as u32, fps, total_frames));
+        }
+    }
+
+    // Compute bounding box
+    let mut min_x = f64::MAX; let mut min_y = f64::MAX;
+    let mut max_x = f64::MIN; let mut max_y = f64::MIN;
+    for &nid in selection {
+        if let Some(n) = scene.get_node(nid) {
+            min_x = min_x.min(n.x); min_y = min_y.min(n.y);
+            max_x = max_x.max(n.x + n.width); max_y = max_y.max(n.y + n.height);
+        }
+    }
+    let w = ((max_x - min_x).max(1.0)) as u32;
+    let h = ((max_y - min_y).max(1.0)) as u32;
+
+    let lottie = json!({
+        "v": "5.7.4",
+        "fr": fps,
+        "ip": 0,
+        "op": total_frames,
+        "w": w,
+        "h": h,
+        "nm": "Selection Export",
+        "ddd": 0,
+        "assets": [],
+        "layers": layers
+    });
+
+    Some(serde_json::to_string_pretty(&lottie).unwrap_or_default())
+}
+
 /// Export an animation clip to Lottie JSON (bodymovin format v5.7+)
 pub fn export_lottie(scene: &Scene, clip_id: u64) -> Option<String> {
     let clip = scene.animations.get_clip(clip_id)?;
