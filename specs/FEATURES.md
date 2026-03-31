@@ -1886,3 +1886,15 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Cmd/Ctrl+Alt+V toggle shortcut
 - [x] Zero performance overhead (GPU-accelerated SVG filter)
 - [x] Pure TypeScript implementation (packages/app/src/ui/color-blindness.ts)
+
+### File System Access API
+- [x] Native file save/open (.opensketch JSON format)
+- [x] showOpenFilePicker / showSaveFilePicker with fallback (download/input[type=file])
+- [x] Recent files list (localStorage, max 10)
+- [x] Cmd+S: Save (existing handle → overwrite, no handle → Save As)
+- [x] Cmd+O: Open file
+- [x] Cmd+Shift+S: Save As (always prompt)
+- [x] File menu button (top-left, dropdown: New/Open/Save/Save As/Recent Files)
+- [x] Document title updates with filename
+- [x] Full scene serialization via engine.export_scene()/import_scene()
+- [x] Implementation: packages/app/src/ui/file-manager.ts

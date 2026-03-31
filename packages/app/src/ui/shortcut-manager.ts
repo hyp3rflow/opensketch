@@ -52,6 +52,8 @@ const DEFAULTS: ShortcutDef[] = [
   { id: "edit.paste",      category: "Edit", description: "Paste",         defaultBinding: { key: "v", meta: true } },
   { id: "edit.duplicate",  category: "Edit", description: "Duplicate",     defaultBinding: { key: "d", meta: true } },
   { id: "edit.save",       category: "Edit", description: "Save",          defaultBinding: { key: "s", meta: true } },
+  { id: "edit.saveAs",     category: "Edit", description: "Save As…",      defaultBinding: { key: "s", meta: true, shift: true } },
+  { id: "edit.open",       category: "Edit", description: "Open File…",    defaultBinding: { key: "o", meta: true } },
   { id: "edit.delete",     category: "Edit", description: "Delete",        defaultBinding: { key: "Delete" } },
   { id: "edit.backspace",  category: "Edit", description: "Delete (Backspace)", defaultBinding: { key: "Backspace" } },
   { id: "edit.selectAll",  category: "Edit", description: "Select all",    defaultBinding: { key: "a", meta: true } },

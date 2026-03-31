@@ -12,6 +12,7 @@ import { setupMinimap } from "./ui/minimap";
 import { setupRulers } from "./ui/rulers";
 import { setupPageTabs } from "./ui/page-tabs";
 import { AutoSave, setupHistoryPanel } from "./autosave";
+import { FileManager, setupFileMenu } from "./ui/file-manager";
 import { setupSyncStatus } from "./ui/sync-status";
 import { setupHandoffPanel } from "./ui/handoff-panel";
 import { setupColorPalettePanel } from "./ui/color-palette-panel";
@@ -55,6 +56,26 @@ async function main() {
   const hadSavedSession = await autoSave.restore();
   autoSave.start();
   editor.onSave(() => autoSave.save("manual"));
+
+  // File System Access API (native file save/open)
+  const fileManager = new FileManager(editor);
+  setupFileMenu(document.body, fileManager);
+
+  // Wire Cmd+S to file save (if file handle exists) + auto-save
+  editor.onSave(() => fileManager.save());
+
+  // Cmd+O: open file
+  document.addEventListener("keydown", (e) => {
+    if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key === "o") {
+      e.preventDefault();
+      fileManager.open();
+    }
+    // Cmd+Shift+S: save as
+    if ((e.metaKey || e.ctrlKey) && e.shiftKey && !e.altKey && (e.key === "s" || e.key === "S")) {
+      e.preventDefault();
+      fileManager.saveAs();
+    }
+  });
 
   // Save before unload
   window.addEventListener("beforeunload", () => autoSave.save("auto"));

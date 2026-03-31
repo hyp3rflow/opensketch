@@ -163,6 +163,8 @@ export class Editor {
   private _devHoverNodeId: number | null = null;
   private _devHoverTimer: ReturnType<typeof setTimeout> | null = null;
   private onSaveCallbacks: (() => void)[] = [];
+  private onSaveAsCallbacks: (() => void)[] = [];
+  private onOpenCallbacks: (() => void)[] = [];
   private _layoutGridsVisible = true;
 
   // Rulers & guides
@@ -448,7 +450,18 @@ export class Editor {
       // Save
       if (_sm.matches(e, "edit.save")) {
         e.preventDefault();
-        this.onSaveCallbacks.forEach(fn => fn());
+        // Cmd+Shift+S → Save As (always new file)
+        if (e.shiftKey) {
+          this.onSaveAsCallbacks.forEach(fn => fn());
+        } else {
+          this.onSaveCallbacks.forEach(fn => fn());
+        }
+        return;
+      }
+      // Open file: Cmd+O
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && (e.key === "o" || e.key === "O")) {
+        e.preventDefault();
+        this.onOpenCallbacks.forEach(fn => fn());
         return;
       }
       // Node search spotlight
@@ -5267,6 +5280,8 @@ export class Editor {
   }
   notifySelectionChanged(ids: number[]) { this.fireSelectionNow(ids); }
   onSave(fn: () => void) { this.onSaveCallbacks.push(fn); }
+  onSaveAs(fn: () => void) { this.onSaveAsCallbacks.push(fn); }
+  onOpen(fn: () => void) { this.onOpenCallbacks.push(fn); }
 
   /**
    * Export a specific node (or entire canvas) as PNG data URL.
