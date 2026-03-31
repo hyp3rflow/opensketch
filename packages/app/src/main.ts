@@ -1,3 +1,4 @@
+import { initI18n } from "./ui/i18n";
 import { loadEngine } from "./wasm";
 import { Editor } from "./editor";
 import { setupToolbar } from "./ui/toolbar";
@@ -44,6 +45,7 @@ import { setupArtboardPresetsPanel } from "./ui/artboard-presets";
 import { setupPanelSync, addPopOutButton } from "./ui/panel-detach";
 
 async function main() {
+  await initI18n();
   const wasm = await loadEngine();
   const canvas = document.getElementById("canvas") as HTMLCanvasElement;
   const rect = canvas.getBoundingClientRect();

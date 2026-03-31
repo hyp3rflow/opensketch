@@ -185,3 +185,14 @@ Available: select, hand, rect, ellipse, text, frame, eye, eyeOff, rotation, corn
 - Auto-detect closed windows (500ms polling) → auto-reattach (show panel + tab again)
 - `setupPanelSync()` hooks Editor selection/layers callbacks → broadcasts via BroadcastChannel
 - File: `packages/app/src/ui/panel-detach.ts`
+
+## I18n (Localization)
+- Multi-language support: English (en), Korean (ko), Japanese (ja)
+- Core file: `packages/app/src/ui/i18n.ts` — `t()` translation function, `getLocale()`, `setLocale()`, `onLocaleChange()` listener
+- Translation files: `packages/app/src/locales/{en,ko,ja}.json` — flat key-value pairs
+- Locale persisted in `localStorage` key `opensketch-locale`, defaults to `en`
+- Language picker: globe icon + `<select>` dropdown in toolbar (before mode toggle)
+- `onLocaleChange()` triggers UI refresh across panels (layers, properties, toolbar tooltips)
+- Translation keys organized by namespace: `tool.*`, `toolbar.*`, `layers.*`, `properties.*`, `agent.*`, `common.*`
+- Dynamic import for locale JSON files (Vite code-splits each locale into separate chunk)
+- `initI18n()` called in `main.ts` before UI setup to ensure translations are loaded

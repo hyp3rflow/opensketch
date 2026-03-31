@@ -11,28 +11,37 @@ import { setupVoiceControl } from "./voice-control";
 import { openFileDiffMerge } from "./file-diff-merge";
 import { togglePerfProfiler } from "./perf-profiler";
 import { toggleStampPalette, isStampModeActive, setActiveStampKind, closeStampPalette } from "./stamp-tool";
+import { t, onLocaleChange, createLanguagePicker } from "./i18n";
 
-const tools: { id: ToolType; icon: string; label: string }[] = [
-  { id: "select", icon: icons.select, label: "Select (V)" },
-  { id: "hand", icon: icons.hand, label: "Hand (H)" },
-  { id: "rect", icon: icons.rect, label: "Rectangle (R)" },
-  { id: "ellipse", icon: icons.ellipse, label: "Ellipse (O)" },
-  { id: "text", icon: icons.text, label: "Text (T)" },
-  { id: "frame", icon: icons.frame, label: "Frame (F)" },
-  { id: "section", icon: icons.section, label: "Section (⇧S)" },
-  { id: "image", icon: icons.image, label: "Image (I)" },
-  { id: "pen", icon: icons.penTool, label: "Pen (P)" },
-  { id: "star", icon: icons.star, label: "Star (S)" },
-  { id: "polygon", icon: icons.polygon, label: "Polygon (G)" },
-  { id: "slice", icon: icons.slice, label: "Slice (K)" },
-  { id: "connector", icon: icons.connector, label: "Connector (L)" },
-  { id: "measure", icon: icons.measureTool, label: "Measure (M)" },
-  { id: "callout", icon: icons.callout, label: "Callout (O)" },
-  { id: "sticky", icon: icons.stickyNote, label: "Sticky Note (N)" },
-  { id: "table", icon: icons.table, label: "Table (B)" },
-  { id: "freehand", icon: icons.freehand, label: "Freehand (D)" },
-  { id: "annotate", icon: icons.annotationBrush, label: "Annotation Brush (A)" },
-  { id: "measure", icon: icons.measure, label: "Measure (M)" },
+const toolI18nKeys: Record<string, string> = {
+  select: "tool.select", hand: "tool.hand", rect: "tool.rect", ellipse: "tool.ellipse",
+  text: "tool.text", frame: "tool.frame", section: "tool.section", image: "tool.image",
+  pen: "tool.pen", star: "tool.star", polygon: "tool.polygon", slice: "tool.slice",
+  connector: "tool.connector", measure: "tool.measure", callout: "tool.callout",
+  sticky: "tool.sticky", table: "tool.table", freehand: "tool.freehand", annotate: "tool.annotate",
+};
+
+const tools: { id: ToolType; icon: string; labelKey: string }[] = [
+  { id: "select", icon: icons.select, labelKey: "tool.select" },
+  { id: "hand", icon: icons.hand, labelKey: "tool.hand" },
+  { id: "rect", icon: icons.rect, labelKey: "tool.rect" },
+  { id: "ellipse", icon: icons.ellipse, labelKey: "tool.ellipse" },
+  { id: "text", icon: icons.text, labelKey: "tool.text" },
+  { id: "frame", icon: icons.frame, labelKey: "tool.frame" },
+  { id: "section", icon: icons.section, labelKey: "tool.section" },
+  { id: "image", icon: icons.image, labelKey: "tool.image" },
+  { id: "pen", icon: icons.penTool, labelKey: "tool.pen" },
+  { id: "star", icon: icons.star, labelKey: "tool.star" },
+  { id: "polygon", icon: icons.polygon, labelKey: "tool.polygon" },
+  { id: "slice", icon: icons.slice, labelKey: "tool.slice" },
+  { id: "connector", icon: icons.connector, labelKey: "tool.connector" },
+  { id: "measure", icon: icons.measureTool, labelKey: "tool.measure" },
+  { id: "callout", icon: icons.callout, labelKey: "tool.callout" },
+  { id: "sticky", icon: icons.stickyNote, labelKey: "tool.sticky" },
+  { id: "table", icon: icons.table, labelKey: "tool.table" },
+  { id: "freehand", icon: icons.freehand, labelKey: "tool.freehand" },
+  { id: "annotate", icon: icons.annotationBrush, labelKey: "tool.annotate" },
+  { id: "measure", icon: icons.measure, labelKey: "tool.measure" },
 ];
 
 export type AppMode = "edit" | "dev";
@@ -80,7 +89,7 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
     const btn = document.createElement("button");
     btn.className = "tool-btn";
     btn.setAttribute("data-tool", tool.id);
-    btn.title = tool.label;
+    btn.title = t(tool.labelKey);
     btn.innerHTML = tool.icon;
     if (tool.id === "select") btn.classList.add("active");
     btn.addEventListener("click", () => editor.setTool(tool.id));
@@ -95,7 +104,7 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
 
     const imgBtn = document.createElement("button");
     imgBtn.className = "tool-btn";
-    imgBtn.title = "Add Image";
+    imgBtn.title = t("toolbar.addImage");
     imgBtn.innerHTML = icons.image;
     imgBtn.addEventListener("click", () => addImageFromFile(editor));
     container.appendChild(imgBtn);
@@ -103,7 +112,7 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
     // SVG Import button
     const svgBtn = document.createElement("button");
     svgBtn.className = "tool-btn";
-    svgBtn.title = "Import SVG";
+    svgBtn.title = t("toolbar.importSvg");
     svgBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 12 15 15"/></svg>`;
     svgBtn.addEventListener("click", () => editor.importSVGFile());
     container.appendChild(svgBtn);
@@ -117,7 +126,7 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
 
     const dsBtn = document.createElement("button");
     dsBtn.className = "tool-btn";
-    dsBtn.title = "Design System (D)";
+    dsBtn.title = t("toolbar.designSystem");
     dsBtn.innerHTML = icons.palette;
     dsBtn.addEventListener("click", onDesignSystem);
     container.appendChild(dsBtn);
@@ -132,7 +141,7 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
     const wbBtn = document.createElement("button");
     wbBtn.className = "tool-btn";
     wbBtn.id = "whiteboard-mode-btn";
-    wbBtn.title = "Whiteboard Mode (⇧W)";
+    wbBtn.title = t("toolbar.whiteboard");
     wbBtn.innerHTML = icons.whiteboard;
     wbBtn.addEventListener("click", () => {
       (window as any).__toggleWhiteboard?.();
@@ -150,7 +159,7 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
     const stampBtn = document.createElement("button");
     stampBtn.className = "tool-btn";
     stampBtn.id = "stamp-tool-btn";
-    stampBtn.title = "Annotation Stamp (⇧T)";
+    stampBtn.title = t("toolbar.stamp");
     stampBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21h14"/><path d="M12 17V9"/><path d="M8 17h8"/><circle cx="12" cy="5" r="3"/></svg>`;
     stampBtn.addEventListener("click", (ev) => {
       const rect = stampBtn.getBoundingClientRect();
@@ -203,7 +212,7 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
   // Flatten button
   const flattenBtn = document.createElement("button");
   flattenBtn.className = "tool-btn bool-op-btn";
-  flattenBtn.title = "Flatten (⌘E)";
+  flattenBtn.title = t("toolbar.flatten");
   flattenBtn.innerHTML = icons.flatten;
   flattenBtn.disabled = true;
   flattenBtn.addEventListener("click", () => {
@@ -227,7 +236,7 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
 
   const darkModeBtn = document.createElement("button");
   darkModeBtn.className = "tool-btn";
-  darkModeBtn.title = "Auto Dark Mode (⌘⇧D)";
+  darkModeBtn.title = t("toolbar.darkMode");
   darkModeBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`;
   darkModeBtn.addEventListener("click", () => {
     const count = editor.autoDarkModeSelection();
@@ -240,7 +249,7 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
   // Chat history button
   const chatHistoryBtn = document.createElement("button");
   chatHistoryBtn.className = "tool-btn";
-  chatHistoryBtn.title = "Chat History";
+  chatHistoryBtn.title = t("toolbar.chatHistory");
   chatHistoryBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`;
   chatHistoryBtn.addEventListener("click", () => {
     editor.toggleChatHistory();
@@ -254,14 +263,14 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
 
   const svgBtn = document.createElement("button");
   svgBtn.className = "tool-btn";
-  svgBtn.title = "Export SVG";
+  svgBtn.title = t("toolbar.exportSvg");
   svgBtn.innerHTML = icons.download;
   svgBtn.addEventListener("click", () => editor.downloadSVG());
   container.appendChild(svgBtn);
 
   const pdfBtn = document.createElement("button");
   pdfBtn.className = "tool-btn";
-  pdfBtn.title = "Export PDF";
+  pdfBtn.title = t("toolbar.exportPdf");
   pdfBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><text x="7" y="18" font-size="7" font-weight="bold" fill="currentColor" stroke="none" font-family="sans-serif">PDF</text></svg>`;
   pdfBtn.addEventListener("click", () => editor.downloadPDF());
   container.appendChild(pdfBtn);
@@ -269,7 +278,7 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
   // Email HTML export button
   const emailBtn = document.createElement("button");
   emailBtn.className = "tool-btn";
-  emailBtn.title = "Export Email HTML";
+  emailBtn.title = t("toolbar.exportEmail");
   emailBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>`;
   emailBtn.addEventListener("click", () => {
     const html = editor.engine.export_email_html();
@@ -287,7 +296,7 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
   // Batch export button
   const batchExportBtn = document.createElement("button");
   batchExportBtn.className = "tool-btn";
-  batchExportBtn.title = "Batch Export (Cmd+Shift+E)";
+  batchExportBtn.title = t("toolbar.batchExport");
   batchExportBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/><line x1="8" y1="21" x2="8" y2="21"/><line x1="12" y1="21" x2="12" y2="21"/><line x1="16" y1="21" x2="16" y2="21"/></svg>`;
   batchExportBtn.addEventListener("click", () => openBatchExport(editor));
   container.appendChild(batchExportBtn);
@@ -295,7 +304,7 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
   // Design Token Export button
   const tokenBtn = document.createElement("button");
   tokenBtn.className = "tool-btn";
-  tokenBtn.title = "Export Design Tokens";
+  tokenBtn.title = t("toolbar.designTokenExport");
   tokenBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4"/><path d="M12 19v4"/><path d="M1 12h4"/><path d="M19 12h4"/><path d="M4.22 4.22l2.83 2.83"/><path d="M16.95 16.95l2.83 2.83"/><path d="M4.22 19.78l2.83-2.83"/><path d="M16.95 7.05l2.83-2.83"/></svg>`;
   tokenBtn.addEventListener("click", () => toggleDesignTokenExport(editor));
   container.appendChild(tokenBtn);
@@ -303,7 +312,7 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
   // Design Polish button
   const polishBtn = document.createElement("button");
   polishBtn.className = "tool-btn";
-  polishBtn.title = "Polish Design (auto-fix spacing, colors, alignment)";
+  polishBtn.title = t("toolbar.polish");
   polishBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/></svg>`;
   polishBtn.addEventListener("click", () => {
     openDesignPolish(
@@ -321,7 +330,7 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
   // Smart Replace button
   const replaceBtn = document.createElement("button");
   replaceBtn.className = "tool-btn";
-  replaceBtn.title = "Smart Replace (Cmd+Shift+H)";
+  replaceBtn.title = t("toolbar.smartReplace");
   replaceBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M8 21H3v-5"/><path d="M21 3l-8.5 8.5"/><path d="M3 21l8.5-8.5"/></svg>`;
   replaceBtn.addEventListener("click", () => {
     const sel = Array.from(editor.engine.get_selection()).map(Number);
@@ -334,7 +343,7 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
   // Design Health Dashboard button
   const healthBtn = document.createElement("button");
   healthBtn.className = "tool-btn";
-  healthBtn.title = "Design Health Dashboard";
+  healthBtn.title = t("toolbar.designHealth");
   healthBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>`;
   healthBtn.addEventListener("click", () => {
     openDesignHealth(editor.engine, { onRefresh: () => editor.requestRender() });
@@ -344,7 +353,7 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
   // Snapshot Testing button
   const snapshotBtn = document.createElement("button");
   snapshotBtn.className = "tool-btn";
-  snapshotBtn.title = "Snapshot Testing (⌘⌥N)";
+  snapshotBtn.title = t("toolbar.snapshot");
   snapshotBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>`;
   snapshotBtn.addEventListener("click", () => {
     editor.toggleSnapshotPanel();
@@ -354,7 +363,7 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
   // Performance Profiler button
   const perfBtn = document.createElement("button");
   perfBtn.className = "tool-btn";
-  perfBtn.title = "Performance Profiler (⌘⇧P)";
+  perfBtn.title = t("toolbar.perfProfiler");
   perfBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>`;
   perfBtn.addEventListener("click", () => {
     togglePerfProfiler(editor.engine, editor);
@@ -364,7 +373,7 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
   // Figma import button
   const figmaBtn = document.createElement("button");
   figmaBtn.className = "tool-btn";
-  figmaBtn.title = "Import from Figma";
+  figmaBtn.title = t("toolbar.figmaImport");
   figmaBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5.5A3.5 3.5 0 0 1 8.5 2H12v7H8.5A3.5 3.5 0 0 1 5 5.5z"/><path d="M12 2h3.5a3.5 3.5 0 1 1 0 7H12V2z"/><path d="M12 12.5a3.5 3.5 0 1 1 7 0 3.5 3.5 0 1 1-7 0z"/><path d="M5 19.5A3.5 3.5 0 0 1 8.5 16H12v3.5a3.5 3.5 0 1 1-7 0z"/><path d="M5 12.5A3.5 3.5 0 0 1 8.5 9H12v7H8.5A3.5 3.5 0 0 1 5 12.5z"/></svg>`;
   figmaBtn.addEventListener("click", () => {
     openFigmaImportModal(editor.engine, () => {
@@ -376,7 +385,7 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
   // Code-to-Design button
   const codeBtn = document.createElement("button");
   codeBtn.className = "tool-btn";
-  codeBtn.title = "Code to Design (⌘⇧D)";
+  codeBtn.title = t("toolbar.codeToDesign");
   codeBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/><line x1="14" y1="4" x2="10" y2="20"/></svg>`;
   codeBtn.addEventListener("click", () => {
     openCodeToDesignModal(editor.engine, () => {
@@ -393,7 +402,7 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
 
     const protoBtn = document.createElement("button");
     protoBtn.className = "tool-btn";
-    protoBtn.title = "Present Prototype (⌘⏎)";
+    protoBtn.title = t("toolbar.prototype");
     protoBtn.innerHTML = icons.play;
     protoBtn.addEventListener("click", onPrototype);
     container.appendChild(protoBtn);
@@ -412,7 +421,7 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
   // Responsive preview button
   const respBtn = document.createElement("button");
   respBtn.className = "tool-btn";
-  respBtn.title = "Responsive Preview (⌘⌥R)";
+  respBtn.title = t("toolbar.responsive");
   respBtn.innerHTML = icons.responsive;
   respBtn.addEventListener("click", () => editor.openResponsivePreview());
   container.appendChild(respBtn);
@@ -420,7 +429,7 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
   // Responsive Tokens button
   const rtBtn = document.createElement("button");
   rtBtn.className = "tool-btn";
-  rtBtn.title = "Responsive Tokens (⌘⌥T)";
+  rtBtn.title = t("toolbar.responsiveTokens");
   rtBtn.innerHTML = icons.tokens || '⚡';
   rtBtn.addEventListener("click", () => editor.openResponsiveTokens());
   container.appendChild(rtBtn);
@@ -428,7 +437,7 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
   // Canvas recorder toggle
   const recBtn = document.createElement("button");
   recBtn.className = "tool-btn";
-  recBtn.title = "Canvas Recorder (⇧⌥R)";
+  recBtn.title = t("toolbar.recorder");
   recBtn.innerHTML = '⏺';
   recBtn.addEventListener("click", () => {
     toggleRecorderBar();
@@ -438,7 +447,7 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
   // Review panel toggle
   const reviewBtn = document.createElement("button");
   reviewBtn.className = "tool-btn";
-  reviewBtn.title = "Reviews";
+  reviewBtn.title = t("toolbar.reviews");
   reviewBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/><path d="M8 9h8M8 13h4"/></svg>`;
   let reviewVisible = false;
   reviewBtn.addEventListener("click", () => {
@@ -452,7 +461,7 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
   // Cursor presence demo toggle
   const cursorBtn = document.createElement("button");
   cursorBtn.className = "tool-btn";
-  cursorBtn.title = "Toggle Cursor Presence Demo";
+  cursorBtn.title = t("toolbar.cursorPresence");
   cursorBtn.innerHTML = icons.users;
   cursorBtn.addEventListener("click", () => {
     const active = editor.toggleCursorDemo();
@@ -469,11 +478,25 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
   container.appendChild(diffSep);
   const diffBtn = document.createElement("button");
   diffBtn.className = "tool-btn";
-  diffBtn.title = "File Diff & Merge (⌘⇧D)";
+  diffBtn.title = t("toolbar.fileDiff");
   diffBtn.innerHTML = icons.fileDiff;
   diffBtn.addEventListener("click", () => openFileDiffMerge(editor));
   container.appendChild(diffBtn);
   (window as any).__openFileDiffMerge = () => openFileDiffMerge(editor);
+
+  // Language picker
+  const langSep = document.createElement("div");
+  langSep.className = "tool-btn-separator";
+  container.appendChild(langSep);
+  const langPicker = createLanguagePicker(() => {
+    // Re-apply all tooltips on locale change
+    container.querySelectorAll<HTMLButtonElement>("[data-tool]").forEach(btn => {
+      const toolId = btn.getAttribute("data-tool");
+      const key = toolI18nKeys[toolId!];
+      if (key) btn.title = t(key);
+    });
+  });
+  container.appendChild(langPicker);
 
   // Mode toggle (rightmost)
   const sep2 = document.createElement("div");
@@ -483,8 +506,8 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
   const toggle = document.createElement("div");
   toggle.className = "mode-toggle";
   toggle.innerHTML = `
-    <button class="mode-btn active" data-mode="edit" title="Edit Mode">${icons.pen}</button>
-    <button class="mode-btn" data-mode="dev" title="Dev Mode">${icons.code}</button>
+    <button class="mode-btn active" data-mode="edit" title="${t("toolbar.editMode")}">${icons.pen}</button>
+    <button class="mode-btn" data-mode="dev" title="${t("toolbar.devMode")}">${icons.code}</button>
   `;
   container.appendChild(toggle);
 

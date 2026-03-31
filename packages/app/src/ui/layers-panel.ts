@@ -3,6 +3,7 @@ import { icons } from "./icons";
 import { showContextMenu } from "./context-menu";
 import { showBatchRenameDialog } from "./batch-rename";
 import { addPopOutButton } from "./panel-detach";
+import { t, onLocaleChange } from "./i18n";
 
 const kindIcons: Record<string, string> = {
   Rect: icons.rect,
@@ -42,12 +43,12 @@ export function setupLayersPanel(container: HTMLElement, editor: Editor) {
   header.style.cssText = "display:flex;align-items:center;justify-content:space-between;padding-right:4px;";
   
   const headerTitle = document.createElement("span");
-  headerTitle.textContent = "Layers";
+  headerTitle.textContent = t("layers.title");
   header.appendChild(headerTitle);
 
   const searchToggle = document.createElement("button");
   searchToggle.className = "layers-search-toggle";
-  searchToggle.title = "Search layers (Ctrl+F)";
+  searchToggle.title = t("layers.searchTooltip");
   searchToggle.style.cssText = "background:none;border:none;cursor:pointer;padding:2px 4px;border-radius:4px;opacity:0.5;display:flex;align-items:center;";
   searchToggle.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`;
   searchToggle.addEventListener("mouseenter", () => { searchToggle.style.opacity = "1"; });
@@ -67,7 +68,7 @@ export function setupLayersPanel(container: HTMLElement, editor: Editor) {
   searchBar.style.cssText = "display:none;padding:4px 8px 6px;";
   const searchInput = document.createElement("input");
   searchInput.type = "text";
-  searchInput.placeholder = "Filter layers…";
+  searchInput.placeholder = t("layers.searchPlaceholder");
   searchInput.style.cssText = "width:100%;box-sizing:border-box;padding:5px 8px;background:#1a1a1a;border:1px solid #444;border-radius:6px;color:#eee;font-size:12px;outline:none;";
   searchInput.addEventListener("input", () => {
     searchQuery = searchInput.value.toLowerCase();
@@ -141,7 +142,7 @@ export function setupLayersPanel(container: HTMLElement, editor: Editor) {
       const directMatches = layers.filter(l => l.name.toLowerCase().includes(searchQuery) || l.kind.toLowerCase().includes(searchQuery)).length;
       const countEl = document.createElement("div");
       countEl.style.cssText = "padding:2px 12px 4px;font-size:11px;color:#888;";
-      countEl.textContent = directMatches === 0 ? "No matches" : `${directMatches} match${directMatches > 1 ? "es" : ""}`;
+      countEl.textContent = directMatches === 0 ? t("layers.noMatches") : t("layers.matchCount", { count: directMatches });
       list.appendChild(countEl);
     }
 
@@ -301,16 +302,16 @@ export function setupLayersPanel(container: HTMLElement, editor: Editor) {
         const isMac = navigator.platform.includes("Mac");
         const mod = isMac ? "⌘" : "Ctrl+";
         const items: { label: string; shortcut?: string; action?: () => void; enabled?: boolean; separator?: boolean }[] = [];
-        items.push({ label: "Rename", action: () => editor.startRenameNode?.(node.id) });
+        items.push({ label: t("layers.rename"), action: () => editor.startRenameNode?.(node.id) });
         if (currentSel.length >= 2) {
-          items.push({ label: "Batch Rename…", shortcut: `${mod}⇧R`, action: () => showBatchRenameDialog(editor) });
+          items.push({ label: t("layers.batchRename"), shortcut: `${mod}⇧R`, action: () => showBatchRenameDialog(editor) });
         }
         items.push({ separator: true, label: "" });
-        items.push({ label: "Delete", shortcut: "⌫", action: () => { editor.engine.push_undo(); for (const id of currentSel) editor.engine.remove_node(BigInt(id)); editor.requestRender(); refresh(); } });
-        items.push({ label: "Duplicate", shortcut: `${mod}D`, action: () => { (editor as any).ctxDuplicate?.(); refresh(); } });
+        items.push({ label: t("layers.delete"), shortcut: "⌫", action: () => { editor.engine.push_undo(); for (const id of currentSel) editor.engine.remove_node(BigInt(id)); editor.requestRender(); refresh(); } });
+        items.push({ label: t("layers.duplicate"), shortcut: `${mod}D`, action: () => { (editor as any).ctxDuplicate?.(); refresh(); } });
         items.push({ separator: true, label: "" });
-        items.push({ label: node.visible ? "Hide" : "Show", action: () => { editor.engine.set_visible(BigInt(node.id), !node.visible); editor.requestRender(); refresh(); } });
-        items.push({ label: node.locked ? "Unlock" : "Lock", action: () => { editor.engine.set_locked(BigInt(node.id), !node.locked); editor.requestRender(); refresh(); } });
+        items.push({ label: node.visible ? t("layers.hide") : t("layers.show"), action: () => { editor.engine.set_visible(BigInt(node.id), !node.visible); editor.requestRender(); refresh(); } });
+        items.push({ label: node.locked ? t("layers.unlock") : t("layers.lock"), action: () => { editor.engine.set_locked(BigInt(node.id), !node.locked); editor.requestRender(); refresh(); } });
         showContextMenu(e.clientX, e.clientY, items);
       });
 
@@ -332,5 +333,11 @@ export function setupLayersPanel(container: HTMLElement, editor: Editor) {
 
   editor.onLayers(refresh);
   editor.onSelection(refresh);
+  onLocaleChange(() => {
+    headerTitle.textContent = t("layers.title");
+    searchToggle.title = t("layers.searchTooltip");
+    searchInput.placeholder = t("layers.searchPlaceholder");
+    refresh();
+  });
   setTimeout(refresh, 100);
 }

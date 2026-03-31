@@ -6,6 +6,7 @@ import { renderStyleVersioningSection } from "./style-versioning";
 import { createEasingEditor } from "./easing-editor";
 import { createTokenThemeSwitcher, createTokenBindingSection } from "./token-panel";
 import { createNodeLinksSection } from "./node-links";
+import { t } from "./i18n";
 
 // Stage 4: Google Fonts list
 const googleFonts = [
@@ -77,7 +78,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       emptyDiv.style.cssText = "display:flex;flex-direction:column;align-items:center;padding-top:60px;color:#555;";
       emptyDiv.innerHTML = `
         <span style="opacity:0.4;margin-bottom:8px;">${icons.cursor}</span>
-        <span style="font-size:11px;">Select an element</span>`;
+        <span style="font-size:11px;">${t("properties.selectElement")}</span>`;
 
       // Design Token Theme Switcher
       container.appendChild(createTokenThemeSwitcher(editor, () => refresh(ids)));
@@ -87,7 +88,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       libSection.style.cssText = "width:100%;padding:20px 16px;margin-top:40px;border-top:1px solid #333;";
       const libTitle = document.createElement("div");
       libTitle.style.cssText = "font-size:11px;font-weight:600;color:#888;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px;";
-      libTitle.textContent = "Styles Library";
+      libTitle.textContent = t("properties.stylesLibrary");
       libSection.appendChild(libTitle);
 
       const btnStyle = "padding:6px 12px;font-size:11px;border:1px solid #444;border-radius:4px;background:#2a2a2a;color:#ccc;cursor:pointer;flex:1;text-align:center;";
@@ -95,7 +96,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       btnRow.style.cssText = "display:flex;gap:6px;";
 
       const exportBtn = document.createElement("button");
-      exportBtn.textContent = "Export Styles";
+      exportBtn.textContent = t("properties.exportStyles");
       exportBtn.style.cssText = btnStyle;
       exportBtn.onclick = () => {
         const json = editor.engine.export_styles();
@@ -109,7 +110,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       };
 
       const importBtn = document.createElement("button");
-      importBtn.textContent = "Import Styles";
+      importBtn.textContent = t("properties.importStyles");
       importBtn.style.cssText = btnStyle;
       importBtn.onclick = () => {
         const input = document.createElement("input");
@@ -146,7 +147,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       tokensSection.style.cssText = "width:100%;padding:12px 16px;border-top:1px solid #333;";
       const tokensTitle = document.createElement("div");
       tokensTitle.style.cssText = "font-size:11px;font-weight:600;color:#888;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px;";
-      tokensTitle.textContent = "Design Tokens";
+      tokensTitle.textContent = t("properties.designTokens");
       tokensSection.appendChild(tokensTitle);
 
       const tokenFormats = [
@@ -174,7 +175,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       bgSection.style.cssText = "width:100%;padding:12px 16px;border-top:1px solid #333;";
       const bgTitle = document.createElement("div");
       bgTitle.style.cssText = "font-size:11px;font-weight:600;color:#888;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px;";
-      bgTitle.textContent = "Canvas Background";
+      bgTitle.textContent = t("properties.canvasBg");
       bgSection.appendChild(bgTitle);
 
       let bgSettings: { pattern: string; bg_color: string; pattern_color: string; spacing: number; opacity: number; dot_size: number };
@@ -188,7 +189,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       patternRow.style.cssText = "margin-bottom:8px;";
       const patternLabel = document.createElement("div");
       patternLabel.style.cssText = labelCss;
-      patternLabel.textContent = "Pattern";
+      patternLabel.textContent = t("properties.pattern");
       patternRow.appendChild(patternLabel);
       const patternSelect = document.createElement("select");
       patternSelect.style.cssText = inputCss;
@@ -451,7 +452,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         const spacingRow = document.createElement("div");
         spacingRow.style.cssText = "display:flex;gap:4px;align-items:center;margin-top:6px;";
         const spacingLabel = document.createElement("span");
-        spacingLabel.textContent = "Spacing";
+        spacingLabel.textContent = t("properties.spacing");
         spacingLabel.style.cssText = "font-size:10px;color:#888;flex-shrink:0;";
         const spacingInput = document.createElement("input");
         spacingInput.type = "number";
@@ -538,7 +539,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           background:#4f46e5; color:#fff; cursor:pointer; font-size:11px; font-weight:500;
           transition:background 0.15s;
         `;
-        applyBtn.textContent = "Apply — Wrap in Frame with Auto-Layout";
+        applyBtn.textContent = t("properties.applyAutoLayout");
         applyBtn.addEventListener("mouseenter", () => { applyBtn.style.background = "#6366f1"; });
         applyBtn.addEventListener("mouseleave", () => { applyBtn.style.background = "#4f46e5"; });
         applyBtn.addEventListener("click", () => {
@@ -602,7 +603,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       compText.style.cssText = "flex:1;min-width:0;";
       const compLabel = document.createElement("div");
       compLabel.style.cssText = "font-size:10px;color:#10b981;letter-spacing:0.3px;";
-      compLabel.textContent = "MAIN COMPONENT";
+      compLabel.textContent = t("properties.mainComponent");
       compText.appendChild(compLabel);
       const compName = document.createElement("div");
       compName.style.cssText = "font-size:12px;color:#ccc;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;";
@@ -617,7 +618,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         cursor:pointer; font-size:11px; font-weight:500;
         transition:all 0.15s; flex-shrink:0;
       `;
-      goBtn.textContent = "Go to →";
+      goBtn.textContent = t("properties.goTo");
       goBtn.addEventListener("mouseenter", () => { goBtn.style.background = "rgba(16,185,129,0.25)"; });
       goBtn.addEventListener("mouseleave", () => { goBtn.style.background = "rgba(16,185,129,0.15)"; });
       goBtn.addEventListener("click", () => {
@@ -642,7 +643,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         cursor:pointer; font-size:11px; font-weight:500;
         transition:all 0.15s; flex-shrink:0;
       `;
-      swapBtn.textContent = "Swap";
+      swapBtn.textContent = t("properties.swap");
       swapBtn.title = "Swap to a different component";
       swapBtn.addEventListener("mouseenter", () => { swapBtn.style.background = "rgba(79,70,229,0.25)"; });
       swapBtn.addEventListener("mouseleave", () => { swapBtn.style.background = "rgba(79,70,229,0.15)"; });
@@ -839,7 +840,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             cursor:pointer; font-size:10px; font-weight:500;
             transition:all 0.15s;
           `;
-          resetAllBtn.textContent = "Reset All";
+          resetAllBtn.textContent = t("properties.resetAll");
           resetAllBtn.addEventListener("mouseenter", () => { resetAllBtn.style.background = "rgba(59,130,246,0.25)"; });
           resetAllBtn.addEventListener("mouseleave", () => { resetAllBtn.style.background = "rgba(59,130,246,0.15)"; });
           resetAllBtn.addEventListener("click", () => {
@@ -993,7 +994,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           });
           const absLabel = document.createElement("span");
           absLabel.style.cssText = "font-size:11px;color:#999;";
-          absLabel.textContent = "Absolute position";
+          absLabel.textContent = t("properties.absolutePosition");
           absRow.appendChild(absCheck);
           absRow.appendChild(absLabel);
           sizeSection.appendChild(absRow);
@@ -1441,7 +1442,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           scaleRow.style.cssText = "display:flex;align-items:center;gap:4px;";
           const scaleLabel = document.createElement("span");
           scaleLabel.style.cssText = "font-size:10px;color:#888;width:32px;";
-          scaleLabel.textContent = "Scale";
+          scaleLabel.textContent = t("properties.scale");
           scaleRow.appendChild(scaleLabel);
           const scaleInput = document.createElement("input");
           scaleInput.className = "prop-input";
@@ -1470,7 +1471,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           rotRow.style.cssText = "display:flex;align-items:center;gap:4px;";
           const rotLabel = document.createElement("span");
           rotLabel.style.cssText = "font-size:10px;color:#888;width:32px;";
-          rotLabel.textContent = "Rot";
+          rotLabel.textContent = t("properties.rotation");
           rotRow.appendChild(rotLabel);
           const rotInput = document.createElement("input");
           rotInput.className = "prop-input";

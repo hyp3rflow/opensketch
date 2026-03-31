@@ -1515,15 +1515,23 @@
 - Hybrid Rust+TypeScript 구현 (엔진 필터 + UI 후처리)
 
 ## 다음 할 것
-- Multi-window / detachable panels — 패널(Layers, Properties 등)을 별도 브라우저 창으로 분리, BroadcastChannel 동기화
-- Canvas grid snapping mode — 토글 가능한 그리드 스냅 (8px/16px/custom), 드래그/리사이즈 시 자동 정렬, Ctrl+Shift+G 토글
-- Eyedropper tool — 캔버스 픽셀에서 색상 추출, 클릭 시 선택 노드 fill 적용, I 단축키, 미리보기 루페
-- Outline view mode — 와이어프레임 토글 (fill 숨기고 stroke만 표시), 복잡한 디자인 구조 파악용, Cmd+Y 단축키
-- Anchor / Link points on shapes — 노드 가장자리에 커넥터 앵커 포인트 정의, Connector 자동 스냅
-- Auto-layout spacing visualization — 패딩/갭 인라인 표시 (Figma 스타일 핑크 영역), 드래그 조절
-- Smart auto-naming — 노드 속성/위치/색상 기반 자동 이름 생성 (Header, Footer, Card 등), AI 추론
-- Figma-style auto-layout wrap counter — auto-layout wrap 모드에서 행/열당 아이템 수 제한, wrap-after 기능
-- Design system theme switcher — Light/Dark/Custom 테마 원클릭 전환 (Variable modes 연동), 캔버스 미리보기
+- Lottie animation export — 캔버스 애니메이션을 Lottie JSON으로 내보내기, keyframe 기반 변환
+- Canvas object search & filter — 캔버스 내 객체 타입/속성/스타일별 검색 및 필터링 패널
+- Variable collections & modes — Figma Variables 스타일 디자인 토큰 컬렉션, light/dark 등 모드 전환 지원
+- Plugin/extension system — 서드파티 플러그인 로딩 프레임워크, 샌드박스 실행, manifest 기반 등록
+- Dev mode handoff — 개발자용 spacing/sizing 자동 표시, redline 오버레이, CSS/코드 스니펫 복사
+- Table/data grid component — 행/열 기반 표 자동 생성, 셀 병합, 데이터 바인딩
+- Responsive breakpoint preview — 여러 화면 크기(모바일/태블릿/데스크탑) 동시 미리보기 split view
+## 완료된 기능 (추가 — UI Localization / i18n)
+- 다국어 지원: English (en), 한국어 (ko), 日本語 (ja)
+- i18n 시스템: `packages/app/src/ui/i18n.ts` — t() 번역 함수, locale 관리, onLocaleChange 리스너
+- 번역 파일: `packages/app/src/locales/{en,ko,ja}.json` — 100+ 키 (toolbar, layers, properties, agent, common)
+- 언어 전환 UI: 툴바에 🌐 아이콘 + select 드롭다운
+- localStorage 저장 (key: `opensketch-locale`)
+- 주요 UI 파일 적용: toolbar.ts (모든 tooltip), layers-panel.ts (헤더/검색/컨텍스트메뉴), properties-panel.ts (주요 라벨)
+- Vite 빌드 시 locale JSON 자동 코드 스플릿 (별도 chunk)
+- initI18n() → main.ts에서 UI 초기화 전 호출
+
 ## 완료된 기능 (추가 — Responsive Variant Auto-Switch)
 - Frame 리사이즈 시 Instance 자동 variant 전환
 - ResponsiveVariantRule: label, max_width, variant_key
