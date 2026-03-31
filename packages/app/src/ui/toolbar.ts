@@ -1,6 +1,7 @@
 import type { Editor, ToolType } from "../editor";
 import { icons } from "./icons";
 import { openFigmaImportModal } from "./figma-import";
+import { showFigmaExport } from "./figma-export";
 import { toggleRecorderBar } from "./canvas-recorder";
 import { openBatchExport } from "./batch-export";
 import { toggleDesignTokenExport } from "./design-token-export";
@@ -390,6 +391,16 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
     });
   });
   container.appendChild(figmaBtn);
+
+  // Figma export button
+  const figmaExportBtn = document.createElement("button");
+  figmaExportBtn.className = "tool-btn";
+  figmaExportBtn.title = "Export to Figma JSON";
+  figmaExportBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`;
+  figmaExportBtn.addEventListener("click", () => {
+    showFigmaExport(editor);
+  });
+  container.appendChild(figmaExportBtn);
 
   // Code-to-Design button
   const codeBtn = document.createElement("button");
