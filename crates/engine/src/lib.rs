@@ -6384,6 +6384,18 @@ impl Engine {
         smart_replace::replace_node_content(nodes, source_id, &target_ids)
     }
 
+    /// Replace with configurable options.
+    /// options_json: JSON object with keep_size, keep_position, transfer_style booleans.
+    #[wasm_bindgen]
+    pub fn replace_with_node_options(&mut self, source_id: u64, target_ids_json: &str, options_json: &str) -> u32 {
+        let target_ids: Vec<u64> = serde_json::from_str(target_ids_json).unwrap_or_default();
+        if target_ids.is_empty() { return 0; }
+        let options: smart_replace::ReplaceOptions = serde_json::from_str(options_json).unwrap_or_default();
+        self.push_undo();
+        let nodes = self.scene.nodes_map_mut();
+        smart_replace::replace_node_content_with_options(nodes, source_id, &target_ids, &options)
+    }
+
     /// Replace all currently selected nodes with the source node's content.
     /// Returns the number of nodes replaced.
     #[wasm_bindgen]
@@ -6393,6 +6405,84 @@ impl Engine {
         self.push_undo();
         let nodes = self.scene.nodes_map_mut();
         smart_replace::replace_node_content(nodes, source_id, &sel)
+    }
+
+    /// Replace selection with options.
+    #[wasm_bindgen]
+    pub fn replace_selection_with_options(&mut self, source_id: u64, options_json: &str) -> u32 {
+        let sel: Vec<u64> = self.scene.selection.clone();
+        if sel.is_empty() { return 0; }
+        let options: smart_replace::ReplaceOptions = serde_json::from_str(options_json).unwrap_or_default();
+        self.push_undo();
+        let nodes = self.scene.nodes_map_mut();
+        smart_replace::replace_node_content_with_options(nodes, source_id, &sel, &options)
+    }
+
+    /// Replace selected nodes with a new component instance.
+    /// Creates a fresh instance of the given component for each target.
+    /// Returns the number of nodes replaced.
+    #[wasm_bindgen]
+    pub fn replace_selection_with_component(&mut self, component_id: u64, options_json: &str) -> u32 {
+        let sel: Vec<u64> = self.scene.selection.clone();
+        if sel.is_empty() { return 0; }
+        let options: smart_replace::ReplaceOptions = serde_json::from_str(options_json).unwrap_or_default();
+
+        // Get component info
+        let comp = match self.components.get(component_id) {
+            Some(c) => c.clone(),
+            None => return 0,
+        };
+
+        // Get default variant data for style transfer
+        let default_key = comp.default_key();
+        let variant_data = comp.get_variant(&default_key).cloned();
+
+        self.push_undo();
+        let mut count = 0u32;
+        for &tid in &sel {
+            if let Some(target) = self.scene.nodes_map_mut().get_mut(&tid) {
+                let saved_x = target.x;
+                let saved_y = target.y;
+                let saved_w = target.width;
+                let saved_h = target.height;
+
+                // Convert to Instance
+                let instance_data = InstanceData {
+                    component_id,
+                    variant_values: default_key.clone(),
+                    slot_fills: std::collections::HashMap::new(),
+                    overrides: std::collections::HashMap::new(),
+                };
+                target.kind = NodeKind::Instance(Box::new(instance_data));
+                target.name = format!("{} (instance)", comp.name);
+
+                // Apply source component style if transfer_style and variant has node data
+                if options.transfer_style {
+                    if let Some(ref vd) = variant_data {
+                        if let Some(root) = vd.nodes.first() {
+                            target.fills = root.fills.clone();
+                            target.strokes = root.strokes.clone();
+                            target.opacity = root.opacity;
+                            target.corner_radius = root.corner_radius;
+                            target.shadows = root.shadows.clone();
+                            target.blur = root.blur;
+                            target.blend_mode = root.blend_mode;
+                        }
+                    }
+                }
+
+                if options.keep_position {
+                    target.x = saved_x;
+                    target.y = saved_y;
+                }
+                if options.keep_size {
+                    target.width = saved_w;
+                    target.height = saved_h;
+                }
+                count += 1;
+            }
+        }
+        count
     }
 
     // ── Smart Content Fill ──────────────────────────────────

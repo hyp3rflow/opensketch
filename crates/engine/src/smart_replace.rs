@@ -68,6 +68,28 @@ pub fn find_similar_nodes(
     candidates
 }
 
+/// Options controlling how replacement behaves.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ReplaceOptions {
+    /// Keep the target node's original size (default true)
+    #[serde(default = "default_true")]
+    pub keep_size: bool,
+    /// Keep the target node's original position (default true)
+    #[serde(default = "default_true")]
+    pub keep_position: bool,
+    /// Transfer visual style (fills/strokes/opacity/shadows/blur/blend) from source (default true)
+    #[serde(default = "default_true")]
+    pub transfer_style: bool,
+}
+
+fn default_true() -> bool { true }
+
+impl Default for ReplaceOptions {
+    fn default() -> Self {
+        ReplaceOptions { keep_size: true, keep_position: true, transfer_style: true }
+    }
+}
+
 /// Replace target nodes' visual content with source node's content.
 /// Copies fills, strokes, opacity, corner_radius, shadows, blur, blend_mode.
 /// For Image nodes, also copies src/fit. Preserves position and size.
@@ -75,6 +97,16 @@ pub fn replace_node_content(
     nodes: &mut HashMap<NodeId, Node>,
     source_id: NodeId,
     target_ids: &[NodeId],
+) -> u32 {
+    replace_node_content_with_options(nodes, source_id, target_ids, &ReplaceOptions::default())
+}
+
+/// Replace with configurable options.
+pub fn replace_node_content_with_options(
+    nodes: &mut HashMap<NodeId, Node>,
+    source_id: NodeId,
+    target_ids: &[NodeId],
+    options: &ReplaceOptions,
 ) -> u32 {
     let source = match nodes.get(&source_id) {
         Some(n) => n.clone(),
@@ -85,16 +117,18 @@ pub fn replace_node_content(
     for &tid in target_ids {
         if tid == source_id { continue; }
         if let Some(target) = nodes.get_mut(&tid) {
-            // Copy visual properties
-            target.fills = source.fills.clone();
-            target.strokes = source.strokes.clone();
-            target.opacity = source.opacity;
-            target.corner_radius = source.corner_radius;
-            target.shadows = source.shadows.clone();
-            target.blur = source.blur;
-            target.blend_mode = source.blend_mode;
+            // Transfer style properties
+            if options.transfer_style {
+                target.fills = source.fills.clone();
+                target.strokes = source.strokes.clone();
+                target.opacity = source.opacity;
+                target.corner_radius = source.corner_radius;
+                target.shadows = source.shadows.clone();
+                target.blur = source.blur;
+                target.blend_mode = source.blend_mode;
+            }
 
-            // Copy kind-specific content
+            // Copy kind-specific content (always — this is the "replace" part)
             match (&source.kind, &mut target.kind) {
                 (NodeKind::Image { src, fit, focal_x, focal_y, crop }, NodeKind::Image { src: ref mut ts, fit: ref mut tf, focal_x: ref mut fx, focal_y: ref mut fy, crop: ref mut tc }) => {
                     *ts = src.clone();
@@ -107,9 +141,27 @@ pub fn replace_node_content(
                     target.kind = NodeKind::Image { src: src.clone(), fit: fit.clone(), focal_x: *focal_x, focal_y: *focal_y, crop: crop.clone() };
                 }
                 _ => {
-                    // For other types, visual properties (fills/strokes) are already copied
+                    // For shape-to-shape, copy the kind if different
+                    if std::mem::discriminant(&source.kind) != std::mem::discriminant(&target.kind) {
+                        target.kind = source.kind.clone();
+                        target.children = source.children.clone();
+                    }
                 }
             }
+
+            // Apply name from source
+            target.name = source.name.clone();
+
+            // Optionally override size/position with source values
+            if !options.keep_size {
+                target.width = source.width;
+                target.height = source.height;
+            }
+            if !options.keep_position {
+                target.x = source.x;
+                target.y = source.y;
+            }
+
             count += 1;
         }
     }

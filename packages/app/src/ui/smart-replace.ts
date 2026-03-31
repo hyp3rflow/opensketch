@@ -14,6 +14,18 @@ interface SimilarNode {
 
 let panelEl: HTMLDivElement | null = null;
 
+function createCheckbox(labelText: string, checked: boolean): { label: HTMLLabelElement; input: HTMLInputElement } {
+  const label = document.createElement("label");
+  label.style.cssText = `display:flex; align-items:center; gap:5px; cursor:pointer; user-select:none;`;
+  const input = document.createElement("input");
+  input.type = "checkbox";
+  input.checked = checked;
+  input.style.cssText = `accent-color:#a78bfa;`;
+  label.appendChild(input);
+  label.appendChild(document.createTextNode(labelText));
+  return { label, input };
+}
+
 export function isSmartReplaceOpen(): boolean {
   return panelEl !== null;
 }
@@ -93,6 +105,35 @@ export function openSmartReplace(
   `;
   panelEl.appendChild(controls);
 
+  // Options
+  const optionsBar = document.createElement("div");
+  optionsBar.style.cssText = `padding: 8px 20px; border-bottom: 1px solid #2a2a3a; display:flex; gap:16px; align-items:center; font-size:12px; color:#ccc;`;
+  const optKeepSize = createCheckbox("Keep Size", true);
+  const optKeepPos = createCheckbox("Keep Position", true);
+  const optTransferStyle = createCheckbox("Transfer Style", true);
+  optionsBar.appendChild(optKeepSize.label);
+  optionsBar.appendChild(optKeepPos.label);
+  optionsBar.appendChild(optTransferStyle.label);
+  panelEl.appendChild(optionsBar);
+
+  function getOptionsJson(): string {
+    return JSON.stringify({
+      keep_size: optKeepSize.input.checked,
+      keep_position: optKeepPos.input.checked,
+      transfer_style: optTransferStyle.input.checked,
+    });
+  }
+
+  // Component list section
+  let componentIds: number[] = [];
+  try {
+    const compJson = (engine as any).get_all_components?.();
+    if (compJson) {
+      const comps = JSON.parse(compJson);
+      if (Array.isArray(comps)) componentIds = comps.map((c: any) => c.id);
+    }
+  } catch {}
+
   // List
   const list = document.createElement("div");
   list.style.cssText = `flex:1; overflow-y:auto; padding:8px 12px;`;
@@ -167,7 +208,7 @@ export function openSmartReplace(
   replaceSelectedBtn.addEventListener("click", () => {
     const ids = Array.from(selected);
     if (ids.length === 0) return;
-    const count = engine.replace_with_node(sourceNodeId, JSON.stringify(ids));
+    (engine as any).replace_with_node_options(sourceNodeId, JSON.stringify(ids), getOptionsJson());
     onApplied();
     closeSmartReplace();
   });
@@ -178,7 +219,7 @@ export function openSmartReplace(
   replaceAllBtn.addEventListener("click", () => {
     const ids = results.map(r => r.id);
     if (ids.length === 0) return;
-    const count = engine.replace_with_node(sourceNodeId, JSON.stringify(ids));
+    (engine as any).replace_with_node_options(sourceNodeId, JSON.stringify(ids), getOptionsJson());
     onApplied();
     closeSmartReplace();
   });

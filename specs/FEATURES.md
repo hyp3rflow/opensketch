@@ -1371,6 +1371,11 @@ Frame overflow control and content scrolling.
 - [x] **Context menu**: "Smart Replace…" option when single node selected
 - [x] **Undo integration**: push_undo before replacements
 - [x] **Implementation**: `crates/engine/src/smart_replace.rs` (Rust) + `ui/smart-replace.ts` (modal)
+- [x] **ReplaceOptions**: `keep_size`, `keep_position`, `transfer_style` booleans (all default true)
+- [x] **Options UI**: Three checkboxes in Smart Replace modal (Keep Size / Keep Position / Transfer Style)
+- [x] **WASM**: `replace_with_node_options(source_id, target_ids_json, options_json)`, `replace_selection_with_options(source_id, options_json)`, `replace_selection_with_component(component_id, options_json)`
+- [x] **Component instance replace**: Convert selected nodes to component instances, preserving position/size per options
+- [x] **Kind-aware replace**: Copies source node kind when different (shape-to-shape conversion), copies name
 
 ## 113. Design-to-Code Component Mapping
 - [x] **Rust structs**: `CodeMapping` (component_name, framework, import_path, props, children_slot), `PropBinding` (prop_name, prop_type, default_value, design_source), `CodeFramework` enum (React/Vue/SwiftUI/Compose/Flutter)

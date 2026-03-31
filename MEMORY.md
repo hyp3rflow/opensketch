@@ -1649,6 +1649,15 @@
 - UI: alt-text 이슈에 인라인 텍스트 입력 + "Set" 버튼 추가
 - Cmd+Shift+A 단축키로 A11y 패널 탭 열기
 
+## 완료된 기능 (추가 — Smart Object Replace Enhanced)
+- ReplaceOptions 구조체: keep_size, keep_position, transfer_style (all default true)
+- replace_node_content_with_options(): 옵션 기반 교체 (기존 함수 backward-compatible)
+- 컴포넌트 인스턴스로 교체: replace_selection_with_component(component_id, options)
+- WASM: replace_with_node_options, replace_selection_with_options, replace_selection_with_component 추가
+- UI: Smart Replace 모달에 Options 바 추가 (Keep Size / Keep Position / Transfer Style 체크박스)
+- 교체 시 소스 노드의 kind도 복사 (shape-to-shape 교체), name 복사
+- Undo 통합 (push_undo before all replace operations)
+
 ## 완료된 기능 (추가 — Keyboard Shortcut Customization)
 - ShortcutManager 클래스 (shortcut-manager.ts): 커스텀 키 바인딩, 충돌 감지, localStorage 저장
 - 프리셋 프로필: Figma (기본), Sketch, Adobe XD — 드롭다운 선택
