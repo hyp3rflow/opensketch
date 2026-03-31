@@ -173,3 +173,15 @@ Available: select, hand, rect, ellipse, text, frame, eye, eyeOff, rotation, corn
 - Auto-repositions on zoom/pan, clamped to viewport
 - Hides during pointer drag, re-shows on pointer up
 - File: `packages/app/src/ui/contextual-toolbar.ts`
+
+## Multi-window / Detachable Panels
+
+- Panels (Layers, Properties, Agent, Comments, Variables, Assets, Bookmarks) can be popped out to separate browser windows
+- BroadcastChannel API (`opensketch-panel-sync`) for real-time selection/layers/scene state sync
+- Pop-out button: external-link icon in right-pane tab bar (shows for active tab) + layers panel header
+- `window.open()` creates new window, dynamically imports and re-runs panel setup function with shared Editor instance
+- Detached window: header bar with panel title + "Reattach" button, copies main window stylesheets
+- Main window: panel hidden (display:none) when detached, tab hidden; auto-switches to Properties tab
+- Auto-detect closed windows (500ms polling) → auto-reattach (show panel + tab again)
+- `setupPanelSync()` hooks Editor selection/layers callbacks → broadcasts via BroadcastChannel
+- File: `packages/app/src/ui/panel-detach.ts`
