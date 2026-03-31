@@ -5428,6 +5428,114 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         });
 
         layoutSection.appendChild(padWrap);
+
+        // --- Spacing Presets (quick apply gap + uniform padding) ---
+        const SPACING_PRESETS = [
+          { label: "XS", gap: 4, pad: 4 },
+          { label: "S", gap: 8, pad: 8 },
+          { label: "M", gap: 12, pad: 12 },
+          { label: "Base", gap: 16, pad: 16 },
+          { label: "L", gap: 24, pad: 24 },
+          { label: "XL", gap: 32, pad: 32 },
+          { label: "2XL", gap: 48, pad: 48 },
+        ];
+
+        const presetsWrap = document.createElement("div");
+        presetsWrap.style.cssText = "margin-top:8px;";
+
+        const presetsLabel = document.createElement("div");
+        presetsLabel.style.cssText = "font-size:9px;color:#555;margin-bottom:5px;letter-spacing:0.5px;text-transform:uppercase;";
+        presetsLabel.textContent = "Spacing presets";
+        presetsWrap.appendChild(presetsLabel);
+
+        const presetsRow = document.createElement("div");
+        presetsRow.style.cssText = "display:flex;gap:3px;flex-wrap:wrap;";
+
+        const currentGap = layout.gap || 0;
+        const currentPadUniform = (layout.padding_top === layout.padding_right && layout.padding_right === layout.padding_bottom && layout.padding_bottom === layout.padding_left) ? (layout.padding_top || 0) : -1;
+
+        for (const preset of SPACING_PRESETS) {
+          const isActive = currentGap === preset.gap && currentPadUniform === preset.pad;
+          const chip = document.createElement("button");
+          chip.style.cssText = `
+            padding:3px 7px;border:1px solid ${isActive ? "#4f46e5" : "#3a3a3a"};border-radius:4px;
+            background:${isActive ? "#4f46e520" : "#2a2a2a"};color:${isActive ? "#818cf8" : "#888"};
+            cursor:pointer;font-size:10px;line-height:1;transition:all 0.15s;white-space:nowrap;
+          `;
+          chip.textContent = `${preset.label} ${preset.gap}`;
+          chip.title = `Gap: ${preset.gap}px, Padding: ${preset.pad}px (all sides)`;
+          chip.addEventListener("mouseenter", () => { if (!isActive) { chip.style.borderColor = "#555"; chip.style.color = "#aaa"; }});
+          chip.addEventListener("mouseleave", () => { if (!isActive) { chip.style.borderColor = "#3a3a3a"; chip.style.color = "#888"; }});
+          chip.addEventListener("click", () => {
+            editor.engine.push_undo();
+            editor.engine.set_layout_gap(BigInt(id), preset.gap);
+            editor.engine.set_layout_padding(BigInt(id), preset.pad, preset.pad, preset.pad, preset.pad);
+            editor.requestRender();
+            refresh(ids);
+          });
+          presetsRow.appendChild(chip);
+        }
+
+        // Gap-only presets row
+        const gapOnlyLabel = document.createElement("div");
+        gapOnlyLabel.style.cssText = "font-size:9px;color:#444;margin-top:5px;margin-bottom:3px;";
+        gapOnlyLabel.textContent = "Gap only";
+        presetsWrap.appendChild(presetsRow);
+        presetsWrap.appendChild(gapOnlyLabel);
+
+        const gapOnlyRow = document.createElement("div");
+        gapOnlyRow.style.cssText = "display:flex;gap:3px;flex-wrap:wrap;";
+
+        for (const val of [0, 4, 8, 12, 16, 24, 32, 48]) {
+          const isActive = currentGap === val;
+          const chip = document.createElement("button");
+          chip.style.cssText = `
+            padding:2px 6px;border:1px solid ${isActive ? "#4f46e5" : "#333"};border-radius:3px;
+            background:${isActive ? "#4f46e520" : "#252525"};color:${isActive ? "#818cf8" : "#666"};
+            cursor:pointer;font-size:9px;line-height:1;transition:all 0.15s;
+          `;
+          chip.textContent = String(val);
+          chip.title = `Set gap to ${val}px`;
+          chip.addEventListener("click", () => {
+            editor.engine.push_undo();
+            editor.engine.set_layout_gap(BigInt(id), val);
+            editor.requestRender();
+            refresh(ids);
+          });
+          gapOnlyRow.appendChild(chip);
+        }
+        presetsWrap.appendChild(gapOnlyRow);
+
+        // Padding-only presets row
+        const padOnlyLabel = document.createElement("div");
+        padOnlyLabel.style.cssText = "font-size:9px;color:#444;margin-top:5px;margin-bottom:3px;";
+        padOnlyLabel.textContent = "Padding only";
+        presetsWrap.appendChild(padOnlyLabel);
+
+        const padOnlyRow = document.createElement("div");
+        padOnlyRow.style.cssText = "display:flex;gap:3px;flex-wrap:wrap;";
+
+        for (const val of [0, 4, 8, 12, 16, 24, 32, 48]) {
+          const isActive = currentPadUniform === val;
+          const chip = document.createElement("button");
+          chip.style.cssText = `
+            padding:2px 6px;border:1px solid ${isActive ? "#4f46e5" : "#333"};border-radius:3px;
+            background:${isActive ? "#4f46e520" : "#252525"};color:${isActive ? "#818cf8" : "#666"};
+            cursor:pointer;font-size:9px;line-height:1;transition:all 0.15s;
+          `;
+          chip.textContent = String(val);
+          chip.title = `Set all padding to ${val}px`;
+          chip.addEventListener("click", () => {
+            editor.engine.push_undo();
+            editor.engine.set_layout_padding(BigInt(id), val, val, val, val);
+            editor.requestRender();
+            refresh(ids);
+          });
+          padOnlyRow.appendChild(chip);
+        }
+        presetsWrap.appendChild(padOnlyRow);
+
+        layoutSection.appendChild(presetsWrap);
       }
 
       container.appendChild(layoutSection);

@@ -919,6 +919,15 @@ Frame overflow control and content scrolling.
 - [x] Integrated into editor select tool (mousedown/mousemove/mouseup + render loop)
 - [x] Undo integration (push_undo before drag starts)
 
+### Auto Layout Spacing Presets
+- [x] Spacing presets panel: XS(4) / S(8) / M(12) / Base(16) / L(24) / XL(32) / 2XL(48)
+- [x] Combined presets: one-click apply gap + uniform padding
+- [x] Gap-only presets row: 0/4/8/12/16/24/32/48px
+- [x] Padding-only presets row: 0/4/8/12/16/24/32/48px
+- [x] Active state highlighting (indigo) for current values
+- [x] Hover feedback, undo integration
+- [x] Located in Properties panel Auto Layout section (below padding inputs)
+
 ### Text on Path (SVG textPath style)
 - [x] Node.text_path_id: Optional<NodeId> — links a Text node to a Path node
 - [x] Node.text_path_offset: f64 (0.0–1.0) — start offset along the path
