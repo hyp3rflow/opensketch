@@ -29,6 +29,7 @@ import { initSpatialAudioPanel, toggleSpatialAudioPanel, closeSpatialAudioPanel,
 import { findSpacingHandles, hitTestSpacingHandle, renderSpacingHandles, type SpacingHandle, findPaddingHandles, hitTestPaddingHandle, renderPaddingHandles, type PaddingHandle } from "./tools/spacing-handles";
 import { showLayoutSuggestion, dismissSuggestion } from "./ui/ai-layout-suggest";
 import { toggleFindReplace, closeFindReplace } from "./ui/find-replace-panel";
+import { toggleSearchPanel, closeSearchPanel, isSearchPanelOpen, getSearchHighlightIds, getSearchCurrentId } from "./ui/search-panel";
 import { beginStroke, addStrokePoint, finishStroke, isDrawing, tickAnnotations, renderAnnotations, renderAnnotationPalette, removeAnnotationPalette } from "./ui/annotation-brush";
 import { toggleSearchFilter, closeSearchFilter, renderSearchFilterDimming } from "./ui/search-filter";
 import { toggleRecorderBar } from "./ui/canvas-recorder";
@@ -454,8 +455,14 @@ export class Editor {
         toggleSpotlight(this);
         return;
       }
-      // Find & Replace (Cmd+F or Cmd+H)
-      if (_sm.matches(e, "panel.findReplace") || ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && (e.key === 'h' || e.key === 'H'))) {
+      // Canvas Search (Cmd+F)
+      if (_sm.matches(e, "panel.findReplace")) {
+        e.preventDefault();
+        toggleSearchPanel(this);
+        return;
+      }
+      // Find & Replace panel (Cmd+H)
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && (e.key === 'h' || e.key === 'H')) {
         e.preventDefault();
         toggleFindReplace(this);
         return;
@@ -990,6 +997,10 @@ export class Editor {
         this.needsRender = true;
       }
       if (e.key === "Escape") {
+        if (isSearchPanelOpen()) {
+          closeSearchPanel();
+          return;
+        }
         if (this._meshEditMode) {
           this.exitMeshEditMode();
           this.needsRender = true;
@@ -3810,6 +3821,7 @@ export class Editor {
         this.renderTextFlowLinks();
         this.renderMotionPathOverlay();
         this._annotationHeatmap?.render(this.ctx, this.zoom, this.panX, this.panY);
+        this.renderSearchHighlights();
         this.renderDiffOverlay();
         this.renderSearchFilterOverlay();
         this.renderPixelPreviewOverlay();
@@ -4578,6 +4590,34 @@ export class Editor {
     
     // Re-enable smoothing for UI overlays (rulers, etc.)
     this.ctx.imageSmoothingEnabled = true;
+  }
+
+  private renderSearchHighlights() {
+    const ids = getSearchHighlightIds();
+    if (ids.length === 0) return;
+    const ctx = this.ctx;
+    const zoom = this.engine.get_zoom();
+    const panX = this.engine.get_pan_x();
+    const panY = this.engine.get_pan_y();
+    const currentId = getSearchCurrentId();
+    for (const id of ids) {
+      try {
+        const nj = this.engine.get_node_json(BigInt(id));
+        if (!nj) continue;
+        const node = JSON.parse(nj);
+        const sx = (node.x - panX) * zoom;
+        const sy = (node.y - panY) * zoom;
+        const sw = node.width * zoom;
+        const sh = node.height * zoom;
+        const isCurrent = id === currentId;
+        ctx.save();
+        ctx.strokeStyle = isCurrent ? '#ff8800' : 'rgba(255,136,0,0.5)';
+        ctx.lineWidth = isCurrent ? 2.5 : 1.5;
+        ctx.setLineDash(isCurrent ? [] : [4, 3]);
+        ctx.strokeRect(sx - 1, sy - 1, sw + 2, sh + 2);
+        ctx.restore();
+      } catch {}
+    }
   }
 
   private renderDiffOverlay() {

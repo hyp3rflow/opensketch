@@ -1513,6 +1513,19 @@
 - Measure tool overlay improvements — ruler 단위 전환 (px/dp/pt/rem), 3-way distance (gap + padding + margin)
 - Selection filter toolbar — 종류별 선택 필터 토글 (Text/Shape/Image/Frame 등), 잠금 노드 포함/제외
 - Auto-layout spacing visualization — 패딩/갭 인라인 표시 (Figma 스타일 핑크 영역), 드래그 조절
+## 완료된 기능 (추가 — Canvas Search & Replace Cmd+F)
+- Figma 스타일 플로팅 검색 바 (캔버스 상단 중앙, Cmd+F 토글)
+- 검색: 텍스트 노드 content + 모든 노드 name 매칭
+- 결과 카운트 (N/M), ↑/↓ 화살표 순회 (선택 + zoomToSelection)
+- Replace / Replace All 버튼 (name + text 동시 치환)
+- Case sensitive 토글 (Aa)
+- 검색 결과 노드 주황색 테두리 하이라이트, 현재 결과 강조
+- Escape으로 닫기
+- Rust: Scene.search_nodes(), Scene.replace_text_in_nodes() (find_replace.rs)
+- WASM: search_nodes(), replace_in_nodes()
+- TS: search-panel.ts, editor.ts 통합
+- push_undo 통합 (replace 시 자동)
+
 ## 완료된 기능 (추가 — Smart Distribute)
 - 3+ 노드 선택 시 불균등 간격 감지 및 정규화
 - Rust: smart_distribute_preview() → 현재 H/V gaps, 추천 gap (mode/median), 이동량 JSON

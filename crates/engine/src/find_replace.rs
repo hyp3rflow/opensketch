@@ -3,6 +3,67 @@ use crate::scene::Scene;
 use crate::types::Color;
 use serde::Serialize;
 
+impl Scene {
+    /// Search all nodes whose text content or name matches query. Returns matching node IDs.
+    pub fn search_nodes(&self, query: &str, case_sensitive: bool) -> Vec<u64> {
+        if query.is_empty() { return vec![]; }
+        let q = if case_sensitive { query.to_string() } else { query.to_lowercase() };
+        let mut ids = Vec::new();
+        for node in self.nodes.values() {
+            // Check node name
+            let name = if case_sensitive { node.name.clone() } else { node.name.to_lowercase() };
+            if name.contains(&q) {
+                ids.push(node.id);
+                continue;
+            }
+            // Check text content
+            if let NodeKind::Text { ref content, .. } = node.kind {
+                let hay = if case_sensitive { content.clone() } else { content.to_lowercase() };
+                if hay.contains(&q) {
+                    ids.push(node.id);
+                }
+            }
+        }
+        // Sort by render order for consistent navigation
+        let order = self.render_order();
+        ids.sort_by_key(|id| order.iter().position(|&o| o == *id).unwrap_or(usize::MAX));
+        ids
+    }
+
+    /// Replace text in specified nodes' text content AND name. Returns count of changes made.
+    pub fn replace_text_in_nodes(&mut self, query: &str, replacement: &str, node_ids: &[u64], case_sensitive: bool) -> u32 {
+        if query.is_empty() { return 0; }
+        let mut count = 0u32;
+        for &id in node_ids {
+            if let Some(node) = self.nodes.get_mut(&id) {
+                // Replace in name
+                let new_name = if case_sensitive {
+                    node.name.replace(query, replacement)
+                } else {
+                    case_insensitive_replace(&node.name, query, replacement)
+                };
+                if new_name != node.name {
+                    node.name = new_name;
+                    count += 1;
+                }
+                // Replace in text content
+                if let NodeKind::Text { ref mut content, .. } = node.kind {
+                    let new_content = if case_sensitive {
+                        content.replace(query, replacement)
+                    } else {
+                        case_insensitive_replace(content, query, replacement)
+                    };
+                    if new_content != *content {
+                        *content = new_content;
+                        count += 1;
+                    }
+                }
+            }
+        }
+        count
+    }
+}
+
 #[derive(Serialize, Clone)]
 pub struct FindResult {
     pub node_id: u64,

@@ -1030,6 +1030,12 @@ Frame overflow control and content scrolling.
 - [x] **Properties tab**: Third tab in Find & Replace panel with search criteria builder + replacement builder + results
 - [x] Rust: PropertySearchCriteria, PropertyReplacement structs; Scene.search_by_properties(), Scene.replace_properties(), Scene.search_and_replace_properties()
 - [x] WASM: search_by_properties(json), replace_properties(json, json), search_and_replace_properties(json, json)
+- [x] **Canvas Search Bar (Cmd+F)**: Figma-style floating search bar at top center with search input, result count (N/M), ↑/↓ navigation, Replace/Replace All, case-sensitive toggle (Aa), Escape to close
+- [x] **Search highlights**: Orange border on all matching nodes, solid orange on current result
+- [x] **Name + Text replace**: replace_text_in_nodes replaces both node names and text content
+- [x] Rust: Scene.search_nodes(query, case_sensitive) → Vec<u64>, Scene.replace_text_in_nodes(query, replacement, node_ids, case_sensitive) → u32
+- [x] WASM: search_nodes(query, case_sensitive) → JsValue (JSON array), replace_in_nodes(query, replacement, node_ids_json, case_sensitive) → u32
+- [x] TS: search-panel.ts (floating bar), editor integration with highlight rendering
 
 ### Annotation Export (Markdown + JSON)
 - [x] Rust: Scene.export_annotations_markdown() — comments (grouped by page, open/resolved, node name resolution) + node notes (tags, content)

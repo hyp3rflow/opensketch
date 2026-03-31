@@ -7926,6 +7926,22 @@ impl Engine {
 
     // ── Find & Replace ──────────────────────────────────────────
 
+    /// Search nodes by text content + name. Returns JSON array of node IDs.
+    #[wasm_bindgen]
+    pub fn search_nodes(&self, query: &str, case_sensitive: bool) -> JsValue {
+        let ids = self.scene.search_nodes(query, case_sensitive);
+        let json = serde_json::to_string(&ids).unwrap_or_else(|_| "[]".to_string());
+        JsValue::from_str(&json)
+    }
+
+    /// Replace text in specified nodes (text content + name). Returns count of changes.
+    #[wasm_bindgen]
+    pub fn replace_in_nodes(&mut self, query: &str, replacement: &str, node_ids_json: &str, case_sensitive: bool) -> u32 {
+        let node_ids: Vec<u64> = serde_json::from_str(node_ids_json).unwrap_or_default();
+        self.push_undo();
+        self.scene.replace_text_in_nodes(query, replacement, &node_ids, case_sensitive)
+    }
+
     #[wasm_bindgen]
     pub fn find_text(&self, query: &str, case_sensitive: bool) -> String {
         let results = self.scene.find_text(query, case_sensitive);
