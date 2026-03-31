@@ -41,6 +41,7 @@ import { WhiteboardMode } from "./ui/whiteboard-mode";
 import { initSnapshotPanel } from "./ui/snapshot-panel";
 import { togglePerfProfiler, closePerfProfiler, isPerfProfilerOpen } from "./ui/perf-profiler";
 import { showNudgeHint } from "./ui/nudge-hint";
+import { recordFrameTime, recordNodeRender, renderProfilerHeatmap, profilerState } from "./ui/profiler-panel";
 import { openComponentPlayground, closeComponentPlayground, isComponentPlaygroundOpen } from "./ui/component-playground";
 import { openVariantMatrix, closeVariantMatrix, isVariantMatrixOpen } from "./ui/variant-matrix";
 import { AnnotationHeatmap } from "./ui/annotation-heatmap";
@@ -3840,6 +3841,24 @@ export class Editor {
         const frameTime = performance.now() - frameStart;
         this._frameTimeHistory.push(frameTime);
         if (this._frameTimeHistory.length > 60) this._frameTimeHistory.shift();
+
+        // Profiler panel: record frame time + per-node timing + render heatmap
+        recordFrameTime(frameTime);
+        if (profilerState.active) {
+          try {
+            const reportJson = (this.engine as any).get_node_complexity_report?.();
+            if (reportJson) {
+              const nodes = JSON.parse(reportJson) as { id: number; name: string; kind: string; complexity: number; w: number; h: number }[];
+              const totalComplexity = nodes.reduce((a, n) => a + n.complexity, 0) || 1;
+              for (const n of nodes) {
+                // Distribute frame time proportionally to complexity
+                const estimatedMs = (n.complexity / totalComplexity) * frameTime;
+                recordNodeRender(n.id, estimatedMs, n.name, n.kind, n.w, n.h);
+              }
+            }
+          } catch {}
+        }
+        if (profilerState.heatmapEnabled) renderProfilerHeatmap(this);
 
         // FPS counter update
         this.updateFpsCounter();

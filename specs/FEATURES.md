@@ -1867,3 +1867,13 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Properties panel: Hyperlink section with URL input, page selector dropdown, open/clear buttons
 - [x] Prototype viewer: clicking node with hyperlink opens URL or navigates to page
 - [x] Backward-compatible serde (#[serde(default)])
+
+### Canvas Performance Profiler
+- [x] Right-pane "Profiler" tab with start/stop profiling controls
+- [x] Real-time FPS display and frame time graph (120-sample rolling window)
+- [x] Per-node render cost list (ms, sorted descending, click to select)
+- [x] Heatmap overlay on canvas (green→yellow→red based on render cost)
+- [x] LOD threshold slider for optimization guidance
+- [x] Optimization suggestions (auto-generated based on scene complexity)
+- [x] Integrates with existing WASM complexity report engine
+- [x] Pure TypeScript implementation (packages/app/src/ui/profiler-panel.ts)

@@ -1502,6 +1502,7 @@
   - Alt+Arrow: 0.1px, Arrow: 1px, Shift+Arrow: 10px 모두 지원
   - 순수 TypeScript 구현 (ui/nudge-hint.ts)
   - 기존 nudge 로직에 비침습적 통합
+- Canvas Performance Profiler: Right-pane Profiler 탭, 실시간 FPS/프레임타임 그래프, 노드별 렌더 비용 리스트, 히트맵 오버레이, LOD threshold 슬라이더, 최적화 제안 (profiler-panel.ts)
 
 ## 다음 할 것
 - Multi-window / detachable panels — 패널(Layers, Properties 등)을 별도 브라우저 창으로 분리, BroadcastChannel 동기화
