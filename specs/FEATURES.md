@@ -1877,3 +1877,12 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Optimization suggestions (auto-generated based on scene complexity)
 - [x] Integrates with existing WASM complexity report engine
 - [x] Pure TypeScript implementation (packages/app/src/ui/profiler-panel.ts)
+
+### Color Blindness Simulation
+- [x] SVG feColorMatrix filter overlay on canvas
+- [x] Protanopia (no red), Deuteranopia (no green), Tritanopia (no blue), Achromatopsia (grayscale)
+- [x] Machado et al. (2009) scientifically accurate color matrices
+- [x] Floating panel UI (bottom center, dark theme)
+- [x] Cmd/Ctrl+Alt+V toggle shortcut
+- [x] Zero performance overhead (GPU-accelerated SVG filter)
+- [x] Pure TypeScript implementation (packages/app/src/ui/color-blindness.ts)

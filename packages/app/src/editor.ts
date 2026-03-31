@@ -49,6 +49,7 @@ import { addViewBookmark, toggleViewBookmarksPanel, handleBookmarkShortcut, chec
 import { AnnotationBrush } from "./ui/annotation-brush";
 import { importFigmaJSON, showFigmaDropOverlay, hideFigmaDropOverlay } from "./ui/figma-import";
 import { showImageDropChoice, processAILayout } from "./ui/ai-layout";
+import { toggleColorBlindnessPanel, closeCBPanel, setColorBlindnessMode } from "./ui/color-blindness";
 
 export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "section" | "image" | "pen" | "star" | "polygon" | "slice" | "connector" | "callout" | "sticky" | "table" | "freehand" | "measure" | "annotate";
 
@@ -842,6 +843,13 @@ export class Editor {
       if ((e.metaKey || e.ctrlKey) && e.altKey && (e.key === "h" || e.key === "˙")) {
         e.preventDefault();
         this._annotationHeatmap?.toggle();
+        return;
+      }
+
+      // Ctrl/Cmd+Alt+V: color blindness simulation panel
+      if ((e.metaKey || e.ctrlKey) && e.altKey && (e.key === "v" || e.key === "√")) {
+        e.preventDefault();
+        toggleColorBlindnessPanel();
         return;
       }
 
