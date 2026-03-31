@@ -563,6 +563,190 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       suggestSection.appendChild(suggestBtn);
       wrap.appendChild(suggestSection);
 
+      // =============================================
+      // Batch Property Edit (fill/stroke/opacity/corner-radius)
+      // =============================================
+      const batchSection = createSection("Properties");
+      const batchIds = ids.map((i) => BigInt(i));
+      let batchProps: any = {};
+      try {
+        batchProps = JSON.parse((editor.engine as any).get_batch_properties(ids));
+      } catch {}
+
+      const inputCssBatch = "width:100%;padding:4px 6px;font-size:11px;border:1px solid #444;border-radius:4px;background:#2a2a2a;color:#ccc;box-sizing:border-box;";
+      const labelCssBatch = "font-size:10px;color:#666;margin-bottom:2px;";
+
+      // --- Fill ---
+      const fillRow = document.createElement("div");
+      fillRow.style.cssText = "margin-bottom:8px;";
+      const fillLabel = document.createElement("div");
+      fillLabel.style.cssText = labelCssBatch;
+      fillLabel.textContent = "Fill";
+      fillRow.appendChild(fillLabel);
+      const fillWrap = document.createElement("div");
+      fillWrap.style.cssText = "display:flex;gap:4px;align-items:center;";
+      const fillSwatch = document.createElement("input");
+      fillSwatch.type = "color";
+      const fillHex = document.createElement("input");
+      fillHex.style.cssText = inputCssBatch + "flex:1;";
+      if (batchProps.fill === "mixed") {
+        fillSwatch.value = "#888888";
+        fillHex.value = "";
+        fillHex.placeholder = "Mixed";
+      } else if (batchProps.fill) {
+        const fc = batchProps.fill;
+        const hex = ((1 << 24) + (fc.r << 16) + (fc.g << 8) + fc.b).toString(16).slice(1);
+        fillSwatch.value = "#" + hex;
+        fillHex.value = hex;
+      } else {
+        fillSwatch.value = "#cccccc";
+        fillHex.value = "";
+        fillHex.placeholder = "No fill";
+      }
+      fillSwatch.style.cssText = "width:24px;height:24px;border:1px solid #555;border-radius:4px;padding:0;cursor:pointer;background:none;";
+      const applyFill = (hex: string) => {
+        const c = hex.replace("#", "");
+        const r = parseInt(c.substring(0, 2), 16) || 0;
+        const g = parseInt(c.substring(2, 4), 16) || 0;
+        const b = parseInt(c.substring(4, 6), 16) || 0;
+        editor.engine.push_undo();
+        (editor.engine as any).batch_set_fill(ids, r, g, b, 1.0);
+        editor.requestRender();
+      };
+      fillSwatch.addEventListener("input", () => { fillHex.value = fillSwatch.value.replace("#", ""); applyFill(fillSwatch.value); });
+      fillHex.addEventListener("change", () => { fillSwatch.value = "#" + fillHex.value; applyFill(fillHex.value); });
+      fillWrap.appendChild(fillSwatch);
+      fillWrap.appendChild(fillHex);
+      fillRow.appendChild(fillWrap);
+      batchSection.appendChild(fillRow);
+
+      // --- Stroke ---
+      const strokeRow = document.createElement("div");
+      strokeRow.style.cssText = "margin-bottom:8px;";
+      const strokeLabel = document.createElement("div");
+      strokeLabel.style.cssText = labelCssBatch;
+      strokeLabel.textContent = "Stroke";
+      strokeRow.appendChild(strokeLabel);
+      const strokeWrap = document.createElement("div");
+      strokeWrap.style.cssText = "display:flex;gap:4px;align-items:center;";
+      const strokeSwatch = document.createElement("input");
+      strokeSwatch.type = "color";
+      strokeSwatch.style.cssText = "width:24px;height:24px;border:1px solid #555;border-radius:4px;padding:0;cursor:pointer;background:none;";
+      const strokeHex = document.createElement("input");
+      strokeHex.style.cssText = inputCssBatch + "flex:1;";
+      const strokeWidthInput = document.createElement("input");
+      strokeWidthInput.type = "number";
+      strokeWidthInput.min = "0";
+      strokeWidthInput.step = "1";
+      strokeWidthInput.style.cssText = inputCssBatch + "width:48px;text-align:center;";
+      let currentStrokeWidth = 1;
+      if (batchProps.stroke === "mixed") {
+        strokeSwatch.value = "#888888";
+        strokeHex.value = "";
+        strokeHex.placeholder = "Mixed";
+        strokeWidthInput.value = "";
+        strokeWidthInput.placeholder = "—";
+      } else if (batchProps.stroke) {
+        const sc = batchProps.stroke;
+        const hex = ((1 << 24) + (sc.r << 16) + (sc.g << 8) + sc.b).toString(16).slice(1);
+        strokeSwatch.value = "#" + hex;
+        strokeHex.value = hex;
+        strokeWidthInput.value = String(sc.width);
+        currentStrokeWidth = sc.width;
+      } else {
+        strokeSwatch.value = "#ffffff";
+        strokeHex.value = "";
+        strokeHex.placeholder = "No stroke";
+        strokeWidthInput.value = "1";
+      }
+      const applyStroke = (hex: string, width: number) => {
+        const c = hex.replace("#", "");
+        const r = parseInt(c.substring(0, 2), 16) || 0;
+        const g = parseInt(c.substring(2, 4), 16) || 0;
+        const b = parseInt(c.substring(4, 6), 16) || 0;
+        editor.engine.push_undo();
+        (editor.engine as any).batch_set_stroke(ids, r, g, b, 1.0, width);
+        editor.requestRender();
+      };
+      strokeSwatch.addEventListener("input", () => {
+        strokeHex.value = strokeSwatch.value.replace("#", "");
+        applyStroke(strokeSwatch.value, parseFloat(strokeWidthInput.value) || currentStrokeWidth);
+      });
+      strokeHex.addEventListener("change", () => {
+        strokeSwatch.value = "#" + strokeHex.value;
+        applyStroke(strokeHex.value, parseFloat(strokeWidthInput.value) || currentStrokeWidth);
+      });
+      strokeWidthInput.addEventListener("change", () => {
+        applyStroke(strokeSwatch.value, parseFloat(strokeWidthInput.value) || 1);
+      });
+      strokeWrap.appendChild(strokeSwatch);
+      strokeWrap.appendChild(strokeHex);
+      strokeWrap.appendChild(strokeWidthInput);
+      strokeRow.appendChild(strokeWrap);
+      batchSection.appendChild(strokeRow);
+
+      // --- Opacity & Corner Radius ---
+      const opCrRow = document.createElement("div");
+      opCrRow.style.cssText = "display:grid;grid-template-columns:1fr 1fr;gap:6px;";
+
+      // Opacity
+      const opCol = document.createElement("div");
+      const opLabel = document.createElement("div");
+      opLabel.style.cssText = labelCssBatch;
+      opLabel.textContent = "Opacity";
+      opCol.appendChild(opLabel);
+      const opInput = document.createElement("input");
+      opInput.type = "number";
+      opInput.min = "0";
+      opInput.max = "100";
+      opInput.step = "1";
+      opInput.style.cssText = inputCssBatch;
+      if (batchProps.opacity === "mixed") {
+        opInput.value = "";
+        opInput.placeholder = "Mixed";
+      } else {
+        opInput.value = String(Math.round((batchProps.opacity ?? 1) * 100));
+      }
+      opInput.addEventListener("change", () => {
+        const val = parseFloat(opInput.value);
+        if (isNaN(val)) return;
+        editor.engine.push_undo();
+        (editor.engine as any).batch_set_opacity(ids, val / 100);
+        editor.requestRender();
+      });
+      opCol.appendChild(opInput);
+      opCrRow.appendChild(opCol);
+
+      // Corner Radius
+      const crCol = document.createElement("div");
+      const crLabel = document.createElement("div");
+      crLabel.style.cssText = labelCssBatch;
+      crLabel.textContent = "Radius";
+      crCol.appendChild(crLabel);
+      const crInput = document.createElement("input");
+      crInput.type = "number";
+      crInput.min = "0";
+      crInput.step = "1";
+      crInput.style.cssText = inputCssBatch;
+      if (batchProps.corner_radius === "mixed") {
+        crInput.value = "";
+        crInput.placeholder = "Mixed";
+      } else {
+        crInput.value = String(Math.round(batchProps.corner_radius ?? 0));
+      }
+      crInput.addEventListener("change", () => {
+        const val = parseFloat(crInput.value);
+        if (isNaN(val)) return;
+        editor.engine.push_undo();
+        (editor.engine as any).batch_set_corner_radius(ids, val);
+        editor.requestRender();
+      });
+      crCol.appendChild(crInput);
+      opCrRow.appendChild(crCol);
+
+      batchSection.appendChild(opCrRow);
+      wrap.appendChild(batchSection);
+
       container.appendChild(wrap);
       return;
     }

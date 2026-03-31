@@ -2449,6 +2449,122 @@ impl Engine {
         }
     }
 
+    // =============================================
+    // Batch Property Edit (multi-selection)
+    // =============================================
+
+    /// Batch set fill color for multiple nodes
+    pub fn batch_set_fill(&mut self, ids: Vec<u64>, r: u8, g: u8, b: u8, a: f64) {
+        for id in ids {
+            self.set_fill_color(id, r, g, b, a);
+        }
+    }
+
+    /// Batch set stroke for multiple nodes
+    pub fn batch_set_stroke(&mut self, ids: Vec<u64>, r: u8, g: u8, b: u8, a: f64, width: f64) {
+        for id in ids {
+            self.set_stroke(id, r, g, b, a, width);
+        }
+    }
+
+    /// Batch set opacity for multiple nodes
+    pub fn batch_set_opacity(&mut self, ids: Vec<u64>, opacity: f64) {
+        let o = opacity.clamp(0.0, 1.0);
+        for id in ids {
+            if let Some(node) = self.scene.get_node_mut(id) {
+                node.opacity = o;
+            }
+        }
+    }
+
+    /// Batch set corner radius for multiple nodes
+    pub fn batch_set_corner_radius(&mut self, ids: Vec<u64>, radius: f64) {
+        for id in ids {
+            if let Some(node) = self.scene.get_node_mut(id) {
+                node.corner_radius = radius;
+            }
+        }
+    }
+
+    /// Get common properties for multiple nodes as JSON (for mixed value detection)
+    /// Returns: { fill: {r,g,b,a}|"mixed"|null, stroke: {r,g,b,a,width}|"mixed"|null, opacity: number|"mixed", corner_radius: number|"mixed" }
+    pub fn get_batch_properties(&self, ids: Vec<u64>) -> String {
+        if ids.is_empty() { return "{}".to_string(); }
+
+        let mut fill_val: Option<(u8,u8,u8,f64)> = None;
+        let mut fill_mixed = false;
+        let mut stroke_val: Option<(u8,u8,u8,f64,f64)> = None;
+        let mut stroke_mixed = false;
+        let mut opacity_val: Option<f64> = None;
+        let mut opacity_mixed = false;
+        let mut cr_val: Option<f64> = None;
+        let mut cr_mixed = false;
+
+        for &id in &ids {
+            if let Some(node) = self.scene.get_node(id) {
+                // Fill
+                let f = node.fills.first().and_then(|fill| {
+                    if let FillType::Solid { color } = &fill.fill_type { Some((color.r, color.g, color.b, color.a)) } else { None }
+                });
+                if !fill_mixed {
+                    match (&fill_val, &f) {
+                        (None, _) => fill_val = f,
+                        (Some(a), Some(b)) if *a != *b => fill_mixed = true,
+                        (Some(_), None) => fill_mixed = true,
+                        _ => {}
+                    }
+                }
+
+                // Stroke
+                let s = node.strokes.first().map(|st| (st.color.r, st.color.g, st.color.b, st.color.a, st.width));
+                if !stroke_mixed {
+                    match (&stroke_val, &s) {
+                        (None, _) => stroke_val = s,
+                        (Some(a), Some(b)) if *a != *b => stroke_mixed = true,
+                        (Some(_), None) => stroke_mixed = true,
+                        _ => {}
+                    }
+                }
+
+                // Opacity
+                if !opacity_mixed {
+                    match opacity_val {
+                        None => opacity_val = Some(node.opacity),
+                        Some(v) if (v - node.opacity).abs() > 0.001 => opacity_mixed = true,
+                        _ => {}
+                    }
+                }
+
+                // Corner radius
+                if !cr_mixed {
+                    match cr_val {
+                        None => cr_val = Some(node.corner_radius),
+                        Some(v) if (v - node.corner_radius).abs() > 0.001 => cr_mixed = true,
+                        _ => {}
+                    }
+                }
+            }
+        }
+
+        let fill_json = if fill_mixed { "\"mixed\"".to_string() }
+            else if let Some((r,g,b,a)) = fill_val { format!("{{\"r\":{},\"g\":{},\"b\":{},\"a\":{}}}", r, g, b, a) }
+            else { "null".to_string() };
+
+        let stroke_json = if stroke_mixed { "\"mixed\"".to_string() }
+            else if let Some((r,g,b,a,w)) = stroke_val { format!("{{\"r\":{},\"g\":{},\"b\":{},\"a\":{},\"width\":{}}}", r, g, b, a, w) }
+            else { "null".to_string() };
+
+        let opacity_json = if opacity_mixed { "\"mixed\"".to_string() }
+            else if let Some(v) = opacity_val { format!("{}", v) }
+            else { "1".to_string() };
+
+        let cr_json = if cr_mixed { "\"mixed\"".to_string() }
+            else if let Some(v) = cr_val { format!("{}", v) }
+            else { "0".to_string() };
+
+        format!("{{\"fill\":{},\"stroke\":{},\"opacity\":{},\"corner_radius\":{}}}", fill_json, stroke_json, opacity_json, cr_json)
+    }
+
     pub fn set_node_name(&mut self, id: u64, name: &str) {
         if let Some(node) = self.scene.get_node_mut(id) {
             node.name = name.to_string();

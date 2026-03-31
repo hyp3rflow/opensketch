@@ -1942,3 +1942,12 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Document title updates with filename
 - [x] Full scene serialization via engine.export_scene()/import_scene()
 - [x] Implementation: packages/app/src/ui/file-manager.ts
+
+### Batch Property Edit (Multi-Selection)
+- [x] Rust Engine: batch_set_fill, batch_set_stroke, batch_set_opacity, batch_set_corner_radius
+- [x] get_batch_properties: Mixed value detection (fill/stroke/opacity/corner_radius)
+- [x] WASM bindings: 5 methods exposed via wasm-bindgen
+- [x] Properties panel: Fill (color swatch + hex), Stroke (color + hex + width), Opacity (%), Corner Radius (px)
+- [x] Mixed value placeholder when selected nodes have different values
+- [x] Undo integration (push_undo before batch apply)
+- [x] Coexists with existing alignment/distribute/tidy up multi-selection UI
