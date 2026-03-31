@@ -751,7 +751,29 @@ export function createPrototypeViewer(editor: Editor): {
     }
     // Then handle interaction navigation
     const match = findInteractionAtPoint(e.clientX, e.clientY, "OnClick");
-    if (match) executeInteraction(match.interaction, Number(match.node?.node_id || 0));
+    if (match) {
+      executeInteraction(match.interaction, Number(match.node?.node_id || 0));
+    } else {
+      // Check for hyperlink on the clicked node
+      const nodeId = findNodeAtPoint(e.clientX, e.clientY);
+      if (nodeId !== null) {
+        try {
+          const link = (editor.engine as any).get_hyperlink(BigInt(nodeId)) as string;
+          if (link) {
+            if (link.startsWith("page:")) {
+              const pageId = parseInt(link.replace("page:", ""), 10);
+              if (!isNaN(pageId)) {
+                (editor.engine as any).set_active_page(BigInt(pageId));
+                // Re-render the viewer at the new page
+                drawCurrentFrame();
+              }
+            } else {
+              window.open(link, "_blank");
+            }
+          }
+        } catch { /* ignore */ }
+      }
+    }
   }
 
   // ─── Touch / Gesture handling ───────────────────────

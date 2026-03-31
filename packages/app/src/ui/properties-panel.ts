@@ -2532,6 +2532,90 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       container.appendChild(resSection);
     }
 
+    // --- Hyperlink ---
+    {
+      const hlSection = createSection("Hyperlink");
+      const currentLink = (editor.engine as any).get_hyperlink(BigInt(id)) as string;
+      
+      const row = document.createElement("div");
+      row.style.cssText = "display:flex;gap:4px;align-items:center;padding:4px 12px;";
+      
+      const inp = document.createElement("input");
+      inp.type = "text";
+      inp.placeholder = "https://... or page:PAGE_ID";
+      inp.value = currentLink || "";
+      inp.style.cssText = "flex:1;font-size:11px;padding:4px 6px;border:1px solid #555;border-radius:4px;background:#2a2a2a;color:#ddd;";
+      inp.addEventListener("change", () => {
+        editor.engine.push_undo();
+        (editor.engine as any).set_hyperlink(BigInt(id), inp.value.trim());
+        editor.requestRender();
+      });
+      row.appendChild(inp);
+
+      if (currentLink) {
+        const openBtn = document.createElement("button");
+        openBtn.textContent = "↗";
+        openBtn.title = "Open link";
+        openBtn.style.cssText = "font-size:13px;background:none;border:1px solid #555;border-radius:4px;color:#4ade80;cursor:pointer;padding:2px 6px;";
+        openBtn.addEventListener("click", () => {
+          if (currentLink.startsWith("page:")) {
+            const pageId = parseInt(currentLink.replace("page:", ""), 10);
+            if (!isNaN(pageId)) {
+              (editor.engine as any).set_active_page(BigInt(pageId));
+              editor.requestRender();
+            }
+          } else {
+            window.open(currentLink, "_blank");
+          }
+        });
+        row.appendChild(openBtn);
+
+        const clearBtn = document.createElement("button");
+        clearBtn.textContent = "✕";
+        clearBtn.title = "Remove link";
+        clearBtn.style.cssText = "font-size:11px;background:none;border:1px solid #555;border-radius:4px;color:#f87171;cursor:pointer;padding:2px 6px;";
+        clearBtn.addEventListener("click", () => {
+          editor.engine.push_undo();
+          (editor.engine as any).clear_hyperlink(BigInt(id));
+          editor.requestRender();
+          refresh(ids);
+        });
+        row.appendChild(clearBtn);
+      }
+
+      // Page link shortcuts
+      try {
+        const pagesJson = (editor.engine as any).get_pages();
+        const pages: {id: number; name: string}[] = JSON.parse(pagesJson || "[]");
+        if (pages.length > 1) {
+          const pageRow = document.createElement("div");
+          pageRow.style.cssText = "padding:2px 12px;";
+          const sel = document.createElement("select");
+          sel.style.cssText = "width:100%;font-size:11px;padding:3px 4px;border:1px solid #555;border-radius:4px;background:#2a2a2a;color:#ddd;";
+          sel.innerHTML = `<option value="">Link to page…</option>` + pages.map(p => 
+            `<option value="page:${p.id}" ${currentLink === `page:${p.id}` ? 'selected' : ''}>${p.name}</option>`
+          ).join("");
+          sel.addEventListener("change", () => {
+            if (sel.value) {
+              editor.engine.push_undo();
+              (editor.engine as any).set_hyperlink(BigInt(id), sel.value);
+              editor.requestRender();
+              refresh(ids);
+            }
+          });
+          pageRow.appendChild(sel);
+          hlSection.appendChild(row);
+          hlSection.appendChild(pageRow);
+        } else {
+          hlSection.appendChild(row);
+        }
+      } catch {
+        hlSection.appendChild(row);
+      }
+      
+      container.appendChild(hlSection);
+    }
+
     // --- Motion Path ---
     {
       const mpSection = createSection("Motion Path");

@@ -8941,6 +8941,33 @@ impl Engine {
     }
 
     // =============================================
+    // Hyperlinks (external URL or internal page link)
+    // =============================================
+
+    pub fn set_hyperlink(&mut self, id: u64, url: &str) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if url.is_empty() {
+                node.hyperlink = None;
+            } else {
+                node.hyperlink = Some(url.to_string());
+            }
+        }
+    }
+
+    pub fn get_hyperlink(&self, id: u64) -> String {
+        self.scene.get_node(id)
+            .and_then(|n| n.hyperlink.as_ref())
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    pub fn clear_hyperlink(&mut self, id: u64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            node.hyperlink = None;
+        }
+    }
+
+    // =============================================
     // Annotation strokes (ephemeral review drawings)
     // =============================================
 

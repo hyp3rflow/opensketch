@@ -910,6 +910,27 @@ impl Renderer {
                 ctx.set_text_align("start");
             }
         }
+        // Hyperlink indicator (small green link badge, top-right corner)
+        if node.hyperlink.is_some() {
+            let r = (5.0 / self.viewport.a).min(5.0);
+            let cx = node.x + node.width - r * 2.0;
+            let cy = node.y + r * 2.0;
+            ctx.begin_path();
+            ctx.arc(cx, cy, r, 0.0, std::f64::consts::PI * 2.0).ok();
+            ctx.set_fill_style_str("rgba(34, 197, 94, 0.9)");
+            ctx.fill();
+            // Small arrow icon
+            let s = r * 0.45;
+            ctx.set_stroke_style_str("#fff");
+            ctx.set_line_width((1.0 / self.viewport.a).min(1.0));
+            ctx.begin_path();
+            ctx.move_to(cx - s, cy + s);
+            ctx.line_to(cx + s, cy - s);
+            ctx.move_to(cx, cy - s);
+            ctx.line_to(cx + s, cy - s);
+            ctx.line_to(cx + s, cy);
+            ctx.stroke();
+        }
         // Clip children for Hidden/Scroll overflow
         let needs_clip = node.overflow != crate::node::Overflow::Visible;
         if needs_clip {

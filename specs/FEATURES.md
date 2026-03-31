@@ -1839,3 +1839,11 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Selection/layers changes broadcast via BroadcastChannel for cross-window sync
 - [x] Auto-detect closed detached windows (500ms polling) → auto-reattach
 - [x] Pure TypeScript implementation (ui/panel-detach.ts)
+
+### Canvas Object Linking (Hyperlinks)
+- [x] Node.hyperlink field: external URL or internal page link ("page:PAGE_ID")
+- [x] WASM: set_hyperlink, get_hyperlink, clear_hyperlink
+- [x] Canvas: green badge (top-right corner) on nodes with hyperlinks
+- [x] Properties panel: Hyperlink section with URL input, page selector dropdown, open/clear buttons
+- [x] Prototype viewer: clicking node with hyperlink opens URL or navigates to page
+- [x] Backward-compatible serde (#[serde(default)])
