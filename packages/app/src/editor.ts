@@ -46,6 +46,7 @@ import { AnnotationHeatmap } from "./ui/annotation-heatmap";
 import { addViewBookmark, toggleViewBookmarksPanel, handleBookmarkShortcut, checkUrlViewHash } from "./ui/view-bookmarks";
 import { AnnotationBrush } from "./ui/annotation-brush";
 import { importFigmaJSON, showFigmaDropOverlay, hideFigmaDropOverlay } from "./ui/figma-import";
+import { showImageDropChoice, processAILayout } from "./ui/ai-layout";
 
 export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "section" | "image" | "pen" | "star" | "polygon" | "slice" | "connector" | "callout" | "sticky" | "table" | "freehand" | "measure" | "annotate";
 
@@ -4122,32 +4123,44 @@ export class Editor {
           continue;
         }
         if (!file.type.startsWith("image/")) continue;
-        const reader = new FileReader();
-        reader.onload = () => {
-          const dataUrl = reader.result as string;
-          const img = new Image();
-          img.onload = () => {
-            const sx = this.engine.screen_to_scene_x(e.offsetX, e.offsetY);
-            const sy = this.engine.screen_to_scene_y(e.offsetX, e.offsetY);
-            let w = img.naturalWidth;
-            let h = img.naturalHeight;
-            const maxDim = 400;
-            if (w > maxDim || h > maxDim) {
-              const scale = maxDim / Math.max(w, h);
-              w = Math.round(w * scale);
-              h = Math.round(h * scale);
-            }
-            this.engine.push_undo();
-            const id = this.engine.add_image(sx - w / 2, sy - h / 2, w, h, dataUrl);
-            this._imageCache.set(dataUrl, img);
-            this.engine.select(id);
-            this.fireSelectionNow([Number(id)]);
-            this.onLayersChanges.forEach(fn => fn());
-            this.needsRender = true;
+        // Show choice dialog: Image node vs AI Layout
+        const imgFile = file;
+        const dropOffsetX = e.offsetX;
+        const dropOffsetY = e.offsetY;
+        const clientX = e.clientX;
+        const clientY = e.clientY;
+        const addAsImage = () => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const dataUrl = reader.result as string;
+            const img = new Image();
+            img.onload = () => {
+              const sx = this.engine.screen_to_scene_x(dropOffsetX, dropOffsetY);
+              const sy = this.engine.screen_to_scene_y(dropOffsetX, dropOffsetY);
+              let w = img.naturalWidth;
+              let h = img.naturalHeight;
+              const maxDim = 400;
+              if (w > maxDim || h > maxDim) {
+                const scale = maxDim / Math.max(w, h);
+                w = Math.round(w * scale);
+                h = Math.round(h * scale);
+              }
+              this.engine.push_undo();
+              const id = this.engine.add_image(sx - w / 2, sy - h / 2, w, h, dataUrl);
+              this._imageCache.set(dataUrl, img);
+              this.engine.select(id);
+              this.fireSelectionNow([Number(id)]);
+              this.onLayersChanges.forEach(fn => fn());
+              this.needsRender = true;
+            };
+            img.src = dataUrl;
           };
-          img.src = dataUrl;
+          reader.readAsDataURL(imgFile);
         };
-        reader.readAsDataURL(file);
+        const addAsAILayout = () => {
+          processAILayout(this as any, imgFile, dropOffsetX, dropOffsetY);
+        };
+        showImageDropChoice(clientX, clientY, addAsImage, addAsAILayout);
       }
     });
   }

@@ -1840,6 +1840,15 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Auto-detect closed detached windows (500ms polling) → auto-reattach
 - [x] Pure TypeScript implementation (ui/panel-detach.ts)
 
+### AI Auto-Layout from Screenshot
+- [x] Drag & drop image → choice dialog: "Add as Image" or "AI Auto-Layout"
+- [x] Vision API integration: base64 image → OpenAI-compatible vision endpoint → structured JSON
+- [x] Recursive node creation: frames, rects, text, ellipses with position/size/color/corner radius
+- [x] Scales output to fit canvas (max 800px), positions at drop point
+- [x] Loading overlay with spinner during API call
+- [x] Uses existing LLM config from Agent panel (API key, endpoint, model)
+- [x] Pure TypeScript implementation (packages/app/src/ui/ai-layout.ts)
+
 ### Canvas Object Linking (Hyperlinks)
 - [x] Node.hyperlink field: external URL or internal page link ("page:PAGE_ID")
 - [x] WASM: set_hyperlink, get_hyperlink, clear_hyperlink
