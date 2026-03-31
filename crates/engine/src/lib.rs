@@ -8089,6 +8089,15 @@ impl Engine {
         JsValue::from_str(&json)
     }
 
+    /// Filter nodes by object properties (kind, fill/stroke color, opacity, visibility, locked, has_text, name pattern).
+    /// criteria_json: JSON object with optional fields: kinds (string[]), fill_color, stroke_color, opacity_min, opacity_max, visible, locked, has_text, name_pattern
+    /// Returns JSON array of matching node IDs.
+    #[wasm_bindgen]
+    pub fn filter_nodes(&self, criteria_json: &str) -> String {
+        let ids = self.scene.filter_nodes(criteria_json);
+        serde_json::to_string(&ids).unwrap_or_else(|_| "[]".to_string())
+    }
+
     /// Replace text in specified nodes (text content + name). Returns count of changes.
     #[wasm_bindgen]
     pub fn replace_in_nodes(&mut self, query: &str, replacement: &str, node_ids_json: &str, case_sensitive: bool) -> u32 {

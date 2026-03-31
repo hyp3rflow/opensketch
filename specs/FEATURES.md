@@ -1591,14 +1591,15 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - Backward-compatible serde (variant_key_json 기본값 빈 문자열)
 
 ### Canvas Object Search & Filter
-- Filter/search nodes by: node type, fill color, text content, font family, width size range
-- Matching nodes highlighted with blue dashed border, non-matching dimmed (50% opacity overlay)
-- Results list with click to pan + select node
-- UI: Floating panel (left side), Cmd+Shift+F shortcut toggle
-- Color picker + hex input for fill color filter
-- Node type dropdown (17 types), text search matches node name + text content
-- Clear button resets all filters and removes dimming
-- Pure TypeScript implementation (ui/search-filter.ts)
+- [x] Rust engine: Scene.filter_nodes(criteria_json) — 노드 타입, fill/stroke color, opacity range, visibility, locked, has_text, name pattern 기반 필터링
+- [x] WASM: filter_nodes(criteria_json) → JSON array of matching node IDs
+- [x] Filter criteria: NodeKind, fill color (±2 tolerance), stroke color (±2 tolerance), opacity min/max, visible, locked, has_text, name pattern (case-insensitive)
+- [x] UI: Floating panel (Cmd+Shift+F), node type dropdown (18 types), fill/stroke color pickers, opacity range, size range, checkboxes (hidden/locked/text-only)
+- [x] Matching nodes highlighted with orange (#ff8c00) solid border, non-matching dimmed (45% overlay)
+- [x] Results list with click to select + pan-to-center
+- [x] "Select All" button: batch select all matching nodes (orange accent)
+- [x] Clear button resets all filters and removes dimming
+- [x] Hybrid Rust+TypeScript implementation (engine filter_nodes + ui/search-filter.ts)
 
 
 ### Canvas Background Patterns

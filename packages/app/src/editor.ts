@@ -4679,7 +4679,7 @@ export class Editor {
   get annotationHeatmap() { return this._annotationHeatmap; }
 
   private renderSearchFilterOverlay() {
-    drawSearchFilterOverlay(this.ctx, this);
+    renderSearchFilterDimming(this.ctx, this);
   }
 
   private renderCursorPresence() {

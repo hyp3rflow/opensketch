@@ -1504,16 +1504,24 @@
   - 기존 nudge 로직에 비침습적 통합
 - Canvas Performance Profiler: Right-pane Profiler 탭, 실시간 FPS/프레임타임 그래프, 노드별 렌더 비용 리스트, 히트맵 오버레이, LOD threshold 슬라이더, 최적화 제안 (profiler-panel.ts)
 
+## 완료된 기능 (추가 — Canvas Object Search & Filter Enhanced)
+- Rust engine: Scene.filter_nodes(criteria_json) — 노드 속성 기반 고급 필터링
+- 필터 조건: NodeKind, fill color (±2 tolerance), stroke color (±2 tolerance), opacity min/max, visible, locked, has_text, name pattern
+- WASM: filter_nodes(criteria_json) → JSON array of matching node IDs
+- TS UI 강화 (search-filter.ts): stroke color 필터 추가, opacity range 필터, "Text nodes only" 체크박스
+- 결과 노드 주황색(#ff8c00) solid 테두리 하이라이트, 비매칭 노드 45% 딤 오버레이
+- "Select All" 버튼: 매칭 노드 일괄 선택 (주황 액센트)
+- 결과 리스트 클릭 → 노드 선택 + pan-to-center
+- Hybrid Rust+TypeScript 구현 (엔진 필터 + UI 후처리)
+
 ## 다음 할 것
 - Multi-window / detachable panels — 패널(Layers, Properties 등)을 별도 브라우저 창으로 분리, BroadcastChannel 동기화
 - Canvas grid snapping mode — 토글 가능한 그리드 스냅 (8px/16px/custom), 드래그/리사이즈 시 자동 정렬, Ctrl+Shift+G 토글
-- Variable fonts & OpenType features — 가변 폰트 축(weight/width/slant) 슬라이더, OT 피처 토글 (ligatures, small-caps 등)
 - Eyedropper tool — 캔버스 픽셀에서 색상 추출, 클릭 시 선택 노드 fill 적용, I 단축키, 미리보기 루페
 - Outline view mode — 와이어프레임 토글 (fill 숨기고 stroke만 표시), 복잡한 디자인 구조 파악용, Cmd+Y 단축키
 - Anchor / Link points on shapes — 노드 가장자리에 커넥터 앵커 포인트 정의, Connector 자동 스냅
-- Measure tool overlay improvements — ruler 단위 전환 (px/dp/pt/rem), 3-way distance (gap + padding + margin)
-- Selection filter toolbar — 종류별 선택 필터 토글 (Text/Shape/Image/Frame 등), 잠금 노드 포함/제외
 - Auto-layout spacing visualization — 패딩/갭 인라인 표시 (Figma 스타일 핑크 영역), 드래그 조절
+- Smart auto-naming — 노드 속성/위치/색상 기반 자동 이름 생성 (Header, Footer, Card 등), AI 추론
 ## 완료된 기능 (추가 — Responsive Variant Auto-Switch)
 - Frame 리사이즈 시 Instance 자동 variant 전환
 - ResponsiveVariantRule: label, max_width, variant_key

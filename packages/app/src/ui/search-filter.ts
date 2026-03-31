@@ -1,8 +1,8 @@
 /**
  * Canvas Object Search & Filter
- * Filter nodes by type, fill color, text content, font family, size range.
- * Matching nodes highlighted, non-matching dimmed (opacity reduction).
- * Click result → pan + select.
+ * Filter nodes by type, fill color, stroke color, opacity, text content, font family, size range.
+ * Matching nodes highlighted (orange), non-matching dimmed (opacity reduction).
+ * Click result → pan + select. "Select All Results" for batch selection.
  */
 import type { Editor } from '../editor';
 
@@ -47,7 +47,7 @@ export function isSearchFilterOpen(): boolean {
   return panel != null;
 }
 
-/** Get the set of dimmed node IDs (for render overlay) */
+/** Get the set of matched node IDs (for render overlay) */
 export function getDimmedNodeIds(): Set<number> | null {
   if (!filterActive || matchedIds.size === 0) return null;
   return matchedIds;
@@ -58,13 +58,13 @@ function openPanel() {
   panel.id = 'search-filter-panel';
   panel.innerHTML = `
     <div class="sf-header">
-      <span class="sf-title">🔍 Search & Filter</span>
+      <span class="sf-title">🔍 Object Filter</span>
       <button class="sf-close" title="Close (Esc)">✕</button>
     </div>
     <div class="sf-body">
       <div class="sf-section">
-        <label class="sf-label">Text Content</label>
-        <input class="sf-input" id="sf-text" placeholder="Search text…" autocomplete="off"/>
+        <label class="sf-label">Name / Text</label>
+        <input class="sf-input" id="sf-text" placeholder="Search name or text…" autocomplete="off"/>
       </div>
       <div class="sf-section">
         <label class="sf-label">Node Type</label>
@@ -86,6 +86,7 @@ function openPanel() {
           <option value="Slice">Slice</option>
           <option value="VectorNetwork">Vector Network</option>
           <option value="StickyNote">Sticky Note</option>
+          <option value="Callout">Callout</option>
         </select>
       </div>
       <div class="sf-section">
@@ -96,8 +97,19 @@ function openPanel() {
         </div>
       </div>
       <div class="sf-section">
-        <label class="sf-label">Font Family</label>
-        <input class="sf-input" id="sf-font" placeholder="e.g. Inter, Arial…" autocomplete="off"/>
+        <label class="sf-label">Stroke Color</label>
+        <div class="sf-row">
+          <input class="sf-input sf-color-hex" id="sf-stroke" placeholder="#rrggbb" autocomplete="off"/>
+          <input type="color" id="sf-stroke-picker" value="#ffffff" />
+        </div>
+      </div>
+      <div class="sf-section">
+        <label class="sf-label">Opacity Range</label>
+        <div class="sf-row">
+          <input class="sf-input sf-size" id="sf-opacity-min" placeholder="Min" type="number" min="0" max="1" step="0.1"/>
+          <span class="sf-dash">–</span>
+          <input class="sf-input sf-size" id="sf-opacity-max" placeholder="Max" type="number" min="0" max="1" step="0.1"/>
+        </div>
       </div>
       <div class="sf-section">
         <label class="sf-label">Size Range (width)</label>
@@ -110,9 +122,11 @@ function openPanel() {
       <div class="sf-section sf-checkboxes">
         <label class="sf-check-label"><input type="checkbox" id="sf-hidden"/> Include hidden</label>
         <label class="sf-check-label"><input type="checkbox" id="sf-locked"/> Locked only</label>
+        <label class="sf-check-label"><input type="checkbox" id="sf-text-only"/> Text nodes only</label>
       </div>
       <div class="sf-actions">
         <button class="sf-btn sf-btn-primary" id="sf-apply">Filter</button>
+        <button class="sf-btn sf-btn-select-all" id="sf-select-all" title="Select all matching nodes">Select All</button>
         <button class="sf-btn" id="sf-clear">Clear</button>
         <span class="sf-count" id="sf-count"></span>
       </div>
@@ -123,7 +137,7 @@ function openPanel() {
     position: 'fixed',
     top: '60px',
     left: '280px',
-    width: '300px',
+    width: '310px',
     background: '#2a2a2a',
     borderRadius: '10px',
     boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
@@ -142,14 +156,13 @@ function setupPanelEvents() {
   if (!panel) return;
   panel.querySelector('.sf-close')!.addEventListener('click', closeSearchFilter);
 
-  // Color picker sync
-  const fillHex = panel.querySelector('#sf-fill') as HTMLInputElement;
-  const fillPicker = panel.querySelector('#sf-fill-picker') as HTMLInputElement;
-  fillPicker.addEventListener('input', () => { fillHex.value = fillPicker.value; });
-  fillHex.addEventListener('input', () => { try { fillPicker.value = fillHex.value; } catch {} });
+  // Color picker syncs
+  syncColorPicker('sf-fill', 'sf-fill-picker');
+  syncColorPicker('sf-stroke', 'sf-stroke-picker');
 
   // Apply filter
   panel.querySelector('#sf-apply')!.addEventListener('click', applyFilter);
+  panel.querySelector('#sf-select-all')!.addEventListener('click', selectAllResults);
   panel.querySelector('#sf-clear')!.addEventListener('click', () => {
     clearDimming();
     clearInputs();
@@ -165,14 +178,27 @@ function setupPanelEvents() {
   });
 }
 
+function syncColorPicker(hexId: string, pickerId: string) {
+  if (!panel) return;
+  const hexEl = panel.querySelector(`#${hexId}`) as HTMLInputElement;
+  const pickerEl = panel.querySelector(`#${pickerId}`) as HTMLInputElement;
+  pickerEl.addEventListener('input', () => { hexEl.value = pickerEl.value; });
+  hexEl.addEventListener('input', () => { try { pickerEl.value = hexEl.value; } catch {} });
+}
+
 function clearInputs() {
   if (!panel) return;
   (panel.querySelector('#sf-text') as HTMLInputElement).value = '';
   (panel.querySelector('#sf-type') as HTMLSelectElement).value = '';
   (panel.querySelector('#sf-fill') as HTMLInputElement).value = '';
-  (panel.querySelector('#sf-font') as HTMLInputElement).value = '';
+  (panel.querySelector('#sf-stroke') as HTMLInputElement).value = '';
+  (panel.querySelector('#sf-opacity-min') as HTMLInputElement).value = '';
+  (panel.querySelector('#sf-opacity-max') as HTMLInputElement).value = '';
   (panel.querySelector('#sf-min-w') as HTMLInputElement).value = '';
   (panel.querySelector('#sf-max-w') as HTMLInputElement).value = '';
+  (panel.querySelector('#sf-hidden') as HTMLInputElement).checked = false;
+  (panel.querySelector('#sf-locked') as HTMLInputElement).checked = false;
+  (panel.querySelector('#sf-text-only') as HTMLInputElement).checked = false;
   (panel.querySelector('#sf-count') as HTMLElement).textContent = '';
   (panel.querySelector('#sf-results') as HTMLElement).innerHTML = '';
   matchedIds.clear();
@@ -184,99 +210,105 @@ function applyFilter() {
   if (!editorRef || !panel) return;
   const engine = editorRef.engine;
 
-  const textQuery = (panel.querySelector('#sf-text') as HTMLInputElement).value.trim().toLowerCase();
+  const textQuery = (panel.querySelector('#sf-text') as HTMLInputElement).value.trim();
   const typeFilter = (panel.querySelector('#sf-type') as HTMLSelectElement).value;
-  const fillFilter = (panel.querySelector('#sf-fill') as HTMLInputElement).value.trim().toLowerCase();
-  const fontFilter = (panel.querySelector('#sf-font') as HTMLInputElement).value.trim().toLowerCase();
+  const fillFilter = (panel.querySelector('#sf-fill') as HTMLInputElement).value.trim();
+  const strokeFilter = (panel.querySelector('#sf-stroke') as HTMLInputElement).value.trim();
+  const opacityMin = parseFloat((panel.querySelector('#sf-opacity-min') as HTMLInputElement).value);
+  const opacityMax = parseFloat((panel.querySelector('#sf-opacity-max') as HTMLInputElement).value);
   const minW = parseFloat((panel.querySelector('#sf-min-w') as HTMLInputElement).value) || 0;
   const maxW = parseFloat((panel.querySelector('#sf-max-w') as HTMLInputElement).value) || Infinity;
-
   const includeHidden = (panel.querySelector('#sf-hidden') as HTMLInputElement).checked;
   const lockedOnly = (panel.querySelector('#sf-locked') as HTMLInputElement).checked;
+  const textOnly = (panel.querySelector('#sf-text-only') as HTMLInputElement).checked;
 
-  const hasAnyFilter = textQuery || typeFilter || fillFilter || fontFilter || minW > 0 || maxW < Infinity || lockedOnly;
+  const hasAnyFilter = textQuery || typeFilter || fillFilter || strokeFilter || !isNaN(opacityMin) || !isNaN(opacityMax) || minW > 0 || maxW < Infinity || lockedOnly || textOnly;
   if (!hasAnyFilter) {
     clearDimming();
     clearInputs();
     return;
   }
 
-  // Get all nodes
-  const layers: { id: number; name: string; kind: string; depth: number }[] = JSON.parse(engine.get_layer_list());
+  // Build Rust filter criteria
+  const criteria: any = {};
+  if (typeFilter) criteria.kinds = [typeFilter];
+  if (fillFilter) criteria.fill_color = fillFilter;
+  if (strokeFilter) criteria.stroke_color = strokeFilter;
+  if (!isNaN(opacityMin)) criteria.opacity_min = opacityMin;
+  if (!isNaN(opacityMax)) criteria.opacity_max = opacityMax;
+  if (!includeHidden) criteria.visible = true;
+  if (lockedOnly) criteria.locked = true;
+  if (textOnly) criteria.has_text = true;
+  if (textQuery) criteria.name_pattern = textQuery;
+
+  // Use Rust engine filter_nodes
+  let rustIds: number[] = [];
+  try {
+    const raw = engine.filter_nodes(JSON.stringify(criteria));
+    rustIds = JSON.parse(raw).map(Number);
+  } catch {
+    rustIds = [];
+  }
+
+  // Post-filter by size range (done in TS since Rust doesn't have it)
   matchedIds.clear();
   allResults = [];
 
-  for (const layer of layers) {
-    const nj = engine.get_node_json(BigInt(layer.id));
-    if (!nj) continue;
-    let node: any;
-    try { node = JSON.parse(nj); } catch { continue; }
+  for (const id of rustIds) {
+    try {
+      const nj = engine.get_node_json(BigInt(id));
+      if (!nj) continue;
+      const node = JSON.parse(nj);
+      const w = node.width || 0;
+      if (w < minW || w > maxW) continue;
 
-    const reasons: string[] = [];
-
-    // Hidden filter: skip invisible nodes unless "Include hidden" is checked
-    if (!includeHidden && node.visible === false) continue;
-
-    // Locked filter: if "Locked only" is checked, skip unlocked nodes
-    if (lockedOnly && !node.locked) continue;
-
-    // Type filter
-    if (typeFilter) {
-      const kindStr = getKindString(node.kind);
-      if (kindStr !== typeFilter) continue;
-    }
-
-    // Text content filter
-    if (textQuery) {
-      const nameMatch = (node.name || '').toLowerCase().includes(textQuery);
-      const contentMatch = typeof node.kind === 'object' && node.kind.Text != null
-        ? (node.kind.Text || '').toLowerCase().includes(textQuery)
-        : false;
-      if (!nameMatch && !contentMatch) continue;
-      if (contentMatch) reasons.push('text');
-      if (nameMatch) reasons.push('name');
-    }
-
-    // Fill color filter
-    if (fillFilter) {
-      const nodeColors = extractFillColors(node);
-      const matchColor = nodeColors.some(c => c.toLowerCase().includes(fillFilter.replace('#', '')));
-      if (!matchColor) continue;
-      reasons.push('fill');
-    }
-
-    // Font family filter
-    if (fontFilter) {
-      const ff = (node.font_family || '').toLowerCase();
-      if (!ff.includes(fontFilter)) continue;
-      reasons.push('font');
-    }
-
-    // Size range filter
-    const w = node.width || 0;
-    if (w < minW || w > maxW) continue;
-    if (minW > 0 || maxW < Infinity) reasons.push('size');
-
-    matchedIds.add(layer.id);
-    allResults.push({
-      id: layer.id,
-      name: node.name || `Node ${layer.id}`,
-      kind: getKindString(node.kind),
-      x: node.x || 0,
-      y: node.y || 0,
-      width: node.width || 0,
-      height: node.height || 0,
-      matchReason: reasons.join(', ') || 'match',
-    });
+      matchedIds.add(id);
+      allResults.push({
+        id,
+        name: node.name || `Node ${id}`,
+        kind: getKindString(node.kind),
+        x: node.x || 0,
+        y: node.y || 0,
+        width: node.width || 0,
+        height: node.height || 0,
+        matchReason: buildMatchReason(typeFilter, fillFilter, strokeFilter, textQuery, lockedOnly, textOnly, minW, maxW, opacityMin, opacityMax),
+      });
+    } catch {}
   }
 
   filterActive = matchedIds.size > 0;
 
   // Update count
   const countEl = panel.querySelector('#sf-count') as HTMLElement;
-  countEl.textContent = `${allResults.length} / ${layers.length} nodes`;
+  countEl.textContent = `${allResults.length} found`;
 
   renderResults();
+  editorRef.requestRender();
+}
+
+function buildMatchReason(type: string, fill: string, stroke: string, text: string, locked: boolean, textOnly: boolean, minW: number, maxW: number, oMin: number, oMax: number): string {
+  const parts: string[] = [];
+  if (type) parts.push('type');
+  if (fill) parts.push('fill');
+  if (stroke) parts.push('stroke');
+  if (text) parts.push('name');
+  if (locked) parts.push('locked');
+  if (textOnly) parts.push('text');
+  if (minW > 0 || maxW < Infinity) parts.push('size');
+  if (!isNaN(oMin) || !isNaN(oMax)) parts.push('opacity');
+  return parts.join(', ') || 'match';
+}
+
+function selectAllResults() {
+  if (!editorRef || allResults.length === 0) return;
+  const engine = editorRef.engine;
+  engine.deselect_all();
+  const ids: number[] = [];
+  for (const r of allResults) {
+    engine.select_node(BigInt(r.id));
+    ids.push(r.id);
+  }
+  (editorRef as any).fireSelectionNow?.(ids);
   editorRef.requestRender();
 }
 
@@ -287,31 +319,6 @@ function getKindString(kind: any): string {
     return keys[0] || 'Unknown';
   }
   return 'Unknown';
-}
-
-function extractFillColors(node: any): string[] {
-  const colors: string[] = [];
-  if (node.fills && Array.isArray(node.fills)) {
-    for (const fill of node.fills) {
-      if (fill.fill_type === 'Solid' || fill.color) {
-        const c = fill.color;
-        if (c) {
-          const hex = rgbaToHex(c.r, c.g, c.b);
-          colors.push(hex);
-        }
-      }
-    }
-  } else if (node.fill) {
-    const c = node.fill.color;
-    if (c) {
-      colors.push(rgbaToHex(c.r, c.g, c.b));
-    }
-  }
-  return colors;
-}
-
-function rgbaToHex(r: number, g: number, b: number): string {
-  return ((r << 16) | (g << 8) | b).toString(16).padStart(6, '0');
 }
 
 function renderResults() {
@@ -333,11 +340,9 @@ function renderResults() {
     item.addEventListener('click', () => {
       const id = parseInt((item as HTMLElement).dataset.id || '0');
       if (!editorRef || !id) return;
-      // Select and pan to node
       editorRef.engine.deselect_all();
-      editorRef.engine.select(BigInt(id));
-      editorRef.fireSelectionNow([id]);
-      // Pan to center
+      editorRef.engine.select_node(BigInt(id));
+      (editorRef as any).fireSelectionNow?.([id]);
       panToNode(id);
       editorRef.requestRender();
     });
@@ -375,7 +380,7 @@ function escapeHtml(s: string): string {
 }
 
 /**
- * Render dimming overlay on non-matching nodes.
+ * Render highlight overlay on matching nodes + dim non-matching.
  * Called from editor render loop.
  */
 export function renderSearchFilterDimming(
@@ -391,39 +396,31 @@ export function renderSearchFilterDimming(
   const layers: { id: number }[] = JSON.parse(engine.get_layer_list());
 
   for (const layer of layers) {
-    if (matchedIds.has(layer.id)) {
-      // Draw highlight border on matched nodes
-      const nj = engine.get_node_json(BigInt(layer.id));
-      if (!nj) continue;
-      try {
-        const node = JSON.parse(nj);
-        const sx = node.x * zoom + panX;
-        const sy = node.y * zoom + panY;
-        const sw = node.width * zoom;
-        const sh = node.height * zoom;
+    const nj = engine.get_node_json(BigInt(layer.id));
+    if (!nj) continue;
+    try {
+      const node = JSON.parse(nj);
+      const sx = node.x * zoom + panX;
+      const sy = node.y * zoom + panY;
+      const sw = node.width * zoom;
+      const sh = node.height * zoom;
+
+      if (matchedIds.has(layer.id)) {
+        // Orange highlight border on matched nodes
         ctx.save();
-        ctx.strokeStyle = '#4a90d9';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([4, 4]);
+        ctx.strokeStyle = '#ff8c00';
+        ctx.lineWidth = 2.5;
+        ctx.setLineDash([]);
         ctx.strokeRect(sx, sy, sw, sh);
         ctx.restore();
-      } catch {}
-    } else {
-      // Dim non-matching nodes
-      const nj = engine.get_node_json(BigInt(layer.id));
-      if (!nj) continue;
-      try {
-        const node = JSON.parse(nj);
-        const sx = node.x * zoom + panX;
-        const sy = node.y * zoom + panY;
-        const sw = node.width * zoom;
-        const sh = node.height * zoom;
+      } else {
+        // Dim non-matching nodes
         ctx.save();
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
         ctx.fillRect(sx, sy, sw, sh);
         ctx.restore();
-      } catch {}
-    }
+      }
+    } catch {}
   }
 }
 
@@ -458,7 +455,7 @@ style.textContent = `
 }
 #search-filter-panel .sf-size { width: 80px; flex: 1; }
 #search-filter-panel .sf-dash { color: #666; }
-#search-filter-panel .sf-actions { display: flex; gap: 6px; align-items: center; margin-top: 10px; margin-bottom: 8px; }
+#search-filter-panel .sf-actions { display: flex; gap: 6px; align-items: center; margin-top: 10px; margin-bottom: 8px; flex-wrap: wrap; }
 #search-filter-panel .sf-btn {
   padding: 5px 12px; background: #444; border: 1px solid #555; border-radius: 5px;
   color: #ddd; cursor: pointer; font-size: 11px;
@@ -466,6 +463,8 @@ style.textContent = `
 #search-filter-panel .sf-btn:hover { background: #555; }
 #search-filter-panel .sf-btn-primary { background: #4a90d9; border-color: #4a90d9; color: #fff; }
 #search-filter-panel .sf-btn-primary:hover { background: #3a7bc8; }
+#search-filter-panel .sf-btn-select-all { background: #ff8c00; border-color: #ff8c00; color: #fff; }
+#search-filter-panel .sf-btn-select-all:hover { background: #e07b00; }
 #search-filter-panel .sf-count { font-size: 11px; color: #888; margin-left: auto; }
 #search-filter-panel .sf-results { max-height: 240px; overflow-y: auto; }
 #search-filter-panel .sf-result-item {
@@ -478,9 +477,9 @@ style.textContent = `
 #search-filter-panel .sf-result-name {
   font-size: 11px; color: #ccc; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-#search-filter-panel .sf-result-reason { font-size: 9px; color: #4a90d9; flex-shrink: 0; }
+#search-filter-panel .sf-result-reason { font-size: 9px; color: #ff8c00; flex-shrink: 0; }
 #search-filter-panel .sf-empty { text-align: center; color: #666; padding: 12px; font-size: 11px; }
-#search-filter-panel .sf-checkboxes { display: flex; gap: 12px; }
+#search-filter-panel .sf-checkboxes { display: flex; gap: 12px; flex-wrap: wrap; }
 #search-filter-panel .sf-check-label { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #aaa; cursor: pointer; }
 #search-filter-panel .sf-check-label input { accent-color: #4a90d9; }
 `;

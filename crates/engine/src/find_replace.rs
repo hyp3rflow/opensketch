@@ -652,4 +652,122 @@ impl Scene {
         let modified = self.replace_properties(&ids, replacement);
         (matched, modified)
     }
+
+    /// Filter nodes by object properties (kind, fill color, stroke color, opacity, visibility, locked, has_text, name pattern).
+    /// Returns matching node IDs in render order.
+    pub fn filter_nodes(&self, criteria_json: &str) -> Vec<u64> {
+        let criteria: serde_json::Value = match serde_json::from_str(criteria_json) {
+            Ok(v) => v,
+            Err(_) => return vec![],
+        };
+
+        let kinds: Option<Vec<&str>> = criteria.get("kinds")
+            .and_then(|v| v.as_array())
+            .map(|arr| arr.iter().filter_map(|v| v.as_str()).collect());
+
+        let fill_color: Option<&str> = criteria.get("fill_color").and_then(|v| v.as_str());
+        let stroke_color: Option<&str> = criteria.get("stroke_color").and_then(|v| v.as_str());
+        let opacity_min: Option<f64> = criteria.get("opacity_min").and_then(|v| v.as_f64());
+        let opacity_max: Option<f64> = criteria.get("opacity_max").and_then(|v| v.as_f64());
+        let visible: Option<bool> = criteria.get("visible").and_then(|v| v.as_bool());
+        let locked: Option<bool> = criteria.get("locked").and_then(|v| v.as_bool());
+        let has_text: Option<bool> = criteria.get("has_text").and_then(|v| v.as_bool());
+        let name_pattern: Option<&str> = criteria.get("name_pattern").and_then(|v| v.as_str());
+
+        let order = self.render_order();
+        let mut result = Vec::new();
+
+        for &id in &order {
+            let node = match self.nodes.get(&id) {
+                Some(n) => n,
+                None => continue,
+            };
+
+            // Kind filter
+            if let Some(ref ks) = kinds {
+                if !ks.is_empty() && !ks.iter().any(|k| k.eq_ignore_ascii_case(node.kind_name())) {
+                    continue;
+                }
+            }
+
+            // Fill color filter (hex match, case-insensitive, tolerance ±2)
+            if let Some(fc) = fill_color {
+                let fc_clean = fc.trim_start_matches('#').to_lowercase();
+                if fc_clean.len() >= 6 {
+                    let target = crate::scene::parse_hex_color(&fc_clean);
+                    let mut matched = false;
+                    if let Some(tc) = target {
+                        for fill in &node.fills {
+                            let c = fill.color();
+                            if (c.r as i16 - tc.r as i16).abs() <= 2
+                                && (c.g as i16 - tc.g as i16).abs() <= 2
+                                && (c.b as i16 - tc.b as i16).abs() <= 2
+                            {
+                                matched = true;
+                                break;
+                            }
+                        }
+                    }
+                    if !matched { continue; }
+                }
+            }
+
+            // Stroke color filter
+            if let Some(sc) = stroke_color {
+                let sc_clean = sc.trim_start_matches('#').to_lowercase();
+                if sc_clean.len() >= 6 {
+                    let target = crate::scene::parse_hex_color(&sc_clean);
+                    let mut matched = false;
+                    if let Some(tc) = target {
+                        for stroke in &node.strokes {
+                            let c = &stroke.color;
+                            if (c.r as i16 - tc.r as i16).abs() <= 2
+                                && (c.g as i16 - tc.g as i16).abs() <= 2
+                                && (c.b as i16 - tc.b as i16).abs() <= 2
+                            {
+                                matched = true;
+                                break;
+                            }
+                        }
+                    }
+                    if !matched { continue; }
+                }
+            }
+
+            // Opacity range
+            if let Some(omin) = opacity_min {
+                if node.opacity < omin { continue; }
+            }
+            if let Some(omax) = opacity_max {
+                if node.opacity > omax { continue; }
+            }
+
+            // Visibility
+            if let Some(v) = visible {
+                if node.visible != v { continue; }
+            }
+
+            // Locked
+            if let Some(l) = locked {
+                if node.locked != l { continue; }
+            }
+
+            // Has text
+            if let Some(ht) = has_text {
+                let is_text = matches!(node.kind, NodeKind::Text { .. });
+                if ht != is_text { continue; }
+            }
+
+            // Name pattern (case-insensitive contains)
+            if let Some(pat) = name_pattern {
+                if !pat.is_empty() && !node.name.to_lowercase().contains(&pat.to_lowercase()) {
+                    continue;
+                }
+            }
+
+            result.push(id);
+        }
+
+        result
+    }
 }

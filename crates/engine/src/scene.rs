@@ -146,7 +146,7 @@ impl Default for CanvasBackground {
     }
 }
 
-fn parse_hex_color(hex: &str) -> Option<Color> {
+pub fn parse_hex_color(hex: &str) -> Option<Color> {
     let hex = hex.trim_start_matches('#');
     let (r, g, b, a) = match hex.len() {
         6 => {
