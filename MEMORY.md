@@ -1522,6 +1522,8 @@
 - Anchor / Link points on shapes — 노드 가장자리에 커넥터 앵커 포인트 정의, Connector 자동 스냅
 - Auto-layout spacing visualization — 패딩/갭 인라인 표시 (Figma 스타일 핑크 영역), 드래그 조절
 - Smart auto-naming — 노드 속성/위치/색상 기반 자동 이름 생성 (Header, Footer, Card 등), AI 추론
+- Figma-style auto-layout wrap counter — auto-layout wrap 모드에서 행/열당 아이템 수 제한, wrap-after 기능
+- Design system theme switcher — Light/Dark/Custom 테마 원클릭 전환 (Variable modes 연동), 캔버스 미리보기
 ## 완료된 기능 (추가 — Responsive Variant Auto-Switch)
 - Frame 리사이즈 시 Instance 자동 variant 전환
 - ResponsiveVariantRule: label, max_width, variant_key
