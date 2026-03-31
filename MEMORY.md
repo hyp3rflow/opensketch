@@ -1513,6 +1513,14 @@
 - Measure tool overlay improvements — ruler 단위 전환 (px/dp/pt/rem), 3-way distance (gap + padding + margin)
 - Selection filter toolbar — 종류별 선택 필터 토글 (Text/Shape/Image/Frame 등), 잠금 노드 포함/제외
 - Auto-layout spacing visualization — 패딩/갭 인라인 표시 (Figma 스타일 핑크 영역), 드래그 조절
+## 완료된 기능 (추가 — Responsive Variant Auto-Switch)
+- Frame 리사이즈 시 Instance 자동 variant 전환
+- ResponsiveVariantRule: label, max_width, variant_key
+- InstanceData.responsive_rules (serde default, backward-compatible)
+- WASM: add/remove/get/clear_responsive_variant_rules, apply_responsive_variants
+- Properties panel: "RESPONSIVE VARIANTS" 섹션 (규칙 추가/삭제)
+- editor.ts: pointerup resize handle → apply_responsive_variants 자동 호출
+
 ## 완료된 기능 (추가 — Canvas Search & Replace Cmd+F)
 - Figma 스타일 플로팅 검색 바 (캔버스 상단 중앙, Cmd+F 토글)
 - 검색: 텍스트 노드 content + 모든 노드 name 매칭

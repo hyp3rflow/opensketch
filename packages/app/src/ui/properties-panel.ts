@@ -744,6 +744,76 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         header.appendChild(variantSection);
       }
 
+      // === Responsive Variant Rules ===
+      try {
+        const rulesJson = editor.engine.get_responsive_variant_rules(BigInt(id));
+        const rules: Array<{label: string, max_width: number, variant_key: Record<string, any>}> = JSON.parse(rulesJson);
+
+        const rvSection = document.createElement("div");
+        rvSection.style.cssText = `
+          margin-bottom:8px; padding:8px 10px;
+          background:rgba(16,185,129,0.06); border:1px solid rgba(16,185,129,0.15);
+          border-radius:8px;
+        `;
+        const rvTitle = document.createElement("div");
+        rvTitle.style.cssText = "font-size:10px;color:#10b981;letter-spacing:0.3px;margin-bottom:6px;font-weight:600;display:flex;align-items:center;justify-content:space-between;";
+        rvTitle.innerHTML = `RESPONSIVE VARIANTS`;
+
+        const addBtn = document.createElement("button");
+        addBtn.style.cssText = `
+          background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.3);
+          border-radius:4px; padding:1px 6px; color:#10b981;
+          cursor:pointer; font-size:10px; font-weight:500;
+        `;
+        addBtn.textContent = "+ Add";
+        addBtn.onclick = () => {
+          const label = prompt("Breakpoint label (e.g. Mobile, Tablet):", "Mobile");
+          if (!label) return;
+          const maxW = prompt("Max width (px):", "375");
+          if (!maxW) return;
+          // Use current variant as default target
+          const currentVariant = compInfo.current_variant_values || {};
+          const keyJson = JSON.stringify(currentVariant);
+          editor.pushUndo();
+          editor.engine.add_responsive_variant_rule(BigInt(id), label, parseFloat(maxW), keyJson);
+          editor.requestRender();
+          updatePanel();
+        };
+        rvTitle.appendChild(addBtn);
+        rvSection.appendChild(rvTitle);
+
+        for (let ri = 0; ri < rules.length; ri++) {
+          const rule = rules[ri];
+          const row = document.createElement("div");
+          row.style.cssText = "display:flex;align-items:center;gap:6px;margin-bottom:4px;font-size:11px;color:#e5e7eb;";
+          row.innerHTML = `
+            <span style="color:#10b981;font-weight:600;min-width:60px;">${rule.label}</span>
+            <span style="color:#9ca3af;">≤ ${rule.max_width}px</span>
+            <span style="color:#6b7280;font-size:10px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">→ ${Object.entries(rule.variant_key).map(([k,v]) => `${k}=${typeof v === 'object' && v !== null && 'String' in (v as any) ? (v as any).String : v}`).join(', ')}</span>
+          `;
+          const delBtn = document.createElement("button");
+          delBtn.style.cssText = "background:none;border:none;color:#ef4444;cursor:pointer;font-size:12px;padding:0 2px;";
+          delBtn.textContent = "×";
+          delBtn.onclick = () => {
+            editor.pushUndo();
+            editor.engine.remove_responsive_variant_rule(BigInt(id), ri);
+            editor.requestRender();
+            updatePanel();
+          };
+          row.appendChild(delBtn);
+          rvSection.appendChild(row);
+        }
+
+        if (rules.length === 0) {
+          const hint = document.createElement("div");
+          hint.style.cssText = "font-size:10px;color:#6b7280;font-style:italic;";
+          hint.textContent = "Add rules to auto-switch variant on parent resize";
+          rvSection.appendChild(hint);
+        }
+
+        header.appendChild(rvSection);
+      } catch(_) {}
+
       // === Style Override Indicators ===
       try {
         const overrideJson = editor.engine.get_instance_overridden_props(id);

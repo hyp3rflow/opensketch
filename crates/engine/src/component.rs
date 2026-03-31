@@ -158,6 +158,20 @@ pub struct InstanceData {
     pub slot_fills: HashMap<String, Vec<NodeId>>,
     /// Per-node property overrides (node_id_in_template → overridden properties)
     pub overrides: HashMap<NodeId, NodeOverrides>,
+    /// Responsive variant rules: auto-switch variant based on parent frame width
+    #[serde(default)]
+    pub responsive_rules: Vec<ResponsiveVariantRule>,
+}
+
+/// Responsive variant rule: when parent width <= max_width, switch to this variant
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ResponsiveVariantRule {
+    /// Label for UI (e.g. "Mobile", "Tablet")
+    pub label: String,
+    /// Maximum width at which this rule activates (inclusive)
+    pub max_width: f64,
+    /// Target variant key to switch to
+    pub variant_key: VariantKey,
 }
 
 /// Overridable properties on instance children

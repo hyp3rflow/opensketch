@@ -2254,6 +2254,9 @@ impl Engine {
             crate::node::StrokeAlign::Inside => "Inside",
             crate::node::StrokeAlign::Outside => "Outside",
         };
+        let sides = stroke.individual_sides.as_ref().map(|s| {
+            serde_json::json!({ "top": s.top, "right": s.right, "bottom": s.bottom, "left": s.left })
+        });
         serde_json::json!({
             "color": { "r": stroke.color.r, "g": stroke.color.g, "b": stroke.color.b, "a": stroke.color.a },
             "width": stroke.width,
@@ -2263,6 +2266,7 @@ impl Engine {
             "line_join": join,
             "align": align,
             "visible": stroke.visible,
+            "individual_sides": sides,
         })
     }
 
@@ -2389,6 +2393,36 @@ impl Engine {
                 };
             }
         }
+    }
+
+    /// Set individual stroke sides at index. Pass JSON: {"top":true,"right":true,"bottom":false,"left":false}
+    /// Pass "null" or empty string to clear (stroke all sides).
+    pub fn set_stroke_sides_at(&mut self, id: u64, index: u32, sides_json: &str) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            let idx = index as usize;
+            if idx < node.strokes.len() {
+                if sides_json.is_empty() || sides_json == "null" {
+                    node.strokes[idx].individual_sides = None;
+                } else if let Ok(v) = serde_json::from_str::<serde_json::Value>(sides_json) {
+                    let sides = crate::node::StrokeSides {
+                        top: v["top"].as_bool().unwrap_or(true),
+                        right: v["right"].as_bool().unwrap_or(true),
+                        bottom: v["bottom"].as_bool().unwrap_or(true),
+                        left: v["left"].as_bool().unwrap_or(true),
+                    };
+                    if sides.is_all() {
+                        node.strokes[idx].individual_sides = None;
+                    } else {
+                        node.strokes[idx].individual_sides = Some(sides);
+                    }
+                }
+            }
+        }
+    }
+
+    /// Set individual stroke sides on the primary stroke (index 0).
+    pub fn set_stroke_sides(&mut self, id: u64, sides_json: &str) {
+        self.set_stroke_sides_at(id, 0, sides_json);
     }
 
     pub fn set_stroke_dash(&mut self, id: u64, dash_pattern: &str, dash_offset: f64) {
@@ -3534,6 +3568,7 @@ impl Engine {
             variant_values: default_key,
             slot_fills: std::collections::HashMap::new(),
             overrides: std::collections::HashMap::new(),
+            responsive_rules: vec![],
         })));
         instance_root.name = format!("[I] {}", comp.name);
 
@@ -3685,6 +3720,123 @@ impl Engine {
         self.reflow_ancestors(instance_id);
 
         true
+    }
+
+    /// Add a responsive variant rule to an instance
+    pub fn add_responsive_variant_rule(&mut self, instance_id: u64, label: &str, max_width: f64, variant_key_json: &str) -> bool {
+        let key: Result<VariantKey, _> = serde_json::from_str(variant_key_json);
+        let key = match key {
+            Ok(k) => k,
+            Err(_) => return false,
+        };
+        if let Some(node) = self.scene.get_node_mut(instance_id) {
+            if let NodeKind::Instance(data) = &mut node.kind {
+                data.responsive_rules.push(component::ResponsiveVariantRule {
+                    label: label.to_string(),
+                    max_width,
+                    variant_key: key,
+                });
+                // Sort by max_width ascending so matching logic works correctly
+                data.responsive_rules.sort_by(|a, b| a.max_width.partial_cmp(&b.max_width).unwrap_or(std::cmp::Ordering::Equal));
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Remove a responsive variant rule by index
+    pub fn remove_responsive_variant_rule(&mut self, instance_id: u64, index: u32) -> bool {
+        if let Some(node) = self.scene.get_node_mut(instance_id) {
+            if let NodeKind::Instance(data) = &mut node.kind {
+                let idx = index as usize;
+                if idx < data.responsive_rules.len() {
+                    data.responsive_rules.remove(idx);
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    /// Get responsive variant rules as JSON
+    pub fn get_responsive_variant_rules(&self, instance_id: u64) -> String {
+        if let Some(node) = self.scene.get_node(instance_id) {
+            if let NodeKind::Instance(data) = &node.kind {
+                return serde_json::to_string(&data.responsive_rules).unwrap_or_else(|_| "[]".to_string());
+            }
+        }
+        "[]".to_string()
+    }
+
+    /// Clear all responsive variant rules from an instance
+    pub fn clear_responsive_variant_rules(&mut self, instance_id: u64) -> bool {
+        if let Some(node) = self.scene.get_node_mut(instance_id) {
+            if let NodeKind::Instance(data) = &mut node.kind {
+                data.responsive_rules.clear();
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Apply responsive variant rules for all instance children of a frame.
+    /// Returns the number of instances that were switched.
+    pub fn apply_responsive_variants(&mut self, frame_id: u64) -> u32 {
+        let frame_width = if let Some(node) = self.scene.get_node(frame_id) {
+            node.width
+        } else {
+            return 0;
+        };
+
+        let children: Vec<u64> = if let Some(node) = self.scene.get_node(frame_id) {
+            node.children.clone()
+        } else {
+            return 0;
+        };
+
+        let mut switched = 0u32;
+        for child_id in children {
+            // Check if child is an instance with responsive rules
+            let target_key = if let Some(node) = self.scene.get_node(child_id) {
+                if let NodeKind::Instance(data) = &node.kind {
+                    if data.responsive_rules.is_empty() {
+                        continue;
+                    }
+                    // Find matching rule: rules sorted by max_width ascending,
+                    // pick the largest max_width that is >= frame_width (most specific match)
+                    // Actually: pick the smallest max_width that is >= frame_width
+                    // i.e. mobile-first: if frame_width <= 375, match "Mobile" (375),
+                    // if frame_width <= 768, match "Tablet" (768), etc.
+                    let mut matched: Option<&VariantKey> = None;
+                    for rule in &data.responsive_rules {
+                        if frame_width <= rule.max_width {
+                            matched = Some(&rule.variant_key);
+                            break; // first match (smallest max_width that fits)
+                        }
+                    }
+                    if let Some(key) = matched {
+                        if *key != data.variant_values {
+                            Some(serde_json::to_string(key).unwrap_or_default())
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+
+            if let Some(key_json) = target_key {
+                if self.set_instance_variant(child_id, &key_json) {
+                    switched += 1;
+                }
+            }
+        }
+        switched
     }
 
     /// Fill a slot in an instance with a node
@@ -4112,6 +4264,7 @@ impl Engine {
             variant_values: variant_key,
             slot_fills: std::collections::HashMap::new(),
             overrides: std::collections::HashMap::new(),
+            responsive_rules: vec![],
         })));
         instance_node.name = format!("Playground_{}", comp.name);
         if let Some(root) = self.scene.get_node(variant_data.root_node_id) {
@@ -4230,6 +4383,7 @@ impl Engine {
                 variant_values: default_key,
                 slot_fills: std::collections::HashMap::new(),
                 overrides: std::collections::HashMap::new(),
+                responsive_rules: vec![],
             }));
             node.name = format!("[I] {}", comp.name);
             if let Some(template_root) = variant.nodes.first() {
@@ -6452,6 +6606,7 @@ impl Engine {
                     variant_values: default_key.clone(),
                     slot_fills: std::collections::HashMap::new(),
                     overrides: std::collections::HashMap::new(),
+                    responsive_rules: vec![],
                 };
                 target.kind = NodeKind::Instance(Box::new(instance_data));
                 target.name = format!("{} (instance)", comp.name);

@@ -787,6 +787,35 @@ pub struct Stroke {
     pub align: StrokeAlign,
     #[serde(default = "default_visible")]
     pub visible: bool,
+    /// Individual stroke sides — when Some, only the specified sides are stroked.
+    /// Applies only to Rect/Frame/Section nodes. None = all sides.
+    #[serde(default)]
+    pub individual_sides: Option<StrokeSides>,
+}
+
+/// Which sides of a rectangle to stroke individually.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct StrokeSides {
+    #[serde(default = "default_visible")]
+    pub top: bool,
+    #[serde(default = "default_visible")]
+    pub right: bool,
+    #[serde(default = "default_visible")]
+    pub bottom: bool,
+    #[serde(default = "default_visible")]
+    pub left: bool,
+}
+
+impl Default for StrokeSides {
+    fn default() -> Self {
+        StrokeSides { top: true, right: true, bottom: true, left: true }
+    }
+}
+
+impl StrokeSides {
+    pub fn all() -> Self { Self { top: true, right: true, bottom: true, left: true } }
+    pub fn is_all(&self) -> bool { self.top && self.right && self.bottom && self.left }
+    pub fn is_none(&self) -> bool { !self.top && !self.right && !self.bottom && !self.left }
 }
 
 impl Stroke {
@@ -800,6 +829,7 @@ impl Stroke {
             line_join: LineJoin::default(),
             align: StrokeAlign::default(),
             visible: true,
+            individual_sides: None,
         }
     }
 }

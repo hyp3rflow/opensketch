@@ -579,6 +579,64 @@ impl Scene {
         }
     }
 
+    /// Apply responsive variant rules to Instance children of a frame.
+    /// For each child Instance with responsive_rules, check parent width
+    /// and switch to the matching variant (smallest max_width that is >= parent width).
+    /// Returns the number of instances that were switched.
+    pub fn apply_responsive_variants(&mut self, frame_id: NodeId) -> u32 {
+        let frame_width = match self.nodes.get(&frame_id) {
+            Some(n) => n.width,
+            None => return 0,
+        };
+        let children: Vec<NodeId> = match self.nodes.get(&frame_id) {
+            Some(n) => n.children.clone(),
+            None => return 0,
+        };
+
+        let mut switched = 0u32;
+        for child_id in children {
+            let target_key = {
+                let child = match self.nodes.get(&child_id) {
+                    Some(n) => n,
+                    None => continue,
+                };
+                let inst = match &child.kind {
+                    crate::node::NodeKind::Instance(data) => data,
+                    _ => continue,
+                };
+                if inst.responsive_rules.is_empty() { continue; }
+
+                // Sort rules by max_width ascending, pick the first one where frame_width <= max_width
+                let mut sorted_rules: Vec<_> = inst.responsive_rules.iter().collect();
+                sorted_rules.sort_by(|a, b| a.max_width.partial_cmp(&b.max_width).unwrap_or(std::cmp::Ordering::Equal));
+
+                let mut target: Option<crate::component::VariantKey> = None;
+                for rule in &sorted_rules {
+                    if frame_width <= rule.max_width {
+                        target = Some(rule.variant_key.clone());
+                        break;
+                    }
+                }
+                // If no rule matches (frame is wider than all breakpoints), keep current
+                match target {
+                    Some(k) => k,
+                    None => continue,
+                }
+            };
+
+            // Switch variant
+            if let Some(child) = self.nodes.get_mut(&child_id) {
+                if let crate::node::NodeKind::Instance(ref mut data) = child.kind {
+                    if data.variant_values != target_key {
+                        data.variant_values = target_key;
+                        switched += 1;
+                    }
+                }
+            }
+        }
+        switched
+    }
+
     /// Scale a node proportionally: resize + scale all visual properties
     /// (font size, corner radius, stroke widths, shadow offsets/blur, padding, gap, etc.)
     /// scale_x/scale_y are the ratio of new size / old size.

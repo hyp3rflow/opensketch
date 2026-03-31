@@ -264,3 +264,35 @@ A fullscreen overlay displaying all variant combinations of a component in a gri
 - Missing variants shown as dashed empty cells
 - Filter dropdowns for extra properties (live refresh)
 - `variant-matrix.ts`
+
+## Responsive Variant Auto-Switch
+
+Automatically switch Instance variants based on parent Frame width during resize.
+
+### Concept
+- Each Instance can have **responsive rules**: `{ label, max_width, variant_key }`
+- When a Frame is resized, all Instance children with responsive rules are checked
+- Rules sorted by `max_width` ascending; first rule where `frame_width <= max_width` wins
+- If no rule matches, the instance keeps its current variant
+
+### Example
+- Rule: `{ label: "Mobile", max_width: 375, variant_key: { "Size": "Small" } }`
+- Rule: `{ label: "Tablet", max_width: 768, variant_key: { "Size": "Medium" } }`
+- Frame resized to 320px → "Mobile" rule matches → variant switches to Small
+
+### Rust API
+- `ResponsiveVariantRule` struct in `component.rs`
+- `InstanceData.responsive_rules: Vec<ResponsiveVariantRule>` (serde default)
+
+### WASM
+- `add_responsive_variant_rule(instance_id, label, max_width, variant_key_json) -> bool`
+- `remove_responsive_variant_rule(instance_id, index) -> bool`
+- `get_responsive_variant_rules(instance_id) -> JSON`
+- `clear_responsive_variant_rules(instance_id) -> bool`
+- `apply_responsive_variants(frame_id) -> u32` (number switched)
+
+### UI
+- Properties panel shows "RESPONSIVE VARIANTS" section for Instance nodes
+- Add rule: prompt for label + max_width, uses current variant as target
+- Delete individual rules with × button
+- Auto-applied on frame resize (pointerup after resize handle drag)

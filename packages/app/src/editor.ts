@@ -2262,6 +2262,12 @@ export class Editor {
 
     // Fire final selection update after drag ends
     if (this.drag && this.currentTool === "select") {
+      // Apply responsive variant auto-switch after resize
+      if (this.drag.handleIndex != null && this.drag.nodeId != null) {
+        try {
+          (this.engine as any).apply_responsive_variants(BigInt(this.drag.nodeId));
+        } catch (_) {}
+      }
       this.fireSelectionNow(Array.from(this.engine.get_selection()).map(Number));
     }
 
