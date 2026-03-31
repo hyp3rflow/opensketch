@@ -8100,8 +8100,8 @@ impl Engine {
                 node_id,
                 property: animation::AnimProperty::MotionPath,
                 keyframes: vec![
-                    animation::Keyframe { time_ms: 0, value: 0.0, easing: ease },
-                    animation::Keyframe { time_ms: duration_ms, value: 1.0, easing: animation::Easing::Linear },
+                    animation::Keyframe { time_ms: 0, value: 0.0, easing: ease, variable_binding: None },
+                    animation::Keyframe { time_ms: duration_ms, value: 1.0, easing: animation::Easing::Linear, variable_binding: None },
                 ],
                 motion_path: Some(config),
             });
@@ -8199,6 +8199,64 @@ impl Engine {
     #[wasm_bindgen]
     pub fn export_svg_with_animations(&self, clip_id: u64) -> String {
         svg_export::export_scene_svg_with_animations(&self.scene, clip_id)
+    }
+
+    // =============================================
+    // Variable-driven Animation
+    // =============================================
+
+    /// Bind a keyframe's value to a variable. The keyframe value will be resolved from the variable at runtime.
+    #[wasm_bindgen]
+    pub fn anim_bind_keyframe_variable(&mut self, clip_id: u64, node_id: u64, property: &str, time_ms: u32, collection_id: u64, variable_id: u64) -> bool {
+        let prop = match parse_anim_property(property) {
+            Some(p) => p,
+            None => return false,
+        };
+        self.scene.animations.bind_keyframe_to_variable(clip_id, node_id, &prop, time_ms, collection_id, variable_id)
+    }
+
+    /// Unbind a keyframe from its variable (revert to static value)
+    #[wasm_bindgen]
+    pub fn anim_unbind_keyframe_variable(&mut self, clip_id: u64, node_id: u64, property: &str, time_ms: u32) -> bool {
+        let prop = match parse_anim_property(property) {
+            Some(p) => p,
+            None => return false,
+        };
+        self.scene.animations.unbind_keyframe_variable(clip_id, node_id, &prop, time_ms)
+    }
+
+    /// Get all variable bindings in a clip as JSON array
+    #[wasm_bindgen]
+    pub fn anim_get_variable_bindings(&self, clip_id: u64) -> String {
+        self.scene.animations.get_clip_variable_bindings(clip_id)
+    }
+
+    /// Apply animation with variable resolution from current variable collections.
+    /// Like anim_apply but resolves variable-bound keyframe values from active mode.
+    #[wasm_bindgen]
+    pub fn anim_apply_with_vars(&mut self, clip_id: u64, time_ms: u32) -> String {
+        let changed = self.scene.anim_apply_with_vars(clip_id, time_ms);
+        serde_json::to_string(&changed).unwrap_or_else(|_| "[]".to_string())
+    }
+
+    /// Get all number variables available for animation binding. Returns JSON array.
+    #[wasm_bindgen]
+    pub fn anim_get_bindable_variables(&self) -> String {
+        let mut vars = vec![];
+        for coll in &self.scene.variable_collections {
+            for var in &coll.variables {
+                if matches!(var.var_type, crate::variable::VariableType::Number | crate::variable::VariableType::Boolean) {
+                    vars.push(serde_json::json!({
+                        "collection_id": coll.id,
+                        "collection_name": coll.name,
+                        "variable_id": var.id,
+                        "variable_name": var.name,
+                        "type": format!("{:?}", var.var_type),
+                    }));
+                }
+            }
+        }
+        serde_json::to_string(&vars).unwrap_or_else(|_| "[]".to_string())
     }
 
     /// Get all Path nodes in the scene (for motion path picker)

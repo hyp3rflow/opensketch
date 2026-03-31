@@ -2920,6 +2920,36 @@ impl Scene {
         changed
     }
 
+    /// Apply animation with variable-bound keyframe resolution
+    pub fn anim_apply_with_vars(&mut self, clip_id: u64, time_ms: u32) -> Vec<NodeId> {
+        let collections = self.variable_collections.clone();
+        let values = self.animations.evaluate_clip_with_vars(clip_id, time_ms, &collections);
+        let mut changed = Vec::new();
+        for (node_id, prop, val) in values {
+            if let Some(node) = self.nodes.get_mut(&node_id) {
+                use crate::animation::AnimProperty::*;
+                match prop {
+                    X => node.x = val,
+                    Y => node.y = val,
+                    Width => node.width = val.max(0.0),
+                    Height => node.height = val.max(0.0),
+                    Rotation => node.rotation = val,
+                    Opacity => node.opacity = val.clamp(0.0, 1.0),
+                    CornerRadius => node.corner_radius = val.max(0.0),
+                    Blur => node.blur = val.max(0.0),
+                    FillR(idx) => { if let Some(f) = node.fills.get_mut(idx) { f.set_color_r(val as u8); } }
+                    FillG(idx) => { if let Some(f) = node.fills.get_mut(idx) { f.set_color_g(val as u8); } }
+                    FillB(idx) => { if let Some(f) = node.fills.get_mut(idx) { f.set_color_b(val as u8); } }
+                    FillA(idx) => { if let Some(f) = node.fills.get_mut(idx) { f.set_color_a(val); } }
+                    StrokeWidth(idx) => { if let Some(s) = node.strokes.get_mut(idx) { s.width = val.max(0.0); } }
+                    ScaleX | ScaleY | MotionPath => { /* handled in TS / motion path logic */ }
+                };
+                if !changed.contains(&node_id) { changed.push(node_id); }
+            }
+        }
+        changed
+    }
+
     pub fn anim_get_clips_json(&self) -> String {
         serde_json::to_string(&self.animations.clips).unwrap_or_else(|_| "[]".to_string())
     }

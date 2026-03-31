@@ -193,16 +193,92 @@ export function createAnimationTimeline(editor: Editor): {
       return;
     }
 
-    // Click on keyframe diamond — delete on right-click, select on left
+    // Click on keyframe diamond — right-click context menu
     if (e.button === 2) {
       e.preventDefault();
       const kf = hitTestKeyframe(x, y);
       if (kf && state.activeClipId != null) {
-        editor.engine.anim_remove_keyframe(BigInt(state.activeClipId), BigInt(kf.nodeId), kf.property, kf.time);
-        renderTracks();
+        showKeyframeContextMenu(e.clientX, e.clientY, kf);
       }
     }
   });
+
+  function showKeyframeContextMenu(mx: number, my: number, kf: { nodeId: number; property: string; time: number }) {
+    // Remove existing
+    document.querySelector(".anim-kf-ctx")?.remove();
+    const menu = document.createElement("div");
+    menu.className = "anim-kf-ctx";
+    menu.style.cssText = `position:fixed;left:${mx}px;top:${my}px;background:#1e1e2e;border:1px solid #444;border-radius:6px;padding:4px 0;z-index:9999;min-width:160px;box-shadow:0 4px 12px rgba(0,0,0,0.5);font-size:11px;`;
+
+    const makeItem = (label: string, onClick: () => void, color = "#ccc") => {
+      const item = document.createElement("div");
+      item.style.cssText = `padding:6px 12px;color:${color};cursor:pointer;transition:background 0.1s;`;
+      item.textContent = label;
+      item.addEventListener("mouseenter", () => { item.style.background = "#2a2a4a"; });
+      item.addEventListener("mouseleave", () => { item.style.background = "none"; });
+      item.addEventListener("click", () => { onClick(); menu.remove(); });
+      return item;
+    };
+
+    // Delete keyframe
+    menu.appendChild(makeItem("🗑 Delete Keyframe", () => {
+      editor.engine.anim_remove_keyframe(BigInt(state.activeClipId!), BigInt(kf.nodeId), kf.property, kf.time);
+      renderTracks();
+    }, "#f87171"));
+
+    // Variable binding
+    const sep = document.createElement("div");
+    sep.style.cssText = "height:1px;background:#333;margin:4px 0;";
+    menu.appendChild(sep);
+
+    // Check if already bound
+    const rows = getTrackRows();
+    let isBound = false;
+    for (const row of rows) {
+      if (row.nodeId === kf.nodeId && row.property === kf.property) {
+        const keyframe = row.keyframes.find(k => k.time === kf.time);
+        if (keyframe?.variable_binding) isBound = true;
+      }
+    }
+
+    if (isBound) {
+      menu.appendChild(makeItem("🔓 Unbind Variable", () => {
+        (editor.engine as any).anim_unbind_keyframe_variable(BigInt(state.activeClipId!), BigInt(kf.nodeId), kf.property, kf.time);
+        renderTracks();
+      }, "#f59e0b"));
+    }
+
+    // Bind to variable submenu
+    let bindableVars: any[] = [];
+    try {
+      bindableVars = JSON.parse((editor.engine as any).anim_get_bindable_variables() || "[]");
+    } catch {}
+
+    if (bindableVars.length > 0) {
+      const bindLabel = document.createElement("div");
+      bindLabel.style.cssText = "padding:4px 12px;color:#666;font-size:9px;text-transform:uppercase;letter-spacing:0.5px;";
+      bindLabel.textContent = "Bind to variable";
+      menu.appendChild(bindLabel);
+
+      for (const v of bindableVars) {
+        menu.appendChild(makeItem(`📌 ${v.collection_name} / ${v.variable_name}`, () => {
+          (editor.engine as any).anim_bind_keyframe_variable(
+            BigInt(state.activeClipId!), BigInt(kf.nodeId), kf.property, kf.time,
+            BigInt(v.collection_id), BigInt(v.variable_id)
+          );
+          renderTracks();
+        }, "#22c55e"));
+      }
+    } else {
+      menu.appendChild(makeItem("No bindable variables", () => {}, "#555"));
+    }
+
+    document.body.appendChild(menu);
+    const close = (ev: MouseEvent) => {
+      if (!menu.contains(ev.target as Node)) { menu.remove(); document.removeEventListener("click", close); }
+    };
+    setTimeout(() => document.addEventListener("click", close), 0);
+  }
 
   canvas.addEventListener("pointermove", (e) => {
     if (!draggingScrubber) return;
@@ -310,7 +386,7 @@ export function createAnimationTimeline(editor: Editor): {
     nodeId: number;
     nodeName: string;
     property: string;
-    keyframes: { time: number; value: number; easing: string }[];
+    keyframes: { time: number; value: number; easing: string; variable_binding?: { collection_id: number; variable_id: number } }[];
   }
 
   function getTrackRows(): TrackRow[] {
@@ -337,6 +413,7 @@ export function createAnimationTimeline(editor: Editor): {
           time: k.time_ms,
           value: k.value,
           easing: typeof k.easing === "string" ? k.easing : Object.keys(k.easing || {})[0] || "EaseInOut",
+          variable_binding: k.variable_binding || undefined,
         })),
       };
     });
@@ -432,11 +509,18 @@ export function createAnimationTimeline(editor: Editor): {
         ctx.lineTo(kx, cy + sz);
         ctx.lineTo(kx - sz, cy);
         ctx.closePath();
-        ctx.fillStyle = "#f9ca24";
+        ctx.fillStyle = kf.variable_binding ? "#22c55e" : "#f9ca24";
         ctx.fill();
-        ctx.strokeStyle = "#b8960f";
+        ctx.strokeStyle = kf.variable_binding ? "#16a34a" : "#b8960f";
         ctx.lineWidth = 1;
         ctx.stroke();
+        // Variable binding indicator (small "V" above diamond)
+        if (kf.variable_binding) {
+          ctx.fillStyle = "#22c55e";
+          ctx.font = "bold 7px -apple-system,sans-serif";
+          ctx.textAlign = "center";
+          ctx.fillText("V", kx, cy - sz - 2);
+        }
       }
     }
 

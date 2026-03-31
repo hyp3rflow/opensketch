@@ -954,6 +954,17 @@ Frame overflow control and content scrolling.
 - [x] Zoom/scroll on timeline, right-click to delete keyframes
 - [x] Keyboard shortcut: Alt+T to toggle timeline panel
 
+## Variable-driven Animation
+- [x] Rust: VariableBinding struct (collection_id, variable_id) on Keyframe
+- [x] Keyframe.resolve_value(): resolves from active variable mode at runtime (Number → direct, Boolean → 0/1, Color → brightness)
+- [x] AnimationTrack.value_at_with_vars(): interpolation with variable resolution
+- [x] AnimationStore: bind_keyframe_to_variable, unbind_keyframe_variable, get_clip_variable_bindings, evaluate_clip_with_vars
+- [x] Scene.anim_apply_with_vars(): applies animation with variable-resolved values
+- [x] WASM: anim_bind_keyframe_variable, anim_unbind_keyframe_variable, anim_get_variable_bindings, anim_apply_with_vars, anim_get_bindable_variables
+- [x] Timeline UI: green keyframe diamonds for variable-bound keyframes ("V" indicator)
+- [x] Right-click context menu on keyframes: Delete, Unbind Variable, Bind to Variable (picker from bindable Number/Boolean variables)
+- [x] Backward-compatible serde (variable_binding field skipped when None)
+
 ## Lottie Animation Export
 - [x] Rust: lottie_export.rs — bodymovin v5.7+ JSON export from AnimationClip + Scene nodes
 - [x] Supported shapes: Rect, Ellipse, Star, Polygon, Path (bezier), Text, Frame/Group (pre-comp)
