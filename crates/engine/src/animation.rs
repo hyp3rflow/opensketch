@@ -11,6 +11,9 @@ pub enum Easing {
     EaseInOut,
     /// Custom cubic-bezier(x1, y1, x2, y2)
     CubicBezier(f64, f64, f64, f64),
+    /// Spring physics-based easing (tension, friction, mass)
+    /// Framer Motion style: tension ~170, friction ~26, mass ~1
+    Spring { tension: f64, friction: f64, mass: f64 },
 }
 
 impl Default for Easing {
@@ -31,6 +34,9 @@ impl Easing {
             }
             Easing::CubicBezier(x1, y1, x2, y2) => {
                 cubic_bezier_eval(*x1, *y1, *x2, *y2, t)
+            }
+            Easing::Spring { tension, friction, mass } => {
+                spring_eval(*tension, *friction, *mass, t)
             }
         }
     }
@@ -55,6 +61,98 @@ fn cubic_bezier_eval(x1: f64, y1: f64, x2: f64, y2: f64, x: f64) -> f64 {
     let by = 3.0 * (y2 - y1) - cy;
     let ay = 1.0 - cy - by;
     ((ay * t + by) * t + cy) * t
+}
+
+/// Spring physics evaluation using damped harmonic oscillator.
+/// Maps t ∈ [0, 1] to output ∈ [0, 1] with overshoot possible.
+/// tension: spring stiffness (default ~170)
+/// friction: damping coefficient (default ~26)
+/// mass: object mass (default ~1)
+fn spring_eval(tension: f64, friction: f64, mass: f64, t: f64) -> f64 {
+    if t <= 0.0 { return 0.0; }
+    if t >= 1.0 { return 1.0; }
+
+    let mass = mass.max(0.01);
+    let tension = tension.max(0.01);
+    let friction = friction.max(0.0);
+
+    // Damped harmonic oscillator: m*x'' + c*x' + k*x = 0
+    // We simulate for a fixed duration and map t to that duration.
+    // Natural frequency and damping ratio
+    let omega_n = (tension / mass).sqrt();
+    let zeta = friction / (2.0 * (tension * mass).sqrt()); // damping ratio
+
+    // Duration: estimate settling time (to 0.1% of rest)
+    let settle_time = if zeta >= 1.0 {
+        // Overdamped/critically damped: ~5/omega_n
+        6.0 / omega_n
+    } else {
+        // Underdamped: ~5/(zeta * omega_n)
+        let effective = (zeta * omega_n).max(0.01);
+        6.0 / effective
+    };
+
+    let time = t * settle_time;
+
+    if zeta >= 1.0 {
+        // Overdamped or critically damped
+        let r1 = -omega_n * (zeta - (zeta * zeta - 1.0).max(0.0).sqrt());
+        let r2 = -omega_n * (zeta + (zeta * zeta - 1.0).max(0.0).sqrt());
+        if (r1 - r2).abs() < 1e-10 {
+            // Critically damped: x(t) = (1 + A*t) * e^(r1*t), solving for x(0)=0, target=1
+            1.0 - (1.0 - r1 * time) * (r1 * time).exp()
+        } else {
+            // Overdamped
+            let a = r2 / (r2 - r1);
+            let b = -r1 / (r2 - r1);
+            1.0 - a * (r1 * time).exp() - b * (r2 * time).exp()
+        }
+    } else {
+        // Underdamped (the fun case with bouncing)
+        let omega_d = omega_n * (1.0 - zeta * zeta).sqrt();
+        let decay = (-zeta * omega_n * time).exp();
+        let cos_part = (omega_d * time).cos();
+        let sin_part = (zeta * omega_n / omega_d) * (omega_d * time).sin();
+        1.0 - decay * (cos_part + sin_part)
+    }
+}
+
+/// Spring presets for common animation styles
+pub struct SpringPreset;
+
+impl SpringPreset {
+    pub fn gentle() -> (f64, f64, f64) { (120.0, 14.0, 1.0) }
+    pub fn default() -> (f64, f64, f64) { (170.0, 26.0, 1.0) }
+    pub fn wobbly() -> (f64, f64, f64) { (180.0, 12.0, 1.0) }
+    pub fn stiff() -> (f64, f64, f64) { (210.0, 20.0, 1.0) }
+    pub fn slow() -> (f64, f64, f64) { (280.0, 60.0, 1.0) }
+    pub fn molasses() -> (f64, f64, f64) { (280.0, 120.0, 1.0) }
+    pub fn bouncy() -> (f64, f64, f64) { (600.0, 15.0, 1.0) }
+
+    pub fn from_name(name: &str) -> Option<(f64, f64, f64)> {
+        match name {
+            "gentle" => Some(Self::gentle()),
+            "default" => Some(Self::default()),
+            "wobbly" => Some(Self::wobbly()),
+            "stiff" => Some(Self::stiff()),
+            "slow" => Some(Self::slow()),
+            "molasses" => Some(Self::molasses()),
+            "bouncy" => Some(Self::bouncy()),
+            _ => None,
+        }
+    }
+
+    pub fn list() -> Vec<(&'static str, f64, f64, f64)> {
+        vec![
+            ("gentle", 120.0, 14.0, 1.0),
+            ("default", 170.0, 26.0, 1.0),
+            ("wobbly", 180.0, 12.0, 1.0),
+            ("stiff", 210.0, 20.0, 1.0),
+            ("slow", 280.0, 60.0, 1.0),
+            ("molasses", 280.0, 120.0, 1.0),
+            ("bouncy", 600.0, 15.0, 1.0),
+        ]
+    }
 }
 
 /// Which node property is animated

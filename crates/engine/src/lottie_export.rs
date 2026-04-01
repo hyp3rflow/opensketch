@@ -429,6 +429,13 @@ fn easing_to_lottie(easing: &Easing) -> (Value, Value) {
             json!({ "x": [*x1], "y": [*y1] }),
             json!({ "x": [*x2], "y": [*y2] })
         ),
+        Easing::Spring { .. } => {
+            // Approximate spring as ease-in-out for Lottie (no native spring support)
+            (
+                json!({ "x": [0.42], "y": [0.0] }),
+                json!({ "x": [0.58], "y": [1.0] })
+            )
+        }
     }
 }
 

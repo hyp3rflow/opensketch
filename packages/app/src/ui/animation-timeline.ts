@@ -234,6 +234,81 @@ export function createAnimationTimeline(editor: Editor): {
       renderTracks();
     }, "#f87171"));
 
+    // ─── Easing selector ───
+    const easingSep = document.createElement("div");
+    easingSep.style.cssText = "height:1px;background:#333;margin:4px 0;";
+    menu.appendChild(easingSep);
+
+    const easingLabel = document.createElement("div");
+    easingLabel.style.cssText = "padding:4px 12px;color:#666;font-size:9px;text-transform:uppercase;letter-spacing:0.5px;";
+    easingLabel.textContent = "Easing";
+    menu.appendChild(easingLabel);
+
+    // Find current easing for this keyframe
+    const allRows = getTrackRows();
+    let currentEasing = "EaseInOut";
+    for (const row of allRows) {
+      if (row.nodeId === kf.nodeId && row.property === kf.property) {
+        const keyframe = row.keyframes.find(k => k.time === kf.time);
+        if (keyframe) currentEasing = keyframe.easing;
+      }
+    }
+
+    const setEasing = (easingStr: string) => {
+      (editor.engine as any).anim_set_keyframe_easing(
+        BigInt(state.activeClipId!), BigInt(kf.nodeId), kf.property, kf.time, easingStr
+      );
+      renderTracks();
+    };
+
+    const standardEasings: [string, string][] = [
+      ["linear", "Linear"],
+      ["ease_in", "Ease In"],
+      ["ease_out", "Ease Out"],
+      ["ease_in_out", "Ease In Out"],
+    ];
+
+    for (const [val, label] of standardEasings) {
+      const isActive = currentEasing === label.replace(/ /g, "") || currentEasing.toLowerCase().replace(/_/g, "") === val.replace(/_/g, "");
+      menu.appendChild(makeItem(`${isActive ? "● " : "  "}${label}`, () => setEasing(val), isActive ? "#7c7cf0" : "#ccc"));
+    }
+
+    // Spring submenu
+    const springSep = document.createElement("div");
+    springSep.style.cssText = "height:1px;background:#333;margin:4px 0;";
+    menu.appendChild(springSep);
+
+    const springLabel = document.createElement("div");
+    springLabel.style.cssText = "padding:4px 12px;color:#666;font-size:9px;text-transform:uppercase;letter-spacing:0.5px;";
+    springLabel.textContent = "🌀 Spring Physics";
+    menu.appendChild(springLabel);
+
+    const springPresets: [string, string, string][] = [
+      ["spring:gentle", "Gentle", "120 / 14 / 1"],
+      ["spring:default", "Default", "170 / 26 / 1"],
+      ["spring:wobbly", "Wobbly", "180 / 12 / 1"],
+      ["spring:stiff", "Stiff", "210 / 20 / 1"],
+      ["spring:slow", "Slow", "280 / 60 / 1"],
+      ["spring:bouncy", "Bouncy", "600 / 15 / 1"],
+    ];
+
+    const isSpring = currentEasing === "Spring" || currentEasing.startsWith("spring:");
+    for (const [val, label, params] of springPresets) {
+      const item = document.createElement("div");
+      item.style.cssText = `padding:6px 12px;color:${isSpring ? "#a78bfa" : "#ccc"};cursor:pointer;transition:background 0.1s;display:flex;justify-content:space-between;align-items:center;`;
+      item.innerHTML = `<span>${label}</span><span style="color:#666;font-size:9px">${params}</span>`;
+      item.addEventListener("mouseenter", () => { item.style.background = "#2a2a4a"; });
+      item.addEventListener("mouseleave", () => { item.style.background = "none"; });
+      item.addEventListener("click", () => { setEasing(val); menu.remove(); });
+      menu.appendChild(item);
+    }
+
+    // Custom spring
+    menu.appendChild(makeItem("⚙ Custom Spring...", () => {
+      menu.remove();
+      showCustomSpringDialog(kf);
+    }, "#f59e0b"));
+
     // Variable binding
     const sep = document.createElement("div");
     sep.style.cssText = "height:1px;background:#333;margin:4px 0;";
@@ -286,6 +361,126 @@ export function createAnimationTimeline(editor: Editor): {
       if (!menu.contains(ev.target as Node)) { menu.remove(); document.removeEventListener("click", close); }
     };
     setTimeout(() => document.addEventListener("click", close), 0);
+  }
+
+  function showCustomSpringDialog(kf: { nodeId: number; property: string; time: number }) {
+    document.querySelector(".spring-dialog")?.remove();
+    const dlg = document.createElement("div");
+    dlg.className = "spring-dialog";
+    dlg.style.cssText = `
+      position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+      background:#1e1e2e;border:1px solid #555;border-radius:10px;padding:20px;z-index:10000;
+      box-shadow:0 8px 32px rgba(0,0,0,0.6);min-width:280px;font-size:12px;color:#ccc;
+      font-family:-apple-system,BlinkMacSystemFont,sans-serif;
+    `;
+
+    dlg.innerHTML = `
+      <div style="font-size:14px;font-weight:600;margin-bottom:12px;color:#a78bfa">🌀 Custom Spring</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <label style="display:flex;justify-content:space-between;align-items:center">
+          <span>Tension</span>
+          <input id="spring-tension" type="number" value="170" min="0" max="2000" step="10"
+            style="width:80px;background:#2a2a3a;border:1px solid #444;border-radius:4px;padding:4px 8px;color:#fff;text-align:right"/>
+        </label>
+        <label style="display:flex;justify-content:space-between;align-items:center">
+          <span>Friction</span>
+          <input id="spring-friction" type="number" value="26" min="0" max="200" step="1"
+            style="width:80px;background:#2a2a3a;border:1px solid #444;border-radius:4px;padding:4px 8px;color:#fff;text-align:right"/>
+        </label>
+        <label style="display:flex;justify-content:space-between;align-items:center">
+          <span>Mass</span>
+          <input id="spring-mass" type="number" value="1" min="0.01" max="100" step="0.1"
+            style="width:80px;background:#2a2a3a;border:1px solid #444;border-radius:4px;padding:4px 8px;color:#fff;text-align:right"/>
+        </label>
+      </div>
+      <canvas id="spring-preview" width="240" height="100" style="margin-top:12px;border:1px solid #333;border-radius:6px;width:100%;"></canvas>
+      <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end">
+        <button id="spring-cancel" style="background:#333;color:#ccc;border:none;border-radius:6px;padding:6px 14px;cursor:pointer">Cancel</button>
+        <button id="spring-apply" style="background:#7c3aed;color:#fff;border:none;border-radius:6px;padding:6px 14px;cursor:pointer;font-weight:600">Apply</button>
+      </div>
+    `;
+
+    document.body.appendChild(dlg);
+
+    const tInput = dlg.querySelector("#spring-tension") as HTMLInputElement;
+    const fInput = dlg.querySelector("#spring-friction") as HTMLInputElement;
+    const mInput = dlg.querySelector("#spring-mass") as HTMLInputElement;
+    const previewCanvas = dlg.querySelector("#spring-preview") as HTMLCanvasElement;
+
+    function drawSpringPreview() {
+      const tension = parseFloat(tInput.value) || 170;
+      const friction = parseFloat(fInput.value) || 26;
+      const mass = Math.max(0.01, parseFloat(mInput.value) || 1);
+      const ctx = previewCanvas.getContext("2d")!;
+      const w = previewCanvas.width, h = previewCanvas.height;
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = "#161625";
+      ctx.fillRect(0, 0, w, h);
+
+      // Grid
+      ctx.strokeStyle = "#2a2a3a";
+      ctx.lineWidth = 0.5;
+      ctx.beginPath();
+      ctx.moveTo(0, h * 0.2); ctx.lineTo(w, h * 0.2); // y=1 line
+      ctx.moveTo(0, h * 0.8); ctx.lineTo(w, h * 0.8); // y=0 line
+      ctx.stroke();
+      ctx.fillStyle = "#555";
+      ctx.font = "8px sans-serif";
+      ctx.fillText("1", 4, h * 0.2 - 2);
+      ctx.fillText("0", 4, h * 0.8 + 10);
+
+      // Spring curve
+      ctx.beginPath();
+      ctx.strokeStyle = "#a78bfa";
+      ctx.lineWidth = 2;
+      const omega_n = Math.sqrt(tension / mass);
+      const zeta = friction / (2 * Math.sqrt(tension * mass));
+      const settle = zeta >= 1 ? 6 / omega_n : 6 / Math.max(0.01, zeta * omega_n);
+
+      for (let px = 0; px < w; px++) {
+        const t = (px / w);
+        const time = t * settle;
+        let val: number;
+        if (zeta >= 1) {
+          const r1 = -omega_n * (zeta - Math.sqrt(Math.max(0, zeta * zeta - 1)));
+          const r2 = -omega_n * (zeta + Math.sqrt(Math.max(0, zeta * zeta - 1)));
+          if (Math.abs(r1 - r2) < 1e-10) {
+            val = 1 - (1 - r1 * time) * Math.exp(r1 * time);
+          } else {
+            const a = r2 / (r2 - r1), b = -r1 / (r2 - r1);
+            val = 1 - a * Math.exp(r1 * time) - b * Math.exp(r2 * time);
+          }
+        } else {
+          const omega_d = omega_n * Math.sqrt(1 - zeta * zeta);
+          const decay = Math.exp(-zeta * omega_n * time);
+          val = 1 - decay * (Math.cos(omega_d * time) + (zeta * omega_n / omega_d) * Math.sin(omega_d * time));
+        }
+        const py = h * 0.8 - val * (h * 0.6);
+        if (px === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+    }
+
+    drawSpringPreview();
+    tInput.addEventListener("input", drawSpringPreview);
+    fInput.addEventListener("input", drawSpringPreview);
+    mInput.addEventListener("input", drawSpringPreview);
+
+    dlg.querySelector("#spring-cancel")!.addEventListener("click", () => dlg.remove());
+    dlg.querySelector("#spring-apply")!.addEventListener("click", () => {
+      const easingStr = `spring:${tInput.value},${fInput.value},${mInput.value}`;
+      (editor.engine as any).anim_set_keyframe_easing(
+        BigInt(state.activeClipId!), BigInt(kf.nodeId), kf.property, kf.time, easingStr
+      );
+      renderTracks();
+      dlg.remove();
+    });
+
+    // Close on Escape
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { dlg.remove(); document.removeEventListener("keydown", onKey); }
+    };
+    document.addEventListener("keydown", onKey);
   }
 
   canvas.addEventListener("pointermove", (e) => {
@@ -520,9 +715,10 @@ export function createAnimationTimeline(editor: Editor): {
         ctx.lineTo(kx, cy + sz);
         ctx.lineTo(kx - sz, cy);
         ctx.closePath();
-        ctx.fillStyle = kf.variable_binding ? "#22c55e" : "#f9ca24";
+        const isSpringKf = kf.easing === "Spring" || (typeof kf.easing === "string" && kf.easing.startsWith("spring:"));
+        ctx.fillStyle = kf.variable_binding ? "#22c55e" : isSpringKf ? "#a78bfa" : "#f9ca24";
         ctx.fill();
-        ctx.strokeStyle = kf.variable_binding ? "#16a34a" : "#b8960f";
+        ctx.strokeStyle = kf.variable_binding ? "#16a34a" : isSpringKf ? "#7c3aed" : "#b8960f";
         ctx.lineWidth = 1;
         ctx.stroke();
         // Variable binding indicator (small "V" above diamond)

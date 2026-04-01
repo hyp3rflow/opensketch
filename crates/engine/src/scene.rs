@@ -2925,6 +2925,23 @@ impl Scene {
         self.animations.remove_keyframe(clip_id, node_id, property, time_ms)
     }
 
+    /// Set easing on an existing keyframe
+    pub fn anim_set_keyframe_easing(
+        &mut self, clip_id: u64, node_id: NodeId,
+        property: &crate::animation::AnimProperty,
+        time_ms: u32, easing: crate::animation::Easing,
+    ) -> bool {
+        if let Some(clip) = self.animations.get_clip_mut(clip_id) {
+            if let Some(track) = clip.tracks.iter_mut().find(|t| t.node_id == node_id && &t.property == property) {
+                if let Some(kf) = track.keyframes.iter_mut().find(|k| k.time_ms == time_ms) {
+                    kf.easing = easing;
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
     /// Apply animation values at a given time, mutating nodes in-place. Returns changed node IDs.
     pub fn anim_apply(&mut self, clip_id: u64, time_ms: u32) -> Vec<NodeId> {
         let values = self.animations.evaluate_clip(clip_id, time_ms);

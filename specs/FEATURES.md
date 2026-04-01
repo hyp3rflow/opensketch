@@ -962,6 +962,19 @@ Frame overflow control and content scrolling.
 - [x] Zoom/scroll on timeline, right-click to delete keyframes
 - [x] Keyboard shortcut: Alt+T to toggle timeline panel
 
+## Spring Animation (Easing)
+- [x] Rust: Easing::Spring { tension, friction, mass } — damped harmonic oscillator physics
+- [x] SpringPreset: gentle (120/14/1), default (170/26/1), wobbly (180/12/1), stiff (210/20/1), slow (280/60/1), bouncy (600/15/1), molasses (280/120/1)
+- [x] spring_eval(): underdamped (oscillation), critically-damped, overdamped modes
+- [x] parse_easing("spring:preset" or "spring:t,f,m") WASM support
+- [x] WASM: anim_set_keyframe_easing(clip_id, node_id, property, time_ms, easing_str), anim_get_spring_presets()
+- [x] Scene: anim_set_keyframe_easing() method
+- [x] Timeline UI: right-click keyframe → easing selector (Linear/EaseIn/EaseOut/EaseInOut + spring presets)
+- [x] Custom spring dialog: tension/friction/mass sliders with real-time spring curve preview (canvas)
+- [x] Purple diamond indicators for spring-eased keyframes in timeline
+- [x] Lottie export: Spring easing approximated as ease-in-out (no native Lottie spring support)
+- [x] Backward-compatible serde
+
 ## Variable-driven Animation
 - [x] Rust: VariableBinding struct (collection_id, variable_id) on Keyframe
 - [x] Keyframe.resolve_value(): resolves from active variable mode at runtime (Number → direct, Boolean → 0/1, Color → brightness)

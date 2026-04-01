@@ -8439,6 +8439,26 @@ impl Engine {
         self.scene.anim_remove_keyframe(clip_id, node_id, &prop, time_ms)
     }
 
+    /// Set easing on an existing keyframe
+    #[wasm_bindgen]
+    pub fn anim_set_keyframe_easing(&mut self, clip_id: u64, node_id: u64, property: &str, time_ms: u32, easing: &str) -> bool {
+        let prop = match parse_anim_property(property) {
+            Some(p) => p,
+            None => return false,
+        };
+        let ease = parse_easing(easing);
+        self.scene.anim_set_keyframe_easing(clip_id, node_id, &prop, time_ms, ease)
+    }
+
+    /// Get spring presets as JSON array
+    #[wasm_bindgen]
+    pub fn anim_get_spring_presets(&self) -> String {
+        let presets: Vec<serde_json::Value> = animation::SpringPreset::list().iter().map(|(name, t, f, m)| {
+            serde_json::json!({"name": name, "tension": t, "friction": f, "mass": m})
+        }).collect();
+        serde_json::to_string(&presets).unwrap_or_else(|_| "[]".to_string())
+    }
+
     /// Apply animation at time_ms, returns JSON array of changed node IDs
     #[wasm_bindgen]
     pub fn anim_apply(&mut self, clip_id: u64, time_ms: u32) -> String {
@@ -9294,6 +9314,17 @@ fn parse_easing(s: &str) -> animation::Easing {
                 animation::Easing::CubicBezier(nums[0], nums[1], nums[2], nums[3])
             } else {
                 animation::Easing::EaseInOut
+            }
+        }
+        _ if s.starts_with("spring:") => {
+            let nums: Vec<f64> = s[7..].split(',').filter_map(|n| n.trim().parse().ok()).collect();
+            if nums.len() == 3 {
+                animation::Easing::Spring { tension: nums[0], friction: nums[1], mass: nums[2] }
+            } else if let Some(preset) = animation::SpringPreset::from_name(&s[7..]) {
+                animation::Easing::Spring { tension: preset.0, friction: preset.1, mass: preset.2 }
+            } else {
+                let d = animation::SpringPreset::default();
+                animation::Easing::Spring { tension: d.0, friction: d.1, mass: d.2 }
             }
         }
         _ => animation::Easing::EaseInOut,
