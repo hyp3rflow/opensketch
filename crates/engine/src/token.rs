@@ -15,12 +15,35 @@ pub enum TokenValue {
     Color(String),    // hex e.g. "#ff0000" or "rgba(…)"
     Number(f64),
     String(String),
+    /// Alias: references another token by name, e.g. "{colors.primary}"
+    #[serde(rename = "alias")]
+    Alias(String),
 }
 
 impl TokenValue {
     pub fn as_color_str(&self) -> Option<&str> {
         match self {
             TokenValue::Color(s) => Some(s),
+            _ => None,
+        }
+    }
+
+    /// Check if this value is an alias
+    pub fn is_alias(&self) -> bool {
+        matches!(self, TokenValue::Alias(_))
+    }
+
+    /// Get the alias target name (without braces), if this is an alias
+    pub fn alias_target(&self) -> Option<&str> {
+        match self {
+            TokenValue::Alias(s) => {
+                let trimmed = s.trim();
+                if trimmed.starts_with('{') && trimmed.ends_with('}') {
+                    Some(&trimmed[1..trimmed.len()-1])
+                } else {
+                    Some(trimmed)
+                }
+            }
             _ => None,
         }
     }
@@ -230,11 +253,80 @@ impl TokenStore {
         self.bindings.iter().filter(|b| b.node_id == node_id).collect()
     }
 
-    /// Resolve a token name in the active theme
+    /// Resolve a token name in the active theme (shallow — may return Alias)
     pub fn resolve(&self, token_name: &str) -> Option<&TokenValue> {
         self.active_theme()
             .and_then(|t| t.get_token_by_name(token_name))
             .map(|t| &t.value)
+    }
+
+    /// Resolve a token name deeply — follows alias chains (max 16 depth, cycle-safe)
+    pub fn resolve_deep(&self, token_name: &str) -> Option<TokenValue> {
+        let theme = self.active_theme()?;
+        let mut current_name = token_name.to_string();
+        let mut visited = std::collections::HashSet::new();
+        let max_depth = 16;
+
+        for _ in 0..max_depth {
+            if !visited.insert(current_name.clone()) {
+                return None; // cycle detected
+            }
+            let token = theme.get_token_by_name(&current_name)?;
+            match &token.value {
+                TokenValue::Alias(alias_str) => {
+                    let target = alias_str.trim();
+                    current_name = if target.starts_with('{') && target.ends_with('}') {
+                        target[1..target.len()-1].to_string()
+                    } else {
+                        target.to_string()
+                    };
+                }
+                other => return Some(other.clone()),
+            }
+        }
+        None // max depth exceeded
+    }
+
+    /// Get the full alias chain for a token name (for debugging/UI)
+    pub fn get_alias_chain(&self, token_name: &str) -> Vec<String> {
+        let theme = match self.active_theme() {
+            Some(t) => t,
+            None => return vec![token_name.to_string()],
+        };
+        let mut chain = vec![token_name.to_string()];
+        let mut current_name = token_name.to_string();
+        let max_depth = 16;
+
+        for _ in 0..max_depth {
+            let token = match theme.get_token_by_name(&current_name) {
+                Some(t) => t,
+                None => break,
+            };
+            match &token.value {
+                TokenValue::Alias(alias_str) => {
+                    let target = alias_str.trim();
+                    let target = if target.starts_with('{') && target.ends_with('}') {
+                        &target[1..target.len()-1]
+                    } else {
+                        target
+                    };
+                    if chain.contains(&target.to_string()) {
+                        chain.push(format!("⟲ {}", target)); // cycle marker
+                        break;
+                    }
+                    chain.push(target.to_string());
+                    current_name = target.to_string();
+                }
+                _ => break,
+            }
+        }
+        chain
+    }
+
+    /// Set a token as an alias of another token
+    pub fn set_alias(&mut self, theme_id: ThemeId, token_id: TokenId, target_name: String) -> bool {
+        let alias_value = format!("{{{}}}", target_name);
+        self.update_token(theme_id, token_id, TokenValue::Alias(alias_value))
     }
 
     /// Export all themes as JSON

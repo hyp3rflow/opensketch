@@ -448,6 +448,16 @@
 - [x] **CSS Variables format**: :root { --color-*, --font-family-*, --font-size-*, --font-weight-*, --line-height-* } + variable collections
 - [x] **Design Token Export modal**: Format selection cards (W3C/Style Dictionary/Tailwind/CSS Variables), live preview, copy to clipboard, download
 
+### Design Token Aliasing
+- [x] **Token aliases**: TokenValue::Alias variant — tokens can reference other tokens via `{token.name}` syntax
+- [x] **Deep resolution**: `resolve_deep()` follows alias chains (max 16 depth, cycle-safe)
+- [x] **Alias chain inspection**: `get_alias_chain()` returns full resolution path for debugging
+- [x] **WASM bindings**: `token_set_alias`, `token_resolve_deep`, `token_get_alias_chain`
+- [x] **Theme apply integration**: `apply_token_theme()` uses deep resolution for bound nodes
+- [x] **UI**: Alias tokens show 🔗 icon + purple color, click to view chain, convert existing tokens to alias
+- [x] **Token binding**: Alias tokens appear in binding dropdowns based on resolved type
+- [x] **Backward-compatible serde**: existing files without aliases load fine
+
 ### Style Versioning
 - [x] **Version snapshots**: Save current style library state as a named version (tag + description + timestamp)
 - [x] **Version list**: Browse all saved versions (max 50, auto-trimmed)

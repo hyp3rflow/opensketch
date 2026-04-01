@@ -1082,7 +1082,7 @@ impl Scene {
 
         let bindings = self.token_store.bindings.clone();
         for binding in &bindings {
-            let value = self.token_store.resolve(&binding.token_name).cloned();
+            let value = self.token_store.resolve_deep(&binding.token_name);
             if let Some(value) = value {
                 if let Some(node) = self.nodes.get_mut(&binding.node_id) {
                     match &binding.property {

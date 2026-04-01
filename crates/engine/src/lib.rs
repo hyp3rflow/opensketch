@@ -7090,6 +7090,7 @@ impl Engine {
         let tv = match value_type {
             "color" => TokenValue::Color(value.to_string()),
             "number" => TokenValue::Number(value.parse().unwrap_or(0.0)),
+            "alias" => TokenValue::Alias(value.to_string()),
             _ => TokenValue::String(value.to_string()),
         };
         self.scene.token_store.add_token(theme_id, name.to_string(), tv).unwrap_or(0)
@@ -7108,6 +7109,7 @@ impl Engine {
         let tv = match value_type {
             "color" => TokenValue::Color(value.to_string()),
             "number" => TokenValue::Number(value.parse().unwrap_or(0.0)),
+            "alias" => TokenValue::Alias(value.to_string()),
             _ => TokenValue::String(value.to_string()),
         };
         let ok = self.scene.token_store.update_token(theme_id, token_id, tv);
@@ -7125,6 +7127,7 @@ impl Engine {
                     token::TokenValue::Color(c) => ("color", c.clone()),
                     token::TokenValue::Number(n) => ("number", n.to_string()),
                     token::TokenValue::String(s) => ("string", s.clone()),
+                    token::TokenValue::Alias(a) => ("alias", a.clone()),
                 };
                 serde_json::json!({
                     "id": t.id,
@@ -7172,6 +7175,32 @@ impl Engine {
     #[wasm_bindgen]
     pub fn token_export_json(&self) -> String {
         self.scene.token_store.export_json()
+    }
+
+    /// Set a token as an alias of another token (e.g. "brand.main" → "{colors.primary}")
+    #[wasm_bindgen]
+    pub fn token_set_alias(&mut self, theme_id: u64, token_id: u64, target_name: &str) -> bool {
+        self.push_undo();
+        self.scene.token_store.set_alias(theme_id, token_id, target_name.to_string())
+    }
+
+    /// Resolve a token deeply (follows alias chains). Returns JSON: {type, value} or null.
+    #[wasm_bindgen]
+    pub fn token_resolve_deep(&self, token_name: &str) -> String {
+        match self.scene.token_store.resolve_deep(token_name) {
+            Some(token::TokenValue::Color(c)) => format!(r#"{{"type":"color","value":"{}"}}"#, c),
+            Some(token::TokenValue::Number(n)) => format!(r#"{{"type":"number","value":{}}}"#, n),
+            Some(token::TokenValue::String(s)) => format!(r#"{{"type":"string","value":"{}"}}"#, s),
+            Some(token::TokenValue::Alias(_)) => "null".to_string(), // shouldn't happen after deep resolve
+            None => "null".to_string(),
+        }
+    }
+
+    /// Get the alias chain for a token (for UI display). Returns JSON array of names.
+    #[wasm_bindgen]
+    pub fn token_get_alias_chain(&self, token_name: &str) -> String {
+        let chain = self.scene.token_store.get_alias_chain(token_name);
+        serde_json::to_string(&chain).unwrap_or_else(|_| "[]".into())
     }
 
     #[wasm_bindgen]

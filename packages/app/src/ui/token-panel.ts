@@ -89,7 +89,31 @@ export function createTokenThemeSwitcher(editor: Editor, onThemeChange?: () => v
       const row = document.createElement("div");
       row.style.cssText = "display:flex;align-items:center;gap:4px;padding:2px 0;font-size:11px;";
 
-      if (tok.type === "color") {
+      if (tok.type === "alias") {
+        // Alias token: show link icon + resolved value
+        const linkIcon = document.createElement("span");
+        linkIcon.style.cssText = "width:14px;height:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#a78bfa;font-size:12px;cursor:pointer;";
+        linkIcon.textContent = "🔗";
+        linkIcon.title = "Alias token — click to change target";
+        linkIcon.onclick = () => {
+          const target = prompt("Alias target token name:", tok.value.replace(/[{}]/g, ""));
+          if (target) {
+            editor.engine.token_set_alias(BigInt(activeId), BigInt(tok.id), target);
+            editor.render();
+            render();
+          }
+        };
+        row.appendChild(linkIcon);
+
+        // Resolve deep to show actual value
+        const resolved = JSON.parse(editor.engine.token_resolve_deep(tok.name));
+        const resolvedColor = resolved && resolved.type === "color" ? resolved.value : null;
+        if (resolvedColor) {
+          const swatch = document.createElement("div");
+          swatch.style.cssText = `width:10px;height:10px;border-radius:2px;border:1px solid #555;background:${resolvedColor};flex-shrink:0;`;
+          row.appendChild(swatch);
+        }
+      } else if (tok.type === "color") {
         const swatch = document.createElement("div");
         swatch.style.cssText = `width:14px;height:14px;border-radius:3px;border:1px solid #555;background:${tok.value};flex-shrink:0;cursor:pointer;`;
         swatch.onclick = () => {
@@ -109,9 +133,38 @@ export function createTokenThemeSwitcher(editor: Editor, onThemeChange?: () => v
       row.appendChild(nameSpan);
 
       const valSpan = document.createElement("span");
-      valSpan.style.cssText = "color:#888;font-size:10px;flex-shrink:0;";
-      valSpan.textContent = tok.type === "color" ? tok.value : `${tok.value}`;
+      if (tok.type === "alias") {
+        valSpan.style.cssText = "color:#a78bfa;font-size:10px;flex-shrink:0;cursor:pointer;";
+        valSpan.textContent = `→ ${tok.value.replace(/[{}]/g, "")}`;
+        valSpan.title = "Click to view alias chain";
+        valSpan.onclick = () => {
+          const chain: string[] = JSON.parse(editor.engine.token_get_alias_chain(tok.name));
+          alert(`Alias chain:\n${chain.join(" → ")}`);
+        };
+      } else {
+        valSpan.style.cssText = "color:#888;font-size:10px;flex-shrink:0;";
+        valSpan.textContent = tok.type === "color" ? tok.value : `${tok.value}`;
+      }
       row.appendChild(valSpan);
+
+      // Convert to alias button (for non-alias tokens)
+      if (tok.type !== "alias") {
+        const aliasBtn = document.createElement("button");
+        aliasBtn.style.cssText = "background:none;border:none;color:#a78bfa;cursor:pointer;font-size:10px;padding:0 2px;opacity:0.5;";
+        aliasBtn.textContent = "🔗";
+        aliasBtn.title = "Convert to alias";
+        aliasBtn.onmouseenter = () => { aliasBtn.style.opacity = "1"; };
+        aliasBtn.onmouseleave = () => { aliasBtn.style.opacity = "0.5"; };
+        aliasBtn.onclick = () => {
+          const target = prompt("Alias target token name:");
+          if (target) {
+            editor.engine.token_set_alias(BigInt(activeId), BigInt(tok.id), target);
+            editor.render();
+            render();
+          }
+        };
+        row.appendChild(aliasBtn);
+      }
 
       const removeBtn = document.createElement("button");
       removeBtn.style.cssText = "background:none;border:none;color:#666;cursor:pointer;font-size:10px;padding:0 2px;";
@@ -133,8 +186,15 @@ export function createTokenThemeSwitcher(editor: Editor, onThemeChange?: () => v
     addTokenBtn.onclick = () => {
       const name = prompt("Token name (e.g. primary-bg):");
       if (!name) return;
-      const type = prompt("Type (color/number/string):", "color") || "color";
-      const value = prompt("Value:", type === "color" ? "#3b82f6" : "0") || "";
+      const type = prompt("Type (color/number/string/alias):", "color") || "color";
+      let value: string;
+      if (type === "alias") {
+        const target = prompt("Target token name to reference:");
+        if (!target) return;
+        value = `{${target}}`;
+      } else {
+        value = prompt("Value:", type === "color" ? "#3b82f6" : "0") || "";
+      }
       editor.engine.token_add_token(BigInt(activeId), name, type, value);
       render();
     };
@@ -210,8 +270,23 @@ export function createTokenBindingSection(editor: Editor, nodeId: number, onUpda
     // Get available tokens
     const tokensJson = editor.engine.token_get_tokens(BigInt(activeThemeId));
     const tokens: Array<{ id: number; name: string; type: string; value: string }> = JSON.parse(tokensJson);
-    const colorTokens = tokens.filter(t => t.type === "color");
-    const numberTokens = tokens.filter(t => t.type === "number");
+    // Include alias tokens that resolve to the correct type
+    const colorTokens = tokens.filter(t => {
+      if (t.type === "color") return true;
+      if (t.type === "alias") {
+        const resolved = JSON.parse(editor.engine.token_resolve_deep(t.name));
+        return resolved && resolved.type === "color";
+      }
+      return false;
+    });
+    const numberTokens = tokens.filter(t => {
+      if (t.type === "number") return true;
+      if (t.type === "alias") {
+        const resolved = JSON.parse(editor.engine.token_resolve_deep(t.name));
+        return resolved && resolved.type === "number";
+      }
+      return false;
+    });
 
     // Show existing bindings
     for (const b of bindings) {
