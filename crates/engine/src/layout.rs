@@ -230,10 +230,84 @@ fn compute_flex(scene: &mut Scene, layout: &Layout, px: f64, py: f64, pw: f64, p
         }).fold(0.0_f64, f64::max)
     }).collect();
 
-    let total_cross: f64 = line_cross_sizes.iter().sum::<f64>() + gap * (num_lines as f64 - 1.0).max(0.0);
-    let mut cross_offset = 0.0;
+    let total_lines_cross: f64 = line_cross_sizes.iter().sum::<f64>() + gap * (num_lines as f64 - 1.0).max(0.0);
+    let extra_cross = avail_cross - total_lines_cross;
+
+    // Compute per-line cross offsets based on align_content
+    let line_cross_offsets: Vec<f64> = {
+        use crate::node::AlignContent;
+        let nl = num_lines as f64;
+        match layout.align_content {
+            AlignContent::FlexStart => {
+                let mut offsets = Vec::with_capacity(num_lines);
+                let mut acc = 0.0;
+                for (i, &lc) in line_cross_sizes.iter().enumerate() {
+                    offsets.push(acc);
+                    acc += lc + gap;
+                }
+                offsets
+            }
+            AlignContent::FlexEnd => {
+                let mut offsets = Vec::with_capacity(num_lines);
+                let mut acc = extra_cross.max(0.0);
+                for (i, &lc) in line_cross_sizes.iter().enumerate() {
+                    offsets.push(acc);
+                    acc += lc + gap;
+                }
+                offsets
+            }
+            AlignContent::Center => {
+                let mut offsets = Vec::with_capacity(num_lines);
+                let mut acc = (extra_cross / 2.0).max(0.0);
+                for &lc in &line_cross_sizes {
+                    offsets.push(acc);
+                    acc += lc + gap;
+                }
+                offsets
+            }
+            AlignContent::SpaceBetween => {
+                let mut offsets = Vec::with_capacity(num_lines);
+                let line_gap = if nl > 1.0 { extra_cross.max(0.0) / (nl - 1.0) } else { 0.0 };
+                let mut acc = 0.0;
+                for &lc in &line_cross_sizes {
+                    offsets.push(acc);
+                    acc += lc + line_gap;
+                }
+                offsets
+            }
+            AlignContent::SpaceAround => {
+                let mut offsets = Vec::with_capacity(num_lines);
+                let space = if nl > 0.0 { extra_cross.max(0.0) / nl } else { 0.0 };
+                let mut acc = space / 2.0;
+                for &lc in &line_cross_sizes {
+                    offsets.push(acc);
+                    acc += lc + space;
+                }
+                offsets
+            }
+            AlignContent::Stretch => {
+                // Distribute extra space equally among lines
+                let stretch_extra = if num_lines > 0 { extra_cross.max(0.0) / num_lines as f64 } else { 0.0 };
+                let mut offsets = Vec::with_capacity(num_lines);
+                let mut acc = 0.0;
+                for &lc in &line_cross_sizes {
+                    offsets.push(acc);
+                    acc += lc + stretch_extra + gap;
+                }
+                offsets
+            }
+        }
+    };
+
+    // For Stretch, compute effective per-line cross size (original + extra)
+    let stretch_extra_per_line = if layout.align_content == crate::node::AlignContent::Stretch && num_lines > 0 {
+        extra_cross.max(0.0) / num_lines as f64
+    } else {
+        0.0
+    };
 
     for (line_idx, line) in lines.iter().enumerate() {
+        let cross_offset = line_cross_offsets[line_idx];
         let n = line.len() as f64;
         let line_cross = line_cross_sizes[line_idx];
 
@@ -305,7 +379,7 @@ fn compute_flex(scene: &mut Scene, layout: &Layout, px: f64, py: f64, pw: f64, p
         };
 
         // Cross axis for this line (when wrapping, each line gets its own cross region)
-        let line_avail_cross = if do_wrap { line_cross } else { avail_cross };
+        let line_avail_cross = if do_wrap { line_cross + stretch_extra_per_line } else { avail_cross };
 
         for (j, &i) in line.iter().enumerate() {
             let ci = &child_infos[i];
@@ -349,7 +423,6 @@ fn compute_flex(scene: &mut Scene, layout: &Layout, px: f64, py: f64, pw: f64, p
             }
         }
 
-        cross_offset += line_cross + gap;
     }
 }
 

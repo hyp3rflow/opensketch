@@ -903,6 +903,20 @@ impl Default for FlexWrap {
     fn default() -> Self { FlexWrap::NoWrap }
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub enum AlignContent {
+    Stretch,
+    FlexStart,
+    FlexEnd,
+    Center,
+    SpaceBetween,
+    SpaceAround,
+}
+
+impl Default for AlignContent {
+    fn default() -> Self { AlignContent::Stretch }
+}
+
 /// Overflow behavior for container nodes
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub enum Overflow {
@@ -983,6 +997,8 @@ pub struct Layout {
     pub padding_bottom: f64,
     pub padding_left: f64,
     pub wrap: FlexWrap,
+    #[serde(default)]
+    pub align_content: AlignContent,
     // Grid-specific
     pub grid_columns: u32,
     pub grid_rows: u32,

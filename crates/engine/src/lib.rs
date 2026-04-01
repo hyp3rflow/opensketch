@@ -54,7 +54,7 @@ use web_sys::CanvasRenderingContext2d;
 use i_overlay::core::fill_rule::FillRule;
 use i_overlay::core::overlay_rule::OverlayRule;
 use i_overlay::float::single::SingleFloatOverlay;
-use crate::node::{Node, NodeKind, Fill, FillType, GradientStop, Stroke, StrokeAlign, LayoutMode, FlexDirection, Align, Justify, FlexWrap, TextSizing, TextOverflow, TextAlign, FontStyle, PathPoint, ConstraintH, ConstraintV, BlendMode, LayoutGrid, SizingMode, Breakpoint};
+use crate::node::{Node, NodeKind, Fill, FillType, GradientStop, Stroke, StrokeAlign, LayoutMode, FlexDirection, Align, Justify, FlexWrap, AlignContent, TextSizing, TextOverflow, TextAlign, FontStyle, PathPoint, ConstraintH, ConstraintV, BlendMode, LayoutGrid, SizingMode, Breakpoint};
 
 fn parse_align(s: &str) -> Align {
     match s {
@@ -5529,6 +5529,35 @@ impl Engine {
                 _ => FlexWrap::NoWrap,
             };
         }
+    }
+
+    /// Set align-content for flex wrap: "stretch", "flex-start", "flex-end", "center", "space-between", "space-around"
+    pub fn set_align_content(&mut self, id: u64, value: &str) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            node.layout.align_content = match value {
+                "flex-start" | "start" => AlignContent::FlexStart,
+                "flex-end" | "end" => AlignContent::FlexEnd,
+                "center" => AlignContent::Center,
+                "space-between" | "between" => AlignContent::SpaceBetween,
+                "space-around" | "around" => AlignContent::SpaceAround,
+                _ => AlignContent::Stretch,
+            };
+        }
+    }
+
+    /// Get align-content value as string
+    pub fn get_align_content(&self, id: u64) -> String {
+        if let Some(node) = self.scene.get_node(id) {
+            return match node.layout.align_content {
+                AlignContent::Stretch => "Stretch",
+                AlignContent::FlexStart => "FlexStart",
+                AlignContent::FlexEnd => "FlexEnd",
+                AlignContent::Center => "Center",
+                AlignContent::SpaceBetween => "SpaceBetween",
+                AlignContent::SpaceAround => "SpaceAround",
+            }.to_string();
+        }
+        "Stretch".to_string()
     }
 
     /// Suggest auto-layout settings for selected nodes (heuristic-based).

@@ -5589,6 +5589,42 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             refresh(ids);
           });
           dirRow.appendChild(wrapBtn);
+
+          // Align Content dropdown (only when wrap is enabled)
+          if (isWrap) {
+            const acSel = document.createElement("select");
+            acSel.style.cssText = "padding:4px 2px;border:1px solid #3a3a3a;border-radius:6px;background:#2a2a2a;color:#888;font-size:10px;cursor:pointer;appearance:none;text-align:center;width:60px;";
+            const curAC = editor.engine.get_align_content(BigInt(id));
+            const acOptions = [
+              { value: "stretch", label: "Stretch" },
+              { value: "flex-start", label: "Start" },
+              { value: "flex-end", label: "End" },
+              { value: "center", label: "Center" },
+              { value: "space-between", label: "Between" },
+              { value: "space-around", label: "Around" },
+            ];
+            acOptions.forEach((o) => {
+              const opt = document.createElement("option");
+              opt.value = o.value;
+              opt.textContent = o.label;
+              opt.selected = curAC === o.label || curAC === o.value ||
+                (o.value === "stretch" && curAC === "Stretch") ||
+                (o.value === "flex-start" && curAC === "FlexStart") ||
+                (o.value === "flex-end" && curAC === "FlexEnd") ||
+                (o.value === "center" && curAC === "Center") ||
+                (o.value === "space-between" && curAC === "SpaceBetween") ||
+                (o.value === "space-around" && curAC === "SpaceAround");
+              acSel.appendChild(opt);
+            });
+            acSel.title = "Align Content (wrap line alignment)";
+            acSel.addEventListener("change", () => {
+              editor.engine.push_undo();
+              editor.engine.set_align_content(BigInt(id), acSel.value);
+              editor.requestRender();
+              refresh(ids);
+            });
+            dirRow.appendChild(acSel);
+          }
         }
 
         // Grid/Flex mode toggle
