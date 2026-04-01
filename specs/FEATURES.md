@@ -1597,7 +1597,7 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
   - One-click insert to canvas via SVG import
   - Right pane "Icons" tab
 
-- [x] **Canvas Annotation Stamps**: predefined review stamps for design workflows
+- [x] **Canvas Annotation Stamps (Sticker Pack)**: 12-kind review stamps (Approved/Rejected/Question/Fixme/Love/Warning/Info/Todo/WIP/NeedsRevision/Final/OnHold), emoji overlay, node attachment, per-node filtering, properties panel management
   - 8 stamp types: Approved, Rejected, WIP, Todo, Needs Revision, Final, On Hold, Question
   - Toolbar stamp button with palette picker (⇧T)
   - Click-to-place on canvas, persistent per page

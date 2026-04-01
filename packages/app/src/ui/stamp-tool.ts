@@ -20,14 +20,18 @@ export interface StampData {
 }
 
 const STAMP_KINDS = [
-  { kind: "approved", label: "APPROVED", color: "#22c55e", icon: "✓" },
-  { kind: "rejected", label: "REJECTED", color: "#ef4444", icon: "✕" },
-  { kind: "wip", label: "WIP", color: "#f59e0b", icon: "◐" },
-  { kind: "todo", label: "TODO", color: "#3b82f6", icon: "☐" },
-  { kind: "needs_revision", label: "NEEDS REVISION", color: "#f97316", icon: "↻" },
-  { kind: "final", label: "FINAL", color: "#8b5cf6", icon: "★" },
-  { kind: "on_hold", label: "ON HOLD", color: "#6b7280", icon: "⏸" },
-  { kind: "question", label: "QUESTION", color: "#06b6d4", icon: "?" },
+  { kind: "approved", label: "APPROVED", color: "#22c55e", icon: "✅" },
+  { kind: "rejected", label: "REJECTED", color: "#ef4444", icon: "❌" },
+  { kind: "question", label: "QUESTION", color: "#06b6d4", icon: "❓" },
+  { kind: "fixme", label: "FIXME", color: "#f43f5e", icon: "🔧" },
+  { kind: "love", label: "LOVE", color: "#ec4899", icon: "❤️" },
+  { kind: "warning", label: "WARNING", color: "#eab308", icon: "⚠️" },
+  { kind: "info", label: "INFO", color: "#0ea5e9", icon: "ℹ️" },
+  { kind: "todo", label: "TODO", color: "#3b82f6", icon: "📋" },
+  { kind: "wip", label: "WIP", color: "#f59e0b", icon: "🚧" },
+  { kind: "needs_revision", label: "NEEDS REVISION", color: "#f97316", icon: "🔄" },
+  { kind: "final", label: "FINAL", color: "#8b5cf6", icon: "🏁" },
+  { kind: "on_hold", label: "ON HOLD", color: "#6b7280", icon: "⏸️" },
 ] as const;
 
 let activeStampKind: string | null = null;

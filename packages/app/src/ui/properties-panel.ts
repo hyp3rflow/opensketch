@@ -2787,6 +2787,51 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       container.appendChild(resSection);
     }
 
+    // --- Node Stamps (Annotation Stickers) ---
+    {
+      const stampSection = createSection("Stamps");
+      try {
+        const stampsJson = (editor.engine as any).get_stamps_for_node(BigInt(id));
+        const stamps: Array<{id: number; kind: string; note: string; author: string; timestamp: number}> = JSON.parse(stampsJson);
+        if (stamps.length > 0) {
+          const STAMP_INFO: Record<string, {color: string; icon: string}> = {
+            approved: {color:"#22c55e",icon:"✅"}, rejected: {color:"#ef4444",icon:"❌"},
+            question: {color:"#06b6d4",icon:"❓"}, fixme: {color:"#f43f5e",icon:"🔧"},
+            love: {color:"#ec4899",icon:"❤️"}, warning: {color:"#eab308",icon:"⚠️"},
+            info: {color:"#0ea5e9",icon:"ℹ️"}, todo: {color:"#3b82f6",icon:"📋"},
+            wip: {color:"#f59e0b",icon:"🚧"}, needs_revision: {color:"#f97316",icon:"🔄"},
+            final: {color:"#8b5cf6",icon:"🏁"}, on_hold: {color:"#6b7280",icon:"⏸️"},
+          };
+          for (const stamp of stamps) {
+            const kindKey = typeof stamp.kind === "string" ? stamp.kind.toLowerCase() : String(stamp.kind).toLowerCase();
+            const info = STAMP_INFO[kindKey] ?? {color:"#888",icon:"📌"};
+            const row = document.createElement("div");
+            row.style.cssText = `display:flex;align-items:center;gap:6px;padding:4px 0;`;
+            row.innerHTML = `
+              <span style="font-size:14px;">${info.icon}</span>
+              <span style="flex:1;font-size:11px;color:${info.color};font-weight:600;">${kindKey.toUpperCase().replace("_"," ")}</span>
+              ${stamp.note ? `<span style="font-size:10px;color:#888;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${stamp.note}">${stamp.note}</span>` : ""}
+            `;
+            const delBtn = document.createElement("button");
+            delBtn.textContent = "✕";
+            delBtn.style.cssText = `background:none;border:none;color:#666;cursor:pointer;font-size:11px;padding:2px 4px;`;
+            delBtn.addEventListener("click", () => {
+              (editor.engine as any).remove_stamp(BigInt(stamp.id));
+              refresh(ids);
+            });
+            row.appendChild(delBtn);
+            stampSection.appendChild(row);
+          }
+        } else {
+          const empty = document.createElement("div");
+          empty.style.cssText = "font-size:11px;color:#555;padding:4px 0;";
+          empty.textContent = "No stamps on this node";
+          stampSection.appendChild(empty);
+        }
+      } catch { /* engine may not have method */ }
+      container.appendChild(stampSection);
+    }
+
     // --- Hyperlink ---
     {
       const hlSection = createSection("Hyperlink");

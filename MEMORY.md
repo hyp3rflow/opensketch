@@ -1516,12 +1516,8 @@
 
 ## 다음 할 것
 - Lottie animation export — 캔버스 애니메이션을 Lottie JSON으로 내보내기, keyframe 기반 변환
-- Canvas object search & filter — 캔버스 내 객체 타입/속성/스타일별 검색 및 필터링 패널
-- Variable collections & modes — Figma Variables 스타일 디자인 토큰 컬렉션, light/dark 등 모드 전환 지원
-- Plugin/extension system — 서드파티 플러그인 로딩 프레임워크, 샌드박스 실행, manifest 기반 등록
-- Dev mode handoff — 개발자용 spacing/sizing 자동 표시, redline 오버레이, CSS/코드 스니펫 복사
-- Table/data grid component — 행/열 기반 표 자동 생성, 셀 병합, 데이터 바인딩
-- Responsive breakpoint preview — 여러 화면 크기(모바일/태블릿/데스크탑) 동시 미리보기 split view
+- Multi-cursor collaborative editing — 동시 편집 시 노드별 잠금 표시 + 실시간 변경 반영 (operational transform 고도화)
+- Design system documentation site export — 컴포넌트/스타일/토큰을 정적 HTML 문서 사이트로 빌드 (Storybook 스타일)
 ## 완료된 기능 (추가 — UI Localization / i18n)
 - 다국어 지원: English (en), 한국어 (ko), 日本語 (ja)
 - i18n 시스템: `packages/app/src/ui/i18n.ts` — t() 번역 함수, locale 관리, onLocaleChange 리스너
@@ -1710,3 +1706,12 @@
   - 검색 필터
 - editor.ts keydown: ShortcutManager.matches() 기반 (기존 동작 유지)
 - localStorage "opensketch-custom-shortcuts" 저장, 없으면 기본값
+
+## 완료된 기능 (추가 — Annotation Sticker Pack 강화)
+- StampKind enum 확장: Love, Warning, Info, Fixme 4종 추가 (총 12종)
+- emoji() 메서드: 각 StampKind별 이모지 반환 (✅❌❓🔧❤️⚠️ℹ️📋🚧🔄🏁⏸️)
+- 이모지 기반 캔버스 렌더링: stamp-tool.ts STAMP_KINDS 이모지 아이콘으로 변경
+- get_stamps_for_node(node_id): 특정 노드에 붙은 스탬프만 필터링 (Scene + WASM 바인딩)
+- Properties panel: "Stamps" 섹션 — 선택 노드의 스탬프 목록 (이모지+라벨+노트), 개별 삭제 버튼
+- 기존 기능 유지: 팔레트 UI, 캔버스 클릭 배치, zoom/pan aware 렌더링, hit-test, 노드 연결, 노트, 이동
+- Backward-compatible serde (기존 StampKind 호환 + 새 variant 자동 역직렬화)

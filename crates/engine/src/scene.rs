@@ -3431,6 +3431,11 @@ impl Scene {
         self.stamps.len()
     }
 
+    pub fn get_stamps_for_node(&self, node_id: u64) -> String {
+        let node_stamps: Vec<&Stamp> = self.stamps.iter().filter(|s| s.node_id == Some(node_id)).collect();
+        serde_json::to_string(&node_stamps).unwrap_or_else(|_| "[]".to_string())
+    }
+
     // ── Auto Dark Mode ───────────────────────────────────────────────
     /// Convert all nodes in the scene to dark mode theme.
     /// Inverts lightness of fills, strokes, shadows, and text colors.

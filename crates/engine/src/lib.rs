@@ -9276,6 +9276,10 @@ impl Engine {
         self.scene.get_stamp_count() as u32
     }
 
+    pub fn get_stamps_for_node(&self, node_id: u64) -> String {
+        self.scene.get_stamps_for_node(node_id)
+    }
+
     // ── Persistent Measure Lines ────────────────────────────────
 
     pub fn add_measure(&mut self, start_x: f64, start_y: f64, end_x: f64, end_y: f64) -> u64 {
