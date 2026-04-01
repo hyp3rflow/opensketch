@@ -1518,6 +1518,8 @@
 - Lottie animation export — 캔버스 애니메이션을 Lottie JSON으로 내보내기, keyframe 기반 변환
 - Multi-cursor collaborative editing — 동시 편집 시 노드별 잠금 표시 + 실시간 변경 반영 (operational transform 고도화)
 - Design system documentation site export — 컴포넌트/스타일/토큰을 정적 HTML 문서 사이트로 빌드 (Storybook 스타일)
+- Canvas presentation mode — 프레임을 슬라이드로 순서대로 풀스크린 프레젠테이션, 키보드 네비게이션 (←/→), 트랜지션 효과, 발표자 노트 오버레이
+- Node effect presets library — 자주 쓰는 shadow/blur/filter 조합을 프리셋으로 저장/적용, JSON import/export, 카테고리별 브라우저
 ## 완료된 기능 (추가 — UI Localization / i18n)
 - 다국어 지원: English (en), 한국어 (ko), 日本語 (ja)
 - i18n 시스템: `packages/app/src/ui/i18n.ts` — t() 번역 함수, locale 관리, onLocaleChange 리스너
