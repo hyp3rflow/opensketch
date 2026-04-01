@@ -1929,6 +1929,80 @@ impl Scene {
         }
     }
 
+    /// Wrap the given nodes in a new Frame, returning the frame's ID.
+    /// The frame is sized to the bounding box of the nodes (+padding 0).
+    /// Children are reparented and their positions adjusted to be relative to the frame.
+    pub fn wrap_in_frame(&mut self, ids: &[NodeId]) -> Option<NodeId> {
+        if ids.is_empty() { return None; }
+        let bounds = self.get_bounds_of(ids)?;
+        let (min_x, min_y, max_x, max_y) = bounds;
+        let fw = max_x - min_x;
+        let fh = max_y - min_y;
+
+        // Determine insertion point: use the first selected node's parent and position
+        let first_parent = self.nodes.get(&ids[0]).and_then(|n| n.parent);
+        // Find the earliest index among siblings for insertion order
+        let sibling_list: Vec<NodeId> = if let Some(pid) = first_parent {
+            self.nodes.get(&pid).map(|p| p.children.clone()).unwrap_or_default()
+        } else {
+            self.root_children.clone()
+        };
+        let earliest_idx = sibling_list.iter().position(|c| ids.contains(c)).unwrap_or(sibling_list.len());
+
+        // Create frame node
+        let mut frame = Node::new(0, NodeKind::Frame);
+        frame.x = min_x;
+        frame.y = min_y;
+        frame.width = fw;
+        frame.height = fh;
+        frame.name = format!("Frame {}", self.node_count() + 1);
+        frame.fills = vec![crate::node::Fill::solid(crate::types::Color { r: 255, g: 255, b: 255, a: 1.0 })];
+        frame.parent = first_parent;
+
+        let frame_id = self.next_id;
+        self.next_id += 1;
+        frame.id = frame_id;
+
+        // Remove selected nodes from their current parent's children list
+        for &id in ids {
+            if let Some(node) = self.nodes.get(&id) {
+                if let Some(old_parent) = node.parent {
+                    if let Some(p) = self.nodes.get_mut(&old_parent) {
+                        p.children.retain(|&c| !ids.contains(&c));
+                    }
+                } else {
+                    self.root_children.retain(|&c| !ids.contains(&c));
+                }
+            }
+        }
+
+        // Insert frame at the earliest position
+        if let Some(pid) = first_parent {
+            if let Some(p) = self.nodes.get_mut(&pid) {
+                let insert_at = earliest_idx.min(p.children.len());
+                p.children.insert(insert_at, frame_id);
+            }
+        } else {
+            let insert_at = earliest_idx.min(self.root_children.len());
+            self.root_children.insert(insert_at, frame_id);
+        }
+
+        // Reparent children into frame, adjust positions to local coords
+        let mut frame_children = Vec::new();
+        for &id in ids {
+            if let Some(node) = self.nodes.get_mut(&id) {
+                node.x -= min_x;
+                node.y -= min_y;
+                node.parent = Some(frame_id);
+                frame_children.push(id);
+            }
+        }
+        frame.children = frame_children;
+        self.nodes.insert(frame_id, frame);
+
+        Some(frame_id)
+    }
+
     /// Select all visible, unlocked nodes (root level)
     pub fn select_all(&mut self) {
         self.selection.clear();

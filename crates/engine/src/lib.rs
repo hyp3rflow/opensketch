@@ -6988,6 +6988,20 @@ impl Engine {
     /// Each selected non-path node is converted to a Path (polygon approximation).
     /// Groups/Frames are recursively flattened into a single union path.
     /// Returns the number of nodes flattened.
+    /// Wrap the current selection in a new Frame (Cmd+Alt+G).
+    /// Returns the new frame's ID, or 0 if nothing selected.
+    pub fn wrap_selection_in_frame(&mut self) -> u64 {
+        let sel = self.scene.selection.clone();
+        if sel.is_empty() { return 0; }
+        self.push_undo();
+        if let Some(frame_id) = self.scene.wrap_in_frame(&sel) {
+            self.scene.selection = vec![frame_id];
+            frame_id
+        } else {
+            0
+        }
+    }
+
     pub fn flatten_selection(&mut self) -> u32 {
         self.push_undo();
         let sel = self.scene.selection.clone();

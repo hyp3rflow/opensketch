@@ -1986,3 +1986,11 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Auto-flash on enter, fade after 2s
 - [x] Registered in shortcut manager (view.focusMode)
 - [x] Implementation: packages/app/src/ui/focus-mode.ts
+
+### Wrap in Frame
+- [x] Wrap selected nodes in a new Frame (Figma Cmd+Alt+G)
+- [x] Auto-calculates bounding box, adjusts children positions to local coords
+- [x] Preserves z-order (inserts frame at earliest selected node's position)
+- [x] Undo integration, selection updates to new frame
+- [x] Context menu entry + keyboard shortcut (Cmd/Ctrl+Alt+G)
+- [x] Rust: Scene.wrap_in_frame(), WASM: wrap_selection_in_frame()

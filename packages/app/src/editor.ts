@@ -760,10 +760,10 @@ export class Editor {
         return;
       }
 
-      // Ctrl/Cmd+Alt+G: smart grid distribute
+      // Ctrl/Cmd+Alt+G: wrap selection in frame (Figma-style)
       if ((e.metaKey || e.ctrlKey) && e.altKey && (e.key === "g" || e.key === "G")) {
         e.preventDefault();
-        this.smartDistributeGrid();
+        this.wrapSelectionInFrame();
         return;
       }
 
@@ -6135,6 +6135,20 @@ export class Editor {
     } catch { /* ignore */ }
   }
 
+  wrapSelectionInFrame() {
+    const sel = Array.from(this.engine.get_selection()).map(Number);
+    if (sel.length === 0) return;
+    try {
+      const frameId = Number((this.engine as any).wrap_selection_in_frame());
+      if (frameId) {
+        this.render();
+        this.updateUI();
+      }
+    } catch (e) {
+      console.error('wrap_selection_in_frame failed:', e);
+    }
+  }
+
   smartDistributeGrid() {
     const sel = Array.from(this.engine.get_selection()).map(Number);
     if (sel.length < 4) return;
@@ -6248,6 +6262,9 @@ export class Editor {
         }
         items.push({ label: "Batch Rename…", shortcut: `${mod}⇧R`, enabled: true, action: () => this.showBatchRenameDialog() });
         items.push({ label: "✨ Suggest Layout", shortcut: `${mod}⇧L`, enabled: true, action: () => showLayoutSuggestion(this) });
+      }
+      if (sel.length >= 1) {
+        items.push({ label: "Wrap in Frame", shortcut: `${mod}⌥G`, enabled: true, action: () => this.wrapSelectionInFrame() });
       }
       items.push({ separator: true, label: "" });
       // Smart Content Fill
