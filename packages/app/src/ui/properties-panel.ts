@@ -3714,6 +3714,89 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       container.appendChild(interSection);
     }
 
+    // --- Prototype Flows ---
+    {
+      const flowSection = createSection("Prototype Flows");
+
+      const flowsJson = editor.engine.get_prototype_flows();
+      const flows: any[] = JSON.parse(flowsJson || "[]");
+
+      flows.forEach((flow: any) => {
+        const flowEl = document.createElement("div");
+        flowEl.style.cssText = "background:#1e1e1e;border-radius:6px;padding:8px;margin-bottom:6px;position:relative;";
+
+        const hdr = document.createElement("div");
+        hdr.style.cssText = "display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;";
+
+        const nameInput = document.createElement("input");
+        nameInput.type = "text";
+        nameInput.value = flow.name;
+        nameInput.style.cssText = "background:#2a2a2a;border:1px solid #444;border-radius:4px;color:#ccc;padding:2px 6px;font-size:11px;width:120px;";
+        nameInput.addEventListener("change", () => {
+          ensureUndo();
+          editor.engine.rename_flow(BigInt(flow.id), nameInput.value);
+          editor.requestRender();
+        });
+        hdr.appendChild(nameInput);
+
+        const delBtn = document.createElement("button");
+        delBtn.style.cssText = "width:18px;height:18px;border:1px solid #444;border-radius:4px;background:#2a2a2a;cursor:pointer;padding:0;color:#888;font-size:12px;line-height:1;";
+        delBtn.textContent = "×";
+        delBtn.addEventListener("click", () => {
+          ensureUndo();
+          editor.engine.remove_flow(BigInt(flow.id));
+          editor.requestRender();
+          refresh(ids);
+        });
+        hdr.appendChild(delBtn);
+        flowEl.appendChild(hdr);
+
+        // Start frame selector
+        const startLabel = document.createElement("div");
+        startLabel.style.cssText = "font-size:10px;color:#888;margin-bottom:2px;";
+        startLabel.textContent = "Start frame:";
+        flowEl.appendChild(startLabel);
+
+        const startInfo = document.createElement("div");
+        startInfo.style.cssText = "font-size:11px;color:#aaa;margin-bottom:4px;";
+        if (flow.start_frame_id) {
+          startInfo.textContent = `Node #${flow.start_frame_id} (Page ${flow.start_page_id})`;
+        } else {
+          startInfo.textContent = "Not set";
+        }
+        flowEl.appendChild(startInfo);
+
+        const setStartBtn = document.createElement("button");
+        setStartBtn.style.cssText = "background:#2a2a2a;border:1px solid #444;border-radius:4px;color:#aaa;padding:2px 8px;font-size:10px;cursor:pointer;";
+        setStartBtn.textContent = id ? "Set selected as start" : "Select a node first";
+        setStartBtn.disabled = !id;
+        setStartBtn.addEventListener("click", () => {
+          if (!id) return;
+          ensureUndo();
+          const pageId = editor.engine.get_active_page_id?.() || BigInt(0);
+          editor.engine.set_flow_start_frame(BigInt(flow.id), BigInt(id), pageId);
+          editor.requestRender();
+          refresh(ids);
+        });
+        flowEl.appendChild(setStartBtn);
+
+        flowSection.appendChild(flowEl);
+      });
+
+      const addFlowBtn = document.createElement("button");
+      addFlowBtn.className = "prop-add-btn";
+      addFlowBtn.textContent = "+ Add flow";
+      addFlowBtn.addEventListener("click", () => {
+        ensureUndo();
+        editor.engine.add_flow("Flow " + (flows.length + 1));
+        editor.requestRender();
+        refresh(ids);
+      });
+      flowSection.appendChild(addFlowBtn);
+
+      container.appendChild(flowSection);
+    }
+
     // --- Conditional Visibility ---
     {
       const cvSection = createSection("Conditional Visibility");

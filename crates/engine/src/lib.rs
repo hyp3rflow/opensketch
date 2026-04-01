@@ -6531,6 +6531,47 @@ impl Engine {
     }
 
     // =============================================
+    // Prototype Flows
+    // =============================================
+
+    /// Add a new prototype flow. Returns the flow ID.
+    pub fn add_flow(&mut self, name: &str) -> u64 {
+        self.scene.add_flow(name)
+    }
+
+    /// Remove a prototype flow by ID. Returns true if found.
+    pub fn remove_flow(&mut self, flow_id: u64) -> bool {
+        self.scene.remove_flow(flow_id)
+    }
+
+    /// Rename a prototype flow.
+    pub fn rename_flow(&mut self, flow_id: u64, name: &str) {
+        self.scene.rename_flow(flow_id, name);
+    }
+
+    /// Set the start frame for a flow. Use frame_id=0 to clear.
+    pub fn set_flow_start_frame(&mut self, flow_id: u64, frame_id: u64, page_id: u64) {
+        self.scene.set_flow_start_frame(flow_id, frame_id, page_id);
+    }
+
+    /// Get all prototype flows as JSON array.
+    pub fn get_prototype_flows(&self) -> String {
+        serde_json::to_string(self.scene.get_prototype_flows()).unwrap_or_else(|_| "[]".into())
+    }
+
+    /// Get flow connections for a specific flow as JSON array.
+    pub fn get_flow_connections(&mut self, flow_id: u64) -> String {
+        let connections = self.scene.get_flow_connections(flow_id);
+        serde_json::to_string(&connections).unwrap_or_else(|_| "[]".into())
+    }
+
+    /// Get all cross-page interactions as JSON array.
+    pub fn get_all_cross_page_interactions(&mut self) -> String {
+        let connections = self.scene.get_all_cross_page_interactions();
+        serde_json::to_string(&connections).unwrap_or_else(|_| "[]".into())
+    }
+
+    // =============================================
     // Page Comparison
     // =============================================
 

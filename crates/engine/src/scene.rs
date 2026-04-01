@@ -167,6 +167,30 @@ pub fn parse_hex_color(hex: &str) -> Option<Color> {
     Some(Color { r, g, b, a })
 }
 
+/// A prototype flow: a named collection of interactions starting from a specific frame
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct PrototypeFlow {
+    pub id: u64,
+    pub name: String,
+    /// Starting frame node ID (None = no start frame set)
+    #[serde(default)]
+    pub start_frame_id: Option<u64>,
+    /// Starting page ID (0 = current/unset)
+    #[serde(default)]
+    pub start_page_id: u64,
+}
+
+/// A connection between nodes in a flow (used for flow diagram visualization)
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct FlowConnection {
+    pub source_node_id: u64,
+    pub source_page_id: u64,
+    pub target_node_id: u64,
+    pub target_page_id: u64,
+    pub trigger: String,
+    pub action: String,
+}
+
 /// A single page within the scene
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Page {
@@ -253,6 +277,11 @@ pub struct SceneData {
     pub annotations: Vec<AnnotationStroke>,
     #[serde(default)]
     pub next_annotation_id: u64,
+    /// Prototype flows
+    #[serde(default)]
+    pub prototype_flows: Vec<PrototypeFlow>,
+    #[serde(default)]
+    pub next_flow_id: u64,
 }
 
 pub struct Scene {
@@ -302,6 +331,9 @@ pub struct Scene {
     // Ephemeral annotation strokes
     annotations: Vec<AnnotationStroke>,
     next_annotation_id: u64,
+    // Prototype flows
+    prototype_flows: Vec<PrototypeFlow>,
+    next_flow_id: u64,
 }
 
 impl Scene {
@@ -352,6 +384,8 @@ impl Scene {
             next_view_bookmark_id: 1,
             annotations: vec![],
             next_annotation_id: 1,
+            prototype_flows: vec![],
+            next_flow_id: 1,
         }
     }
 
@@ -883,6 +917,8 @@ impl Scene {
             next_view_bookmark_id: self.next_view_bookmark_id,
             annotations: self.annotations.clone(),
             next_annotation_id: self.next_annotation_id,
+            prototype_flows: self.prototype_flows.clone(),
+            next_flow_id: self.next_flow_id,
         }
     }
 
@@ -968,6 +1004,8 @@ impl Scene {
                 next_view_bookmark_id: if data.next_view_bookmark_id > 0 { data.next_view_bookmark_id } else { 1 },
                 annotations: data.annotations.clone(),
                 next_annotation_id: if data.next_annotation_id > 0 { data.next_annotation_id } else { 1 },
+                prototype_flows: data.prototype_flows.clone(),
+                next_flow_id: if data.next_flow_id > 0 { data.next_flow_id } else { 1 },
             }
         } else {
             // Legacy single-page format
@@ -1030,6 +1068,8 @@ impl Scene {
                 next_view_bookmark_id: if data.next_view_bookmark_id > 0 { data.next_view_bookmark_id } else { 1 },
                 annotations: data.annotations.clone(),
                 next_annotation_id: if data.next_annotation_id > 0 { data.next_annotation_id } else { 1 },
+                prototype_flows: data.prototype_flows.clone(),
+                next_flow_id: if data.next_flow_id > 0 { data.next_flow_id } else { 1 },
             }
         }
     }
@@ -1730,6 +1770,119 @@ impl Scene {
 
     pub fn get_pages_info(&self) -> Vec<(u64, String)> {
         self.pages.iter().map(|p| (p.id, p.name.clone())).collect()
+    }
+
+    // ── Prototype Flows ─────────────────────────────────────────────
+
+    pub fn add_flow(&mut self, name: &str) -> u64 {
+        let id = self.next_flow_id;
+        self.next_flow_id += 1;
+        self.prototype_flows.push(PrototypeFlow {
+            id,
+            name: name.to_string(),
+            start_frame_id: None,
+            start_page_id: 0,
+        });
+        id
+    }
+
+    pub fn remove_flow(&mut self, flow_id: u64) -> bool {
+        let len = self.prototype_flows.len();
+        self.prototype_flows.retain(|f| f.id != flow_id);
+        self.prototype_flows.len() < len
+    }
+
+    pub fn rename_flow(&mut self, flow_id: u64, name: &str) {
+        if let Some(flow) = self.prototype_flows.iter_mut().find(|f| f.id == flow_id) {
+            flow.name = name.to_string();
+        }
+    }
+
+    pub fn set_flow_start_frame(&mut self, flow_id: u64, frame_id: u64, page_id: u64) {
+        if let Some(flow) = self.prototype_flows.iter_mut().find(|f| f.id == flow_id) {
+            flow.start_frame_id = if frame_id == 0 { None } else { Some(frame_id) };
+            flow.start_page_id = page_id;
+        }
+    }
+
+    /// Get all interaction connections across all pages for a given flow.
+    /// If flow has a start frame, only returns connections reachable from that frame.
+    /// Otherwise returns all interactions.
+    pub fn get_flow_connections(&mut self, flow_id: u64) -> Vec<FlowConnection> {
+        let flow = match self.prototype_flows.iter().find(|f| f.id == flow_id) {
+            Some(f) => f.clone(),
+            None => return vec![],
+        };
+        let all = self.collect_all_interactions();
+
+        if flow.start_frame_id.is_none() {
+            return all;
+        }
+
+        // BFS from start frame to find reachable connections
+        let start_node = flow.start_frame_id.unwrap();
+        let mut visited = std::collections::HashSet::new();
+        let mut queue = std::collections::VecDeque::new();
+        queue.push_back(start_node);
+        visited.insert(start_node);
+
+        let mut result = vec![];
+        while let Some(node_id) = queue.pop_front() {
+            for conn in &all {
+                if conn.source_node_id == node_id {
+                    result.push(conn.clone());
+                    if !visited.contains(&conn.target_node_id) {
+                        visited.insert(conn.target_node_id);
+                        queue.push_back(conn.target_node_id);
+                    }
+                }
+            }
+        }
+        result
+    }
+
+    /// Get all cross-page interactions (where target_page_id differs from source page)
+    pub fn get_all_cross_page_interactions(&mut self) -> Vec<FlowConnection> {
+        self.collect_all_interactions()
+            .into_iter()
+            .filter(|c| c.source_page_id != c.target_page_id && c.target_page_id != 0)
+            .collect()
+    }
+
+    /// Internal: collect all interactions from all pages
+    fn collect_all_interactions(&mut self) -> Vec<FlowConnection> {
+        self.save_active_page();
+        let saved_idx = self.active_page_index;
+        let mut connections = vec![];
+
+        for page_idx in 0..self.pages.len() {
+            self.load_page(page_idx);
+            let page_id = self.pages[page_idx].id;
+
+            for node in self.nodes.values() {
+                for inter in &node.interactions {
+                    let target_page = if inter.target_page_id == 0 { page_id } else { inter.target_page_id };
+                    connections.push(FlowConnection {
+                        source_node_id: node.id,
+                        source_page_id: page_id,
+                        target_node_id: inter.target_node_id,
+                        target_page_id: target_page,
+                        trigger: format!("{:?}", inter.trigger),
+                        action: format!("{:?}", inter.action),
+                    });
+                }
+            }
+        }
+
+        // Restore original page
+        self.save_active_page();
+        self.load_page(saved_idx);
+
+        connections
+    }
+
+    pub fn get_prototype_flows(&self) -> &[PrototypeFlow] {
+        &self.prototype_flows
     }
 
     // ── Page Comparison Helpers ─────────────────────────────────────

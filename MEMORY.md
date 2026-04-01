@@ -1528,6 +1528,17 @@
 - "Canvas presentation mode" 제거 — 이미 완료 (추가 81)
 - "Annotation sticker pack" — 이미 완료 (stamp.rs + stamp-tool.ts, 추가로 강화 버전도 완료)
 - "Scroll & overflow (scrollable frames)" — 이미 완료 (추가 51, Overflow enum + WASM + Properties panel + prototype viewer)
+## 완료된 기능 (추가 — Multi-page Prototype Flow)
+- PrototypeFlow struct: id, name, start_frame_id (Option), start_page_id
+- Scene에 flows: Vec<PrototypeFlow> + next_flow_id (backward-compatible serde)
+- Flow CRUD: add_flow, remove_flow, rename_flow, set_flow_start_frame
+- get_flow_connections(flow_id): BFS로 start frame부터 reachable 연결 수집
+- get_all_cross_page_interactions(): 페이지 넘나드는 인터랙션만 수집
+- WASM 바인딩: 위 메서드 모두 노출
+- Flow Diagram View (flow-diagram.ts): 풀스크린 오버레이, 페이지 썸네일 카드, 인터랙션 화살표, 시작 프레임 녹색 마커, pan/zoom
+- Properties Panel: "Prototype Flows" 섹션 (flow 목록, add/remove/rename, start frame 지정)
+- Toolbar: Flow Diagram 버튼 (프로토타입 버튼 옆)
+
 ## 완료된 기능 (추가 — UI Localization / i18n)
 - 다국어 지원: English (en), 한국어 (ko), 日本語 (ja)
 - i18n 시스템: `packages/app/src/ui/i18n.ts` — t() 번역 함수, locale 관리, onLocaleChange 리스너

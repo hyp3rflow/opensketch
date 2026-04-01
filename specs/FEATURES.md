@@ -309,6 +309,12 @@
   - Gesture-based interactions: swipe (left/right/up/down), long-press (500ms), pinch in/out
   - Touch event handling in prototype viewer: swipe detection (>50px, <500ms), long-press timer, two-finger pinch distance ratio
   - Gesture trigger labels shown on hotspot hints in preview
+  - **Prototype Flows**: PrototypeFlow struct (id, name, start_frame_id, start_page_id), Scene-level storage with backward-compatible serde
+  - Flow CRUD: add_flow, remove_flow, rename_flow, set_flow_start_frame
+  - Flow connections: get_flow_connections (BFS from start frame), get_all_cross_page_interactions (cross-page only)
+  - Flow Diagram View: full-screen overlay with page thumbnail cards, interaction arrows (bezier curves), start frame green marker, pan/zoom support
+  - Properties panel: "Prototype Flows" section with flow list, add/remove/rename, start frame assignment
+  - Toolbar: Flow Diagram button next to prototype play button
 
 ### Styles Library (Shared Color & Text Styles)
 - [x] **ColorStyle**: name + RGBA fill color, CRUD via StyleStore
