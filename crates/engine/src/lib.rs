@@ -9330,6 +9330,7 @@ fn parse_anim_property(s: &str) -> Option<animation::AnimProperty> {
         "scale_x" => Some(ScaleX),
         "scale_y" => Some(ScaleY),
         "motion_path" => Some(MotionPath),
+        "path_morph" => Some(PathMorph),
         _ if s.starts_with("fill_r:") => s[7..].parse::<usize>().ok().map(FillR),
         _ if s.starts_with("fill_g:") => s[7..].parse::<usize>().ok().map(FillG),
         _ if s.starts_with("fill_b:") => s[7..].parse::<usize>().ok().map(FillB),
@@ -9387,6 +9388,7 @@ fn get_node_property_value(node: &node::Node, prop: &animation::AnimProperty) ->
         ScaleX => Some(node.width),
         ScaleY => Some(node.height),
         MotionPath => Some(0.0), // progress, not a static property
+        PathMorph => Some(0.0), // morph progress, not a static property
     }
 }
 

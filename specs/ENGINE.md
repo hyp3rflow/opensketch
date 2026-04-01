@@ -223,3 +223,5 @@ Output: `packages/app/src/wasm/` (opensketch_engine.js + .wasm + .d.ts)
 - **Scene API**: `can_morph_paths(id_a, id_b) → bool`, `morph_paths(from_id, to_id, t) → Option<MorphResult>`
 - **WASM API**: `can_morph_paths(id_a, id_b) → bool`, `morph_paths(from_id, to_id, t) → JSON`
 - **Integration**: Prototype viewer smart-animate renders morphed bezier paths directly on canvas for matched Path node pairs
+- **AnimProperty::PathMorph**: Keyframe-based path morph support in animation timeline (value = morph progress 0.0–1.0, target stored in PathMorphConfig)
+- **NodeSnapshot**: Includes path_points/path_closed/is_path fields for smart animate path detection

@@ -3005,6 +3005,7 @@ impl Scene {
                     ScaleX => { /* handled in TS as width % */ }
                     ScaleY => { /* handled in TS as height % */ }
                     MotionPath => { /* handled below with path sampling */ }
+                    PathMorph => { /* handled in TS or below with path_morph */ }
                 };
                 if !changed.contains(&node_id) { changed.push(node_id); }
             }
@@ -3060,7 +3061,7 @@ impl Scene {
                     FillB(idx) => { if let Some(f) = node.fills.get_mut(idx) { f.set_color_b(val as u8); } }
                     FillA(idx) => { if let Some(f) = node.fills.get_mut(idx) { f.set_color_a(val); } }
                     StrokeWidth(idx) => { if let Some(s) = node.strokes.get_mut(idx) { s.width = val.max(0.0); } }
-                    ScaleX | ScaleY | MotionPath => { /* handled in TS / motion path logic */ }
+                    ScaleX | ScaleY | MotionPath | PathMorph => { /* handled in TS / motion path logic */ }
                 };
                 if !changed.contains(&node_id) { changed.push(node_id); }
             }

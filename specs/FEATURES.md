@@ -2023,3 +2023,5 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Scene + WASM: can_morph_paths(), morph_paths(from, to, t)
 - [x] Prototype viewer: real-time morphed path rendering during smart-animate transitions
 - [x] Automatic fallback to cross-fade when nodes aren't both Paths
+- [x] AnimProperty::PathMorph for keyframe-based path morph in animation timeline
+- [x] NodeSnapshot includes path_points/path_closed for smart animate path detection
