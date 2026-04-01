@@ -4523,6 +4523,111 @@ impl Engine {
     }
 
     // =============================================
+    // Component Swap Suggestions
+    // =============================================
+
+    #[wasm_bindgen]
+    /// Suggest similar components for swapping an instance.
+    /// Returns JSON array of { id, name, score, reason } sorted by score desc.
+    pub fn suggest_component_swaps(&self, instance_id: u64, max_results: usize) -> String {
+        // Get instance info
+        let (current_comp_id, inst_w, inst_h) = match self.scene.get_node(instance_id) {
+            Some(node) => {
+                if let NodeKind::Instance(data) = &node.kind {
+                    (data.component_id, node.width, node.height)
+                } else {
+                    return "[]".to_string();
+                }
+            }
+            None => return "[]".to_string(),
+        };
+
+        // Get current component info for comparison
+        let current_comp = self.components.get(current_comp_id);
+        let current_slot_count = current_comp.map(|c| c.slots.len()).unwrap_or(0);
+        let current_prop_count = current_comp.map(|c| c.properties.len()).unwrap_or(0);
+
+        let mut suggestions: Vec<(u64, String, f64, String)> = Vec::new();
+
+        for comp in self.components.list() {
+            if comp.id == current_comp_id {
+                continue;
+            }
+
+            let mut score: f64 = 0.0;
+            let mut reasons: Vec<&str> = Vec::new();
+
+            // Size similarity (compare default variant root size)
+            if let Some(default_key) = Some(comp.default_key()) {
+                if let Some(variant) = comp.get_variant(&default_key) {
+                    if let Some(root) = variant.nodes.first() {
+                        let w_ratio = if inst_w > 0.0 && root.width > 0.0 {
+                            let r = (inst_w / root.width).min(root.width / inst_w);
+                            r
+                        } else { 0.0 };
+                        let h_ratio = if inst_h > 0.0 && root.height > 0.0 {
+                            let r = (inst_h / root.height).min(root.height / inst_h);
+                            r
+                        } else { 0.0 };
+                        let size_score = (w_ratio + h_ratio) / 2.0;
+                        score += size_score * 40.0; // 40% weight for size
+                        if size_score > 0.8 {
+                            reasons.push("similar size");
+                        }
+                    }
+                }
+            }
+
+            // Slot count similarity
+            let slot_diff = (comp.slots.len() as f64 - current_slot_count as f64).abs();
+            let slot_score = 1.0 / (1.0 + slot_diff);
+            score += slot_score * 25.0; // 25% weight
+            if slot_diff == 0.0 && current_slot_count > 0 {
+                reasons.push("same slots");
+            }
+
+            // Property count similarity
+            let prop_diff = (comp.properties.len() as f64 - current_prop_count as f64).abs();
+            let prop_score = 1.0 / (1.0 + prop_diff);
+            score += prop_score * 20.0; // 20% weight
+            if prop_diff == 0.0 && current_prop_count > 0 {
+                reasons.push("same properties");
+            }
+
+            // Variant count similarity
+            let current_var_count = current_comp.map(|c| c.variants.len()).unwrap_or(0);
+            let var_diff = (comp.variants.len() as f64 - current_var_count as f64).abs();
+            let var_score = 1.0 / (1.0 + var_diff);
+            score += var_score * 15.0; // 15% weight
+            if var_diff == 0.0 && current_var_count > 1 {
+                reasons.push("same variant count");
+            }
+
+            let reason = if reasons.is_empty() {
+                "available".to_string()
+            } else {
+                reasons.join(", ")
+            };
+
+            suggestions.push((comp.id, comp.name.clone(), score, reason));
+        }
+
+        suggestions.sort_by(|a, b| b.2.partial_cmp(&a.2).unwrap_or(std::cmp::Ordering::Equal));
+        suggestions.truncate(max_results);
+
+        let result: Vec<_> = suggestions.iter().map(|(id, name, score, reason)| {
+            serde_json::json!({
+                "id": id,
+                "name": name,
+                "score": (*score * 10.0).round() / 10.0,
+                "reason": reason,
+            })
+        }).collect();
+
+        serde_json::to_string(&result).unwrap_or_default()
+    }
+
+    // =============================================
     // Component Documentation
     // =============================================
 
@@ -7478,7 +7583,9 @@ impl Engine {
         if let Some(node) = self.scene.get_node_mut(node_id) {
             node.overflow = match overflow {
                 "hidden" => crate::node::Overflow::Hidden,
-                "scroll" => crate::node::Overflow::Scroll,
+                "scroll" | "scroll-both" => crate::node::Overflow::Scroll,
+                "scroll-horizontal" => crate::node::Overflow::ScrollHorizontal,
+                "scroll-vertical" => crate::node::Overflow::ScrollVertical,
                 _ => crate::node::Overflow::Visible,
             };
         }
@@ -7488,7 +7595,9 @@ impl Engine {
         self.scene.get_node(node_id).map(|n| match n.overflow {
             crate::node::Overflow::Visible => "visible",
             crate::node::Overflow::Hidden => "hidden",
-            crate::node::Overflow::Scroll => "scroll",
+            crate::node::Overflow::Scroll => "scroll-both",
+            crate::node::Overflow::ScrollHorizontal => "scroll-horizontal",
+            crate::node::Overflow::ScrollVertical => "scroll-vertical",
         }).unwrap_or("visible").to_string()
     }
 

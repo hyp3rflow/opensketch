@@ -5293,19 +5293,26 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       overflowRow.style.cssText = "display:flex;gap:4px;";
 
       const currentOverflow = editor.engine.get_overflow(BigInt(id));
-      for (const mode of ["visible", "hidden", "scroll"] as const) {
+      const overflowModes: {value: string; label: string}[] = [
+        { value: "visible", label: "Visible" },
+        { value: "hidden", label: "Hidden" },
+        { value: "scroll-horizontal", label: "Scroll H" },
+        { value: "scroll-vertical", label: "Scroll V" },
+        { value: "scroll-both", label: "Scroll Both" },
+      ];
+      for (const mode of overflowModes) {
         const btn = document.createElement("button");
-        const isActive = currentOverflow === mode;
+        const isActive = currentOverflow === mode.value;
         btn.style.cssText = `
           flex:1;padding:4px 0;border:1px solid ${isActive ? "#4f46e5" : "#444"};
           border-radius:4px;background:${isActive ? "rgba(79,70,229,0.15)" : "transparent"};
-          color:${isActive ? "#818cf8" : "#aaa"};cursor:pointer;font-size:11px;text-transform:capitalize;
+          color:${isActive ? "#818cf8" : "#aaa"};cursor:pointer;font-size:10px;
         `;
-        btn.textContent = mode;
+        btn.textContent = mode.label;
         btn.addEventListener("click", () => {
           editor.engine.push_undo();
-          editor.engine.set_overflow(BigInt(id), mode);
-          if (mode !== "scroll") {
+          editor.engine.set_overflow(BigInt(id), mode.value);
+          if (!mode.value.startsWith("scroll")) {
             editor.engine.set_scroll_offset(BigInt(id), 0, 0);
           }
           editor.requestRender();
@@ -5316,7 +5323,8 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       overflowSection.appendChild(overflowRow);
 
       // Show scroll offset if scroll mode
-      if (currentOverflow === "scroll") {
+      const isScrollMode = currentOverflow.startsWith("scroll");
+      if (isScrollMode) {
         const scrollInfo = JSON.parse(editor.engine.get_scroll_offset(BigInt(id)));
         const scrollLabel = document.createElement("div");
         scrollLabel.style.cssText = "font-size:10px;color:#666;margin-top:4px;";

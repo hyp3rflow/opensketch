@@ -91,6 +91,7 @@ export function createPrototypeViewer(editor: Editor): {
     viewCanvas.addEventListener("touchstart", onTouchStart, { passive: false });
     viewCanvas.addEventListener("touchmove", onTouchMove, { passive: false });
     viewCanvas.addEventListener("touchend", onTouchEnd, { passive: false });
+    viewCanvas.addEventListener("wheel", onWheel, { passive: false });
   }
 
   let motionPathAnimId: number | null = null;
@@ -630,7 +631,7 @@ export function createPrototypeViewer(editor: Editor): {
             }
           }
           editor.engine.set_instance_variant(BigInt(instanceId), inter.variant_key_json);
-          renderCurrentFrame();
+          renderCurrentView();
         } catch {}
       }
     }
@@ -642,7 +643,7 @@ export function createPrototypeViewer(editor: Editor): {
     if (orig) {
       try {
         editor.engine.set_instance_variant(BigInt(nodeId), orig);
-        renderCurrentFrame();
+        renderCurrentView();
       } catch {}
       originalVariants.delete(nodeId);
     }
@@ -765,7 +766,7 @@ export function createPrototypeViewer(editor: Editor): {
               if (!isNaN(pageId)) {
                 (editor.engine as any).set_active_page(BigInt(pageId));
                 // Re-render the viewer at the new page
-                drawCurrentFrame();
+                renderCurrentView();
               }
             } else {
               window.open(link, "_blank");
@@ -774,6 +775,80 @@ export function createPrototypeViewer(editor: Editor): {
         } catch { /* ignore */ }
       }
     }
+  }
+
+  // ─── Scroll handling for scrollable frames ──────────
+  /** Convert screen coords to scene coords */
+  function screenToScene(clientX: number, clientY: number): { x: number; y: number } | null {
+    if (!viewCanvas || !currentFrameId) return null;
+    const rect = viewCanvas.getBoundingClientRect();
+    const fb = getFrameBounds(currentFrameId);
+    const bounds = fb || { x: 0, y: 0, width: 800, height: 600 };
+    const { scale } = getViewportParams(bounds);
+    return {
+      x: (clientX - rect.left) / scale + bounds.x,
+      y: (clientY - rect.top) / scale + bounds.y,
+    };
+  }
+
+  /** Find a scrollable frame at a scene point by walking up parent chain */
+  function findScrollableFrameAt(sceneX: number, sceneY: number): number | null {
+    try {
+      const hitId = Number(editor.engine.hit_test(sceneX, sceneY));
+      if (hitId <= 0) return null;
+      // Walk up to find scrollable ancestor
+      let id: number | null = hitId;
+      while (id !== null && id > 0) {
+        const nj = editor.engine.get_node_json(id);
+        if (!nj) break;
+        const node = JSON.parse(nj);
+        const overflow = editor.engine.get_overflow(BigInt(id));
+        if (overflow.startsWith("scroll")) return id;
+        id = node.parent ?? null;
+      }
+    } catch {}
+    return null;
+  }
+
+  /** Handle wheel events for scrolling frames in prototype viewer */
+  function onWheel(e: WheelEvent) {
+    if (!viewCanvas || transitioning || !currentFrameId) return;
+    const pt = screenToScene(e.clientX, e.clientY);
+    if (!pt) return;
+    const scrollFrameId = findScrollableFrameAt(pt.x, pt.y);
+    if (scrollFrameId === null) return;
+
+    e.preventDefault();
+    const overflow = editor.engine.get_overflow(BigInt(scrollFrameId));
+    const scrollsX = overflow === "scroll-both" || overflow === "scroll-horizontal";
+    const scrollsY = overflow === "scroll-both" || overflow === "scroll-vertical";
+
+    const scrollOffset = JSON.parse(editor.engine.get_scroll_offset(BigInt(scrollFrameId)));
+    const nj = editor.engine.get_node_json(scrollFrameId);
+    if (!nj) return;
+    const node = JSON.parse(nj);
+
+    // Calculate content bounds from children
+    let contentW = node.width, contentH = node.height;
+    const nodeChildren: number[] = node.children || [];
+    for (const cid of nodeChildren) {
+      const cj = editor.engine.get_node_json(cid);
+      if (!cj) continue;
+      const c = JSON.parse(cj);
+      contentW = Math.max(contentW, (c.x - node.x) + c.width);
+      contentH = Math.max(contentH, (c.y - node.y) + c.height);
+    }
+
+    let newScrollX = scrollsX ? scrollOffset.x - e.deltaX : scrollOffset.x;
+    let newScrollY = scrollsY ? scrollOffset.y - e.deltaY : scrollOffset.y;
+
+    const maxScrollX = -(contentW - node.width);
+    const maxScrollY = -(contentH - node.height);
+    if (scrollsX) newScrollX = Math.max(maxScrollX, Math.min(0, newScrollX));
+    if (scrollsY) newScrollY = Math.max(maxScrollY, Math.min(0, newScrollY));
+
+    editor.engine.set_scroll_offset(BigInt(scrollFrameId), newScrollX, newScrollY);
+    renderCurrentView();
   }
 
   // ─── Touch / Gesture handling ───────────────────────
@@ -785,11 +860,16 @@ export function createPrototypeViewer(editor: Editor): {
   let initialPinchDist = 0;
   let pinchActive = false;
 
+  let touchScrollFrameId: number | null = null;
+  let lastTouchX = 0;
+  let lastTouchY = 0;
+
   function onTouchStart(e: TouchEvent) {
     if (!viewCanvas || transitioning) return;
     e.preventDefault();
     longPressFired = false;
     pinchActive = false;
+    touchScrollFrameId = null;
 
     if (e.touches.length === 2) {
       // Pinch start
@@ -802,7 +882,13 @@ export function createPrototypeViewer(editor: Editor): {
     const touch = e.touches[0]!;
     touchStartX = touch.clientX;
     touchStartY = touch.clientY;
+    lastTouchX = touch.clientX;
+    lastTouchY = touch.clientY;
     touchStartTime = performance.now();
+
+    // Check if touching a scrollable frame
+    const pt = screenToScene(touch.clientX, touch.clientY);
+    if (pt) touchScrollFrameId = findScrollableFrameAt(pt.x, pt.y);
 
     // Long press detection (500ms)
     longPressTimer = setTimeout(() => {
@@ -823,13 +909,52 @@ export function createPrototypeViewer(editor: Editor): {
     }
 
     // Cancel long press if finger moves > 10px
+    const touch = e.touches[0]!;
     if (longPressTimer) {
-      const touch = e.touches[0]!;
       const dx = touch.clientX - touchStartX;
       const dy = touch.clientY - touchStartY;
       if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
         clearTimeout(longPressTimer);
         longPressTimer = null;
+      }
+    }
+
+    // Scroll handling for scrollable frames via touch drag
+    if (touchScrollFrameId !== null) {
+      const deltaX = lastTouchX - touch.clientX;
+      const deltaY = lastTouchY - touch.clientY;
+      lastTouchX = touch.clientX;
+      lastTouchY = touch.clientY;
+
+      // Scale delta to scene coords
+      const fb = currentFrameId ? getFrameBounds(currentFrameId) : null;
+      const bounds = fb || { x: 0, y: 0, width: 800, height: 600 };
+      const { scale } = getViewportParams(bounds);
+      const sdx = deltaX / scale;
+      const sdy = deltaY / scale;
+
+      const overflow = editor.engine.get_overflow(BigInt(touchScrollFrameId));
+      const scrollsX = overflow === "scroll-both" || overflow === "scroll-horizontal";
+      const scrollsY = overflow === "scroll-both" || overflow === "scroll-vertical";
+      const scrollOffset = JSON.parse(editor.engine.get_scroll_offset(BigInt(touchScrollFrameId)));
+      const nj = editor.engine.get_node_json(touchScrollFrameId);
+      if (nj) {
+        const node = JSON.parse(nj);
+        let contentW = node.width, contentH = node.height;
+        const nodeChildren: number[] = node.children || [];
+        for (const cid of nodeChildren) {
+          const cj = editor.engine.get_node_json(cid);
+          if (!cj) continue;
+          const c = JSON.parse(cj);
+          contentW = Math.max(contentW, (c.x - node.x) + c.width);
+          contentH = Math.max(contentH, (c.y - node.y) + c.height);
+        }
+        let newScrollX = scrollsX ? scrollOffset.x - sdx : scrollOffset.x;
+        let newScrollY = scrollsY ? scrollOffset.y - sdy : scrollOffset.y;
+        if (scrollsX) newScrollX = Math.max(-(contentW - node.width), Math.min(0, newScrollX));
+        if (scrollsY) newScrollY = Math.max(-(contentH - node.height), Math.min(0, newScrollY));
+        editor.engine.set_scroll_offset(BigInt(touchScrollFrameId), newScrollX, newScrollY);
+        renderCurrentView();
       }
     }
   }

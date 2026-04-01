@@ -405,8 +405,10 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
                     if node.corner_radius > 0.0 { format!(r#" rx="{}" ry="{}""#, node.corner_radius, node.corner_radius) } else { String::new() }
                 ));
                 g.push_str(&format!(r#"<g clip-path="url(#{})">"#, clip_id));
-                if node.overflow == crate::node::Overflow::Scroll && (node.scroll_x != 0.0 || node.scroll_y != 0.0) {
-                    g.push_str(&format!(r#"<g transform="translate({},{})">"#, node.scroll_x, node.scroll_y));
+                if node.overflow.scrolls() && (node.scroll_x != 0.0 || node.scroll_y != 0.0) {
+                    let tx = if node.overflow.scrolls_x() { node.scroll_x } else { 0.0 };
+                    let ty = if node.overflow.scrolls_y() { node.scroll_y } else { 0.0 };
+                    g.push_str(&format!(r#"<g transform="translate({},{})">"#, tx, ty));
                 }
             }
 
@@ -414,7 +416,7 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
             render_children_svg(scene, &node.children, &mut g, node.x, node.y, true);
 
             if clip_overflow {
-                if node.overflow == crate::node::Overflow::Scroll && (node.scroll_x != 0.0 || node.scroll_y != 0.0) {
+                if node.overflow.scrolls() && (node.scroll_x != 0.0 || node.scroll_y != 0.0) {
                     g.push_str("</g>");
                 }
                 g.push_str("</g>");

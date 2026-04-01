@@ -196,3 +196,20 @@ Available: select, hand, rect, ellipse, text, frame, eye, eyeOff, rotation, corn
 - Translation keys organized by namespace: `tool.*`, `toolbar.*`, `layers.*`, `properties.*`, `agent.*`, `common.*`
 - Dynamic import for locale JSON files (Vite code-splits each locale into separate chunk)
 - `initI18n()` called in `main.ts` before UI setup to ensure translations are loaded
+
+## Overflow Section (Frame Properties)
+
+- Displayed for Frame/Section nodes in Properties panel
+- 5-button toggle: Visible | Hidden | Scroll H | Scroll V | Scroll Both
+- Active button highlighted with indigo (#4f46e5) border and background
+- Scroll position display (px values) when in scroll mode
+- Reset Scroll button to zero out scroll_x/scroll_y
+- Switching from scroll to non-scroll mode auto-resets scroll offset
+
+## Prototype Viewer Scroll
+
+- Mouse wheel events intercepted on scrollable frames
+- Touch drag scroll support for mobile/tablet
+- Content bounds calculated from children bounding box
+- Scroll clamped to prevent over-scrolling (0 to -(content - frame) range)
+- Scrollbar indicators rendered in Rust engine (thin white semi-transparent bars)

@@ -932,7 +932,7 @@ impl Renderer {
             ctx.stroke();
         }
         // Clip children for Hidden/Scroll overflow
-        let needs_clip = node.overflow != crate::node::Overflow::Visible;
+        let needs_clip = node.overflow.clips();
         if needs_clip {
             ctx.save();
             ctx.begin_path();
@@ -945,10 +945,12 @@ impl Renderer {
         }
 
         // Apply scroll offset for Scroll overflow
-        let has_scroll = node.overflow == crate::node::Overflow::Scroll;
+        let has_scroll = node.overflow.scrolls();
         if has_scroll {
             ctx.save();
-            ctx.translate(node.scroll_x, node.scroll_y).ok();
+            let tx = if node.overflow.scrolls_x() { node.scroll_x } else { 0.0 };
+            let ty = if node.overflow.scrolls_y() { node.scroll_y } else { 0.0 };
+            ctx.translate(tx, ty).ok();
         }
 
         // Render per-frame background pattern (after fills, before children)
@@ -1456,7 +1458,7 @@ impl Renderer {
         let bar_margin = 2.0 / self.viewport.a;
 
         // Vertical scrollbar
-        if content_h > node.height {
+        if content_h > node.height && node.overflow.scrolls_y() {
             let visible_ratio = (node.height / content_h).min(1.0);
             let scroll_ratio = (-node.scroll_y / (content_h - node.height)).clamp(0.0, 1.0);
             let track_h = node.height - bar_margin * 2.0;
@@ -1472,7 +1474,7 @@ impl Renderer {
         }
 
         // Horizontal scrollbar
-        if content_w > node.width {
+        if content_w > node.width && node.overflow.scrolls_x() {
             let visible_ratio = (node.width / content_w).min(1.0);
             let scroll_ratio = (-node.scroll_x / (content_w - node.width)).clamp(0.0, 1.0);
             let track_w = node.width - bar_margin * 2.0;

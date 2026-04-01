@@ -483,6 +483,8 @@ function generateTailwind(ctx: CodeCtx): string {
   // Overflow
   if (node.overflow === "Hidden") classes.push("overflow-hidden");
   else if (node.overflow === "Scroll") classes.push("overflow-auto");
+  else if (node.overflow === "ScrollHorizontal") classes.push("overflow-x-auto");
+  else if (node.overflow === "ScrollVertical") classes.push("overflow-y-auto");
 
   const tag = isText ? "p" : "div";
   const filtered = classes.filter(Boolean);
@@ -596,7 +598,12 @@ function generateCSS(ctx: CodeCtx): string {
     if (node.fills?.[0]) lines.push(`color: ${rgbaToCSS(node.fills[0])};`);
   }
 
-  if (node.overflow && node.overflow !== "Visible") lines.push(`overflow: ${node.overflow === "Scroll" ? "auto" : "hidden"};`);
+  if (node.overflow && node.overflow !== "Visible") {
+    if (node.overflow === "Scroll") lines.push(`overflow: auto;`);
+    else if (node.overflow === "ScrollHorizontal") lines.push(`overflow-x: auto; overflow-y: hidden;`);
+    else if (node.overflow === "ScrollVertical") lines.push(`overflow-x: hidden; overflow-y: auto;`);
+    else lines.push(`overflow: hidden;`);
+  }
 
   if (layout && layout.mode && layout.mode !== "None") {
     if (layout.mode === "Flex") {

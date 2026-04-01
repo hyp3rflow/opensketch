@@ -13,11 +13,19 @@ interface InstanceInfo {
   component_name: string;
 }
 
+interface SwapSuggestion {
+  id: number;
+  name: string;
+  score: number;
+  reason: string;
+}
+
 /**
  * Component Search & Swap modal.
  * - Search components by name
  * - View all instances of a component
  * - Swap selected instances to a different master component
+ * - Smart suggestions for selected instance nodes (by size/structure similarity)
  */
 export function openComponentSwapModal(editor: Editor) {
   // Remove existing
@@ -57,6 +65,11 @@ export function openComponentSwapModal(editor: Editor) {
   searchBox.appendChild(searchInput);
   modal.appendChild(searchBox);
 
+  // Suggestions area (shown when an instance is selected)
+  const suggestionsArea = document.createElement("div");
+  suggestionsArea.style.cssText = "display:none;padding:12px 20px;border-bottom:1px solid #333;";
+  modal.appendChild(suggestionsArea);
+
   // Content area
   const content = document.createElement("div");
   content.style.cssText = "flex:1;overflow-y:auto;padding:12px 20px;";
@@ -65,6 +78,72 @@ export function openComponentSwapModal(editor: Editor) {
   // State
   let selectedCompId: number | null = null;
   let query = "";
+
+  // Check if current selection is an instance and show suggestions
+  function renderSuggestions() {
+    suggestionsArea.innerHTML = "";
+    suggestionsArea.style.display = "none";
+
+    const sel = editor.engine.get_selection();
+    if (!sel || sel.length !== 1) return;
+
+    const nodeId = Number(sel[0]);
+    let suggestions: SwapSuggestion[] = [];
+    try {
+      const fn = (editor.engine as any).suggest_component_swaps;
+      if (!fn) return;
+      const json = (editor.engine as any).suggest_component_swaps(BigInt(nodeId), 5);
+      suggestions = JSON.parse(json || "[]");
+    } catch { return; }
+
+    if (suggestions.length === 0) return;
+
+    suggestionsArea.style.display = "block";
+
+    const label = document.createElement("div");
+    label.textContent = "✨ Suggested swaps for selected instance";
+    label.style.cssText = "font-size:12px;font-weight:600;color:#c4b5fd;margin-bottom:8px;";
+    suggestionsArea.appendChild(label);
+
+    for (const s of suggestions) {
+      const row = document.createElement("div");
+      row.style.cssText = "display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:6px;cursor:pointer;transition:background 0.15s;margin-bottom:2px;";
+      row.addEventListener("mouseenter", () => row.style.background = "#2a2a3e");
+      row.addEventListener("mouseleave", () => row.style.background = "");
+
+      const icon = document.createElement("div");
+      icon.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>`;
+
+      const nameEl = document.createElement("span");
+      nameEl.textContent = s.name;
+      nameEl.style.cssText = "font-size:12px;color:#eee;flex:1;";
+
+      const reasonEl = document.createElement("span");
+      reasonEl.textContent = s.reason;
+      reasonEl.style.cssText = "font-size:10px;color:#888;margin-right:4px;";
+
+      const scoreEl = document.createElement("span");
+      scoreEl.textContent = `${s.score}`;
+      scoreEl.style.cssText = "font-size:10px;color:#666;background:#1a1a2e;padding:2px 6px;border-radius:3px;min-width:24px;text-align:center;";
+
+      const swapBtn = document.createElement("button");
+      swapBtn.textContent = "Swap";
+      swapBtn.style.cssText = "background:#5b21b6;border:none;color:#fff;font-size:11px;padding:3px 10px;border-radius:4px;cursor:pointer;";
+      swapBtn.onclick = (e) => {
+        e.stopPropagation();
+        editor.engine.push_undo();
+        if (editor.engine.swap_instance_component(nodeId, s.id)) {
+          editor.requestRender();
+          renderSuggestions();
+        }
+      };
+
+      row.append(icon, nameEl, reasonEl, scoreEl, swapBtn);
+      suggestionsArea.appendChild(row);
+    }
+  }
+
+  renderSuggestions();
 
   function getComponents(): CompInfo[] {
     try {

@@ -203,3 +203,16 @@ Output: `packages/app/src/wasm/` (opensketch_engine.js + .wasm + .d.ts)
 - **merge_snapshots**: add new nodes, update existing, merge pages by id, reconcile next_id/next_page_id
 - **Scene fields**: branches Vec<Branch>, active_branch_id, next_branch_id
 - **Default**: new scenes start with "main" branch (id=1), backward-compatible serde
+
+## Overflow Mode
+
+- **Overflow enum**: `Visible` (default) | `Hidden` | `Scroll` | `ScrollHorizontal` | `ScrollVertical`
+- **Node fields**: `overflow: Overflow` (#[serde(default)]), `scroll_x: f64`, `scroll_y: f64`
+- **Overflow.clips()**: true for Hidden/Scroll* — enables clipping children to frame bounds
+- **Overflow.scrolls()**: true for Scroll* — enables scroll offset translation
+- **Overflow.scrolls_x() / scrolls_y()**: directional scroll checks
+- **Render**: Frame/Section clips children via `ctx.save() → clip → translate(scroll_x, scroll_y) → render children → restore`
+- **Scrollbars**: thin Figma-style scrollbar indicators (4px, rgba white 30%) rendered after children
+- **Content bounds**: calculated from children AABB for scroll range clamping
+- **SVG export**: `<clipPath>` + `clip-path` attribute for overflow != Visible; `<g transform="translate(...)">` for scroll offset
+- **WASM API**: `set_overflow(id, mode_str)`, `get_overflow(id) → str`, `set_scroll_offset(id, x, y)`, `get_scroll_offset(id) → JSON`, `get_content_bounds(id) → JSON`

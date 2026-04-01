@@ -195,8 +195,14 @@ Instances can swap their master component to a different one via a search dialog
 - `search_components(query: &str) -> String` — returns JSON `[{id, name, description, variant_count}]`
 - `swap_instance_component(instance_id: u64, new_comp_id: u64) -> bool` — removes old children, re-clones from new component's default variant
 
+### Smart Swap Suggestions
+- `suggest_component_swaps(instance_id: u64, max_results: usize) -> String` — scores all components by similarity to the instance's current component
+- Scoring: size similarity (40%), slot count (25%), property count (20%), variant count (15%)
+- Returns JSON `[{id, name, score, reason}]` sorted by score descending
+
 ### TypeScript UI
-- **component-search.ts**: `openComponentSwapDialog(editor, instanceId)` — modal dialog with search input + component result list + swap buttons
+- **component-swap.ts**: `openComponentSwapModal(editor)` — modal dialog with search, swap, and smart suggestions
+- When an Instance node is selected, a "✨ Suggested swaps" section appears with one-click swap buttons
 - **properties-panel.ts**: Instance nodes show a "Swap" button next to "Go to →" in the component info card
 
 ## Component Documentation

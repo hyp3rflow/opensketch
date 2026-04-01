@@ -6383,7 +6383,8 @@ export class Editor {
         const json = this.engine.get_node_json(BigInt(nodeId));
         if (!json) break;
         const node = JSON.parse(json);
-        if ((node.kind === "Frame" || node.kind === "Section") && node.overflow === "Scroll") {
+        const overflow = this.engine.get_overflow(BigInt(nodeId));
+        if ((node.kind === "Frame" || node.kind === "Section") && (overflow === "scroll-both" || overflow === "scroll-horizontal" || overflow === "scroll-vertical")) {
           return nodeId;
         }
         if (!node.parent) break;
@@ -6402,14 +6403,18 @@ export class Editor {
     if (!json) return;
     const node = JSON.parse(json);
 
-    let newScrollX = scrollOffset.x - dx;
-    let newScrollY = scrollOffset.y - dy;
+    const overflow = this.engine.get_overflow(id);
+    const scrollsX = overflow === "scroll-both" || overflow === "scroll-horizontal";
+    const scrollsY = overflow === "scroll-both" || overflow === "scroll-vertical";
+
+    let newScrollX = scrollsX ? scrollOffset.x - dx : scrollOffset.x;
+    let newScrollY = scrollsY ? scrollOffset.y - dy : scrollOffset.y;
 
     // Clamp: scroll offset is negative (content moves up/left)
     const maxScrollX = Math.min(0, -(contentBounds.width - node.width));
     const maxScrollY = Math.min(0, -(contentBounds.height - node.height));
-    newScrollX = Math.max(maxScrollX, Math.min(0, newScrollX));
-    newScrollY = Math.max(maxScrollY, Math.min(0, newScrollY));
+    if (scrollsX) newScrollX = Math.max(maxScrollX, Math.min(0, newScrollX));
+    if (scrollsY) newScrollY = Math.max(maxScrollY, Math.min(0, newScrollY));
 
     this.engine.set_scroll_offset(id, newScrollX, newScrollY);
     this.needsRender = true;

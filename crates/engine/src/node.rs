@@ -898,10 +898,27 @@ pub enum Overflow {
     Visible,
     Hidden,
     Scroll,
+    ScrollHorizontal,
+    ScrollVertical,
 }
 
 impl Default for Overflow {
     fn default() -> Self { Overflow::Visible }
+}
+
+impl Overflow {
+    pub fn clips(&self) -> bool {
+        *self != Overflow::Visible
+    }
+    pub fn scrolls(&self) -> bool {
+        matches!(self, Overflow::Scroll | Overflow::ScrollHorizontal | Overflow::ScrollVertical)
+    }
+    pub fn scrolls_x(&self) -> bool {
+        matches!(self, Overflow::Scroll | Overflow::ScrollHorizontal)
+    }
+    pub fn scrolls_y(&self) -> bool {
+        matches!(self, Overflow::Scroll | Overflow::ScrollVertical)
+    }
 }
 
 /// Text sizing mode
