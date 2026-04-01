@@ -4,6 +4,60 @@ use crate::node::{Node, NodeId};
 
 pub type ComponentId = u64;
 
+// =============================================
+// Component Properties (Figma-style)
+// =============================================
+
+/// A component property definition (Boolean, Text, InstanceSwap)
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum ComponentProperty {
+    BooleanProp {
+        name: String,
+        default: bool,
+        /// Node ID within the component template whose visibility is toggled
+        linked_node_id: NodeId,
+    },
+    TextProp {
+        name: String,
+        default: String,
+        /// Node ID of the Text node within the component template
+        linked_node_id: NodeId,
+    },
+    InstanceSwapProp {
+        name: String,
+        /// Default component ID for the slot
+        default_component_id: ComponentId,
+        /// Node ID of the Slot node within the component template
+        linked_slot_id: NodeId,
+    },
+}
+
+impl ComponentProperty {
+    pub fn name(&self) -> &str {
+        match self {
+            ComponentProperty::BooleanProp { name, .. } => name,
+            ComponentProperty::TextProp { name, .. } => name,
+            ComponentProperty::InstanceSwapProp { name, .. } => name,
+        }
+    }
+
+    pub fn prop_type_str(&self) -> &'static str {
+        match self {
+            ComponentProperty::BooleanProp { .. } => "boolean",
+            ComponentProperty::TextProp { .. } => "text",
+            ComponentProperty::InstanceSwapProp { .. } => "instance_swap",
+        }
+    }
+}
+
+/// A concrete property value override on an instance
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum PropValue {
+    Boolean(bool),
+    Text(String),
+    InstanceSwap(ComponentId),
+}
+
 /// A variant property definition
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum VariantPropType {
@@ -114,6 +168,9 @@ pub struct Component {
     /// Documentation
     #[serde(default)]
     pub doc: ComponentDoc,
+    /// Component properties (Boolean/Text/InstanceSwap) — Figma-style
+    #[serde(default)]
+    pub component_properties: Vec<ComponentProperty>,
 }
 
 impl Component {
@@ -127,6 +184,7 @@ impl Component {
             variants: HashMap::new(),
             default_variant_key: String::new(),
             doc: ComponentDoc::default(),
+            component_properties: vec![],
         }
     }
 
@@ -161,6 +219,9 @@ pub struct InstanceData {
     /// Responsive variant rules: auto-switch variant based on parent frame width
     #[serde(default)]
     pub responsive_rules: Vec<ResponsiveVariantRule>,
+    /// Component property overrides (prop_name → PropValue)
+    #[serde(default)]
+    pub property_overrides: HashMap<String, PropValue>,
 }
 
 /// Responsive variant rule: when parent width <= max_width, switch to this variant
@@ -335,6 +396,7 @@ impl ComponentStore {
             instance_data.variant_values = comp.default_key();
             instance_data.slot_fills.clear();
             instance_data.overrides.clear();
+            instance_data.property_overrides.clear();
             true
         } else {
             false

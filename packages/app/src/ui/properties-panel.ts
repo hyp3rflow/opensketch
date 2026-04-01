@@ -1137,7 +1137,253 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           header.appendChild(overrideCard);
         }
       } catch { /* ignore if engine doesn't support */ }
+
+      // === Component Prop Controls ===
+      try {
+        const propValsJson = editor.engine.get_instance_prop_values(BigInt(id));
+        const propVals: Array<{
+          name: string;
+          prop_type: string;
+          value: { type: string; value: any };
+          overridden: boolean;
+          definition: any;
+        }> = JSON.parse(propValsJson);
+
+        if (propVals && propVals.length > 0) {
+          const cpSection = document.createElement("div");
+          cpSection.style.cssText = `
+            margin-bottom:8px; padding:8px 10px;
+            background:rgba(251,191,36,0.06); border:1px solid rgba(251,191,36,0.15);
+            border-radius:8px;
+          `;
+          const cpTitle = document.createElement("div");
+          cpTitle.style.cssText = "font-size:10px;color:#fbbf24;letter-spacing:0.3px;margin-bottom:6px;font-weight:600;";
+          cpTitle.textContent = "COMPONENT PROPS";
+          cpSection.appendChild(cpTitle);
+
+          for (const pv of propVals) {
+            const propRow = document.createElement("div");
+            propRow.style.cssText = "display:flex;align-items:center;gap:6px;margin-bottom:4px;";
+
+            // Override indicator (blue dot)
+            if (pv.overridden) {
+              const dot = document.createElement("span");
+              dot.style.cssText = "width:6px;height:6px;border-radius:50%;background:#3b82f6;flex-shrink:0;";
+              dot.title = "Overridden";
+              propRow.appendChild(dot);
+            }
+
+            const propLabel = document.createElement("span");
+            propLabel.style.cssText = `font-size:11px;color:#999;min-width:60px;${pv.overridden ? "" : "margin-left:12px;"}`;
+            propLabel.textContent = pv.name;
+            propRow.appendChild(propLabel);
+
+            if (pv.prop_type === "boolean") {
+              const toggle = document.createElement("button");
+              const isOn = pv.value.value === true;
+              toggle.style.cssText = `
+                width:32px; height:18px; border-radius:9px; border:none; cursor:pointer;
+                background:${isOn ? "#fbbf24" : "#444"}; position:relative; transition:background 0.2s;
+              `;
+              const knob = document.createElement("span");
+              knob.style.cssText = `
+                position:absolute; top:2px; ${isOn ? "right:2px" : "left:2px"};
+                width:14px; height:14px; border-radius:7px; background:#fff; transition:all 0.2s;
+              `;
+              toggle.appendChild(knob);
+              toggle.addEventListener("click", () => {
+                editor.engine.push_undo();
+                editor.engine.set_instance_prop_override(
+                  BigInt(id), pv.name,
+                  JSON.stringify({ type: "boolean", value: !isOn })
+                );
+                editor.requestRender();
+                refresh([id]);
+              });
+              propRow.appendChild(toggle);
+            } else if (pv.prop_type === "text") {
+              const input = document.createElement("input");
+              input.style.cssText = `
+                flex:1; background:#2a2a2a; border:1px solid #444; border-radius:4px;
+                color:#ccc; font-size:11px; padding:3px 6px; outline:none;
+              `;
+              input.value = pv.value.value || "";
+              input.addEventListener("change", () => {
+                editor.engine.push_undo();
+                editor.engine.set_instance_prop_override(
+                  BigInt(id), pv.name,
+                  JSON.stringify({ type: "text", value: input.value })
+                );
+                editor.requestRender();
+              });
+              propRow.appendChild(input);
+            } else if (pv.prop_type === "instance_swap") {
+              const select = document.createElement("select");
+              select.style.cssText = `
+                flex:1; background:#2a2a2a; border:1px solid #444; border-radius:4px;
+                color:#ccc; font-size:11px; padding:3px 6px; outline:none; cursor:pointer;
+              `;
+              // Get all components for dropdown
+              try {
+                const compsJson = editor.engine.get_components();
+                const comps: Array<{ id: number; name: string }> = JSON.parse(compsJson);
+                for (const c of comps) {
+                  const opt = document.createElement("option");
+                  opt.value = String(c.id);
+                  opt.textContent = c.name;
+                  if (c.id === pv.value.value) opt.selected = true;
+                  select.appendChild(opt);
+                }
+              } catch {}
+              select.addEventListener("change", () => {
+                editor.engine.push_undo();
+                editor.engine.set_instance_prop_override(
+                  BigInt(id), pv.name,
+                  JSON.stringify({ type: "instance_swap", value: parseInt(select.value) })
+                );
+                editor.requestRender();
+                refresh([id]);
+              });
+              propRow.appendChild(select);
+            }
+
+            // Reset button (if overridden)
+            if (pv.overridden) {
+              const resetBtn = document.createElement("button");
+              resetBtn.style.cssText = "background:none;border:none;color:#60a5fa;cursor:pointer;font-size:10px;padding:0 2px;opacity:0.7;flex-shrink:0;";
+              resetBtn.textContent = "↺";
+              resetBtn.title = "Reset to default";
+              resetBtn.addEventListener("click", () => {
+                editor.engine.push_undo();
+                editor.engine.reset_instance_prop(BigInt(id), pv.name);
+                editor.requestRender();
+                refresh([id]);
+              });
+              propRow.appendChild(resetBtn);
+            }
+
+            cpSection.appendChild(propRow);
+          }
+
+          header.appendChild(cpSection);
+        }
+      } catch { /* ignore if engine doesn't support */ }
     }
+
+    // === Component Properties Editor (for component source nodes) ===
+    try {
+      // Check if the selected node is a component source (name starts with "[C] ")
+      if (node.name && node.name.startsWith("[C] ")) {
+        // Find the component ID by searching components
+        const compsJson = editor.engine.get_components();
+        const comps: Array<{ id: number; name: string }> = JSON.parse(compsJson);
+        const compName = node.name.replace("[C] ", "");
+        const matchedComp = comps.find((c: any) => c.name === compName);
+        if (matchedComp) {
+          const compId = matchedComp.id;
+          const propsJson = editor.engine.get_component_properties(BigInt(compId));
+          const props: Array<{ type: string; name: string; default: any; linked_node_id?: number; default_component_id?: number; linked_slot_id?: number }> = JSON.parse(propsJson);
+
+          const cpEditorSection = document.createElement("div");
+          cpEditorSection.style.cssText = `
+            margin-bottom:8px; padding:8px 10px;
+            background:rgba(251,191,36,0.06); border:1px solid rgba(251,191,36,0.15);
+            border-radius:8px;
+          `;
+          const cpEditorTitle = document.createElement("div");
+          cpEditorTitle.style.cssText = "font-size:10px;color:#fbbf24;letter-spacing:0.3px;margin-bottom:6px;font-weight:600;display:flex;align-items:center;justify-content:space-between;";
+          cpEditorTitle.innerHTML = "COMPONENT PROPERTIES";
+
+          const addPropBtn = document.createElement("button");
+          addPropBtn.style.cssText = `
+            background:rgba(251,191,36,0.15); border:1px solid rgba(251,191,36,0.3);
+            border-radius:4px; padding:1px 6px; color:#fbbf24;
+            cursor:pointer; font-size:10px; font-weight:500;
+          `;
+          addPropBtn.textContent = "+ Add";
+          addPropBtn.addEventListener("click", () => {
+            // Show add property dialog
+            const propType = prompt("Property type (boolean, text, instance_swap):", "boolean");
+            if (!propType || !["boolean", "text", "instance_swap"].includes(propType)) return;
+            const propName = prompt("Property name:", "");
+            if (!propName) return;
+
+            let propJson: any = { type: propType, name: propName };
+
+            // Get children for linked node selection
+            const childrenIds = self_getChildrenForComponent(editor, id);
+            const childNames = childrenIds.map((cid: number) => {
+              const nj = editor.engine.get_node_json(BigInt(cid));
+              const n = JSON.parse(nj);
+              return `${cid}: ${n.name}`;
+            });
+
+            if (propType === "boolean") {
+              propJson.default = true;
+              const linkedStr = prompt(`Linked node (visibility toggle):\n${childNames.join("\n")}\nEnter node ID:`, "0");
+              propJson.linked_node_id = parseInt(linkedStr || "0");
+            } else if (propType === "text") {
+              propJson.default = prompt("Default text:", "") || "";
+              const linkedStr = prompt(`Linked text node:\n${childNames.join("\n")}\nEnter node ID:`, "0");
+              propJson.linked_node_id = parseInt(linkedStr || "0");
+            } else if (propType === "instance_swap") {
+              propJson.default_component_id = 0;
+              const linkedStr = prompt(`Linked slot node:\n${childNames.join("\n")}\nEnter node ID:`, "0");
+              propJson.linked_slot_id = parseInt(linkedStr || "0");
+            }
+
+            editor.engine.push_undo();
+            editor.engine.add_component_property(BigInt(compId), JSON.stringify(propJson));
+            editor.requestRender();
+            refresh([id]);
+          });
+          cpEditorTitle.appendChild(addPropBtn);
+          cpEditorSection.appendChild(cpEditorTitle);
+
+          if (props.length === 0) {
+            const hint = document.createElement("div");
+            hint.style.cssText = "font-size:11px;color:#666;padding:4px 0;";
+            hint.textContent = "No properties defined. Add Boolean, Text, or Instance Swap properties.";
+            cpEditorSection.appendChild(hint);
+          } else {
+            for (const prop of props) {
+              const propRow = document.createElement("div");
+              propRow.style.cssText = "display:flex;align-items:center;gap:6px;margin-bottom:3px;font-size:11px;color:#ccc;";
+
+              const typeBadge = document.createElement("span");
+              typeBadge.style.cssText = `
+                font-size:9px; padding:1px 4px; border-radius:3px; flex-shrink:0;
+                background:${prop.type === "boolean" ? "rgba(16,185,129,0.2);color:#10b981" : prop.type === "text" ? "rgba(59,130,246,0.2);color:#3b82f6" : "rgba(139,92,246,0.2);color:#8b5cf6"};
+              `;
+              typeBadge.textContent = prop.type === "instance_swap" ? "swap" : prop.type;
+              propRow.appendChild(typeBadge);
+
+              const nameSpan = document.createElement("span");
+              nameSpan.style.cssText = "flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
+              nameSpan.textContent = prop.name;
+              propRow.appendChild(nameSpan);
+
+              const removeBtn = document.createElement("button");
+              removeBtn.style.cssText = "background:none;border:none;color:#f87171;cursor:pointer;font-size:10px;padding:0 2px;opacity:0.7;flex-shrink:0;";
+              removeBtn.textContent = "✕";
+              removeBtn.title = "Remove property";
+              removeBtn.addEventListener("click", () => {
+                if (confirm(`Remove property "${prop.name}"?`)) {
+                  editor.engine.push_undo();
+                  editor.engine.remove_component_property(BigInt(compId), prop.name);
+                  editor.requestRender();
+                  refresh([id]);
+                }
+              });
+              propRow.appendChild(removeBtn);
+              cpEditorSection.appendChild(propRow);
+            }
+          }
+
+          header.appendChild(cpEditorSection);
+        }
+      }
+    } catch { /* ignore */ }
 
     const nameInput = document.createElement("input");
     nameInput.className = "prop-input";
@@ -6575,6 +6821,15 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
 }
 
 // --- Helpers ---
+
+/** Get children IDs for a component source node */
+function self_getChildrenForComponent(editor: Editor, nodeId: number): number[] {
+  try {
+    const nodeJson = editor.engine.get_node_json(BigInt(nodeId));
+    const node = JSON.parse(nodeJson);
+    return (node.children || []).map((c: any) => Number(c));
+  } catch { return []; }
+}
 
 function getKindLabel(kind: unknown): string {
   if (typeof kind === "string") {

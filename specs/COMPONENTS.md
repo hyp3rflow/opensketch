@@ -302,3 +302,54 @@ Automatically switch Instance variants based on parent Frame width during resize
 - Add rule: prompt for label + max_width, uses current variant as target
 - Delete individual rules with × button
 - Auto-applied on frame resize (pointerup after resize handle drag)
+
+---
+
+## Component Properties (Figma-style Prop Controls)
+
+Expose Boolean, Text, and Instance Swap properties on components so instances can edit them directly in the Properties panel.
+
+### Data Model
+
+```rust
+enum ComponentProperty {
+    BooleanProp { name, default: bool, linked_node_id },
+    TextProp { name, default: String, linked_node_id },
+    InstanceSwapProp { name, default_component_id, linked_slot_id },
+}
+
+enum PropValue {
+    Boolean(bool),
+    Text(String),
+    InstanceSwap(ComponentId),
+}
+
+// Component.component_properties: Vec<ComponentProperty>
+// InstanceData.property_overrides: HashMap<String, PropValue>
+```
+
+### Behavior
+- **BooleanProp**: Toggle linked node's `visible` field in the instance
+- **TextProp**: Change linked Text node's `content` in the instance
+- **InstanceSwapProp**: Swap linked Slot's component in the instance
+- Linked nodes are matched by name (template name → instance child name)
+- Overrides are stored per-instance; reset reverts to component default
+- All fields use `#[serde(default)]` for backward compatibility
+
+### WASM API
+- `add_component_property(component_id, prop_json) -> bool`
+- `remove_component_property(component_id, prop_name) -> bool`
+- `get_component_properties(component_id) -> JSON`
+- `set_instance_prop_override(instance_id, prop_name, value_json) -> bool`
+- `get_instance_prop_values(instance_id) -> JSON` (merged defaults + overrides)
+- `reset_instance_prop(instance_id, prop_name) -> bool`
+
+### UI
+- **Component source** (node name `[C] ...`): "COMPONENT PROPERTIES" section with add/remove
+  - Add dialog: type (boolean/text/instance_swap), name, default, linked node ID
+  - Property list with type badge, name, remove button
+- **Instance**: "COMPONENT PROPS" section
+  - Boolean: toggle switch (amber color)
+  - Text: text input field
+  - Instance swap: component dropdown
+  - Override indicator: blue dot + reset (↺) button

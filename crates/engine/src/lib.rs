@@ -3796,6 +3796,7 @@ impl Engine {
             slot_fills: std::collections::HashMap::new(),
             overrides: std::collections::HashMap::new(),
             responsive_rules: vec![],
+            property_overrides: std::collections::HashMap::new(),
         })));
         instance_root.name = format!("[I] {}", comp.name);
 
@@ -4492,6 +4493,7 @@ impl Engine {
             slot_fills: std::collections::HashMap::new(),
             overrides: std::collections::HashMap::new(),
             responsive_rules: vec![],
+            property_overrides: std::collections::HashMap::new(),
         })));
         instance_node.name = format!("Playground_{}", comp.name);
         if let Some(root) = self.scene.get_node(variant_data.root_node_id) {
@@ -4611,6 +4613,7 @@ impl Engine {
                 slot_fills: std::collections::HashMap::new(),
                 overrides: std::collections::HashMap::new(),
                 responsive_rules: vec![],
+            property_overrides: std::collections::HashMap::new(),
             }));
             node.name = format!("[I] {}", comp.name);
             if let Some(template_root) = variant.nodes.first() {
@@ -5092,6 +5095,304 @@ impl Engine {
             })
         }).collect();
         serde_json::to_string(&docs).unwrap_or_else(|_| "[]".into())
+    }
+
+    // =============================================
+    // Component Property Controls (Figma-style)
+    // =============================================
+
+    /// Add a component property (Boolean/Text/InstanceSwap) from JSON.
+    /// JSON: {"type":"boolean","name":"Show Icon","default":true,"linked_node_id":5}
+    ///       {"type":"text","name":"Label","default":"Button","linked_node_id":6}
+    ///       {"type":"instance_swap","name":"Icon","default_component_id":2,"linked_slot_id":7}
+    pub fn add_component_property(&mut self, component_id: u64, prop_json: &str) -> bool {
+        let v: serde_json::Value = match serde_json::from_str(prop_json) {
+            Ok(v) => v,
+            Err(_) => return false,
+        };
+        let prop_type = v.get("type").and_then(|t| t.as_str()).unwrap_or("");
+        let name = v.get("name").and_then(|n| n.as_str()).unwrap_or("").to_string();
+        if name.is_empty() { return false; }
+
+        let prop = match prop_type {
+            "boolean" => {
+                let default = v.get("default").and_then(|d| d.as_bool()).unwrap_or(true);
+                let linked = v.get("linked_node_id").and_then(|n| n.as_u64()).unwrap_or(0);
+                component::ComponentProperty::BooleanProp { name, default, linked_node_id: linked }
+            }
+            "text" => {
+                let default = v.get("default").and_then(|d| d.as_str()).unwrap_or("").to_string();
+                let linked = v.get("linked_node_id").and_then(|n| n.as_u64()).unwrap_or(0);
+                component::ComponentProperty::TextProp { name, default, linked_node_id: linked }
+            }
+            "instance_swap" => {
+                let default_comp = v.get("default_component_id").and_then(|n| n.as_u64()).unwrap_or(0);
+                let linked = v.get("linked_slot_id").and_then(|n| n.as_u64()).unwrap_or(0);
+                component::ComponentProperty::InstanceSwapProp { name, default_component_id: default_comp, linked_slot_id: linked }
+            }
+            _ => return false,
+        };
+
+        if let Some(comp) = self.components.get_mut(component_id) {
+            // Don't allow duplicate names
+            if comp.component_properties.iter().any(|p| p.name() == prop.name()) {
+                return false;
+            }
+            comp.component_properties.push(prop);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Remove a component property by name
+    pub fn remove_component_property(&mut self, component_id: u64, prop_name: &str) -> bool {
+        if let Some(comp) = self.components.get_mut(component_id) {
+            let before = comp.component_properties.len();
+            comp.component_properties.retain(|p| p.name() != prop_name);
+            comp.component_properties.len() < before
+        } else {
+            false
+        }
+    }
+
+    /// Get all component properties as JSON array
+    pub fn get_component_properties(&self, component_id: u64) -> String {
+        if let Some(comp) = self.components.get(component_id) {
+            let props: Vec<serde_json::Value> = comp.component_properties.iter().map(|p| {
+                match p {
+                    component::ComponentProperty::BooleanProp { name, default, linked_node_id } => {
+                        serde_json::json!({"type":"boolean","name":name,"default":*default,"linked_node_id":*linked_node_id})
+                    }
+                    component::ComponentProperty::TextProp { name, default, linked_node_id } => {
+                        serde_json::json!({"type":"text","name":name,"default":default,"linked_node_id":*linked_node_id})
+                    }
+                    component::ComponentProperty::InstanceSwapProp { name, default_component_id, linked_slot_id } => {
+                        serde_json::json!({"type":"instance_swap","name":name,"default_component_id":*default_component_id,"linked_slot_id":*linked_slot_id})
+                    }
+                }
+            }).collect();
+            serde_json::to_string(&props).unwrap_or_else(|_| "[]".into())
+        } else {
+            "[]".into()
+        }
+    }
+
+    /// Set an instance property override. value_json:
+    /// {"type":"boolean","value":false}
+    /// {"type":"text","value":"Hello"}
+    /// {"type":"instance_swap","value":3}
+    pub fn set_instance_prop_override(&mut self, instance_id: u64, prop_name: &str, value_json: &str) -> bool {
+        let v: serde_json::Value = match serde_json::from_str(value_json) {
+            Ok(v) => v,
+            Err(_) => return false,
+        };
+        let prop_type = v.get("type").and_then(|t| t.as_str()).unwrap_or("");
+        let prop_value = match prop_type {
+            "boolean" => {
+                let val = v.get("value").and_then(|d| d.as_bool()).unwrap_or(false);
+                component::PropValue::Boolean(val)
+            }
+            "text" => {
+                let val = v.get("value").and_then(|d| d.as_str()).unwrap_or("").to_string();
+                component::PropValue::Text(val)
+            }
+            "instance_swap" => {
+                let val = v.get("value").and_then(|d| d.as_u64()).unwrap_or(0);
+                component::PropValue::InstanceSwap(val)
+            }
+            _ => return false,
+        };
+
+        // Get the component to find property definition
+        let comp_id = match self.scene.get_node(instance_id) {
+            Some(n) => match &n.kind {
+                NodeKind::Instance(data) => data.component_id,
+                _ => return false,
+            },
+            None => return false,
+        };
+
+        // Verify property exists on the component
+        let comp_prop = match self.components.get(comp_id) {
+            Some(comp) => comp.component_properties.iter().find(|p| p.name() == prop_name).cloned(),
+            None => return false,
+        };
+        let comp_prop = match comp_prop {
+            Some(p) => p,
+            None => return false,
+        };
+
+        // Store override in instance data
+        if let Some(node) = self.scene.get_node_mut(instance_id) {
+            if let NodeKind::Instance(ref mut data) = node.kind {
+                data.property_overrides.insert(prop_name.to_string(), prop_value.clone());
+            }
+        }
+
+        // Apply the effect based on property type
+        self.apply_component_prop_effect(instance_id, &comp_prop, &prop_value);
+
+        true
+    }
+
+    /// Get all property override values for an instance (merged with defaults)
+    pub fn get_instance_prop_values(&self, instance_id: u64) -> String {
+        let (comp_id, overrides) = match self.scene.get_node(instance_id) {
+            Some(n) => match &n.kind {
+                NodeKind::Instance(data) => (data.component_id, data.property_overrides.clone()),
+                _ => return "{}".into(),
+            },
+            None => return "{}".into(),
+        };
+
+        let comp = match self.components.get(comp_id) {
+            Some(c) => c,
+            None => return "{}".into(),
+        };
+
+        let mut result: Vec<serde_json::Value> = vec![];
+        for prop in &comp.component_properties {
+            let name = prop.name();
+            let is_overridden = overrides.contains_key(name);
+            let value_json = if let Some(ov) = overrides.get(name) {
+                match ov {
+                    component::PropValue::Boolean(b) => serde_json::json!({"type":"boolean","value":*b}),
+                    component::PropValue::Text(t) => serde_json::json!({"type":"text","value":t}),
+                    component::PropValue::InstanceSwap(id) => serde_json::json!({"type":"instance_swap","value":*id}),
+                }
+            } else {
+                match prop {
+                    component::ComponentProperty::BooleanProp { default, .. } => serde_json::json!({"type":"boolean","value":*default}),
+                    component::ComponentProperty::TextProp { default, .. } => serde_json::json!({"type":"text","value":default}),
+                    component::ComponentProperty::InstanceSwapProp { default_component_id, .. } => serde_json::json!({"type":"instance_swap","value":*default_component_id}),
+                }
+            };
+            result.push(serde_json::json!({
+                "name": name,
+                "prop_type": prop.prop_type_str(),
+                "value": value_json,
+                "overridden": is_overridden,
+                "definition": match prop {
+                    component::ComponentProperty::BooleanProp { default, linked_node_id, .. } =>
+                        serde_json::json!({"type":"boolean","default":*default,"linked_node_id":*linked_node_id}),
+                    component::ComponentProperty::TextProp { default, linked_node_id, .. } =>
+                        serde_json::json!({"type":"text","default":default,"linked_node_id":*linked_node_id}),
+                    component::ComponentProperty::InstanceSwapProp { default_component_id, linked_slot_id, .. } =>
+                        serde_json::json!({"type":"instance_swap","default_component_id":*default_component_id,"linked_slot_id":*linked_slot_id}),
+                }
+            }));
+        }
+        serde_json::to_string(&result).unwrap_or_else(|_| "[]".into())
+    }
+
+    /// Reset an instance property override (revert to default)
+    pub fn reset_instance_prop(&mut self, instance_id: u64, prop_name: &str) -> bool {
+        let comp_id = match self.scene.get_node(instance_id) {
+            Some(n) => match &n.kind {
+                NodeKind::Instance(data) => data.component_id,
+                _ => return false,
+            },
+            None => return false,
+        };
+
+        // Remove the override
+        let removed = if let Some(node) = self.scene.get_node_mut(instance_id) {
+            if let NodeKind::Instance(ref mut data) = node.kind {
+                data.property_overrides.remove(prop_name).is_some()
+            } else { false }
+        } else { false };
+
+        if !removed { return false; }
+
+        // Re-apply default value
+        let comp_prop = match self.components.get(comp_id) {
+            Some(comp) => comp.component_properties.iter().find(|p| p.name() == prop_name).cloned(),
+            None => return true,
+        };
+        if let Some(prop) = comp_prop {
+            let default_value = match &prop {
+                component::ComponentProperty::BooleanProp { default, .. } => component::PropValue::Boolean(*default),
+                component::ComponentProperty::TextProp { default, .. } => component::PropValue::Text(default.clone()),
+                component::ComponentProperty::InstanceSwapProp { default_component_id, .. } => component::PropValue::InstanceSwap(*default_component_id),
+            };
+            self.apply_component_prop_effect(instance_id, &prop, &default_value);
+        }
+
+        true
+    }
+
+    /// Internal: apply the side effect of a component property value on the instance's children
+    fn apply_component_prop_effect(&mut self, instance_id: u64, prop: &component::ComponentProperty, value: &component::PropValue) {
+        // First, find the target child ID by name matching (immutable borrow)
+        let linked_template_id = match prop {
+            component::ComponentProperty::BooleanProp { linked_node_id, .. } => *linked_node_id,
+            component::ComponentProperty::TextProp { linked_node_id, .. } => *linked_node_id,
+            component::ComponentProperty::InstanceSwapProp { linked_slot_id, .. } => *linked_slot_id,
+        };
+
+        let target_child_id = self.find_linked_child(instance_id, linked_template_id);
+        let target_child_id = match target_child_id {
+            Some(id) => id,
+            None => return,
+        };
+
+        // Now apply the mutation
+        match (prop, value) {
+            (component::ComponentProperty::BooleanProp { .. }, component::PropValue::Boolean(visible)) => {
+                if let Some(child) = self.scene.get_node_mut(target_child_id) {
+                    child.visible = *visible;
+                }
+            }
+            (component::ComponentProperty::TextProp { .. }, component::PropValue::Text(text)) => {
+                if let Some(child) = self.scene.get_node_mut(target_child_id) {
+                    if let NodeKind::Text { ref mut content, .. } = child.kind {
+                        *content = text.clone();
+                    }
+                }
+            }
+            (component::ComponentProperty::InstanceSwapProp { .. }, component::PropValue::InstanceSwap(new_comp_id)) => {
+                if let Some(child) = self.scene.get_node_mut(target_child_id) {
+                    if let NodeKind::Instance(ref mut data) = child.kind {
+                        self.components.swap_instance_component(data, *new_comp_id);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// Find the instance child that corresponds to a template node ID (by name matching)
+    fn find_linked_child(&self, instance_id: u64, template_node_id: u64) -> Option<u64> {
+        let comp_id = match self.scene.get_node(instance_id) {
+            Some(n) => match &n.kind {
+                NodeKind::Instance(data) => data.component_id,
+                _ => return None,
+            },
+            None => return None,
+        };
+
+        // Get the template node's name
+        let template_name = if let Some(comp) = self.components.get(comp_id) {
+            let variant = comp.get_variant(&comp.default_key());
+            variant.and_then(|v| v.nodes.iter().find(|n| n.id == template_node_id).map(|n| n.name.clone()))
+        } else {
+            None
+        };
+
+        let template_name = template_name?;
+
+        // Find the child with matching name
+        let children = self.scene.collect_subtree_ids(instance_id);
+        for &child_id in &children {
+            if child_id == instance_id { continue; }
+            if let Some(child) = self.scene.get_node(child_id) {
+                if child.name == template_name {
+                    return Some(child_id);
+                }
+            }
+        }
+        None
     }
 
     // =============================================
@@ -7187,6 +7488,7 @@ impl Engine {
                     slot_fills: std::collections::HashMap::new(),
                     overrides: std::collections::HashMap::new(),
                     responsive_rules: vec![],
+            property_overrides: std::collections::HashMap::new(),
                 };
                 target.kind = NodeKind::Instance(Box::new(instance_data));
                 target.name = format!("{} (instance)", comp.name);
