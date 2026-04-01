@@ -853,6 +853,73 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         });
       });
       compCard.appendChild(playgroundBtn);
+
+      // === Multi-Edit Mode Button ===
+      const multiEditInfoJson = editor.engine.get_multi_edit_info(BigInt(id));
+      const multiEditInfo = JSON.parse(multiEditInfoJson);
+      if (multiEditInfo && multiEditInfo.instance_count > 1) {
+        const multiEditBtn = document.createElement("button");
+        const isMultiEdit = (editor as any)._multiEditMode === true;
+        multiEditBtn.style.cssText = `
+          background:${isMultiEdit ? "rgba(245,158,11,0.25)" : "rgba(245,158,11,0.10)"};
+          border:1px solid ${isMultiEdit ? "rgba(245,158,11,0.5)" : "rgba(245,158,11,0.25)"};
+          border-radius:6px; padding:4px 10px; color:#f59e0b;
+          cursor:pointer; font-size:11px; font-weight:500;
+          transition:all 0.15s; flex-shrink:0;
+        `;
+        multiEditBtn.textContent = isMultiEdit ? `✦ Multi (${multiEditInfo.instance_count})` : `Multi (${multiEditInfo.instance_count})`;
+        multiEditBtn.title = isMultiEdit
+          ? "Multi-edit ON: changes apply to all instances of this component"
+          : "Enable multi-edit: edit all instances of this component simultaneously";
+        multiEditBtn.addEventListener("mouseenter", () => { multiEditBtn.style.background = "rgba(245,158,11,0.25)"; });
+        multiEditBtn.addEventListener("mouseleave", () => {
+          multiEditBtn.style.background = (editor as any)._multiEditMode ? "rgba(245,158,11,0.25)" : "rgba(245,158,11,0.10)";
+        });
+        multiEditBtn.addEventListener("click", () => {
+          (editor as any)._multiEditMode = !(editor as any)._multiEditMode;
+          if ((editor as any)._multiEditMode) {
+            // Highlight all sibling instances
+            const siblingIds: number[] = JSON.parse(editor.engine.get_sibling_instances(BigInt(id)));
+            (editor as any)._multiEditInstanceIds = siblingIds;
+            (editor as any)._multiEditCompId = multiEditInfo.component_id;
+          } else {
+            (editor as any)._multiEditInstanceIds = null;
+            (editor as any)._multiEditCompId = null;
+          }
+          editor.requestRender();
+          refresh([id]);
+        });
+        compCard.appendChild(multiEditBtn);
+
+        // Show multi-edit status banner when active
+        if (isMultiEdit) {
+          const banner = document.createElement("div");
+          banner.style.cssText = `
+            display:flex; align-items:center; gap:6px;
+            padding:6px 10px; margin-top:6px;
+            background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.2);
+            border-radius:6px; font-size:11px; color:#f59e0b;
+          `;
+          banner.innerHTML = `✦ Multi-edit active — editing <b>${multiEditInfo.instance_count}</b> instances of <b>${multiEditInfo.component_name}</b>`;
+
+          const selectAllBtn = document.createElement("button");
+          selectAllBtn.style.cssText = `
+            margin-left:auto; background:rgba(245,158,11,0.15); border:1px solid rgba(245,158,11,0.3);
+            border-radius:4px; padding:2px 8px; color:#f59e0b;
+            cursor:pointer; font-size:10px; white-space:nowrap;
+          `;
+          selectAllBtn.textContent = "Select All";
+          selectAllBtn.addEventListener("click", () => {
+            const selectedJson = editor.engine.multi_edit_select_all(BigInt(id));
+            const selectedIds: number[] = JSON.parse(selectedJson);
+            editor.requestRender();
+            editor.fireSelectionNow(selectedIds);
+          });
+          banner.appendChild(selectAllBtn);
+          header.appendChild(banner);
+        }
+      }
+
       header.appendChild(compCard);
 
       // === Variant Picker ===
@@ -895,7 +962,11 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
               const newVal = prop.current === "true" ? "false" : "true";
               const newKey: Record<string, any> = { ...(compInfo.current_variant_values || {}) };
               newKey[prop.name] = { Boolean: newVal === "true" };
-              editor.engine.set_instance_variant(BigInt(id), JSON.stringify(newKey));
+              if ((editor as any)._multiEditMode) {
+                editor.engine.multi_edit_set_variant(BigInt(id), JSON.stringify(newKey));
+              } else {
+                editor.engine.set_instance_variant(BigInt(id), JSON.stringify(newKey));
+              }
               editor.requestRender();
               refresh([id]);
             });
@@ -916,7 +987,11 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             select.addEventListener("change", () => {
               const newKey: Record<string, any> = { ...(compInfo.current_variant_values || {}) };
               newKey[prop.name] = { String: select.value };
-              editor.engine.set_instance_variant(BigInt(id), JSON.stringify(newKey));
+              if ((editor as any)._multiEditMode) {
+                editor.engine.multi_edit_set_variant(BigInt(id), JSON.stringify(newKey));
+              } else {
+                editor.engine.set_instance_variant(BigInt(id), JSON.stringify(newKey));
+              }
               editor.requestRender();
               refresh([id]);
             });
@@ -1115,6 +1190,9 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
     if (hasCorner) {
       rotRow.appendChild(createLabeledInput(icons.cornerRadius, node.corner_radius.toFixed(0), (v) => {
         editor.engine.set_corner_radius(id, parseFloat(v));
+        if ((editor as any)._multiEditMode) {
+          editor.engine.multi_edit_set_property(BigInt(id), "corner_radius", v);
+        }
         editor.requestRender();
       }));
     }
@@ -1378,6 +1456,9 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
     const setOpacity = (pct: number) => {
       const clamped = Math.max(0, Math.min(100, pct));
       editor.engine.set_opacity(id, clamped / 100);
+      if ((editor as any)._multiEditMode) {
+        editor.engine.multi_edit_set_property(BigInt(id), "opacity", JSON.stringify(clamped / 100));
+      }
       opacitySlider.value = String(clamped);
       opacityVal.value = clamped + "%";
       editor.requestRender();

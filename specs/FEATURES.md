@@ -1320,6 +1320,12 @@ Frame overflow control and content scrolling.
 - [x] **Context menu**: "Edit All Matching Layers" (name+kind match)
 - [x] **Context menu**: "Select All with Same Name"
 - [x] **Bulk editing**: Selected nodes editable via Properties panel (existing multi-selection support)
+- [x] **Component instance multi-edit**: Toggle multi-edit mode on an instance to edit ALL instances of the same component simultaneously
+- [x] **Engine methods**: find_all_instances_of_component, get_sibling_instances, multi_edit_set_property, multi_edit_set_variant, multi_edit_move, multi_edit_resize, multi_edit_select_all, get_multi_edit_info
+- [x] **Scene methods**: multi_edit_set_fill, multi_edit_set_opacity, multi_edit_set_corner_radius, multi_edit_set_size, multi_edit_set_stroke, multi_edit_set_visible, multi_edit_set_variant_by_comp
+- [x] **Properties panel UI**: Multi-edit toggle button with instance count badge, active state banner, "Select All" instances button
+- [x] **Variant propagation**: Variant picker changes propagate to all instances when multi-edit is active
+- [x] **Property propagation**: Opacity, corner radius changes propagate to all instances when active
 
 ## 91. Table Node
 - [x] **NodeKind::Table**: rows, cols, cells (Vec<TableCell>), col_widths, row_heights

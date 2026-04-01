@@ -4597,6 +4597,220 @@ impl Engine {
     }
 
     // =============================================
+    // Multi-Edit Mode
+    // =============================================
+
+    /// Find all instance node IDs of a given component across the entire scene.
+    /// Returns a JSON array of instance node IDs.
+    pub fn find_all_instances_of_component(&self, comp_id: u64) -> Vec<u64> {
+        let mut result = vec![];
+        for node in self.scene.all_nodes() {
+            if let NodeKind::Instance(data) = &node.kind {
+                if data.component_id == comp_id {
+                    result.push(node.id);
+                }
+            }
+        }
+        result
+    }
+
+    /// Get all instance IDs of the same component as the given instance node.
+    /// Returns JSON array of node IDs.
+    pub fn get_sibling_instances(&self, instance_id: u64) -> String {
+        let comp_id = match self.scene.get_node(instance_id) {
+            Some(node) => match &node.kind {
+                NodeKind::Instance(data) => data.component_id,
+                _ => return "[]".to_string(),
+            },
+            None => return "[]".to_string(),
+        };
+        let ids = self.find_all_instances_of_component(comp_id);
+        serde_json::to_string(&ids).unwrap_or_else(|_| "[]".to_string())
+    }
+
+    /// Multi-edit: apply a property change to ALL instances of the same component.
+    /// `property` can be: "fill", "stroke", "opacity", "corner_radius", "width", "height",
+    /// "visible", "locked", "name", "blend_mode", "blur".
+    /// `value_json` is the JSON-encoded new value.
+    /// Returns the number of instances updated.
+    pub fn multi_edit_set_property(&mut self, instance_id: u64, property: &str, value_json: &str) -> u32 {
+        let comp_id = match self.scene.get_node(instance_id) {
+            Some(node) => match &node.kind {
+                NodeKind::Instance(data) => data.component_id,
+                _ => return 0,
+            },
+            None => return 0,
+        };
+
+        let ids = self.find_all_instances_of_component(comp_id);
+        let mut updated = 0u32;
+
+        for id in &ids {
+            if self.apply_property_to_node(*id, property, value_json) {
+                updated += 1;
+            }
+        }
+        updated
+    }
+
+    /// Multi-edit: set variant on ALL instances of the same component.
+    /// Returns the number of instances updated.
+    pub fn multi_edit_set_variant(&mut self, instance_id: u64, key_json: &str) -> u32 {
+        let comp_id = match self.scene.get_node(instance_id) {
+            Some(node) => match &node.kind {
+                NodeKind::Instance(data) => data.component_id,
+                _ => return 0,
+            },
+            None => return 0,
+        };
+
+        let ids = self.find_all_instances_of_component(comp_id);
+        let mut updated = 0u32;
+
+        for id in ids {
+            if self.set_instance_variant(id, key_json) {
+                updated += 1;
+            }
+        }
+        updated
+    }
+
+    /// Multi-edit: move all sibling instances by the same delta.
+    /// Returns the number of instances moved.
+    pub fn multi_edit_move(&mut self, instance_id: u64, dx: f64, dy: f64) -> u32 {
+        let comp_id = match self.scene.get_node(instance_id) {
+            Some(node) => match &node.kind {
+                NodeKind::Instance(data) => data.component_id,
+                _ => return 0,
+            },
+            None => return 0,
+        };
+
+        let ids = self.find_all_instances_of_component(comp_id);
+        let mut updated = 0u32;
+
+        for id in &ids {
+            if *id == instance_id { continue; } // skip the one being dragged directly
+            self.scene.move_node(*id, dx, dy);
+            updated += 1;
+        }
+        updated
+    }
+
+    /// Multi-edit: resize all sibling instances to the same size.
+    /// Returns the number updated.
+    pub fn multi_edit_resize(&mut self, instance_id: u64, width: f64, height: f64) -> u32 {
+        let comp_id = match self.scene.get_node(instance_id) {
+            Some(node) => match &node.kind {
+                NodeKind::Instance(data) => data.component_id,
+                _ => return 0,
+            },
+            None => return 0,
+        };
+
+        let ids = self.find_all_instances_of_component(comp_id);
+        let mut updated = 0u32;
+
+        for id in &ids {
+            self.scene.resize_node(*id, width, height);
+            updated += 1;
+        }
+        updated
+    }
+
+    /// Helper: apply a named property to a single node
+    fn apply_property_to_node(&mut self, node_id: u64, property: &str, value_json: &str) -> bool {
+        let node = match self.scene.get_node_mut(node_id) {
+            Some(n) => n,
+            None => return false,
+        };
+
+        match property {
+            "fill" => {
+                if let Ok(hex) = serde_json::from_str::<String>(value_json) {
+                    if let Some(color) = crate::scene::parse_hex_color(&hex) {
+                        if node.fills.is_empty() {
+                            node.fills.push(crate::node::Fill::solid(color));
+                        } else {
+                            node.fills[0] = crate::node::Fill::solid(color);
+                        }
+                        return true;
+                    }
+                }
+            }
+            "opacity" => {
+                if let Ok(v) = serde_json::from_str::<f64>(value_json) {
+                    node.opacity = v.clamp(0.0, 1.0);
+                    return true;
+                }
+            }
+            "corner_radius" => {
+                if let Ok(v) = serde_json::from_str::<f64>(value_json) {
+                    node.corner_radius = v.max(0.0);
+                    return true;
+                }
+            }
+            "visible" => {
+                if let Ok(v) = serde_json::from_str::<bool>(value_json) {
+                    node.visible = v;
+                    return true;
+                }
+            }
+            "locked" => {
+                if let Ok(v) = serde_json::from_str::<bool>(value_json) {
+                    node.locked = v;
+                    return true;
+                }
+            }
+            "blur" => {
+                if let Ok(v) = serde_json::from_str::<f64>(value_json) {
+                    node.blur = v.max(0.0);
+                    return true;
+                }
+            }
+            _ => {}
+        }
+        false
+    }
+
+    /// Get multi-edit info for an instance: returns JSON with component info and instance count.
+    pub fn get_multi_edit_info(&self, instance_id: u64) -> String {
+        let comp_id = match self.scene.get_node(instance_id) {
+            Some(node) => match &node.kind {
+                NodeKind::Instance(data) => data.component_id,
+                _ => return "null".to_string(),
+            },
+            None => return "null".to_string(),
+        };
+
+        let ids = self.find_all_instances_of_component(comp_id);
+        let comp_name = self.components.get(comp_id).map(|c| c.name.clone()).unwrap_or_default();
+
+        serde_json::to_string(&serde_json::json!({
+            "component_id": comp_id,
+            "component_name": comp_name,
+            "instance_count": ids.len(),
+            "instance_ids": ids,
+        })).unwrap_or_else(|_| "null".to_string())
+    }
+
+    /// Multi-edit: select all instances of the same component as the given instance.
+    /// Returns the instance IDs that were selected.
+    pub fn multi_edit_select_all(&mut self, instance_id: u64) -> String {
+        let comp_id = match self.scene.get_node(instance_id) {
+            Some(node) => match &node.kind {
+                NodeKind::Instance(data) => data.component_id,
+                _ => return "[]".to_string(),
+            },
+            None => return "[]".to_string(),
+        };
+
+        let ids = self.find_all_instances_of_component(comp_id);
+        self.scene.selection = ids.clone();
+        serde_json::to_string(&ids).unwrap_or_else(|_| "[]".to_string())
+    }
+
+    // =============================================
     // Component Swap Suggestions
     // =============================================
 
