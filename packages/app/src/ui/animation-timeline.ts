@@ -155,7 +155,15 @@ export function createAnimationTimeline(editor: Editor): {
     editor.downloadLottie(state.activeClipId);
   });
 
-  topBar.append(clipSelect, addClipBtn, removeClipBtn, sep(), playBtn, stopBtn, loopBtn, sep(), recordBtn, motionPathBtn, lottieBtn, timeDisplay);
+  // Onion skin toggle
+  const onionBtn = makeBtn("🧅", "Toggle onion skin", () => {
+    editor.onionSkin.enabled = !editor.onionSkin.enabled;
+    onionBtn.style.opacity = editor.onionSkin.enabled ? "1" : "0.4";
+    editor.requestRender();
+  });
+  onionBtn.style.opacity = "0.4";
+
+  topBar.append(clipSelect, addClipBtn, removeClipBtn, sep(), playBtn, stopBtn, loopBtn, sep(), recordBtn, motionPathBtn, lottieBtn, sep(), onionBtn, timeDisplay);
   container.appendChild(topBar);
 
   // ─── Track area ───
@@ -311,6 +319,9 @@ export function createAnimationTimeline(editor: Editor): {
   function applyScrub() {
     if (state.activeClipId == null) return;
     editor.engine.anim_apply(BigInt(state.activeClipId), state.currentTime);
+    // Sync onion skin state
+    editor.onionSkin.clipId = state.activeClipId;
+    editor.onionSkin.currentTime = state.currentTime;
     editor.requestRender();
   }
 

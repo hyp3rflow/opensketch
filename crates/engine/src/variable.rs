@@ -173,6 +173,114 @@ impl VariableCollection {
         }
     }
 
+    /// Export collection as CSV: header = "name,type,mode1,mode2,...", rows = variable values
+    pub fn export_csv(&self) -> String {
+        let mut lines = Vec::new();
+        // Header
+        let mut header = vec!["name".to_string(), "type".to_string()];
+        for mode in &self.modes {
+            header.push(mode.name.clone());
+        }
+        lines.push(csv_encode_row(&header));
+        // Rows
+        for var in &self.variables {
+            let mut row = vec![var.name.clone(), format!("{:?}", var.var_type)];
+            for mode in &self.modes {
+                let val_str = match var.values.get(&mode.id) {
+                    Some(VariableValue::Color(c)) => c.clone(),
+                    Some(VariableValue::Number(n)) => n.to_string(),
+                    Some(VariableValue::String(s)) => s.clone(),
+                    Some(VariableValue::Boolean(b)) => b.to_string(),
+                    None => String::new(),
+                };
+                row.push(val_str);
+            }
+            lines.push(csv_encode_row(&row));
+        }
+        lines.join("\n")
+    }
+
+    /// Import CSV into collection. Merges: updates existing variables by name, creates new ones.
+    /// Returns number of variables imported/updated.
+    pub fn import_csv(&mut self, csv_text: &str) -> u32 {
+        let rows: Vec<Vec<String>> = csv_text.lines()
+            .filter(|l| !l.trim().is_empty())
+            .map(csv_decode_row)
+            .collect();
+        if rows.len() < 2 { return 0; }
+
+        let header = &rows[0];
+        // header[0] = "name", header[1] = "type", header[2..] = mode names
+        // Map mode names to mode ids, create new modes if needed
+        let mut mode_col_map: Vec<ModeId> = Vec::new();
+        for i in 2..header.len() {
+            let mode_name = header[i].trim();
+            if let Some(m) = self.modes.iter().find(|m| m.name == mode_name) {
+                mode_col_map.push(m.id);
+            } else {
+                // Create the mode
+                let mid = self.add_mode(mode_name.to_string());
+                mode_col_map.push(mid);
+            }
+        }
+
+        let mut count: u32 = 0;
+        for row in &rows[1..] {
+            if row.len() < 2 { continue; }
+            let name = row[0].trim().to_string();
+            let type_str = row[1].trim();
+            let var_type = match type_str {
+                "Color" | "color" => VariableType::Color,
+                "Number" | "number" => VariableType::Number,
+                "String" | "string" => VariableType::String,
+                "Boolean" | "boolean" => VariableType::Boolean,
+                _ => VariableType::String,
+            };
+
+            // Find existing or create
+            let var_id = if let Some(v) = self.variables.iter().find(|v| v.name == name) {
+                v.id
+            } else {
+                self.create_variable(name, var_type.clone())
+            };
+
+            // Set values for each mode column
+            for (col_idx, mode_id) in mode_col_map.iter().enumerate() {
+                if let Some(val_str) = row.get(col_idx + 2) {
+                    let val_str = val_str.trim();
+                    if val_str.is_empty() { continue; }
+                    let val = match &var_type {
+                        VariableType::Color => VariableValue::Color(val_str.to_string()),
+                        VariableType::Number => {
+                            if let Ok(n) = val_str.parse::<f64>() {
+                                VariableValue::Number(n)
+                            } else { continue; }
+                        }
+                        VariableType::String => VariableValue::String(val_str.to_string()),
+                        VariableType::Boolean => {
+                            VariableValue::Boolean(val_str == "true" || val_str == "1")
+                        }
+                    };
+                    self.update_value(var_id, *mode_id, val);
+                }
+            }
+            count += 1;
+        }
+        count
+    }
+
+    /// Bulk update multiple variable values at once. Input: JSON array of {var_id, mode_id, value}.
+    /// Returns number of successful updates.
+    pub fn bulk_update(&mut self, updates: &[(VariableId, ModeId, VariableValue)]) -> u32 {
+        let mut count = 0u32;
+        for (var_id, mode_id, value) in updates {
+            if self.update_value(*var_id, *mode_id, value.clone()) {
+                count += 1;
+            }
+        }
+        count
+    }
+
     /// Resolve a variable to its current mode value
     pub fn resolve(&self, variable_id: VariableId) -> Option<VariableValue> {
         let var = self.variables.iter().find(|v| v.id == variable_id)?;
@@ -274,4 +382,48 @@ impl VariableStore {
     pub fn new() -> Self {
         Self { collections: vec![], next_collection_id: 1 }
     }
+}
+
+// ---- CSV helpers ----
+
+/// Encode a row as CSV (RFC 4180-ish: quote fields containing comma/quote/newline)
+fn csv_encode_row(fields: &[String]) -> String {
+    fields.iter().map(|f| {
+        if f.contains(',') || f.contains('"') || f.contains('\n') {
+            format!("\"{}\"", f.replace('"', "\"\""))
+        } else {
+            f.clone()
+        }
+    }).collect::<Vec<_>>().join(",")
+}
+
+/// Decode a CSV row respecting quoted fields
+fn csv_decode_row(line: &str) -> Vec<String> {
+    let mut fields = Vec::new();
+    let mut current = String::new();
+    let mut in_quotes = false;
+    let mut chars = line.chars().peekable();
+    while let Some(ch) = chars.next() {
+        if in_quotes {
+            if ch == '"' {
+                if chars.peek() == Some(&'"') {
+                    chars.next();
+                    current.push('"');
+                } else {
+                    in_quotes = false;
+                }
+            } else {
+                current.push(ch);
+            }
+        } else if ch == '"' {
+            in_quotes = true;
+        } else if ch == ',' {
+            fields.push(current.clone());
+            current.clear();
+        } else {
+            current.push(ch);
+        }
+    }
+    fields.push(current);
+    fields
 }

@@ -123,6 +123,10 @@
 - [x] White background, 10px padding
 - [x] Supports Rect, Ellipse, Text, Frame with all styles
 - [x] Data URL output + file download
+- [x] **Pixel-perfect export**: auto-snap subpixel positions to integer grid during export
+- [x] **Nearest-neighbor scaling**: disable anti-aliasing for crisp pixel art / icon export
+- [x] Batch export dialog: pixel-align checkbox (default on) + nearest-neighbor checkbox
+- [x] Rust `snap_to_pixels()` Scene method + WASM binding
 
 ### Copy / Paste
 - [x] **Copy** (Cmd+C): serialize selected nodes + subtrees to internal clipboard
@@ -499,6 +503,7 @@
 - [x] **Backward-compatible serde**: Default empty collections/bindings for existing files
 - [x] **Conditional visibility**: Per-node `VisibilityCondition` (variable_id + operator + value) — evaluated at render/hit-test time. Operators: Eq/NotEq/Gt/Lt/Gte/Lte/IsTrue/IsFalse. UI in Properties panel "Conditional Visibility" section. Also supports binding Boolean variables to `visible` property via variable mode switching
 - [x] **Variable scoping**: VariableScope enum (Global/Pages/Nodes) per collection — restricts variable usage to specific pages or frames. apply_variables() skips out-of-scope bindings. Scope UI in Variables panel: dropdown (Global/Pages/Nodes) + page checkboxes or frame picker. WASM: set_collection_scope, get_collection_scope. Backward-compatible serde (default Global).
+- [x] **Bulk edit table view**: Spreadsheet-style table for variable collections — rows=variables, columns=modes, editable cells. Multi-cell selection (click/Shift+range/Ctrl+toggle), arrow key navigation, Enter to edit, Tab to next cell. Copy/paste (Ctrl+C/V) with TSV format for multi-cell ranges. Delete/Backspace resets selected cells. Double-click variable name to rename inline. CSV export (download) and CSV import (file picker) buttons using existing WASM bindings (export_collection_csv, import_collection_csv, bulk_update_variables). Toggle via ⊞ button in card view.
 
 ### Asset Library Panel
 - [x] **Assets tab**: Right pane "Assets" tab alongside Properties/Agent/History/Inspect/Comments/Variables
@@ -1962,3 +1967,14 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Mixed value placeholder when selected nodes have different values
 - [x] Undo integration (push_undo before batch apply)
 - [x] Coexists with existing alignment/distribute/tidy up multi-selection UI
+
+### Timeline Scrubbing + Onion Skin
+- [x] Timeline header/ruler drag → playhead moves, canvas updates in real-time
+- [x] mousedown → pointermove → pointerup scrubbing with pointer capture
+- [x] Rust engine anim_apply() called at each scrub position
+- [x] Onion skin mode: toggle button (🧅) in timeline toolbar
+- [x] Ghost frames rendered before/after current time (configurable count)
+- [x] Before frames: blue tint, After frames: orange tint, opacity fades with distance
+- [x] Settings: editor.onionSkin.{enabled, beforeCount, afterCount, opacity}
+- [x] Scene snapshot/restore ensures non-destructive ghost rendering
+- [x] Implementation: packages/app/src/ui/animation-timeline.ts, packages/app/src/editor.ts

@@ -88,6 +88,16 @@ export class Editor {
   private _pasteCount = 0;
   private _nodeLinksVisible = true;
 
+  // Onion skin
+  public onionSkin = {
+    enabled: false,
+    beforeCount: 2,
+    afterCount: 2,
+    opacity: 0.2,
+    clipId: null as number | null,
+    currentTime: 0,
+  };
+
   // Grid snapping
   public gridSnapEnabled = false;
   public gridSize = 8;
@@ -3811,6 +3821,50 @@ export class Editor {
     }
   }
 
+  private renderOnionSkin() {
+    const os = this.onionSkin;
+    if (!os.enabled || os.clipId == null) return;
+
+    // Get clip duration to compute frame step
+    const dur = this.engine.anim_get_duration(BigInt(os.clipId));
+    if (dur <= 0) return;
+
+    // Use keyframe-based stepping: ~30fps → 33ms per frame
+    const frameStep = 33; // ms
+    const snapshot = this.engine.export_scene();
+
+    const ghostTimes: { time: number; color: string; alpha: number }[] = [];
+
+    // Before frames (blue tint)
+    for (let i = 1; i <= os.beforeCount; i++) {
+      const t = os.currentTime - i * frameStep;
+      if (t < 0) continue;
+      const alpha = os.opacity * (1 - (i - 1) / os.beforeCount);
+      ghostTimes.push({ time: t, color: "rgba(0,150,255,", alpha });
+    }
+
+    // After frames (green tint)
+    for (let i = 1; i <= os.afterCount; i++) {
+      const t = os.currentTime + i * frameStep;
+      if (t > dur) continue;
+      const alpha = os.opacity * (1 - (i - 1) / os.afterCount);
+      ghostTimes.push({ time: t, color: "rgba(255,100,0,", alpha });
+    }
+
+    for (const ghost of ghostTimes) {
+      this.engine.anim_apply(BigInt(os.clipId), ghost.time);
+      this.ctx.save();
+      this.ctx.globalAlpha = ghost.alpha;
+      this.engine.render(this.ctx);
+      this.ctx.restore();
+    }
+
+    // Restore original scene state
+    this.engine.import_scene(snapshot);
+    // Re-apply current time so main render is correct
+    this.engine.anim_apply(BigInt(os.clipId), os.currentTime);
+  }
+
   private startLoop() {
     const loop = () => {
       if (this.needsRender) {
@@ -3821,6 +3875,7 @@ export class Editor {
         if (this._pixelPreview) {
           this.ctx.imageSmoothingEnabled = false;
         }
+        this.renderOnionSkin();
         this.engine.render(this.ctx);
         this.renderImages();
         this.render3DPerspective();
@@ -5288,12 +5343,24 @@ export class Editor {
    * For frames: crops to the frame bounds with padding.
    * Returns a data:image/png;base64 string.
    */
-  exportPng(nodeId?: number | bigint, scale: number = 2, padding: number = 0): string {
+  exportPng(
+    nodeId?: number | bigint,
+    scale: number = 2,
+    padding: number = 0,
+    opts?: { pixelAlign?: boolean; nearestNeighbor?: boolean },
+  ): string {
+    // Pixel-align: temporarily snap all nodes to pixel grid
+    let snapshot: string | null = null;
+    if (opts?.pixelAlign) {
+      snapshot = this.engine.export_scene();
+      this.engine.snap_to_pixels();
+    }
+
     let x: number, y: number, w: number, h: number;
 
     if (nodeId != null) {
       const json = this.engine.get_node_json(BigInt(nodeId));
-      if (!json) return "";
+      if (!json) { if (snapshot) this.engine.import_scene(snapshot); return ""; }
       const node = JSON.parse(json);
       x = node.x - padding;
       y = node.y - padding;
@@ -5302,7 +5369,7 @@ export class Editor {
     } else {
       // Export all: compute bounding box of all nodes
       const layers = JSON.parse(this.engine.get_layer_list());
-      if (layers.length === 0) return "";
+      if (layers.length === 0) { if (snapshot) this.engine.import_scene(snapshot); return ""; }
       let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
       for (const l of layers) {
         const nj = this.engine.get_node_json(BigInt(l.id));
@@ -5319,11 +5386,24 @@ export class Editor {
       h = maxY - minY + padding * 2;
     }
 
+    // Ensure integer canvas dimensions for pixel-perfect output
+    if (opts?.pixelAlign) {
+      x = Math.round(x);
+      y = Math.round(y);
+      w = Math.round(w);
+      h = Math.round(h);
+    }
+
     // Create offscreen canvas
     const offCanvas = document.createElement("canvas");
     offCanvas.width = w * scale;
     offCanvas.height = h * scale;
     const offCtx = offCanvas.getContext("2d")!;
+
+    // Nearest-neighbor scaling (crisp pixel art style)
+    if (opts?.nearestNeighbor) {
+      offCtx.imageSmoothingEnabled = false;
+    }
 
     // White background
     offCtx.fillStyle = "#ffffff";
@@ -5356,6 +5436,11 @@ export class Editor {
       }
 
       offCtx.restore();
+    }
+
+    // Restore original scene if we snapped for pixel-align
+    if (snapshot) {
+      this.engine.import_scene(snapshot);
     }
 
     return offCanvas.toDataURL("image/png");

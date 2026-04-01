@@ -206,6 +206,34 @@ function showDialog(editor: Editor, items: ExportItem[]): void {
 
   dialog.appendChild(quickRow);
 
+  // Pixel-perfect options row
+  const pixelRow = document.createElement("div");
+  pixelRow.style.cssText = "display:flex;gap:12px;margin-bottom:12px;align-items:center;";
+
+  const pixelAlignCb = document.createElement("input");
+  pixelAlignCb.type = "checkbox";
+  pixelAlignCb.id = "pixel-align-cb";
+  pixelAlignCb.checked = true;
+  pixelAlignCb.style.cssText = "accent-color:#4a90d9;cursor:pointer;";
+  const pixelAlignLbl = document.createElement("label");
+  pixelAlignLbl.htmlFor = "pixel-align-cb";
+  pixelAlignLbl.style.cssText = "font-size:11px;color:#aaa;cursor:pointer;";
+  pixelAlignLbl.textContent = "Pixel-align (snap to grid)";
+  pixelAlignLbl.title = "Auto-round all node positions/sizes to integer pixels for sharper edges";
+
+  const nearestCb = document.createElement("input");
+  nearestCb.type = "checkbox";
+  nearestCb.id = "nearest-cb";
+  nearestCb.style.cssText = "accent-color:#4a90d9;cursor:pointer;";
+  const nearestLbl = document.createElement("label");
+  nearestLbl.htmlFor = "nearest-cb";
+  nearestLbl.style.cssText = "font-size:11px;color:#aaa;cursor:pointer;";
+  nearestLbl.textContent = "Nearest-neighbor scaling";
+  nearestLbl.title = "Disable anti-aliasing for crisp pixel art and icon export";
+
+  pixelRow.append(pixelAlignCb, pixelAlignLbl, nearestCb, nearestLbl);
+  dialog.appendChild(pixelRow);
+
   // Items list
   const listContainer = document.createElement("div");
   listContainer.style.cssText = "flex:1;overflow-y:auto;margin-bottom:16px;border:1px solid #333;border-radius:8px;";
@@ -307,7 +335,10 @@ function showDialog(editor: Editor, items: ExportItem[]): void {
     exportBtn.textContent = "Exporting…";
     exportBtn.style.opacity = "0.6";
     try {
-      await doExport(editor, items.filter(i => i.enabled));
+      await doExport(editor, items.filter(i => i.enabled), {
+        pixelAlign: pixelAlignCb.checked,
+        nearestNeighbor: nearestCb.checked,
+      });
     } catch (e) {
       console.error("Batch export error:", e);
       alert("Export failed: " + (e as Error).message);
@@ -347,8 +378,13 @@ function createSmallBtn(text: string): HTMLButtonElement {
   return btn;
 }
 
+interface PixelPerfectOpts {
+  pixelAlign?: boolean;
+  nearestNeighbor?: boolean;
+}
+
 /** Actually perform the export and download ZIP */
-async function doExport(editor: Editor, items: ExportItem[]): Promise<void> {
+async function doExport(editor: Editor, items: ExportItem[], pixelOpts?: PixelPerfectOpts): Promise<void> {
   const currentPageId = getCurrentPageId(editor);
   const files: Record<string, Uint8Array> = {};
   const usedNames = new Set<string>();
@@ -372,7 +408,7 @@ async function doExport(editor: Editor, items: ExportItem[]): Promise<void> {
         const svg = editor.engine.export_svg();
         files[filename] = strToU8(svg);
       } else {
-        const dataUrl = editor.exportPng(undefined, item.scale, 10);
+        const dataUrl = editor.exportPng(undefined, item.scale, 10, pixelOpts);
         if (dataUrl) files[filename] = dataUrlToUint8(dataUrl);
       }
     } else if (item.nodeId != null) {
@@ -381,7 +417,7 @@ async function doExport(editor: Editor, items: ExportItem[]): Promise<void> {
         const svg = editor.engine.export_node_svg(BigInt(item.nodeId));
         files[filename] = strToU8(svg);
       } else {
-        const dataUrl = editor.exportPng(item.nodeId, item.scale, 0);
+        const dataUrl = editor.exportPng(item.nodeId, item.scale, 0, pixelOpts);
         if (dataUrl) files[filename] = dataUrlToUint8(dataUrl);
       }
     }

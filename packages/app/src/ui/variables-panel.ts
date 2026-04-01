@@ -1,4 +1,5 @@
 import type { Editor } from "../editor";
+import { setupVariablesBulkEdit } from "./variables-bulk-edit";
 
 interface VarMode { id: number; name: string; }
 interface VarVariable {
@@ -12,8 +13,25 @@ interface VarCollection {
 
 export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
   let selectedCollectionId: number | null = null;
+  let bulkEditInstance: ReturnType<typeof setupVariablesBulkEdit> | null = null;
+  let inBulkEditMode = false;
+
+  function enterBulkEdit(collectionId: number) {
+    inBulkEditMode = true;
+    container.innerHTML = "";
+    if (bulkEditInstance) bulkEditInstance.destroy();
+    bulkEditInstance = setupVariablesBulkEdit(container, editor, collectionId, () => {
+      inBulkEditMode = false;
+      if (bulkEditInstance) { bulkEditInstance.destroy(); bulkEditInstance = null; }
+      refresh();
+    });
+  }
 
   function refresh() {
+    if (inBulkEditMode && bulkEditInstance) {
+      bulkEditInstance.refresh();
+      return;
+    }
     container.innerHTML = "";
     const collections: VarCollection[] = JSON.parse(editor.engine.get_collections() || "[]");
 
@@ -92,6 +110,16 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
       refresh();
     });
     selRow.appendChild(delBtn);
+
+    const tableBtn = document.createElement("button");
+    tableBtn.style.cssText = "background:#2a2a2a;border:1px solid #444;border-radius:4px;color:#60a5fa;cursor:pointer;font-size:11px;padding:4px 8px;";
+    tableBtn.textContent = "⊞";
+    tableBtn.title = "Table view (bulk edit)";
+    tableBtn.addEventListener("click", () => {
+      if (selectedCollectionId) enterBulkEdit(selectedCollectionId);
+    });
+    selRow.appendChild(tableBtn);
+
     container.appendChild(selRow);
 
     const col = collections.find(c => c.id === selectedCollectionId)!;

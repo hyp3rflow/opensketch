@@ -1152,6 +1152,33 @@ impl Scene {
         }
     }
 
+    /// Snap all nodes to pixel grid (round x/y/width/height to integers).
+    /// Returns the number of nodes modified.
+    pub fn snap_to_pixels(&mut self) -> u32 {
+        let mut count = 0u32;
+        let ids: Vec<NodeId> = self.nodes.keys().copied().collect();
+        for id in ids {
+            if let Some(node) = self.nodes.get_mut(&id) {
+                let ox = node.x;
+                let oy = node.y;
+                let ow = node.width;
+                let oh = node.height;
+                node.x = node.x.round();
+                node.y = node.y.round();
+                node.width = node.width.round().max(1.0);
+                node.height = node.height.round().max(1.0);
+                if (node.x - ox).abs() > 0.001
+                    || (node.y - oy).abs() > 0.001
+                    || (node.width - ow).abs() > 0.001
+                    || (node.height - oh).abs() > 0.001
+                {
+                    count += 1;
+                }
+            }
+        }
+        count
+    }
+
     pub fn distribute_horizontal(&mut self, ids: &[NodeId]) {
         if ids.len() < 3 { return; }
         let mut items: Vec<(NodeId, f64, f64)> = ids.iter().filter_map(|&id| self.nodes.get(&id).map(|n| (id, n.x, n.width))).collect();

@@ -5467,6 +5467,11 @@ impl Engine {
         self.scene.distribute_with_spacing(&ids, axis, spacing);
     }
 
+    /// Snap all nodes to pixel grid. Returns number of nodes modified.
+    pub fn snap_to_pixels(&mut self) -> u32 {
+        self.scene.snap_to_pixels()
+    }
+
     pub fn get_selection_spacing(&self, axis: &str) -> String {
         let ids: Vec<u64> = self.scene.selection.iter().copied().collect();
         self.scene.get_spacing_between(&ids, axis)
@@ -7479,6 +7484,59 @@ impl Engine {
 
     pub fn get_collections(&self) -> String {
         serde_json::to_string(&self.scene.variable_collections).unwrap_or_else(|_| "[]".to_string())
+    }
+
+    /// Export a variable collection as CSV text
+    pub fn export_collection_csv(&self, collection_id: u64) -> String {
+        if let Some(c) = self.scene.variable_collections.iter().find(|c| c.id == collection_id) {
+            c.export_csv()
+        } else {
+            String::new()
+        }
+    }
+
+    /// Import CSV into a variable collection. Returns number of variables imported/updated.
+    pub fn import_collection_csv(&mut self, collection_id: u64, csv_text: &str) -> u32 {
+        if let Some(c) = self.scene.get_collection_mut(collection_id) {
+            c.import_csv(csv_text)
+        } else {
+            0
+        }
+    }
+
+    /// Bulk update variable values. Input: JSON array of [collection_id, var_id, mode_id, value_json]
+    pub fn bulk_update_variables(&mut self, updates_json: &str) -> u32 {
+        let parsed: Result<Vec<(u64, u64, u64, serde_json::Value)>, _> = serde_json::from_str(updates_json);
+        let Ok(entries) = parsed else { return 0; };
+        let mut count = 0u32;
+        for (coll_id, var_id, mode_id, val) in entries {
+            let var_val = if let Some(s) = val.get("Color").and_then(|v| v.as_str()) {
+                variable::VariableValue::Color(s.to_string())
+            } else if let Some(n) = val.get("Number").and_then(|v| v.as_f64()) {
+                variable::VariableValue::Number(n)
+            } else if let Some(s) = val.get("String").and_then(|v| v.as_str()) {
+                variable::VariableValue::String(s.to_string())
+            } else if let Some(b) = val.get("Boolean").and_then(|v| v.as_bool()) {
+                variable::VariableValue::Boolean(b)
+            } else {
+                continue;
+            };
+            if let Some(c) = self.scene.get_collection_mut(coll_id) {
+                if c.update_value(var_id, mode_id, var_val) {
+                    count += 1;
+                }
+            }
+        }
+        count
+    }
+
+    /// Rename a variable
+    pub fn rename_variable(&mut self, collection_id: u64, var_id: u64, name: &str) -> bool {
+        if let Some(c) = self.scene.get_collection_mut(collection_id) {
+            c.rename_variable(var_id, name.to_string())
+        } else {
+            false
+        }
     }
 
     pub fn bind_variable(&mut self, node_id: u64, property: &str, collection_id: u64, var_id: u64) {
