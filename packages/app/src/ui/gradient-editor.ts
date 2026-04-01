@@ -178,6 +178,35 @@ export class GradientEditor {
     this.drawDiamondHandle(ctx, rhx, rhy, fill.stops?.[fill.stops.length - 1], isDrag?.type === "radial-radius" && isDrag.fillIndex === idx);
   }
 
+  private renderConic(ctx: CanvasRenderingContext2D, fill: any, b: any, zoom: number, panX: number, panY: number) {
+    const c = this.toScreen(fill.center_x, fill.center_y, b, zoom, panX, panY);
+    const idx = fill.index;
+    const rPx = Math.max(b.w, b.h) * zoom * 0.3;
+
+    // Angle indicator circle
+    ctx.beginPath();
+    ctx.arc(c.sx, c.sy, rPx, 0, Math.PI * 2);
+    ctx.strokeStyle = "rgba(79,70,229,0.35)";
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Angle line
+    const angleRad = ((fill.angle || 0) * Math.PI) / 180;
+    const ax = c.sx + Math.cos(angleRad) * rPx;
+    const ay = c.sy + Math.sin(angleRad) * rPx;
+    ctx.beginPath();
+    ctx.moveTo(c.sx, c.sy);
+    ctx.lineTo(ax, ay);
+    ctx.strokeStyle = "rgba(79,70,229,0.5)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    const isDrag = this.dragging;
+    this.drawCircleHandle(ctx, c.sx, c.sy, fill.stops?.[0], isDrag?.type === "conic-center" && isDrag.fillIndex === idx);
+  }
+
   private drawCircleHandle(ctx: CanvasRenderingContext2D, x: number, y: number, stop: any, hl: boolean) {
     const r = hl ? 7 : 6;
     ctx.beginPath();

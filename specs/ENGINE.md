@@ -27,7 +27,7 @@ Pure Rust crate compiled to WASM via `wasm-pack`. No NAPI — runs entirely in t
 - Region detection: planar face algorithm finds minimal closed cycles for fill regions
 - Path → VectorNetwork conversion supported
 - `GradientStop { offset: f64, color: Color }`
-- `FillType`: `Solid { color }` | `LinearGradient { start_x, start_y, end_x, end_y, stops }` | `RadialGradient { center_x, center_y, radius, stops }` | `Pattern { src, scale, rotation, pattern_type, tile_width, tile_height }` | `NoiseFill { scale, color1, color2, intensity, seed }` | `DotPattern { dot_radius, spacing, color, bg_color, angle }` | `CrosshatchFill { spacing, line_width, color, bg_color, angle, density }` | `GradientMesh { mesh: MeshGradient }` — coordinates normalized 0~1
+- `FillType`: `Solid { color }` | `LinearGradient { start_x, start_y, end_x, end_y, stops }` | `RadialGradient { center_x, center_y, radius, stops }` | `Pattern { src, scale, rotation, pattern_type, tile_width, tile_height }` | `NoiseFill { scale, color1, color2, intensity, seed }` | `DotPattern { dot_radius, spacing, color, bg_color, angle }` | `CrosshatchFill { spacing, line_width, color, bg_color, angle, density }` | `GradientMesh { mesh: MeshGradient }` | `ConicGradient { center_x, center_y, angle, stops }` — coordinates normalized 0~1
 - `MeshGradient { rows: u32, cols: u32, points: Vec<MeshPoint> }` — 2D grid of colored points for multi-point gradient interpolation
 - `MeshPoint { x: f64, y: f64, color: Color }` — normalized position (0~1) with color at each grid intersection
 - `Fill { fill_type: FillType, visible: bool }` (backward-compatible deserialization from old `{ color }` format; visible defaults to true)

@@ -1725,3 +1725,14 @@
 - Properties panel: "Stamps" 섹션 — 선택 노드의 스탬프 목록 (이모지+라벨+노트), 개별 삭제 버튼
 - 기존 기능 유지: 팔레트 UI, 캔버스 클릭 배치, zoom/pan aware 렌더링, hit-test, 노드 연결, 노트, 이동
 - Backward-compatible serde (기존 StampKind 호환 + 새 variant 자동 역직렬화)
+
+## 완료된 기능 (추가 — Conic/Angular Gradient Fill)
+- FillType::ConicGradient { center_x, center_y, angle, stops } 추가 (node.rs)
+- Canvas 렌더링: createConicGradient() API 활용 (render.rs)
+- SVG export: 72개 arc path segment로 conic gradient 근사 (svg_export.rs)
+- WASM 바인딩: set_fill_conic_gradient_at(), get_fill_info/get_fills에 ConicGradient 포함
+- Properties panel: Fill 타입 드롭다운에 "Conic" 옵션, gradient stops 편집
+- Gradient editor: ConicGradient center handle 드래그 지원
+- Inspect panel: CSS conic-gradient(), SwiftUI AngularGradient, Kotlin Brush.sweepGradient 코드 생성
+- color_palette.rs: ConicGradient stops 색상 수집 지원
+- backward-compatible serde
