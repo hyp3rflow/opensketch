@@ -69,6 +69,7 @@ const DEFAULTS: ShortcutDef[] = [
   { id: "view.layoutGrid",   category: "View", description: "Toggle layout grid", defaultBinding: { key: "g", meta: true } },
   { id: "view.pixelPreview", category: "View", description: "Pixel preview",    defaultBinding: { key: "p", alt: true } },
   { id: "view.responsive",   category: "View", description: "Responsive preview", defaultBinding: { key: "r", meta: true, alt: true } },
+  { id: "view.focusMode",    category: "View", description: "Focus mode",        defaultBinding: { key: ".", meta: true } },
 
   // Search & Panels
   { id: "panel.spotlight",     category: "Panels", description: "Node search spotlight", defaultBinding: { key: "k", meta: true } },
