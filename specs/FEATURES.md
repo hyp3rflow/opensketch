@@ -1978,3 +1978,11 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Settings: editor.onionSkin.{enabled, beforeCount, afterCount, opacity}
 - [x] Scene snapshot/restore ensures non-destructive ghost rendering
 - [x] Implementation: packages/app/src/ui/animation-timeline.ts, packages/app/src/editor.ts
+
+### Focus Mode (Distraction-Free Canvas)
+- [x] Cmd/Ctrl+. toggles focus mode
+- [x] Hides: layers panel, right pane, toolbar, page tabs, zoom controls, rulers, minimap, file menu
+- [x] Minimal exit button (top center, appears on mouse hover near top edge)
+- [x] Auto-flash on enter, fade after 2s
+- [x] Registered in shortcut manager (view.focusMode)
+- [x] Implementation: packages/app/src/ui/focus-mode.ts
