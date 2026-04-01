@@ -179,6 +179,17 @@ pub enum AnimProperty {
     /// Motion path: node follows a Path node. Value = progress (0.0–1.0).
     /// The associated MotionPathConfig is stored on the track.
     MotionPath,
+    /// Path morph: interpolate between current path and a target path node.
+    /// Value = morph progress (0.0 = original, 1.0 = fully morphed to target).
+    /// The target path node ID is stored in PathMorphConfig on the track.
+    PathMorph,
+}
+
+/// Configuration for path morph animation
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct PathMorphConfig {
+    /// ID of the target Path node to morph toward
+    pub target_path_id: u64,
 }
 
 /// Configuration for motion path animation

@@ -216,3 +216,10 @@ Output: `packages/app/src/wasm/` (opensketch_engine.js + .wasm + .d.ts)
 - **Content bounds**: calculated from children AABB for scroll range clamping
 - **SVG export**: `<clipPath>` + `clip-path` attribute for overflow != Visible; `<g transform="translate(...)">` for scroll offset
 - **WASM API**: `set_overflow(id, mode_str)`, `get_overflow(id) → str`, `set_scroll_offset(id, x, y)`, `get_scroll_offset(id) → JSON`, `get_content_bounds(id) → JSON`
+
+### Path Morphing (Smart Animate)
+- **Module**: `path_morph.rs` — point-count alignment via cubic bezier subdivision, per-point lerp (anchor + handles)
+- **Algorithm**: Subdivide shorter path by splitting longest segments at t=0.5 (de Casteljau), rotate closed paths to minimize twisting (nearest-point start alignment)
+- **Scene API**: `can_morph_paths(id_a, id_b) → bool`, `morph_paths(from_id, to_id, t) → Option<MorphResult>`
+- **WASM API**: `can_morph_paths(id_a, id_b) → bool`, `morph_paths(from_id, to_id, t) → JSON`
+- **Integration**: Prototype viewer smart-animate renders morphed bezier paths directly on canvas for matched Path node pairs

@@ -3779,4 +3779,40 @@ impl Scene {
         self.annotations.retain(|a| (now_ms - a.created_at) < ttl_ms);
         (before - self.annotations.len()) as u32
     }
+
+    // ── Path Morphing ────────────────────────────────────────
+
+    /// Check if two nodes are both Paths and can be morphed.
+    pub fn can_morph_paths(&self, id_a: u64, id_b: u64) -> bool {
+        let a = self.get_node(id_a);
+        let b = self.get_node(id_b);
+        match (a, b) {
+            (Some(na), Some(nb)) => {
+                if let (
+                    crate::node::NodeKind::Path { points: pa, .. },
+                    crate::node::NodeKind::Path { points: pb, .. },
+                ) = (&na.kind, &nb.kind) {
+                    crate::path_morph::can_morph(pa, pb)
+                } else {
+                    false
+                }
+            }
+            _ => false,
+        }
+    }
+
+    /// Morph between two Path nodes at parameter t (0=from, 1=to).
+    pub fn morph_paths(&self, from_id: u64, to_id: u64, t: f64) -> Option<crate::path_morph::MorphResult> {
+        let from_node = self.get_node(from_id)?;
+        let to_node = self.get_node(to_id)?;
+
+        if let (
+            crate::node::NodeKind::Path { points: from_pts, closed: from_closed },
+            crate::node::NodeKind::Path { points: to_pts, closed: to_closed },
+        ) = (&from_node.kind, &to_node.kind) {
+            Some(crate::path_morph::morph_paths(from_pts, *from_closed, to_pts, *to_closed, t))
+        } else {
+            None
+        }
+    }
 }

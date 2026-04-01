@@ -24,6 +24,7 @@ pub mod anchor;
 mod smart_select;
 pub mod vector_network;
 pub mod auto_animate;
+pub mod path_morph;
 pub mod branch;
 mod find_replace;
 pub mod permissions;
@@ -3056,6 +3057,42 @@ impl Engine {
     pub fn compute_auto_animate_pages(&self, from_page_id: u64, to_page_id: u64) -> String {
         let result = self.scene.compute_auto_animate_pages(from_page_id, to_page_id);
         serde_json::to_string(&result).unwrap_or_else(|_| r#"{"pairs":[],"removed":[],"added":[]}"#.to_string())
+    }
+
+    // ── Path Morphing ────────────────────────────────────────
+
+    /// Check if two path nodes can be morphed (both must be Path kind with points).
+    pub fn can_morph_paths(&self, id_a: u64, id_b: u64) -> bool {
+        let a = self.scene.get_node(id_a);
+        let b = self.scene.get_node(id_b);
+        match (a, b) {
+            (Some(na), Some(nb)) => {
+                if let (NodeKind::Path { points: pa, .. }, NodeKind::Path { points: pb, .. }) = (&na.kind, &nb.kind) {
+                    crate::path_morph::can_morph(pa, pb)
+                } else {
+                    false
+                }
+            }
+            _ => false,
+        }
+    }
+
+    /// Compute morphed path at parameter t (0.0=from, 1.0=to).
+    /// Returns JSON with { points: [...], closed: bool } or "null".
+    pub fn morph_paths(&self, from_id: u64, to_id: u64, t: f64) -> String {
+        let from_node = self.scene.get_node(from_id);
+        let to_node = self.scene.get_node(to_id);
+        match (from_node, to_node) {
+            (Some(f), Some(t_node)) => {
+                if let (NodeKind::Path { points: fp, closed: fc }, NodeKind::Path { points: tp, closed: tc }) = (&f.kind, &t_node.kind) {
+                    let result = crate::path_morph::morph_paths(fp, *fc, tp, *tc, t);
+                    serde_json::to_string(&result).unwrap_or_else(|_| "null".to_string())
+                } else {
+                    "null".to_string()
+                }
+            }
+            _ => "null".to_string(),
+        }
     }
 
     pub fn select(&mut self, id: u64) {

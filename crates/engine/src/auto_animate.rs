@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use crate::node::{Node, NodeId, FillType};
+use crate::node::{Node, NodeId, NodeKind, FillType, PathPoint};
 use crate::scene::Scene;
 use std::collections::HashMap;
 
@@ -24,6 +24,14 @@ pub struct NodeSnapshot {
     pub fill_a: Option<f64>,
     /// First stroke width (if any)
     pub stroke_width: Option<f64>,
+    /// Path data for morphing (only for Path nodes)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path_points: Option<Vec<PathPoint>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path_closed: Option<bool>,
+    /// Whether this node is a Path (for client-side morph detection)
+    #[serde(default)]
+    pub is_path: bool,
 }
 
 /// A matched pair of nodes between source and target frames
@@ -55,6 +63,11 @@ fn snapshot_node(node: &Node, frame_x: f64, frame_y: f64) -> NodeSnapshot {
 
     let stroke_width = node.strokes.first().map(|s| s.width);
 
+    let (path_points, path_closed, is_path) = match &node.kind {
+        NodeKind::Path { points, closed } => (Some(points.clone()), Some(*closed), true),
+        _ => (None, None, false),
+    };
+
     NodeSnapshot {
         id: node.id,
         name: node.name.clone(),
@@ -68,6 +81,7 @@ fn snapshot_node(node: &Node, frame_x: f64, frame_y: f64) -> NodeSnapshot {
         blur: node.blur,
         fill_r, fill_g, fill_b, fill_a,
         stroke_width,
+        path_points, path_closed, is_path,
     }
 }
 

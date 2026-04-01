@@ -2016,3 +2016,10 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Undo integration, selection updates to new frame
 - [x] Context menu entry + keyboard shortcut (Cmd/Ctrl+Alt+G)
 - [x] Rust: Scene.wrap_in_frame(), WASM: wrap_selection_in_frame()
+
+## Path Morphing (Smart Animate)
+- [x] Rust path_morph.rs: cubic bezier subdivision, point-count alignment, per-point lerp
+- [x] Nearest-point start alignment for closed paths (minimize twisting)
+- [x] Scene + WASM: can_morph_paths(), morph_paths(from, to, t)
+- [x] Prototype viewer: real-time morphed path rendering during smart-animate transitions
+- [x] Automatic fallback to cross-fade when nodes aren't both Paths

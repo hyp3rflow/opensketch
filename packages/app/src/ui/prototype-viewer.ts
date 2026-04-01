@@ -415,16 +415,83 @@ export function createPrototypeViewer(editor: Editor): {
         // Clear clipped area
         ctx.clearRect(ix - 1, iy - 1, iw + 2, ih + 2);
 
-        // Draw from-node fading out
-        if (sw > 0 && sh > 0) {
-          ctx.globalAlpha = (1 - t) * iOpacity;
-          ctx.drawImage(fromCanvas, sx, sy, sw, sh, ix, iy, iw, ih);
-        }
+        // Try path morphing for matched Path nodes
+        let didPathMorph = false;
+        try {
+          if (editor.engine.can_morph_paths(BigInt(from.id), BigInt(to.id))) {
+            const morphJson = editor.engine.morph_paths(BigInt(from.id), BigInt(to.id), t);
+            const morph = JSON.parse(morphJson);
+            if (morph && morph.points && morph.points.length > 0) {
+              didPathMorph = true;
+              ctx.globalAlpha = iOpacity;
 
-        // Draw to-node fading in
-        if (tw > 0 && th > 0) {
-          ctx.globalAlpha = t * iOpacity;
-          ctx.drawImage(toCanvas, tx, ty, tw, th, ix, iy, iw, ih);
+              // Get fill/stroke from interpolated properties
+              const fr = from.fill_r ?? 128, fg = from.fill_g ?? 128, fb_ = from.fill_b ?? 128, fa = from.fill_a ?? 1;
+              const tr = to.fill_r ?? 128, tg = to.fill_g ?? 128, tb = to.fill_b ?? 128, ta = to.fill_a ?? 1;
+              const mr = Math.round(lerp(fr, tr, t));
+              const mg = Math.round(lerp(fg, tg, t));
+              const mb = Math.round(lerp(fb_, tb, t));
+              const ma = lerp(fa, ta, t);
+
+              // Build path from morph points
+              ctx.beginPath();
+              const pts = morph.points;
+              for (let pi = 0; pi < pts.length; pi++) {
+                const p = pts[pi];
+                const px = (p.x - (lerp(from.rel_x, to.rel_x, t))) * totalScale + ix;
+                const py = (p.y - (lerp(from.rel_y, to.rel_y, t))) * totalScale + iy;
+                if (pi === 0) {
+                  ctx.moveTo(px, py);
+                } else {
+                  const prev = pts[pi - 1];
+                  const cpx1 = (prev.handle_out_x - lerp(from.rel_x, to.rel_x, t)) * totalScale + ix;
+                  const cpy1 = (prev.handle_out_y - lerp(from.rel_y, to.rel_y, t)) * totalScale + iy;
+                  const cpx2 = (p.handle_in_x - lerp(from.rel_x, to.rel_x, t)) * totalScale + ix;
+                  const cpy2 = (p.handle_in_y - lerp(from.rel_y, to.rel_y, t)) * totalScale + iy;
+                  ctx.bezierCurveTo(cpx1, cpy1, cpx2, cpy2, px, py);
+                }
+              }
+              if (morph.closed && pts.length > 1) {
+                const last = pts[pts.length - 1];
+                const first = pts[0];
+                const off = lerp(from.rel_x, to.rel_x, t);
+                const offy = lerp(from.rel_y, to.rel_y, t);
+                const cpx1 = (last.handle_out_x - off) * totalScale + ix;
+                const cpy1 = (last.handle_out_y - offy) * totalScale + iy;
+                const cpx2 = (first.handle_in_x - off) * totalScale + ix;
+                const cpy2 = (first.handle_in_y - offy) * totalScale + iy;
+                const fpx = (first.x - off) * totalScale + ix;
+                const fpy = (first.y - offy) * totalScale + iy;
+                ctx.bezierCurveTo(cpx1, cpy1, cpx2, cpy2, fpx, fpy);
+                ctx.closePath();
+              }
+
+              ctx.fillStyle = `rgba(${mr},${mg},${mb},${ma})`;
+              ctx.fill();
+
+              // Stroke
+              const isw = lerp(from.stroke_width ?? 0, to.stroke_width ?? 0, t);
+              if (isw > 0) {
+                ctx.lineWidth = isw * totalScale;
+                ctx.strokeStyle = `rgba(${mr},${mg},${mb},${ma})`;
+                ctx.stroke();
+              }
+            }
+          }
+        } catch (_) { /* path morph not available, fall back */ }
+
+        if (!didPathMorph) {
+          // Draw from-node fading out
+          if (sw > 0 && sh > 0) {
+            ctx.globalAlpha = (1 - t) * iOpacity;
+            ctx.drawImage(fromCanvas, sx, sy, sw, sh, ix, iy, iw, ih);
+          }
+
+          // Draw to-node fading in
+          if (tw > 0 && th > 0) {
+            ctx.globalAlpha = t * iOpacity;
+            ctx.drawImage(toCanvas, tx, ty, tw, th, ix, iy, iw, ih);
+          }
         }
 
         ctx.globalAlpha = 1;
