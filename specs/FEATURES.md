@@ -234,11 +234,14 @@
 - [ ] Plugin system
 - [ ] Canvas text cursor + multi-line text
 - [x] Image nodes (drag & drop, URL, clipboard paste, cover/contain/fill)
-- [x] **Gradient fills**: Solid/LinearGradient/RadialGradient fill types with gradient stops editor
+- [x] **Gradient fills**: Solid/LinearGradient/RadialGradient/ConicGradient fill types with gradient stops editor
 - [x] **Gradient mesh fills**: Multi-point color interpolation on 2D grid (MeshGradient), bilinear tessellation rendering, mesh edit mode (double-click to enter, drag points, click to change colors), rows/cols adjustment, SVG export fallback
   - Linear: start/end points (normalized 0~1), multiple color stops
   - Radial: center/radius (normalized), multiple color stops
-  - Properties panel: mode switcher (Solid/Linear/Radial), stop color pickers, position inputs
+  - Conic: center (normalized 0~1), start angle (degrees), multiple color stops — CSS conic-gradient style angular sweep
+  - Properties panel: mode switcher (Solid/Linear/Radial/Conic), stop color pickers, position inputs
+  - Canvas rendering: conic gradient approximated with 360 arc segments
+  - SVG export: conic gradient approximated with 72 arc path segments
 - [x] **Multi-fill**: Multiple fills per node (Figma-style), each with visible toggle
   - Fills rendered bottom → top, supports Solid/Linear/Radial per fill
   - Add/remove/reorder fills, per-fill visibility toggle

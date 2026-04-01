@@ -521,6 +521,17 @@ pub enum FillType {
     GradientMesh {
         mesh: MeshGradient,
     },
+    /// Conic (angular/sweep) gradient fill
+    ConicGradient {
+        /// Center X (0.0–1.0 normalized)
+        center_x: f64,
+        /// Center Y (0.0–1.0 normalized)
+        center_y: f64,
+        /// Start angle in degrees
+        angle: f64,
+        /// Color stops
+        stops: Vec<GradientStop>,
+    },
 }
 
 /// A point on a gradient mesh grid
@@ -711,7 +722,7 @@ impl Fill {
     pub fn color(&self) -> Color {
         match &self.fill_type {
             FillType::Solid { color } => *color,
-            FillType::LinearGradient { stops, .. } | FillType::RadialGradient { stops, .. } => {
+            FillType::LinearGradient { stops, .. } | FillType::RadialGradient { stops, .. } | FillType::ConicGradient { stops, .. } => {
                 stops.first().map(|s| s.color).unwrap_or(Color::white())
             }
             FillType::Pattern { .. } => Color::white(),
@@ -1927,7 +1938,7 @@ impl Node {
             if !f.visible { continue; }
             score += match &f.fill_type {
                 FillType::Solid { .. } => 1,
-                FillType::LinearGradient { .. } | FillType::RadialGradient { .. } => 3,
+                FillType::LinearGradient { .. } | FillType::RadialGradient { .. } | FillType::ConicGradient { .. } => 3,
                 FillType::Pattern { .. } => 4,
                 _ => 3, // NoiseFill, DotPattern, etc.
             };

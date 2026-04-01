@@ -1748,6 +1748,15 @@ impl Engine {
                             })).collect::<Vec<_>>()
                         }).to_string()
                     }
+                    FillType::ConicGradient { center_x, center_y, angle, stops } => {
+                        serde_json::json!({
+                            "type": "ConicGradient",
+                            "center_x": center_x, "center_y": center_y, "angle": angle,
+                            "stops": stops.iter().map(|s| serde_json::json!({
+                                "offset": s.offset, "r": s.color.r, "g": s.color.g, "b": s.color.b, "a": s.color.a
+                            })).collect::<Vec<_>>()
+                        }).to_string()
+                    }
                 };
             }
         }
@@ -1904,6 +1913,17 @@ impl Engine {
                             })).collect::<Vec<_>>()
                         })
                     }
+                    FillType::ConicGradient { center_x, center_y, angle, stops } => {
+                        serde_json::json!({
+                            "index": i,
+                            "type": "ConicGradient",
+                            "visible": fill.visible,
+                            "center_x": center_x, "center_y": center_y, "angle": angle,
+                            "stops": stops.iter().map(|s| serde_json::json!({
+                                "offset": s.offset, "r": s.color.r, "g": s.color.g, "b": s.color.b, "a": s.color.a
+                            })).collect::<Vec<_>>()
+                        })
+                    }
                 };
                 base
             }).collect();
@@ -1978,6 +1998,60 @@ impl Engine {
                 node.fills[idx] = Fill {
                     fill_type: FillType::RadialGradient {
                         center_x, center_y, radius,
+                        stops: gradient_stops,
+                    },
+                    visible: node.fills[idx].visible,
+                };
+            }
+        }
+    }
+
+    /// Set fill to a conic gradient. stops_json: [{"offset":0,"r":255,"g":0,"b":0,"a":1}, ...]
+    pub fn set_fill_conic_gradient(&mut self, id: u64, center_x: f64, center_y: f64, angle: f64, stops_json: &str) {
+        let stops: Vec<serde_json::Value> = serde_json::from_str(stops_json).unwrap_or_default();
+        let gradient_stops: Vec<GradientStop> = stops.iter().map(|s| GradientStop {
+            offset: s["offset"].as_f64().unwrap_or(0.0),
+            color: Color {
+                r: s["r"].as_u64().unwrap_or(0) as u8,
+                g: s["g"].as_u64().unwrap_or(0) as u8,
+                b: s["b"].as_u64().unwrap_or(0) as u8,
+                a: s["a"].as_f64().unwrap_or(1.0),
+            },
+        }).collect();
+        if let Some(node) = self.scene.get_node_mut(id) {
+            let new_fill = Fill {
+                fill_type: FillType::ConicGradient {
+                    center_x, center_y, angle,
+                    stops: gradient_stops,
+                },
+                visible: true,
+            };
+            if node.fills.is_empty() {
+                node.fills.push(new_fill);
+            } else {
+                node.fills[0] = new_fill;
+            }
+        }
+    }
+
+    /// Set fill at index to conic gradient.
+    pub fn set_fill_conic_gradient_at(&mut self, id: u64, index: u32, center_x: f64, center_y: f64, angle: f64, stops_json: &str) {
+        let stops: Vec<serde_json::Value> = serde_json::from_str(stops_json).unwrap_or_default();
+        let gradient_stops: Vec<GradientStop> = stops.iter().map(|s| GradientStop {
+            offset: s["offset"].as_f64().unwrap_or(0.0),
+            color: Color {
+                r: s["r"].as_u64().unwrap_or(0) as u8,
+                g: s["g"].as_u64().unwrap_or(0) as u8,
+                b: s["b"].as_u64().unwrap_or(0) as u8,
+                a: s["a"].as_f64().unwrap_or(1.0),
+            },
+        }).collect();
+        if let Some(node) = self.scene.get_node_mut(id) {
+            let idx = index as usize;
+            if idx < node.fills.len() {
+                node.fills[idx] = Fill {
+                    fill_type: FillType::ConicGradient {
+                        center_x, center_y, angle,
                         stops: gradient_stops,
                     },
                     visible: node.fills[idx].visible,

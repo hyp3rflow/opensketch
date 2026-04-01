@@ -2040,6 +2040,42 @@ impl Renderer {
                 ctx.restore();
                 return;
             }
+            crate::node::FillType::ConicGradient { center_x, center_y, angle, stops } => {
+                // Render conic gradient by drawing many arc segments
+                if stops.is_empty() { return; }
+                let cx = node.x + center_x * node.width;
+                let cy = node.y + center_y * node.height;
+                let r = (node.width * node.width + node.height * node.height).sqrt();
+                let start_angle_rad = angle.to_radians();
+                let num_segments = 360u32;
+
+                ctx.save();
+                ctx.begin_path();
+                ctx.rect(node.x, node.y, node.width, node.height);
+                ctx.clip();
+
+                for i in 0..num_segments {
+                    let t0 = i as f64 / num_segments as f64;
+                    let t1 = (i + 1) as f64 / num_segments as f64;
+                    let t_mid = (t0 + t1) / 2.0;
+
+                    // Interpolate color at t_mid
+                    let color = Self::interpolate_gradient_stops(stops, t_mid);
+
+                    let a0 = start_angle_rad + t0 * std::f64::consts::TAU;
+                    let a1 = start_angle_rad + t1 * std::f64::consts::TAU;
+
+                    ctx.set_fill_style_str(&format!("rgba({},{},{},{})", color.r, color.g, color.b, color.a));
+                    ctx.begin_path();
+                    ctx.move_to(cx, cy);
+                    ctx.arc(cx, cy, r, a0, a1).ok();
+                    ctx.close_path();
+                    ctx.fill();
+                }
+
+                ctx.restore();
+                return;
+            }
             crate::node::FillType::GradientMesh { ref mesh } => {
                 // Render gradient mesh via tessellation: for each cell in the grid,
                 // subdivide into small triangles with bilinearly interpolated colors.
@@ -2241,6 +2277,34 @@ impl Renderer {
     }
 
     /// Simple hash-based pseudo-random noise for procedural fills
+    /// Interpolate a color from gradient stops at position t (0.0–1.0)
+    fn interpolate_gradient_stops(stops: &[crate::node::GradientStop], t: f64) -> crate::types::Color {
+        if stops.is_empty() {
+            return crate::types::Color::white();
+        }
+        if stops.len() == 1 || t <= stops[0].offset {
+            return stops[0].color;
+        }
+        if t >= stops[stops.len() - 1].offset {
+            return stops[stops.len() - 1].color;
+        }
+        for i in 1..stops.len() {
+            if t <= stops[i].offset {
+                let prev = &stops[i - 1];
+                let curr = &stops[i];
+                let range = curr.offset - prev.offset;
+                let frac = if range > 0.0 { (t - prev.offset) / range } else { 0.0 };
+                return crate::types::Color {
+                    r: (prev.color.r as f64 + (curr.color.r as f64 - prev.color.r as f64) * frac) as u8,
+                    g: (prev.color.g as f64 + (curr.color.g as f64 - prev.color.g as f64) * frac) as u8,
+                    b: (prev.color.b as f64 + (curr.color.b as f64 - prev.color.b as f64) * frac) as u8,
+                    a: prev.color.a + (curr.color.a - prev.color.a) * frac,
+                };
+            }
+        }
+        stops[stops.len() - 1].color
+    }
+
     fn noise_hash(x: u32, y: u32, seed: u32) -> u8 {
         let mut h = seed.wrapping_mul(374761393)
             .wrapping_add(x.wrapping_mul(668265263))

@@ -1510,10 +1510,10 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         const typeSelect = document.createElement("select");
         typeSelect.className = "prop-input";
         typeSelect.style.cssText = "flex:1;font-size:11px;";
-        for (const t of ["Solid", "LinearGradient", "RadialGradient", "Pattern", "NoiseFill", "DotPattern", "CrosshatchFill", "GradientMesh"]) {
+        for (const t of ["Solid", "LinearGradient", "RadialGradient", "ConicGradient", "Pattern", "NoiseFill", "DotPattern", "CrosshatchFill", "GradientMesh"]) {
           const opt = document.createElement("option");
           opt.value = t;
-          opt.textContent = t === "LinearGradient" ? "Linear" : t === "RadialGradient" ? "Radial" : t === "NoiseFill" ? "Noise" : t === "DotPattern" ? "Dots" : t === "CrosshatchFill" ? "Crosshatch" : t === "GradientMesh" ? "Mesh" : t;
+          opt.textContent = t === "LinearGradient" ? "Linear" : t === "RadialGradient" ? "Radial" : t === "ConicGradient" ? "Conic" : t === "NoiseFill" ? "Noise" : t === "DotPattern" ? "Dots" : t === "CrosshatchFill" ? "Crosshatch" : t === "GradientMesh" ? "Mesh" : t;
           if (fill.type === t) opt.selected = true;
           typeSelect.appendChild(opt);
         }
@@ -1534,6 +1534,14 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
               { offset: 1, r: 16, g: 185, b: 129, a: 1 },
             ];
             editor.engine.set_fill_radial_gradient_at(id, idx, 0.5, 0.5, 0.5, JSON.stringify(stops));
+          } else if (typeSelect.value === "ConicGradient") {
+            const stops = fill.stops || [
+              { offset: 0, r: 255, g: 0, b: 0, a: 1 },
+              { offset: 0.33, r: 0, g: 255, b: 0, a: 1 },
+              { offset: 0.66, r: 0, g: 0, b: 255, a: 1 },
+              { offset: 1, r: 255, g: 0, b: 0, a: 1 },
+            ];
+            editor.engine.set_fill_conic_gradient_at(id, idx, 0.5, 0.5, 0, JSON.stringify(stops));
           } else if (typeSelect.value === "Pattern") {
             editor.engine.set_fill_pattern_at(id, idx, "", 1.0, 0, "Tile", 50, 50);
           } else if (typeSelect.value === "NoiseFill") {
@@ -1982,6 +1990,30 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             editor.requestRender();
           }));
         } else {
+          // Conic gradient-specific controls
+          if (fill.type === "ConicGradient") {
+            const conicRow = document.createElement("div");
+            conicRow.style.cssText = "display:flex;gap:4px;margin-bottom:6px;align-items:center;";
+            for (const [label, key, def] of [["CX", "center_x", 0.5], ["CY", "center_y", 0.5], ["Angle", "angle", 0]] as [string, string, number][]) {
+              const lbl = document.createElement("span");
+              lbl.style.cssText = "font-size:9px;color:#888;";
+              lbl.textContent = label;
+              conicRow.appendChild(lbl);
+              const inp = document.createElement("input");
+              inp.className = "prop-input";
+              inp.style.cssText = "width:44px;font-size:11px;text-align:center;";
+              inp.value = key === "angle" ? String(Math.round(fill[key] ?? def)) : String(Math.round((fill[key] ?? def) * 100)) + "%";
+              inp.addEventListener("change", () => {
+                ensureUndo();
+                const v = key === "angle" ? parseFloat(inp.value) || 0 : (parseInt(inp.value) || 0) / 100;
+                (fill as any)[key] = v;
+                editor.engine.set_fill_conic_gradient_at(id, idx, fill.center_x ?? 0.5, fill.center_y ?? 0.5, fill.angle ?? 0, JSON.stringify(fill.stops || []));
+                editor.requestRender();
+              });
+              conicRow.appendChild(inp);
+            }
+            fillWrap.appendChild(conicRow);
+          }
           // Gradient stops
           const stops: any[] = fill.stops || [];
           stops.forEach((stop: any, si: number) => {
@@ -2020,6 +2052,8 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             ensureUndo();
             if (fill.type === "LinearGradient") {
               editor.engine.set_fill_linear_gradient_at(id, idx, fill.start_x ?? 0, fill.start_y ?? 0, fill.end_x ?? 1, fill.end_y ?? 1, JSON.stringify(stops));
+            } else if (fill.type === "ConicGradient") {
+              editor.engine.set_fill_conic_gradient_at(id, idx, fill.center_x ?? 0.5, fill.center_y ?? 0.5, fill.angle ?? 0, JSON.stringify(stops));
             } else {
               editor.engine.set_fill_radial_gradient_at(id, idx, fill.center_x ?? 0.5, fill.center_y ?? 0.5, fill.radius ?? 0.5, JSON.stringify(stops));
             }

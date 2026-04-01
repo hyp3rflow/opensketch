@@ -66,7 +66,7 @@ export class GradientEditor {
       const json = this.engine.get_fills(BigInt(this._nodeId));
       const fills: any[] = JSON.parse(json || "[]");
       return fills.filter((f: any) =>
-        (f.type === "LinearGradient" || f.type === "RadialGradient") && f.visible !== false
+        (f.type === "LinearGradient" || f.type === "RadialGradient" || f.type === "ConicGradient") && f.visible !== false
       );
     } catch { return []; }
   }
@@ -100,6 +100,8 @@ export class GradientEditor {
     for (const fill of fills) {
       if (fill.type === "LinearGradient") {
         this.renderLinear(ctx, fill, bounds, zoom, panX, panY);
+      } else if (fill.type === "ConicGradient") {
+        this.renderConic(ctx, fill, bounds, zoom, panX, panY);
       } else {
         this.renderRadial(ctx, fill, bounds, zoom, panX, panY);
       }
@@ -219,6 +221,9 @@ export class GradientEditor {
         const rhx = c.sx + rPx, rhy = c.sy;
         if (Math.hypot(sx - rhx, sy - rhy) < th) return { type: "radial-radius", fillIndex: fill.index };
         if (Math.hypot(sx - c.sx, sy - c.sy) < th) return { type: "radial-center", fillIndex: fill.index };
+      } else if (fill.type === "ConicGradient") {
+        const c = this.toScreen(fill.center_x, fill.center_y, b, zoom, panX, panY);
+        if (Math.hypot(sx - c.sx, sy - c.sy) < th) return { type: "conic-center", fillIndex: fill.index };
       }
     }
     return null;
@@ -288,6 +293,8 @@ export class GradientEditor {
         );
         const newR = Math.max(0.01, distPx / (Math.max(b.w, b.h) * zoom));
         this.engine.set_fill_radial_gradient_at(id, handle.fillIndex, fill.center_x, fill.center_y, newR, stopsJson);
+      } else if (handle.type === "conic-center") {
+        this.engine.set_fill_conic_gradient_at(id, handle.fillIndex, nx, ny, fill.angle ?? 0, stopsJson);
       }
     } catch { /* ignore */ }
   }

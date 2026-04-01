@@ -1065,7 +1065,7 @@ fn append_fill_ref(attrs: &mut String, fill_type: &FillType, node_id: u64) {
                 attrs.push_str(&format!(r#" fill-opacity="{}""#, c.a));
             }
         }
-        FillType::LinearGradient { .. } | FillType::RadialGradient { .. } => {
+        FillType::LinearGradient { .. } | FillType::RadialGradient { .. } | FillType::ConicGradient { .. } => {
             attrs.push_str(&format!(r#" fill="url(#grad-{})""#, node_id));
         }
         FillType::Pattern { .. } => {
@@ -1114,7 +1114,43 @@ fn build_gradient_defs(node: &Node) -> Option<String> {
             defs.push_str("</radialGradient>");
             Some(defs)
         }
-        FillType::Solid { .. } => None,
+        FillType::ConicGradient { center_x, center_y, angle, stops } => {
+            // SVG doesn't support conic gradients natively; approximate with arc segments
+            let grad_id = format!("grad-{}", node.id);
+            let num_segments = 72u32; // 5-degree segments
+            let cx_pct = center_x * 100.0;
+            let cy_pct = center_y * 100.0;
+            let start_rad = angle.to_radians();
+            let r = 50.0; // radius in % (large enough to cover)
+
+            let mut svg = format!(r#"<g id="{}">"#, grad_id);
+            for i in 0..num_segments {
+                let t0 = i as f64 / num_segments as f64;
+                let t1 = (i + 1) as f64 / num_segments as f64;
+                let t_mid = (t0 + t1) / 2.0;
+
+                // Interpolate color
+                let color = interpolate_stops(stops, t_mid);
+
+                let a0 = start_rad + t0 * std::f64::consts::TAU;
+                let a1 = start_rad + t1 * std::f64::consts::TAU;
+
+                // SVG arc segment as a path from center
+                let x0 = cx_pct + a0.cos() * r;
+                let y0 = cy_pct + a0.sin() * r;
+                let x1 = cx_pct + a1.cos() * r;
+                let y1 = cy_pct + a1.sin() * r;
+
+                svg.push_str(&format!(
+                    r#"<path d="M{}%,{}% L{}%,{}% A{}%,{}% 0 0,1 {}%,{}% Z" fill="{}" fill-opacity="{}"/>"#,
+                    cx_pct, cy_pct, x0, y0, r, r, x1, y1,
+                    color_to_hex(color.r, color.g, color.b), color.a
+                ));
+            }
+            svg.push_str("</g>");
+            Some(svg)
+        }
+                FillType::Solid { .. } => None,
         FillType::NoiseFill { scale, color1, color2, intensity, seed } => {
             // SVG noise via feTurbulence filter
             let filter_id = format!("tex-filter-{}", node.id);
@@ -1240,6 +1276,28 @@ fn build_gradient_defs(node: &Node) -> Option<String> {
     }
 }
 
+fn interpolate_stops(stops: &[crate::node::GradientStop], t: f64) -> crate::types::Color {
+    use crate::types::Color;
+    if stops.is_empty() { return Color::white(); }
+    if stops.len() == 1 || t <= stops[0].offset { return stops[0].color; }
+    if t >= stops[stops.len() - 1].offset { return stops[stops.len() - 1].color; }
+    for i in 1..stops.len() {
+        if t <= stops[i].offset {
+            let prev = &stops[i - 1];
+            let curr = &stops[i];
+            let range = curr.offset - prev.offset;
+            let frac = if range > 0.0 { (t - prev.offset) / range } else { 0.0 };
+            return Color {
+                r: (prev.color.r as f64 + (curr.color.r as f64 - prev.color.r as f64) * frac) as u8,
+                g: (prev.color.g as f64 + (curr.color.g as f64 - prev.color.g as f64) * frac) as u8,
+                b: (prev.color.b as f64 + (curr.color.b as f64 - prev.color.b as f64) * frac) as u8,
+                a: prev.color.a + (curr.color.a - prev.color.a) * frac,
+            };
+        }
+    }
+    stops[stops.len() - 1].color
+}
+
 fn append_fill_stroke(attrs: &mut String, node: &Node) {
     if let Some(fill) = node.visible_fills().next() {
         match &fill.fill_type {
@@ -1249,7 +1307,7 @@ fn append_fill_stroke(attrs: &mut String, node: &Node) {
                     attrs.push_str(&format!(r#" fill-opacity="{}""#, c.a));
                 }
             }
-            FillType::LinearGradient { .. } | FillType::RadialGradient { .. } => {
+            FillType::LinearGradient { .. } | FillType::RadialGradient { .. } | FillType::ConicGradient { .. } => {
                 attrs.push_str(&format!(r#" fill="url(#grad-{})""#, node.id));
             }
             FillType::Pattern { .. } => {

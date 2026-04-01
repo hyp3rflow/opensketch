@@ -344,6 +344,12 @@ function generateCSS(ctx: CodeCtx): string {
     } else if (fill.type === "RadialGradient" && fill.stops) {
       const stops = fill.stops.map((s: any) => `${rgbaToCSS(s.color)} ${(s.offset * 100).toFixed(0)}%`).join(", ");
       lines.push(`background: radial-gradient(${stops});`);
+    } else if (fill.type === "ConicGradient" && fill.stops) {
+      const stops = fill.stops.map((s: any) => `${rgbaToCSS(s.color)} ${(s.offset * 100).toFixed(0)}%`).join(", ");
+      const angle = fill.angle || 0;
+      const cx = ((fill.center_x ?? 0.5) * 100).toFixed(0);
+      const cy = ((fill.center_y ?? 0.5) * 100).toFixed(0);
+      lines.push(`background: conic-gradient(from ${angle}deg at ${cx}% ${cy}%, ${stops});`);
     }
   }
 
@@ -523,6 +529,11 @@ function generateSwiftUI(ctx: CodeCtx): string {
         `.init(color: ${swiftColor(s.color)}, location: ${s.offset.toFixed(2)})`
       ).join(", ");
       lines.push(`    .fill(RadialGradient(stops: [${stops}], center: .center, startRadius: 0, endRadius: ${Math.max(node.width, node.height) / 2}))`);
+    } else if (fill.type === "ConicGradient" && fill.stops) {
+      const stops = fill.stops.map((s: any) =>
+        `.init(color: ${swiftColor(s.color)}, location: ${s.offset.toFixed(2)})`
+      ).join(", ");
+      lines.push(`    .fill(AngularGradient(stops: [${stops}], center: .center, startAngle: .degrees(${fill.angle || 0}), endAngle: .degrees(${(fill.angle || 0) + 360})))`);
     }
   }
 
@@ -607,6 +618,9 @@ function generateKotlin(ctx: CodeCtx): string {
     } else if (fill.type === "LinearGradient" && fill.stops) {
       const stops = fill.stops.map((s: any) => `${kotlinColor(s.color)}`).join(", ");
       mods.push(`.background(Brush.linearGradient(listOf(${stops})))`);
+    } else if (fill.type === "ConicGradient" && fill.stops) {
+      const stops = fill.stops.map((s: any) => `${kotlinColor(s.color)}`).join(", ");
+      mods.push(`.background(Brush.sweepGradient(listOf(${stops})))`);
     }
   }
 
@@ -853,7 +867,7 @@ function highlightSwift(code: string): string {
   out = out.replace(/\b(struct|var|let|func|import|return|if|else|true|false|nil|some|self)\b/g,
     '<span style="color:#c586c0;">$1</span>');
   // Types
-  out = out.replace(/\b(Text|Image|Color|Font|Rectangle|Ellipse|RoundedRectangle|LinearGradient|RadialGradient|AsyncImage|ProgressView|View|VStack|HStack|ZStack|Spacer|Modifier|Path|Circle|Shape)\b/g,
+  out = out.replace(/\b(Text|Image|Color|Font|Rectangle|Ellipse|RoundedRectangle|LinearGradient|RadialGradient|AngularGradient|AsyncImage|ProgressView|View|VStack|HStack|ZStack|Spacer|Modifier|Path|Circle|Shape)\b/g,
     '<span style="color:#4ec9b0;">$1</span>');
   // Dot members
   out = out.replace(/\.(\w+)/g, '.<span style="color:#9cdcfe;">$1</span>');

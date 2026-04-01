@@ -128,7 +128,7 @@ pub fn extract_colors<'a>(nodes: impl Iterator<Item = &'a Node>) -> Vec<ColorEnt
                         e.1 += 1;
                     }
                 }
-                FillType::LinearGradient { stops, .. } | FillType::RadialGradient { stops, .. } => {
+                FillType::LinearGradient { stops, .. } | FillType::RadialGradient { stops, .. } | FillType::ConicGradient { stops, .. } => {
                     for stop in stops {
                         if stop.color.a > 0.01 {
                             let hex = color_to_hex(&stop.color);

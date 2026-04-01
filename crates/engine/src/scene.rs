@@ -3530,7 +3530,8 @@ impl Scene {
                             changed = true;
                         }
                         FillType::LinearGradient { stops, .. } |
-                        FillType::RadialGradient { stops, .. } => {
+                        FillType::RadialGradient { stops, .. } |
+                        FillType::ConicGradient { stops, .. } => {
                             for stop in stops.iter_mut() {
                                 stop.color = stop.color.to_dark_mode();
                             }
@@ -3603,7 +3604,8 @@ impl Scene {
                     match &mut fill.fill_type {
                         FillType::Solid { color } => { *color = color.to_dark_mode(); changed = true; }
                         FillType::LinearGradient { stops, .. } |
-                        FillType::RadialGradient { stops, .. } => {
+                        FillType::RadialGradient { stops, .. } |
+                        FillType::ConicGradient { stops, .. } => {
                             for stop in stops.iter_mut() { stop.color = stop.color.to_dark_mode(); }
                             changed = true;
                         }
