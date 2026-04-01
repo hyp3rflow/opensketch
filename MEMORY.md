@@ -1518,8 +1518,16 @@
 - Lottie animation export — 캔버스 애니메이션을 Lottie JSON으로 내보내기, keyframe 기반 변환
 - Multi-cursor collaborative editing — 동시 편집 시 노드별 잠금 표시 + 실시간 변경 반영 (operational transform 고도화)
 - Design system documentation site export — 컴포넌트/스타일/토큰을 정적 HTML 문서 사이트로 빌드 (Storybook 스타일)
-- Canvas presentation mode — 프레임을 슬라이드로 순서대로 풀스크린 프레젠테이션, 키보드 네비게이션 (←/→), 트랜지션 효과, 발표자 노트 오버레이
 - Node effect presets library — 자주 쓰는 shadow/blur/filter 조합을 프리셋으로 저장/적용, JSON import/export, 카테고리별 브라우저
+- Canvas minimap enhanced — 미니맵에 페이지 프리뷰 + 멀티페이지 네비게이션, 배율/위치 라벨
+- Smart auto-naming — 노드 내용 기반 자동 이름 생성 (Text → 첫 단어, Image → 파일명, Frame → children 기반 추론)
+- Figma DevMode parity — 선택 노드 inspect 시 spacing/padding/margin 인라인 오버레이 + 코드 스니펫 복사 원클릭
+- Canvas grid/guide templates — 미리 정의된 그리드 레이아웃 (12-column, 8pt grid 등) 원클릭 적용
+
+## 백로그 정리 (2026-04-01)
+- "Canvas presentation mode" 제거 — 이미 완료 (추가 81)
+- "Annotation sticker pack" — 이미 완료 (stamp.rs + stamp-tool.ts, 추가로 강화 버전도 완료)
+- "Scroll & overflow (scrollable frames)" — 이미 완료 (추가 51, Overflow enum + WASM + Properties panel + prototype viewer)
 ## 완료된 기능 (추가 — UI Localization / i18n)
 - 다국어 지원: English (en), 한국어 (ko), 日本語 (ja)
 - i18n 시스템: `packages/app/src/ui/i18n.ts` — t() 번역 함수, locale 관리, onLocaleChange 리스너
