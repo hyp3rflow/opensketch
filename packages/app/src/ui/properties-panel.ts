@@ -5501,9 +5501,80 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           refresh(ids);
         });
         overflowSection.appendChild(resetBtn);
+
+        // Scroll Snap Type (container)
+        const snapTypeLabel = document.createElement("div");
+        snapTypeLabel.style.cssText = "font-size:10px;color:#888;margin-top:8px;margin-bottom:4px;";
+        snapTypeLabel.textContent = "Scroll Snap";
+        overflowSection.appendChild(snapTypeLabel);
+
+        const currentSnapType = editor.engine.get_scroll_snap_type(BigInt(id));
+        const snapTypeSelect = document.createElement("select");
+        snapTypeSelect.style.cssText = "width:100%;padding:3px 6px;background:#2a2a2a;border:1px solid #444;border-radius:4px;color:#ccc;font-size:10px;";
+        const snapTypes = [
+          { value: "none", label: "None" },
+          { value: "mandatory-x", label: "Mandatory X" },
+          { value: "mandatory-y", label: "Mandatory Y" },
+          { value: "mandatory-both", label: "Mandatory Both" },
+          { value: "proximity-x", label: "Proximity X" },
+          { value: "proximity-y", label: "Proximity Y" },
+          { value: "proximity-both", label: "Proximity Both" },
+        ];
+        for (const st of snapTypes) {
+          const opt = document.createElement("option");
+          opt.value = st.value;
+          opt.textContent = st.label;
+          if (st.value === currentSnapType) opt.selected = true;
+          snapTypeSelect.appendChild(opt);
+        }
+        snapTypeSelect.addEventListener("change", () => {
+          editor.engine.push_undo();
+          editor.engine.set_scroll_snap_type(BigInt(id), snapTypeSelect.value);
+          editor.requestRender();
+          refresh(ids);
+        });
+        overflowSection.appendChild(snapTypeSelect);
       }
 
       panel.appendChild(overflowSection);
+
+      // Scroll Snap Align (child node) — show if parent is scrollable
+      if (node.parent) {
+        const parentOverflow = editor.engine.get_overflow(BigInt(node.parent));
+        if (parentOverflow.startsWith("scroll")) {
+          const snapAlignSection = document.createElement("div");
+          snapAlignSection.style.cssText = "margin-top:8px;";
+          const snapAlignLabel = document.createElement("div");
+          snapAlignLabel.style.cssText = "font-size:10px;color:#888;margin-bottom:4px;";
+          snapAlignLabel.textContent = "Snap Align";
+          snapAlignSection.appendChild(snapAlignLabel);
+
+          const currentSnapAlign = editor.engine.get_scroll_snap_align(BigInt(id));
+          const snapAlignSelect = document.createElement("select");
+          snapAlignSelect.style.cssText = "width:100%;padding:3px 6px;background:#2a2a2a;border:1px solid #444;border-radius:4px;color:#ccc;font-size:10px;";
+          const snapAligns = [
+            { value: "none", label: "None" },
+            { value: "start", label: "Start" },
+            { value: "center", label: "Center" },
+            { value: "end", label: "End" },
+          ];
+          for (const sa of snapAligns) {
+            const opt = document.createElement("option");
+            opt.value = sa.value;
+            opt.textContent = sa.label;
+            if (sa.value === currentSnapAlign) opt.selected = true;
+            snapAlignSelect.appendChild(opt);
+          }
+          snapAlignSelect.addEventListener("change", () => {
+            editor.engine.push_undo();
+            editor.engine.set_scroll_snap_align(BigInt(id), snapAlignSelect.value);
+            editor.requestRender();
+            refresh(ids);
+          });
+          snapAlignSection.appendChild(snapAlignSelect);
+          panel.appendChild(snapAlignSection);
+        }
+      }
     }
 
     // === Auto Layout Section (Frame/Instance/Group) ===

@@ -432,7 +432,26 @@ function generateCSS(ctx: CodeCtx): string {
 
   // Overflow
   if (node.overflow && node.overflow !== "Visible") {
-    lines.push(`overflow: ${node.overflow === "Scroll" ? "auto" : "hidden"};`);
+    lines.push(`overflow: ${node.overflow === "Scroll" || node.overflow === "ScrollHorizontal" || node.overflow === "ScrollVertical" ? "auto" : "hidden"};`);
+    if (node.overflow === "ScrollHorizontal") lines.push(`overflow-x: auto; overflow-y: hidden;`);
+    if (node.overflow === "ScrollVertical") lines.push(`overflow-x: hidden; overflow-y: auto;`);
+  }
+  // Scroll snap type (container)
+  if (node.scroll_snap_type && node.scroll_snap_type !== "None") {
+    const snapMap: Record<string, string> = {
+      MandatoryX: "x mandatory",
+      MandatoryY: "y mandatory",
+      MandatoryBoth: "both mandatory",
+      ProximityX: "x proximity",
+      ProximityY: "y proximity",
+      ProximityBoth: "both proximity",
+    };
+    const cssSnap = snapMap[node.scroll_snap_type];
+    if (cssSnap) lines.push(`scroll-snap-type: ${cssSnap};`);
+  }
+  // Scroll snap align (child)
+  if (node.scroll_snap_align && node.scroll_snap_align !== "None") {
+    lines.push(`scroll-snap-align: ${node.scroll_snap_align.toLowerCase()};`);
   }
 
   // Layout

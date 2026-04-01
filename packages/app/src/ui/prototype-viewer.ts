@@ -844,6 +844,90 @@ export function createPrototypeViewer(editor: Editor): {
     }
   }
 
+  // ─── Scroll snap helper ──────────────────────────────
+  let snapTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /** Compute snap points for a scrollable frame and animate to nearest */
+  function scheduleSnap(frameId: number) {
+    if (snapTimer) clearTimeout(snapTimer);
+    snapTimer = setTimeout(() => { performSnap(frameId); }, 150);
+  }
+
+  function performSnap(frameId: number) {
+    try {
+      const snapType = editor.engine.get_scroll_snap_type(BigInt(frameId));
+      if (snapType === "none") return;
+
+      const nj = editor.engine.get_node_json(frameId);
+      if (!nj) return;
+      const node = JSON.parse(nj);
+      const scrollOffset = JSON.parse(editor.engine.get_scroll_offset(BigInt(frameId)));
+
+      const snapsX = snapType.includes("x") || snapType.includes("both");
+      const snapsY = snapType.includes("y") || snapType.includes("both");
+      const isMandatory = snapType.startsWith("mandatory");
+      const proximityThreshold = 100; // px threshold for proximity snap
+
+      // Collect snap points from children
+      const childIds: number[] = node.children || [];
+      const snapPointsX: number[] = [];
+      const snapPointsY: number[] = [];
+
+      for (const cid of childIds) {
+        const cj = editor.engine.get_node_json(cid);
+        if (!cj) continue;
+        const c = JSON.parse(cj);
+        const align = editor.engine.get_scroll_snap_align(BigInt(cid));
+        if (align === "none") continue;
+
+        const relX = c.x - node.x;
+        const relY = c.y - node.y;
+
+        if (snapsX) {
+          if (align === "start") snapPointsX.push(-relX);
+          else if (align === "center") snapPointsX.push(-(relX + c.width / 2 - node.width / 2));
+          else if (align === "end") snapPointsX.push(-(relX + c.width - node.width));
+        }
+        if (snapsY) {
+          if (align === "start") snapPointsY.push(-relY);
+          else if (align === "center") snapPointsY.push(-(relY + c.height / 2 - node.height / 2));
+          else if (align === "end") snapPointsY.push(-(relY + c.height - node.height));
+        }
+      }
+
+      let targetX = scrollOffset.x;
+      let targetY = scrollOffset.y;
+
+      if (snapsX && snapPointsX.length > 0) {
+        const nearest = snapPointsX.reduce((a, b) => Math.abs(a - scrollOffset.x) < Math.abs(b - scrollOffset.x) ? a : b);
+        const dist = Math.abs(nearest - scrollOffset.x);
+        if (isMandatory || dist < proximityThreshold) targetX = nearest;
+      }
+      if (snapsY && snapPointsY.length > 0) {
+        const nearest = snapPointsY.reduce((a, b) => Math.abs(a - scrollOffset.y) < Math.abs(b - scrollOffset.y) ? a : b);
+        const dist = Math.abs(nearest - scrollOffset.y);
+        if (isMandatory || dist < proximityThreshold) targetY = nearest;
+      }
+
+      if (targetX === scrollOffset.x && targetY === scrollOffset.y) return;
+
+      // Animate to snap point
+      const startX = scrollOffset.x, startY = scrollOffset.y;
+      const duration = 250;
+      const startTime = performance.now();
+      function animateSnap(now: number) {
+        const t = Math.min(1, (now - startTime) / duration);
+        const ease = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t; // easeInOut
+        const cx = startX + (targetX - startX) * ease;
+        const cy = startY + (targetY - startY) * ease;
+        editor.engine.set_scroll_offset(BigInt(frameId), cx, cy);
+        renderCurrentView();
+        if (t < 1) requestAnimationFrame(animateSnap);
+      }
+      requestAnimationFrame(animateSnap);
+    } catch {}
+  }
+
   // ─── Scroll handling for scrollable frames ──────────
   /** Convert screen coords to scene coords */
   function screenToScene(clientX: number, clientY: number): { x: number; y: number } | null {
@@ -916,6 +1000,7 @@ export function createPrototypeViewer(editor: Editor): {
 
     editor.engine.set_scroll_offset(BigInt(scrollFrameId), newScrollX, newScrollY);
     renderCurrentView();
+    scheduleSnap(scrollFrameId);
   }
 
   // ─── Touch / Gesture handling ───────────────────────
@@ -1031,6 +1116,13 @@ export function createPrototypeViewer(editor: Editor): {
     e.preventDefault();
 
     if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+
+    // Trigger snap on touch end for scrollable frame
+    if (touchScrollFrameId !== null) {
+      scheduleSnap(touchScrollFrameId);
+      touchScrollFrameId = null;
+    }
+
     if (longPressFired) return;
 
     // Pinch end

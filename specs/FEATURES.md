@@ -831,6 +831,15 @@ Right pane "A11y" tab — automated accessibility audit for design nodes.
 - [x] Inspect panel: overflow CSS generation (hidden/auto)
 - [x] Backward-compatible serde (default Visible, scroll 0,0)
 
+### Scroll Snap Points
+- [x] ScrollSnapType enum: None/MandatoryX/MandatoryY/MandatoryBoth/ProximityX/ProximityY/ProximityBoth
+- [x] ScrollSnapAlign enum: None/Start/Center/End
+- [x] Node fields: scroll_snap_type (container), scroll_snap_align (child) — serde(default)
+- [x] WASM bindings: set/get_scroll_snap_type, set/get_scroll_snap_align
+- [x] Properties panel: snap type dropdown on scroll containers, snap align dropdown on children of scroll containers
+- [x] Prototype viewer: animated snap to nearest point after scroll (mandatory always, proximity within 100px)
+- [x] Inspect panel: CSS scroll-snap-type / scroll-snap-align output
+
 ## Scrollable Frames
 
 Frame overflow control and content scrolling.

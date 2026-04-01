@@ -216,6 +216,15 @@ Output: `packages/app/src/wasm/` (opensketch_engine.js + .wasm + .d.ts)
 - **Scrollbars**: thin Figma-style scrollbar indicators (4px, rgba white 30%) rendered after children
 - **Content bounds**: calculated from children AABB for scroll range clamping
 - **SVG export**: `<clipPath>` + `clip-path` attribute for overflow != Visible; `<g transform="translate(...)">` for scroll offset
+
+## Scroll Snap
+
+- **ScrollSnapType enum**: `None` | `MandatoryX` | `MandatoryY` | `MandatoryBoth` | `ProximityX` | `ProximityY` | `ProximityBoth`
+- **ScrollSnapAlign enum**: `None` | `Start` | `Center` | `End`
+- **Node fields**: `scroll_snap_type: ScrollSnapType` (container), `scroll_snap_align: ScrollSnapAlign` (child) — both `#[serde(default)]`
+- **WASM**: `set/get_scroll_snap_type(id, str)`, `set/get_scroll_snap_align(id, str)`
+- **Prototype viewer**: after scroll ends, animates to nearest snap point (250ms ease-in-out); mandatory snaps always, proximity snaps within 100px threshold
+- **CSS mapping**: `scroll-snap-type: {x|y|both} {mandatory|proximity}`, `scroll-snap-align: {start|center|end}`
 - **WASM API**: `set_overflow(id, mode_str)`, `get_overflow(id) → str`, `set_scroll_offset(id, x, y)`, `get_scroll_offset(id) → JSON`, `get_content_bounds(id) → JSON`
 
 ### Path Morphing (Smart Animate)

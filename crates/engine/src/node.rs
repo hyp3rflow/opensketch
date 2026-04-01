@@ -946,6 +946,35 @@ impl Overflow {
     }
 }
 
+/// Scroll snap type for scrollable containers (CSS scroll-snap-type)
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub enum ScrollSnapType {
+    None,
+    MandatoryX,
+    MandatoryY,
+    MandatoryBoth,
+    ProximityX,
+    ProximityY,
+    ProximityBoth,
+}
+
+impl Default for ScrollSnapType {
+    fn default() -> Self { ScrollSnapType::None }
+}
+
+/// Scroll snap alignment for children of scrollable containers (CSS scroll-snap-align)
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub enum ScrollSnapAlign {
+    None,
+    Start,
+    Center,
+    End,
+}
+
+impl Default for ScrollSnapAlign {
+    fn default() -> Self { ScrollSnapAlign::None }
+}
+
 /// Text sizing mode
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub enum TextSizing {
@@ -1723,6 +1752,12 @@ pub struct Node {
     pub scroll_x: f64,
     #[serde(default)]
     pub scroll_y: f64,
+    /// Scroll snap type for scrollable container frames
+    #[serde(default)]
+    pub scroll_snap_type: ScrollSnapType,
+    /// Scroll snap alignment for child nodes in scrollable containers
+    #[serde(default)]
+    pub scroll_snap_align: ScrollSnapAlign,
     /// Bitmap filter effects (brightness, contrast, saturation, etc.)
     #[serde(default)]
     pub bitmap_filter: Option<BitmapFilter>,
@@ -1863,6 +1898,8 @@ impl Node {
             overflow: Overflow::default(),
             scroll_x: 0.0,
             scroll_y: 0.0,
+            scroll_snap_type: ScrollSnapType::None,
+            scroll_snap_align: ScrollSnapAlign::None,
             bitmap_filter: None,
             breakpoints: vec![],
             absolute_position: false,

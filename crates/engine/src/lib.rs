@@ -8040,6 +8040,52 @@ impl Engine {
         }).unwrap_or_else(|| "{\"x\":0,\"y\":0}".to_string())
     }
 
+    pub fn set_scroll_snap_type(&mut self, node_id: u64, value: &str) {
+        if let Some(node) = self.scene.get_node_mut(node_id) {
+            node.scroll_snap_type = match value {
+                "mandatory-x" => crate::node::ScrollSnapType::MandatoryX,
+                "mandatory-y" => crate::node::ScrollSnapType::MandatoryY,
+                "mandatory-both" => crate::node::ScrollSnapType::MandatoryBoth,
+                "proximity-x" => crate::node::ScrollSnapType::ProximityX,
+                "proximity-y" => crate::node::ScrollSnapType::ProximityY,
+                "proximity-both" => crate::node::ScrollSnapType::ProximityBoth,
+                _ => crate::node::ScrollSnapType::None,
+            };
+        }
+    }
+
+    pub fn get_scroll_snap_type(&self, node_id: u64) -> String {
+        self.scene.get_node(node_id).map(|n| match n.scroll_snap_type {
+            crate::node::ScrollSnapType::None => "none",
+            crate::node::ScrollSnapType::MandatoryX => "mandatory-x",
+            crate::node::ScrollSnapType::MandatoryY => "mandatory-y",
+            crate::node::ScrollSnapType::MandatoryBoth => "mandatory-both",
+            crate::node::ScrollSnapType::ProximityX => "proximity-x",
+            crate::node::ScrollSnapType::ProximityY => "proximity-y",
+            crate::node::ScrollSnapType::ProximityBoth => "proximity-both",
+        }).unwrap_or("none").to_string()
+    }
+
+    pub fn set_scroll_snap_align(&mut self, node_id: u64, value: &str) {
+        if let Some(node) = self.scene.get_node_mut(node_id) {
+            node.scroll_snap_align = match value {
+                "start" => crate::node::ScrollSnapAlign::Start,
+                "center" => crate::node::ScrollSnapAlign::Center,
+                "end" => crate::node::ScrollSnapAlign::End,
+                _ => crate::node::ScrollSnapAlign::None,
+            };
+        }
+    }
+
+    pub fn get_scroll_snap_align(&self, node_id: u64) -> String {
+        self.scene.get_node(node_id).map(|n| match n.scroll_snap_align {
+            crate::node::ScrollSnapAlign::None => "none",
+            crate::node::ScrollSnapAlign::Start => "start",
+            crate::node::ScrollSnapAlign::Center => "center",
+            crate::node::ScrollSnapAlign::End => "end",
+        }).unwrap_or("none").to_string()
+    }
+
     /// Get the content bounds of a frame's children (for scroll limits)
     pub fn get_content_bounds(&self, node_id: u64) -> String {
         if let Some(node) = self.scene.get_node(node_id) {
