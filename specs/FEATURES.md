@@ -489,6 +489,9 @@
 - [x] **Comment filters**: Panel filter tabs — All / Unresolved (with count) / @Me (mentions + assigned)
 - [x] **WASM bindings**: set_comment_assignee, get_comments_by_mention, get_unresolved_comment_count
 - [x] **Notification badge**: Comments tab shows red unresolved-count badge, auto-updates on changes
+- [x] **Emoji reactions**: Reaction struct (emoji + users[]), toggle_reaction Scene method, WASM toggle_comment_reaction/get_comment_reactions
+- [x] **Reaction UI**: Quick emoji picker (👍👎❤️🔥🎉👀💯🤔), toggle on/off per user, count badges in thread popup + comment cards
+- [x] **Backward compatible**: serde(default) for reactions field
 
 ### Keyboard Shortcuts Panel
 - [x] **Modal overlay**: Toggled via ⌘/ or ? key

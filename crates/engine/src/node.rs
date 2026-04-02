@@ -1368,6 +1368,13 @@ impl Default for Interaction {
     }
 }
 
+/// A reaction on a comment (emoji + users who reacted)
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Reaction {
+    pub emoji: String,
+    pub users: Vec<String>,
+}
+
 /// A reply in a comment thread
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CommentReply {
@@ -1401,6 +1408,9 @@ pub struct Comment {
     /// Extracted @mentions from text and replies
     #[serde(default)]
     pub mentions: Vec<String>,
+    /// Emoji reactions on this comment
+    #[serde(default)]
+    pub reactions: Vec<Reaction>,
 }
 
 impl Comment {

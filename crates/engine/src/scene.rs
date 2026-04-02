@@ -2187,6 +2187,7 @@ impl Scene {
             page_id,
             assignee: None,
             mentions: vec![],
+            reactions: vec![],
         };
         comment.extract_mentions();
         self.comments.push(comment);
@@ -2245,6 +2246,41 @@ impl Scene {
     pub fn get_comments_for_page(&self) -> Vec<&Comment> {
         let page_id = self.pages.get(self.active_page_index).map(|p| p.id).unwrap_or(0);
         self.comments.iter().filter(|c| c.page_id == page_id).collect()
+    }
+
+    /// Toggle a reaction on a comment. If user already reacted with this emoji, remove it; otherwise add it.
+    /// Returns true if the reaction was added, false if removed.
+    pub fn toggle_reaction(&mut self, comment_id: u64, emoji: &str, user: &str) -> bool {
+        if let Some(c) = self.comments.iter_mut().find(|c| c.id == comment_id) {
+            if let Some(r) = c.reactions.iter_mut().find(|r| r.emoji == emoji) {
+                if let Some(pos) = r.users.iter().position(|u| u == user) {
+                    r.users.remove(pos);
+                    if r.users.is_empty() {
+                        c.reactions.retain(|r| r.emoji != emoji);
+                    }
+                    return false;
+                } else {
+                    r.users.push(user.to_string());
+                    return true;
+                }
+            } else {
+                c.reactions.push(crate::node::Reaction {
+                    emoji: emoji.to_string(),
+                    users: vec![user.to_string()],
+                });
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Get reactions for a comment as JSON
+    pub fn get_reactions(&self, comment_id: u64) -> String {
+        if let Some(c) = self.comments.iter().find(|c| c.id == comment_id) {
+            serde_json::to_string(&c.reactions).unwrap_or_else(|_| "[]".to_string())
+        } else {
+            "[]".to_string()
+        }
     }
 
     pub fn get_all_comments(&self) -> &[Comment] {

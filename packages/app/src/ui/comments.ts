@@ -1,5 +1,10 @@
 import type { Editor } from "../editor";
 
+interface ReactionData {
+  emoji: string;
+  users: string[];
+}
+
 interface CommentData {
   id: number;
   x: number;
@@ -13,7 +18,10 @@ interface CommentData {
   page_id: number;
   assignee: string | null;
   mentions: string[];
+  reactions: ReactionData[];
 }
+
+const QUICK_EMOJIS = ["👍", "👎", "❤️", "🔥", "🎉", "👀", "💯", "🤔"];
 
 const COMMENT_AUTHOR = "User"; // Default author name
 
@@ -241,6 +249,13 @@ export class CommentOverlay {
         <div style="font-size:13px;color:#ddd;margin-bottom:8px;">${highlightMentions(comment.text)}</div>
         ${comment.assignee ? `<div style="font-size:10px;color:#4a90d9;margin-bottom:6px;">👤 Assigned to @${comment.assignee}</div>` : ""}
         ${comment.mentions.length > 0 ? `<div style="font-size:10px;color:#777;margin-bottom:6px;">Mentions: ${comment.mentions.map(m => `<span style="color:#4a90d9;">@${m}</span>`).join(", ")}</div>` : ""}
+        <div class="comment-reactions" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px;">
+          ${(comment.reactions || []).map(r => {
+            const mine = r.users.includes(COMMENT_AUTHOR);
+            return `<button class="reaction-btn" data-emoji="${r.emoji}" style="display:flex;align-items:center;gap:2px;padding:2px 6px;border-radius:10px;border:1px solid ${mine ? '#4a90d9' : '#444'};background:${mine ? '#4a90d922' : '#2a2a2a'};cursor:pointer;font-size:12px;color:#ddd;" title="${r.users.join(', ')}">${r.emoji} <span style="font-size:10px;">${r.users.length}</span></button>`;
+          }).join("")}
+          <button class="reaction-add" style="padding:2px 6px;border-radius:10px;border:1px solid #444;background:#2a2a2a;cursor:pointer;font-size:12px;color:#777;" title="Add reaction">+</button>
+        </div>
         ${repliesHtml}
         <div style="margin-top:8px;border-top:1px solid #333;padding-top:8px;">
           <textarea class="reply-input" placeholder="Reply..." rows="2" style="width:100%;border:1px solid #444;background:#2a2a2a;color:#eee;border-radius:6px;padding:6px;resize:none;font-size:12px;font-family:inherit;box-sizing:border-box;"></textarea>
@@ -289,6 +304,40 @@ export class CommentOverlay {
       if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
         popup.querySelector<HTMLButtonElement>(".reply-submit")!.click();
       }
+    });
+
+    // Reaction buttons — toggle existing reactions
+    popup.querySelectorAll<HTMLButtonElement>(".reaction-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const emoji = btn.dataset.emoji!;
+        this.editor.engine.toggle_comment_reaction(comment.id, emoji, COMMENT_AUTHOR);
+        window.dispatchEvent(new CustomEvent("comments-changed"));
+        this.openThread(comment.id);
+      });
+    });
+
+    // Add reaction picker
+    popup.querySelector(".reaction-add")!.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const existing = popup.querySelector(".emoji-picker");
+      if (existing) { existing.remove(); return; }
+      const picker = document.createElement("div");
+      picker.className = "emoji-picker";
+      picker.style.cssText = "display:flex;flex-wrap:wrap;gap:2px;padding:6px;background:#1e1e1e;border:1px solid #444;border-radius:8px;margin-top:4px;";
+      QUICK_EMOJIS.forEach((emoji) => {
+        const btn = document.createElement("button");
+        btn.textContent = emoji;
+        btn.style.cssText = "font-size:16px;padding:4px;border:none;background:none;cursor:pointer;border-radius:4px;";
+        btn.addEventListener("mouseenter", () => btn.style.background = "#333");
+        btn.addEventListener("mouseleave", () => btn.style.background = "none");
+        btn.addEventListener("click", () => {
+          this.editor.engine.toggle_comment_reaction(comment.id, emoji, COMMENT_AUTHOR);
+          window.dispatchEvent(new CustomEvent("comments-changed"));
+          this.openThread(comment.id);
+        });
+        picker.appendChild(btn);
+      });
+      popup.querySelector(".comment-reactions")!.appendChild(picker);
     });
 
     // @mention autocomplete for reply
@@ -510,6 +559,7 @@ export function setupCommentsPanel(container: HTMLElement, editor: Editor, overl
         </div>
         <div style="font-size:12px;color:#ddd;margin-top:4px;${c.resolved ? 'text-decoration:line-through;opacity:0.6;' : ''}">${highlightMentions(c.text)}</div>
         ${c.assignee ? `<div style="font-size:10px;color:#4a90d9;margin-top:3px;">👤 @${c.assignee}</div>` : ""}
+        ${(c.reactions && c.reactions.length > 0) ? `<div style="display:flex;flex-wrap:wrap;gap:2px;margin-top:4px;">${c.reactions.map(r => `<span style="font-size:10px;padding:1px 4px;background:#333;border-radius:8px;color:#ddd;">${r.emoji} ${r.users.length}</span>`).join("")}</div>` : ""}
         ${c.replies.length > 0 ? `<div style="font-size:10px;color:#777;margin-top:4px;">${c.replies.length} repl${c.replies.length === 1 ? "y" : "ies"}</div>` : ""}
       </div>
     `;

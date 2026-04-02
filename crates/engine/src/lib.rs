@@ -7968,6 +7968,16 @@ impl Engine {
         self.scene.set_comment_assignee(comment_id as u64, a);
     }
 
+    /// Toggle a reaction (emoji) on a comment. Returns true if added, false if removed.
+    pub fn toggle_comment_reaction(&mut self, comment_id: u32, emoji: &str, user: &str) -> bool {
+        self.scene.toggle_reaction(comment_id as u64, emoji, user)
+    }
+
+    /// Get reactions for a comment as JSON
+    pub fn get_comment_reactions(&self, comment_id: u32) -> String {
+        self.scene.get_reactions(comment_id as u64)
+    }
+
     /// Get comments filtered by mention (username mentioned in text)
     pub fn get_comments_by_mention(&self, username: &str) -> String {
         let comments: Vec<&Comment> = self.scene.get_all_comments()
