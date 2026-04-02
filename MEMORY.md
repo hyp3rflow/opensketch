@@ -1533,6 +1533,10 @@
 - Smart auto-naming — 노드 내용 기반 자동 이름 생성 (Text → 첫 단어, Image → 파일명, Frame → children 기반 추론)
 - Figma DevMode parity — 선택 노드 inspect 시 spacing/padding/margin 인라인 오버레이 + 코드 스니펫 복사 원클릭
 - Canvas grid/guide templates — 미리 정의된 그리드 레이아웃 (12-column, 8pt grid 등) 원클릭 적용
+- Auto layout padding individual per-side — Figma처럼 padding top/right/bottom/left 각각 독립 설정 (현재 uniform/H+V만), 4-value 입력 UI
+- Mesh gradient fill — FillType::MeshGradient, 자유형 색상 메쉬 (NxN 그리드 포인트별 색상), Canvas 렌더링 + SVG export
+- Table auto-layout — Table 노드에 auto-layout 적용 (셀 내 텍스트 wrap, 행/열 자동 리사이즈, 헤더 고정, 정렬)
+- Figma-style component property controls — 컴포넌트 프로퍼티 타입 확장 (Text, InstanceSwap, Boolean, Variant) + Properties panel에서 인스턴스별 직접 편집
 - Freehand smoothing — Pen/Freehand 도구의 스트로크 후처리 자동 스무딩 (Catmull-Rom/simplify), 감도 조절 슬라이더
 - Annotation stamps on canvas — 리뷰어가 캔버스 위에 emoji/label 스탬프 배치 + grouping + export (기존 stamp 확장)
 - Component playground — 독립 모달에서 컴포넌트 인스턴스의 모든 variant/property 조합을 매트릭스로 프리뷰
@@ -1778,6 +1782,16 @@
 - Primary caret: 흰색, Multi-cursor carets: 시안(#00d4ff)
 - editor.ts: multiCursors Map, _multiCursorMode flag, addMultiCursor(), multiCursorApplyContent(), renderCaretForNode()
 - Rust 엔진 변경 없음 (순수 TypeScript 구현)
+
+## 완료된 기능 (추가 — Connector Arrow Head Styles)
+- ArrowStyle enum: None, Arrow, Diamond, Circle, Square, OpenArrow — 6가지 화살표 머리 스타일
+- Connector 필드 변경: start_arrow/end_arrow bool → ArrowStyle, arrow_size: f64 (기본 1.0)
+- Backward-compatible serde: deserialize_arrow_style로 기존 bool → ArrowStyle 자동 변환
+- Canvas 렌더링: draw_arrowhead_styled() — Arrow(filled triangle), OpenArrow(V stroke), Diamond(마름모), Circle(원), Square(정사각형)
+- SVG export: 스타일별 marker defs (path/circle/rect), marker-start/marker-end
+- WASM: set_connector_start_arrow_style, set_connector_end_arrow_style, set_connector_arrow_size
+- get_connector_info: arrow style string + arrow_size + legacy bool 모두 반환
+- Properties panel: Start/End 각각 6-option 드롭다운, Arrow Size 숫자 입력 (0.1~5.0)
 
 ## 완료된 기능 (추가 — Clip Content)
 - Node.clip_content: bool 필드 추가 (#[serde(default = "default_true")], 기본값 true)
