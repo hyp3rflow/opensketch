@@ -544,6 +544,10 @@
 - [x] **Layers panel**: Section icon, container expand/collapse
 - [x] **Hit test**: AABB bounds (same as all nodes)
 - [x] **Constraints**: Section children support responsive resize constraints
+- [x] **Section enhancements**: Background color from fills, collapse/expand toggle (▶/▼), title color & font size customization
+- [x] **Collapse/Expand**: Double-click title to toggle; collapsed sections hide children in render & hit-test
+- [x] **Properties panel**: Collapsed checkbox, title color input, title font size input
+- [x] **WASM bindings**: set/get/toggle_section_collapsed, set_section_title_color, set_section_title_font_size
 
 ### Responsive Resize Preview
 - [x] **Fullscreen overlay**: Shows selected Frame at multiple breakpoints side by side

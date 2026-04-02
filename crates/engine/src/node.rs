@@ -1811,6 +1811,15 @@ pub struct Node {
     /// Hyperlink: external URL or internal page link (e.g. "https://..." or "page:PAGE_ID")
     #[serde(default)]
     pub hyperlink: Option<String>,
+    /// Section collapsed state (children hidden when true)
+    #[serde(default)]
+    pub section_collapsed: bool,
+    /// Section title color override (None = default rgba(255,255,255,0.7))
+    #[serde(default)]
+    pub section_title_color: Option<String>,
+    /// Section title font size override (None = default 14)
+    #[serde(default)]
+    pub section_title_font_size: Option<f64>,
 }
 
 /// Per-frame background pattern configuration
@@ -1924,6 +1933,9 @@ impl Node {
             alt_text: None,
             anchors: vec![],
             hyperlink: None,
+            section_collapsed: false,
+            section_title_color: None,
+            section_title_font_size: None,
         }
     }
 

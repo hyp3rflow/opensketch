@@ -1737,6 +1737,15 @@
 - 기존 기능 유지: 팔레트 UI, 캔버스 클릭 배치, zoom/pan aware 렌더링, hit-test, 노드 연결, 노트, 이동
 - Backward-compatible serde (기존 StampKind 호환 + 새 variant 자동 역직렬화)
 
+## 완료된 기능 (추가 — Section Node Enhancements)
+- Node 구조체에 section_collapsed, section_title_color, section_title_font_size 필드 추가 (serde default)
+- render_section(): fills 기반 배경색, 접기/펼치기 아이콘 (▶/▼), 커스텀 타이틀 색상/폰트 크기
+- collapsed 상태에서 children 렌더/히트테스트 스킵 (render_order에서 필터링)
+- WASM 바인딩: set/get/toggle_section_collapsed, set_section_title_color, set_section_title_font_size
+- Properties panel: Collapsed 체크박스, Title Color 입력, Title Font Size 입력
+- Editor: Section 더블클릭으로 collapse 토글
+- backward-compatible serde
+
 ## 완료된 기능 (추가 — Conic/Angular Gradient Fill)
 - FillType::ConicGradient { center_x, center_y, angle, stops } 추가 (node.rs)
 - Canvas 렌더링: createConicGradient() API 활용 (render.rs)

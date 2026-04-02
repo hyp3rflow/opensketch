@@ -1132,6 +1132,51 @@ impl Engine {
         self.scene.add_node(node)
     }
 
+    // Section enhancements API
+    pub fn set_section_collapsed(&mut self, id: u64, collapsed: bool) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            node.section_collapsed = collapsed;
+        }
+    }
+
+    pub fn get_section_collapsed(&self, id: u64) -> bool {
+        self.scene.get_node(id).map(|n| n.section_collapsed).unwrap_or(false)
+    }
+
+    pub fn toggle_section_collapsed(&mut self, id: u64) -> bool {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            node.section_collapsed = !node.section_collapsed;
+            node.section_collapsed
+        } else {
+            false
+        }
+    }
+
+    pub fn set_section_title_color(&mut self, id: u64, color: &str) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            node.section_title_color = if color.is_empty() { None } else { Some(color.to_string()) };
+        }
+    }
+
+    pub fn set_section_title_font_size(&mut self, id: u64, size: f64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            node.section_title_font_size = if size <= 0.0 { None } else { Some(size) };
+        }
+    }
+
+    pub fn get_section_title_color(&self, id: u64) -> String {
+        self.scene.get_node(id)
+            .and_then(|n| n.section_title_color.as_ref())
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    pub fn get_section_title_font_size(&self, id: u64) -> f64 {
+        self.scene.get_node(id)
+            .and_then(|n| n.section_title_font_size)
+            .unwrap_or(14.0)
+    }
+
     pub fn add_slice(&mut self, name: &str, x: f64, y: f64, w: f64, h: f64) -> u64 {
         let mut node = Node::new(0, NodeKind::Slice);
         node.x = x; node.y = y; node.width = w; node.height = h;

@@ -2901,6 +2901,15 @@ export class Editor {
       return;
     }
 
+    // Section node → toggle collapse on double-click
+    if (node.kind === "Section") {
+      this.engine.push_undo();
+      this.engine.toggle_section_collapsed(hit);
+      this.needsRender = true;
+      this.fireSelectionNow(Array.from(this.engine.get_selection()).map(Number));
+      return;
+    }
+
     if (typeof node.kind !== "object" || !node.kind.Text) return;
 
     // Start inline text editing

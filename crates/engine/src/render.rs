@@ -1590,10 +1590,20 @@ impl Renderer {
 
     fn render_section(&self, ctx: &CanvasRenderingContext2d, node: &Node, scene: &Scene) {
         let r = 8.0; // rounded corners
-        // Background
-        ctx.set_fill_style_str("rgba(26, 26, 46, 0.6)");
-        self.draw_rounded_rect(ctx, node.x, node.y, node.width, node.height, r);
-        ctx.fill();
+
+        // Background: use node.fills if non-empty, otherwise default
+        if !node.fills.is_empty() {
+            for fill in &node.fills {
+                if !fill.visible { continue; }
+                self.apply_single_fill_style(ctx, fill, node);
+                self.draw_rounded_rect(ctx, node.x, node.y, node.width, node.height, r);
+                ctx.fill();
+            }
+        } else {
+            ctx.set_fill_style_str("rgba(26, 26, 46, 0.6)");
+            self.draw_rounded_rect(ctx, node.x, node.y, node.width, node.height, r);
+            ctx.fill();
+        }
 
         // Border
         let lw = 1.0 / self.viewport.a;
@@ -1603,15 +1613,23 @@ impl Renderer {
         ctx.stroke();
 
         // Title label above the section
-        let font_size = (14.0 / self.viewport.a).min(14.0);
+        let base_font_size = node.section_title_font_size.unwrap_or(14.0);
+        let font_size = (base_font_size / self.viewport.a).min(base_font_size);
         let gap = (6.0 / self.viewport.a).min(6.0);
-        ctx.set_fill_style_str("rgba(255,255,255,0.7)");
+        let title_color = node.section_title_color.as_deref().unwrap_or("rgba(255,255,255,0.7)");
+        ctx.set_fill_style_str(title_color);
         ctx.set_font(&format!("600 {}px Inter, system-ui, sans-serif", font_size));
         ctx.set_text_baseline("bottom");
-        ctx.fill_text(&node.name, node.x, node.y - gap).ok();
 
-        // Render children
-        self.render_children(ctx, &node.children, scene);
+        // Collapse/expand icon
+        let icon = if node.section_collapsed { "\u{25B6} " } else { "\u{25BC} " };
+        let title = format!("{}{}", icon, node.name);
+        ctx.fill_text(&title, node.x, node.y - gap).ok();
+
+        // Render children only if not collapsed
+        if !node.section_collapsed {
+            self.render_children(ctx, &node.children, scene);
+        }
     }
 
     fn render_connector(&self, ctx: &CanvasRenderingContext2d, node: &Node, scene: &Scene,

@@ -537,6 +537,10 @@ impl Scene {
         for &id in ids {
             result.push(id);
             if let Some(node) = self.nodes.get(&id) {
+                // Skip children of collapsed sections
+                if matches!(node.kind, crate::node::NodeKind::Section) && node.section_collapsed {
+                    continue;
+                }
                 self.collect_render_order(&node.children, result);
             }
         }

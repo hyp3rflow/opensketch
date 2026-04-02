@@ -5768,8 +5768,79 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       container.appendChild(sliceSection);
     }
 
-    // === Overflow Section (Frame/Section only) ===
+    // === Section Enhancements (Section only) ===
     const kindStr = typeof node.kind === "string" ? node.kind : Object.keys(node.kind)[0];
+    if (kindStr === "Section") {
+      const secSection = document.createElement("div");
+      secSection.className = "prop-section";
+      const secTitle = document.createElement("div");
+      secTitle.className = "prop-section-title";
+      secTitle.textContent = "Section";
+      secSection.appendChild(secTitle);
+
+      // Collapsed toggle
+      const collapsedRow = document.createElement("div");
+      collapsedRow.style.cssText = "display:flex;align-items:center;gap:8px;margin-bottom:6px;";
+      const collapsedCb = document.createElement("input");
+      collapsedCb.type = "checkbox";
+      collapsedCb.checked = editor.engine.get_section_collapsed(BigInt(id));
+      collapsedCb.addEventListener("change", () => {
+        editor.saveUndo();
+        editor.engine.set_section_collapsed(BigInt(id), collapsedCb.checked);
+        editor.render();
+      });
+      const collapsedLabel = document.createElement("label");
+      collapsedLabel.textContent = "Collapsed";
+      collapsedLabel.style.cssText = "font-size:11px;color:#aaa;cursor:pointer;";
+      collapsedLabel.prepend(collapsedCb);
+      collapsedRow.appendChild(collapsedLabel);
+      secSection.appendChild(collapsedRow);
+
+      // Title color
+      const titleColorRow = document.createElement("div");
+      titleColorRow.style.cssText = "display:flex;align-items:center;gap:6px;margin-bottom:6px;";
+      const titleColorLbl = document.createElement("span");
+      titleColorLbl.textContent = "Title Color";
+      titleColorLbl.style.cssText = "font-size:11px;color:#888;width:70px;";
+      const titleColorInput = document.createElement("input");
+      titleColorInput.type = "text";
+      titleColorInput.placeholder = "rgba(255,255,255,0.7)";
+      titleColorInput.value = editor.engine.get_section_title_color(BigInt(id));
+      titleColorInput.style.cssText = "flex:1;background:#2a2a2a;border:1px solid #444;border-radius:4px;padding:2px 6px;color:#ddd;font-size:11px;";
+      titleColorInput.addEventListener("change", () => {
+        editor.saveUndo();
+        editor.engine.set_section_title_color(BigInt(id), titleColorInput.value);
+        editor.render();
+      });
+      titleColorRow.appendChild(titleColorLbl);
+      titleColorRow.appendChild(titleColorInput);
+      secSection.appendChild(titleColorRow);
+
+      // Title font size
+      const titleSizeRow = document.createElement("div");
+      titleSizeRow.style.cssText = "display:flex;align-items:center;gap:6px;margin-bottom:6px;";
+      const titleSizeLbl = document.createElement("span");
+      titleSizeLbl.textContent = "Title Size";
+      titleSizeLbl.style.cssText = "font-size:11px;color:#888;width:70px;";
+      const titleSizeInput = document.createElement("input");
+      titleSizeInput.type = "number";
+      titleSizeInput.min = "8";
+      titleSizeInput.max = "72";
+      titleSizeInput.value = String(editor.engine.get_section_title_font_size(BigInt(id)));
+      titleSizeInput.style.cssText = "width:60px;background:#2a2a2a;border:1px solid #444;border-radius:4px;padding:2px 6px;color:#ddd;font-size:11px;";
+      titleSizeInput.addEventListener("change", () => {
+        editor.saveUndo();
+        editor.engine.set_section_title_font_size(BigInt(id), parseFloat(titleSizeInput.value) || 14);
+        editor.render();
+      });
+      titleSizeRow.appendChild(titleSizeLbl);
+      titleSizeRow.appendChild(titleSizeInput);
+      secSection.appendChild(titleSizeRow);
+
+      container.appendChild(secSection);
+    }
+
+    // === Overflow Section (Frame/Section only) ===
     if (["Frame", "Section"].includes(kindStr || "")) {
       const overflowSection = document.createElement("div");
       overflowSection.className = "prop-section";
