@@ -672,13 +672,16 @@
 
 ### Flow Connectors (Arrow Lines)
 - [x] **NodeKind::Connector**: Arrow/line connecting two nodes or free points
-- [x] **Fields**: start_node_id, end_node_id, start_x/y, end_x/y, path_type (straight/curved), start_arrow, end_arrow
-- [x] **Canvas rendering**: Straight lines or cubic bezier curves, arrowheads, edge clipping to node bounds
-- [x] **SVG export**: `<line>`/`<path>` with marker arrowheads
-- [x] **WASM**: add_connector, set_connector_path_type, set_connector_arrows, set_connector_endpoints, set_connector_nodes, get_connector_info, update_connector_bounds, get_connectors_for_node
+- [x] **Fields**: start_node_id, end_node_id, start_x/y, end_x/y, path_type (straight/curved), start_arrow, end_arrow (ArrowStyle), arrow_size
+- [x] **ArrowStyle enum**: None, Arrow, Diamond, Circle, Square, OpenArrow — per-endpoint arrow head style
+- [x] **Arrow size**: Multiplier (0.1–5.0) for arrow head size scaling
+- [x] **Canvas rendering**: Straight lines or cubic bezier curves, 6 arrowhead styles (filled triangle, open V, diamond, circle, square), edge clipping to node bounds
+- [x] **SVG export**: `<line>`/`<path>` with per-style marker defs (arrow/open_arrow/diamond/circle/square)
+- [x] **WASM**: add_connector, set_connector_path_type, set_connector_arrows (legacy bool), set_connector_start_arrow_style, set_connector_end_arrow_style, set_connector_arrow_size, set_connector_endpoints, set_connector_nodes, get_connector_info, update_connector_bounds, get_connectors_for_node
 - [x] **Toolbar**: Connector button with L keyboard shortcut, crosshair cursor
 - [x] **Drag to connect**: Click/drag from source to target node, hit-test on both ends
-- [x] **Properties panel**: Path type dropdown (Straight/Curved), start/end arrow checkboxes
+- [x] **Properties panel**: Path type dropdown (Straight/Curved), start/end arrow style dropdown (6 options), arrow size input
+- [x] **Backward-compatible serde**: Legacy bool end_arrow/start_arrow auto-converts to ArrowStyle
 - [x] **Layers panel**: Connector icon in node tree
 - [x] **Stroke support**: Color, width, dash pattern via existing stroke properties
 

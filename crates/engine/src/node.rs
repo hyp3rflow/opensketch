@@ -6,6 +6,51 @@ use serde::{Deserialize, Serialize};
 
 pub type NodeId = u64;
 
+/// Arrow head style for connectors
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub enum ArrowStyle {
+    None,
+    Arrow,
+    Diamond,
+    Circle,
+    Square,
+    OpenArrow,
+}
+
+impl Default for ArrowStyle {
+    fn default() -> Self { ArrowStyle::None }
+}
+
+impl ArrowStyle {
+    pub fn from_str(s: &str) -> Self {
+        match s {
+            "arrow" | "Arrow" => ArrowStyle::Arrow,
+            "diamond" | "Diamond" => ArrowStyle::Diamond,
+            "circle" | "Circle" => ArrowStyle::Circle,
+            "square" | "Square" => ArrowStyle::Square,
+            "open_arrow" | "OpenArrow" | "open-arrow" => ArrowStyle::OpenArrow,
+            _ => ArrowStyle::None,
+        }
+    }
+    pub fn to_str(&self) -> &'static str {
+        match self {
+            ArrowStyle::None => "none",
+            ArrowStyle::Arrow => "arrow",
+            ArrowStyle::Diamond => "diamond",
+            ArrowStyle::Circle => "circle",
+            ArrowStyle::Square => "square",
+            ArrowStyle::OpenArrow => "open_arrow",
+        }
+    }
+    pub fn is_visible(&self) -> bool {
+        !matches!(self, ArrowStyle::None)
+    }
+    /// Convert from legacy bool (backward compat)
+    pub fn from_bool(v: bool) -> Self {
+        if v { ArrowStyle::Arrow } else { ArrowStyle::None }
+    }
+}
+
 /// Text alignment
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub enum TextAlign {
@@ -314,10 +359,15 @@ pub enum NodeKind {
         end_y: f64,
         /// Path type: "straight" or "curved"
         path_type: String,
-        /// Show arrowhead at end
-        end_arrow: bool,
-        /// Show arrowhead at start
-        start_arrow: bool,
+        /// Arrow style at end
+        #[serde(deserialize_with = "deserialize_arrow_style", default = "default_end_arrow")]
+        end_arrow: ArrowStyle,
+        /// Arrow style at start
+        #[serde(deserialize_with = "deserialize_arrow_style", default)]
+        start_arrow: ArrowStyle,
+        /// Arrow head size multiplier (1.0 = default)
+        #[serde(default = "default_arrow_size")]
+        arrow_size: f64,
         /// Anchor position on start node (None = center)
         #[serde(default)]
         start_anchor: Option<crate::anchor::AnchorPosition>,
@@ -402,6 +452,37 @@ pub struct StickyVote {
 
 fn default_table_rows() -> u32 { 3 }
 fn default_table_cols() -> u32 { 3 }
+
+fn default_end_arrow() -> ArrowStyle { ArrowStyle::Arrow }
+fn default_arrow_size() -> f64 { 1.0 }
+
+/// Deserialize ArrowStyle from either bool (legacy) or string/enum
+fn deserialize_arrow_style<'de, D>(deserializer: D) -> Result<ArrowStyle, D::Error>
+where D: serde::Deserializer<'de>
+{
+    use serde::de;
+    struct ArrowStyleVisitor;
+    impl<'de> de::Visitor<'de> for ArrowStyleVisitor {
+        type Value = ArrowStyle;
+        fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            f.write_str("bool, string, or ArrowStyle enum")
+        }
+        fn visit_bool<E: de::Error>(self, v: bool) -> Result<ArrowStyle, E> {
+            Ok(ArrowStyle::from_bool(v))
+        }
+        fn visit_str<E: de::Error>(self, v: &str) -> Result<ArrowStyle, E> {
+            Ok(ArrowStyle::from_str(v))
+        }
+        fn visit_string<E: de::Error>(self, v: String) -> Result<ArrowStyle, E> {
+            Ok(ArrowStyle::from_str(&v))
+        }
+        // Handle serde enum format (e.g. "Arrow" as a unit variant)
+        fn visit_unit<E: de::Error>(self) -> Result<ArrowStyle, E> {
+            Ok(ArrowStyle::None)
+        }
+    }
+    deserializer.deserialize_any(ArrowStyleVisitor)
+}
 
 fn default_line_height() -> f64 { 1.2 }
 fn default_font_weight() -> u16 { 400 }

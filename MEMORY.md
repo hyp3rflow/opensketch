@@ -1514,6 +1514,16 @@
 - 결과 리스트 클릭 → 노드 선택 + pan-to-center
 - Hybrid Rust+TypeScript 구현 (엔진 필터 + UI 후처리)
 
+## 완료된 기능 (추가 — Connector Arrow Head Styles)
+- ArrowStyle enum: None, Arrow, Diamond, Circle, Square, OpenArrow
+- 기존 end_arrow/start_arrow bool → ArrowStyle로 확장, arrow_size 배율 필드 추가
+- Backward-compatible serde: 기존 bool JSON → ArrowStyle 자동 변환 (custom deserializer)
+- Canvas 렌더링: 6가지 화살촉 스타일 (filled triangle, open V, diamond, circle, square)
+- SVG export: 스타일별 marker defs 생성 (arrow/open_arrow → path, diamond → path, circle → circle, square → rect)
+- WASM: set_connector_start_arrow_style, set_connector_end_arrow_style, set_connector_arrow_size (기존 set_connector_arrows bool API 유지)
+- get_connector_info: end_arrow/start_arrow를 string으로 반환, arrow_size 포함
+- Properties panel: Start/End arrow style 드롭다운 (6옵션), Arrow size 숫자 입력
+
 ## 다음 할 것
 - Lottie animation export — 캔버스 애니메이션을 Lottie JSON으로 내보내기, keyframe 기반 변환
 - Multi-cursor collaborative editing — 동시 편집 시 노드별 잠금 표시 + 실시간 변경 반영 (operational transform 고도화)
@@ -1523,6 +1533,9 @@
 - Smart auto-naming — 노드 내용 기반 자동 이름 생성 (Text → 첫 단어, Image → 파일명, Frame → children 기반 추론)
 - Figma DevMode parity — 선택 노드 inspect 시 spacing/padding/margin 인라인 오버레이 + 코드 스니펫 복사 원클릭
 - Canvas grid/guide templates — 미리 정의된 그리드 레이아웃 (12-column, 8pt grid 등) 원클릭 적용
+- Freehand smoothing — Pen/Freehand 도구의 스트로크 후처리 자동 스무딩 (Catmull-Rom/simplify), 감도 조절 슬라이더
+- Annotation stamps on canvas — 리뷰어가 캔버스 위에 emoji/label 스탬프 배치 + grouping + export (기존 stamp 확장)
+- Component playground — 독립 모달에서 컴포넌트 인스턴스의 모든 variant/property 조합을 매트릭스로 프리뷰
 
 ## 백로그 정리 (2026-04-01)
 - "Canvas presentation mode" 제거 — 이미 완료 (추가 81)

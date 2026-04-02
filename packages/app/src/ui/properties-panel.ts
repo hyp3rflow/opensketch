@@ -5566,28 +5566,57 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       typeRow.appendChild(typeSelect);
       connSection.appendChild(typeRow);
 
-      // Arrows
-      const arrowRow = document.createElement("div");
-      arrowRow.style.cssText = "display:flex;gap:12px;align-items:center;margin-bottom:4px;";
-      for (const [label, key, current] of [["Start arrow", "start", info.start_arrow], ["End arrow", "end", info.end_arrow]] as const) {
-        const lbl = document.createElement("label");
-        lbl.style.cssText = "display:flex;align-items:center;gap:4px;font-size:11px;color:#ccc;cursor:pointer;";
-        const cb = document.createElement("input");
-        cb.type = "checkbox";
-        cb.checked = current as boolean;
-        cb.addEventListener("change", () => {
+      // Arrow Styles
+      const arrowStyles = ["none", "arrow", "open_arrow", "diamond", "circle", "square"];
+      const arrowStyleLabels: Record<string, string> = { none: "None", arrow: "Arrow", open_arrow: "Open Arrow", diamond: "Diamond", circle: "Circle", square: "Square" };
+      for (const [label, key, current] of [["Start", "start", info.start_arrow], ["End", "end", info.end_arrow]] as [string, string, string][]) {
+        const row = document.createElement("div");
+        row.style.cssText = "display:flex;gap:6px;align-items:center;margin-bottom:4px;";
+        const lbl = document.createElement("span");
+        lbl.style.cssText = "font-size:11px;color:#999;width:50px;";
+        lbl.textContent = label + ":";
+        row.appendChild(lbl);
+        const sel = document.createElement("select");
+        sel.style.cssText = "flex:1;background:#2a2a2a;color:#ccc;border:1px solid #444;border-radius:4px;padding:2px 6px;font-size:11px;";
+        for (const s of arrowStyles) {
+          const opt = document.createElement("option");
+          opt.value = s; opt.textContent = arrowStyleLabels[s] || s;
+          if (s === current) opt.selected = true;
+          sel.appendChild(opt);
+        }
+        sel.addEventListener("change", () => {
           editor.engine.push_undo();
-          const sa = key === "start" ? cb.checked : info.start_arrow;
-          const ea = key === "end" ? cb.checked : info.end_arrow;
-          editor.engine.set_connector_arrows(BigInt(id), sa, ea);
+          if (key === "start") {
+            editor.engine.set_connector_start_arrow_style(BigInt(id), sel.value);
+          } else {
+            editor.engine.set_connector_end_arrow_style(BigInt(id), sel.value);
+          }
           editor.requestRender();
           refresh();
         });
-        lbl.appendChild(cb);
-        lbl.appendChild(document.createTextNode(label));
-        arrowRow.appendChild(lbl);
+        row.appendChild(sel);
+        connSection.appendChild(row);
       }
-      connSection.appendChild(arrowRow);
+
+      // Arrow Size
+      const sizeRow = document.createElement("div");
+      sizeRow.style.cssText = "display:flex;gap:6px;align-items:center;margin-bottom:8px;";
+      const sizeLbl = document.createElement("span");
+      sizeLbl.style.cssText = "font-size:11px;color:#999;width:50px;";
+      sizeLbl.textContent = "Size:";
+      sizeRow.appendChild(sizeLbl);
+      const sizeInput = document.createElement("input");
+      sizeInput.type = "number";
+      sizeInput.min = "0.1"; sizeInput.max = "5"; sizeInput.step = "0.1";
+      sizeInput.value = String(info.arrow_size ?? 1);
+      sizeInput.style.cssText = "width:60px;background:#2a2a2a;color:#ccc;border:1px solid #444;border-radius:4px;padding:2px 6px;font-size:11px;";
+      sizeInput.addEventListener("change", () => {
+        editor.engine.push_undo();
+        editor.engine.set_connector_arrow_size(BigInt(id), parseFloat(sizeInput.value) || 1);
+        editor.requestRender();
+      });
+      sizeRow.appendChild(sizeInput);
+      connSection.appendChild(sizeRow);
 
       // Anchor info
       const anchorInfoRow = document.createElement("div");

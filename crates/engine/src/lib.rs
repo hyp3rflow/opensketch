@@ -54,7 +54,7 @@ use web_sys::CanvasRenderingContext2d;
 use i_overlay::core::fill_rule::FillRule;
 use i_overlay::core::overlay_rule::OverlayRule;
 use i_overlay::float::single::SingleFloatOverlay;
-use crate::node::{Node, NodeKind, Fill, FillType, GradientStop, Stroke, StrokeAlign, LayoutMode, FlexDirection, Align, Justify, FlexWrap, AlignContent, TextSizing, TextOverflow, TextAlign, FontStyle, PathPoint, ConstraintH, ConstraintV, BlendMode, LayoutGrid, SizingMode, Breakpoint};
+use crate::node::{Node, NodeKind, Fill, FillType, GradientStop, Stroke, StrokeAlign, LayoutMode, FlexDirection, Align, Justify, FlexWrap, AlignContent, TextSizing, TextOverflow, TextAlign, FontStyle, PathPoint, ConstraintH, ConstraintV, BlendMode, LayoutGrid, SizingMode, Breakpoint, ArrowStyle};
 
 fn parse_align(s: &str) -> Align {
     match s {
@@ -1295,8 +1295,9 @@ impl Engine {
             end_x: ex,
             end_y: ey,
             path_type: "straight".to_string(),
-            end_arrow: true,
-            start_arrow: false,
+            end_arrow: ArrowStyle::Arrow,
+            start_arrow: ArrowStyle::None,
+            arrow_size: 1.0,
             start_anchor: None,
             end_anchor: None,
         });
@@ -1321,8 +1322,32 @@ impl Engine {
     pub fn set_connector_arrows(&mut self, id: u64, start_arrow: bool, end_arrow: bool) {
         if let Some(node) = self.scene.get_node_mut(id) {
             if let NodeKind::Connector { start_arrow: ref mut sa, end_arrow: ref mut ea, .. } = node.kind {
-                *sa = start_arrow;
-                *ea = end_arrow;
+                *sa = ArrowStyle::from_bool(start_arrow);
+                *ea = ArrowStyle::from_bool(end_arrow);
+            }
+        }
+    }
+
+    pub fn set_connector_start_arrow_style(&mut self, id: u64, style: &str) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Connector { start_arrow: ref mut sa, .. } = node.kind {
+                *sa = ArrowStyle::from_str(style);
+            }
+        }
+    }
+
+    pub fn set_connector_end_arrow_style(&mut self, id: u64, style: &str) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Connector { end_arrow: ref mut ea, .. } = node.kind {
+                *ea = ArrowStyle::from_str(style);
+            }
+        }
+    }
+
+    pub fn set_connector_arrow_size(&mut self, id: u64, size: f64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Connector { arrow_size: ref mut s, .. } = node.kind {
+                *s = size.max(0.1).min(5.0);
             }
         }
     }
@@ -1366,7 +1391,7 @@ impl Engine {
 
     pub fn get_connector_info(&self, id: u64) -> String {
         if let Some(node) = self.scene.get_node(id) {
-            if let NodeKind::Connector { start_node_id, end_node_id, start_x, start_y, end_x, end_y, ref path_type, end_arrow, start_arrow, ref start_anchor, ref end_anchor } = node.kind {
+            if let NodeKind::Connector { start_node_id, end_node_id, start_x, start_y, end_x, end_y, ref path_type, ref end_arrow, ref start_arrow, ref start_anchor, ref end_anchor, arrow_size } = node.kind {
                 return serde_json::json!({
                     "start_node_id": start_node_id,
                     "end_node_id": end_node_id,
@@ -1375,8 +1400,11 @@ impl Engine {
                     "end_x": end_x,
                     "end_y": end_y,
                     "path_type": path_type,
-                    "end_arrow": end_arrow,
-                    "start_arrow": start_arrow,
+                    "end_arrow": end_arrow.to_str(),
+                    "start_arrow": start_arrow.to_str(),
+                    "end_arrow_bool": end_arrow.is_visible(),
+                    "start_arrow_bool": start_arrow.is_visible(),
+                    "arrow_size": arrow_size,
                     "start_anchor": start_anchor.as_ref().map(|a| a.as_str()),
                     "end_anchor": end_anchor.as_ref().map(|a| a.as_str()),
                 }).to_string();

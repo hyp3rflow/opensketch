@@ -529,8 +529,8 @@ impl Renderer {
                 self.render_table(ctx, node, *rows, *cols, cells, col_widths, row_heights);
             }
             NodeKind::Slice => {} // Slice nodes are rendered as overlays in TS
-            NodeKind::Connector { start_node_id, end_node_id, start_x, end_x, start_y, end_y, ref path_type, end_arrow, start_arrow, .. } => {
-                self.render_connector(ctx, node, scene, *start_node_id, *end_node_id, *start_x, *start_y, *end_x, *end_y, path_type, *end_arrow, *start_arrow);
+            NodeKind::Connector { start_node_id, end_node_id, start_x, end_x, start_y, end_y, ref path_type, ref end_arrow, ref start_arrow, arrow_size, .. } => {
+                self.render_connector(ctx, node, scene, *start_node_id, *end_node_id, *start_x, *start_y, *end_x, *end_y, path_type, end_arrow, start_arrow, *arrow_size);
             }
             NodeKind::Callout { ref content, font_size, tail_x, tail_y, tail_width, ref theme } => {
                 self.render_callout(ctx, node, content, *font_size, *tail_x, *tail_y, *tail_width, theme);
@@ -1688,7 +1688,7 @@ impl Renderer {
     fn render_connector(&self, ctx: &CanvasRenderingContext2d, node: &Node, scene: &Scene,
         start_node_id: u64, end_node_id: u64,
         mut sx: f64, mut sy: f64, mut ex: f64, mut ey: f64,
-        path_type: &str, end_arrow: bool, start_arrow: bool)
+        path_type: &str, end_arrow: &crate::node::ArrowStyle, start_arrow: &crate::node::ArrowStyle, arrow_size_mult: f64)
     {
         // Resolve endpoints from connected nodes
         if start_node_id != 0 {
@@ -1759,19 +1759,18 @@ impl Renderer {
         ctx.set_line_dash(&js_sys::Array::new()).ok();
 
         // Arrowheads
-        let arrow_size = (stroke_width * 4.0).max(8.0);
-        if end_arrow {
+        let arrow_size = (stroke_width * 4.0).max(8.0) * arrow_size_mult;
+        if end_arrow.is_visible() {
             let angle = if path_type == "curved" {
-                // Tangent at end of bezier
                 let cx2 = sx + (ex - sx) * 0.5;
                 let cy2 = ey;
                 (ey - cy2).atan2(ex - cx2)
             } else {
                 (ey - sy).atan2(ex - sx)
             };
-            self.draw_arrowhead(ctx, ex, ey, angle, arrow_size, &stroke_color);
+            self.draw_arrowhead_styled(ctx, ex, ey, angle, arrow_size, &stroke_color, end_arrow, stroke_width);
         }
-        if start_arrow {
+        if start_arrow.is_visible() {
             let angle = if path_type == "curved" {
                 let cx1 = sx + (ex - sx) * 0.5;
                 let cy1 = sy;
@@ -1779,19 +1778,75 @@ impl Renderer {
             } else {
                 (sy - ey).atan2(sx - ex)
             };
-            self.draw_arrowhead(ctx, sx, sy, angle, arrow_size, &stroke_color);
+            self.draw_arrowhead_styled(ctx, sx, sy, angle, arrow_size, &stroke_color, start_arrow, stroke_width);
         }
     }
 
-    fn draw_arrowhead(&self, ctx: &CanvasRenderingContext2d, x: f64, y: f64, angle: f64, size: f64, color: &str) {
-        let a1 = angle - std::f64::consts::FRAC_PI_6;
-        let a2 = angle + std::f64::consts::FRAC_PI_6;
-        ctx.begin_path();
-        ctx.move_to(x - size * a1.cos(), y - size * a1.sin());
-        ctx.line_to(x, y);
-        ctx.line_to(x - size * a2.cos(), y - size * a2.sin());
-        ctx.set_fill_style_str(color);
-        ctx.fill();
+    fn draw_arrowhead_styled(&self, ctx: &CanvasRenderingContext2d, x: f64, y: f64, angle: f64, size: f64, color: &str, style: &crate::node::ArrowStyle, stroke_width: f64) {
+        use crate::node::ArrowStyle;
+        match style {
+            ArrowStyle::None => {},
+            ArrowStyle::Arrow => {
+                // Filled triangle
+                let a1 = angle - std::f64::consts::FRAC_PI_6;
+                let a2 = angle + std::f64::consts::FRAC_PI_6;
+                ctx.begin_path();
+                ctx.move_to(x - size * a1.cos(), y - size * a1.sin());
+                ctx.line_to(x, y);
+                ctx.line_to(x - size * a2.cos(), y - size * a2.sin());
+                ctx.close_path();
+                ctx.set_fill_style_str(color);
+                ctx.fill();
+            },
+            ArrowStyle::OpenArrow => {
+                // Open V shape (no fill, just stroke)
+                let a1 = angle - std::f64::consts::FRAC_PI_6;
+                let a2 = angle + std::f64::consts::FRAC_PI_6;
+                ctx.begin_path();
+                ctx.move_to(x - size * a1.cos(), y - size * a1.sin());
+                ctx.line_to(x, y);
+                ctx.line_to(x - size * a2.cos(), y - size * a2.sin());
+                ctx.set_stroke_style_str(color);
+                ctx.set_line_width(stroke_width);
+                ctx.stroke();
+            },
+            ArrowStyle::Diamond => {
+                // Rotated square (diamond)
+                let hs = size * 0.5;
+                ctx.begin_path();
+                ctx.move_to(x + hs * angle.cos(), y + hs * angle.sin());
+                ctx.line_to(x + hs * (angle + std::f64::consts::FRAC_PI_2).cos(), y + hs * (angle + std::f64::consts::FRAC_PI_2).sin());
+                ctx.line_to(x - hs * angle.cos(), y - hs * angle.sin());
+                ctx.line_to(x + hs * (angle - std::f64::consts::FRAC_PI_2).cos(), y + hs * (angle - std::f64::consts::FRAC_PI_2).sin());
+                ctx.close_path();
+                ctx.set_fill_style_str(color);
+                ctx.fill();
+            },
+            ArrowStyle::Circle => {
+                let r = size * 0.35;
+                ctx.begin_path();
+                ctx.arc(x, y, r, 0.0, std::f64::consts::TAU).ok();
+                ctx.set_fill_style_str(color);
+                ctx.fill();
+            },
+            ArrowStyle::Square => {
+                let hs = size * 0.35;
+                // Axis-aligned square centered at (x,y)
+                ctx.begin_path();
+                let cos_a = angle.cos();
+                let sin_a = angle.sin();
+                // Rotated square
+                for i in 0..4 {
+                    let corner_angle = angle + std::f64::consts::FRAC_PI_4 + (i as f64) * std::f64::consts::FRAC_PI_2;
+                    let cx = x + hs * 1.414 * corner_angle.cos();
+                    let cy = y + hs * 1.414 * corner_angle.sin();
+                    if i == 0 { ctx.move_to(cx, cy); } else { ctx.line_to(cx, cy); }
+                }
+                ctx.close_path();
+                ctx.set_fill_style_str(color);
+                ctx.fill();
+            },
+        }
     }
 
     /// Clip a line from center to target through a rectangle edge

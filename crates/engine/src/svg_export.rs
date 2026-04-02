@@ -713,7 +713,7 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
             // Slice nodes are export regions — not rendered in SVG
             return;
         }
-        NodeKind::Connector { start_node_id, end_node_id, start_x, end_x, start_y, end_y, ref path_type, end_arrow, start_arrow, .. } => {
+        NodeKind::Connector { start_node_id, end_node_id, start_x, end_x, start_y, end_y, ref path_type, ref end_arrow, ref start_arrow, arrow_size, .. } => {
             // Resolve endpoints
             let mut sx = *start_x;
             let mut sy = *start_y;
@@ -737,13 +737,28 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
             let stroke_hex = node.first_stroke()
                 .map(|s| color_to_hex(s.color.r, s.color.g, s.color.b))
                 .unwrap_or_else(|| "#ffffff".to_string());
+            let marker_size = (6.0 * arrow_size).max(3.0);
             let mut defs = String::new();
-            if *end_arrow || *start_arrow {
+            let need_markers = end_arrow.is_visible() || start_arrow.is_visible();
+            if need_markers {
                 defs.push_str("<defs>");
-                defs.push_str(&format!(
-                    r#"<marker id="{}" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="{}"/></marker>"#,
-                    marker_id, stroke_hex
-                ));
+                // Generate markers for each unique style used
+                for (suffix, style) in [("end", end_arrow), ("start", start_arrow)] {
+                    if !style.is_visible() { continue; }
+                    let mid = format!("{}-{}", marker_id, suffix);
+                    let marker_path = match style {
+                        crate::node::ArrowStyle::Arrow => format!(r#"<path d="M 0 0 L 10 5 L 0 10 z" fill="{}"/>"#, stroke_hex),
+                        crate::node::ArrowStyle::OpenArrow => format!(r#"<path d="M 0 0 L 10 5 L 0 10" fill="none" stroke="{}" stroke-width="1.5"/>"#, stroke_hex),
+                        crate::node::ArrowStyle::Diamond => format!(r#"<path d="M 0 5 L 5 0 L 10 5 L 5 10 z" fill="{}"/>"#, stroke_hex),
+                        crate::node::ArrowStyle::Circle => format!(r#"<circle cx="5" cy="5" r="4" fill="{}"/>"#, stroke_hex),
+                        crate::node::ArrowStyle::Square => format!(r#"<rect x="1" y="1" width="8" height="8" fill="{}"/>"#, stroke_hex),
+                        _ => String::new(),
+                    };
+                    defs.push_str(&format!(
+                        r#"<marker id="{}" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="{}" markerHeight="{}" orient="auto-start-reverse">{}</marker>"#,
+                        mid, marker_size, marker_size, marker_path
+                    ));
+                }
                 defs.push_str("</defs>\n");
             }
             buf.push_str(&defs);
@@ -765,11 +780,11 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
             } else {
                 attrs.push_str(r##" stroke="#ffffff" stroke-width="2""##);
             }
-            if *end_arrow {
-                attrs.push_str(&format!(r#" marker-end="url(#{})""#, marker_id));
+            if end_arrow.is_visible() {
+                attrs.push_str(&format!(r#" marker-end="url(#{}-end)""#, marker_id));
             }
-            if *start_arrow {
-                attrs.push_str(&format!(r#" marker-start="url(#{})""#, marker_id));
+            if start_arrow.is_visible() {
+                attrs.push_str(&format!(r#" marker-start="url(#{}-start)""#, marker_id));
             }
             if has_opacity { attrs.push_str(&format!(r#" opacity="{}""#, node.opacity)); }
             attrs.push_str("/>\n");
