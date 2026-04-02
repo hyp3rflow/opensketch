@@ -747,6 +747,59 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       batchSection.appendChild(opCrRow);
       wrap.appendChild(batchSection);
 
+      // =============================================
+      // Selection Colors (Figma-style)
+      // =============================================
+      try {
+        const idsJsonStr = JSON.stringify(ids);
+        const colorsJson = (editor.engine as any).get_selection_colors(idsJsonStr);
+        const colors: { hex: string; alpha: number; count: number; source: string }[] = JSON.parse(colorsJson);
+        if (colors.length > 0) {
+          const colorSection = createSection("Selection Colors");
+          const colorGrid = document.createElement("div");
+          colorGrid.style.cssText = "display:flex;flex-wrap:wrap;gap:6px;";
+          for (const c of colors) {
+            const item = document.createElement("div");
+            item.style.cssText = "display:flex;align-items:center;gap:4px;padding:4px 8px;background:#1e1e1e;border:1px solid #333;border-radius:6px;cursor:pointer;transition:all 0.15s;";
+            item.addEventListener("mouseenter", () => { item.style.borderColor = "#4f46e5"; });
+            item.addEventListener("mouseleave", () => { item.style.borderColor = "#333"; });
+
+            const swatch = document.createElement("input");
+            swatch.type = "color";
+            swatch.value = c.hex;
+            swatch.style.cssText = "width:20px;height:20px;border:1px solid #555;border-radius:4px;cursor:pointer;padding:0;background:none;";
+
+            const label = document.createElement("span");
+            label.style.cssText = "font-size:10px;color:#aaa;font-family:monospace;";
+            label.textContent = c.hex.toUpperCase();
+
+            const badge = document.createElement("span");
+            badge.style.cssText = "font-size:9px;color:#666;background:#2a2a2a;padding:1px 4px;border-radius:3px;";
+            badge.textContent = `${c.count}× ${c.source === "both" ? "F+S" : c.source === "fill" ? "F" : "S"}`;
+
+            swatch.addEventListener("input", () => {
+              const hex = swatch.value.replace("#", "");
+              const nr = parseInt(hex.substring(0, 2), 16);
+              const ng = parseInt(hex.substring(2, 4), 16);
+              const nb = parseInt(hex.substring(4, 6), 16);
+              const oldHex = c.hex.replace("#", "");
+              editor.engine.push_undo();
+              (editor.engine as any).replace_color_in_nodes(idsJsonStr, oldHex, nr, ng, nb, c.alpha);
+              editor.requestRender();
+              label.textContent = swatch.value.toUpperCase();
+              c.hex = swatch.value;
+            });
+
+            item.appendChild(swatch);
+            item.appendChild(label);
+            item.appendChild(badge);
+            colorGrid.appendChild(item);
+          }
+          colorSection.appendChild(colorGrid);
+          wrap.appendChild(colorSection);
+        }
+      } catch {}
+
       container.appendChild(wrap);
       return;
     }

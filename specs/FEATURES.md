@@ -2057,3 +2057,11 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Automatic fallback to cross-fade when nodes aren't both Paths
 - [x] AnimProperty::PathMorph for keyframe-based path morph in animation timeline
 - [x] NodeSnapshot includes path_points/path_closed for smart animate path detection
+
+## Selection Colors (Figma-style)
+- [x] Rust: get_selection_colors(ids_json) — collects all unique solid colors from fills/strokes
+- [x] Rust: replace_color_in_nodes(ids_json, old_hex, r, g, b, a) — batch color replacement
+- [x] WASM: both methods exposed via wasm-bindgen
+- [x] Properties panel: "Selection Colors" section for multi-select (2+ nodes)
+- [x] Color swatches with hex label, count badge (F/S/F+S), inline color picker
+- [x] Real-time color replacement across all selected nodes

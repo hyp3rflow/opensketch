@@ -10500,4 +10500,143 @@ impl Engine {
         self.scene.clear_expired_annotations(now_ms, ttl_ms)
     }
 
+    // =============================================
+    // Selection colors (Figma-style)
+    // =============================================
+
+    /// Collect all unique solid colors from fills and strokes of the given nodes.
+    /// ids_json: JSON array of node IDs, e.g. "[1,2,3]"
+    /// Returns JSON: [{ "hex": "#rrggbb", "alpha": 0-1, "count": N, "source": "fill"|"stroke"|"both" }]
+    pub fn get_selection_colors(&self, ids_json: &str) -> String {
+        let ids: Vec<u64> = serde_json::from_str(ids_json).unwrap_or_default();
+        use std::collections::BTreeMap;
+
+        #[derive(Default)]
+        struct ColorEntry {
+            count: u32,
+            in_fill: bool,
+            in_stroke: bool,
+            alpha: f64,
+        }
+
+        let mut map: BTreeMap<String, ColorEntry> = BTreeMap::new();
+
+        for &id in &ids {
+            if let Some(node) = self.scene.get_node(id) {
+                // Collect from fills
+                for f in &node.fills {
+                    if !f.visible { continue; }
+                    if let crate::node::FillType::Solid { color } = &f.fill_type {
+                        let hex = format!("{:02x}{:02x}{:02x}", color.r, color.g, color.b);
+                        let entry = map.entry(hex).or_default();
+                        entry.count += 1;
+                        entry.in_fill = true;
+                        entry.alpha = color.a;
+                    }
+                }
+                // Legacy single fill
+                if node.fills.is_empty() {
+                    if let Some(ref fill) = node.fill {
+                        if let crate::node::FillType::Solid { color } = &fill.fill_type {
+                            let hex = format!("{:02x}{:02x}{:02x}", color.r, color.g, color.b);
+                            let entry = map.entry(hex).or_default();
+                            entry.count += 1;
+                            entry.in_fill = true;
+                            entry.alpha = color.a;
+                        }
+                    }
+                }
+                // Collect from strokes
+                for s in &node.strokes {
+                    let c = &s.color;
+                    let hex = format!("{:02x}{:02x}{:02x}", c.r, c.g, c.b);
+                    let entry = map.entry(hex).or_default();
+                    entry.count += 1;
+                    entry.in_stroke = true;
+                    entry.alpha = c.a;
+                }
+                if node.strokes.is_empty() {
+                    if let Some(ref s) = node.stroke {
+                        let c = &s.color;
+                        let hex = format!("{:02x}{:02x}{:02x}", c.r, c.g, c.b);
+                        let entry = map.entry(hex).or_default();
+                        entry.count += 1;
+                        entry.in_stroke = true;
+                        entry.alpha = c.a;
+                    }
+                }
+            }
+        }
+
+        let result: Vec<serde_json::Value> = map.iter().map(|(hex, e)| {
+            let source = if e.in_fill && e.in_stroke { "both" }
+                else if e.in_fill { "fill" }
+                else { "stroke" };
+            serde_json::json!({
+                "hex": format!("#{}", hex),
+                "alpha": e.alpha,
+                "count": e.count,
+                "source": source
+            })
+        }).collect();
+
+        serde_json::to_string(&result).unwrap_or_else(|_| "[]".to_string())
+    }
+
+    /// Replace a color across all given nodes (in fills and strokes).
+    /// ids_json: JSON array of node IDs. old_hex: "rrggbb" (without #). Returns number of replacements.
+    pub fn replace_color_in_nodes(&mut self, ids_json: &str, old_hex: &str, new_r: u8, new_g: u8, new_b: u8, new_a: f64) -> u32 {
+        let ids: Vec<u64> = serde_json::from_str(ids_json).unwrap_or_default();
+        let old_r = u8::from_str_radix(&old_hex[0..2], 16).unwrap_or(0);
+        let old_g = u8::from_str_radix(&old_hex[2..4], 16).unwrap_or(0);
+        let old_b = u8::from_str_radix(&old_hex[4..6], 16).unwrap_or(0);
+        let mut count = 0u32;
+
+        for &id in &ids {
+            if let Some(node) = self.scene.get_node_mut(id) {
+                for f in &mut node.fills {
+                    if let crate::node::FillType::Solid { ref mut color } = f.fill_type {
+                        if color.r == old_r && color.g == old_g && color.b == old_b {
+                            color.r = new_r;
+                            color.g = new_g;
+                            color.b = new_b;
+                            color.a = new_a;
+                            count += 1;
+                        }
+                    }
+                }
+                if let Some(ref mut fill) = node.fill {
+                    if let crate::node::FillType::Solid { ref mut color } = fill.fill_type {
+                        if color.r == old_r && color.g == old_g && color.b == old_b {
+                            color.r = new_r;
+                            color.g = new_g;
+                            color.b = new_b;
+                            color.a = new_a;
+                            count += 1;
+                        }
+                    }
+                }
+                for s in &mut node.strokes {
+                    if s.color.r == old_r && s.color.g == old_g && s.color.b == old_b {
+                        s.color.r = new_r;
+                        s.color.g = new_g;
+                        s.color.b = new_b;
+                        s.color.a = new_a;
+                        count += 1;
+                    }
+                }
+                if let Some(ref mut s) = node.stroke {
+                    if s.color.r == old_r && s.color.g == old_g && s.color.b == old_b {
+                        s.color.r = new_r;
+                        s.color.g = new_g;
+                        s.color.b = new_b;
+                        s.color.a = new_a;
+                        count += 1;
+                    }
+                }
+            }
+        }
+        count
+    }
+
 }
