@@ -27,8 +27,9 @@ fn first_stroke_color(node: &Node) -> Option<String> {
 fn build_filter_defs(node: &Node, filter_id: &str) -> Option<String> {
     let has_shadows = node.shadows.iter().any(|s| s.visible);
     let has_blur = node.blur > 0.0;
+    let has_backdrop_blur = node.backdrop_blur > 0.0;
     let has_bitmap = node.bitmap_filter.as_ref().map_or(false, |bf| bf.enabled && !bf.is_identity());
-    if !has_shadows && !has_blur && !has_bitmap {
+    if !has_shadows && !has_blur && !has_backdrop_blur && !has_bitmap {
         return None;
     }
     let mut defs = format!(r#"<filter id="{}" x="-50%" y="-50%" width="200%" height="200%">"#, filter_id);
@@ -149,6 +150,11 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
     } else {
         String::new()
     };
+    let backdrop_attr = if node.backdrop_blur > 0.0 {
+        format!(r#" style="backdrop-filter: blur({}px); -webkit-backdrop-filter: blur({}px)""#, node.backdrop_blur, node.backdrop_blur)
+    } else {
+        String::new()
+    };
 
     match &node.kind {
         NodeKind::Rect => {
@@ -166,6 +172,7 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
             }
             append_blend_mode(&mut attrs, node);
             attrs.push_str(&filter_attr);
+            attrs.push_str(&backdrop_attr);
             attrs.push_str("/>\n");
             buf.push_str(&attrs);
         }
@@ -188,6 +195,7 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
             }
             append_blend_mode(&mut attrs, node);
             attrs.push_str(&filter_attr);
+            attrs.push_str(&backdrop_attr);
             attrs.push_str("/>\n");
             buf.push_str(&attrs);
         }
@@ -480,6 +488,7 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
                     if has_opacity { attrs.push_str(&format!(r#" opacity="{}""#, node.opacity)); }
                     append_blend_mode(&mut attrs, node);
                     attrs.push_str(&filter_attr);
+            attrs.push_str(&backdrop_attr);
                     attrs.push_str("/>\n");
                     buf.push_str(&attrs);
                 }
@@ -492,6 +501,7 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
                 }
                 append_blend_mode(&mut attrs, node);
                 attrs.push_str(&filter_attr);
+            attrs.push_str(&backdrop_attr);
                 attrs.push_str("/>\n");
                 buf.push_str(&attrs);
             }
@@ -501,6 +511,7 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
             if has_opacity { group.push_str(&format!(r#" opacity="{}""#, node.opacity)); }
             append_blend_mode(&mut group, node);
             group.push_str(&filter_attr);
+            group.push_str(&backdrop_attr);
             group.push_str(">\n");
             // Render regions as filled paths
             for region in &vn.regions {
@@ -602,6 +613,7 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
             if has_opacity { attrs.push_str(&format!(r#" opacity="{}""#, node.opacity)); }
             append_blend_mode(&mut attrs, node);
             attrs.push_str(&filter_attr);
+            attrs.push_str(&backdrop_attr);
             attrs.push_str("/>\n");
             buf.push_str(&attrs);
         }
@@ -622,6 +634,7 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
             if has_opacity { attrs.push_str(&format!(r#" opacity="{}""#, node.opacity)); }
             append_blend_mode(&mut attrs, node);
             attrs.push_str(&filter_attr);
+            attrs.push_str(&backdrop_attr);
             attrs.push_str("/>\n");
             buf.push_str(&attrs);
         }

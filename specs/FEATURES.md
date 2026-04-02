@@ -26,6 +26,7 @@
 - [x] Rotation support (node-level)
 - [x] Drop shadow rendering (multi-pass Canvas shadow API, per-node multiple shadows)
 - [x] Layer blur (CSS filter blur via Canvas API)
+- [x] Backdrop blur (frosted glass effect — blurs content behind node)
 
 ### UI Panels
 - [x] **Left Panel** with tab navigation (Layers / Design)

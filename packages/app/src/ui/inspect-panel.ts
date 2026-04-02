@@ -39,6 +39,7 @@ export function setupInspectPanel(container: HTMLElement, editor: Editor) {
     const shadowsJson = editor.engine.get_shadows(bid);
     const shadows = shadowsJson ? JSON.parse(shadowsJson) : [];
     const blur = editor.engine.get_blur(bid);
+    const backdropBlur = editor.engine.get_backdrop_blur(bid);
     const blendMode = editor.engine.get_blend_mode(bid);
     const layoutJson = editor.engine.get_layout(bid);
     const layout = layoutJson ? JSON.parse(layoutJson) : null;
@@ -84,7 +85,7 @@ export function setupInspectPanel(container: HTMLElement, editor: Editor) {
     wrap.appendChild(tabBar);
 
     // Generate code
-    const ctx = { node, fill: fillInfo, stroke: strokeInfo, shadows, blur, blendMode, layout, bitmapFilter };
+    const ctx = { node, fill: fillInfo, stroke: strokeInfo, shadows, blur, backdropBlur, blendMode, layout, bitmapFilter };
     let code = "";
     switch (currentLang) {
       case "css": code = generateCSS(ctx); break;
@@ -278,6 +279,7 @@ interface CodeCtx {
   stroke: any;
   shadows: any[];
   blur: number;
+  backdropBlur: number;
   blendMode: string;
   layout: any;
   bitmapFilter: any;
@@ -391,6 +393,12 @@ function generateCSS(ctx: CodeCtx): string {
       if (Math.abs(bf.sepia) >= 0.001) parts.push(`sepia(${bf.sepia})`);
     }
     if (parts.length > 0) lines.push(`filter: ${parts.join(" ")};`);
+  }
+
+  // Backdrop blur
+  if (ctx.backdropBlur && ctx.backdropBlur > 0) {
+    lines.push(`backdrop-filter: blur(${ctx.backdropBlur}px);`);
+    lines.push(`-webkit-backdrop-filter: blur(${ctx.backdropBlur}px);`);
   }
 
   // Blend
@@ -598,6 +606,11 @@ function generateSwiftUI(ctx: CodeCtx): string {
   // Blur
   if (blur && blur > 0) {
     lines.push(`    .blur(radius: ${blur})`);
+  }
+
+  // Backdrop blur
+  if (ctx.backdropBlur && ctx.backdropBlur > 0) {
+    lines.push(`    .background(.ultraThinMaterial)`);
   }
 
   // Blend mode

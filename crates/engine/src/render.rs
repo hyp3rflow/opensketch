@@ -510,6 +510,20 @@ impl Renderer {
             ctx.restore();
         }
 
+        // Backdrop blur: clip to node shape, draw existing canvas content with blur
+        if node.backdrop_blur > 0.0 && node.width > 0.0 && node.height > 0.0 {
+            if let Some(canvas_el) = ctx.canvas() {
+                ctx.save();
+                self.build_clip_path(ctx, node);
+                ctx.clip();
+                ctx.set_filter(&format!("blur({}px)", node.backdrop_blur));
+                // Draw the current canvas content back into the clipped+blurred region
+                ctx.draw_image_with_html_canvas_element(&canvas_el, 0.0, 0.0).ok();
+                ctx.set_filter("none");
+                ctx.restore();
+            }
+        }
+
         match &node.kind {
             NodeKind::Rect => self.render_rect(ctx, node),
             NodeKind::Ellipse => self.render_ellipse(ctx, node),

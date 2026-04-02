@@ -6564,6 +6564,20 @@ impl Engine {
         }
     }
 
+    pub fn set_backdrop_blur(&mut self, id: u64, blur: f64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            node.backdrop_blur = blur.max(0.0);
+        }
+    }
+
+    pub fn get_backdrop_blur(&self, id: u64) -> f64 {
+        if let Some(node) = self.scene.get_node(id) {
+            node.backdrop_blur
+        } else {
+            0.0
+        }
+    }
+
     // =============================================
     // Bitmap Filters
     // =============================================

@@ -109,6 +109,14 @@ Pure Rust crate compiled to WASM via `wasm-pack`. No NAPI — runs entirely in t
 - SVG: `<feGaussianBlur>` filter
 - WASM: `set_blur`, `get_blur`
 
+### Backdrop Blur (Frosted Glass)
+- Node has `backdrop_blur: f64` — blurs content behind this node (0 = none)
+- Canvas: clips to node shape, draws existing canvas with `ctx.filter = "blur(Xpx)"`
+- SVG: `style="backdrop-filter: blur(Xpx)"`
+- CSS: `backdrop-filter: blur(Xpx); -webkit-backdrop-filter: blur(Xpx);`
+- SwiftUI: `.background(.ultraThinMaterial)`
+- WASM: `set_backdrop_blur`, `get_backdrop_blur`
+
 ### Constraints (Responsive Resize)
 - Node has `constraints: Constraints` with `horizontal: ConstraintH` and `vertical: ConstraintV`
 - `ConstraintH`: Left (default), Right, LeftAndRight, Center, Scale

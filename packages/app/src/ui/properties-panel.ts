@@ -2758,6 +2758,25 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       blurRow.appendChild(blurInput);
       effectsSection.appendChild(blurRow);
 
+      // Backdrop blur
+      const bdBlurVal = editor.engine.get_backdrop_blur(BigInt(id));
+      const bdBlurRow = document.createElement("div");
+      bdBlurRow.className = "prop-row";
+      const bdBlurLabel = document.createElement("span");
+      bdBlurLabel.className = "prop-label";
+      bdBlurLabel.style.width = "40px";
+      bdBlurLabel.textContent = "BG Blur";
+      bdBlurRow.appendChild(bdBlurLabel);
+      const bdBlurInput = document.createElement("input");
+      bdBlurInput.className = "prop-input";
+      bdBlurInput.value = String(bdBlurVal || 0);
+      bdBlurInput.addEventListener("change", () => {
+        editor.engine.set_backdrop_blur(BigInt(id), parseFloat(bdBlurInput.value) || 0);
+        editor.requestRender();
+      });
+      bdBlurRow.appendChild(bdBlurInput);
+      effectsSection.appendChild(bdBlurRow);
+
       // Blend mode
       const blendRow = document.createElement("div");
       blendRow.className = "prop-row";
@@ -3049,6 +3068,27 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       });
       blurRow.appendChild(blurInput);
       effectsSection.appendChild(blurRow);
+
+      // Backdrop blur
+      const bdBlurRow2 = document.createElement("div");
+      bdBlurRow2.className = "prop-row";
+      const bdBlurLabel2 = document.createElement("span");
+      bdBlurLabel2.className = "prop-label";
+      bdBlurLabel2.style.width = "40px";
+      bdBlurLabel2.textContent = "BG Blur";
+      bdBlurRow2.appendChild(bdBlurLabel2);
+      const bdBlurInput2 = document.createElement("input");
+      bdBlurInput2.className = "prop-input";
+      bdBlurInput2.type = "number";
+      bdBlurInput2.min = "0";
+      bdBlurInput2.step = "1";
+      bdBlurInput2.value = String(editor.engine.get_backdrop_blur(id) || 0);
+      bdBlurInput2.addEventListener("change", () => {
+        editor.engine.set_backdrop_blur(id, parseFloat(bdBlurInput2.value) || 0);
+        editor.requestRender();
+      });
+      bdBlurRow2.appendChild(bdBlurInput2);
+      effectsSection.appendChild(bdBlurRow2);
 
       // Shadows
       const shadowsJson = editor.engine.get_shadows(id);

@@ -1894,6 +1894,9 @@ pub struct Node {
     /// Layer blur (0 = none)
     #[serde(default)]
     pub blur: f64,
+    /// Backdrop blur: blurs content behind this node (frosted glass effect)
+    #[serde(default)]
+    pub backdrop_blur: f64,
     /// Constraints (responsive resize behavior relative to parent)
     #[serde(default)]
     pub constraints: Constraints,
@@ -2086,6 +2089,7 @@ impl Node {
             notes: vec![],
             shadows: vec![],
             blur: 0.0,
+            backdrop_blur: 0.0,
             constraints: Constraints::default(),
             is_mask: false,
             blend_mode: BlendMode::default(),
