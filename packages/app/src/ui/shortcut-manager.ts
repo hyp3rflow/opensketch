@@ -50,6 +50,7 @@ const DEFAULTS: ShortcutDef[] = [
   { id: "edit.copy",       category: "Edit", description: "Copy",          defaultBinding: { key: "c", meta: true } },
   { id: "edit.cut",        category: "Edit", description: "Cut",           defaultBinding: { key: "x", meta: true } },
   { id: "edit.paste",      category: "Edit", description: "Paste",         defaultBinding: { key: "v", meta: true } },
+  { id: "edit.pasteInPlace", category: "Edit", description: "Paste in Place", defaultBinding: { key: "v", meta: true, shift: true } },
   { id: "edit.duplicate",  category: "Edit", description: "Duplicate",     defaultBinding: { key: "d", meta: true } },
   { id: "edit.save",       category: "Edit", description: "Save",          defaultBinding: { key: "s", meta: true } },
   { id: "edit.saveAs",     category: "Edit", description: "Save As…",      defaultBinding: { key: "s", meta: true, shift: true } },

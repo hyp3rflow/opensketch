@@ -18,7 +18,6 @@
   "tool.table": "표 (B)",
   "tool.freehand": "자유 그리기 (D)",
   "tool.annotate": "주석 브러시 (A)",
-
   "toolbar.addImage": "이미지 추가",
   "toolbar.importSvg": "SVG 가져오기",
   "toolbar.designSystem": "디자인 시스템 (D)",
@@ -53,7 +52,6 @@
   "toolbar.fileDiff": "파일 비교 및 병합 (⌘⇧D)",
   "toolbar.editMode": "편집 모드",
   "toolbar.devMode": "개발 모드",
-
   "layers.title": "레이어",
   "layers.searchPlaceholder": "레이어 필터…",
   "layers.searchTooltip": "레이어 검색 (Ctrl+F)",
@@ -71,7 +69,6 @@
   "layers.resetOverrides": "이 인스턴스의 모든 오버라이드를 초기화하시겠습니까?",
   "layers.removeBookmark": "북마크 제거",
   "layers.bookmark": "북마크",
-
   "properties.selectElement": "요소를 선택하세요",
   "properties.stylesLibrary": "스타일 라이브러리",
   "properties.exportStyles": "스타일 내보내기",
@@ -106,12 +103,10 @@
   "properties.chooseImage": "이미지 선택…",
   "properties.scale": "크기",
   "properties.rotation": "회전",
-
   "agent.title": "에이전트",
   "agent.placeholder": "AI 에이전트에게 물어보세요…",
   "agent.send": "전송",
   "agent.thinking": "생각 중…",
-
   "common.language": "언어",
   "common.settings": "설정",
   "common.cancel": "취소",
@@ -119,5 +114,6 @@
   "common.ok": "확인",
   "common.close": "닫기",
   "common.search": "검색",
-  "common.reset": "초기화"
+  "common.reset": "초기화",
+  "edit.pasteInPlace": "제자리에 붙여넣기"
 }

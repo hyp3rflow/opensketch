@@ -18,7 +18,6 @@
   "tool.table": "Table (B)",
   "tool.freehand": "Freehand (D)",
   "tool.annotate": "Annotation Brush (A)",
-
   "toolbar.addImage": "Add Image",
   "toolbar.importSvg": "Import SVG",
   "toolbar.designSystem": "Design System (D)",
@@ -53,7 +52,6 @@
   "toolbar.fileDiff": "File Diff & Merge (⌘⇧D)",
   "toolbar.editMode": "Edit Mode",
   "toolbar.devMode": "Dev Mode",
-
   "layers.title": "Layers",
   "layers.searchPlaceholder": "Filter layers…",
   "layers.searchTooltip": "Search layers (Ctrl+F)",
@@ -71,7 +69,6 @@
   "layers.resetOverrides": "Reset all overrides on this instance?",
   "layers.removeBookmark": "Remove bookmark",
   "layers.bookmark": "Bookmark",
-
   "properties.selectElement": "Select an element",
   "properties.stylesLibrary": "Styles Library",
   "properties.exportStyles": "Export Styles",
@@ -106,12 +103,10 @@
   "properties.chooseImage": "Choose image…",
   "properties.scale": "Scale",
   "properties.rotation": "Rot",
-
   "agent.title": "Agent",
   "agent.placeholder": "Ask the AI agent…",
   "agent.send": "Send",
   "agent.thinking": "Thinking…",
-
   "common.language": "Language",
   "common.settings": "Settings",
   "common.cancel": "Cancel",
@@ -119,5 +114,6 @@
   "common.ok": "OK",
   "common.close": "Close",
   "common.search": "Search",
-  "common.reset": "Reset"
+  "common.reset": "Reset",
+  "edit.pasteInPlace": "Paste in Place"
 }

@@ -526,6 +526,12 @@ export class Editor {
         }
         return;
       }
+      // Paste in Place (Cmd+Shift+V) — must check before edit.paste
+      if (_sm.matches(e, "edit.pasteInPlace")) {
+        e.preventDefault();
+        this.pasteNodesInPlace();
+        return;
+      }
       // Paste
       if (_sm.matches(e, "edit.paste")) {
         e.preventDefault();
@@ -4127,6 +4133,17 @@ export class Editor {
     }
   }
 
+  private pasteNodesInPlace() {
+    if (this._clipboard) {
+      this.engine.push_undo();
+      const newIds = this.engine.paste_nodes(this._clipboard, 0, 0);
+      const ids = JSON.parse(newIds).map(Number);
+      this.onLayersChanges.forEach(fn => fn());
+      this.fireSelectionNow(ids);
+      this.needsRender = true;
+    }
+  }
+
   private createImageFromBlob(blob: Blob) {
     const reader = new FileReader();
     reader.onload = () => {
@@ -6206,6 +6223,7 @@ export class Editor {
       items.push({ label: "Copy", shortcut: `${mod}C`, enabled: true, action: () => this.ctxCopy() });
       items.push({ label: "Cut", shortcut: `${mod}X`, enabled: true, action: () => this.ctxCut() });
       items.push({ label: "Paste", shortcut: `${mod}V`, enabled: !!this._clipboard, action: () => this.pasteNodes() });
+      items.push({ label: "Paste in Place", shortcut: `${mod}⇧V`, enabled: !!this._clipboard, action: () => this.pasteNodesInPlace() });
       items.push({ label: "Duplicate", shortcut: `${mod}D`, enabled: true, action: () => this.ctxDuplicate() });
       items.push({ label: "Delete", shortcut: "⌫", enabled: true, action: () => this.ctxDelete() });
       items.push({ separator: true, label: "" });
@@ -6298,6 +6316,7 @@ export class Editor {
     } else {
       // Empty canvas context menu
       items.push({ label: "Paste", shortcut: `${mod}V`, enabled: !!this._clipboard, action: () => this.pasteNodes() });
+      items.push({ label: "Paste in Place", shortcut: `${mod}⇧V`, enabled: !!this._clipboard, action: () => this.pasteNodesInPlace() });
       items.push({ label: "Select All", shortcut: `${mod}A`, action: () => this.ctxSelectAll() });
       items.push({ separator: true, label: "" });
       items.push({ label: "Zoom to Fit", shortcut: `${mod}1`, action: () => this.zoomToFit() });

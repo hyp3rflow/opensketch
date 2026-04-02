@@ -18,7 +18,6 @@
   "tool.table": "テーブル (B)",
   "tool.freehand": "フリーハンド (D)",
   "tool.annotate": "注釈ブラシ (A)",
-
   "toolbar.addImage": "画像を追加",
   "toolbar.importSvg": "SVGインポート",
   "toolbar.designSystem": "デザインシステム (D)",
@@ -53,7 +52,6 @@
   "toolbar.fileDiff": "ファイル差分・マージ (⌘⇧D)",
   "toolbar.editMode": "編集モード",
   "toolbar.devMode": "開発モード",
-
   "layers.title": "レイヤー",
   "layers.searchPlaceholder": "レイヤーを検索…",
   "layers.searchTooltip": "レイヤー検索 (Ctrl+F)",
@@ -71,7 +69,6 @@
   "layers.resetOverrides": "このインスタンスの全オーバーライドをリセットしますか？",
   "layers.removeBookmark": "ブックマーク解除",
   "layers.bookmark": "ブックマーク",
-
   "properties.selectElement": "要素を選択してください",
   "properties.stylesLibrary": "スタイルライブラリ",
   "properties.exportStyles": "スタイルエクスポート",
@@ -106,12 +103,10 @@
   "properties.chooseImage": "画像を選択…",
   "properties.scale": "スケール",
   "properties.rotation": "回転",
-
   "agent.title": "エージェント",
   "agent.placeholder": "AIエージェントに質問…",
   "agent.send": "送信",
   "agent.thinking": "考え中…",
-
   "common.language": "言語",
   "common.settings": "設定",
   "common.cancel": "キャンセル",
@@ -119,5 +114,6 @@
   "common.ok": "OK",
   "common.close": "閉じる",
   "common.search": "検索",
-  "common.reset": "リセット"
+  "common.reset": "リセット",
+  "edit.pasteInPlace": "同じ位置に貼り付け"
 }
