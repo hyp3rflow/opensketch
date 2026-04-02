@@ -35,7 +35,7 @@ Pure Rust crate compiled to WASM via `wasm-pack`. No NAPI — runs entirely in t
 - `StrokeAlign { Center, Inside, Outside }` — stroke alignment (Figma-style)
 - `LineCap { Butt, Round, Square }` — stroke end cap style
 - `LineJoin { Miter, Round, Bevel }` — stroke corner join style
-- `Shadow { color: Color, offset_x, offset_y, blur, spread, visible }` — drop shadow effect
+- `Shadow { color: Color, offset_x, offset_y, blur, spread, visible, inset: bool }` — drop shadow (inset=false) or inner shadow (inset=true)
 - `LayoutGridType`: `Columns`, `Rows`, `Grid` — layout grid overlay type
 - `GridSizeMode`: `Auto` | `Fixed(f64)` — column/row width mode
 - `LayoutGrid { grid_type, count: u32, size_mode: GridSizeMode, gutter: f64, margin: f64, color: Color, visible: bool }` — Figma-style layout grid overlay
@@ -58,7 +58,7 @@ Pure Rust crate compiled to WASM via `wasm-pack`. No NAPI — runs entirely in t
 - `wrap_text()`: word-level wrapping with newline support
 - `measure_text_nodes()`: accurate Fit-mode dimension calculation using canvas measureText
 - `build_font_string()`: CSS font string with weight + italic
-- Drop shadow rendering: multi-pass Canvas shadow API (offscreen shape trick for shadow-only)
+- Drop shadow rendering: multi-pass Canvas shadow API (offscreen shape trick for outer, clip+inverted for inner shadow)
 - Layer blur: CSS filter `blur(Xpx)` via `ctx.set_filter()`
 - Selection handles (8 points, cyan)
 - Frame labels: zoom-inverse scaling, max 11px screen size

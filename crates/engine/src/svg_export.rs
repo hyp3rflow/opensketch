@@ -92,10 +92,29 @@ fn build_filter_defs(node: &Node, filter_id: &str) -> Option<String> {
     for s in &node.shadows {
         if !s.visible { continue; }
         let hex = format!("#{:02x}{:02x}{:02x}", s.color.r, s.color.g, s.color.b);
-        defs.push_str(&format!(
-            r#"<feDropShadow dx="{}" dy="{}" stdDeviation="{}" flood-color="{}" flood-opacity="{}"/>"#,
-            s.offset_x, s.offset_y, (s.blur + s.spread) / 2.0, hex, s.color.a
-        ));
+        if s.inset {
+            // Inner shadow: invert, offset, blur, composite in
+            defs.push_str(&format!(
+                r#"<feFlood flood-color="{}" flood-opacity="{}" result="insetColor"/>"#,
+                hex, s.color.a
+            ));
+            defs.push_str(r#"<feComposite in="insetColor" in2="SourceGraphic" operator="out" result="insetCutout"/>"#);
+            defs.push_str(&format!(
+                r#"<feOffset dx="{}" dy="{}" result="insetOffset"/>"#,
+                s.offset_x, s.offset_y
+            ));
+            defs.push_str(&format!(
+                r#"<feGaussianBlur stdDeviation="{}" result="insetBlur"/>"#,
+                (s.blur + s.spread) / 2.0
+            ));
+            defs.push_str(r#"<feComposite in="insetBlur" in2="SourceGraphic" operator="in" result="insetShadow"/>"#);
+            defs.push_str(r#"<feComposite in="SourceGraphic" in2="insetShadow" operator="over"/>"#);
+        } else {
+            defs.push_str(&format!(
+                r#"<feDropShadow dx="{}" dy="{}" stdDeviation="{}" flood-color="{}" flood-opacity="{}"/>"#,
+                s.offset_x, s.offset_y, (s.blur + s.spread) / 2.0, hex, s.color.a
+            ));
+        }
     }
     defs.push_str("</filter>");
     Some(defs)

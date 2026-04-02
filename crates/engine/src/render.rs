@@ -441,10 +441,10 @@ impl Renderer {
             }
         }
 
-        // Drop shadows: render each visible shadow by drawing the node shape with shadow settings
+        // Drop shadows (outer only): render each visible shadow by drawing the node shape with shadow settings
         // Canvas API only supports one shadow at a time, so we draw multiple passes
         for shadow in &node.shadows {
-            if !shadow.visible || (shadow.blur == 0.0 && shadow.offset_x == 0.0 && shadow.offset_y == 0.0 && shadow.spread == 0.0) {
+            if shadow.inset || !shadow.visible || (shadow.blur == 0.0 && shadow.offset_x == 0.0 && shadow.offset_y == 0.0 && shadow.spread == 0.0) {
                 continue;
             }
             ctx.save();
@@ -535,6 +535,49 @@ impl Renderer {
             NodeKind::Callout { ref content, font_size, tail_x, tail_y, tail_width, ref theme } => {
                 self.render_callout(ctx, node, content, *font_size, *tail_x, *tail_y, *tail_width, theme);
             }
+        }
+
+        // Inner (inset) shadows: clip to node shape, draw inverted shadow
+        for shadow in &node.shadows {
+            if !shadow.inset || !shadow.visible || (shadow.blur == 0.0 && shadow.offset_x == 0.0 && shadow.offset_y == 0.0 && shadow.spread == 0.0) {
+                continue;
+            }
+            ctx.save();
+            // Clip to node shape
+            match &node.kind {
+                NodeKind::Ellipse => {
+                    ctx.begin_path();
+                    ctx.ellipse(
+                        node.x + node.width / 2.0,
+                        node.y + node.height / 2.0,
+                        node.width / 2.0,
+                        node.height / 2.0,
+                        0.0, 0.0, std::f64::consts::TAU,
+                    ).ok();
+                    ctx.clip();
+                }
+                _ => {
+                    if node.corner_radius > 0.0 {
+                        self.draw_rounded_rect(ctx, node.x, node.y, node.width, node.height, node.corner_radius);
+                    } else {
+                        ctx.begin_path();
+                        ctx.rect(node.x, node.y, node.width, node.height);
+                    }
+                    ctx.clip();
+                }
+            }
+            ctx.set_shadow_color(&shadow.color.to_css());
+            ctx.set_shadow_blur(shadow.blur + shadow.spread);
+            ctx.set_shadow_offset_x(shadow.offset_x);
+            ctx.set_shadow_offset_y(shadow.offset_y);
+            ctx.set_fill_style_str("rgba(0,0,0,1)");
+            // Draw rects outside each edge — shadows cast inward through the clip
+            let m = (shadow.blur + shadow.spread) * 2.0 + shadow.offset_x.abs() + shadow.offset_y.abs() + 100.0;
+            ctx.fill_rect(node.x - m, node.y - m, node.width + m * 2.0, m); // top
+            ctx.fill_rect(node.x - m, node.y + node.height, node.width + m * 2.0, m); // bottom
+            ctx.fill_rect(node.x - m, node.y, m, node.height); // left
+            ctx.fill_rect(node.x + node.width, node.y, m, node.height); // right
+            ctx.restore();
         }
 
         ctx.restore();

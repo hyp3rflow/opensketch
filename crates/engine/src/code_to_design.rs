@@ -1006,6 +1006,7 @@ fn parse_box_shadow(val: &str) -> Option<crate::node::Shadow> {
         blur,
         spread,
         visible: true,
+        inset: false,
     })
 }
 

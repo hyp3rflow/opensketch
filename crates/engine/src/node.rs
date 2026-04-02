@@ -1077,6 +1077,9 @@ pub struct Shadow {
     pub blur: f64,
     pub spread: f64,
     pub visible: bool,
+    /// When true, renders as inner (inset) shadow
+    #[serde(default)]
+    pub inset: bool,
 }
 
 /// Blend mode for layer compositing

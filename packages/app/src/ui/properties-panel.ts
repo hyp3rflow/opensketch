@@ -2886,9 +2886,21 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         });
         headerRow.appendChild(visBtn);
 
+        const insetBtn = document.createElement("button");
+        insetBtn.style.cssText = `background:${shadow.inset ? "#818cf8" : "#333"};border:1px solid ${shadow.inset ? "#818cf8" : "#555"};border-radius:3px;cursor:pointer;padding:1px 5px;color:${shadow.inset ? "#fff" : "#999"};font-size:9px;`;
+        insetBtn.textContent = "Inner";
+        insetBtn.title = shadow.inset ? "Inner shadow (click for drop)" : "Drop shadow (click for inner)";
+        insetBtn.addEventListener("click", () => {
+          ensureUndo();
+          (editor.engine as any).set_shadow_inset(BigInt(id), idx, !shadow.inset);
+          editor.requestRender();
+          refresh(ids);
+        });
+        headerRow.appendChild(insetBtn);
+
         const label = document.createElement("span");
         label.style.cssText = "font-size:11px;color:#888;flex:1;";
-        label.textContent = `Shadow ${idx + 1}`;
+        label.textContent = shadow.inset ? `Inner Shadow ${idx + 1}` : `Shadow ${idx + 1}`;
         headerRow.appendChild(label);
 
         const delBtn = document.createElement("button");
@@ -2943,6 +2955,18 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         refresh(ids);
       });
       effectsSection.appendChild(addShadowBtn);
+
+      const addInnerShadowBtn = document.createElement("button");
+      addInnerShadowBtn.className = "prop-add-btn";
+      addInnerShadowBtn.style.marginTop = "2px";
+      addInnerShadowBtn.textContent = "+ Add inner shadow";
+      addInnerShadowBtn.addEventListener("click", () => {
+        ensureUndo();
+        (editor.engine as any).add_inner_shadow(BigInt(id), 0, 0, 0, 0.25, 0, 2, 4, 0);
+        editor.requestRender();
+        refresh(ids);
+      });
+      effectsSection.appendChild(addInnerShadowBtn);
 
       container.appendChild(effectsSection);
     }

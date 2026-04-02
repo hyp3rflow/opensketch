@@ -6344,7 +6344,27 @@ impl Engine {
                 color: Color { r, g, b, a },
                 offset_x, offset_y, blur, spread,
                 visible: true,
+                inset: false,
             });
+        }
+    }
+
+    pub fn add_inner_shadow(&mut self, id: u64, r: u8, g: u8, b: u8, a: f64, offset_x: f64, offset_y: f64, blur: f64, spread: f64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            node.shadows.push(Shadow {
+                color: Color { r, g, b, a },
+                offset_x, offset_y, blur, spread,
+                visible: true,
+                inset: true,
+            });
+        }
+    }
+
+    pub fn set_shadow_inset(&mut self, id: u64, index: usize, inset: bool) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let Some(s) = node.shadows.get_mut(index) {
+                s.inset = inset;
+            }
         }
     }
 

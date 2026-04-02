@@ -365,7 +365,7 @@ function generateCSS(ctx: CodeCtx): string {
     const vis = shadows.filter((s: any) => s.visible !== false);
     if (vis.length > 0) {
       const str = vis.map((s: any) =>
-        `${s.offset_x ?? 0}px ${s.offset_y ?? 0}px ${s.blur ?? 0}px ${s.spread ?? 0}px ${rgbaToCSS(s.color)}`
+        `${s.inset ? "inset " : ""}${s.offset_x ?? 0}px ${s.offset_y ?? 0}px ${s.blur ?? 0}px ${s.spread ?? 0}px ${rgbaToCSS(s.color)}`
       ).join(",\n    ");
       lines.push(`box-shadow: ${str};`);
     }
