@@ -105,6 +105,11 @@ export class Editor {
   public gridStyle: "dots" | "lines" = "dots";
   private _onGridSnapChanges: (() => void)[] = [];
 
+  // Pixel snap (round to integer or 0.5px)
+  public pixelSnapEnabled = true;
+  public pixelSnapPrecision: 1 | 0.5 = 1; // 1 = integer, 0.5 = half-pixel
+  private _onPixelSnapChanges: (() => void)[] = [];
+
   whiteboardMode: WhiteboardMode;
 
   private _imageCache: Map<string, HTMLImageElement> = new Map();
@@ -1984,6 +1989,14 @@ export class Editor {
             nh = Math.max(gs, Math.round(nh / gs) * gs);
           }
 
+          // Pixel snap for resize
+          if (this.pixelSnapEnabled && !(this.gridSnapEnabled && this.gridSize > 0)) {
+            nx = this.pixelSnap(nx);
+            ny = this.pixelSnap(ny);
+            nw = this.pixelSnapSize(nw);
+            nh = this.pixelSnapSize(nh);
+          }
+
           if (nw > 0 && nh > 0) {
             this.engine.set_node_position(this.drag.nodeId, nx, ny);
 
@@ -2070,6 +2083,15 @@ export class Editor {
         } else {
           finalDx = sgDx;
           finalDy = sgDy;
+        }
+        // Pixel snap for move: round final positions to pixel grid
+        if (this.pixelSnapEnabled && !(this.gridSnapEnabled && this.gridSize > 0) && bbox) {
+          const afterX = bbox.x + finalDx;
+          const afterY = bbox.y + finalDy;
+          const snappedX = this.pixelSnap(afterX);
+          const snappedY = this.pixelSnap(afterY);
+          finalDx += snappedX - afterX;
+          finalDy += snappedY - afterY;
         }
         if (finalDx !== 0 || finalDy !== 0) {
           for (const id of sel) {
@@ -4013,6 +4035,31 @@ export class Editor {
 
   onGridSnapChanged(cb: () => void) {
     this._onGridSnapChanges.push(cb);
+  }
+
+  // --- Pixel snap API ---
+  private pixelSnap(v: number): number {
+    if (!this.pixelSnapEnabled) return v;
+    const p = this.pixelSnapPrecision;
+    return Math.round(v / p) * p;
+  }
+  private pixelSnapSize(v: number): number {
+    if (!this.pixelSnapEnabled) return v;
+    const p = this.pixelSnapPrecision;
+    return Math.max(p, Math.round(v / p) * p);
+  }
+  togglePixelSnap() {
+    this.pixelSnapEnabled = !this.pixelSnapEnabled;
+    this._onPixelSnapChanges.forEach(cb => cb());
+    this.requestRender();
+  }
+  setPixelSnapPrecision(p: 1 | 0.5) {
+    this.pixelSnapPrecision = p;
+    this._onPixelSnapChanges.forEach(cb => cb());
+    this.requestRender();
+  }
+  onPixelSnapChanged(cb: () => void) {
+    this._onPixelSnapChanges.push(cb);
   }
 
   /** Toggle performance stats overlay (Shift+P in dev) */

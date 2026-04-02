@@ -276,6 +276,11 @@
   - Configurable threshold (5px screen-space)
   - Visual guide lines: magenta (#ff3366) lines extending between snapped nodes
   - Pure TypeScript implementation (no Rust/WASM changes needed)
+- [x] **Snap to Pixel Grid**: Round x/y/width/height to integer (or 0.5px) during move/resize
+  - Default ON, toggle button in zoom controls bar
+  - Right-click button to switch between 1px and 0.5px precision
+  - Coexists with smart guides and grid snap (grid snap takes priority when active)
+  - Separate from grid snap — works at sub-pixel level for crisp rendering
   - Snap works with multi-selection (combined bounding box)
   - Guides auto-clear on pointer up
 - [x] **Smart Object Snapping (Point-level)**: Vector/path editing point snapping + angle constraints

@@ -28,6 +28,15 @@ export function setupZoomControls(container: HTMLElement, editor: Editor) {
     <button class="zoom-btn zoom-fit" title="Zoom to fit (⌘1)">
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="2" y="2" width="10" height="10" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M5 2v10M9 2v10M2 5h10M2 9h10" stroke="currentColor" stroke-width="0.6" opacity="0.4"/></svg>
     </button>
+    <button class="zoom-btn pixel-snap-btn" title="Snap to Pixel Grid (default ON)">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <rect x="1" y="1" width="5" height="5" stroke="currentColor" stroke-width="1" rx="0.5"/>
+        <rect x="8" y="1" width="5" height="5" stroke="currentColor" stroke-width="1" rx="0.5"/>
+        <rect x="1" y="8" width="5" height="5" stroke="currentColor" stroke-width="1" rx="0.5"/>
+        <rect x="8" y="8" width="5" height="5" stroke="currentColor" stroke-width="1" rx="0.5"/>
+        <path d="M6.5 6.5L7.5 7.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+      </svg>
+    </button>
     <span class="zoom-divider" style="width:1px;height:16px;background:rgba(255,255,255,0.15);margin:0 2px"></span>
     <button class="zoom-btn grid-snap-btn" title="Grid Snap (⌘')">
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -78,6 +87,24 @@ export function setupZoomControls(container: HTMLElement, editor: Editor) {
     ppBtn.classList.toggle("active", editor.isPixelPreviewEnabled());
   };
   editor.onPixelPreviewChanged(updatePP);
+
+  // Pixel snap button
+  const pxSnapBtn = el.querySelector(".pixel-snap-btn") as HTMLButtonElement;
+  pxSnapBtn.addEventListener("click", () => {
+    editor.togglePixelSnap();
+  });
+  pxSnapBtn.addEventListener("contextmenu", (ev) => {
+    ev.preventDefault();
+    const current = editor.pixelSnapPrecision;
+    editor.setPixelSnapPrecision(current === 1 ? 0.5 : 1);
+    updatePxSnap();
+  });
+  const updatePxSnap = () => {
+    pxSnapBtn.classList.toggle("active", editor.pixelSnapEnabled);
+    pxSnapBtn.title = `Snap to Pixel Grid (${editor.pixelSnapPrecision === 1 ? '1px' : '0.5px'}) — right-click to toggle precision`;
+  };
+  editor.onPixelSnapChanged(updatePxSnap);
+  updatePxSnap();
 
   // Grid snap button
   const gridBtn = el.querySelector(".grid-snap-btn") as HTMLButtonElement;
