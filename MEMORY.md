@@ -1802,3 +1802,13 @@
 - WASM API: set_clip_content(id, bool), get_clip_content(id) → bool
 - Properties panel: Overflow 섹션에 "Clip content" 체크박스
 - Inspect panel: clip_content true → overflow: hidden CSS 출력
+
+## 2026-04-03: Chart Visualization Node
+- Added NodeKind::Chart with 5 chart types (Bar, Line, Pie, Donut, Area)
+- ChartDataPoint { label, value, color? } + ChartConfig (title, legend, labels, palette)
+- Canvas rendering for all chart types in render.rs
+- SVG export for all chart types in svg_export.rs
+- WASM bindings: add_chart, set_chart_type, set_chart_data, get_chart_info, set_chart_config
+- Toolbar chart button + Properties panel with type selector, data table, config toggles
+- Default 10-color palette auto-assigned when data points lack explicit colors
+- All serde fields backward-compatible with defaults

@@ -790,6 +790,105 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
             attrs.push_str("/>\n");
             buf.push_str(&attrs);
         }
+        NodeKind::Chart { ref chart_type, ref data, ref config } => {
+            use crate::node::ChartType;
+            let x = node.x;
+            let y = node.y;
+            let w = node.width;
+            let h = node.height;
+            let padding = 16.0;
+            let title_h = if config.title.is_empty() { 0.0 } else { 24.0 };
+            let legend_h = if config.show_legend { 24.0 } else { 0.0 };
+            let chart_x = x + padding;
+            let chart_y = y + padding + title_h;
+            let chart_w = w - padding * 2.0;
+            let chart_h = h - padding * 2.0 - title_h - legend_h;
+
+            let mut g = format!(r#"<g opacity="{}">"#, node.opacity);
+            // Background
+            g.push_str(&format!(
+                r#"<rect x="{}" y="{}" width="{}" height="{}" rx="8" fill="rgba(30,30,30,0.9)" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>"#,
+                x, y, w, h
+            ));
+            if !config.title.is_empty() {
+                g.push_str(&format!(
+                    r#"<text x="{}" y="{}" font-size="13" font-weight="600" fill="rgba(255,255,255,0.9)" font-family="Inter, system-ui, sans-serif">{}</text>"#,
+                    x + padding, y + padding + 13.0, escape_xml(&config.title)
+                ));
+            }
+            if !data.is_empty() {
+                let max_val = data.iter().map(|d| d.value).fold(f64::NEG_INFINITY, f64::max).max(0.001);
+                match chart_type {
+                    ChartType::Bar => {
+                        let gap = 4.0;
+                        let bar_w = ((chart_w - gap * (data.len() as f64 - 1.0).max(0.0)) / data.len() as f64).max(2.0);
+                        for (i, dp) in data.iter().enumerate() {
+                            let color = config.color_for(i, &dp.color);
+                            let bar_h = (dp.value / max_val) * chart_h;
+                            let bx = chart_x + i as f64 * (bar_w + gap);
+                            let by = chart_y + chart_h - bar_h;
+                            g.push_str(&format!(r#"<rect x="{}" y="{}" width="{}" height="{}" rx="3" fill="{}"/>"#, bx, by, bar_w, bar_h, color));
+                        }
+                    }
+                    ChartType::Line | ChartType::Area => {
+                        let step = if data.len() > 1 { chart_w / (data.len() - 1) as f64 } else { chart_w };
+                        let mut path_d = String::new();
+                        for (i, dp) in data.iter().enumerate() {
+                            let px = chart_x + i as f64 * step;
+                            let py = chart_y + chart_h - (dp.value / max_val) * chart_h;
+                            if i == 0 { path_d.push_str(&format!("M{},{}", px, py)); } else { path_d.push_str(&format!(" L{},{}", px, py)); }
+                        }
+                        if *chart_type == ChartType::Area {
+                            let area_d = format!("{} L{},{} L{},{} Z", path_d, chart_x + (data.len()-1) as f64 * step, chart_y + chart_h, chart_x, chart_y + chart_h);
+                            let color = config.color_for(0, &None);
+                            g.push_str(&format!(r#"<path d="{}" fill="{}" fill-opacity="0.25"/>"#, area_d, color));
+                        }
+                        let line_color = config.color_for(0, &None);
+                        g.push_str(&format!(r#"<path d="{}" fill="none" stroke="{}" stroke-width="2"/>"#, path_d, line_color));
+                        for (i, dp) in data.iter().enumerate() {
+                            let px = chart_x + i as f64 * step;
+                            let py = chart_y + chart_h - (dp.value / max_val) * chart_h;
+                            let color = config.color_for(i, &dp.color);
+                            g.push_str(&format!(r#"<circle cx="{}" cy="{}" r="3.5" fill="{}"/>"#, px, py, color));
+                        }
+                    }
+                    ChartType::Pie | ChartType::Donut => {
+                        let cx = chart_x + chart_w / 2.0;
+                        let cy = chart_y + chart_h / 2.0;
+                        let radius = chart_w.min(chart_h) / 2.0 - 4.0;
+                        let inner_r = if *chart_type == ChartType::Donut { radius * 0.55 } else { 0.0 };
+                        let total: f64 = data.iter().map(|d| d.value).sum();
+                        if total > 0.0 {
+                            let mut start = -std::f64::consts::FRAC_PI_2;
+                            for (i, dp) in data.iter().enumerate() {
+                                let sweep = (dp.value / total) * std::f64::consts::TAU;
+                                let end = start + sweep;
+                                let color = config.color_for(i, &dp.color);
+                                let large = if sweep > std::f64::consts::PI { 1 } else { 0 };
+                                let sx = cx + start.cos() * radius;
+                                let sy = cy + start.sin() * radius;
+                                let ex = cx + end.cos() * radius;
+                                let ey = cy + end.sin() * radius;
+                                let mut d = format!("M{},{} A{},{} 0 {} 1 {},{}", sx, sy, radius, radius, large, ex, ey);
+                                if inner_r > 0.0 {
+                                    let isx = cx + end.cos() * inner_r;
+                                    let isy = cy + end.sin() * inner_r;
+                                    let iex = cx + start.cos() * inner_r;
+                                    let iey = cy + start.sin() * inner_r;
+                                    d.push_str(&format!(" L{},{} A{},{} 0 {} 0 {},{} Z", isx, isy, inner_r, inner_r, large, iex, iey));
+                                } else {
+                                    d.push_str(&format!(" L{},{} Z", cx, cy));
+                                }
+                                g.push_str(&format!(r#"<path d="{}" fill="{}"/>"#, d, color));
+                                start = end;
+                            }
+                        }
+                    }
+                }
+            }
+            g.push_str("</g>\n");
+            buf.push_str(&g);
+        }
         NodeKind::Callout { ref content, font_size, tail_x, tail_y, tail_width, ref theme } => {
             let x = node.x;
             let y = node.y;

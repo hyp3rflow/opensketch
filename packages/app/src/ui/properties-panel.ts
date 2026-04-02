@@ -5800,6 +5800,131 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       container.appendChild(stickySection);
     }
 
+    // === Chart properties ===
+    if (typeof node.kind === "object" && node.kind.Chart) {
+      const chartSection = createSection("Chart");
+      const info = JSON.parse(editor.engine.get_chart_info(BigInt(id)));
+
+      // Chart type selector
+      const typeRow = document.createElement("div");
+      typeRow.style.cssText = "display:flex;align-items:center;gap:6px;margin-bottom:6px;";
+      const typeLabel = document.createElement("span");
+      typeLabel.textContent = "Type";
+      typeLabel.style.cssText = "font-size:11px;color:#888;width:40px;";
+      const typeSelect = document.createElement("select");
+      typeSelect.className = "prop-input";
+      typeSelect.style.cssText = "flex:1;";
+      for (const t of ["bar", "line", "pie", "donut", "area"]) {
+        const opt = document.createElement("option");
+        opt.value = t;
+        opt.textContent = t.charAt(0).toUpperCase() + t.slice(1);
+        if (t === info.chart_type) opt.selected = true;
+        typeSelect.appendChild(opt);
+      }
+      typeSelect.addEventListener("change", () => {
+        editor.engine.set_chart_type(BigInt(id), typeSelect.value);
+        editor.requestRender();
+      });
+      typeRow.appendChild(typeLabel);
+      typeRow.appendChild(typeSelect);
+      chartSection.appendChild(typeRow);
+
+      // Title input
+      const titleRow = document.createElement("div");
+      titleRow.style.cssText = "display:flex;align-items:center;gap:6px;margin-bottom:6px;";
+      const titleLabel = document.createElement("span");
+      titleLabel.textContent = "Title";
+      titleLabel.style.cssText = "font-size:11px;color:#888;width:40px;";
+      const titleInput = document.createElement("input");
+      titleInput.className = "prop-input";
+      titleInput.style.cssText = "flex:1;";
+      titleInput.value = info.config?.title || "";
+      titleInput.placeholder = "Chart title";
+      titleInput.addEventListener("change", () => {
+        const cfg = { ...info.config, title: titleInput.value };
+        editor.engine.set_chart_config(BigInt(id), JSON.stringify(cfg));
+        editor.requestRender();
+      });
+      titleRow.appendChild(titleLabel);
+      titleRow.appendChild(titleInput);
+      chartSection.appendChild(titleRow);
+
+      // Legend & Labels toggles
+      const toggleRow = document.createElement("div");
+      toggleRow.style.cssText = "display:flex;gap:12px;margin-bottom:6px;";
+      for (const [key, label] of [["show_legend", "Legend"], ["show_labels", "Labels"]] as const) {
+        const wrap = document.createElement("label");
+        wrap.style.cssText = "display:flex;align-items:center;gap:4px;font-size:11px;color:#888;cursor:pointer;";
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.checked = info.config?.[key] !== false;
+        cb.addEventListener("change", () => {
+          const cfg = { ...info.config, [key]: cb.checked };
+          editor.engine.set_chart_config(BigInt(id), JSON.stringify(cfg));
+          editor.requestRender();
+        });
+        wrap.appendChild(cb);
+        wrap.appendChild(document.createTextNode(label));
+        toggleRow.appendChild(wrap);
+      }
+      chartSection.appendChild(toggleRow);
+
+      // Data table
+      const dataTitle = document.createElement("div");
+      dataTitle.textContent = "Data";
+      dataTitle.style.cssText = "font-size:11px;color:#888;margin-bottom:4px;";
+      chartSection.appendChild(dataTitle);
+
+      const dataTable = document.createElement("div");
+      dataTable.style.cssText = "display:flex;flex-direction:column;gap:2px;margin-bottom:6px;";
+
+      const dataPoints: { label: string; value: number; color?: string }[] = info.data || [];
+      const rebuildDataUI = () => {
+        dataTable.innerHTML = "";
+        dataPoints.forEach((dp, i) => {
+          const row = document.createElement("div");
+          row.style.cssText = "display:flex;gap:4px;align-items:center;";
+          const labelIn = document.createElement("input");
+          labelIn.className = "prop-input";
+          labelIn.style.cssText = "width:50px;";
+          labelIn.value = dp.label;
+          labelIn.addEventListener("change", () => { dp.label = labelIn.value; syncData(); });
+          const valIn = document.createElement("input");
+          valIn.className = "prop-input";
+          valIn.style.cssText = "width:50px;";
+          valIn.type = "number";
+          valIn.value = String(dp.value);
+          valIn.addEventListener("change", () => { dp.value = parseFloat(valIn.value) || 0; syncData(); });
+          const delBtn = document.createElement("button");
+          delBtn.textContent = "×";
+          delBtn.style.cssText = "background:none;border:none;color:#888;cursor:pointer;font-size:14px;padding:0 2px;";
+          delBtn.addEventListener("click", () => { dataPoints.splice(i, 1); syncData(); rebuildDataUI(); });
+          row.appendChild(labelIn);
+          row.appendChild(valIn);
+          row.appendChild(delBtn);
+          dataTable.appendChild(row);
+        });
+      };
+      const syncData = () => {
+        editor.engine.set_chart_data(BigInt(id), JSON.stringify(dataPoints));
+        editor.requestRender();
+      };
+      rebuildDataUI();
+      chartSection.appendChild(dataTable);
+
+      const addBtn = document.createElement("button");
+      addBtn.textContent = "+ Add Data";
+      addBtn.style.cssText = "background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#aaa;border-radius:4px;padding:3px 8px;cursor:pointer;font-size:11px;";
+      addBtn.addEventListener("click", () => {
+        dataPoints.push({ label: String.fromCharCode(65 + dataPoints.length), value: 50 });
+        syncData();
+        rebuildDataUI();
+      });
+      chartSection.appendChild(addBtn);
+
+      container.appendChild(chartSection);
+    }
+
     // === Slice export section ===
     if (node.kind === "Slice") {
       const sliceSection = createSection("Slice Export");

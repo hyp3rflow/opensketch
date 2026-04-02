@@ -1277,6 +1277,75 @@ impl Engine {
     }
 
     // =============================================
+    // Chart API
+    // =============================================
+
+    /// Create a chart node with default sample data
+    pub fn add_chart(&mut self, x: f64, y: f64, w: f64, h: f64) -> u64 {
+        let data = vec![
+            crate::node::ChartDataPoint { label: "A".into(), value: 40.0, color: None },
+            crate::node::ChartDataPoint { label: "B".into(), value: 65.0, color: None },
+            crate::node::ChartDataPoint { label: "C".into(), value: 30.0, color: None },
+            crate::node::ChartDataPoint { label: "D".into(), value: 80.0, color: None },
+            crate::node::ChartDataPoint { label: "E".into(), value: 55.0, color: None },
+        ];
+        let mut node = Node::new(0, NodeKind::Chart {
+            chart_type: crate::node::ChartType::Bar,
+            data,
+            config: crate::node::ChartConfig::default(),
+        });
+        node.x = x; node.y = y; node.width = w.max(200.0); node.height = h.max(150.0);
+        node.name = format!("Chart {}", self.scene.node_count() + 1);
+        node.fills = vec![];
+        self.scene.add_node(node)
+    }
+
+    /// Set chart type: "bar", "line", "pie", "donut", "area"
+    pub fn set_chart_type(&mut self, id: u64, chart_type: &str) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Chart { chart_type: ref mut ct, .. } = node.kind {
+                *ct = crate::node::ChartType::from_str(chart_type);
+            }
+        }
+    }
+
+    /// Set chart data from JSON: [{"label":"A","value":10,"color":"#ff0000"},...]
+    pub fn set_chart_data(&mut self, id: u64, json: &str) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Chart { ref mut data, .. } = node.kind {
+                if let Ok(parsed) = serde_json::from_str::<Vec<crate::node::ChartDataPoint>>(json) {
+                    *data = parsed;
+                }
+            }
+        }
+    }
+
+    /// Get chart info as JSON
+    pub fn get_chart_info(&self, id: u64) -> String {
+        if let Some(node) = self.scene.get_node(id) {
+            if let NodeKind::Chart { ref chart_type, ref data, ref config } = node.kind {
+                return serde_json::json!({
+                    "chart_type": chart_type.as_str(),
+                    "data": data,
+                    "config": config,
+                }).to_string();
+            }
+        }
+        "null".to_string()
+    }
+
+    /// Set chart config from JSON
+    pub fn set_chart_config(&mut self, id: u64, json: &str) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Chart { ref mut config, .. } = node.kind {
+                if let Ok(parsed) = serde_json::from_str::<crate::node::ChartConfig>(json) {
+                    *config = parsed;
+                }
+            }
+        }
+    }
+
+    // =============================================
     // Connector API
     // =============================================
 
@@ -7604,6 +7673,7 @@ impl Engine {
                 NodeKind::StickyNote { .. } => "StickyNote",
                 NodeKind::Table { .. } => "Table",
                 NodeKind::Callout { .. } => "Callout",
+                NodeKind::Chart { .. } => "Chart",
             }.to_string();
             *kind_counts.entry(kind_str).or_insert(0) += 1;
             if !node.fills.is_empty() { has_fill += 1; }

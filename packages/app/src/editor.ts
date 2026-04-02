@@ -52,7 +52,7 @@ import { showImageDropChoice, processAILayout } from "./ui/ai-layout";
 import { toggleColorBlindnessPanel, closeCBPanel, setColorBlindnessMode } from "./ui/color-blindness";
 import { toggleFocusMode } from "./ui/focus-mode";
 
-export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "section" | "image" | "pen" | "star" | "polygon" | "slice" | "connector" | "callout" | "sticky" | "table" | "freehand" | "measure" | "annotate";
+export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "section" | "image" | "pen" | "star" | "polygon" | "slice" | "connector" | "callout" | "sticky" | "table" | "chart" | "freehand" | "measure" | "annotate";
 
 /** Snap threshold in screen pixels */
 const SNAP_THRESHOLD_PX = 5;
@@ -2315,6 +2315,7 @@ export class Editor {
           case "slice": id = this.engine.add_slice("", x, y, w, h); break;
           case "sticky": id = this.engine.add_sticky_note(x, y, Math.max(w, 150), Math.max(h, 150), "", "yellow"); break;
           case "table": id = this.engine.add_table(x, y, 3, 3, Math.max(w / 3, 80), Math.max(h / 3, 32)); break;
+          case "chart": id = this.engine.add_chart(x, y, Math.max(w, 300), Math.max(h, 200)); break;
           case "callout": {
             const cw = Math.max(w, 160);
             const ch = Math.max(h, 80);
@@ -4341,7 +4342,7 @@ export class Editor {
       ellipse: "crosshair", text: "text", frame: "crosshair",
       section: "crosshair", image: "crosshair", pen: "crosshair",
       star: "crosshair", polygon: "crosshair",
-      slice: "crosshair", connector: "crosshair", callout: "crosshair", sticky: "crosshair", freehand: "crosshair",
+      slice: "crosshair", connector: "crosshair", callout: "crosshair", sticky: "crosshair", chart: "crosshair", freehand: "crosshair",
       measure: "crosshair", annotate: "crosshair",
     };
     this.canvas.style.cursor = cursors[this.currentTool] || "default";

@@ -227,6 +227,95 @@ impl PathPoint {
     }
 }
 
+/// Chart type for Chart nodes
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub enum ChartType {
+    Bar,
+    Line,
+    Pie,
+    Donut,
+    Area,
+}
+
+impl Default for ChartType {
+    fn default() -> Self { ChartType::Bar }
+}
+
+impl ChartType {
+    pub fn from_str(s: &str) -> Self {
+        match s.to_lowercase().as_str() {
+            "line" => ChartType::Line,
+            "pie" => ChartType::Pie,
+            "donut" => ChartType::Donut,
+            "area" => ChartType::Area,
+            _ => ChartType::Bar,
+        }
+    }
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ChartType::Bar => "bar",
+            ChartType::Line => "line",
+            ChartType::Pie => "pie",
+            ChartType::Donut => "donut",
+            ChartType::Area => "area",
+        }
+    }
+}
+
+/// A single data point in a chart
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ChartDataPoint {
+    pub label: String,
+    pub value: f64,
+    #[serde(default)]
+    pub color: Option<String>,
+}
+
+/// Default color palette for charts
+pub const CHART_PALETTE: &[&str] = &[
+    "#4f46e5", "#06b6d4", "#10b981", "#f59e0b", "#ef4444",
+    "#8b5cf6", "#ec4899", "#14b8a6", "#f97316", "#6366f1",
+];
+
+/// Chart configuration
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ChartConfig {
+    #[serde(default)]
+    pub title: String,
+    #[serde(default = "default_true")]
+    pub show_legend: bool,
+    #[serde(default = "default_true")]
+    pub show_labels: bool,
+    #[serde(default)]
+    pub color_palette: Vec<String>,
+}
+
+impl Default for ChartConfig {
+    fn default() -> Self {
+        Self {
+            title: String::new(),
+            show_legend: true,
+            show_labels: true,
+            color_palette: CHART_PALETTE.iter().map(|s| s.to_string()).collect(),
+        }
+    }
+}
+
+impl ChartConfig {
+    /// Get color for data point index, using point color override or palette
+    pub fn color_for(&self, index: usize, point_color: &Option<String>) -> String {
+        if let Some(c) = point_color {
+            return c.clone();
+        }
+        let palette = if self.color_palette.is_empty() {
+            CHART_PALETTE.iter().map(|s| s.to_string()).collect::<Vec<_>>()
+        } else {
+            self.color_palette.clone()
+        };
+        palette[index % palette.len()].clone()
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum NodeKind {
     Rect,
@@ -374,6 +463,15 @@ pub enum NodeKind {
         /// Anchor position on end node (None = center)
         #[serde(default)]
         end_anchor: Option<crate::anchor::AnchorPosition>,
+    },
+    /// A chart visualization node (Bar, Line, Pie, Donut, Area)
+    Chart {
+        /// Chart type
+        chart_type: ChartType,
+        /// Data points
+        data: Vec<ChartDataPoint>,
+        /// Chart configuration
+        config: ChartConfig,
     },
     /// A callout shape — rounded rect body with a triangular tail pointing to a target
     Callout {
@@ -1959,6 +2057,7 @@ impl Node {
             NodeKind::Table { .. } => "Table",
             NodeKind::Connector { .. } => "Connector",
             NodeKind::VectorNetwork { .. } => "VectorNetwork",
+            NodeKind::Chart { .. } => "Chart",
             NodeKind::Callout { .. } => "Callout",
         }
     }
@@ -2149,6 +2248,7 @@ impl Node {
             NodeKind::Polygon { sides, .. } => { score += *sides; }
             NodeKind::Image { .. } => { score += 4; } // image decode + draw
             NodeKind::Table { rows, cols, .. } => { score += rows * cols; }
+            NodeKind::Chart { ref data, .. } => { score += data.len() as u32 + 3; }
             _ => {}
         }
 

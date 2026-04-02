@@ -532,6 +532,9 @@ impl Renderer {
             NodeKind::Connector { start_node_id, end_node_id, start_x, end_x, start_y, end_y, ref path_type, ref end_arrow, ref start_arrow, arrow_size, .. } => {
                 self.render_connector(ctx, node, scene, *start_node_id, *end_node_id, *start_x, *start_y, *end_x, *end_y, path_type, end_arrow, start_arrow, *arrow_size);
             }
+            NodeKind::Chart { ref chart_type, ref data, ref config } => {
+                self.render_chart(ctx, node, chart_type, data, config);
+            }
             NodeKind::Callout { ref content, font_size, tail_x, tail_y, tail_width, ref theme } => {
                 self.render_callout(ctx, node, content, *font_size, *tail_x, *tail_y, *tail_width, theme);
             }
@@ -1986,6 +1989,185 @@ impl Renderer {
                 ctx.fill_text(line, x + padding, y + padding + i as f64 * line_h).ok();
             }
         }
+    }
+
+    fn render_chart(&self, ctx: &CanvasRenderingContext2d, node: &Node, chart_type: &crate::node::ChartType, data: &[crate::node::ChartDataPoint], config: &crate::node::ChartConfig) {
+        use crate::node::ChartType;
+        let x = node.x;
+        let y = node.y;
+        let w = node.width;
+        let h = node.height;
+
+        // Background
+        ctx.set_fill_style_str("rgba(30,30,30,0.9)");
+        self.draw_rounded_rect(ctx, x, y, w, h, 8.0);
+        ctx.fill();
+
+        // Border
+        ctx.set_stroke_style_str("rgba(255,255,255,0.1)");
+        ctx.set_line_width(1.0);
+        self.draw_rounded_rect(ctx, x, y, w, h, 8.0);
+        ctx.stroke();
+
+        if data.is_empty() {
+            let fs = (14.0 / self.viewport.a).min(14.0);
+            ctx.set_fill_style_str("rgba(255,255,255,0.3)");
+            ctx.set_font(&format!("{}px Inter, system-ui, sans-serif", fs));
+            ctx.set_text_baseline("middle");
+            ctx.set_text_align("center");
+            ctx.fill_text("No data", x + w / 2.0, y + h / 2.0).ok();
+            ctx.set_text_align("start");
+            return;
+        }
+
+        let padding = 16.0;
+        let title_h = if config.title.is_empty() { 0.0 } else { 24.0 };
+        let legend_h = if config.show_legend { 24.0 } else { 0.0 };
+        let chart_x = x + padding;
+        let chart_y = y + padding + title_h;
+        let chart_w = w - padding * 2.0;
+        let chart_h = h - padding * 2.0 - title_h - legend_h;
+
+        // Title
+        if !config.title.is_empty() {
+            let fs = 13.0;
+            ctx.set_fill_style_str("rgba(255,255,255,0.9)");
+            ctx.set_font(&format!("600 {}px Inter, system-ui, sans-serif", fs));
+            ctx.set_text_baseline("top");
+            ctx.set_text_align("left");
+            ctx.fill_text(&config.title, x + padding, y + padding).ok();
+        }
+
+        let max_val = data.iter().map(|d| d.value).fold(f64::NEG_INFINITY, f64::max).max(0.001);
+
+        match chart_type {
+            ChartType::Bar => {
+                let gap = 4.0;
+                let bar_w = ((chart_w - gap * (data.len() as f64 - 1.0).max(0.0)) / data.len() as f64).max(2.0);
+                for (i, dp) in data.iter().enumerate() {
+                    let color = config.color_for(i, &dp.color);
+                    let bar_h = (dp.value / max_val) * chart_h;
+                    let bx = chart_x + i as f64 * (bar_w + gap);
+                    let by = chart_y + chart_h - bar_h;
+                    ctx.set_fill_style_str(&color);
+                    ctx.begin_path();
+                    ctx.round_rect_with_f64(bx, by, bar_w, bar_h, 3.0).ok();
+                    ctx.fill();
+                    if config.show_labels {
+                        let fs = 9.0;
+                        ctx.set_fill_style_str("rgba(255,255,255,0.6)");
+                        ctx.set_font(&format!("{}px Inter, system-ui, sans-serif", fs));
+                        ctx.set_text_baseline("top");
+                        ctx.set_text_align("center");
+                        ctx.fill_text(&dp.label, bx + bar_w / 2.0, chart_y + chart_h + 3.0).ok();
+                    }
+                }
+            }
+            ChartType::Line | ChartType::Area => {
+                let step = if data.len() > 1 { chart_w / (data.len() - 1) as f64 } else { chart_w };
+                if *chart_type == ChartType::Area {
+                    ctx.begin_path();
+                    ctx.move_to(chart_x, chart_y + chart_h);
+                    for (i, dp) in data.iter().enumerate() {
+                        let px = chart_x + i as f64 * step;
+                        let py = chart_y + chart_h - (dp.value / max_val) * chart_h;
+                        ctx.line_to(px, py);
+                    }
+                    ctx.line_to(chart_x + (data.len() - 1) as f64 * step, chart_y + chart_h);
+                    ctx.close_path();
+                    let color = config.color_for(0, &None);
+                    // Parse hex to rgba for transparency
+                    ctx.set_fill_style_str(&format!("{}40", color));
+                    ctx.fill();
+                }
+                // Line
+                ctx.begin_path();
+                for (i, dp) in data.iter().enumerate() {
+                    let px = chart_x + i as f64 * step;
+                    let py = chart_y + chart_h - (dp.value / max_val) * chart_h;
+                    if i == 0 { ctx.move_to(px, py); } else { ctx.line_to(px, py); }
+                }
+                let line_color = config.color_for(0, &None);
+                ctx.set_stroke_style_str(&line_color);
+                ctx.set_line_width(2.0);
+                ctx.stroke();
+                // Points
+                for (i, dp) in data.iter().enumerate() {
+                    let px = chart_x + i as f64 * step;
+                    let py = chart_y + chart_h - (dp.value / max_val) * chart_h;
+                    let color = config.color_for(i, &dp.color);
+                    ctx.begin_path();
+                    ctx.arc(px, py, 3.5, 0.0, std::f64::consts::TAU).ok();
+                    ctx.set_fill_style_str(&color);
+                    ctx.fill();
+                    if config.show_labels {
+                        ctx.set_fill_style_str("rgba(255,255,255,0.6)");
+                        ctx.set_font("9px Inter, system-ui, sans-serif");
+                        ctx.set_text_baseline("top");
+                        ctx.set_text_align("center");
+                        ctx.fill_text(&dp.label, px, chart_y + chart_h + 3.0).ok();
+                    }
+                }
+            }
+            ChartType::Pie | ChartType::Donut => {
+                let cx = chart_x + chart_w / 2.0;
+                let cy = chart_y + chart_h / 2.0;
+                let radius = chart_w.min(chart_h) / 2.0 - 4.0;
+                let inner_r = if *chart_type == ChartType::Donut { radius * 0.55 } else { 0.0 };
+                let total: f64 = data.iter().map(|d| d.value).sum();
+                if total <= 0.0 { return; }
+                let mut start_angle = -std::f64::consts::FRAC_PI_2;
+                for (i, dp) in data.iter().enumerate() {
+                    let sweep = (dp.value / total) * std::f64::consts::TAU;
+                    let end_angle = start_angle + sweep;
+                    let color = config.color_for(i, &dp.color);
+                    ctx.begin_path();
+                    ctx.arc(cx, cy, radius, start_angle, end_angle).ok();
+                    if inner_r > 0.0 {
+                        ctx.arc_with_anticlockwise(cx, cy, inner_r, end_angle, start_angle, true).ok();
+                    } else {
+                        ctx.line_to(cx, cy);
+                    }
+                    ctx.close_path();
+                    ctx.set_fill_style_str(&color);
+                    ctx.fill();
+                    // Label
+                    if config.show_labels {
+                        let mid = start_angle + sweep / 2.0;
+                        let lr = radius * 0.7;
+                        let lx = cx + mid.cos() * lr;
+                        let ly = cy + mid.sin() * lr;
+                        ctx.set_fill_style_str("rgba(255,255,255,0.9)");
+                        ctx.set_font("9px Inter, system-ui, sans-serif");
+                        ctx.set_text_baseline("middle");
+                        ctx.set_text_align("center");
+                        ctx.fill_text(&dp.label, lx, ly).ok();
+                    }
+                    start_angle = end_angle;
+                }
+            }
+        }
+
+        // Legend
+        if config.show_legend {
+            let ly = y + h - padding - 4.0;
+            let fs = 9.0;
+            ctx.set_font(&format!("{}px Inter, system-ui, sans-serif", fs));
+            ctx.set_text_baseline("middle");
+            ctx.set_text_align("left");
+            let mut lx = chart_x;
+            for (i, dp) in data.iter().enumerate() {
+                let color = config.color_for(i, &dp.color);
+                ctx.set_fill_style_str(&color);
+                ctx.fill_rect(lx, ly - 4.0, 8.0, 8.0);
+                ctx.set_fill_style_str("rgba(255,255,255,0.7)");
+                ctx.fill_text(&dp.label, lx + 11.0, ly).ok();
+                let tw = ctx.measure_text(&dp.label).map(|m| m.width()).unwrap_or(30.0);
+                lx += 11.0 + tw + 10.0;
+                if lx > x + w - padding { break; }
+            }
+        }
+        ctx.set_text_align("start");
     }
 
     fn render_selection(&self, ctx: &CanvasRenderingContext2d, node: &Node) {

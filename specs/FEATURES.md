@@ -2101,3 +2101,28 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Context menu: "Group by Color" (2+ nodes selected)
 - [x] Singletons (unique color) stay ungrouped
 - [x] Groups named "Color Group #rrggbb"
+
+## Chart Visualization Node
+- [x] NodeKind::Chart { chart_type, data, config }
+- [x] ChartType: Bar, Line, Pie, Donut, Area
+- [x] ChartDataPoint: label, value, color (optional)
+- [x] ChartConfig: title, show_legend, show_labels, color_palette
+- [x] Canvas rendering: bar charts, line/area charts, pie/donut charts
+- [x] SVG export support
+- [x] WASM: add_chart, set_chart_type, set_chart_data, get_chart_info, set_chart_config
+- [x] Properties panel: type selector, title input, legend/labels toggles, data table editor
+- [x] Toolbar Chart button
+- [x] Default color palette auto-assignment
+- [x] Responsive resize (adapts to node width/height)
+
+### Chart Visualization Node
+- [x] **NodeKind::Chart**: Bar, Line, Pie, Donut, Area chart types
+- [x] **ChartDataPoint**: label, value, optional color per data point
+- [x] **ChartConfig**: chart_type, title, show_legend, show_labels, color_palette
+- [x] **Canvas rendering**: All 5 chart types with proper scaling, labels, legend
+- [x] **SVG export**: Full chart export as SVG paths/shapes
+- [x] **WASM bindings**: add_chart, set_chart_type, set_chart_data (JSON), get_chart_info, set_chart_config
+- [x] **Properties panel**: Chart section with type selector, title input, legend/labels toggles, data editing table
+- [x] **Toolbar**: Chart button for creating chart nodes
+- [x] **Default color palette**: Auto-assigned from 10-color palette when data point has no color
+- [x] **Backward-compatible serde**: All new fields have #[serde(default)]

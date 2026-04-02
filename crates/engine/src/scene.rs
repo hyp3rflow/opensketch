@@ -4183,6 +4183,18 @@ impl Scene {
             crate::node::NodeKind::Connector { .. } => "Connector".to_string(),
             crate::node::NodeKind::VectorNetwork(_) => "Vector".to_string(),
             crate::node::NodeKind::Callout { .. } => "Callout".to_string(),
+            crate::node::NodeKind::Chart { ref chart_type, ref config, .. } => {
+                if config.title.is_empty() {
+                    let s = chart_type.as_str();
+                    let mut c = s.chars();
+                    match c.next() {
+                        Some(first) => format!("{}{} Chart", first.to_uppercase(), c.as_str()),
+                        None => "Chart".to_string(),
+                    }
+                } else {
+                    config.title.clone()
+                }
+            }
         };
         Some(name)
     }
