@@ -6494,6 +6494,22 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           refresh(ids);
         });
         bpTitleRow.appendChild(addBpBtn);
+
+        // Preset button
+        if (breakpoints.length === 0) {
+          const presetBtn = document.createElement("button");
+          presetBtn.style.cssText = "background:none;border:1px solid #4f46e5;border-radius:4px;color:#4f46e5;cursor:pointer;padding:2px 8px;font-size:10px;white-space:nowrap;";
+          presetBtn.textContent = "Preset";
+          presetBtn.title = "Add Mobile/Tablet/Desktop breakpoints";
+          presetBtn.addEventListener("click", () => {
+            ensureUndo();
+            editor.engine.set_breakpoints_preset(BigInt(id), "default");
+            editor.requestRender();
+            refresh(ids);
+          });
+          bpTitleRow.appendChild(presetBtn);
+        }
+
         bpSection.appendChild(bpTitleRow);
 
         if (breakpoints.length > 0) {

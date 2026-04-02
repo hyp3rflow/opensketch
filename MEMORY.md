@@ -539,8 +539,8 @@
   - Node.breakpoints: Vec<Breakpoint> — Frame별 브레이크포인트 규칙 (max_width 오름차순 정렬)
   - Layout 엔진: resolve_layout_with_breakpoints() — 레이아웃 계산 시 브레이크포인트 오버라이드 적용 (원본 layout 비변경)
   - Hidden children: 브레이크포인트별 자식 숨기기 (레이아웃 중만 임시 적용)
-  - WASM: add_breakpoint, remove_breakpoint, update_breakpoint, get_breakpoints, get_breakpoint_count, get_active_breakpoint
-  - Properties panel: Auto Layout 하위 Breakpoints 섹션 — 추가/제거/편집, label/max_width/direction/gap/wrap 오버라이드
+  - WASM: add_breakpoint, remove_breakpoint, update_breakpoint, get_breakpoints, get_breakpoint_count, get_active_breakpoint, set_breakpoints_preset
+  - Properties panel: Auto Layout 하위 Breakpoints 섹션 — 추가/제거/편집, label/max_width/direction/gap/wrap 오버라이드, Preset 버튼 (Mobile/Tablet/Desktop 한번에 추가)
   - Active 브레이크포인트 배지 표시
   - Backward-compatible serde (기본 빈 벡터)
 

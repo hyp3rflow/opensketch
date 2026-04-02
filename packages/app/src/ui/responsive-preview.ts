@@ -96,6 +96,7 @@ export function openResponsivePreview(engine: any) {
     <div class="rp-header">
       <h2>Responsive Preview — ${nodeInfo.name || "Frame"}</h2>
       <div class="rp-header-right">
+        <button class="rp-preset-bp" title="Reset to Mobile/Tablet/Desktop">Preset</button>
         <button class="rp-add-bp" title="Add breakpoint">+ Breakpoint</button>
         <button class="rp-close" title="Close (Esc)">✕</button>
       </div>
@@ -132,6 +133,12 @@ export function openResponsivePreview(engine: any) {
 
   // Events
   overlay.querySelector(".rp-close")!.addEventListener("click", closeResponsivePreview);
+
+  overlay.querySelector(".rp-preset-bp")!.addEventListener("click", () => {
+    currentBreakpoints = [...DEFAULT_BREAKPOINTS];
+    closeResponsivePreview();
+    openResponsivePreview(engine);
+  });
 
   overlay.querySelector(".rp-add-bp")!.addEventListener("click", () => {
     const input = prompt("Enter breakpoint: label,width (e.g. Laptop,1024)");

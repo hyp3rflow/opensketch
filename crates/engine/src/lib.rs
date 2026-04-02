@@ -8938,6 +8938,25 @@ impl Engine {
         -1
     }
 
+    /// Set breakpoints from a preset. "default" → Mobile 375 / Tablet 768 / Desktop 1440.
+    /// Clears existing breakpoints first.
+    pub fn set_breakpoints_preset(&mut self, id: u64, preset: &str) -> bool {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            node.breakpoints.clear();
+            match preset {
+                "default" | "common" => {
+                    node.breakpoints.push(Breakpoint { label: "Mobile".into(), max_width: 375.0, direction: Some(FlexDirection::Column), layout_mode: None, gap: None, padding: None, align_items: None, justify_content: None, wrap: None, grid_columns: None, hidden_children: vec![] });
+                    node.breakpoints.push(Breakpoint { label: "Tablet".into(), max_width: 768.0, direction: None, layout_mode: None, gap: None, padding: None, align_items: None, justify_content: None, wrap: Some(FlexWrap::Wrap), grid_columns: None, hidden_children: vec![] });
+                    node.breakpoints.push(Breakpoint { label: "Desktop".into(), max_width: 1440.0, direction: None, layout_mode: None, gap: None, padding: None, align_items: None, justify_content: None, wrap: None, grid_columns: None, hidden_children: vec![] });
+                }
+                _ => { return false; }
+            }
+            true
+        } else {
+            false
+        }
+    }
+
     // ─── Responsive Token System WASM bindings ───
 
     #[wasm_bindgen]

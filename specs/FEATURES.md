@@ -559,6 +559,7 @@
 - [x] **Fullscreen overlay**: Shows selected Frame at multiple breakpoints side by side
 - [x] **Default breakpoints**: Mobile (375px), Tablet (768px), Desktop (1440px)
 - [x] **Custom breakpoints**: Add/remove breakpoints via UI
+- [x] **Breakpoint presets**: One-click "Preset" button adds Mobile 375/Tablet 768/Desktop 1440; `set_breakpoints_preset` WASM API
 - [x] **SVG-based rendering**: Uses export_node_svg after resize_node_with_constraints
 - [x] **Scene snapshot/restore**: Preserves original scene state during preview generation
 - [x] **Toolbar button**: Responsive icon + Cmd+Alt+R shortcut

@@ -213,3 +213,24 @@ Available: select, hand, rect, ellipse, text, frame, eye, eyeOff, rotation, corn
 - Content bounds calculated from children bounding box
 - Scroll clamped to prevent over-scrolling (0 to -(content - frame) range)
 - Scrollbar indicators rendered in Rust engine (thin white semi-transparent bars)
+
+## Responsive Preview & Breakpoints
+
+### Properties Panel — Breakpoints Section
+- Appears for Frame/Section nodes with Auto Layout enabled
+- "Breakpoints" title row with **+ Add** button and **Preset** button (when empty)
+- Preset: adds Mobile (375px), Tablet (768px), Desktop (1440px) breakpoints in one click
+- Each breakpoint card: label input, ≤ max_width input, direction/gap/wrap overrides, delete
+- Active breakpoint badge shown when current frame width ≤ max_width
+
+### Responsive Preview Overlay (Cmd+Alt+R)
+- Fullscreen overlay showing selected Frame at all defined breakpoints
+- Each card: colored header with label + dimensions, SVG preview
+- Add/remove breakpoints within the overlay
+- **Preset** button resets to default Mobile/Tablet/Desktop breakpoints
+- Escape or close button to dismiss
+
+### WASM API
+- `add_breakpoint(id, json)`, `remove_breakpoint(id, index)`, `update_breakpoint(id, index, json)`
+- `get_breakpoints(id)`, `get_breakpoint_count(id)`, `get_active_breakpoint(id)`
+- `set_breakpoints_preset(id, preset)` — "default" preset adds Mobile/Tablet/Desktop
