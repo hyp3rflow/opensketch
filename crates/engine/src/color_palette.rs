@@ -1,5 +1,5 @@
 use crate::node::{Node, NodeId, FillType, Fill};
-use crate::types::Color;
+use crate::types::{Color, ColorSpace};
 use serde::Serialize;
 use std::collections::HashMap;
 

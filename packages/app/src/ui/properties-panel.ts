@@ -2369,6 +2369,33 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             editor.engine.update_fill_at(id, idx, r, g, b, a);
             editor.requestRender();
           }));
+
+          // Color Space dropdown
+          const csRow = document.createElement("div");
+          csRow.style.cssText = "display:flex;align-items:center;gap:4px;margin-top:4px;";
+          const csLabel = document.createElement("span");
+          csLabel.style.cssText = "font-size:9px;color:#888;width:48px;flex-shrink:0;";
+          csLabel.textContent = "Space";
+          csRow.appendChild(csLabel);
+          const csSelect = document.createElement("select");
+          csSelect.className = "prop-input";
+          csSelect.style.cssText = "flex:1;font-size:10px;padding:2px 4px;";
+          const currentSpace = fill.color_space || "sRGB";
+          for (const sp of ["sRGB", "Display P3", "OKLab", "OKLCH"]) {
+            const opt = document.createElement("option");
+            opt.value = sp;
+            opt.textContent = sp;
+            if (sp === currentSpace) opt.selected = true;
+            csSelect.appendChild(opt);
+          }
+          csSelect.addEventListener("change", () => {
+            ensureUndo();
+            editor.engine.set_color_space(id, idx, csSelect.value);
+            editor.requestRender();
+            refresh(ids);
+          });
+          csRow.appendChild(csSelect);
+          fillWrap.appendChild(csRow);
         } else {
           // Conic gradient-specific controls
           if (fill.type === "ConicGradient") {

@@ -1,6 +1,7 @@
 //! Smart Component Suggestions — detects repeating visual patterns
 //! and suggests extracting them as reusable components.
 
+use crate::types::ColorSpace;
 use crate::node::{Node, NodeId, NodeKind};
 use crate::scene::Scene;
 use serde::Serialize;

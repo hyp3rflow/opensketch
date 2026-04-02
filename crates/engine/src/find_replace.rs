@@ -1,6 +1,6 @@
 use crate::node::{Node, NodeId, NodeKind};
 use crate::scene::Scene;
-use crate::types::Color;
+use crate::types::{Color, ColorSpace};
 use serde::Serialize;
 
 impl Scene {
@@ -263,7 +263,7 @@ fn parse_color_approx(hex: &str) -> Option<Color> {
     let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
     let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
     let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
-    Some(Color { r, g, b, a: 1.0 })
+    Some(Color { r, g, b, a: 1.0, color_space: ColorSpace::default() })
 }
 
 fn colors_close(a: &Color, b: &Color) -> bool {

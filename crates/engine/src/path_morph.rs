@@ -3,6 +3,7 @@
 //! When two Path nodes are matched during smart-animate, this module handles
 //! point-count alignment (subdivision) and per-point lerp of anchors + handles.
 
+use crate::types::ColorSpace;
 use crate::node::PathPoint;
 use serde::{Deserialize, Serialize};
 

@@ -77,7 +77,7 @@ fn parse_justify(s: &str) -> Justify {
 }
 use crate::scene::Scene;
 use crate::render::Renderer;
-use crate::types::{Color, Point};
+use crate::types::{Color, ColorSpace, Point};
 use crate::component::{ComponentStore, VariantProp, VariantPropType, VariantValue, VariantData, VariantKey, SlotDef, InstanceData, NodeOverrides};
 use crate::node::{Note, Shadow, Interaction, InteractionTrigger, InteractionAction, TransitionType, Comment};
 use crate::styles::StyleStore;
@@ -474,8 +474,8 @@ impl Engine {
         let mut node = Node::new(0, NodeKind::Table { rows, cols, cells, col_widths, row_heights });
         node.x = x; node.y = y; node.width = w; node.height = h;
         node.name = format!("Table {}", self.scene.node_count() + 1);
-        node.fills = vec![crate::node::Fill::solid(crate::types::Color { r: 45, g: 45, b: 45, a: 1.0 })];
-        node.strokes = vec![crate::node::Stroke::new(crate::types::Color { r: 100, g: 100, b: 100, a: 1.0 }, 1.0)];
+        node.fills = vec![crate::node::Fill::solid(crate::types::Color { r: 45, g: 45, b: 45, a: 1.0, color_space: ColorSpace::default() })];
+        node.strokes = vec![crate::node::Stroke::new(crate::types::Color { r: 100, g: 100, b: 100, a: 1.0, color_space: ColorSpace::default() }, 1.0)];
         self.scene.add_node(node)
     }
 
@@ -504,7 +504,7 @@ impl Engine {
         if let Some(node) = self.scene.get_node_mut(id) {
             if let NodeKind::Table { ref mut cells, .. } = node.kind {
                 if let Some(cell) = cells.iter_mut().find(|c| c.row == row && c.col == col) {
-                    cell.fill = Some(crate::types::Color { r, g, b, a });
+                    cell.fill = Some(crate::types::Color { r, g, b, a, color_space: ColorSpace::default() });
                 }
             }
         }
@@ -892,7 +892,7 @@ impl Engine {
         let mut node = Node::new(0, NodeKind::VectorNetwork(Box::new(crate::vector_network::VectorNetwork::new())));
         node.x = x; node.y = y; node.width = w; node.height = h;
         node.name = format!("Vector {}", self.scene.node_count() + 1);
-        node.fills = vec![Fill::solid(Color { r: 200, g: 200, b: 200, a: 1.0 })];
+        node.fills = vec![Fill::solid(Color { r: 200, g: 200, b: 200, a: 1.0, color_space: ColorSpace::default() })];
         node.strokes = vec![Stroke::new(Color::white(), 2.0)];
         self.scene.add_node(node)
     }
@@ -1647,9 +1647,9 @@ impl Engine {
     pub fn set_fill_color(&mut self, id: u64, r: u8, g: u8, b: u8, a: f64) {
         if let Some(node) = self.scene.get_node_mut(id) {
             if node.fills.is_empty() {
-                node.fills.push(Fill::solid(Color { r, g, b, a }));
+                node.fills.push(Fill::solid(Color { r, g, b, a, color_space: ColorSpace::default() }));
             } else {
-                node.fills[0] = Fill::solid(Color { r, g, b, a });
+                node.fills[0] = Fill::solid(Color { r, g, b, a, color_space: ColorSpace::default() });
             }
         }
     }
@@ -1663,8 +1663,7 @@ impl Engine {
                 r: s["r"].as_u64().unwrap_or(0) as u8,
                 g: s["g"].as_u64().unwrap_or(0) as u8,
                 b: s["b"].as_u64().unwrap_or(0) as u8,
-                a: s["a"].as_f64().unwrap_or(1.0),
-            },
+                a: s["a"].as_f64().unwrap_or(1.0), color_space: ColorSpace::default() },
         }).collect();
         if let Some(node) = self.scene.get_node_mut(id) {
             let new_fill = Fill {
@@ -1691,8 +1690,7 @@ impl Engine {
                 r: s["r"].as_u64().unwrap_or(0) as u8,
                 g: s["g"].as_u64().unwrap_or(0) as u8,
                 b: s["b"].as_u64().unwrap_or(0) as u8,
-                a: s["a"].as_f64().unwrap_or(1.0),
-            },
+                a: s["a"].as_f64().unwrap_or(1.0), color_space: ColorSpace::default() },
         }).collect();
         if let Some(node) = self.scene.get_node_mut(id) {
             let new_fill = Fill {
@@ -1816,7 +1814,7 @@ impl Engine {
     /// Add a solid fill to the node. Returns the index.
     pub fn add_fill(&mut self, id: u64, r: u8, g: u8, b: u8, a: f64) -> i32 {
         if let Some(node) = self.scene.get_node_mut(id) {
-            node.fills.push(Fill::solid(Color { r, g, b, a }));
+            node.fills.push(Fill::solid(Color { r, g, b, a, color_space: ColorSpace::default() }));
             (node.fills.len() - 1) as i32
         } else {
             -1
@@ -1840,11 +1838,53 @@ impl Engine {
         if let Some(node) = self.scene.get_node_mut(id) {
             let idx = index as usize;
             if idx < node.fills.len() {
-                node.fills[idx] = Fill::solid(Color { r, g, b, a });
+                node.fills[idx] = Fill::solid(Color { r, g, b, a, color_space: ColorSpace::default() });
                 return true;
             }
         }
         false
+    }
+
+    /// Set color space for a fill at index
+    pub fn set_color_space(&mut self, id: u64, fill_index: u32, space_str: &str) -> bool {
+        let space = crate::types::ColorSpace::from_str(space_str);
+        if let Some(node) = self.scene.get_node_mut(id) {
+            let idx = fill_index as usize;
+            if idx < node.fills.len() {
+                if let FillType::Solid { ref mut color } = node.fills[idx].fill_type {
+                    color.color_space = space;
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    /// Get color space for a fill at index
+    pub fn get_color_space(&self, id: u64, fill_index: u32) -> String {
+        if let Some(node) = self.scene.get_node(id) {
+            let idx = fill_index as usize;
+            if idx < node.fills.len() {
+                if let FillType::Solid { ref color } = node.fills[idx].fill_type {
+                    return color.color_space.as_str().to_string();
+                }
+            }
+        }
+        "sRGB".to_string()
+    }
+
+    /// Convert color between color spaces. Returns JSON {r,g,b,a,css_modern,css_fallback}
+    pub fn convert_color(&self, r: u8, g: u8, b: u8, a: f64, from_space: &str, to_space: &str) -> String {
+        let _from = crate::types::ColorSpace::from_str(from_space);
+        let to = crate::types::ColorSpace::from_str(to_space);
+        // Values are always stored as sRGB r/g/b; just change color_space for CSS output
+        let color = Color { r, g, b, a, color_space: to };
+        serde_json::json!({
+            "r": r, "g": g, "b": b, "a": a,
+            "color_space": to.as_str(),
+            "css_modern": color.to_css_modern(),
+            "css_fallback": color.to_srgb_fallback()
+        }).to_string()
     }
 
     /// Set fill visible/hidden at index.
@@ -1869,7 +1909,10 @@ impl Engine {
                             "index": i,
                             "type": "Solid",
                             "visible": fill.visible,
-                            "color": { "r": color.r, "g": color.g, "b": color.b, "a": color.a }
+                            "color": { "r": color.r, "g": color.g, "b": color.b, "a": color.a, "color_space": color.color_space.as_str() },
+                            "color_space": color.color_space.as_str(),
+                            "css_modern": color.to_css_modern(),
+                            "css_fallback": color.to_srgb_fallback()
                         })
                     }
                     FillType::LinearGradient { start_x, start_y, end_x, end_y, stops } => {
@@ -2009,8 +2052,7 @@ impl Engine {
                 r: s["r"].as_u64().unwrap_or(0) as u8,
                 g: s["g"].as_u64().unwrap_or(0) as u8,
                 b: s["b"].as_u64().unwrap_or(0) as u8,
-                a: s["a"].as_f64().unwrap_or(1.0),
-            },
+                a: s["a"].as_f64().unwrap_or(1.0), color_space: ColorSpace::default() },
         }).collect();
         if let Some(node) = self.scene.get_node_mut(id) {
             let idx = index as usize;
@@ -2035,8 +2077,7 @@ impl Engine {
                 r: s["r"].as_u64().unwrap_or(0) as u8,
                 g: s["g"].as_u64().unwrap_or(0) as u8,
                 b: s["b"].as_u64().unwrap_or(0) as u8,
-                a: s["a"].as_f64().unwrap_or(1.0),
-            },
+                a: s["a"].as_f64().unwrap_or(1.0), color_space: ColorSpace::default() },
         }).collect();
         if let Some(node) = self.scene.get_node_mut(id) {
             let idx = index as usize;
@@ -2061,8 +2102,7 @@ impl Engine {
                 r: s["r"].as_u64().unwrap_or(0) as u8,
                 g: s["g"].as_u64().unwrap_or(0) as u8,
                 b: s["b"].as_u64().unwrap_or(0) as u8,
-                a: s["a"].as_f64().unwrap_or(1.0),
-            },
+                a: s["a"].as_f64().unwrap_or(1.0), color_space: ColorSpace::default() },
         }).collect();
         if let Some(node) = self.scene.get_node_mut(id) {
             let new_fill = Fill {
@@ -2089,8 +2129,7 @@ impl Engine {
                 r: s["r"].as_u64().unwrap_or(0) as u8,
                 g: s["g"].as_u64().unwrap_or(0) as u8,
                 b: s["b"].as_u64().unwrap_or(0) as u8,
-                a: s["a"].as_f64().unwrap_or(1.0),
-            },
+                a: s["a"].as_f64().unwrap_or(1.0), color_space: ColorSpace::default() },
         }).collect();
         if let Some(node) = self.scene.get_node_mut(id) {
             let idx = index as usize;
@@ -2139,8 +2178,8 @@ impl Engine {
                 node.fills[idx] = Fill {
                     fill_type: FillType::NoiseFill {
                         scale: scale.max(2.0),
-                        color1: Color { r: c1r, g: c1g, b: c1b, a: c1a },
-                        color2: Color { r: c2r, g: c2g, b: c2b, a: c2a },
+                        color1: Color { r: c1r, g: c1g, b: c1b, a: c1a, color_space: ColorSpace::default() },
+                        color2: Color { r: c2r, g: c2g, b: c2b, a: c2a, color_space: ColorSpace::default() },
                         intensity: intensity.max(0.0).min(1.0),
                         seed,
                     },
@@ -2159,8 +2198,8 @@ impl Engine {
                     fill_type: FillType::DotPattern {
                         dot_radius: dot_radius.max(0.5),
                         spacing: spacing.max(2.0),
-                        color: Color { r: cr, g: cg, b: cb, a: ca },
-                        bg_color: Color { r: bgr, g: bgg, b: bgb, a: bga },
+                        color: Color { r: cr, g: cg, b: cb, a: ca, color_space: ColorSpace::default() },
+                        bg_color: Color { r: bgr, g: bgg, b: bgb, a: bga, color_space: ColorSpace::default() },
                         angle,
                     },
                     visible: node.fills[idx].visible,
@@ -2178,8 +2217,8 @@ impl Engine {
                     fill_type: FillType::CrosshatchFill {
                         spacing: spacing.max(2.0),
                         line_width: line_width.max(0.5),
-                        color: Color { r: cr, g: cg, b: cb, a: ca },
-                        bg_color: Color { r: bgr, g: bgg, b: bgb, a: bga },
+                        color: Color { r: cr, g: cg, b: cb, a: ca, color_space: ColorSpace::default() },
+                        bg_color: Color { r: bgr, g: bgg, b: bgb, a: bga, color_space: ColorSpace::default() },
                         angle,
                         density: density.max(1).min(2),
                     },
@@ -2199,8 +2238,7 @@ impl Engine {
                 r: p["r"].as_u64().unwrap_or(200) as u8,
                 g: p["g"].as_u64().unwrap_or(200) as u8,
                 b: p["b"].as_u64().unwrap_or(200) as u8,
-                a: p["a"].as_f64().unwrap_or(1.0),
-            },
+                a: p["a"].as_f64().unwrap_or(1.0), color_space: ColorSpace::default() },
         }).collect();
         if let Some(node) = self.scene.get_node_mut(id) {
             let idx = index as usize;
@@ -2241,7 +2279,7 @@ impl Engine {
             if fi < node.fills.len() {
                 if let FillType::GradientMesh { ref mut mesh } = node.fills[fi].fill_type {
                     if let Some(pt) = mesh.points.get_mut(point_index as usize) {
-                        pt.color = Color { r, g, b, a };
+                        pt.color = Color { r, g, b, a, color_space: ColorSpace::default() };
                     }
                 }
             }
@@ -2336,10 +2374,10 @@ impl Engine {
     pub fn set_stroke(&mut self, id: u64, r: u8, g: u8, b: u8, a: f64, width: f64) {
         if let Some(node) = self.scene.get_node_mut(id) {
             if node.strokes.is_empty() {
-                node.strokes.push(Stroke::new(Color { r, g, b, a }, width));
+                node.strokes.push(Stroke::new(Color { r, g, b, a, color_space: ColorSpace::default() }, width));
             } else {
                 let s = &mut node.strokes[0];
-                s.color = Color { r, g, b, a };
+                s.color = Color { r, g, b, a, color_space: ColorSpace::default() };
                 s.width = width;
             }
         }
@@ -2416,7 +2454,7 @@ impl Engine {
     /// Add a stroke. Returns the index.
     pub fn add_stroke(&mut self, id: u64, r: u8, g: u8, b: u8, a: f64, width: f64) -> i32 {
         if let Some(node) = self.scene.get_node_mut(id) {
-            node.strokes.push(Stroke::new(Color { r, g, b, a }, width));
+            node.strokes.push(Stroke::new(Color { r, g, b, a, color_space: ColorSpace::default() }, width));
             (node.strokes.len() - 1) as i32
         } else {
             -1
@@ -2440,7 +2478,7 @@ impl Engine {
         if let Some(node) = self.scene.get_node_mut(id) {
             let idx = index as usize;
             if idx < node.strokes.len() {
-                node.strokes[idx].color = Color { r, g, b, a };
+                node.strokes[idx].color = Color { r, g, b, a, color_space: ColorSpace::default() };
                 node.strokes[idx].width = width;
                 return true;
             }
@@ -5975,7 +6013,7 @@ impl Engine {
         frame.width = max_x - min_x;
         frame.height = max_y - min_y;
         frame.name = format!("Auto Layout {}", self.scene.node_count() + 1);
-        frame.fills = vec![crate::node::Fill::solid(crate::types::Color { r: 30, g: 30, b: 30, a: 0.0 })];
+        frame.fills = vec![crate::node::Fill::solid(crate::types::Color { r: 30, g: 30, b: 30, a: 0.0, color_space: ColorSpace::default() })];
 
         // Set layout properties
         frame.layout.mode = LayoutMode::Flex;
@@ -6341,7 +6379,7 @@ impl Engine {
     pub fn add_shadow(&mut self, id: u64, r: u8, g: u8, b: u8, a: f64, offset_x: f64, offset_y: f64, blur: f64, spread: f64) {
         if let Some(node) = self.scene.get_node_mut(id) {
             node.shadows.push(Shadow {
-                color: Color { r, g, b, a },
+                color: Color { r, g, b, a, color_space: ColorSpace::default() },
                 offset_x, offset_y, blur, spread,
                 visible: true,
                 inset: false,
@@ -6352,7 +6390,7 @@ impl Engine {
     pub fn add_inner_shadow(&mut self, id: u64, r: u8, g: u8, b: u8, a: f64, offset_x: f64, offset_y: f64, blur: f64, spread: f64) {
         if let Some(node) = self.scene.get_node_mut(id) {
             node.shadows.push(Shadow {
-                color: Color { r, g, b, a },
+                color: Color { r, g, b, a, color_space: ColorSpace::default() },
                 offset_x, offset_y, blur, spread,
                 visible: true,
                 inset: true,
@@ -6387,7 +6425,7 @@ impl Engine {
     pub fn update_shadow(&mut self, id: u64, index: usize, r: u8, g: u8, b: u8, a: f64, offset_x: f64, offset_y: f64, blur: f64, spread: f64) {
         if let Some(node) = self.scene.get_node_mut(id) {
             if let Some(s) = node.shadows.get_mut(index) {
-                s.color = Color { r, g, b, a };
+                s.color = Color { r, g, b, a, color_space: ColorSpace::default() };
                 s.offset_x = offset_x;
                 s.offset_y = offset_y;
                 s.blur = blur;
@@ -6975,7 +7013,7 @@ impl Engine {
         if let Some(style) = self.styles.get_color_style(style_id) {
             let (r, g, b, a) = (style.fill_r, style.fill_g, style.fill_b, style.fill_a);
             if let Some(node) = self.scene.get_node_mut(node_id) {
-                node.fills = vec![crate::node::Fill::solid(Color { r, g, b, a })];
+                node.fills = vec![crate::node::Fill::solid(Color { r, g, b, a, color_space: ColorSpace::default() })];
                 node.color_style_id = Some(style_id);
                 return true;
             }
@@ -7004,7 +7042,7 @@ impl Engine {
                     *font_style = style.font_style;
                     *line_height = style.line_height;
                     *text_align = style.text_align;
-                    node.fills = vec![crate::node::Fill::solid(Color { r: style.color_r, g: style.color_g, b: style.color_b, a: style.color_a })];
+                    node.fills = vec![crate::node::Fill::solid(Color { r: style.color_r, g: style.color_g, b: style.color_b, a: style.color_a, color_space: ColorSpace::default() })];
                 }
                 node.text_style_id = Some(style_id);
                 return true;
@@ -7046,7 +7084,7 @@ impl Engine {
             for nid in node_ids {
                 if let Some(node) = self.scene.get_node_mut(nid) {
                     if node.color_style_id == Some(style_id) {
-                        node.fills = vec![crate::node::Fill::solid(Color { r: style.fill_r, g: style.fill_g, b: style.fill_b, a: style.fill_a })];
+                        node.fills = vec![crate::node::Fill::solid(Color { r: style.fill_r, g: style.fill_g, b: style.fill_b, a: style.fill_a, color_space: ColorSpace::default() })];
                     }
                 }
             }
@@ -7067,7 +7105,7 @@ impl Engine {
                             *font_style = style.font_style.clone();
                             *line_height = style.line_height;
                             *text_align = style.text_align.clone();
-                            node.fills = vec![crate::node::Fill::solid(Color { r: style.color_r, g: style.color_g, b: style.color_b, a: style.color_a })];
+                            node.fills = vec![crate::node::Fill::solid(Color { r: style.color_r, g: style.color_g, b: style.color_b, a: style.color_a, color_space: ColorSpace::default() })];
                         }
                     }
                 }

@@ -1,4 +1,4 @@
-use crate::types::{Color, Rect as BBox};
+use crate::types::{Color, ColorSpace, Rect as BBox};
 use crate::component::InstanceData;
 use crate::variable::VisibilityCondition;
 use crate::vector_network::VectorNetwork;
@@ -557,10 +557,10 @@ impl MeshGradient {
     /// Create a default 2×2 mesh with 4 corner colors
     pub fn new_default() -> Self {
         let points = vec![
-            MeshPoint { x: 0.0, y: 0.0, color: Color { r: 79, g: 70, b: 229, a: 1.0 } },   // top-left: indigo
-            MeshPoint { x: 1.0, y: 0.0, color: Color { r: 16, g: 185, b: 129, a: 1.0 } },   // top-right: emerald
-            MeshPoint { x: 0.0, y: 1.0, color: Color { r: 245, g: 158, b: 11, a: 1.0 } },   // bottom-left: amber
-            MeshPoint { x: 1.0, y: 1.0, color: Color { r: 239, g: 68, b: 68, a: 1.0 } },    // bottom-right: red
+            MeshPoint { x: 0.0, y: 0.0, color: Color { r: 79, g: 70, b: 229, a: 1.0, color_space: ColorSpace::default() } },   // top-left: indigo
+            MeshPoint { x: 1.0, y: 0.0, color: Color { r: 16, g: 185, b: 129, a: 1.0, color_space: ColorSpace::default() } },   // top-right: emerald
+            MeshPoint { x: 0.0, y: 1.0, color: Color { r: 245, g: 158, b: 11, a: 1.0, color_space: ColorSpace::default() } },   // bottom-left: amber
+            MeshPoint { x: 1.0, y: 1.0, color: Color { r: 239, g: 68, b: 68, a: 1.0, color_space: ColorSpace::default() } },    // bottom-right: red
         ];
         Self { rows: 2, cols: 2, points }
     }
@@ -1195,7 +1195,7 @@ impl Default for LayoutGrid {
             size_mode: GridSizeMode::Auto,
             gutter: 20.0,
             margin: 20.0,
-            color: Color { r: 255, g: 0, b: 0, a: 0.1 },
+            color: Color { r: 255, g: 0, b: 0, a: 0.1, color_space: ColorSpace::default() },
             visible: true,
         }
     }
@@ -1894,7 +1894,7 @@ impl Node {
             visible: true,
             locked: false,
             fill: None,
-            fills: vec![Fill::solid(Color { r: 200, g: 200, b: 200, a: 1.0 })],
+            fills: vec![Fill::solid(Color { r: 200, g: 200, b: 200, a: 1.0, color_space: ColorSpace::default() })],
             stroke: None,
             strokes: vec![],
             corner_radius: 0.0,

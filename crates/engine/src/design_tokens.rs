@@ -3,6 +3,7 @@
 //! Exports color styles, text styles, and variable collections as design tokens
 //! in multiple formats: W3C DTCG, Style Dictionary, and Tailwind CSS theme.
 
+use crate::types::ColorSpace;
 use serde::Serialize;
 use serde_json::{json, Map, Value};
 

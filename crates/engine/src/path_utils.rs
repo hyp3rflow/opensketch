@@ -1,3 +1,4 @@
+use crate::types::ColorSpace;
 use crate::node::PathPoint;
 
 /// A point and tangent angle on a path at a given distance.

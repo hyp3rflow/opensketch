@@ -1,5 +1,5 @@
 use crate::node::{Node, NodeId, NodeKind, FillType, Fill, LayoutMode};
-use crate::types::Color;
+use crate::types::{Color, ColorSpace};
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
 
@@ -374,8 +374,7 @@ fn parse_hex(hex: &str) -> Option<Color> {
         r: u8::from_str_radix(&hex[0..2], 16).ok()?,
         g: u8::from_str_radix(&hex[2..4], 16).ok()?,
         b: u8::from_str_radix(&hex[4..6], 16).ok()?,
-        a: 1.0,
-    })
+        a: 1.0, color_space: ColorSpace::default() })
 }
 
 fn color_distance(a: &Color, b: &Color) -> f64 {

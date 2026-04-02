@@ -1,3 +1,4 @@
+use crate::types::ColorSpace;
 use crate::node::{NodeId, FlexDirection, Align, Justify, FlexWrap};
 use crate::scene::Scene;
 use serde::Serialize;

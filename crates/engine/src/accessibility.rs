@@ -5,7 +5,7 @@
 
 use crate::design_lint::{run_lint, LintConfig, LintIssue, LintCategory, LintSeverity};
 use crate::node::{Node, NodeId, NodeKind, FillType};
-use crate::types::Color;
+use crate::types::{Color, ColorSpace};
 use serde::Serialize;
 use std::collections::HashMap;
 
@@ -217,7 +217,7 @@ pub fn suggest_fix_color(fg: &Color, bg: &Color, target_ratio: f64) -> Color {
         let r = (fg.r as f64 * factor).round().clamp(0.0, 255.0) as u8;
         let g = (fg.g as f64 * factor).round().clamp(0.0, 255.0) as u8;
         let b = (fg.b as f64 * factor).round().clamp(0.0, 255.0) as u8;
-        let candidate = Color { r, g, b, a: fg.a };
+        let candidate = Color { r, g, b, a: fg.a, color_space: ColorSpace::default() };
         let ratio = contrast_ratio(relative_luminance(&candidate), bg_lum);
         if ratio >= target_ratio {
             if ratio < best_ratio || best_ratio < target_ratio {
@@ -254,5 +254,5 @@ fn find_background_color(node_id: NodeId, parent_map: &HashMap<NodeId, NodeId>, 
         current = parent_id;
     }
     // Default white background
-    Some(Color { r: 255, g: 255, b: 255, a: 1.0 })
+    Some(Color { r: 255, g: 255, b: 255, a: 1.0, color_space: ColorSpace::default() })
 }

@@ -1,3 +1,4 @@
+use crate::types::ColorSpace;
 use crate::node::*;
 use crate::scene::Scene;
 // Breakpoint is used from node::*

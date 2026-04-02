@@ -10,7 +10,11 @@ Pure Rust crate compiled to WASM via `wasm-pack`. No NAPI — runs entirely in t
 - `Point { x, y }` — 2D point
 - `Size { width, height }`
 - `Rect { x, y, width, height }` — bounding box, with `contains(Point)` and `from_two_points`
-- `Color { r: u8, g: u8, b: u8, a: f64 }` — with `to_css()`, `white()`, `black()`, `blue()`, `transparent()`
+- `ColorSpace` enum: `SRGB` (default) | `DisplayP3` | `OKLab` | `OKLCH` — wide gamut color space support
+- `Color { r: u8, g: u8, b: u8, a: f64, color_space: ColorSpace }` — with `to_css()`, `to_css_modern()`, `to_srgb_fallback()`, `white()`, `black()`, `blue()`, `transparent()`
+  - `to_css_modern()`: outputs `color(display-p3 ...)`, `oklab(...)`, `oklch(...)` based on color_space
+  - Color conversion utils: `srgb_to_p3()`, `p3_to_srgb()`, `srgb_to_oklab()`, `oklab_to_srgb()`
+  - `color_space` field uses `#[serde(default)]` for backward compatibility
 
 ### `node.rs`
 - `NodeId = u64`
@@ -87,6 +91,7 @@ Pure Rust crate compiled to WASM via `wasm-pack`. No NAPI — runs entirely in t
 - Multi-stroke: Vec<Stroke> with visible toggle per stroke, add/remove/update API
 - SVG export: uses first visible fill (SVG doesn't natively support stacked fills)
 - WASM API: `add_fill`, `remove_fill`, `update_fill_at`, `set_fill_visible_at`, `get_fills`, `get_fill_count`, `move_fill`, `set_fill_linear_gradient_at`, `set_fill_radial_gradient_at`, `set_fill_gradient_mesh_at`, `set_fill_gradient_mesh_default_at`, `mesh_set_point_color`, `mesh_set_point_position`, `mesh_add_row`, `mesh_add_col`, `mesh_remove_row`, `mesh_remove_col`, `mesh_get_info`
+- Wide Gamut Color API: `set_color_space(node_id, fill_index, space_str)`, `get_color_space(node_id, fill_index)`, `convert_color(r,g,b,a, from_space, to_space)` — returns JSON with css_modern and css_fallback
 - Legacy `set_fill_color` / `set_fill_linear_gradient` / `set_fill_radial_gradient` update fills[0]
 
 ## Effects System

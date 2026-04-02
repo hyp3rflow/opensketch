@@ -3,6 +3,7 @@
 //! Themes (Light/Dark/Custom) define token name→value mappings.
 //! Nodes bind fill/stroke to token names; switching theme updates all bound nodes.
 
+use crate::types::ColorSpace;
 use std::collections::HashMap;
 use serde::{Serialize, Deserialize};
 

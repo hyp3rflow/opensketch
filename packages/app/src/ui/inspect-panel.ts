@@ -337,7 +337,12 @@ function generateCSS(ctx: CodeCtx): string {
       lines.push(`background-repeat: repeat;`);
       if (fill.rotation) lines.push(`/* pattern rotation: ${fill.rotation}deg */`);
     } else if (fill.type === "Solid" || fill.color) {
-      lines.push(`background-color: ${rgbaToCSS(fill.color || fill)};`);
+      if (fill.css_modern && fill.color_space && fill.color_space !== "sRGB") {
+        lines.push(`background-color: ${fill.css_modern};`);
+        lines.push(`/* sRGB fallback: ${fill.css_fallback || rgbaToCSS(fill.color || fill)} */`);
+      } else {
+        lines.push(`background-color: ${rgbaToCSS(fill.color || fill)};`);
+      }
     } else if (fill.type === "LinearGradient" && fill.stops) {
       const stops = fill.stops.map((s: any) => `${rgbaToCSS(s.color)} ${(s.offset * 100).toFixed(0)}%`).join(", ");
       lines.push(`background: linear-gradient(${stops});`);

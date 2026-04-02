@@ -1,5 +1,6 @@
 //! Design-to-code component export — generates actual component code from nodes with CodeMapping.
 
+use crate::types::ColorSpace;
 use crate::node::{CodeFramework, CodeMapping, Node, NodeId, NodeKind, PropBinding, FlexDirection};
 use crate::scene::Scene;
 use serde::{Serialize, Deserialize};

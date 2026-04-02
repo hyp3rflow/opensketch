@@ -3,6 +3,7 @@
 //! Generates quiz questions from the design file's components, styles,
 //! variables, and lint issues.
 
+use crate::types::ColorSpace;
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
 use crate::scene::Scene;

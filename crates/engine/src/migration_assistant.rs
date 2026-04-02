@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use crate::node::{NodeKind, FillType};
 use crate::styles::{StyleStore, StyleId};
-use crate::types::Color;
+use crate::types::{Color, ColorSpace};
 use crate::scene::Scene;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -187,7 +187,7 @@ pub fn apply_migration(scene: &mut Scene, styles: &StyleStore, node_id: u64, sty
     match property {
         MigrationProperty::Fill => {
             if let Some(cs) = styles.get_color_style(style_id) {
-                let new_color = Color { r: cs.fill_r, g: cs.fill_g, b: cs.fill_b, a: cs.fill_a };
+                let new_color = Color { r: cs.fill_r, g: cs.fill_g, b: cs.fill_b, a: cs.fill_a, color_space: ColorSpace::default() };
                 if let Some(node) = scene.get_node_mut(node_id) {
                     if let Some(fill) = node.fills.iter_mut().find(|f| f.visible && matches!(f.fill_type, FillType::Solid { .. })) {
                         fill.fill_type = FillType::Solid { color: new_color };
@@ -200,7 +200,7 @@ pub fn apply_migration(scene: &mut Scene, styles: &StyleStore, node_id: u64, sty
         }
         MigrationProperty::Stroke => {
             if let Some(cs) = styles.get_color_style(style_id) {
-                let new_color = Color { r: cs.fill_r, g: cs.fill_g, b: cs.fill_b, a: cs.fill_a };
+                let new_color = Color { r: cs.fill_r, g: cs.fill_g, b: cs.fill_b, a: cs.fill_a, color_space: ColorSpace::default() };
                 if let Some(node) = scene.get_node_mut(node_id) {
                     if let Some(stroke) = node.strokes.iter_mut().find(|s| s.visible) {
                         stroke.color = new_color;

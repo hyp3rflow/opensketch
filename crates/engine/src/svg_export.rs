@@ -1079,7 +1079,12 @@ fn append_transform(attrs: &mut String, node: &Node) {
 fn append_fill_ref(attrs: &mut String, fill_type: &FillType, node_id: u64) {
     match fill_type {
         FillType::Solid { color: c } => {
-            attrs.push_str(&format!(r#" fill="{}""#, color_to_hex(c.r, c.g, c.b)));
+            if c.color_space != crate::types::ColorSpace::SRGB {
+                // Use CSS color() for wide gamut, with sRGB fallback
+                attrs.push_str(&format!(r#" fill="{}""#, c.to_css_modern()));
+            } else {
+                attrs.push_str(&format!(r#" fill="{}""#, color_to_hex(c.r, c.g, c.b)));
+            }
             if c.a < 1.0 {
                 attrs.push_str(&format!(r#" fill-opacity="{}""#, c.a));
             }
@@ -1296,7 +1301,7 @@ fn build_gradient_defs(node: &Node) -> Option<String> {
 }
 
 fn interpolate_stops(stops: &[crate::node::GradientStop], t: f64) -> crate::types::Color {
-    use crate::types::Color;
+    use crate::types::{Color, ColorSpace};
     if stops.is_empty() { return Color::white(); }
     if stops.len() == 1 || t <= stops[0].offset { return stops[0].color; }
     if t >= stops[stops.len() - 1].offset { return stops[stops.len() - 1].color; }
@@ -1310,8 +1315,7 @@ fn interpolate_stops(stops: &[crate::node::GradientStop], t: f64) -> crate::type
                 r: (prev.color.r as f64 + (curr.color.r as f64 - prev.color.r as f64) * frac) as u8,
                 g: (prev.color.g as f64 + (curr.color.g as f64 - prev.color.g as f64) * frac) as u8,
                 b: (prev.color.b as f64 + (curr.color.b as f64 - prev.color.b as f64) * frac) as u8,
-                a: prev.color.a + (curr.color.a - prev.color.a) * frac,
-            };
+                a: prev.color.a + (curr.color.a - prev.color.a) * frac, color_space: ColorSpace::default() };
         }
     }
     stops[stops.len() - 1].color

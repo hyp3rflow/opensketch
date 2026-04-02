@@ -35,7 +35,7 @@ pub struct ResponsiveState {
     #[serde(default)]
     pub active_preset_id: u64,
 }
-use crate::types::Color;
+use crate::types::{Color, ColorSpace};
 use crate::animation::AnimationStore;
 use crate::whiteboard::WhiteboardState;
 use crate::branch::{Branch, BranchSnapshot, BranchDiff, VisualDiff, compute_diff, compute_visual_diff, merge_snapshots, ReviewRequest, ReviewComment, ReviewStatus};
@@ -164,7 +164,7 @@ pub fn parse_hex_color(hex: &str) -> Option<Color> {
         }
         _ => return None,
     };
-    Some(Color { r, g, b, a })
+    Some(Color { r, g, b, a, color_space: ColorSpace::default() })
 }
 
 /// A prototype flow: a named collection of interactions starting from a specific frame
@@ -1082,7 +1082,7 @@ impl Scene {
     pub fn apply_token_theme(&mut self) {
         use crate::token::{TokenProperty, TokenValue};
         use crate::node::Fill;
-        use crate::types::Color;
+        use crate::types::{Color, ColorSpace};
 
         let bindings = self.token_store.bindings.clone();
         for binding in &bindings {
@@ -2113,7 +2113,7 @@ impl Scene {
         frame.width = fw;
         frame.height = fh;
         frame.name = format!("Frame {}", self.node_count() + 1);
-        frame.fills = vec![crate::node::Fill::solid(crate::types::Color { r: 255, g: 255, b: 255, a: 1.0 })];
+        frame.fills = vec![crate::node::Fill::solid(crate::types::Color { r: 255, g: 255, b: 255, a: 1.0, color_space: ColorSpace::default() })];
         frame.parent = first_parent;
 
         let frame_id = self.next_id;

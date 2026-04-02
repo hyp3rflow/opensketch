@@ -6,7 +6,7 @@ use crate::node::{
     Node, NodeKind, Fill, FillType, Stroke, Layout, LayoutMode, FlexDirection,
     Align, Justify, FlexWrap, TextAlign, FontStyle, TextSizing,
 };
-use crate::types::Color;
+use crate::types::{Color, ColorSpace};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -350,18 +350,18 @@ fn parse_css_color(val: &str) -> Option<Color> {
     let val = val.trim();
     // Named colors
     match val {
-        "black" => return Some(Color { r: 0, g: 0, b: 0, a: 1.0 }),
-        "white" => return Some(Color { r: 255, g: 255, b: 255, a: 1.0 }),
-        "red" => return Some(Color { r: 255, g: 0, b: 0, a: 1.0 }),
-        "green" => return Some(Color { r: 0, g: 128, b: 0, a: 1.0 }),
-        "blue" => return Some(Color { r: 0, g: 0, b: 255, a: 1.0 }),
-        "gray" | "grey" => return Some(Color { r: 128, g: 128, b: 128, a: 1.0 }),
-        "transparent" => return Some(Color { r: 0, g: 0, b: 0, a: 0.0 }),
-        "yellow" => return Some(Color { r: 255, g: 255, b: 0, a: 1.0 }),
-        "orange" => return Some(Color { r: 255, g: 165, b: 0, a: 1.0 }),
-        "purple" => return Some(Color { r: 128, g: 0, b: 128, a: 1.0 }),
-        "pink" => return Some(Color { r: 255, g: 192, b: 203, a: 1.0 }),
-        "cyan" => return Some(Color { r: 0, g: 255, b: 255, a: 1.0 }),
+        "black" => return Some(Color { r: 0, g: 0, b: 0, a: 1.0, color_space: ColorSpace::default() }),
+        "white" => return Some(Color { r: 255, g: 255, b: 255, a: 1.0, color_space: ColorSpace::default() }),
+        "red" => return Some(Color { r: 255, g: 0, b: 0, a: 1.0, color_space: ColorSpace::default() }),
+        "green" => return Some(Color { r: 0, g: 128, b: 0, a: 1.0, color_space: ColorSpace::default() }),
+        "blue" => return Some(Color { r: 0, g: 0, b: 255, a: 1.0, color_space: ColorSpace::default() }),
+        "gray" | "grey" => return Some(Color { r: 128, g: 128, b: 128, a: 1.0, color_space: ColorSpace::default() }),
+        "transparent" => return Some(Color { r: 0, g: 0, b: 0, a: 0.0, color_space: ColorSpace::default() }),
+        "yellow" => return Some(Color { r: 255, g: 255, b: 0, a: 1.0, color_space: ColorSpace::default() }),
+        "orange" => return Some(Color { r: 255, g: 165, b: 0, a: 1.0, color_space: ColorSpace::default() }),
+        "purple" => return Some(Color { r: 128, g: 0, b: 128, a: 1.0, color_space: ColorSpace::default() }),
+        "pink" => return Some(Color { r: 255, g: 192, b: 203, a: 1.0, color_space: ColorSpace::default() }),
+        "cyan" => return Some(Color { r: 0, g: 255, b: 255, a: 1.0, color_space: ColorSpace::default() }),
         _ => {}
     }
 
@@ -373,20 +373,20 @@ fn parse_css_color(val: &str) -> Option<Color> {
                 let r = u8::from_str_radix(&hex[0..1], 16).ok()? * 17;
                 let g = u8::from_str_radix(&hex[1..2], 16).ok()? * 17;
                 let b = u8::from_str_radix(&hex[2..3], 16).ok()? * 17;
-                Some(Color { r, g, b, a: 1.0 })
+                Some(Color { r, g, b, a: 1.0, color_space: ColorSpace::default() })
             }
             6 => {
                 let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
                 let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
                 let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
-                Some(Color { r, g, b, a: 1.0 })
+                Some(Color { r, g, b, a: 1.0, color_space: ColorSpace::default() })
             }
             8 => {
                 let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
                 let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
                 let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
                 let a = u8::from_str_radix(&hex[6..8], 16).ok()? as f64 / 255.0;
-                Some(Color { r, g, b, a })
+                Some(Color { r, g, b, a, color_space: ColorSpace::default() })
             }
             _ => None,
         };
@@ -401,7 +401,7 @@ fn parse_css_color(val: &str) -> Option<Color> {
             let g = parts[1].trim().parse::<u8>().ok()?;
             let b = parts[2].trim().parse::<u8>().ok()?;
             let a = if parts.len() >= 4 { parts[3].trim().parse::<f64>().unwrap_or(1.0) } else { 1.0 };
-            return Some(Color { r, g, b, a });
+            return Some(Color { r, g, b, a, color_space: ColorSpace::default() });
         }
     }
 
@@ -460,7 +460,7 @@ pub fn code_to_design(scene: &mut Scene, html: &str, offset_x: f64, offset_y: f6
     root.width = 800.0;
     root.height = 600.0;
     root.name = "Imported HTML".to_string();
-    root.fills = vec![Fill::solid(Color { r: 255, g: 255, b: 255, a: 1.0 })];
+    root.fills = vec![Fill::solid(Color { r: 255, g: 255, b: 255, a: 1.0, color_space: ColorSpace::default() })];
     root.layout = Layout {
         mode: LayoutMode::Flex,
         direction: FlexDirection::Column,
@@ -566,7 +566,7 @@ fn convert_html_node(scene: &mut Scene, html_node: &HtmlNode, parent_id: u64) ->
             let node_id = create_rect_node(scene, &html_node.styles);
             if let Some(node) = scene.get_node_mut(node_id) {
                 node.name = "Image Placeholder".to_string();
-                node.fills = vec![Fill::solid(Color { r: 200, g: 200, b: 220, a: 1.0 })];
+                node.fills = vec![Fill::solid(Color { r: 200, g: 200, b: 220, a: 1.0, color_space: ColorSpace::default() })];
             }
             scene.reparent(node_id, Some(parent_id));
             1
@@ -576,7 +576,7 @@ fn convert_html_node(scene: &mut Scene, html_node: &HtmlNode, parent_id: u64) ->
             node.width = 0.0; // fill
             node.height = 2.0;
             node.name = "Divider".to_string();
-            node.fills = vec![Fill::solid(Color { r: 200, g: 200, b: 200, a: 1.0 })];
+            node.fills = vec![Fill::solid(Color { r: 200, g: 200, b: 200, a: 1.0, color_space: ColorSpace::default() })];
             node.sizing_h = crate::node::SizingMode::Fill;
             let id = scene.add_node(node);
             scene.reparent(id, Some(parent_id));
@@ -663,7 +663,7 @@ fn create_text_node(scene: &mut Scene, text: &str, styles: &CssProps) -> u64 {
 
     let color = styles.get("color")
         .and_then(|v| parse_css_color(v))
-        .unwrap_or(Color { r: 0, g: 0, b: 0, a: 1.0 });
+        .unwrap_or(Color { r: 0, g: 0, b: 0, a: 1.0, color_space: ColorSpace::default() });
 
     let estimated_width = text.len() as f64 * font_size * 0.55;
     let estimated_height = font_size * line_height;
@@ -947,9 +947,9 @@ fn parse_border_shorthand(val: &str) -> Option<Stroke> {
     let width = parse_css_length(parts[0]).unwrap_or(1.0);
     // Last part is usually color
     let color = if parts.len() >= 3 {
-        parse_css_color(parts[2]).unwrap_or(Color { r: 200, g: 200, b: 200, a: 1.0 })
+        parse_css_color(parts[2]).unwrap_or(Color { r: 200, g: 200, b: 200, a: 1.0, color_space: ColorSpace::default() })
     } else {
-        Color { r: 200, g: 200, b: 200, a: 1.0 }
+        Color { r: 200, g: 200, b: 200, a: 1.0, color_space: ColorSpace::default() }
     };
     Some(Stroke::new(color, width))
 }
@@ -961,7 +961,7 @@ fn parse_box_shadow(val: &str) -> Option<crate::node::Shadow> {
 
     // Try to extract numbers and color
     let mut nums = Vec::new();
-    let mut color = Color { r: 0, g: 0, b: 0, a: 0.25 };
+    let mut color = Color { r: 0, g: 0, b: 0, a: 0.25, color_space: ColorSpace::default() };
     let mut i = 0;
     let chars: Vec<char> = val.chars().collect();
 
@@ -1037,8 +1037,8 @@ fn create_input_node(scene: &mut Scene, tag: &str, styles: &CssProps) -> u64 {
         "select" => "Select".to_string(),
         _ => "Input".to_string(),
     };
-    node.fills = vec![Fill::solid(Color { r: 255, g: 255, b: 255, a: 1.0 })];
-    node.strokes = vec![Stroke::new(Color { r: 200, g: 200, b: 200, a: 1.0 }, 1.0)];
+    node.fills = vec![Fill::solid(Color { r: 255, g: 255, b: 255, a: 1.0, color_space: ColorSpace::default() })];
+    node.strokes = vec![Stroke::new(Color { r: 200, g: 200, b: 200, a: 1.0, color_space: ColorSpace::default() }, 1.0)];
     node.corner_radius = 4.0;
     node.layout = Layout {
         mode: LayoutMode::Flex,
@@ -1060,10 +1060,10 @@ fn create_button_node(scene: &mut Scene, text: &str, styles: &CssProps) -> u64 {
     let bg_color = styles.get("background-color")
         .or(styles.get("background"))
         .and_then(|v| parse_css_color(v))
-        .unwrap_or(Color { r: 59, g: 130, b: 246, a: 1.0 });
+        .unwrap_or(Color { r: 59, g: 130, b: 246, a: 1.0, color_space: ColorSpace::default() });
     let text_color = styles.get("color")
         .and_then(|v| parse_css_color(v))
-        .unwrap_or(Color { r: 255, g: 255, b: 255, a: 1.0 });
+        .unwrap_or(Color { r: 255, g: 255, b: 255, a: 1.0, color_space: ColorSpace::default() });
 
     let mut frame = Node::new(0, NodeKind::Frame);
     frame.name = format!("Button: {}", text);

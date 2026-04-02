@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use crate::types::Color;
+use crate::types::{Color, ColorSpace};
 use crate::node::{TextAlign, FontStyle};
 use std::collections::HashMap;
 

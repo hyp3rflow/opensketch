@@ -5,7 +5,7 @@ use wasm_bindgen::JsCast;
 use crate::node::{Node, NodeKind, TextSizing, TextAlign, FontStyle, PathPoint};
 use crate::scene::Scene;
 use crate::transform::Transform;
-use crate::types::Color;
+use crate::types::{Color, ColorSpace};
 
 /// Axis-aligned bounding box in scene coordinates for viewport culling
 #[derive(Clone, Copy)]
@@ -1971,7 +1971,11 @@ impl Renderer {
     fn apply_single_fill_style(&self, ctx: &CanvasRenderingContext2d, fill: &crate::node::Fill, node: &Node) {
         match &fill.fill_type {
             crate::node::FillType::Solid { color } => {
-                ctx.set_fill_style_str(&color.to_css());
+                if color.color_space != crate::types::ColorSpace::SRGB {
+                    ctx.set_fill_style_str(&color.to_css_modern());
+                } else {
+                    ctx.set_fill_style_str(&color.to_css());
+                }
             }
             crate::node::FillType::LinearGradient { start_x, start_y, end_x, end_y, stops } => {
                 let grad = ctx.create_linear_gradient(
@@ -2369,8 +2373,7 @@ impl Renderer {
                     r: (prev.color.r as f64 + (curr.color.r as f64 - prev.color.r as f64) * frac) as u8,
                     g: (prev.color.g as f64 + (curr.color.g as f64 - prev.color.g as f64) * frac) as u8,
                     b: (prev.color.b as f64 + (curr.color.b as f64 - prev.color.b as f64) * frac) as u8,
-                    a: prev.color.a + (curr.color.a - prev.color.a) * frac,
-                };
+                    a: prev.color.a + (curr.color.a - prev.color.a) * frac, color_space: ColorSpace::default() };
             }
         }
         stops[stops.len() - 1].color

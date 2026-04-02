@@ -1,3 +1,4 @@
+use crate::types::ColorSpace;
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
 use crate::node::{Node, NodeId};

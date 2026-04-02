@@ -4,7 +4,7 @@ use crate::node::{Node, NodeKind, FillType};
 use crate::component::ComponentStore;
 use crate::styles::StyleStore;
 use crate::scene::Scene;
-use crate::types::Color;
+use crate::types::{Color, ColorSpace};
 
 #[derive(Serialize, Clone)]
 pub struct HealthReport {
@@ -112,7 +112,7 @@ fn parse_hex(hex: &str) -> Option<Color> {
     let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
     let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
     let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
-    Some(Color { r, g, b, a: 1.0 })
+    Some(Color { r, g, b, a: 1.0, color_space: ColorSpace::default() })
 }
 
 /// Collect all nodes across all pages from a Scene

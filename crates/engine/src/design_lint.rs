@@ -1,5 +1,5 @@
 use crate::node::{Node, NodeId, NodeKind, FillType, LayoutMode};
-use crate::types::Color;
+use crate::types::{Color, ColorSpace};
 use serde::Serialize;
 use std::collections::HashMap;
 
@@ -154,7 +154,7 @@ pub fn run_lint(node_map: &HashMap<NodeId, Node>, config: &LintConfig) -> Vec<Li
                 let bg_color = node.parent
                     .and_then(|pid| node_ref_map.get(&pid))
                     .and_then(|p| solid_color(p))
-                    .unwrap_or(Color { r: 255, g: 255, b: 255, a: 1.0 });
+                    .unwrap_or(Color { r: 255, g: 255, b: 255, a: 1.0, color_space: ColorSpace::default() });
 
                 let fg_lum = relative_luminance(&text_color);
                 let bg_lum = relative_luminance(&bg_color);
@@ -381,8 +381,7 @@ fn parse_hex(hex: &str) -> Option<Color> {
         r: u8::from_str_radix(&hex[0..2], 16).ok()?,
         g: u8::from_str_radix(&hex[2..4], 16).ok()?,
         b: u8::from_str_radix(&hex[4..6], 16).ok()?,
-        a: 1.0,
-    })
+        a: 1.0, color_space: ColorSpace::default() })
 }
 
 fn color_distance(a: &Color, b: &Color) -> f64 {
@@ -428,7 +427,7 @@ fn rgb_to_hsl(c: &Color) -> Hsl {
 fn hsl_to_rgb(hsl: &Hsl) -> Color {
     if hsl.s < 1e-10 {
         let v = (hsl.l * 255.0).round() as u8;
-        return Color { r: v, g: v, b: v, a: 1.0 };
+        return Color { r: v, g: v, b: v, a: 1.0, color_space: ColorSpace::default() };
     }
     let q = if hsl.l < 0.5 { hsl.l * (1.0 + hsl.s) } else { hsl.l + hsl.s - hsl.l * hsl.s };
     let p = 2.0 * hsl.l - q;
@@ -445,8 +444,7 @@ fn hsl_to_rgb(hsl: &Hsl) -> Color {
         r: (hue_to_rgb(hsl.h / 360.0 + 1.0 / 3.0) * 255.0).round() as u8,
         g: (hue_to_rgb(hsl.h / 360.0) * 255.0).round() as u8,
         b: (hue_to_rgb(hsl.h / 360.0 - 1.0 / 3.0) * 255.0).round() as u8,
-        a: 1.0,
-    }
+        a: 1.0, color_space: ColorSpace::default() }
 }
 
 /// Find the closest color to `fg` that meets `target_ratio` against `bg`.
@@ -528,7 +526,7 @@ pub fn get_accessibility_fixes(node_map: &HashMap<NodeId, Node>, config: &LintCo
                 let bg_color = node.parent
                     .and_then(|pid| node_ref_map.get(&pid))
                     .and_then(|p| solid_color(p))
-                    .unwrap_or(Color { r: 255, g: 255, b: 255, a: 1.0 });
+                    .unwrap_or(Color { r: 255, g: 255, b: 255, a: 1.0, color_space: ColorSpace::default() });
 
                 let fg_lum = relative_luminance(&text_color);
                 let bg_lum = relative_luminance(&bg_color);

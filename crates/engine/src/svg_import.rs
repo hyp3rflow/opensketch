@@ -4,7 +4,7 @@
 //! with fill, stroke, opacity, transform, and gradient definitions.
 
 use crate::node::*;
-use crate::types::Color;
+use crate::types::{Color, ColorSpace};
 use crate::scene::Scene;
 
 /// Import SVG text into the scene at the given offset.
@@ -133,7 +133,7 @@ fn parse_stop_color(stop: &roxmltree::Node) -> Color {
     let opacity = stop.attribute("stop-opacity")
         .and_then(|s| s.parse::<f64>().ok())
         .unwrap_or(1.0);
-    let mut c = color_str.map(|s| parse_color(s)).unwrap_or(Color { r: 0, g: 0, b: 0, a: 1.0 });
+    let mut c = color_str.map(|s| parse_color(s)).unwrap_or(Color { r: 0, g: 0, b: 0, a: 1.0, color_space: ColorSpace::default() });
     c.a *= opacity;
     c
 }
@@ -464,7 +464,7 @@ fn apply_style(elem: &roxmltree::Node, node: &mut Node, gradients: &GradientDefs
         Some(s) => {
             let color = parse_color(s);
             let fill_opacity = get_style_f64(elem, "fill-opacity", 1.0);
-            node.fills = vec![Fill::solid(Color { r: color.r, g: color.g, b: color.b, a: color.a * fill_opacity })];
+            node.fills = vec![Fill::solid(Color { r: color.r, g: color.g, b: color.b, a: color.a * fill_opacity, color_space: ColorSpace::default() })];
         }
         None => {
             // SVG default fill is black
@@ -481,7 +481,7 @@ fn apply_style(elem: &roxmltree::Node, node: &mut Node, gradients: &GradientDefs
             let width = get_style_f64(elem, "stroke-width", 1.0);
             let stroke_opacity = get_style_f64(elem, "stroke-opacity", 1.0);
             let mut stroke = Stroke::new(
-                Color { r: color.r, g: color.g, b: color.b, a: color.a * stroke_opacity },
+                Color { r: color.r, g: color.g, b: color.b, a: color.a * stroke_opacity, color_space: ColorSpace::default() },
                 width,
             );
             // Dash array
@@ -918,18 +918,18 @@ fn parse_color(s: &str) -> Color {
 
     // Named colors
     match s {
-        "white" => return Color { r: 255, g: 255, b: 255, a: 1.0 },
-        "black" => return Color { r: 0, g: 0, b: 0, a: 1.0 },
-        "red" => return Color { r: 255, g: 0, b: 0, a: 1.0 },
-        "green" => return Color { r: 0, g: 128, b: 0, a: 1.0 },
-        "blue" => return Color { r: 0, g: 0, b: 255, a: 1.0 },
-        "yellow" => return Color { r: 255, g: 255, b: 0, a: 1.0 },
-        "cyan" | "aqua" => return Color { r: 0, g: 255, b: 255, a: 1.0 },
-        "magenta" | "fuchsia" => return Color { r: 255, g: 0, b: 255, a: 1.0 },
-        "gray" | "grey" => return Color { r: 128, g: 128, b: 128, a: 1.0 },
-        "orange" => return Color { r: 255, g: 165, b: 0, a: 1.0 },
-        "purple" => return Color { r: 128, g: 0, b: 128, a: 1.0 },
-        "transparent" => return Color { r: 0, g: 0, b: 0, a: 0.0 },
+        "white" => return Color { r: 255, g: 255, b: 255, a: 1.0, color_space: ColorSpace::default() },
+        "black" => return Color { r: 0, g: 0, b: 0, a: 1.0, color_space: ColorSpace::default() },
+        "red" => return Color { r: 255, g: 0, b: 0, a: 1.0, color_space: ColorSpace::default() },
+        "green" => return Color { r: 0, g: 128, b: 0, a: 1.0, color_space: ColorSpace::default() },
+        "blue" => return Color { r: 0, g: 0, b: 255, a: 1.0, color_space: ColorSpace::default() },
+        "yellow" => return Color { r: 255, g: 255, b: 0, a: 1.0, color_space: ColorSpace::default() },
+        "cyan" | "aqua" => return Color { r: 0, g: 255, b: 255, a: 1.0, color_space: ColorSpace::default() },
+        "magenta" | "fuchsia" => return Color { r: 255, g: 0, b: 255, a: 1.0, color_space: ColorSpace::default() },
+        "gray" | "grey" => return Color { r: 128, g: 128, b: 128, a: 1.0, color_space: ColorSpace::default() },
+        "orange" => return Color { r: 255, g: 165, b: 0, a: 1.0, color_space: ColorSpace::default() },
+        "purple" => return Color { r: 128, g: 0, b: 128, a: 1.0, color_space: ColorSpace::default() },
+        "transparent" => return Color { r: 0, g: 0, b: 0, a: 0.0, color_space: ColorSpace::default() },
         _ => {}
     }
 
@@ -941,22 +941,22 @@ fn parse_color(s: &str) -> Color {
                 let r = u8::from_str_radix(&hex[0..1], 16).unwrap_or(0) * 17;
                 let g = u8::from_str_radix(&hex[1..2], 16).unwrap_or(0) * 17;
                 let b = u8::from_str_radix(&hex[2..3], 16).unwrap_or(0) * 17;
-                Color { r, g, b, a: 1.0 }
+                Color { r, g, b, a: 1.0, color_space: ColorSpace::default() }
             }
             6 => {
                 let r = u8::from_str_radix(&hex[0..2], 16).unwrap_or(0);
                 let g = u8::from_str_radix(&hex[2..4], 16).unwrap_or(0);
                 let b = u8::from_str_radix(&hex[4..6], 16).unwrap_or(0);
-                Color { r, g, b, a: 1.0 }
+                Color { r, g, b, a: 1.0, color_space: ColorSpace::default() }
             }
             8 => {
                 let r = u8::from_str_radix(&hex[0..2], 16).unwrap_or(0);
                 let g = u8::from_str_radix(&hex[2..4], 16).unwrap_or(0);
                 let b = u8::from_str_radix(&hex[4..6], 16).unwrap_or(0);
                 let a = u8::from_str_radix(&hex[6..8], 16).unwrap_or(255);
-                Color { r, g, b, a: a as f64 / 255.0 }
+                Color { r, g, b, a: a as f64 / 255.0, color_space: ColorSpace::default() }
             }
-            _ => Color { r: 0, g: 0, b: 0, a: 1.0 },
+            _ => Color { r: 0, g: 0, b: 0, a: 1.0, color_space: ColorSpace::default() },
         };
     }
 
@@ -970,10 +970,10 @@ fn parse_color(s: &str) -> Color {
         let g = parts.get(1).and_then(|s| s.trim().parse().ok()).unwrap_or(0);
         let b = parts.get(2).and_then(|s| s.trim().parse().ok()).unwrap_or(0);
         let a = parts.get(3).and_then(|s| s.trim().parse().ok()).unwrap_or(1.0);
-        return Color { r, g, b, a };
+        return Color { r, g, b, a, color_space: ColorSpace::default() };
     }
 
-    Color { r: 0, g: 0, b: 0, a: 1.0 }
+    Color { r: 0, g: 0, b: 0, a: 1.0, color_space: ColorSpace::default() }
 }
 
 fn extract_url_id(s: &str) -> Option<&str> {
