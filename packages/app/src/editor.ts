@@ -1550,7 +1550,7 @@ export class Editor {
       const delta = this._spacingDragging.direction === "row"
         ? (e.offsetX - this._spacingDragStartX) / zoom
         : (e.offsetY - this._spacingDragStartY) / zoom;
-      const newGap = Math.max(0, Math.round(this._spacingDragStartGap + delta));
+      const newGap = Math.round(this._spacingDragStartGap + delta);
 
       if (this._spacingDragging.mode === "selection") {
         // Smart spacing: distribute all selected nodes with uniform spacing

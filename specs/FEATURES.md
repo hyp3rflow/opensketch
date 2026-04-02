@@ -977,7 +977,15 @@ Frame overflow control and content scrolling.
 ### Auto Layout Spacing Presets
 - [x] Spacing presets panel: XS(4) / S(8) / M(12) / Base(16) / L(24) / XL(32) / 2XL(48)
 - [x] Combined presets: one-click apply gap + uniform padding
-- [x] Gap-only presets row: 0/4/8/12/16/24/32/48px
+- [x] Gap-only presets row: -8/-4/0/4/8/12/16/24/32/48px (negative = overlap)
+
+### Negative Gap (Overlap Spacing)
+- [x] Auto layout gap supports negative values for overlapping children (card stacks, avatar piles)
+- [x] Spacing drag handle: no min-0 clamp, allows dragging into negative territory
+- [x] Negative gap visual: red-orange (#ff5032) overlay instead of pink, distinct pill badge color
+- [x] Quick chips: -8px, -4px presets with warm color hint
+- [x] Engine: f64 gap naturally supports negative (no Rust changes needed)
+- [x] CSS inspect: outputs `gap: -Xpx` (informational, CSS gap doesn't support negative)
 - [x] Padding-only presets row: 0/4/8/12/16/24/32/48px
 - [x] Active state highlighting (indigo) for current values
 - [x] Hover feedback, undo integration

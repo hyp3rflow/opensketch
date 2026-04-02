@@ -237,10 +237,14 @@ export function renderSpacingHandles(
     const isActive = (dragging && dragging.gapIndex === h.gapIndex && dragging.mode === h.mode) ||
                      (hovered && hovered.gapIndex === h.gapIndex && hovered.mode === h.mode);
 
-    // Pink for selection mode, slightly different for uniform
-    const baseColor = h.mode === "selection"
-      ? (isUniform ? "rgba(236, 72, 153," : "rgba(255, 100, 100,")
-      : "rgba(236, 72, 153,";
+    // Pink for positive, red-orange for negative (overlap)
+    const gapSize = h.direction === "row" ? h.sw : h.sh;
+    const isNegative = gapSize < -0.5;
+    const baseColor = isNegative
+      ? "rgba(255, 80, 50,"
+      : h.mode === "selection"
+        ? (isUniform ? "rgba(236, 72, 153," : "rgba(255, 100, 100,")
+        : "rgba(236, 72, 153,";
 
     const alpha = isActive ? 0.45 : 0.2;
     ctx.fillStyle = baseColor + alpha + ")";
@@ -272,17 +276,18 @@ export function renderSpacingHandles(
     // Gap value label
     if (isActive || h.mode === "selection") {
       const gapPx = h.direction === "row" ? h.sw : h.sh;
-      const zoom = 1; // already screen space
-      const label = Math.round(gapPx / (h.mode === "selection" ? 1 : 1)).toString();
+      const label = Math.round(gapPx).toString();
       const mx = h.sx + h.sw / 2;
       const my = h.sy + h.sh / 2;
       ctx.font = "10px Inter, system-ui, sans-serif";
       const tw = ctx.measureText(label).width;
 
       // Pill background
-      const pillColor = isUniform && h.mode === "selection"
-        ? "rgba(236, 72, 153, 0.9)"
-        : "rgba(236, 72, 153, 0.75)";
+      const pillColor = isNegative
+        ? "rgba(255, 80, 50, 0.85)"
+        : isUniform && h.mode === "selection"
+          ? "rgba(236, 72, 153, 0.9)"
+          : "rgba(236, 72, 153, 0.75)";
       ctx.fillStyle = pillColor;
       ctx.beginPath();
       ctx.roundRect(mx - tw / 2 - 4, my - 7, tw + 8, 14, 3);

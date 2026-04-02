@@ -6398,16 +6398,17 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         const gapOnlyRow = document.createElement("div");
         gapOnlyRow.style.cssText = "display:flex;gap:3px;flex-wrap:wrap;";
 
-        for (const val of [0, 4, 8, 12, 16, 24, 32, 48]) {
+        for (const val of [-8, -4, 0, 4, 8, 12, 16, 24, 32, 48]) {
           const isActive = currentGap === val;
+          const isNeg = val < 0;
           const chip = document.createElement("button");
           chip.style.cssText = `
-            padding:2px 6px;border:1px solid ${isActive ? "#4f46e5" : "#333"};border-radius:3px;
-            background:${isActive ? "#4f46e520" : "#252525"};color:${isActive ? "#818cf8" : "#666"};
+            padding:2px 6px;border:1px solid ${isActive ? "#4f46e5" : isNeg ? "#553322" : "#333"};border-radius:3px;
+            background:${isActive ? "#4f46e520" : isNeg ? "#352020" : "#252525"};color:${isActive ? "#818cf8" : isNeg ? "#ff8855" : "#666"};
             cursor:pointer;font-size:9px;line-height:1;transition:all 0.15s;
           `;
           chip.textContent = String(val);
-          chip.title = `Set gap to ${val}px`;
+          chip.title = `Set gap to ${val}px${isNeg ? " (overlap)" : ""}`;
           chip.addEventListener("click", () => {
             editor.engine.push_undo();
             editor.engine.set_layout_gap(BigInt(id), val);
