@@ -312,6 +312,8 @@ export function setupLayersPanel(container: HTMLElement, editor: Editor) {
         items.push({ separator: true, label: "" });
         items.push({ label: node.visible ? t("layers.hide") : t("layers.show"), action: () => { editor.engine.set_visible(BigInt(node.id), !node.visible); editor.requestRender(); refresh(); } });
         items.push({ label: node.locked ? t("layers.unlock") : t("layers.lock"), action: () => { editor.engine.set_locked(BigInt(node.id), !node.locked); editor.requestRender(); refresh(); } });
+        items.push({ separator: true, label: "" });
+        items.push({ label: "Auto-rename", action: () => { editor.autoRenameSelection(); refresh(); } });
         showContextMenu(e.clientX, e.clientY, items);
       });
 

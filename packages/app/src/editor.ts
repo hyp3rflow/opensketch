@@ -6097,6 +6097,28 @@ export class Editor {
   }
 
   // =============================================
+  // Auto-rename layers
+  // =============================================
+
+  autoRenameSelection() {
+    const sel = Array.from(this.engine.get_selection()).map(Number);
+    if (sel.length === 0) return;
+    const count = this.engine.auto_rename_selection();
+    if (count > 0) {
+      (this as any).onLayersChanges?.forEach?.((fn: any) => fn());
+      this.requestRender();
+    }
+  }
+
+  autoRenameAll() {
+    const count = this.engine.auto_rename_all();
+    if (count > 0) {
+      (this as any).onLayersChanges?.forEach?.((fn: any) => fn());
+      this.requestRender();
+    }
+  }
+
+  // =============================================
   // Auto Dark Mode
   // =============================================
   autoDarkModeAll() {
@@ -6304,6 +6326,7 @@ export class Editor {
       items.push({ separator: true, label: "" });
 
       items.push({ label: "Flatten", shortcut: `${mod}E`, enabled: true, action: () => this.flattenSelection() });
+      items.push({ label: "Auto-rename", enabled: true, action: () => this.autoRenameSelection() });
 
       // Reset overrides for Instance nodes
       if (selAfter.length === 1) {
@@ -6368,6 +6391,8 @@ export class Editor {
       items.push({ separator: true, label: "" });
       items.push({ label: "Zoom to Fit", shortcut: `${mod}1`, action: () => this.zoomToFit() });
       items.push({ label: "Zoom to 100%", shortcut: `${mod}0`, action: () => this.zoomTo100() });
+      items.push({ separator: true, label: "" });
+      items.push({ label: "Auto-rename All Layers", action: () => this.autoRenameAll() });
     }
 
     showContextMenu(e.clientX, e.clientY, items);

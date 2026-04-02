@@ -2760,6 +2760,47 @@ impl Engine {
     }
 
     // =============================================
+    // Auto-rename layers
+    // =============================================
+
+    /// Auto-rename a single node based on its kind/properties. Returns the new name.
+    pub fn auto_rename_node(&mut self, id: u64) -> String {
+        self.push_undo();
+        // For Instance nodes, resolve component name first
+        if let Some(node) = self.scene.get_node(id) {
+            if let crate::node::NodeKind::Instance(ref data) = node.kind {
+                let comp_id = data.component_id;
+                if let Some(comp) = self.components.get(comp_id) {
+                    let comp_name = comp.name.clone();
+                    if let Some(n) = self.scene.get_node_mut(id) {
+                        n.name = comp_name.clone();
+                    }
+                    return comp_name;
+                }
+            }
+        }
+        self.scene.auto_rename_node(id).unwrap_or_default()
+    }
+
+    /// Auto-rename all selected nodes. Returns number renamed.
+    pub fn auto_rename_selection(&mut self) -> u32 {
+        if self.scene.selection.is_empty() { return 0; }
+        self.push_undo();
+        self.scene.auto_rename_selection()
+    }
+
+    /// Auto-rename all nodes in the active page. Returns number renamed.
+    pub fn auto_rename_all(&mut self) -> u32 {
+        self.push_undo();
+        self.scene.auto_rename_all()
+    }
+
+    /// Preview auto-rename for a node (returns suggested name without applying).
+    pub fn auto_rename_preview(&self, id: u64) -> String {
+        self.scene.auto_name_for_node(id).unwrap_or_default()
+    }
+
+    // =============================================
     // Bookmarks
     // =============================================
 

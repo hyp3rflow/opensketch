@@ -3995,6 +3995,125 @@ impl Scene {
         }
     }
 
+    /// Generate an automatic name for a node based on its kind and properties.
+    pub fn auto_name_for_node(&self, id: NodeId) -> Option<String> {
+        let node = self.get_node(id)?;
+        let name = match &node.kind {
+            crate::node::NodeKind::Rect => "Rectangle".to_string(),
+            crate::node::NodeKind::Ellipse => "Ellipse".to_string(),
+            crate::node::NodeKind::Text { content, .. } => {
+                let first_line = content.lines().next().unwrap_or("Text");
+                let trimmed = first_line.trim();
+                if trimmed.is_empty() {
+                    "Text".to_string()
+                } else if trimmed.len() > 32 {
+                    format!("{}…", &trimmed[..trimmed.char_indices().nth(32).map(|(i,_)|i).unwrap_or(trimmed.len())])
+                } else {
+                    trimmed.to_string()
+                }
+            }
+            crate::node::NodeKind::Frame => {
+                if node.layout.mode != crate::node::LayoutMode::None {
+                    "Auto Layout Frame".to_string()
+                } else if !node.children.is_empty() {
+                    "Frame".to_string()
+                } else {
+                    "Frame".to_string()
+                }
+            }
+            crate::node::NodeKind::Group => "Group".to_string(),
+            crate::node::NodeKind::Slot { slot_name } => format!("Slot: {}", slot_name),
+            crate::node::NodeKind::Instance(_) => {
+                // Component name resolution happens at Engine level
+                "Instance".to_string()
+            }
+            crate::node::NodeKind::Image { src, .. } => {
+                // Extract filename from URL/path
+                let fname = src.rsplit('/').next().unwrap_or("Image");
+                let fname = fname.split('?').next().unwrap_or(fname);
+                if fname.len() > 32 || fname.starts_with("data:") {
+                    "Image".to_string()
+                } else {
+                    fname.to_string()
+                }
+            }
+            crate::node::NodeKind::Star { points, .. } => format!("{}-Point Star", points),
+            crate::node::NodeKind::Polygon { sides } => format!("{}-gon", sides),
+            crate::node::NodeKind::Path { points, closed } => {
+                if *closed { format!("Path ({}pts, closed)", points.len()) }
+                else { format!("Path ({}pts)", points.len()) }
+            }
+            crate::node::NodeKind::Section => "Section".to_string(),
+            crate::node::NodeKind::Slice => "Slice".to_string(),
+            crate::node::NodeKind::StickyNote { content, .. } => {
+                let trimmed = content.trim();
+                if trimmed.is_empty() { "Sticky Note".to_string() }
+                else if trimmed.len() > 32 {
+                    format!("{}…", &trimmed[..trimmed.char_indices().nth(32).map(|(i,_)|i).unwrap_or(trimmed.len())])
+                } else { trimmed.to_string() }
+            }
+            crate::node::NodeKind::Table { rows, cols, .. } => format!("Table {}×{}", rows, cols),
+            crate::node::NodeKind::Connector { .. } => "Connector".to_string(),
+            crate::node::NodeKind::VectorNetwork(_) => "Vector".to_string(),
+            crate::node::NodeKind::Callout { .. } => "Callout".to_string(),
+        };
+        Some(name)
+    }
+
+    /// Auto-rename a single node. Returns the new name if successful.
+    pub fn auto_rename_node(&mut self, id: NodeId) -> Option<String> {
+        let name = self.auto_name_for_node(id)?;
+        // Add numeric suffix if siblings share the same base name
+        let parent_id = self.get_node(id)?.parent;
+        let siblings: Vec<NodeId> = if let Some(pid) = parent_id {
+            self.get_node(pid)?.children.clone()
+        } else {
+            self.root_children.clone()
+        };
+        let mut count = 0u32;
+        for &sid in &siblings {
+            if sid == id { continue; }
+            if let Some(sib) = self.get_node(sid) {
+                if sib.name == name || sib.name.starts_with(&format!("{} ", name)) {
+                    count += 1;
+                }
+            }
+        }
+        let final_name = if count > 0 {
+            format!("{} {}", name, count + 1)
+        } else {
+            name
+        };
+        if let Some(node) = self.get_node_mut(id) {
+            node.name = final_name.clone();
+        }
+        Some(final_name)
+    }
+
+    /// Auto-rename all nodes in the active page. Returns number of renamed nodes.
+    pub fn auto_rename_all(&mut self) -> u32 {
+        let ids: Vec<NodeId> = self.all_node_ids();
+        let mut count = 0u32;
+        for id in ids {
+            if self.auto_rename_node(id).is_some() {
+                count += 1;
+            }
+        }
+        count
+    }
+
+    /// Auto-rename selected nodes. Returns number of renamed nodes.
+    pub fn auto_rename_selection(&mut self) -> u32 {
+        let ids = self.selection.clone();
+        let mut count = 0u32;
+        for id in ids {
+            if self.auto_rename_node(id).is_some() {
+                count += 1;
+            }
+        }
+        count
+    }
+
     /// Morph between two Path nodes at parameter t (0=from, 1=to).
     pub fn morph_paths(&self, from_id: u64, to_id: u64, t: f64) -> Option<crate::path_morph::MorphResult> {
         let from_node = self.get_node(from_id)?;

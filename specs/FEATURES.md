@@ -636,6 +636,16 @@
 - [x] **Keyboard shortcut**: Cmd/Ctrl+Shift+R
 - [x] **Undo support**: Full undo via push_undo() before rename
 
+### Auto-rename Layers
+- [x] **Smart naming**: Node kind + properties → descriptive name (Text → first line, Image → filename, Star → "5-Point Star", etc.)
+- [x] **Instance resolution**: Instance nodes get component name from ComponentStore
+- [x] **Sibling dedup**: Numeric suffix when siblings share the same base name
+- [x] **Rust engine**: Scene.auto_name_for_node(), auto_rename_node(), auto_rename_all(), auto_rename_selection()
+- [x] **WASM bindings**: auto_rename_node, auto_rename_selection, auto_rename_all, auto_rename_preview
+- [x] **Context menu**: "Auto-rename" for selected nodes, "Auto-rename All Layers" on empty canvas
+- [x] **Layers panel**: Right-click "Auto-rename" option
+- [x] **Undo support**: push_undo() before rename
+
 ### Slice Tool (Export Regions)
 - [x] **NodeKind::Slice**: Non-rendering node that defines a rectangular export region
 - [x] **Canvas overlay**: Green (#36b37e) dashed outline + name label
