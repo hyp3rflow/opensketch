@@ -22,6 +22,7 @@
 - [x] Frame labels (zoom-inverse scaling, max 11px)
 - [x] Selection handles (cyan, 8-point)
 - [x] Text editing indicator (dashed blue border)
+- [x] Multi-cursor text editing (Cmd+double-click to add Text nodes, simultaneous typing/deletion, ESC to exit)
 - [x] Rotation support (node-level)
 - [x] Drop shadow rendering (multi-pass Canvas shadow API, per-node multiple shadows)
 - [x] Layer blur (CSS filter blur via Canvas API)

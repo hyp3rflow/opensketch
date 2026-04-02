@@ -1756,3 +1756,12 @@
 - Inspect panel: CSS conic-gradient(), SwiftUI AngularGradient, Kotlin Brush.sweepGradient 코드 생성
 - color_palette.rs: ConicGradient stops 색상 수집 지원
 - backward-compatible serde
+
+## 2026-04-02: Multi-cursor text editing
+- Cmd+double-click으로 여러 Text 노드에 다중 커서 배치
+- 모든 커서에 동시 타이핑/삭제
+- ESC로 multi-cursor 모드 종료 (원본 복원)
+- 각 Text 노드에 독립적인 캐럿 위치
+- Primary caret: 흰색, Multi-cursor carets: 시안(#00d4ff)
+- editor.ts: multiCursors Map, _multiCursorMode flag, addMultiCursor(), multiCursorApplyContent(), renderCaretForNode()
+- Rust 엔진 변경 없음 (순수 TypeScript 구현)

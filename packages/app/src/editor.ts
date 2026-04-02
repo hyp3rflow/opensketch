@@ -2940,6 +2940,12 @@ export class Editor {
 
     if (typeof node.kind !== "object" || !node.kind.Text) return;
 
+    // Cmd+double-click on another Text node while editing → add to multi-cursor
+    if ((e.metaKey || e.ctrlKey) && this.isEditing() && this.editingNodeId !== null) {
+      this.addMultiCursor(hit, node);
+      return;
+    }
+
     // Start inline text editing
     this.startTextEdit(hit, node);
   }
@@ -3126,6 +3132,10 @@ export class Editor {
   private caretVisible: boolean = true;
   private caretBlinkTimer: number = 0;
 
+  // Multi-cursor text editing state
+  private multiCursors: Map<bigint, { caretPos: number; origContent: string }> = new Map();
+  private _multiCursorMode: boolean = false;
+
   private startTextEdit(nodeId: bigint | number, node: any) {
     if (this.editingOverlay) this.finishTextEdit();
 
@@ -3175,6 +3185,8 @@ export class Editor {
       el.remove();
       this.editingOverlay = null;
       this.editingNodeId = null;
+      this._multiCursorMode = false;
+      this.multiCursors.clear();
       this.stopCaretBlink();
       this.engine.set_editing(null);
       this.needsRender = true;
@@ -3189,13 +3201,24 @@ export class Editor {
       this.engine.set_text_content(bid, newContent);
       this.needsRender = true;
       // Update caret after input
-      requestAnimationFrame(updateCaretPos);
+      requestAnimationFrame(() => {
+        updateCaretPos();
+        // Propagate to multi-cursor nodes
+        if (this._multiCursorMode) {
+          this.multiCursorApplyContent(el.textContent || "");
+        }
+      });
     });
 
     el.addEventListener("keydown", (e) => {
       if (e.key === "Escape") {
-        // Restore original
+        // Restore original content for all cursors
         this.engine.set_text_content(bid, this.editingOrigContent);
+        if (this._multiCursorMode) {
+          for (const [nid, cursor] of this.multiCursors) {
+            this.engine.set_text_content(nid, cursor.origContent);
+          }
+        }
         this.needsRender = true;
         finish();
       }
@@ -3256,8 +3279,81 @@ export class Editor {
 
   private finishTextEdit() {
     if (this.editingOverlay) {
+      // Clear multi-cursor state
+      if (this._multiCursorMode) {
+        this._multiCursorMode = false;
+        this.multiCursors.clear();
+      }
       this.editingOverlay.dispatchEvent(new FocusEvent("blur"));
     }
+  }
+
+  /** Add a Text node to multi-cursor editing mode. Must already be in text edit mode. */
+  private addMultiCursor(nodeId: bigint | number, node: any) {
+    if (!this.editingNodeId || !this.editingOverlay) return;
+    const text = node.kind?.Text;
+    if (!text) return;
+
+    const bid = BigInt(nodeId);
+    if (bid === this.editingNodeId) return; // already the primary
+    if (this.multiCursors.has(bid)) return; // already added
+
+    // First time entering multi-cursor: save primary node info
+    if (!this._multiCursorMode) {
+      this._multiCursorMode = true;
+      // Primary node is already tracked via editingNodeId/caretPos/editingOrigContent
+    }
+
+    this.multiCursors.set(bid, {
+      caretPos: text.content.length,
+      origContent: text.content,
+    });
+    this.engine.add_to_selection(bid);
+    this.needsRender = true;
+  }
+
+  /** Apply text input to all multi-cursor nodes */
+  private multiCursorApplyContent(newPrimaryContent: string) {
+    if (!this._multiCursorMode) return;
+    const primaryNode = this.editingNodeId!;
+    // Get old primary content to compute diff
+    const oldJson = this.engine.get_node_json(primaryNode);
+    if (!oldJson) return;
+    const oldNode = JSON.parse(oldJson);
+    const oldContent = oldNode.kind?.Text?.content ?? "";
+
+    // Determine what changed: compare old content with new content using caret position
+    // Simple approach: use caret position to figure out insertion/deletion
+    const oldLen = oldContent.length;
+    const newLen = newPrimaryContent.length;
+    const diff = newLen - oldLen;
+
+    for (const [nid, cursor] of this.multiCursors) {
+      const nJson = this.engine.get_node_json(nid);
+      if (!nJson) continue;
+      const nNode = JSON.parse(nJson);
+      const nText = nNode.kind?.Text;
+      if (!nText) continue;
+
+      let content = nText.content as string;
+      const pos = cursor.caretPos;
+
+      if (diff > 0) {
+        // Insertion: extract inserted chars from primary
+        const inserted = newPrimaryContent.slice(this.caretPos - diff, this.caretPos);
+        content = content.slice(0, pos) + inserted + content.slice(pos);
+        cursor.caretPos = pos + diff;
+      } else if (diff < 0) {
+        // Deletion
+        const delCount = -diff;
+        const delStart = Math.max(0, pos - delCount);
+        content = content.slice(0, delStart) + content.slice(pos);
+        cursor.caretPos = delStart;
+      }
+
+      this.engine.set_text_content(nid, content);
+    }
+    this.needsRender = true;
   }
 
   isEditing(): boolean {
@@ -3377,6 +3473,86 @@ export class Editor {
     // Draw caret line in screen space (DPR transform already applied by render loop)
     this.ctx.save();
     this.ctx.strokeStyle = "#fff";
+    this.ctx.lineWidth = 1.5;
+    this.ctx.beginPath();
+    const cx = Math.round(screenX) + 0.5;
+    this.ctx.moveTo(cx, screenY);
+    this.ctx.lineTo(cx, screenY + caretHeight);
+    this.ctx.stroke();
+    this.ctx.restore();
+
+    // Render multi-cursor carets
+    if (this._multiCursorMode) {
+      for (const [nid, cursor] of this.multiCursors) {
+        this.renderCaretForNode(nid, cursor.caretPos);
+      }
+    }
+  }
+
+  /** Render a caret for a specific node at a specific position (used by multi-cursor) */
+  private renderCaretForNode(nodeId: bigint, cPos: number) {
+    if (!this.caretVisible) return;
+    const nodeJson = this.engine.get_node_json(nodeId);
+    if (!nodeJson) return;
+    const node = JSON.parse(nodeJson);
+    if (typeof node.kind !== "object" || !node.kind.Text) return;
+
+    const text = node.kind.Text;
+    const content = text.content as string;
+    const fontSize = text.font_size as number;
+    const fontFamily = text.font_family as string || "Inter";
+    const fontWeight = text.font_weight ?? 400;
+    const fontStyleStr = text.font_style === "Italic" ? "italic " : "";
+    const lineHeight = text.line_height ?? 1.2;
+    const textAlign = (text.text_align ?? "Left") as string;
+    const zoom = this.engine.get_zoom();
+    const panX = this.engine.get_pan_x();
+    const panY = this.engine.get_pan_y();
+
+    this.ctx.save();
+    this.ctx.font = `${fontStyleStr}${fontWeight} ${fontSize}px ${fontFamily}, system-ui, sans-serif`;
+
+    const maxWidth = node.text_sizing === "Fixed" ? node.width : undefined;
+    const lines = this.wrapText(content, maxWidth);
+
+    let charCount = 0;
+    let caretLine = 0;
+    let caretCharInLine = 0;
+    for (let i = 0; i < lines.length; i++) {
+      const lineLen = lines[i].length;
+      if (charCount + lineLen >= cPos) {
+        caretLine = i;
+        caretCharInLine = cPos - charCount;
+        break;
+      }
+      charCount += lineLen + 1;
+      if (i === lines.length - 1) {
+        caretLine = i;
+        caretCharInLine = lines[i].length;
+      }
+    }
+
+    const lineText = lines[caretLine] || "";
+    const textBefore = lineText.slice(0, caretCharInLine);
+    const lineW = this.ctx.measureText(lineText).width;
+    const beforeW = this.ctx.measureText(textBefore).width;
+    const lineH = fontSize * lineHeight;
+
+    let lineX = node.x;
+    if (textAlign === "Center") lineX = node.x + (node.width - lineW) / 2;
+    else if (textAlign === "Right") lineX = node.x + node.width - lineW;
+
+    const caretX = lineX + beforeW;
+    const caretY = node.y + lineH * caretLine;
+    const screenX = caretX * zoom + panX;
+    const screenY = caretY * zoom + panY;
+    const caretHeight = lineH * zoom;
+
+    this.ctx.restore();
+
+    // Multi-cursor carets use a different color (cyan)
+    this.ctx.save();
+    this.ctx.strokeStyle = "#00d4ff";
     this.ctx.lineWidth = 1.5;
     this.ctx.beginPath();
     const cx = Math.round(screenX) + 0.5;
