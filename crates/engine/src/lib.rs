@@ -1714,6 +1714,155 @@ impl Engine {
         "null".to_string()
     }
 
+    // =============================================
+    // Repeat Grid API
+    // =============================================
+
+    /// Create a repeat grid from an existing node. The source node becomes the master cell (first child).
+    pub fn create_repeat_grid(&mut self, source_node_id: u64) -> u64 {
+        let (sx, sy, sw, sh, sparent) = if let Some(src) = self.scene.get_node(source_node_id) {
+            (src.x, src.y, src.width, src.height, src.parent)
+        } else {
+            return 0;
+        };
+
+        // Create RepeatGrid node
+        let mut grid_node = Node::new(0, NodeKind::RepeatGrid {
+            columns: 3,
+            rows: 3,
+            column_gap: 10.0,
+            row_gap: 10.0,
+            overrides: std::collections::HashMap::new(),
+        });
+        grid_node.x = sx;
+        grid_node.y = sy;
+        grid_node.width = sw * 3.0 + 10.0 * 2.0;
+        grid_node.height = sh * 3.0 + 10.0 * 2.0;
+        grid_node.name = format!("Repeat Grid {}", self.scene.node_count() + 1);
+        grid_node.parent = sparent;
+        grid_node.fills = vec![];
+
+        let grid_id = self.scene.add_node(grid_node);
+
+        // Reparent source node under the grid
+        // Remove source from its old parent's children list
+        if let Some(pid) = sparent {
+            if let Some(parent) = self.scene.get_node_mut(pid) {
+                parent.children.retain(|&c| c != source_node_id);
+            }
+        } else {
+            // Remove from root_children
+            let rc = self.scene.get_root_children();
+            let filtered: Vec<u64> = rc.into_iter().filter(|&c| c != source_node_id).collect();
+            // We need to update root_children - go through the scene
+            // Actually the add_node already added grid to root/parent children.
+            // Just remove source from root
+            self.scene.root_children.retain(|&c| c != source_node_id);
+        }
+
+        // Set source's parent to grid
+        if let Some(src) = self.scene.get_node_mut(source_node_id) {
+            src.parent = Some(grid_id);
+        }
+        // Add source as child of grid
+        if let Some(grid) = self.scene.get_node_mut(grid_id) {
+            grid.children.push(source_node_id);
+        }
+
+        grid_id
+    }
+
+    /// Set repeat grid parameters
+    pub fn set_repeat_grid_params(&mut self, id: u64, columns: u32, rows: u32, col_gap: f64, row_gap: f64) {
+        let master_id = {
+            let node = match self.scene.get_node_mut(id) {
+                Some(n) => n,
+                None => return,
+            };
+            if let NodeKind::RepeatGrid { columns: ref mut c, rows: ref mut r, column_gap: ref mut cg, row_gap: ref mut rg, .. } = node.kind {
+                *c = columns.max(1);
+                *r = rows.max(1);
+                *cg = col_gap.max(0.0);
+                *rg = row_gap.max(0.0);
+                node.children.first().copied()
+            } else {
+                None
+            }
+        };
+        // Update bounding box from master cell dims
+        if let Some(mid) = master_id {
+            let (mw, mh) = self.scene.get_node(mid).map(|m| (m.width, m.height)).unwrap_or((100.0, 100.0));
+            let cols = columns.max(1);
+            let rws = rows.max(1);
+            if let Some(grid) = self.scene.get_node_mut(id) {
+                grid.width = mw * cols as f64 + col_gap.max(0.0) * (cols - 1).max(0) as f64;
+                grid.height = mh * rws as f64 + row_gap.max(0.0) * (rws - 1).max(0) as f64;
+            }
+        }
+    }
+
+    /// Get repeat grid parameters as JSON
+    pub fn get_repeat_grid_params(&self, id: u64) -> String {
+        if let Some(node) = self.scene.get_node(id) {
+            if let NodeKind::RepeatGrid { columns, rows, column_gap, row_gap, .. } = &node.kind {
+                return serde_json::json!({
+                    "columns": columns,
+                    "rows": rows,
+                    "column_gap": column_gap,
+                    "row_gap": row_gap,
+                }).to_string();
+            }
+        }
+        "null".to_string()
+    }
+
+    /// Set a cell override in a repeat grid
+    pub fn set_repeat_grid_override(&mut self, grid_id: u64, row: u32, col: u32, child_path: &str, field: &str, value: &str) {
+        if let Some(node) = self.scene.get_node_mut(grid_id) {
+            if let NodeKind::RepeatGrid { ref mut overrides, .. } = node.kind {
+                let key = format!("{},{}:{}:{}", row, col, child_path, field);
+                if value.is_empty() {
+                    overrides.remove(&key);
+                } else {
+                    overrides.insert(key, value.to_string());
+                }
+            }
+        }
+    }
+
+    /// Get all overrides for a repeat grid as JSON
+    pub fn get_repeat_grid_overrides(&self, grid_id: u64) -> String {
+        if let Some(node) = self.scene.get_node(grid_id) {
+            if let NodeKind::RepeatGrid { ref overrides, .. } = node.kind {
+                return serde_json::to_string(overrides).unwrap_or_else(|_| "{}".to_string());
+            }
+        }
+        "{}".to_string()
+    }
+
+    /// Sync repeat grid: update grid bounds based on master cell dimensions
+    pub fn sync_repeat_grid(&mut self, id: u64) {
+        let (cols, rws, cgap, rgap, master_id) = if let Some(node) = self.scene.get_node(id) {
+            if let NodeKind::RepeatGrid { columns, rows, column_gap, row_gap, .. } = &node.kind {
+                let mid = node.children.first().copied().unwrap_or(0);
+                (*columns, *rows, *column_gap, *row_gap, mid)
+            } else {
+                return;
+            }
+        } else {
+            return;
+        };
+        if master_id == 0 { return; }
+        if let Some(master) = self.scene.get_node(master_id) {
+            let mw = master.width;
+            let mh = master.height;
+            if let Some(grid) = self.scene.get_node_mut(id) {
+                grid.width = mw * cols as f64 + cgap * (cols - 1).max(0) as f64;
+                grid.height = mh * rws as f64 + rgap * (rws - 1).max(0) as f64;
+            }
+        }
+    }
+
     pub fn add_frame(&mut self, x: f64, y: f64, w: f64, h: f64) -> u64 {
         let mut node = Node::new(0, NodeKind::Frame);
         node.x = x; node.y = y; node.width = w; node.height = h;
@@ -7788,6 +7937,7 @@ impl Engine {
                 NodeKind::VectorNetwork(_) => "VectorNetwork",
                 NodeKind::StickyNote { .. } => "StickyNote",
                 NodeKind::Table { .. } => "Table",
+                NodeKind::RepeatGrid { .. } => "RepeatGrid",
                 NodeKind::Callout { .. } => "Callout",
                 NodeKind::Chart { .. } => "Chart",
             }.to_string();

@@ -993,6 +993,30 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
                 buf.push('\n');
             }
         }
+        NodeKind::RepeatGrid { columns, rows, column_gap, row_gap, .. } => {
+            // Export each cell as a separate group
+            if let Some(master_id) = node.children.first() {
+                if let Some(master) = scene.get_node(*master_id) {
+                    let cell_w = master.width;
+                    let cell_h = master.height;
+                    buf.push_str(&format!("<g id=\"repeat-grid-{}\"", node.id));
+                    if has_opacity {
+                        buf.push_str(&format!(r#" opacity="{}""#, node.opacity));
+                    }
+                    buf.push_str(">\n");
+                    for r in 0..*rows {
+                        for c in 0..*columns {
+                            let ox = node.x + c as f64 * (cell_w + column_gap) - master.x;
+                            let oy = node.y + r as f64 * (cell_h + row_gap) - master.y;
+                            buf.push_str(&format!("<g transform=\"translate({},{})\">\n", ox, oy));
+                            buf.push_str(&export_node_svg(scene, *master_id));
+                            buf.push_str("</g>\n");
+                        }
+                    }
+                    buf.push_str("</g>\n");
+                }
+            }
+        }
         NodeKind::Slot { .. } | NodeKind::Instance(_) => {
             // Render as group with children
             let mut g = String::from("<g");

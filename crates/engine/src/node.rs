@@ -473,6 +473,22 @@ pub enum NodeKind {
         /// Chart configuration
         config: ChartConfig,
     },
+    /// A repeat grid — repeats the first child (master cell) in an N×M grid
+    RepeatGrid {
+        /// Number of columns
+        columns: u32,
+        /// Number of rows
+        rows: u32,
+        /// Horizontal gap between cells
+        #[serde(default)]
+        column_gap: f64,
+        /// Vertical gap between cells
+        #[serde(default)]
+        row_gap: f64,
+        /// Per-cell overrides: key = "row,col:child_path:field", value = override string
+        #[serde(default)]
+        overrides: std::collections::HashMap<String, String>,
+    },
     /// A callout shape — rounded rect body with a triangular tail pointing to a target
     Callout {
         /// Text content inside the callout
@@ -2064,6 +2080,7 @@ impl Node {
             NodeKind::Connector { .. } => "Connector",
             NodeKind::VectorNetwork { .. } => "VectorNetwork",
             NodeKind::Chart { .. } => "Chart",
+            NodeKind::RepeatGrid { .. } => "RepeatGrid",
             NodeKind::Callout { .. } => "Callout",
         }
     }
@@ -2257,6 +2274,7 @@ impl Node {
             NodeKind::Image { .. } => { score += 4; } // image decode + draw
             NodeKind::Table { rows, cols, .. } => { score += rows * cols; }
             NodeKind::Chart { ref data, .. } => { score += data.len() as u32 + 3; }
+            NodeKind::RepeatGrid { columns, rows, .. } => { score += columns * rows * 2; }
             _ => {}
         }
 

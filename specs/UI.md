@@ -237,3 +237,9 @@ Available: select, hand, rect, ellipse, text, frame, eye, eyeOff, rotation, corn
 - `add_breakpoint(id, json)`, `remove_breakpoint(id, index)`, `update_breakpoint(id, index, json)`
 - `get_breakpoints(id)`, `get_breakpoint_count(id)`, `get_active_breakpoint(id)`
 - `set_breakpoints_preset(id, preset)` — "default" preset adds Mobile/Tablet/Desktop
+
+### Repeat Grid Panel
+- Visible when a RepeatGrid node is selected
+- Number inputs: Columns, Rows, Col Gap, Row Gap
+- Changes update grid params and auto-sync bounds
+- Context menu: "Create Repeat Grid" wraps selected node into a 3×3 grid with 10px gaps

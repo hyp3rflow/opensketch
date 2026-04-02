@@ -332,7 +332,7 @@ impl Renderer {
                 }
                 ctx.close_path();
             }
-            NodeKind::Table { .. } => {
+            NodeKind::Table { .. } | NodeKind::RepeatGrid { .. } => {
                 ctx.rect(node.x, node.y, node.width, node.height);
             }
             NodeKind::VectorNetwork(ref vn) => {
@@ -548,6 +548,9 @@ impl Renderer {
             }
             NodeKind::Chart { ref chart_type, ref data, ref config } => {
                 self.render_chart(ctx, node, chart_type, data, config);
+            }
+            NodeKind::RepeatGrid { columns, rows, column_gap, row_gap, ref overrides } => {
+                self.render_repeat_grid(ctx, node, scene, *columns, *rows, *column_gap, *row_gap, overrides);
             }
             NodeKind::Callout { ref content, font_size, tail_x, tail_y, tail_width, ref theme } => {
                 self.render_callout(ctx, node, content, *font_size, *tail_x, *tail_y, *tail_width, theme);
@@ -1887,6 +1890,35 @@ impl Renderer {
         }
         if t == f64::INFINITY { return (cx, cy); }
         (cx + dx * t, cy + dy * t)
+    }
+
+    fn render_repeat_grid(&self, ctx: &CanvasRenderingContext2d, node: &Node, scene: &Scene, columns: u32, rows: u32, column_gap: f64, row_gap: f64, _overrides: &std::collections::HashMap<String, String>) {
+        // RepeatGrid renders by drawing the first child (master cell) at each grid position.
+        // The master cell is the first child of this node.
+        if node.children.is_empty() { return; }
+        let master_id = node.children[0];
+        let master = match scene.get_node(master_id) {
+            Some(m) => m,
+            None => return,
+        };
+        let cell_w = master.width;
+        let cell_h = master.height;
+        let base_x = node.x;
+        let base_y = node.y;
+
+        for r in 0..rows {
+            for c in 0..columns {
+                let offset_x = c as f64 * (cell_w + column_gap);
+                let offset_y = r as f64 * (cell_h + row_gap);
+                ctx.save();
+                ctx.translate(offset_x + base_x - master.x, offset_y + base_y - master.y).ok();
+                // Render the master cell subtree
+                self.render_node(ctx, master, scene);
+                // Render master's children
+                self.render_children(ctx, &master.children, scene);
+                ctx.restore();
+            }
+        }
     }
 
     fn render_callout(&self, ctx: &CanvasRenderingContext2d, node: &Node, content: &str, font_size: f64, tail_x: f64, tail_y: f64, tail_width: f64, theme: &str) {

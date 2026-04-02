@@ -6425,6 +6425,23 @@ export class Editor {
     } catch { /* ignore */ }
   }
 
+  createRepeatGrid() {
+    const sel = Array.from(this.engine.get_selection()).map(Number);
+    if (sel.length !== 1) return;
+    try {
+      this.engine.push_undo();
+      const gridId = Number(this.engine.create_repeat_grid(BigInt(sel[0]!)));
+      if (gridId) {
+        this.engine.deselect_all();
+        this.engine.select(BigInt(gridId));
+        this.render();
+        this.updateUI();
+      }
+    } catch (e) {
+      console.error('create_repeat_grid failed:', e);
+    }
+  }
+
   wrapSelectionInFrame() {
     const sel = Array.from(this.engine.get_selection()).map(Number);
     if (sel.length === 0) return;
@@ -6581,6 +6598,10 @@ export class Editor {
       }
       if (sel.length >= 1) {
         items.push({ label: "Wrap in Frame", shortcut: `${mod}⌥G`, enabled: true, action: () => this.wrapSelectionInFrame() });
+        items.push({ label: "Create Repeat Grid", enabled: selAfter.length === 1, action: () => this.createRepeatGrid() });
+      }
+      if (selAfter.length === 1) {
+        items.push({ label: "Create Repeat Grid", enabled: true, action: () => this.createRepeatGrid(selAfter[0]!) });
       }
       if (sel.length >= 2) {
         items.push({ label: "Group by Color", enabled: true, action: () => this.groupSelectionByColor() });
@@ -6748,6 +6769,18 @@ export class Editor {
       const newSel = Array.from(this.engine.get_selection()).map(Number);
       this.onLayersChanges.forEach(fn => fn());
       this.fireSelectionNow(newSel);
+      this.needsRender = true;
+    }
+  }
+
+  private createRepeatGrid(nodeId: number) {
+    this.engine.push_undo();
+    const gridId = Number(this.engine.create_repeat_grid(BigInt(nodeId)));
+    if (gridId > 0) {
+      this.engine.deselect_all();
+      this.engine.select(BigInt(gridId));
+      this.onLayersChanges.forEach(fn => fn());
+      this.fireSelectionNow([gridId]);
       this.needsRender = true;
     }
   }

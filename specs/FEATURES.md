@@ -2127,3 +2127,12 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] **Toolbar**: Chart button for creating chart nodes
 - [x] **Default color palette**: Auto-assigned from 10-color palette when data point has no color
 - [x] **Backward-compatible serde**: All new fields have #[serde(default)]
+
+## Repeat Grid (N×M Grid Repeat)
+- [x] **NodeKind::RepeatGrid**: columns, rows, column_gap, row_gap, overrides
+- [x] **Master cell rendering**: children[0] is repeated at each (row, col) with translate offset
+- [x] **WASM bindings**: create_repeat_grid, set_repeat_grid_params, get_repeat_grid_params, sync_repeat_grid, set/get_repeat_grid_override(s)
+- [x] **Properties panel**: Repeat Grid section with Columns/Rows/Col Gap/Row Gap inputs
+- [x] **Context menu**: "Create Repeat Grid" (single node selection)
+- [x] **SVG export**: Each cell exported as `<g transform="translate(...)">` group
+- [x] **Backward-compatible serde**: All new fields have #[serde(default)]

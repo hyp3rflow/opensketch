@@ -24,7 +24,7 @@ Pure Rust crate compiled to WASM via `wasm-pack`. No NAPI — runs entirely in t
 - `ListStyle` enum: `None`, `Bullet`, `Numbered`, `Dash`, `Checkbox`, `CheckboxChecked`
 - Text node fields: `list_style: ListStyle`, `indent_level: u8` (0-10)
 - Text node fields: `text_transform: TextTransform` (None/Uppercase/Lowercase/Capitalize), `text_indent: f64` (px)
-- `NodeKind` enum: `Rect`, `Ellipse`, `Text { ... }`, `Frame`, `Group`, `Path { points, closed }`, `VectorNetwork(Box<VectorNetwork>)`, `Image { src, fit }`, `Star { points, inner_radius }`, `Polygon { sides }`, `Table { rows, cols, cells, col_widths, row_heights }`, `Callout { content, font_size, tail_x, tail_y, tail_width, theme }`
+- `NodeKind` enum: `Rect`, `Ellipse`, `Text { ... }`, `Frame`, `Group`, `Path { points, closed }`, `VectorNetwork(Box<VectorNetwork>)`, `Image { src, fit }`, `Star { points, inner_radius }`, `Polygon { sides }`, `Table { rows, cols, cells, col_widths, row_heights }`, `RepeatGrid { columns, rows, column_gap, row_gap, overrides }`, `Callout { content, font_size, tail_x, tail_y, tail_width, theme }`
 - `PathPoint { x, y, handle_in_x, handle_in_y, handle_out_x, handle_out_y }` — anchor + bezier control handles (absolute coords)
 - `VectorNetwork { vertices, segments, regions }` — Figma-style vector network with multi-connection vertices
 - `VectorVertex { id, x, y }`, `VectorSegment { id, start_vertex_id, end_vertex_id, handle_start, handle_end }`, `VectorRegion { segment_ids }`
@@ -257,3 +257,11 @@ Output: `packages/app/src/wasm/` (opensketch_engine.js + .wasm + .d.ts)
 - **Integration**: Prototype viewer smart-animate renders morphed bezier paths directly on canvas for matched Path node pairs
 - **AnimProperty::PathMorph**: Keyframe-based path morph support in animation timeline (value = morph progress 0.0–1.0, target stored in PathMorphConfig)
 - **NodeSnapshot**: Includes path_points/path_closed/is_path fields for smart animate path detection
+
+### RepeatGrid
+- `NodeKind::RepeatGrid { columns: u32, rows: u32, column_gap: f64, row_gap: f64, overrides: HashMap<String, String> }`
+- Master cell = children[0]; rendered N×M times with translate offsets
+- `create_repeat_grid(source_id)`: wraps source node as master cell in new RepeatGrid
+- `set_repeat_grid_params(id, cols, rows, col_gap, row_gap)`: updates grid params + bounds
+- `sync_repeat_grid(id)`: recalculates bounds from master cell dimensions
+- Per-cell overrides via `overrides` HashMap (key format: "row,col:child_path:field")

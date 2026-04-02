@@ -6098,6 +6098,48 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       container.appendChild(chartSection);
     }
 
+    // === Repeat Grid properties ===
+    if (typeof node.kind === "object" && node.kind.RepeatGrid) {
+      const rgSection = createSection("Repeat Grid");
+      const rgInfo = JSON.parse(editor.engine.get_repeat_grid_params(BigInt(id)));
+      if (rgInfo) {
+        const makeRow = (label: string, value: number, min: number, max: number, step: number, onChange: (v: number) => void) => {
+          const row = document.createElement("div");
+          row.style.cssText = "display:flex;align-items:center;gap:8px;";
+          const lbl = document.createElement("span");
+          lbl.textContent = label;
+          lbl.style.cssText = "font-size:11px;color:#aaa;width:70px;";
+          const inp = document.createElement("input");
+          inp.type = "number"; inp.value = String(value); inp.min = String(min); inp.max = String(max); inp.step = String(step);
+          inp.style.cssText = "width:60px;padding:3px 5px;font-size:11px;border:1px solid #3a3a3a;border-radius:4px;background:#1e1e1e;color:#ccc;text-align:center;";
+          inp.addEventListener("change", () => {
+            editor.engine.push_undo();
+            onChange(parseFloat(inp.value) || value);
+            editor.engine.sync_repeat_grid(BigInt(id));
+            editor.requestRender();
+            refresh();
+          });
+          row.appendChild(lbl);
+          row.appendChild(inp);
+          return row;
+        };
+
+        rgSection.appendChild(makeRow("Columns", rgInfo.columns, 1, 50, 1, (v) => {
+          editor.engine.set_repeat_grid_params(BigInt(id), v, rgInfo.rows, rgInfo.column_gap, rgInfo.row_gap);
+        }));
+        rgSection.appendChild(makeRow("Rows", rgInfo.rows, 1, 50, 1, (v) => {
+          editor.engine.set_repeat_grid_params(BigInt(id), rgInfo.columns, v, rgInfo.column_gap, rgInfo.row_gap);
+        }));
+        rgSection.appendChild(makeRow("Col Gap", rgInfo.column_gap, 0, 500, 1, (v) => {
+          editor.engine.set_repeat_grid_params(BigInt(id), rgInfo.columns, rgInfo.rows, v, rgInfo.row_gap);
+        }));
+        rgSection.appendChild(makeRow("Row Gap", rgInfo.row_gap, 0, 500, 1, (v) => {
+          editor.engine.set_repeat_grid_params(BigInt(id), rgInfo.columns, rgInfo.rows, rgInfo.column_gap, v);
+        }));
+      }
+      container.appendChild(rgSection);
+    }
+
     // === Slice export section ===
     if (node.kind === "Slice") {
       const sliceSection = createSection("Slice Export");

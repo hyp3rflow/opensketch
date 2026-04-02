@@ -17,6 +17,7 @@ const kindIcons: Record<string, string> = {
   Connector: icons.connector,
   StickyNote: icons.stickyNote,
   VectorNetwork: icons.pen || icons.rect,
+  RepeatGrid: icons.frame,
 };
 
 function iconSized(svg: string, size = 14) {
@@ -184,6 +185,7 @@ export function setupLayersPanel(container: HTMLElement, editor: Editor) {
       if (node.kind.startsWith("Instance")) kindKey = "Instance";
       else if (node.kind.startsWith("Slot")) kindKey = "Slot";
       else if (node.kind.startsWith("VectorNetwork")) kindKey = "VectorNetwork";
+      else if (node.kind.startsWith("RepeatGrid")) kindKey = "RepeatGrid";
       // Detect component source frames
       const isComponentSource = node.name.startsWith("[C] ");
       if (isComponentSource) icon.classList.add("layer-icon--component");

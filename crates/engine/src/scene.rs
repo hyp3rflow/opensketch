@@ -4182,6 +4182,7 @@ impl Scene {
             crate::node::NodeKind::Table { rows, cols, .. } => format!("Table {}×{}", rows, cols),
             crate::node::NodeKind::Connector { .. } => "Connector".to_string(),
             crate::node::NodeKind::VectorNetwork(_) => "Vector".to_string(),
+            crate::node::NodeKind::RepeatGrid { columns, rows, .. } => format!("Repeat Grid {}×{}", columns, rows),
             crate::node::NodeKind::Callout { .. } => "Callout".to_string(),
             crate::node::NodeKind::Chart { ref chart_type, ref config, .. } => {
                 if config.title.is_empty() {

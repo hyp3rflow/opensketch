@@ -240,6 +240,7 @@ fn kind_str(kind: &NodeKind) -> String {
         NodeKind::StickyNote { .. } => "StickyNote".into(),
         NodeKind::Table { .. } => "Table".into(),
         NodeKind::Chart { .. } => "Chart".into(),
+        NodeKind::RepeatGrid { .. } => "RepeatGrid".into(),
         NodeKind::Callout { .. } => "Callout".into(),
     }
 }
