@@ -2088,3 +2088,10 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Properties panel: "Selection Colors" section for multi-select (2+ nodes)
 - [x] Color swatches with hex label, count badge (F/S/F+S), inline color picker
 - [x] Real-time color replacement across all selected nodes
+
+### Node Grouping by Color
+- [x] Rust: Scene.group_by_color(ids) — groups nodes by primary fill color into Group nodes
+- [x] WASM: group_selection_by_color() — pushes undo, creates groups, selects them, returns JSON
+- [x] Context menu: "Group by Color" (2+ nodes selected)
+- [x] Singletons (unique color) stay ungrouped
+- [x] Groups named "Color Group #rrggbb"

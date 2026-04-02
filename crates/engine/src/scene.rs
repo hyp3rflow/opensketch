@@ -2160,6 +2160,109 @@ impl Scene {
         Some(frame_id)
     }
 
+    /// Group selected nodes by their primary fill color into separate Group nodes.
+    /// Returns a JSON string describing the groups created: [{ "color": "#rrggbb", "group_id": N, "node_ids": [...] }, ...]
+    pub fn group_by_color(&mut self, ids: &[NodeId]) -> String {
+        if ids.len() < 2 { return "[]".to_string(); }
+
+        // Collect color -> node IDs mapping
+        let mut color_map: std::collections::BTreeMap<String, Vec<NodeId>> = std::collections::BTreeMap::new();
+        for &id in ids {
+            if let Some(node) = self.nodes.get(&id) {
+                let color_key = if let Some(fill) = node.fills.iter().find(|f| f.visible) {
+                    let c = fill.color();
+                    match &fill.fill_type {
+                        crate::node::FillType::Solid { .. } => {
+                            format!("#{:02x}{:02x}{:02x}", c.r, c.g, c.b)
+                        }
+                        _ => "gradient".to_string(),
+                    }
+                } else {
+                    "none".to_string()
+                };
+                color_map.entry(color_key).or_default().push(id);
+            }
+        }
+
+        // Only create groups for colors with 2+ nodes; singletons stay ungrouped
+        let mut results: Vec<String> = Vec::new();
+        for (color_key, node_ids) in &color_map {
+            if node_ids.len() < 2 { continue; }
+
+            // Create a Group node wrapping these nodes (reuse wrap_in_frame logic but with Group kind)
+            let bounds = match self.get_bounds_of(node_ids) {
+                Some(b) => b,
+                None => continue,
+            };
+            let (min_x, min_y, max_x, max_y) = bounds;
+
+            let first_parent = self.nodes.get(&node_ids[0]).and_then(|n| n.parent);
+            let sibling_list: Vec<NodeId> = if let Some(pid) = first_parent {
+                self.nodes.get(&pid).map(|p| p.children.clone()).unwrap_or_default()
+            } else {
+                self.root_children.clone()
+            };
+            let earliest_idx = sibling_list.iter().position(|c| node_ids.contains(c)).unwrap_or(sibling_list.len());
+
+            let mut group = Node::new(0, NodeKind::Group);
+            group.x = min_x;
+            group.y = min_y;
+            group.width = max_x - min_x;
+            group.height = max_y - min_y;
+            group.name = format!("Color Group {}", color_key);
+            group.parent = first_parent;
+
+            let group_id = self.next_id;
+            self.next_id += 1;
+            group.id = group_id;
+
+            // Remove nodes from current parent
+            for &id in node_ids {
+                if let Some(node) = self.nodes.get(&id) {
+                    if let Some(old_parent) = node.parent {
+                        if let Some(p) = self.nodes.get_mut(&old_parent) {
+                            p.children.retain(|c| !node_ids.contains(c));
+                        }
+                    } else {
+                        self.root_children.retain(|c| !node_ids.contains(c));
+                    }
+                }
+            }
+
+            // Insert group at earliest position
+            if let Some(pid) = first_parent {
+                if let Some(p) = self.nodes.get_mut(&pid) {
+                    let at = earliest_idx.min(p.children.len());
+                    p.children.insert(at, group_id);
+                }
+            } else {
+                let at = earliest_idx.min(self.root_children.len());
+                self.root_children.insert(at, group_id);
+            }
+
+            // Reparent children
+            let mut children = Vec::new();
+            for &id in node_ids {
+                if let Some(node) = self.nodes.get_mut(&id) {
+                    node.x -= min_x;
+                    node.y -= min_y;
+                    node.parent = Some(group_id);
+                    children.push(id);
+                }
+            }
+            group.children = children;
+            self.nodes.insert(group_id, group);
+
+            let ids_json: Vec<String> = node_ids.iter().map(|id| id.to_string()).collect();
+            results.push(format!(
+                r#"{{"color":"{}","group_id":{},"node_ids":[{}]}}"#,
+                color_key, group_id, ids_json.join(",")
+            ));
+        }
+
+        format!("[{}]", results.join(","))
+    }
+
     /// Select all visible, unlocked nodes (root level)
     pub fn select_all(&mut self) {
         self.selection.clear();

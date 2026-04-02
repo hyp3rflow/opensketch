@@ -7814,6 +7814,24 @@ impl Engine {
         }
     }
 
+    /// Group selected nodes by fill color. Returns JSON with group info.
+    pub fn group_selection_by_color(&mut self) -> String {
+        let sel = self.scene.selection.clone();
+        if sel.len() < 2 { return "[]".to_string(); }
+        self.push_undo();
+        let result = self.scene.group_by_color(&sel);
+        // Select the newly created groups
+        self.scene.selection.clear();
+        if let Ok(parsed) = serde_json::from_str::<Vec<serde_json::Value>>(&result) {
+            for g in &parsed {
+                if let Some(id) = g.get("group_id").and_then(|v| v.as_u64()) {
+                    self.scene.selection.push(id);
+                }
+            }
+        }
+        result
+    }
+
     pub fn flatten_selection(&mut self) -> u32 {
         self.push_undo();
         let sel = self.scene.selection.clone();

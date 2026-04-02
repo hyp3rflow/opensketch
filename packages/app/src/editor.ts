@@ -6244,6 +6244,21 @@ export class Editor {
     }
   }
 
+  groupSelectionByColor() {
+    const sel = Array.from(this.engine.get_selection()).map(Number);
+    if (sel.length < 2) return;
+    try {
+      const resultJson = (this.engine as any).group_selection_by_color();
+      const groups = JSON.parse(resultJson);
+      if (groups.length > 0) {
+        this.render();
+        this.updateUI();
+      }
+    } catch (e) {
+      console.error('group_selection_by_color failed:', e);
+    }
+  }
+
   smartDistributeGrid() {
     const sel = Array.from(this.engine.get_selection()).map(Number);
     if (sel.length < 4) return;
@@ -6362,6 +6377,9 @@ export class Editor {
       }
       if (sel.length >= 1) {
         items.push({ label: "Wrap in Frame", shortcut: `${mod}⌥G`, enabled: true, action: () => this.wrapSelectionInFrame() });
+      }
+      if (sel.length >= 2) {
+        items.push({ label: "Group by Color", enabled: true, action: () => this.groupSelectionByColor() });
       }
       items.push({ separator: true, label: "" });
       // Smart Content Fill
