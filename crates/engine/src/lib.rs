@@ -2698,6 +2698,16 @@ impl Engine {
         }
     }
 
+    pub fn set_corner_smoothing(&mut self, id: u64, smoothing: f64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            node.corner_smoothing = smoothing.clamp(0.0, 1.0);
+        }
+    }
+
+    pub fn get_corner_smoothing(&self, id: u64) -> f64 {
+        self.scene.get_node(id).map(|n| n.corner_smoothing).unwrap_or(0.0)
+    }
+
     pub fn set_opacity(&mut self, id: u64, opacity: f64) {
         if let Some(node) = self.scene.get_node_mut(id) {
             node.opacity = opacity.clamp(0.0, 1.0);

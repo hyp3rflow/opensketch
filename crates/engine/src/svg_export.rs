@@ -13,6 +13,29 @@ fn escape_xml(s: &str) -> String {
         .replace('\'', "&apos;")
 }
 
+/// Generate SVG path data for a smoothed rounded rect (squircle).
+fn smoothed_rounded_rect_path(x: f64, y: f64, w: f64, h: f64, r: f64, smoothing: f64) -> String {
+    let r = r.min(w / 2.0).min(h / 2.0);
+    if r <= 0.0 {
+        return format!("M{},{}H{}V{}H{}Z", x, y, x + w, y + h, x);
+    }
+    let k_arc = 0.5523;
+    let k = k_arc + smoothing.clamp(0.0, 1.0) * (1.0 - k_arc);
+    let hr = r * k;
+    format!(
+        "M{},{} L{},{} C{},{} {},{} {},{} L{},{} C{},{} {},{} {},{} L{},{} C{},{} {},{} {},{} L{},{} C{},{} {},{} {},{}Z",
+        x + r, y,
+        x + w - r, y,
+        x + w - r + hr, y, x + w, y + r - hr, x + w, y + r,
+        x + w, y + h - r,
+        x + w, y + h - r + hr, x + w - r + hr, y + h, x + w - r, y + h,
+        x + r, y + h,
+        x + r - hr, y + h, x, y + h - r + hr, x, y + h - r,
+        x, y + r,
+        x, y + r - hr, x + r - hr, y, x + r, y,
+    )
+}
+
 fn first_fill_color(node: &Node) -> Option<String> {
     node.visible_fills().next().map(|f| {
         let c = f.color();
@@ -158,23 +181,38 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
 
     match &node.kind {
         NodeKind::Rect => {
-            let mut attrs = format!(
-                r#"<rect width="{}" height="{}""#,
-                node.width, node.height
-            );
-            if node.corner_radius > 0.0 {
-                attrs.push_str(&format!(r#" rx="{}" ry="{}""#, node.corner_radius, node.corner_radius));
+            if node.corner_radius > 0.0 && node.corner_smoothing > 0.001 {
+                // Squircle: emit <path> with bezier curves
+                let d = smoothed_rounded_rect_path(node.x, node.y, node.width, node.height, node.corner_radius, node.corner_smoothing);
+                let mut attrs = format!(r#"<path d="{}""#, d);
+                append_fill_stroke(&mut attrs, node);
+                if has_opacity {
+                    attrs.push_str(&format!(r#" opacity="{}""#, node.opacity));
+                }
+                append_blend_mode(&mut attrs, node);
+                attrs.push_str(&filter_attr);
+                attrs.push_str(&backdrop_attr);
+                attrs.push_str("/>\n");
+                buf.push_str(&attrs);
+            } else {
+                let mut attrs = format!(
+                    r#"<rect width="{}" height="{}""#,
+                    node.width, node.height
+                );
+                if node.corner_radius > 0.0 {
+                    attrs.push_str(&format!(r#" rx="{}" ry="{}""#, node.corner_radius, node.corner_radius));
+                }
+                append_transform(&mut attrs, node);
+                append_fill_stroke(&mut attrs, node);
+                if has_opacity {
+                    attrs.push_str(&format!(r#" opacity="{}""#, node.opacity));
+                }
+                append_blend_mode(&mut attrs, node);
+                attrs.push_str(&filter_attr);
+                attrs.push_str(&backdrop_attr);
+                attrs.push_str("/>\n");
+                buf.push_str(&attrs);
             }
-            append_transform(&mut attrs, node);
-            append_fill_stroke(&mut attrs, node);
-            if has_opacity {
-                attrs.push_str(&format!(r#" opacity="{}""#, node.opacity));
-            }
-            append_blend_mode(&mut attrs, node);
-            attrs.push_str(&filter_attr);
-            attrs.push_str(&backdrop_attr);
-            attrs.push_str("/>\n");
-            buf.push_str(&attrs);
         }
         NodeKind::Ellipse => {
             let cx = node.x + node.width / 2.0;

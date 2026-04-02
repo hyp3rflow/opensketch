@@ -461,7 +461,7 @@ impl Renderer {
                 NodeKind::Rect | NodeKind::Frame | NodeKind::Section | NodeKind::Instance(_) | NodeKind::Image { .. } => {
                     ctx.set_fill_style_str("rgba(0,0,0,1)");
                     if node.corner_radius > 0.0 {
-                        self.draw_rounded_rect(ctx, node.x + far, node.y, node.width, node.height, node.corner_radius);
+                        self.draw_rounded_rect_smooth(ctx, node.x + far, node.y, node.width, node.height, node.corner_radius, node.corner_smoothing);
                     } else {
                         ctx.begin_path();
                         ctx.rect(node.x + far, node.y, node.width, node.height);
@@ -575,7 +575,7 @@ impl Renderer {
                 }
                 _ => {
                     if node.corner_radius > 0.0 {
-                        self.draw_rounded_rect(ctx, node.x, node.y, node.width, node.height, node.corner_radius);
+                        self.draw_rounded_rect_smooth(ctx, node.x, node.y, node.width, node.height, node.corner_radius, node.corner_smoothing);
                     } else {
                         ctx.begin_path();
                         ctx.rect(node.x, node.y, node.width, node.height);
@@ -607,11 +607,11 @@ impl Renderer {
             ctx.rotate(node.rotation).ok();
             let x = -node.width / 2.0;
             let y = -node.height / 2.0;
-            self.draw_rounded_rect(ctx, x, y, node.width, node.height, node.corner_radius);
+            self.draw_rounded_rect_smooth(ctx, x, y, node.width, node.height, node.corner_radius, node.corner_smoothing);
             self.apply_fill_stroke(ctx, node);
             ctx.restore();
         } else {
-            self.draw_rounded_rect(ctx, node.x, node.y, node.width, node.height, node.corner_radius);
+            self.draw_rounded_rect_smooth(ctx, node.x, node.y, node.width, node.height, node.corner_radius, node.corner_smoothing);
             self.apply_fill_stroke(ctx, node);
         }
     }
@@ -864,7 +864,7 @@ impl Renderer {
                 ctx.set_line_width(stroke.width * 2.0);
                 self.apply_stroke_options(ctx, stroke);
                 if node.corner_radius > 0.0 {
-                    self.draw_rounded_rect(ctx, node.x, node.y, node.width, node.height, node.corner_radius);
+                    self.draw_rounded_rect_smooth(ctx, node.x, node.y, node.width, node.height, node.corner_radius, node.corner_smoothing);
                     ctx.stroke();
                 } else {
                     ctx.stroke_rect(node.x, node.y, node.width, node.height);
@@ -877,7 +877,7 @@ impl Renderer {
         for fill in node.visible_fills() {
             self.apply_single_fill_style(ctx, fill, node);
             if node.corner_radius > 0.0 {
-                self.draw_rounded_rect(ctx, node.x, node.y, node.width, node.height, node.corner_radius);
+                self.draw_rounded_rect_smooth(ctx, node.x, node.y, node.width, node.height, node.corner_radius, node.corner_smoothing);
                 ctx.fill();
             } else {
                 ctx.fill_rect(node.x, node.y, node.width, node.height);
@@ -893,7 +893,7 @@ impl Renderer {
                 if stroke.align == crate::node::StrokeAlign::Inside {
                     ctx.save();
                     if node.corner_radius > 0.0 {
-                        self.draw_rounded_rect(ctx, node.x, node.y, node.width, node.height, node.corner_radius);
+                        self.draw_rounded_rect_smooth(ctx, node.x, node.y, node.width, node.height, node.corner_radius, node.corner_smoothing);
                     } else {
                         ctx.begin_path();
                         ctx.rect(node.x, node.y, node.width, node.height);
@@ -901,7 +901,7 @@ impl Renderer {
                     ctx.clip();
                 }
                 if node.corner_radius > 0.0 {
-                    self.draw_rounded_rect(ctx, node.x, node.y, node.width, node.height, node.corner_radius);
+                    self.draw_rounded_rect_smooth(ctx, node.x, node.y, node.width, node.height, node.corner_radius, node.corner_smoothing);
                     ctx.stroke();
                 } else {
                     ctx.stroke_rect(node.x, node.y, node.width, node.height);
@@ -997,7 +997,7 @@ impl Renderer {
             ctx.save();
             ctx.begin_path();
             if node.corner_radius > 0.0 {
-                self.draw_rounded_rect(ctx, node.x, node.y, node.width, node.height, node.corner_radius);
+                self.draw_rounded_rect_smooth(ctx, node.x, node.y, node.width, node.height, node.corner_radius, node.corner_smoothing);
             } else {
                 ctx.rect(node.x, node.y, node.width, node.height);
             }
@@ -1135,7 +1135,7 @@ impl Renderer {
             ctx.set_fill_style_str("rgba(40,40,40,1)");
         }
         if node.corner_radius > 0.0 {
-            self.draw_rounded_rect(ctx, node.x, node.y, node.width, node.height, node.corner_radius);
+            self.draw_rounded_rect_smooth(ctx, node.x, node.y, node.width, node.height, node.corner_radius, node.corner_smoothing);
             ctx.fill();
         } else {
             ctx.fill_rect(node.x, node.y, node.width, node.height);
@@ -1571,14 +1571,14 @@ impl Renderer {
         let r = 4.0;
         // Background
         ctx.set_fill_style_str(bg);
-        self.draw_rounded_rect(ctx, node.x, node.y, node.width, node.height, r);
+        self.draw_rounded_rect_smooth(ctx, node.x, node.y, node.width, node.height, r, node.corner_smoothing);
         ctx.fill();
         ctx.restore();
 
         // Border
         ctx.set_stroke_style_str(border);
         ctx.set_line_width(1.0);
-        self.draw_rounded_rect(ctx, node.x, node.y, node.width, node.height, r);
+        self.draw_rounded_rect_smooth(ctx, node.x, node.y, node.width, node.height, r, node.corner_smoothing);
         ctx.stroke();
 
         // Folded corner
@@ -1656,12 +1656,12 @@ impl Renderer {
             for fill in &node.fills {
                 if !fill.visible { continue; }
                 self.apply_single_fill_style(ctx, fill, node);
-                self.draw_rounded_rect(ctx, node.x, node.y, node.width, node.height, r);
+                self.draw_rounded_rect_smooth(ctx, node.x, node.y, node.width, node.height, r, node.corner_smoothing);
                 ctx.fill();
             }
         } else {
             ctx.set_fill_style_str("rgba(26, 26, 46, 0.6)");
-            self.draw_rounded_rect(ctx, node.x, node.y, node.width, node.height, r);
+            self.draw_rounded_rect_smooth(ctx, node.x, node.y, node.width, node.height, r, node.corner_smoothing);
             ctx.fill();
         }
 
@@ -1669,7 +1669,7 @@ impl Renderer {
         let lw = 1.0 / self.viewport.a;
         ctx.set_stroke_style_str("rgba(255,255,255,0.08)");
         ctx.set_line_width(lw);
-        self.draw_rounded_rect(ctx, node.x, node.y, node.width, node.height, r);
+        self.draw_rounded_rect_smooth(ctx, node.x, node.y, node.width, node.height, r, node.corner_smoothing);
         ctx.stroke();
 
         // Title label above the section
@@ -1692,7 +1692,7 @@ impl Renderer {
             if needs_clip {
                 ctx.save();
                 ctx.begin_path();
-                self.draw_rounded_rect(ctx, node.x, node.y, node.width, node.height, r);
+                self.draw_rounded_rect_smooth(ctx, node.x, node.y, node.width, node.height, r, node.corner_smoothing);
                 ctx.clip();
             }
             self.render_children(ctx, &node.children, scene);
@@ -2205,18 +2205,58 @@ impl Renderer {
     }
 
     fn draw_rounded_rect(&self, ctx: &CanvasRenderingContext2d, x: f64, y: f64, w: f64, h: f64, r: f64) {
+        self.draw_rounded_rect_smooth(ctx, x, y, w, h, r, 0.0);
+    }
+
+    fn draw_rounded_rect_smooth(&self, ctx: &CanvasRenderingContext2d, x: f64, y: f64, w: f64, h: f64, r: f64, smoothing: f64) {
         let r = r.min(w / 2.0).min(h / 2.0);
-        ctx.begin_path();
-        ctx.move_to(x + r, y);
-        ctx.line_to(x + w - r, y);
-        ctx.arc_to(x + w, y, x + w, y + r, r).ok();
-        ctx.line_to(x + w, y + h - r);
-        ctx.arc_to(x + w, y + h, x + w - r, y + h, r).ok();
-        ctx.line_to(x + r, y + h);
-        ctx.arc_to(x, y + h, x, y + h - r, r).ok();
-        ctx.line_to(x, y + r);
-        ctx.arc_to(x, y, x + r, y, r).ok();
-        ctx.close_path();
+        if r <= 0.0 {
+            ctx.begin_path();
+            ctx.rect(x, y, w, h);
+            return;
+        }
+        let s = smoothing.max(0.0).min(1.0);
+        if s < 0.001 {
+            // Standard arc_to rounded rect
+            ctx.begin_path();
+            ctx.move_to(x + r, y);
+            ctx.line_to(x + w - r, y);
+            ctx.arc_to(x + w, y, x + w, y + r, r).ok();
+            ctx.line_to(x + w, y + h - r);
+            ctx.arc_to(x + w, y + h, x + w - r, y + h, r).ok();
+            ctx.line_to(x + r, y + h);
+            ctx.arc_to(x, y + h, x, y + h - r, r).ok();
+            ctx.line_to(x, y + r);
+            ctx.arc_to(x, y, x + r, y, r).ok();
+            ctx.close_path();
+        } else {
+            // Squircle (iOS-style superellipse corner smoothing) via cubic bezier
+            // Based on Figma's corner smoothing approach
+            // k = bezier handle length factor: circular arc ≈ 0.5523, full squircle ≈ 1.0
+            let k_arc = 0.5523;
+            let k = k_arc + s * (1.0 - k_arc); // lerp from circular to squircle
+            let hr = r * k; // handle distance from corner
+
+            ctx.begin_path();
+            // Top edge, starting from top-left corner end
+            ctx.move_to(x + r, y);
+            ctx.line_to(x + w - r, y);
+            // Top-right corner
+            ctx.bezier_curve_to(x + w - r + hr, y, x + w, y + r - hr, x + w, y + r);
+            // Right edge
+            ctx.line_to(x + w, y + h - r);
+            // Bottom-right corner
+            ctx.bezier_curve_to(x + w, y + h - r + hr, x + w - r + hr, y + h, x + w - r, y + h);
+            // Bottom edge
+            ctx.line_to(x + r, y + h);
+            // Bottom-left corner
+            ctx.bezier_curve_to(x + r - hr, y + h, x, y + h - r + hr, x, y + h - r);
+            // Left edge
+            ctx.line_to(x, y + r);
+            // Top-left corner
+            ctx.bezier_curve_to(x, y + r - hr, x + r - hr, y, x + r, y);
+            ctx.close_path();
+        }
     }
 
     fn apply_single_fill_style(&self, ctx: &CanvasRenderingContext2d, fill: &crate::node::Fill, node: &Node) {
@@ -2758,7 +2798,7 @@ impl Renderer {
         // Clip to frame
         ctx.begin_path();
         if node.corner_radius > 0.0 {
-            self.draw_rounded_rect(ctx, node.x, node.y, node.width, node.height, node.corner_radius);
+            self.draw_rounded_rect_smooth(ctx, node.x, node.y, node.width, node.height, node.corner_radius, node.corner_smoothing);
         } else {
             ctx.rect(node.x, node.y, node.width, node.height);
         }

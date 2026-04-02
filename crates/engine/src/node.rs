@@ -1874,6 +1874,9 @@ pub struct Node {
     #[serde(default)]
     pub strokes: Vec<Stroke>,
     pub corner_radius: f64,
+    /// Corner smoothing (0.0 = circular arc, 1.0 = full squircle / iOS style)
+    #[serde(default)]
+    pub corner_smoothing: f64,
     pub children: Vec<NodeId>,
     pub parent: Option<NodeId>,
     /// Text sizing mode (Fit = auto-size to content, Fixed = manual)
@@ -2081,6 +2084,7 @@ impl Node {
             stroke: None,
             strokes: vec![],
             corner_radius: 0.0,
+            corner_smoothing: 0.0,
             children: vec![],
             parent: None,
             text_sizing: TextSizing::default(),

@@ -305,6 +305,9 @@ function generateCSS(ctx: CodeCtx): string {
 
   if (node.corner_radius && node.corner_radius > 0) {
     lines.push(`border-radius: ${node.corner_radius}px;`);
+    if (node.corner_smoothing && node.corner_smoothing > 0) {
+      lines.push(`/* corner-smoothing: ${Math.round(node.corner_smoothing * 100)}% (squircle) */`);
+    }
   }
   if (typeof kind === "string" && kind === "Ellipse") {
     const brIdx = lines.findIndex(l => l.startsWith("border-radius"));

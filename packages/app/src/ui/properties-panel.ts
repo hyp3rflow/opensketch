@@ -1517,6 +1517,46 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       }));
     }
     sizeSection.appendChild(rotRow);
+
+    // Corner Smoothing slider (squircle) — only when corner radius > 0
+    if (hasCorner && node.corner_radius > 0) {
+      const smoothVal = (editor.engine as any).get_corner_smoothing ? (editor.engine as any).get_corner_smoothing(id) : 0;
+      const smRow = document.createElement("div");
+      smRow.style.cssText = "display:flex;align-items:center;gap:6px;margin-top:4px;";
+      const smLabel = document.createElement("span");
+      smLabel.style.cssText = "font-size:11px;color:#aaa;white-space:nowrap;min-width:70px;";
+      smLabel.textContent = "Smoothing";
+      const smSlider = document.createElement("input");
+      smSlider.type = "range";
+      smSlider.min = "0";
+      smSlider.max = "100";
+      smSlider.value = String(Math.round(smoothVal * 100));
+      smSlider.style.cssText = "flex:1;height:4px;accent-color:#4a90d9;cursor:pointer;";
+      const smNum = document.createElement("input");
+      smNum.type = "number";
+      smNum.min = "0";
+      smNum.max = "100";
+      smNum.value = String(Math.round(smoothVal * 100));
+      smNum.style.cssText = "width:36px;background:#2a2a2a;border:1px solid #444;border-radius:4px;color:#ddd;font-size:11px;text-align:center;padding:2px;";
+      const setSmoothing = (v: number) => {
+        const clamped = Math.max(0, Math.min(100, v)) / 100;
+        (editor.engine as any).set_corner_smoothing(id, clamped);
+        editor.requestRender();
+      };
+      smSlider.addEventListener("input", () => {
+        smNum.value = smSlider.value;
+        setSmoothing(parseInt(smSlider.value));
+      });
+      smNum.addEventListener("change", () => {
+        smSlider.value = smNum.value;
+        setSmoothing(parseInt(smNum.value));
+      });
+      smRow.appendChild(smLabel);
+      smRow.appendChild(smSlider);
+      smRow.appendChild(smNum);
+      sizeSection.appendChild(smRow);
+    }
+
     // Sizing mode (Hug/Fill/Fixed) — show for nodes in auto-layout parent
     if (node.parent) {
       const _parentJsonSz = editor.engine.get_node_json(BigInt(node.parent));
