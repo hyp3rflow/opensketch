@@ -907,6 +907,27 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       });
       compCard.appendChild(playgroundBtn);
 
+      // === Detach Instance Button ===
+      const detachBtn = document.createElement("button");
+      detachBtn.style.cssText = `
+        background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.25);
+        border-radius:6px; padding:4px 10px; color:#ef4444;
+        cursor:pointer; font-size:11px; font-weight:500;
+        transition:all 0.15s; flex-shrink:0;
+      `;
+      detachBtn.textContent = "Detach";
+      detachBtn.title = "Detach instance (convert to Frame) — ⌘⌥B";
+      detachBtn.addEventListener("mouseenter", () => { detachBtn.style.background = "rgba(239,68,68,0.22)"; });
+      detachBtn.addEventListener("mouseleave", () => { detachBtn.style.background = "rgba(239,68,68,0.12)"; });
+      detachBtn.addEventListener("click", () => {
+        editor.engine.detach_instance(BigInt(id));
+        editor.requestRender();
+        refresh([id]);
+        editor.fireSelectionNow([id]);
+        (editor as any).onLayersChanges?.forEach?.((fn: any) => fn());
+      });
+      compCard.appendChild(detachBtn);
+
       // === Multi-Edit Mode Button ===
       const multiEditInfoJson = editor.engine.get_multi_edit_info(BigInt(id));
       const multiEditInfo = JSON.parse(multiEditInfoJson);

@@ -4565,6 +4565,17 @@ impl Engine {
         true
     }
 
+    /// Detach an instance: convert it from Instance to Frame, severing the component link.
+    /// All visual properties and children are preserved.
+    #[wasm_bindgen]
+    pub fn detach_instance(&mut self, instance_id: u64) -> bool {
+        let ok = self.scene.detach_instance(instance_id);
+        if ok {
+            self.push_undo();
+        }
+        ok
+    }
+
     // =============================================
     // Component Playground
     // =============================================

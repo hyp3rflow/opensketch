@@ -2160,6 +2160,23 @@ impl Scene {
         Some(frame_id)
     }
 
+    /// Detach an instance node: convert it from Instance to Frame, severing the component link.
+    /// All visual properties, children, and overrides are preserved as-is.
+    /// Returns true if successful.
+    pub fn detach_instance(&mut self, id: NodeId) -> bool {
+        let node = match self.get_node_mut(id) {
+            Some(n) => n,
+            None => return false,
+        };
+        match &node.kind {
+            crate::node::NodeKind::Instance(_) => {
+                node.kind = crate::node::NodeKind::Frame;
+                true
+            }
+            _ => false,
+        }
+    }
+
     /// Group selected nodes by their primary fill color into separate Group nodes.
     /// Returns a JSON string describing the groups created: [{ "color": "#rrggbb", "group_id": N, "node_ids": [...] }, ...]
     pub fn group_by_color(&mut self, ids: &[NodeId]) -> String {

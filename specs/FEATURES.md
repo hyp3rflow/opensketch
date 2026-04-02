@@ -91,7 +91,8 @@
 - [x] **Variant switching**: swap instance subtree to different variant template
 - [x] **Slots**: placeholder nodes (⊞) that accept content via reparenting
 - [x] **Instances**: deep-clone template at position, with ◇ prefix + green label
-- [x] **Overrides**: per-instance text/visibility overrides on children
+- [x] **Overrides**: per-instance text/visibility overrides on children, reset individual/all overrides
+- [x] **Detach instance**: convert Instance to Frame (sever component link), Cmd+Alt+B shortcut, context menu + properties panel button
 - [x] **9 agent commands**: create, prop, variant, slot, instance, switch, fill, list, override
 - [x] **Component search & swap**: search components by name, view all instances, swap selected/all instances to different master component (Cmd+Shift+K)
 

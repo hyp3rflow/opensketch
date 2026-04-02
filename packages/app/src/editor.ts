@@ -634,6 +634,12 @@ export class Editor {
         this.flattenSelection();
         return;
       }
+      // Detach instance (Cmd+Alt+B)
+      if (e.key === "b" && (e.metaKey || e.ctrlKey) && e.altKey && !e.shiftKey) {
+        e.preventDefault();
+        this.detachSelectedInstance();
+        return;
+      }
       // Auto dark mode
       if (_sm.matches(e, "edit.darkMode")) {
         e.preventDefault();
@@ -6272,6 +6278,18 @@ export class Editor {
     }
   }
 
+  detachSelectedInstance() {
+    const sel = Array.from(this.engine.get_selection()).map(Number);
+    if (sel.length !== 1) return;
+    const id = sel[0]!;
+    const ok = this.engine.detach_instance(BigInt(id));
+    if (ok) {
+      this.requestRender();
+      this.fireSelectionNow(sel);
+      (this as any).onLayersChanges?.forEach?.((fn: any) => fn());
+    }
+  }
+
   // =============================================
   // Auto-rename layers
   // =============================================
@@ -6535,6 +6553,15 @@ export class Editor {
                 enabled: hasOverrides,
                 action: () => {
                   this.engine.reset_all_instance_overrides(BigInt(selAfter[0]!));
+                  this.requestRender();
+                  this.fireSelectionNow(selAfter);
+                },
+              });
+              items.push({
+                label: "Detach Instance",
+                shortcut: `${mod}⌥B`,
+                action: () => {
+                  this.engine.detach_instance(BigInt(selAfter[0]!));
                   this.requestRender();
                   this.fireSelectionNow(selAfter);
                 },
