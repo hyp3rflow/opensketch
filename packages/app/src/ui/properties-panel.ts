@@ -5902,6 +5902,26 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       overflowTitle.textContent = "Overflow";
       overflowSection.appendChild(overflowTitle);
 
+      // Clip content checkbox
+      const clipRow = document.createElement("label");
+      clipRow.style.cssText = "display:flex;align-items:center;gap:6px;cursor:pointer;margin-bottom:6px;";
+      const clipCheck = document.createElement("input");
+      clipCheck.type = "checkbox";
+      clipCheck.checked = editor.engine.get_clip_content(BigInt(id));
+      clipCheck.style.cssText = "accent-color:#4f46e5;";
+      clipCheck.addEventListener("change", () => {
+        editor.engine.push_undo();
+        editor.engine.set_clip_content(BigInt(id), clipCheck.checked);
+        editor.requestRender();
+        refresh(ids);
+      });
+      const clipLabel = document.createElement("span");
+      clipLabel.style.cssText = "font-size:11px;color:#aaa;";
+      clipLabel.textContent = "Clip content";
+      clipRow.appendChild(clipCheck);
+      clipRow.appendChild(clipLabel);
+      overflowSection.appendChild(clipRow);
+
       const overflowRow = document.createElement("div");
       overflowRow.style.cssText = "display:flex;gap:4px;";
 

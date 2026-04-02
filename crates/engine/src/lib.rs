@@ -8491,6 +8491,16 @@ impl Engine {
 
     // --- Scrollable frames ---
 
+    pub fn set_clip_content(&mut self, id: u64, clip: bool) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            node.clip_content = clip;
+        }
+    }
+
+    pub fn get_clip_content(&self, id: u64) -> bool {
+        self.scene.get_node(id).map(|n| n.clip_content).unwrap_or(true)
+    }
+
     pub fn set_overflow(&mut self, node_id: u64, overflow: &str) {
         if let Some(node) = self.scene.get_node_mut(node_id) {
             node.overflow = match overflow {

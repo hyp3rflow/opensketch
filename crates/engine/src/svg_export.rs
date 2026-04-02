@@ -395,7 +395,7 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
             }
 
             // Clip children for Hidden/Scroll overflow
-            let clip_overflow = node.overflow != crate::node::Overflow::Visible
+            let clip_overflow = (node.clip_content || node.overflow != crate::node::Overflow::Visible)
                 && matches!(node.kind, NodeKind::Frame | NodeKind::Section);
             if clip_overflow {
                 let clip_id = format!("clip-overflow-{}", node.id);

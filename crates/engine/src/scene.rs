@@ -2946,13 +2946,20 @@ impl Scene {
         for &id in ids.iter().rev() {
             if let Some(node) = self.nodes.get(&id) {
                 if !self.is_effectively_visible(id) || node.locked { continue; }
-                if !node.bounds().contains(point) { continue; }
+                let in_bounds = node.bounds().contains(point);
+                // If clip_content is true on a Frame/Section, skip entirely (frame + children) when outside bounds
+                let is_clipping_container = node.clip_content
+                    && matches!(node.kind, crate::node::NodeKind::Frame | crate::node::NodeKind::Section);
+                if !in_bounds && is_clipping_container { continue; }
+                // For non-container or non-clipping nodes, skip if not in bounds
+                if !in_bounds && node.children.is_empty() { continue; }
                 // If container, recurse into children first
                 if !node.children.is_empty() {
                     if let Some(child_id) = self.deep_hit_test_in(&node.children, point) {
                         return Some(child_id);
                     }
                 }
+                if !in_bounds { continue; }
                 // Return this node if no deeper child was hit
                 return Some(id);
             }

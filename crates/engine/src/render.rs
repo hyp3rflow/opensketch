@@ -931,8 +931,8 @@ impl Renderer {
             ctx.line_to(cx + s, cy);
             ctx.stroke();
         }
-        // Clip children for Hidden/Scroll overflow
-        let needs_clip = node.overflow.clips();
+        // Clip children for clip_content or Hidden/Scroll overflow
+        let needs_clip = node.clip_content || node.overflow.clips();
         if needs_clip {
             ctx.save();
             ctx.begin_path();
@@ -1628,7 +1628,17 @@ impl Renderer {
 
         // Render children only if not collapsed
         if !node.section_collapsed {
+            let needs_clip = node.clip_content || node.overflow.clips();
+            if needs_clip {
+                ctx.save();
+                ctx.begin_path();
+                self.draw_rounded_rect(ctx, node.x, node.y, node.width, node.height, r);
+                ctx.clip();
+            }
             self.render_children(ctx, &node.children, scene);
+            if needs_clip {
+                ctx.restore();
+            }
         }
     }
 

@@ -199,6 +199,9 @@ Available: select, hand, rect, ellipse, text, frame, eye, eyeOff, rotation, corn
 
 ## Overflow Section (Frame Properties)
 
+- **Clip content** checkbox: toggles `clip_content` bool (default: checked/true for Figma compat)
+  - When checked, children outside Frame/Section bounds are clipped
+  - Respects corner_radius for rounded clipping
 - Displayed for Frame/Section nodes in Properties panel
 - 5-button toggle: Visible | Hidden | Scroll H | Scroll V | Scroll Both
 - Active button highlighted with indigo (#4f46e5) border and background

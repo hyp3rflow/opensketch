@@ -1765,3 +1765,13 @@
 - Primary caret: 흰색, Multi-cursor carets: 시안(#00d4ff)
 - editor.ts: multiCursors Map, _multiCursorMode flag, addMultiCursor(), multiCursorApplyContent(), renderCaretForNode()
 - Rust 엔진 변경 없음 (순수 TypeScript 구현)
+
+## 완료된 기능 (추가 — Clip Content)
+- Node.clip_content: bool 필드 추가 (#[serde(default = "default_true")], 기본값 true)
+- Frame/Section 렌더링: clip_content true면 ctx.save/clip/restore로 자식 클리핑
+- corner_radius 지원 (rounded clip path)
+- SVG export: clip_content true면 <clipPath> 생성
+- Hit test: deep_hit_test에서 clip_content Frame 밖 자식 제외
+- WASM API: set_clip_content(id, bool), get_clip_content(id) → bool
+- Properties panel: Overflow 섹션에 "Clip content" 체크박스
+- Inspect panel: clip_content true → overflow: hidden CSS 출력

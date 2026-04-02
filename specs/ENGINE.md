@@ -205,6 +205,15 @@ Output: `packages/app/src/wasm/` (opensketch_engine.js + .wasm + .d.ts)
 - **Scene fields**: branches Vec<Branch>, active_branch_id, next_branch_id
 - **Default**: new scenes start with "main" branch (id=1), backward-compatible serde
 
+## Clip Content
+
+- **Node field**: `clip_content: bool` — `#[serde(default = "default_true")]`, defaults to `true` (Figma behavior)
+- When true, children outside Frame/Section bounds are visually clipped (canvas clip path)
+- Supports corner_radius (rounded clip path)
+- **Hit test**: `deep_hit_test` skips children outside clipped Frame/Section bounds
+- **SVG export**: generates `<clipPath>` + `clip-path="url(#...)"` when clip_content is true
+- **WASM API**: `set_clip_content(id, bool)`, `get_clip_content(id) → bool`
+
 ## Overflow Mode
 
 - **Overflow enum**: `Visible` (default) | `Hidden` | `Scroll` | `ScrollHorizontal` | `ScrollVertical`

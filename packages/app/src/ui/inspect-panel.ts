@@ -430,8 +430,10 @@ function generateCSS(ctx: CodeCtx): string {
     if (node.fills?.[0]) lines.push(`color: ${rgbaToCSS(node.fills[0])};`);
   }
 
-  // Overflow
-  if (node.overflow && node.overflow !== "Visible") {
+  // Overflow / Clip content
+  if (node.clip_content) {
+    lines.push(`overflow: hidden;`);
+  } else if (node.overflow && node.overflow !== "Visible") {
     lines.push(`overflow: ${node.overflow === "Scroll" || node.overflow === "ScrollHorizontal" || node.overflow === "ScrollVertical" ? "auto" : "hidden"};`);
     if (node.overflow === "ScrollHorizontal") lines.push(`overflow-x: auto; overflow-y: hidden;`);
     if (node.overflow === "ScrollVertical") lines.push(`overflow-x: hidden; overflow-y: auto;`);

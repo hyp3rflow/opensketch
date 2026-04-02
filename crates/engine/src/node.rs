@@ -1811,6 +1811,10 @@ pub struct Node {
     /// Hyperlink: external URL or internal page link (e.g. "https://..." or "page:PAGE_ID")
     #[serde(default)]
     pub hyperlink: Option<String>,
+    /// Clip content: when true, children outside this frame/section bounds are clipped.
+    /// Defaults to true for Figma compatibility.
+    #[serde(default = "default_true")]
+    pub clip_content: bool,
     /// Section collapsed state (children hidden when true)
     #[serde(default)]
     pub section_collapsed: bool,
@@ -1933,6 +1937,7 @@ impl Node {
             alt_text: None,
             anchors: vec![],
             hyperlink: None,
+            clip_content: true,
             section_collapsed: false,
             section_title_color: None,
             section_title_font_size: None,
