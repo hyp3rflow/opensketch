@@ -1078,6 +1078,99 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         header.appendChild(variantSection);
       }
 
+      // === Interactive Variants (hover/press/focus/disabled) ===
+      try {
+        const ivJson = editor.engine.get_interactive_variants(BigInt(id));
+        const interactiveVariants: Record<string, Record<string, any>> = JSON.parse(ivJson);
+        const INTERACTIVE_STATES = ["hover", "press", "focus", "disabled"];
+
+        const ivSection = document.createElement("div");
+        ivSection.style.cssText = `
+          margin-bottom:8px; padding:8px 10px;
+          background:rgba(236,72,153,0.06); border:1px solid rgba(236,72,153,0.15);
+          border-radius:8px;
+        `;
+        const ivTitle = document.createElement("div");
+        ivTitle.style.cssText = "font-size:10px;color:#ec4899;letter-spacing:0.3px;margin-bottom:6px;font-weight:600;";
+        ivTitle.textContent = "INTERACTIVE VARIANTS";
+        ivSection.appendChild(ivTitle);
+
+        // Collect available variant key strings from component info
+        const variantKeyStrs: string[] = compInfo.variant_keys || [];
+
+        for (const state of INTERACTIVE_STATES) {
+          const row = document.createElement("div");
+          row.style.cssText = "display:flex;align-items:center;gap:6px;margin-bottom:4px;font-size:11px;color:#e5e7eb;";
+
+          const label = document.createElement("span");
+          label.style.cssText = "color:#ec4899;font-weight:600;min-width:60px;text-transform:capitalize;";
+          label.textContent = state;
+          row.appendChild(label);
+
+          const select = document.createElement("select");
+          select.style.cssText = "flex:1;background:#1e1e2e;color:#e5e7eb;border:1px solid rgba(236,72,153,0.3);border-radius:4px;padding:2px 4px;font-size:10px;";
+
+          // "None" option
+          const noneOpt = document.createElement("option");
+          noneOpt.value = "";
+          noneOpt.textContent = "— None —";
+          select.appendChild(noneOpt);
+
+          // Add each variant key as an option
+          for (const vkStr of variantKeyStrs) {
+            const opt = document.createElement("option");
+            opt.value = vkStr;
+            opt.textContent = vkStr;
+            select.appendChild(opt);
+          }
+
+          // Set current value
+          const currentKey = interactiveVariants[state];
+          if (currentKey) {
+            const currentStr = Object.entries(currentKey)
+              .map(([k, v]) => {
+                const val = typeof v === 'object' && v !== null && 'String' in (v as any) ? (v as any).String : (typeof v === 'object' && v !== null && 'Boolean' in (v as any) ? (v as any).Boolean : v);
+                return `${k}=${val}`;
+              })
+              .sort()
+              .join(",");
+            select.value = currentStr;
+          }
+
+          select.onchange = () => {
+            editor.pushUndo();
+            if (select.value === "") {
+              editor.engine.clear_interactive_variant(BigInt(id), state);
+            } else {
+              // Parse variant key string "prop1=val1,prop2=val2" back to JSON
+              const parts = select.value.split(",");
+              const keyObj: Record<string, any> = {};
+              for (const part of parts) {
+                const [k, v] = part.split("=");
+                if (k) {
+                  if (v === "true") keyObj[k] = { "Boolean": true };
+                  else if (v === "false") keyObj[k] = { "Boolean": false };
+                  else keyObj[k] = { "String": v };
+                }
+              }
+              editor.engine.set_interactive_variant(BigInt(id), state, JSON.stringify(keyObj));
+            }
+            editor.requestRender();
+            updatePanel();
+          };
+
+          row.appendChild(select);
+          ivSection.appendChild(row);
+        }
+
+        const ivHint = document.createElement("div");
+        ivHint.style.cssText = "font-size:9px;color:#6b7280;font-style:italic;margin-top:4px;";
+        ivHint.textContent = "Map states to variants for prototype viewer interaction";
+        ivSection.appendChild(ivHint);
+
+        header.appendChild(ivSection);
+      } catch(_) {}
+
       // === Responsive Variant Rules ===
       try {
         const rulesJson = editor.engine.get_responsive_variant_rules(BigInt(id));

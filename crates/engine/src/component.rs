@@ -2,6 +2,53 @@ use std::collections::HashMap;
 use serde::{Serialize, Deserialize};
 use crate::node::{Node, NodeId};
 
+// =============================================
+// Interactive States (hover/press/focus/disabled)
+// =============================================
+
+/// Interactive state for component instances — auto-switches variant on user interaction
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
+pub enum InteractiveState {
+    Default,
+    Hover,
+    Press,
+    Focus,
+    Disabled,
+}
+
+impl InteractiveState {
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "default" | "Default" => Some(InteractiveState::Default),
+            "hover" | "Hover" => Some(InteractiveState::Hover),
+            "press" | "Press" => Some(InteractiveState::Press),
+            "focus" | "Focus" => Some(InteractiveState::Focus),
+            "disabled" | "Disabled" => Some(InteractiveState::Disabled),
+            _ => None,
+        }
+    }
+
+    pub fn to_str(&self) -> &'static str {
+        match self {
+            InteractiveState::Default => "default",
+            InteractiveState::Hover => "hover",
+            InteractiveState::Press => "press",
+            InteractiveState::Focus => "focus",
+            InteractiveState::Disabled => "disabled",
+        }
+    }
+
+    pub fn all() -> &'static [InteractiveState] {
+        &[
+            InteractiveState::Default,
+            InteractiveState::Hover,
+            InteractiveState::Press,
+            InteractiveState::Focus,
+            InteractiveState::Disabled,
+        ]
+    }
+}
+
 pub type ComponentId = u64;
 
 // =============================================
@@ -222,6 +269,9 @@ pub struct InstanceData {
     /// Component property overrides (prop_name → PropValue)
     #[serde(default)]
     pub property_overrides: HashMap<String, PropValue>,
+    /// Interactive state → variant key mapping (hover/press/focus/disabled auto-switch)
+    #[serde(default)]
+    pub interactive_variants: HashMap<InteractiveState, VariantKey>,
 }
 
 /// Responsive variant rule: when parent width <= max_width, switch to this variant

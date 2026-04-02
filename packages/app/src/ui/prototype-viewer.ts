@@ -676,6 +676,78 @@ export function createPrototypeViewer(editor: Editor): {
   // Track original variant keys for hover revert
   const originalVariants = new Map<number, string>(); // nodeId → original variant_key_json
 
+  // Track interactive state for instances (hover/press/focus/disabled auto-switch)
+  const interactiveOriginals = new Map<number, string>(); // nodeId → original variant_key_json
+
+  /** Find instance nodes at or above the given nodeId that have interactive variants */
+  function findInteractiveInstance(nodeId: number): number | null {
+    try {
+      const iv = editor.engine.get_interactive_variants(BigInt(nodeId));
+      if (iv && iv !== "{}") return nodeId;
+    } catch {}
+    // Walk up parent chain
+    try {
+      const tree = JSON.parse(editor.engine.get_tree());
+      const findParent = (nodes: any[], targetId: number): number | null => {
+        for (const n of nodes) {
+          if (n.id === targetId) return null;
+          if (n.children) {
+            for (const c of n.children) {
+              if (c.id === targetId) return n.id;
+              const r = findParent([c], targetId);
+              if (r !== null) return r;
+            }
+          }
+        }
+        return null;
+      };
+      let pid = findParent(tree, nodeId);
+      while (pid) {
+        try {
+          const iv2 = editor.engine.get_interactive_variants(BigInt(pid));
+          if (iv2 && iv2 !== "{}") return pid;
+        } catch {}
+        const prev = pid;
+        pid = findParent(tree, prev);
+        if (pid === prev) break;
+      }
+    } catch {}
+    return null;
+  }
+
+  /** Apply interactive state to an instance, saving original for revert */
+  function applyInteractiveState(instanceId: number, state: string) {
+    if (!interactiveOriginals.has(instanceId)) {
+      try {
+        const info = JSON.parse(editor.engine.get_instance_component_info(BigInt(instanceId)));
+        if (info && info.current_variant_values) {
+          interactiveOriginals.set(instanceId, JSON.stringify(info.current_variant_values));
+        }
+      } catch {}
+    }
+    try {
+      const changed = editor.engine.apply_interactive_state(BigInt(instanceId), state);
+      if (changed) renderCurrentView();
+    } catch {}
+  }
+
+  /** Revert interactive state to original/default */
+  function revertInteractiveState(instanceId: number) {
+    const orig = interactiveOriginals.get(instanceId);
+    if (orig) {
+      try {
+        editor.engine.set_instance_variant(BigInt(instanceId), orig);
+        renderCurrentView();
+      } catch {}
+      interactiveOriginals.delete(instanceId);
+    } else {
+      try {
+        const changed = editor.engine.apply_interactive_state(BigInt(instanceId), "default");
+        if (changed) renderCurrentView();
+      } catch {}
+    }
+  }
+
   /** Execute a matched interaction */
   function executeInteraction(inter: any, sourceNodeId?: number) {
     const targetId = Number(inter.target_node_id);
@@ -751,12 +823,18 @@ export function createPrototypeViewer(editor: Editor): {
         eventRuntime.handleHoverLeave(lastHoveredNodeId);
         // Revert any hover-triggered variant swaps on the old node (walk up ancestors too)
         revertHoverVariants(lastHoveredNodeId);
+        // Revert interactive hover state
+        const oldInstance = findInteractiveInstance(lastHoveredNodeId);
+        if (oldInstance !== null) revertInteractiveState(oldInstance);
       }
       if (nodeId !== null) {
         eventRuntime.handleHoverEnter(nodeId, e.clientX, e.clientY);
         // Check for OnHover interactions (including SwapVariant)
         const hoverMatch = findInteractionAtPoint(e.clientX, e.clientY, "OnHover");
         if (hoverMatch) executeInteraction(hoverMatch.interaction, nodeId);
+        // Apply interactive hover state
+        const hoverInstance = findInteractiveInstance(nodeId);
+        if (hoverInstance !== null) applyInteractiveState(hoverInstance, "hover");
       }
       lastHoveredNodeId = nodeId;
     }
@@ -776,6 +854,9 @@ export function createPrototypeViewer(editor: Editor): {
       mousePressY = e.clientY;
       isDragging = false;
       eventRuntime.handlePress(nodeId, e.clientX, e.clientY);
+      // Apply interactive press state
+      const pressInstance = findInteractiveInstance(nodeId);
+      if (pressInstance !== null) applyInteractiveState(pressInstance, "press");
     }
   }
 
@@ -786,6 +867,17 @@ export function createPrototypeViewer(editor: Editor): {
         eventRuntime.handleDragEnd(e.clientX, e.clientY);
       }
       eventRuntime.handleRelease(mousePressNodeId, e.clientX, e.clientY);
+
+      // Revert press → back to hover (if still hovering) or default
+      const releaseInstance = findInteractiveInstance(mousePressNodeId);
+      if (releaseInstance !== null) {
+        const stillHovering = findNodeAtPoint(e.clientX, e.clientY);
+        if (stillHovering !== null && findInteractiveInstance(stillHovering) === releaseInstance) {
+          applyInteractiveState(releaseInstance, "hover");
+        } else {
+          revertInteractiveState(releaseInstance);
+        }
+      }
 
       // Check if it was a drag (moved > 5px)
       const dx = e.clientX - mousePressX;

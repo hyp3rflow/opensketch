@@ -1524,6 +1524,16 @@
 - get_connector_info: end_arrow/start_arrow를 string으로 반환, arrow_size 포함
 - Properties panel: Start/End arrow style 드롭다운 (6옵션), Arrow size 숫자 입력
 
+## 완료된 기능 (추가 — Interactive Components)
+- Interactive Components (hover/press/focus/disabled variant auto-switch):
+  - Rust: InteractiveState enum (Default/Hover/Press/Focus/Disabled), InstanceData.interactive_variants HashMap
+  - WASM: set_interactive_variant, get_interactive_variants, clear_interactive_variant, apply_interactive_state
+  - Properties panel: "INTERACTIVE VARIANTS" 섹션 (핑크 카드) — state별 variant 드롭다운 매핑
+  - Prototype viewer: hover/press/release 시 자동 variant 전환, original 저장/복원
+  - Fallback: state 매핑 없으면 Default → 현재 variant 유지
+  - Backward-compatible serde (#[serde(default)])
+  - specs/COMPONENTS.md 업데이트
+
 ## 다음 할 것
 - Lottie animation export — 캔버스 애니메이션을 Lottie JSON으로 내보내기, keyframe 기반 변환
 - Multi-cursor collaborative editing — 동시 편집 시 노드별 잠금 표시 + 실시간 변경 반영 (operational transform 고도화)
@@ -1534,12 +1544,17 @@
 - Figma DevMode parity — 선택 노드 inspect 시 spacing/padding/margin 인라인 오버레이 + 코드 스니펫 복사 원클릭
 - Canvas grid/guide templates — 미리 정의된 그리드 레이아웃 (12-column, 8pt grid 등) 원클릭 적용
 - Auto layout padding individual per-side — Figma처럼 padding top/right/bottom/left 각각 독립 설정 (현재 uniform/H+V만), 4-value 입력 UI
-- Mesh gradient fill — FillType::MeshGradient, 자유형 색상 메쉬 (NxN 그리드 포인트별 색상), Canvas 렌더링 + SVG export
 - Table auto-layout — Table 노드에 auto-layout 적용 (셀 내 텍스트 wrap, 행/열 자동 리사이즈, 헤더 고정, 정렬)
-- Figma-style component property controls — 컴포넌트 프로퍼티 타입 확장 (Text, InstanceSwap, Boolean, Variant) + Properties panel에서 인스턴스별 직접 편집
 - Freehand smoothing — Pen/Freehand 도구의 스트로크 후처리 자동 스무딩 (Catmull-Rom/simplify), 감도 조절 슬라이더
-- Annotation stamps on canvas — 리뷰어가 캔버스 위에 emoji/label 스탬프 배치 + grouping + export (기존 stamp 확장)
-- Component playground — 독립 모달에서 컴포넌트 인스턴스의 모든 variant/property 조합을 매트릭스로 프리뷰
+- Repeat Grid — 노드 복제 grid (Figma Repeat Grid), row/col 갯수 + gap, 개별 셀 콘텐츠 오버라이드, 드래그로 인스턴스 수 조절
+- Component Sets — 여러 관련 컴포넌트를 하나의 Set으로 그룹, Set 단위 variant 전환, Properties panel Set 브라우저
+- Multi-window / detachable panels — 패널을 별도 윈도우로 분리 (Layers, Properties, Agent 등), window.open + postMessage 통신
+- Smart selection grouping — 유사 속성 노드 자동 그룹 제안, one-click grouping + auto-layout 적용
+- Figma-style Variants Matrix UI — 컴포넌트 편집 시 모든 variant 조합을 2D 매트릭스로 시각화, 드래그로 variant 추가/삭제
+- Smart selection filter — 선택 영역 내 특정 노드 타입만 필터링 (Figma "Select All with..." 확장), 정규식 이름 매칭, 깊이/속성 필터
+- Scroll-to animation triggers — Prototype viewer에서 스크롤 위치 기반 애니메이션 트리거 (parallax, reveal-on-scroll), 트리거 threshold 설정
+- Conditional visibility — 변수/조건 기반 노드 visibility 토글 (if variable == value → show/hide), 프로토타입에서 동적 UI 시뮬레이션
+- Multi-player cursors with tool state — 협업 커서에 현재 도구/액션 상태 표시 (✎ editing, ↔ resizing, ✋ panning), 실시간 selection 충돌 경고
 
 ## 백로그 정리 (2026-04-01)
 - "Canvas presentation mode" 제거 — 이미 완료 (추가 81)
@@ -1802,6 +1817,16 @@
 - WASM API: set_clip_content(id, bool), get_clip_content(id) → bool
 - Properties panel: Overflow 섹션에 "Clip content" 체크박스
 - Inspect panel: clip_content true → overflow: hidden CSS 출력
+
+## 2026-04-03: Interactive Components
+- InteractiveState enum (Default/Hover/Press/Focus/Disabled) in component.rs
+- InstanceData.interactive_variants: HashMap<InteractiveState, VariantKey> (#[serde(default)])
+- WASM: set_interactive_variant, get_interactive_variants, clear_interactive_variant, apply_interactive_state
+- Properties panel: Instance "INTERACTIVE VARIANTS" section — per-state variant dropdown
+- Prototype viewer: hover enter/leave → apply/revert hover state, mousedown → press state, mouseup → revert to hover or default
+- Parent chain traversal for nested interactive instances
+- Original variant saved/restored for clean state revert
+- specs/COMPONENTS.md updated
 
 ## 2026-04-03: Chart Visualization Node
 - Added NodeKind::Chart with 5 chart types (Bar, Line, Pie, Donut, Area)

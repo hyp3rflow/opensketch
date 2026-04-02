@@ -353,3 +353,68 @@ enum PropValue {
   - Text: text input field
   - Instance swap: component dropdown
   - Override indicator: blue dot + reset (↺) button
+
+## Interactive Components
+
+Instances can auto-switch variants based on user interaction states (hover, press, focus, disabled).
+
+### Data Model
+```rust
+enum InteractiveState { Default, Hover, Press, Focus, Disabled }
+
+// In InstanceData:
+interactive_variants: HashMap<InteractiveState, VariantKey>  // #[serde(default)]
+```
+
+### WASM API
+- `set_interactive_variant(instance_id, state, variant_key_json) -> bool`
+- `get_interactive_variants(instance_id) -> JSON` — `{ "hover": {...}, "press": {...} }`
+- `clear_interactive_variant(instance_id, state) -> bool`
+- `apply_interactive_state(instance_id, state) -> bool` — switches variant, falls back to Default
+
+### UI (Properties Panel)
+- Instance selected → "INTERACTIVE VARIANTS" section (green accent)
+- For each state (hover/press/focus/disabled): dropdown to select target variant
+- "None" option to clear mapping
+
+### Prototype Viewer Integration
+- **Hover**: `mouseenter` → apply "hover" state, `mouseleave` → revert to original
+- **Press**: `mousedown` → apply "press" state, `mouseup` → revert to "hover" (if still hovering) or original
+- Walks parent chain to find nearest instance with interactive variants
+- Saves original variant key for clean revert
+
+---
+
+## Interactive Components
+
+Component instances can map **interactive states** (Hover, Press, Focus, Disabled) to specific variant keys. In the prototype viewer, these states are automatically triggered by user mouse/touch interactions, causing the instance to visually switch variants in real-time.
+
+### Data Model
+
+```rust
+enum InteractiveState {
+    Default, Hover, Press, Focus, Disabled,
+}
+
+// Added to InstanceData:
+pub interactive_variants: HashMap<InteractiveState, VariantKey>
+```
+
+### WASM API
+- `set_interactive_variant(instance_id, state, variant_key_json) -> bool`
+- `get_interactive_variants(instance_id) -> JSON` — `{ "hover": {...}, "press": {...} }`
+- `clear_interactive_variant(instance_id, state) -> bool`
+- `apply_interactive_state(instance_id, state) -> bool` — switches variant, fallback to Default
+
+### Properties Panel
+- **"INTERACTIVE VARIANTS"** section (pink card) on Instance selection
+- Per-state (hover/press/focus/disabled) dropdown to select target variant
+- Hint text explains prototype viewer behavior
+
+### Prototype Viewer Behavior
+- **Hover**: mouse enters instance → apply hover variant; leaves → revert to original
+- **Press**: mousedown → apply press variant
+- **Release**: mouseup → revert to hover (if still hovering) or original
+- Falls back to Default state mapping if specific state has no mapping
+- Original variant saved/restored for seamless revert
+- Backward-compatible: instances without interactive variants behave as before

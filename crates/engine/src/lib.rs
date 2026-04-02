@@ -4028,6 +4028,7 @@ impl Engine {
             overrides: std::collections::HashMap::new(),
             responsive_rules: vec![],
             property_overrides: std::collections::HashMap::new(),
+            interactive_variants: std::collections::HashMap::new(),
         })));
         instance_root.name = format!("[I] {}", comp.name);
 
@@ -4459,6 +4460,95 @@ impl Engine {
     }
 
     // =============================================
+    // Interactive Components (hover/press/focus/disabled variant auto-switch)
+    // =============================================
+
+    /// Set the variant key for an interactive state on an instance
+    pub fn set_interactive_variant(&mut self, instance_id: u64, state: &str, variant_key_json: &str) -> bool {
+        let st = match component::InteractiveState::from_str(state) {
+            Some(s) => s,
+            None => return false,
+        };
+        let key: Result<VariantKey, _> = serde_json::from_str(variant_key_json);
+        let key = match key {
+            Ok(k) => k,
+            Err(_) => return false,
+        };
+        if let Some(node) = self.scene.get_node_mut(instance_id) {
+            if let NodeKind::Instance(data) = &mut node.kind {
+                data.interactive_variants.insert(st, key);
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Get all interactive variant mappings for an instance as JSON
+    /// Returns: { "hover": {...variantKey}, "press": {...}, ... }
+    pub fn get_interactive_variants(&self, instance_id: u64) -> String {
+        if let Some(node) = self.scene.get_node(instance_id) {
+            if let NodeKind::Instance(data) = &node.kind {
+                let mut map = serde_json::Map::new();
+                for (state, key) in &data.interactive_variants {
+                    if let Ok(v) = serde_json::to_value(key) {
+                        map.insert(state.to_str().to_string(), v);
+                    }
+                }
+                return serde_json::Value::Object(map).to_string();
+            }
+        }
+        "{}".to_string()
+    }
+
+    /// Clear an interactive variant mapping for a specific state
+    pub fn clear_interactive_variant(&mut self, instance_id: u64, state: &str) -> bool {
+        let st = match component::InteractiveState::from_str(state) {
+            Some(s) => s,
+            None => return false,
+        };
+        if let Some(node) = self.scene.get_node_mut(instance_id) {
+            if let NodeKind::Instance(data) = &mut node.kind {
+                return data.interactive_variants.remove(&st).is_some();
+            }
+        }
+        false
+    }
+
+    /// Apply an interactive state to an instance — switches to the mapped variant
+    /// Falls back to Default state if no mapping found, then to current variant if no Default mapping
+    pub fn apply_interactive_state(&mut self, instance_id: u64, state: &str) -> bool {
+        let st = match component::InteractiveState::from_str(state) {
+            Some(s) => s,
+            None => return false,
+        };
+
+        // Get the variant key for this state
+        let variant_key = if let Some(node) = self.scene.get_node(instance_id) {
+            if let NodeKind::Instance(data) = &node.kind {
+                if let Some(key) = data.interactive_variants.get(&st) {
+                    Some(key.clone())
+                } else if st != component::InteractiveState::Default {
+                    // Fallback to Default state mapping
+                    data.interactive_variants.get(&component::InteractiveState::Default).cloned()
+                } else {
+                    None
+                }
+            } else {
+                return false;
+            }
+        } else {
+            return false;
+        };
+
+        if let Some(key) = variant_key {
+            let key_json = serde_json::to_string(&key).unwrap_or_default();
+            self.set_instance_variant(instance_id, &key_json)
+        } else {
+            false
+        }
+    }
+
+    // =============================================
     // Style Override Indicators
     // =============================================
 
@@ -4736,6 +4826,7 @@ impl Engine {
             overrides: std::collections::HashMap::new(),
             responsive_rules: vec![],
             property_overrides: std::collections::HashMap::new(),
+            interactive_variants: std::collections::HashMap::new(),
         })));
         instance_node.name = format!("Playground_{}", comp.name);
         if let Some(root) = self.scene.get_node(variant_data.root_node_id) {
@@ -4856,6 +4947,7 @@ impl Engine {
                 overrides: std::collections::HashMap::new(),
                 responsive_rules: vec![],
             property_overrides: std::collections::HashMap::new(),
+            interactive_variants: std::collections::HashMap::new(),
             }));
             node.name = format!("[I] {}", comp.name);
             if let Some(template_root) = variant.nodes.first() {
@@ -7836,6 +7928,7 @@ impl Engine {
                     overrides: std::collections::HashMap::new(),
                     responsive_rules: vec![],
             property_overrides: std::collections::HashMap::new(),
+            interactive_variants: std::collections::HashMap::new(),
                 };
                 target.kind = NodeKind::Instance(Box::new(instance_data));
                 target.name = format!("{} (instance)", comp.name);
