@@ -4123,6 +4123,7 @@ export class Editor {
         this.renderAnchorPoints();
         this.renderConnectorPreview();
         this.renderSliceOverlays();
+        this.renderComponentSetOverlays();
         this.renderGradientEditor();
         this.renderSpacingHandles();
         this.renderCursorPresence();
@@ -5504,6 +5505,66 @@ export class Editor {
       ctx.fillText(label, sx + 4, sy - 4);
       ctx.restore();
     }
+  }
+
+  /** Render component set dashed purple borders (Figma-style) */
+  private renderComponentSetOverlays() {
+    try {
+      const json = (this.engine as any).get_component_set_render_info?.();
+      if (!json) return;
+      const sets: Array<{set_id: number; name: string; node_ids: number[]; bounds: {x: number; y: number; w: number; h: number}}> = JSON.parse(json);
+      if (sets.length === 0) return;
+
+      const zoom = this.engine.get_zoom();
+      const panX = this.engine.get_pan_x();
+      const panY = this.engine.get_pan_y();
+      const ctx = this.ctx;
+      const padding = 20; // scene-space padding around bounds
+
+      for (const s of sets) {
+        const b = s.bounds;
+        const sx = (b.x - padding) * zoom + panX;
+        const sy = (b.y - padding) * zoom + panY;
+        const sw = (b.w + padding * 2) * zoom;
+        const sh = (b.h + padding * 2) * zoom;
+
+        ctx.save();
+        ctx.strokeStyle = "#8b5cf6"; // purple
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([6, 4]);
+        // Rounded rect
+        const r = 8;
+        ctx.beginPath();
+        ctx.roundRect(sx, sy, sw, sh, r);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Label
+        const label = s.name;
+        ctx.font = "bold 10px Inter, sans-serif";
+        const tw = ctx.measureText(label).width;
+        // Background pill
+        ctx.fillStyle = "#8b5cf6";
+        ctx.beginPath();
+        ctx.roundRect(sx, sy - 20, tw + 16, 18, 4);
+        ctx.fill();
+        // Text
+        ctx.fillStyle = "#fff";
+        ctx.textBaseline = "middle";
+        ctx.fillText(label, sx + 8, sy - 11);
+
+        // Component set icon (4-diamond grid)
+        const ix = sx + tw + 20;
+        const iy = sy - 16;
+        ctx.fillStyle = "rgba(139, 92, 246, 0.5)";
+        ctx.fillRect(ix, iy, 3, 3);
+        ctx.fillRect(ix + 4, iy, 3, 3);
+        ctx.fillRect(ix, iy + 4, 3, 3);
+        ctx.fillRect(ix + 4, iy + 4, 3, 3);
+
+        ctx.restore();
+      }
+    } catch {}
   }
 
   /** Export a slice region as PNG/JPG/SVG (crops the canvas area) */

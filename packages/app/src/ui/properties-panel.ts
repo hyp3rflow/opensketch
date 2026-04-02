@@ -1078,6 +1078,66 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         header.appendChild(variantSection);
       }
 
+      // === Component Set Variant Switcher ===
+      try {
+        const setInfoJson = (editor.engine as any).get_instance_component_set_info?.(BigInt(id));
+        if (setInfoJson) {
+          const setInfo = JSON.parse(setInfoJson);
+          if (setInfo && setInfo.axes && setInfo.axes.length > 0) {
+            const setSection = document.createElement("div");
+            setSection.style.cssText = `
+              margin-bottom:8px; padding:8px 10px;
+              background:rgba(139,92,246,0.08); border:1px solid rgba(139,92,246,0.2);
+              border-radius:8px;
+            `;
+
+            const setTitle = document.createElement("div");
+            setTitle.style.cssText = "font-size:10px;color:#8b5cf6;letter-spacing:0.3px;margin-bottom:6px;font-weight:600;display:flex;align-items:center;gap:4px;";
+            setTitle.innerHTML = `<span style="display:inline-flex;gap:1px;"><span style="width:3px;height:3px;background:#8b5cf6;border-radius:1px;"></span><span style="width:3px;height:3px;background:#8b5cf6;border-radius:1px;"></span><span style="width:3px;height:3px;background:#8b5cf6;border-radius:1px;"></span><span style="width:3px;height:3px;background:#8b5cf6;border-radius:1px;"></span></span> COMPONENT SET: ${setInfo.set_name}`;
+            setSection.appendChild(setTitle);
+
+            // Build current axis values
+            const currentValues: Record<string, string> = {};
+            for (const axis of setInfo.axes) {
+              currentValues[axis.name] = axis.current || axis.values[0] || "";
+            }
+
+            for (const axis of setInfo.axes) {
+              const row = document.createElement("div");
+              row.style.cssText = "display:flex;align-items:center;gap:6px;margin-bottom:4px;";
+
+              const label = document.createElement("span");
+              label.style.cssText = "font-size:11px;color:#a78bfa;min-width:60px;font-weight:500;";
+              label.textContent = axis.name;
+              row.appendChild(label);
+
+              const select = document.createElement("select");
+              select.style.cssText = `
+                flex:1; background:#2a2a2a; border:1px solid rgba(139,92,246,0.3); border-radius:4px;
+                color:#ccc; font-size:11px; padding:3px 6px; outline:none; cursor:pointer;
+              `;
+              for (const val of axis.values) {
+                const option = document.createElement("option");
+                option.value = val;
+                option.textContent = val;
+                if (val === axis.current) option.selected = true;
+                select.appendChild(option);
+              }
+              select.addEventListener("change", () => {
+                const newValues = { ...currentValues, [axis.name]: select.value };
+                (editor.engine as any).switch_instance_set_variant(BigInt(id), JSON.stringify(newValues));
+                editor.requestRender();
+                refresh([id]);
+              });
+              row.appendChild(select);
+              setSection.appendChild(row);
+            }
+
+            header.appendChild(setSection);
+          }
+        }
+      } catch {}
+
       // === Interactive Variants (hover/press/focus/disabled) ===
       try {
         const ivJson = editor.engine.get_interactive_variants(BigInt(id));

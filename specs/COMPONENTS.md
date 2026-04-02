@@ -418,3 +418,65 @@ pub interactive_variants: HashMap<InteractiveState, VariantKey>
 - Falls back to Default state mapping if specific state has no mapping
 - Original variant saved/restored for seamless revert
 - Backward-compatible: instances without interactive variants behave as before
+
+## Component Sets
+
+Component Sets group multiple related components into a single visual unit with shared variant axes, similar to Figma's Component Set feature.
+
+### Data Model
+
+```rust
+struct VariantAxis {
+    name: String,        // e.g. "Size", "State", "Theme"
+    values: Vec<String>, // e.g. ["Small", "Medium", "Large"]
+}
+
+struct ComponentSet {
+    id: ComponentSetId,
+    name: String,
+    description: String,
+    axes: Vec<VariantAxis>,
+    variant_map: HashMap<String, ComponentId>,  // "Size=Small,State=Default" → comp_id
+    component_ids: Vec<ComponentId>,
+}
+```
+
+### WASM API
+
+| Method | Description |
+|--------|-------------|
+| `create_component_set(name, ids_json)` | Create set from component IDs |
+| `add_component_set_axis(set_id, name, values_json)` | Add variant axis |
+| `update_component_set_axis(set_id, name, values_json)` | Update axis values |
+| `remove_component_set_axis(set_id, name)` | Remove axis |
+| `set_component_set_variant_mapping(set_id, values_json, comp_id)` | Map axis values → component |
+| `add_component_to_set(set_id, comp_id)` | Add component to set |
+| `remove_component_from_set(set_id, comp_id)` | Remove component from set |
+| `delete_component_set(set_id)` | Delete entire set |
+| `get_component_set_info(set_id)` | Get set details as JSON |
+| `list_component_sets()` | List all sets |
+| `get_instance_component_set_info(instance_id)` | Get set info for an instance |
+| `switch_instance_set_variant(instance_id, values_json)` | Switch instance to different set variant |
+| `get_component_set_render_info()` | Get bounds for rendering dashed borders |
+
+### Visual Rendering
+
+- Component Sets are rendered with a **dashed purple border** (#8b5cf6) around all member components
+- Purple label pill shows the set name above the border
+- 20px padding around the grouped components' bounding box
+- Rendered as a canvas overlay (not a scene node)
+
+### Properties Panel
+
+When an Instance node is selected and its component belongs to a Component Set:
+- A purple "COMPONENT SET" section appears with the set name
+- Each axis shows a dropdown with available values
+- Changing a dropdown switches the instance to the component matching the new axis combination
+- The instance's component_id, variant_values, and children are swapped accordingly
+
+### Integration
+
+- Stored in `ComponentStore.component_sets` (serde-compatible, `#[serde(default)]`)
+- Undo-compatible via existing scene snapshot mechanism
+- Component Sets are metadata-only; they don't create new NodeKind variants
+- Backward-compatible: existing documents without sets work unchanged

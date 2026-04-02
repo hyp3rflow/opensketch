@@ -293,6 +293,73 @@ pub struct NodeOverrides {
     pub visible: Option<bool>,
 }
 
+pub type ComponentSetId = u64;
+
+/// A variant axis definition for a component set (e.g. Size: [Small, Medium, Large])
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct VariantAxis {
+    pub name: String,
+    pub values: Vec<String>,
+}
+
+/// A component set groups multiple components as variants along defined axes.
+/// Each component in the set maps to a specific combination of axis values.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ComponentSet {
+    pub id: ComponentSetId,
+    pub name: String,
+    #[serde(default)]
+    pub description: String,
+    /// Variant axes (e.g. Size, State, Theme)
+    pub axes: Vec<VariantAxis>,
+    /// Map from axis-value combination key (e.g. "Size=Small,State=Default") to ComponentId
+    pub variant_map: HashMap<String, ComponentId>,
+    /// All component IDs in this set
+    pub component_ids: Vec<ComponentId>,
+}
+
+impl ComponentSet {
+    pub fn new(id: ComponentSetId, name: String) -> Self {
+        Self {
+            id,
+            name,
+            description: String::new(),
+            axes: vec![],
+            variant_map: HashMap::new(),
+            component_ids: vec![],
+        }
+    }
+
+    /// Build a canonical key string from axis-value pairs
+    pub fn make_key(values: &HashMap<String, String>) -> String {
+        let mut parts: Vec<_> = values.iter().map(|(k, v)| format!("{}={}", k, v)).collect();
+        parts.sort();
+        parts.join(",")
+    }
+
+    /// Find which component matches given axis values
+    pub fn get_component_for_values(&self, values: &HashMap<String, String>) -> Option<ComponentId> {
+        let key = Self::make_key(values);
+        self.variant_map.get(&key).copied()
+    }
+
+    /// Get axis values for a given component ID (reverse lookup)
+    pub fn get_values_for_component(&self, comp_id: ComponentId) -> Option<HashMap<String, String>> {
+        for (key_str, &cid) in &self.variant_map {
+            if cid == comp_id {
+                let mut map = HashMap::new();
+                for part in key_str.split(',') {
+                    if let Some((k, v)) = part.split_once('=') {
+                        map.insert(k.to_string(), v.to_string());
+                    }
+                }
+                return Some(map);
+            }
+        }
+        None
+    }
+}
+
 /// A shared component library (importable/exportable bundle)
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ComponentLibrary {
@@ -310,6 +377,10 @@ pub struct ComponentStore {
     next_id: ComponentId,
     #[serde(default)]
     pub linked_libraries: Vec<ComponentLibrary>,
+    #[serde(default)]
+    component_sets: HashMap<ComponentSetId, ComponentSet>,
+    #[serde(default)]
+    next_set_id: ComponentSetId,
 }
 
 impl ComponentStore {
@@ -318,6 +389,8 @@ impl ComponentStore {
             components: HashMap::new(),
             next_id: 1,
             linked_libraries: Vec::new(),
+            component_sets: HashMap::new(),
+            next_set_id: 1,
         }
     }
 
@@ -447,6 +520,116 @@ impl ComponentStore {
             instance_data.slot_fills.clear();
             instance_data.overrides.clear();
             instance_data.property_overrides.clear();
+            true
+        } else {
+            false
+        }
+    }
+
+    // =============================================
+    // Component Sets
+    // =============================================
+
+    /// Create a new component set from existing component IDs
+    pub fn create_component_set(&mut self, name: String, component_ids: Vec<ComponentId>) -> ComponentSetId {
+        let id = self.next_set_id;
+        self.next_set_id += 1;
+        let mut set = ComponentSet::new(id, name);
+        set.component_ids = component_ids;
+        self.component_sets.insert(id, set);
+        id
+    }
+
+    pub fn get_component_set(&self, id: ComponentSetId) -> Option<&ComponentSet> {
+        self.component_sets.get(&id)
+    }
+
+    pub fn get_component_set_mut(&mut self, id: ComponentSetId) -> Option<&mut ComponentSet> {
+        self.component_sets.get_mut(&id)
+    }
+
+    pub fn remove_component_set(&mut self, id: ComponentSetId) -> Option<ComponentSet> {
+        self.component_sets.remove(&id)
+    }
+
+    pub fn list_component_sets(&self) -> Vec<&ComponentSet> {
+        let mut v: Vec<_> = self.component_sets.values().collect();
+        v.sort_by_key(|s| s.id);
+        v
+    }
+
+    /// Find which component set a component belongs to
+    pub fn find_set_for_component(&self, comp_id: ComponentId) -> Option<&ComponentSet> {
+        self.component_sets.values().find(|s| s.component_ids.contains(&comp_id))
+    }
+
+    /// Add a variant axis to a component set
+    pub fn add_set_axis(&mut self, set_id: ComponentSetId, name: String, values: Vec<String>) -> bool {
+        if let Some(set) = self.component_sets.get_mut(&set_id) {
+            // Don't add duplicate axis
+            if set.axes.iter().any(|a| a.name == name) {
+                return false;
+            }
+            set.axes.push(VariantAxis { name, values });
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Update a variant axis on a component set
+    pub fn update_set_axis(&mut self, set_id: ComponentSetId, axis_name: &str, values: Vec<String>) -> bool {
+        if let Some(set) = self.component_sets.get_mut(&set_id) {
+            if let Some(axis) = set.axes.iter_mut().find(|a| a.name == axis_name) {
+                axis.values = values;
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Remove a variant axis from a component set
+    pub fn remove_set_axis(&mut self, set_id: ComponentSetId, axis_name: &str) -> bool {
+        if let Some(set) = self.component_sets.get_mut(&set_id) {
+            let before = set.axes.len();
+            set.axes.retain(|a| a.name != axis_name);
+            set.axes.len() < before
+        } else {
+            false
+        }
+    }
+
+    /// Map axis values to a component ID in a set
+    pub fn set_variant_mapping(&mut self, set_id: ComponentSetId, values: HashMap<String, String>, comp_id: ComponentId) -> bool {
+        if let Some(set) = self.component_sets.get_mut(&set_id) {
+            let key = ComponentSet::make_key(&values);
+            set.variant_map.insert(key, comp_id);
+            if !set.component_ids.contains(&comp_id) {
+                set.component_ids.push(comp_id);
+            }
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Add a component to a set
+    pub fn add_component_to_set(&mut self, set_id: ComponentSetId, comp_id: ComponentId) -> bool {
+        if let Some(set) = self.component_sets.get_mut(&set_id) {
+            if !set.component_ids.contains(&comp_id) {
+                set.component_ids.push(comp_id);
+            }
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Remove a component from a set
+    pub fn remove_component_from_set(&mut self, set_id: ComponentSetId, comp_id: ComponentId) -> bool {
+        if let Some(set) = self.component_sets.get_mut(&set_id) {
+            set.component_ids.retain(|&id| id != comp_id);
+            set.variant_map.retain(|_, &mut v| v != comp_id);
             true
         } else {
             false

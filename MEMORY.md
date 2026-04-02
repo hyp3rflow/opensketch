@@ -1547,7 +1547,7 @@
 - Table auto-layout — Table 노드에 auto-layout 적용 (셀 내 텍스트 wrap, 행/열 자동 리사이즈, 헤더 고정, 정렬)
 - Freehand smoothing — Pen/Freehand 도구의 스트로크 후처리 자동 스무딩 (Catmull-Rom/simplify), 감도 조절 슬라이더
 - Repeat Grid — 노드 복제 grid (Figma Repeat Grid), row/col 갯수 + gap, 개별 셀 콘텐츠 오버라이드, 드래그로 인스턴스 수 조절
-- Component Sets — 여러 관련 컴포넌트를 하나의 Set으로 그룹, Set 단위 variant 전환, Properties panel Set 브라우저
+- ~~Component Sets~~ ✅ 완료
 - Multi-window / detachable panels — 패널을 별도 윈도우로 분리 (Layers, Properties, Agent 등), window.open + postMessage 통신
 - Smart selection grouping — 유사 속성 노드 자동 그룹 제안, one-click grouping + auto-layout 적용
 - Figma-style Variants Matrix UI — 컴포넌트 편집 시 모든 variant 조합을 2D 매트릭스로 시각화, 드래그로 variant 추가/삭제
@@ -1827,6 +1827,16 @@
 - Parent chain traversal for nested interactive instances
 - Original variant saved/restored for clean state revert
 - specs/COMPONENTS.md updated
+
+## 2026-04-03: Component Sets
+- ComponentSet struct: id, name, axes (VariantAxis[]), variant_map (axis-values→ComponentId), component_ids
+- ComponentStore: create/get/remove/list component sets, add/update/remove axes, variant mapping, find_set_for_component
+- WASM: create_component_set, add/update/remove_component_set_axis, set_component_set_variant_mapping, add/remove_component_to_set, delete_component_set, get_component_set_info, list_component_sets, get_instance_component_set_info, switch_instance_set_variant, get_component_set_render_info
+- Canvas rendering: dashed purple (#8b5cf6) rounded border around set member components with name label pill
+- Properties panel: "COMPONENT SET" section with per-axis dropdown for variant switching
+- Icons: componentSet (4-diamond grid) added
+- specs/COMPONENTS.md updated with Component Sets section
+- All serde fields #[serde(default)] for backward compatibility
 
 ## 2026-04-03: Chart Visualization Node
 - Added NodeKind::Chart with 5 chart types (Bar, Line, Pie, Donut, Area)

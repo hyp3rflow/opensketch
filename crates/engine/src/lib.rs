@@ -5439,6 +5439,255 @@ impl Engine {
     }
 
     // =============================================
+    // Component Sets
+    // =============================================
+
+    /// Create a component set from component IDs (JSON array). Returns set ID.
+    pub fn create_component_set(&mut self, name: &str, component_ids_json: &str) -> u64 {
+        let ids: Vec<u64> = serde_json::from_str(component_ids_json).unwrap_or_default();
+        self.components.create_component_set(name.to_string(), ids)
+    }
+
+    /// Add a variant axis to a component set. values_json = ["Small","Medium","Large"]
+    pub fn add_component_set_axis(&mut self, set_id: u64, axis_name: &str, values_json: &str) -> bool {
+        let values: Vec<String> = serde_json::from_str(values_json).unwrap_or_default();
+        self.components.add_set_axis(set_id, axis_name.to_string(), values)
+    }
+
+    /// Update a variant axis values. values_json = ["Small","Medium","Large"]
+    pub fn update_component_set_axis(&mut self, set_id: u64, axis_name: &str, values_json: &str) -> bool {
+        let values: Vec<String> = serde_json::from_str(values_json).unwrap_or_default();
+        self.components.update_set_axis(set_id, axis_name, values)
+    }
+
+    /// Remove a variant axis from a component set
+    pub fn remove_component_set_axis(&mut self, set_id: u64, axis_name: &str) -> bool {
+        self.components.remove_set_axis(set_id, axis_name)
+    }
+
+    /// Map axis values to a component ID. values_json = {"Size":"Small","State":"Default"}
+    pub fn set_component_set_variant_mapping(&mut self, set_id: u64, values_json: &str, comp_id: u64) -> bool {
+        let values: std::collections::HashMap<String, String> = serde_json::from_str(values_json).unwrap_or_default();
+        self.components.set_variant_mapping(set_id, values, comp_id)
+    }
+
+    /// Add a component to a set
+    pub fn add_component_to_set(&mut self, set_id: u64, comp_id: u64) -> bool {
+        self.components.add_component_to_set(set_id, comp_id)
+    }
+
+    /// Remove a component from a set
+    pub fn remove_component_from_set(&mut self, set_id: u64, comp_id: u64) -> bool {
+        self.components.remove_component_from_set(set_id, comp_id)
+    }
+
+    /// Remove a component set
+    pub fn delete_component_set(&mut self, set_id: u64) -> bool {
+        self.components.remove_component_set(set_id).is_some()
+    }
+
+    /// Get component set info as JSON. Returns null if not found.
+    pub fn get_component_set_info(&self, set_id: u64) -> String {
+        match self.components.get_component_set(set_id) {
+            Some(set) => {
+                let components_info: Vec<_> = set.component_ids.iter().filter_map(|&cid| {
+                    self.components.get(cid).map(|c| serde_json::json!({
+                        "id": c.id,
+                        "name": c.name,
+                    }))
+                }).collect();
+                serde_json::to_string(&serde_json::json!({
+                    "id": set.id,
+                    "name": set.name,
+                    "description": set.description,
+                    "axes": set.axes.iter().map(|a| serde_json::json!({"name": a.name, "values": a.values})).collect::<Vec<_>>(),
+                    "variant_map": set.variant_map,
+                    "components": components_info,
+                })).unwrap_or_else(|_| "null".to_string())
+            }
+            None => "null".to_string(),
+        }
+    }
+
+    /// List all component sets as JSON array
+    pub fn list_component_sets(&self) -> String {
+        let sets: Vec<_> = self.components.list_component_sets().iter().map(|s| {
+            serde_json::json!({
+                "id": s.id,
+                "name": s.name,
+                "component_count": s.component_ids.len(),
+                "axes": s.axes.iter().map(|a| &a.name).collect::<Vec<_>>(),
+            })
+        }).collect();
+        serde_json::to_string(&sets).unwrap_or_else(|_| "[]".to_string())
+    }
+
+    /// Find which component set an instance's component belongs to. Returns JSON or "null".
+    pub fn get_instance_component_set_info(&self, instance_id: u64) -> String {
+        let comp_id = match self.scene.get_node(instance_id) {
+            Some(node) => match &node.kind {
+                NodeKind::Instance(data) => data.component_id,
+                _ => return "null".to_string(),
+            },
+            None => return "null".to_string(),
+        };
+
+        match self.components.find_set_for_component(comp_id) {
+            Some(set) => {
+                // Get current axis values for this component
+                let current_values = set.get_values_for_component(comp_id)
+                    .unwrap_or_default();
+
+                let axes_info: Vec<_> = set.axes.iter().map(|axis| {
+                    let current_value = current_values.get(&axis.name).cloned().unwrap_or_default();
+                    serde_json::json!({
+                        "name": axis.name,
+                        "values": axis.values,
+                        "current": current_value,
+                    })
+                }).collect();
+
+                serde_json::to_string(&serde_json::json!({
+                    "set_id": set.id,
+                    "set_name": set.name,
+                    "axes": axes_info,
+                    "current_component_id": comp_id,
+                })).unwrap_or_else(|_| "null".to_string())
+            }
+            None => "null".to_string(),
+        }
+    }
+
+    /// Switch an instance to a different variant in its component set by axis values.
+    /// values_json = {"Size":"Large","State":"Hover"}
+    pub fn switch_instance_set_variant(&mut self, instance_id: u64, values_json: &str) -> bool {
+        let values: std::collections::HashMap<String, String> = match serde_json::from_str(values_json) {
+            Ok(v) => v,
+            Err(_) => return false,
+        };
+
+        // Get current component ID
+        let comp_id = match self.scene.get_node(instance_id) {
+            Some(node) => match &node.kind {
+                NodeKind::Instance(data) => data.component_id,
+                _ => return false,
+            },
+            None => return false,
+        };
+
+        // Find the component set
+        let target_comp_id = match self.components.find_set_for_component(comp_id) {
+            Some(set) => match set.get_component_for_values(&values) {
+                Some(id) => id,
+                None => return false,
+            },
+            None => return false,
+        };
+
+        if target_comp_id == comp_id {
+            return true; // Already on this variant
+        }
+
+        // Swap the instance to the target component
+        // Get default variant key of target component
+        let target_comp = match self.components.get(target_comp_id) {
+            Some(c) => c,
+            None => return false,
+        };
+        let default_key = target_comp.default_key();
+        let variant = match target_comp.get_variant(&default_key) {
+            Some(v) => v.clone(),
+            None => match target_comp.variants.values().next() {
+                Some(v) => v.clone(),
+                None => return false,
+            },
+        };
+
+        // Remove old children
+        let old_children: Vec<u64> = self.scene.get_node(instance_id)
+            .map(|n| n.children.clone()).unwrap_or_default();
+        for cid in old_children {
+            self.scene.remove_node(cid);
+        }
+
+        // Update instance data
+        if let Some(node) = self.scene.get_node_mut(instance_id) {
+            if let NodeKind::Instance(data) = &mut node.kind {
+                data.component_id = target_comp_id;
+                data.variant_values = default_key;
+                data.slot_fills.clear();
+                data.overrides.clear();
+                data.property_overrides.clear();
+            }
+            // Update geometry from new variant root
+            if let Some(template_root) = variant.nodes.first() {
+                node.width = template_root.width;
+                node.height = template_root.height;
+                node.corner_radius = template_root.corner_radius;
+                node.fills = template_root.fills.clone();
+                node.strokes = template_root.strokes.clone();
+            }
+        }
+
+        // Clone new variant's children
+        let dx = self.scene.get_node(instance_id).map(|n| n.x).unwrap_or(0.0);
+        let dy = self.scene.get_node(instance_id).map(|n| n.y).unwrap_or(0.0);
+        if let Some(template_root) = variant.nodes.first() {
+            self.clone_template_children(template_root, &variant.nodes, instance_id, dx, dy);
+        }
+
+        true
+    }
+
+    /// Get all component set IDs that contain node IDs (for rendering borders).
+    /// Returns JSON: [{ set_id, name, component_node_ids: [node_id, ...], bounds: {x,y,w,h} }]
+    pub fn get_component_set_render_info(&self) -> String {
+        let sets = self.components.list_component_sets();
+        let mut result: Vec<serde_json::Value> = Vec::new();
+
+        for set in sets {
+            // For each component in the set, find instances or the component source nodes
+            // We look for the default variant root_node_id for each component
+            let mut node_ids: Vec<u64> = Vec::new();
+            let mut min_x = f64::MAX;
+            let mut min_y = f64::MAX;
+            let mut max_x = f64::MIN;
+            let mut max_y = f64::MIN;
+
+            for &comp_id in &set.component_ids {
+                if let Some(comp) = self.components.get(comp_id) {
+                    if let Some(variant) = comp.variants.get(&comp.default_variant_key) {
+                        let root_id = variant.root_node_id;
+                        if let Some(node) = self.scene.get_node(root_id) {
+                            node_ids.push(root_id);
+                            min_x = min_x.min(node.x);
+                            min_y = min_y.min(node.y);
+                            max_x = max_x.max(node.x + node.width);
+                            max_y = max_y.max(node.y + node.height);
+                        }
+                    }
+                }
+            }
+
+            if !node_ids.is_empty() {
+                result.push(serde_json::json!({
+                    "set_id": set.id,
+                    "name": set.name,
+                    "node_ids": node_ids,
+                    "bounds": {
+                        "x": min_x,
+                        "y": min_y,
+                        "w": max_x - min_x,
+                        "h": max_y - min_y,
+                    },
+                }));
+            }
+        }
+
+        serde_json::to_string(&result).unwrap_or_else(|_| "[]".to_string())
+    }
+
+    // =============================================
     // Component Documentation
     // =============================================
 
