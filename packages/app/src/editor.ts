@@ -56,7 +56,7 @@ import { showImageDropChoice, processAILayout } from "./ui/ai-layout";
 import { toggleColorBlindnessPanel, closeCBPanel, setColorBlindnessMode } from "./ui/color-blindness";
 import { toggleFocusMode } from "./ui/focus-mode";
 
-export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "section" | "image" | "pen" | "star" | "polygon" | "slice" | "connector" | "callout" | "sticky" | "table" | "chart" | "freehand" | "measure" | "annotate" | "eyedropper";
+export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "section" | "image" | "pen" | "star" | "polygon" | "slice" | "connector" | "callout" | "sticky" | "table" | "chart" | "freehand" | "measure" | "annotate" | "eyedropper" | "scale";
 
 /** Snap threshold in screen pixels */
 const SNAP_THRESHOLD_PX = 5;
@@ -1030,6 +1030,7 @@ export class Editor {
       else if (e.key === "i" && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) this.setTool("eyedropper");
       else if (e.key === "m" && !e.metaKey && !e.ctrlKey && !e.altKey) this.setTool("measure");
       else if (e.key === "a" && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) this.setTool("annotate");
+      else if (e.key === "k" && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) this.setTool("scale");
       else if (_sm.matches(e, "misc.voice")) { (window as any).__toggleVoice?.(); }
       else if (_sm.matches(e, "misc.fileDiff")) { (window as any).__openFileDiffMerge?.(); }
       if (e.key === "Delete" || e.key === "Backspace") {
@@ -1387,7 +1388,7 @@ export class Editor {
       }
     }
 
-    if (this.currentTool === "select") {
+    if (this.currentTool === "select" || this.currentTool === "scale") {
       const handle = this.engine.hit_test_handle(x, y);
       if (handle >= 0) {
         const sel = this.engine.get_selection();
@@ -2066,7 +2067,7 @@ export class Editor {
     const x = e.offsetX;
     const y = e.offsetY;
 
-    if (this.currentTool === "select" && this.drag.nodeId != null) {
+    if ((this.currentTool === "select" || this.currentTool === "scale") && this.drag.nodeId != null) {
       if (this.drag.handleIndex != null) {
         const sx = this.engine.screen_to_scene_x(x, y);
         const sy = this.engine.screen_to_scene_y(x, y);
@@ -2090,7 +2091,7 @@ export class Editor {
           const isImage = this.engine.is_image_node(Number(this.drag.nodeId));
           const shiftHeld = e.shiftKey;
           const altHeld = e.altKey;
-          const constrainAspect = (isImage && !altHeld) || shiftHeld;
+          const constrainAspect = (isImage && !altHeld) || shiftHeld || this.currentTool === "scale";
 
           if (constrainAspect && ow > 0 && oh > 0) {
             const aspect = ow / oh;
@@ -2131,8 +2132,8 @@ export class Editor {
           if (nw > 0 && nh > 0) {
             this.engine.set_node_position(this.drag.nodeId, nx, ny);
 
-            // Alt+Shift: proportional scale (scale all visual properties)
-            if (altHeld && shiftHeld && ow > 0 && oh > 0) {
+            // Alt+Shift or Scale tool: proportional scale (scale all visual properties)
+            if ((this.currentTool === "scale" || (altHeld && shiftHeld)) && ow > 0 && oh > 0) {
               const scaleX = nw / ow;
               const scaleY = nh / oh;
               // Reset size first (scale_node_proportional will set it)
@@ -2468,7 +2469,7 @@ export class Editor {
     }
 
     // Fire final selection update after drag ends
-    if (this.drag && this.currentTool === "select") {
+    if (this.drag && (this.currentTool === "select" || this.currentTool === "scale")) {
       // Apply responsive variant auto-switch after resize
       if (this.drag.handleIndex != null && this.drag.nodeId != null) {
         try {
@@ -4542,7 +4543,7 @@ export class Editor {
       section: "crosshair", image: "crosshair", pen: "crosshair",
       star: "crosshair", polygon: "crosshair",
       slice: "crosshair", connector: "crosshair", callout: "crosshair", sticky: "crosshair", chart: "crosshair", freehand: "crosshair",
-      measure: "crosshair", annotate: "crosshair", eyedropper: "crosshair",
+      measure: "crosshair", annotate: "crosshair", eyedropper: "crosshair", scale: "nwse-resize",
     };
     this.canvas.style.cursor = cursors[this.currentTool] || "default";
   }
