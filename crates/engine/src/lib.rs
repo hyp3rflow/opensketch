@@ -9832,6 +9832,33 @@ impl Engine {
         self.scene.get_active_preset_id()
     }
 
+    // ─── Scene Breakpoints (multi-viewport preview) ───
+
+    #[wasm_bindgen]
+    pub fn add_scene_breakpoint(&mut self, name: &str, width: f64, height: f64) {
+        self.scene.add_scene_breakpoint(name.to_string(), width, height);
+    }
+
+    #[wasm_bindgen]
+    pub fn remove_scene_breakpoint(&mut self, index: u32) -> bool {
+        self.scene.remove_scene_breakpoint(index as usize)
+    }
+
+    #[wasm_bindgen]
+    pub fn update_scene_breakpoint(&mut self, index: u32, name: &str, width: f64, height: f64) -> bool {
+        self.scene.update_scene_breakpoint(index as usize, name.to_string(), width, height)
+    }
+
+    #[wasm_bindgen]
+    pub fn get_scene_breakpoints(&self) -> String {
+        self.scene.get_scene_breakpoints_json()
+    }
+
+    #[wasm_bindgen]
+    pub fn get_default_breakpoints(&self) -> String {
+        serde_json::to_string(&crate::types::SceneBreakpoint::default_presets()).unwrap_or_else(|_| "[]".to_string())
+    }
+
     // ─── Animation WASM bindings ───
 
     #[wasm_bindgen]

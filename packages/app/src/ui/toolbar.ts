@@ -458,6 +458,14 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
   respBtn.addEventListener("click", () => editor.openResponsivePreview());
   container.appendChild(respBtn);
 
+  // Breakpoints multi-viewport preview button
+  const bpBtn = document.createElement("button");
+  bpBtn.className = "tool-btn";
+  bpBtn.title = "Breakpoints Preview (⌘⇧B)";
+  bpBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="7" height="18" rx="1"/><rect x="11" y="3" width="5" height="18" rx="1"/><rect x="18" y="3" width="4" height="18" rx="1"/></svg>`;
+  bpBtn.addEventListener("click", () => editor.openBreakpointsPreview());
+  container.appendChild(bpBtn);
+
   // Responsive Tokens button
   const rtBtn = document.createElement("button");
   rtBtn.className = "tool-btn";

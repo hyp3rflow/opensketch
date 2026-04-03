@@ -1570,6 +1570,16 @@
 - WebGPU Renderer — Canvas2D → WebGPU 렌더링 파이프라인 전환, GPU 가속 노드 렌더링, 대규모 씬 성능 개선
 - Design Token Theming — 라이트/다크 모드 자동 전환, 시맨틱 토큰 매핑 (primary/secondary/surface), 테마 프리뷰 split-view
 
+## 완료된 기능 (추가 — Responsive Breakpoints Preview)
+- SceneBreakpoint 구조체 (types.rs): name, width, height + default_presets()
+- Scene-level breakpoints (scene.rs): add/remove/update/get_scene_breakpoints_json
+- WASM API (lib.rs): add_scene_breakpoint, remove_scene_breakpoint, update_scene_breakpoint, get_scene_breakpoints, get_default_breakpoints
+- breakpoints-preview.ts: 풀스크린 오버레이, 가로 나란히 뷰포트 카드, SVG 렌더, 스크롤 동기화, 추가/편집/삭제 UI
+- editor.ts: Cmd+Shift+B 단축키, openBreakpointsPreview() 메서드
+- toolbar.ts: 멀티컬럼 아이콘 버튼 추가
+- properties-panel.ts: Frame/Section 선택 시 "Breakpoints Preview" 버튼
+- 기본 프리셋: Mobile (375×812), Tablet (768×1024), Desktop (1440×900)
+
 ## 백로그 정리 (2026-04-01)
 - "Canvas presentation mode" 제거 — 이미 완료 (추가 81)
 - "Annotation sticker pack" — 이미 완료 (stamp.rs + stamp-tool.ts, 추가로 강화 버전도 완료)

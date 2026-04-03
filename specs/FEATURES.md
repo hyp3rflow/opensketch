@@ -609,6 +609,19 @@
 - [x] **compute_layout**: Explicit WASM method for triggering layout recomputation from TypeScript
 - [x] **get_active_breakpoint_info**: Returns active breakpoint label/max_width as JSON for UI indicators
 
+### Breakpoints Multi-Viewport Preview
+- [x] **Scene-level breakpoints**: SceneBreakpoint struct (name, width, height) stored at scene level
+- [x] **Default presets**: Mobile (375×812), Tablet (768×1024), Desktop (1440×900)
+- [x] **Fullscreen overlay**: Side-by-side viewport cards with SVG rendering per breakpoint
+- [x] **Scroll sync**: Synchronized vertical scrolling across all viewport cards
+- [x] **Add/Edit/Remove**: Inline breakpoint management from the preview overlay
+- [x] **Preset reset**: One-click restore to default breakpoints
+- [x] **WASM API**: add_scene_breakpoint, remove_scene_breakpoint, update_scene_breakpoint, get_scene_breakpoints, get_default_breakpoints
+- [x] **Toolbar button**: Multi-column icon + Cmd+Shift+B shortcut
+- [x] **Properties panel**: "Breakpoints Preview" button for Frame/Section nodes
+- [x] **Constraint-based resize**: Uses resize_node_with_constraints for accurate responsive rendering
+- [x] **Non-destructive**: Scene snapshot/restore ensures no side effects on the actual design
+
 ### Responsive Token System
 - [x] **Global breakpoint presets**: Scene-level responsive presets (id, label, width, height)
 - [x] **Variable-mode mapping**: Each preset maps variable collections to specific modes

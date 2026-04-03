@@ -238,3 +238,21 @@ impl Color {
         Self::from_hsl(h, new_s, new_l, self.a)
     }
 }
+
+/// A scene-level breakpoint for responsive multi-viewport preview.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SceneBreakpoint {
+    pub name: String,
+    pub width: f64,
+    pub height: f64,
+}
+
+impl SceneBreakpoint {
+    pub fn default_presets() -> Vec<SceneBreakpoint> {
+        vec![
+            SceneBreakpoint { name: "Mobile".into(), width: 375.0, height: 812.0 },
+            SceneBreakpoint { name: "Tablet".into(), width: 768.0, height: 1024.0 },
+            SceneBreakpoint { name: "Desktop".into(), width: 1440.0, height: 900.0 },
+        ]
+    }
+}

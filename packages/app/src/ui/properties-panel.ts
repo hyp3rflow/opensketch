@@ -7358,6 +7358,15 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
 
         container.appendChild(bpSection);
       }
+
+      // Quick button to open multi-viewport breakpoints preview
+      if (kindStr === "Frame" || kindStr === "Section") {
+        const previewBtn = document.createElement("button");
+        previewBtn.style.cssText = "width:100%;padding:6px 0;background:#4f46e5;border:none;border-radius:6px;color:#fff;font-size:12px;cursor:pointer;margin-bottom:8px;";
+        previewBtn.textContent = "⬛ Breakpoints Preview (⌘⇧B)";
+        previewBtn.addEventListener("click", () => editor.openBreakpointsPreview());
+        container.appendChild(previewBtn);
+      }
     }
 
     // === Layout Grid Section (Frame only) ===

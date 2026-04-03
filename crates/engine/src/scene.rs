@@ -291,6 +291,9 @@ pub struct SceneData {
     /// Prototype variables for conditional interactions
     #[serde(default)]
     pub prototype_variables: Vec<PrototypeVariable>,
+    /// Scene-level breakpoints for multi-viewport preview
+    #[serde(default)]
+    pub scene_breakpoints: Vec<crate::types::SceneBreakpoint>,
 }
 
 pub struct Scene {
@@ -345,6 +348,8 @@ pub struct Scene {
     next_flow_id: u64,
     // Prototype variables for conditional interactions
     pub prototype_variables: Vec<PrototypeVariable>,
+    // Scene-level breakpoints for multi-viewport preview
+    pub scene_breakpoints: Vec<crate::types::SceneBreakpoint>,
 }
 
 impl Scene {
@@ -398,6 +403,7 @@ impl Scene {
             prototype_flows: vec![],
             next_flow_id: 1,
             prototype_variables: vec![],
+            scene_breakpoints: vec![],
         }
     }
 
@@ -936,6 +942,7 @@ impl Scene {
             prototype_flows: self.prototype_flows.clone(),
             next_flow_id: self.next_flow_id,
             prototype_variables: self.prototype_variables.clone(),
+            scene_breakpoints: self.scene_breakpoints.clone(),
         }
     }
 
@@ -1024,6 +1031,7 @@ impl Scene {
                 prototype_flows: data.prototype_flows.clone(),
                 next_flow_id: if data.next_flow_id > 0 { data.next_flow_id } else { 1 },
                 prototype_variables: data.prototype_variables.clone(),
+                scene_breakpoints: data.scene_breakpoints.clone(),
             }
         } else {
             // Legacy single-page format
@@ -1091,6 +1099,7 @@ impl Scene {
                 prototype_flows: data.prototype_flows.clone(),
                 next_flow_id: if data.next_flow_id > 0 { data.next_flow_id } else { 1 },
                 prototype_variables: data.prototype_variables.clone(),
+                scene_breakpoints: data.scene_breakpoints.clone(),
             }
         }
     }
@@ -3073,6 +3082,39 @@ impl Scene {
 
     pub fn get_active_preset_id(&self) -> u64 {
         self.responsive.active_preset_id
+    }
+
+    // =============================================
+    // Scene-level Breakpoints (multi-viewport preview)
+    // =============================================
+
+    pub fn add_scene_breakpoint(&mut self, name: String, width: f64, height: f64) {
+        use crate::types::SceneBreakpoint;
+        self.scene_breakpoints.push(SceneBreakpoint { name, width, height });
+    }
+
+    pub fn remove_scene_breakpoint(&mut self, index: usize) -> bool {
+        if index < self.scene_breakpoints.len() {
+            self.scene_breakpoints.remove(index);
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn update_scene_breakpoint(&mut self, index: usize, name: String, width: f64, height: f64) -> bool {
+        if let Some(bp) = self.scene_breakpoints.get_mut(index) {
+            bp.name = name;
+            bp.width = width;
+            bp.height = height;
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn get_scene_breakpoints_json(&self) -> String {
+        serde_json::to_string(&self.scene_breakpoints).unwrap_or_else(|_| "[]".to_string())
     }
 
     // =============================================

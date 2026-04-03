@@ -11,6 +11,7 @@ import { toggleShortcutsPanel, isShortcutsPanelVisible, closeShortcutsPanel } fr
 import { getShortcutManager } from "./ui/shortcut-manager";
 import { showContextMenu, hideContextMenu, type MenuItem } from "./ui/context-menu";
 import { openResponsivePreview, isResponsivePreviewOpen, closeResponsivePreview } from "./ui/responsive-preview";
+import { openBreakpointsPreview, isBreakpointsPreviewOpen, closeBreakpointsPreview } from "./ui/breakpoints-preview";
 import { openResponsiveTokensPanel, closeResponsiveTokensPanel, isResponsiveTokensPanelOpen } from "./ui/responsive-tokens";
 import { CursorPresence } from "./ui/cursor-presence";
 import { CursorChat } from "./ui/cursor-chat";
@@ -916,6 +917,17 @@ export class Editor {
       if ((e.metaKey || e.ctrlKey) && e.altKey && (e.key === "v" || e.key === "√")) {
         e.preventDefault();
         toggleColorBlindnessPanel();
+        return;
+      }
+
+      // Cmd+Shift+B: breakpoints multi-viewport preview
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "b" || e.key === "B")) {
+        e.preventDefault();
+        if (isBreakpointsPreviewOpen()) {
+          closeBreakpointsPreview();
+        } else {
+          this.openBreakpointsPreview();
+        }
         return;
       }
 
@@ -6489,6 +6501,10 @@ export class Editor {
 
   openResponsivePreview() {
     openResponsivePreview(this.engine);
+  }
+
+  openBreakpointsPreview() {
+    openBreakpointsPreview(this.engine);
   }
 
   private _presentationMode: ReturnType<typeof import("./ui/presentation-mode").createPresentationMode> | null = null;
