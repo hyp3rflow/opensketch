@@ -178,6 +178,7 @@
 - [x] **Content-aware crop**: ImageCrop struct (x, y, w, h normalized), smart crop suggestions (Smart Fit, Rule of Thirds, Center, Square, 16:9, 4:3)
 - [x] **WASM**: `set_image_focal_point`, `get_image_focal_point`, `set_image_crop`, `clear_image_crop`, `get_image_crop`, `get_image_info`, `suggest_crops`
 - [x] **Properties panel**: focal point picker (48×48 canvas + crosshair), crop suggestion buttons, manual crop inputs, reset
+- [x] **Interactive crop mode**: double-click Image → canvas crop overlay with 8 drag handles, rule-of-thirds grid, dim outside, Shift for aspect lock, Enter/Escape confirm/cancel
 
 ### Zoom Controls
 - [x] **Zoom to fit** (Cmd+1): fit all nodes in viewport with padding
