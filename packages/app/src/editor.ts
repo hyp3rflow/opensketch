@@ -28,6 +28,7 @@ import type { CollabClient } from "./collab";
 import { SpatialAudio } from "./spatial-audio";
 import { initSpatialAudioPanel, toggleSpatialAudioPanel, closeSpatialAudioPanel, isSpatialAudioPanelOpen } from "./ui/spatial-audio-panel";
 import { findSpacingHandles, hitTestSpacingHandle, renderSpacingHandles, type SpacingHandle, findPaddingHandles, hitTestPaddingHandle, renderPaddingHandles, type PaddingHandle } from "./tools/spacing-handles";
+import { type CropState, type CropHandle, hitTestCropHandle, getCropCursor, applyCropDrag, renderCropOverlay } from "./tools/image-crop";
 import { showLayoutSuggestion, dismissSuggestion } from "./ui/ai-layout-suggest";
 import { ArtboardView } from "./ui/artboard-view";
 import { toggleFindReplace, closeFindReplace } from "./ui/find-replace-panel";
@@ -164,6 +165,14 @@ export class Editor {
   private _meshEditFillIndex = 0;
   private _meshEditSelectedPoint: number | null = null;
   private _meshEditDragging = false;
+
+  // Image crop mode state
+  private _imageCropMode = false;
+  private _imageCropState: CropState | null = null;
+  private _imageCropHandle: CropHandle = null;
+  private _imageCropDragging = false;
+  private _imageCropLastSceneX = 0;
+  private _imageCropLastSceneY = 0;
 
   // Smart guides state
   private _snapGuides: SnapGuide[] = [];
@@ -1068,6 +1077,10 @@ export class Editor {
           closeSearchPanel();
           return;
         }
+        if (this._imageCropMode) {
+          this.exitImageCropMode(true); // cancel
+          return;
+        }
         if (this._meshEditMode) {
           this.exitMeshEditMode();
           this.needsRender = true;
@@ -1091,6 +1104,10 @@ export class Editor {
         this.engine.deselect_all();
         this.fireSelectionNow([]);
         this.needsRender = true;
+      }
+      if (e.key === "Enter" && this._imageCropMode) {
+        this.exitImageCropMode(false); // confirm
+        return;
       }
       if (e.key === "Enter" && this._penPathId != null) {
         this.finishPenPath();
@@ -1144,6 +1161,26 @@ export class Editor {
       this.lastPanY = e.clientY;
       this.canvas.style.cursor = "grabbing";
       this.canvas.setPointerCapture(e.pointerId);
+      return;
+    }
+
+    // Image crop mode: handle crop drag
+    if (this._imageCropMode && this._imageCropState) {
+      const zoom = this.engine.get_zoom();
+      const panX = this.engine.get_pan_x();
+      const panY = this.engine.get_pan_y();
+      const handle = hitTestCropHandle(this._imageCropState, x, y, zoom, panX, panY);
+      if (handle) {
+        this._imageCropHandle = handle;
+        this._imageCropDragging = true;
+        this._imageCropLastSceneX = this.engine.screen_to_scene_x(x, y);
+        this._imageCropLastSceneY = this.engine.screen_to_scene_y(x, y);
+        this.canvas.style.cursor = getCropCursor(handle);
+        this.canvas.setPointerCapture(e.pointerId);
+        return;
+      }
+      // Click outside crop area → confirm and exit
+      this.exitImageCropMode(false);
       return;
     }
 
@@ -1593,6 +1630,28 @@ export class Editor {
       this.lastPanX = e.clientX;
       this.lastPanY = e.clientY;
       this.needsRender = true;
+      return;
+    }
+
+    // Image crop mode: drag
+    if (this._imageCropMode && this._imageCropState) {
+      const zoom = this.engine.get_zoom();
+      const panX = this.engine.get_pan_x();
+      const panY = this.engine.get_pan_y();
+      if (this._imageCropDragging && this._imageCropHandle) {
+        const sx = this.engine.screen_to_scene_x(e.offsetX, e.offsetY);
+        const sy = this.engine.screen_to_scene_y(e.offsetX, e.offsetY);
+        const dx = sx - this._imageCropLastSceneX;
+        const dy = sy - this._imageCropLastSceneY;
+        applyCropDrag(this._imageCropState, this._imageCropHandle, dx, dy, e.shiftKey);
+        this._imageCropLastSceneX = sx;
+        this._imageCropLastSceneY = sy;
+        this.needsRender = true;
+        return;
+      }
+      // Hover cursor
+      const handle = hitTestCropHandle(this._imageCropState, e.offsetX, e.offsetY, zoom, panX, panY);
+      this.canvas.style.cursor = getCropCursor(handle);
       return;
     }
 
@@ -2189,6 +2248,13 @@ export class Editor {
       return;
     }
 
+    // Image crop mode: release
+    if (this._imageCropMode && this._imageCropDragging) {
+      this._imageCropDragging = false;
+      this._imageCropHandle = null;
+      return;
+    }
+
     // Responsive resize release
     if (this._responsiveResize?.isActive && this._responsiveResize.onPointerUp()) {
       this.needsRender = true;
@@ -2434,6 +2500,51 @@ export class Editor {
   }
 
   // === Path Edit Mode ===
+
+  // --- Image Crop Mode ---
+
+  private enterImageCropMode(nodeId: number, node: any) {
+    const imgData = node.kind.Image;
+    const crop = imgData.crop || { x: 0, y: 0, w: 1, h: 1 };
+    this._imageCropMode = true;
+    this._imageCropState = {
+      nodeId,
+      cropX: crop.x, cropY: crop.y, cropW: crop.w, cropH: crop.h,
+      origCropX: crop.x, origCropY: crop.y, origCropW: crop.w, origCropH: crop.h,
+      nodeX: node.x, nodeY: node.y, nodeW: node.width, nodeH: node.height,
+      lockAspect: false,
+    };
+    this._imageCropDragging = false;
+    this._imageCropHandle = null;
+    this.engine.select(BigInt(nodeId));
+    this.canvas.style.cursor = "crosshair";
+    this.needsRender = true;
+  }
+
+  private exitImageCropMode(cancel = false) {
+    if (this._imageCropState && !cancel) {
+      // Apply the crop
+      this.engine.push_undo();
+      const s = this._imageCropState;
+      this.engine.set_image_crop(s.nodeId, s.cropX, s.cropY, s.cropW, s.cropH);
+    }
+    this._imageCropMode = false;
+    this._imageCropState = null;
+    this._imageCropHandle = null;
+    this._imageCropDragging = false;
+    this.updateCursor();
+    this.needsRender = true;
+    this.fireSelectionNow(Array.from(this.engine.get_selection()).map(Number));
+  }
+
+  private renderImageCropOverlay() {
+    if (!this._imageCropMode || !this._imageCropState) return;
+    const ctx = this.ctx;
+    const zoom = this.engine.get_zoom();
+    const panX = this.engine.get_pan_x();
+    const panY = this.engine.get_pan_y();
+    renderCropOverlay(ctx, this._imageCropState, zoom, panX, panY);
+  }
 
   private enterPathEditMode(nodeId: number) {
     this._pathEditMode = true;
@@ -2975,6 +3086,12 @@ export class Editor {
     // VectorNetwork node → enter vector network edit mode
     if (typeof node.kind === "object" && node.kind.VectorNetwork) {
       this.enterVNEditMode(Number(hit));
+      return;
+    }
+
+    // Image node → enter crop mode
+    if (typeof node.kind === "object" && node.kind.Image) {
+      this.enterImageCropMode(Number(hit), node);
       return;
     }
 
@@ -4184,6 +4301,7 @@ export class Editor {
         this.renderMeasure();
         this.renderPersistentMeasures();
         this.renderPathEditOverlay();
+        this.renderImageCropOverlay();
         this.renderVNEditOverlay();
         this.renderMeshEditOverlay();
         this.renderCaret();
