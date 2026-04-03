@@ -1567,6 +1567,8 @@
 - Scroll-to animation triggers — Prototype viewer에서 스크롤 위치 기반 애니메이션 트리거 (parallax, reveal-on-scroll), 트리거 threshold 설정
 - Conditional visibility — 변수/조건 기반 노드 visibility 토글 (if variable == value → show/hide), 프로토타입에서 동적 UI 시뮬레이션
 - Multi-player cursors with tool state — 협업 커서에 현재 도구/액션 상태 표시 (✎ editing, ↔ resizing, ✋ panning), 실시간 selection 충돌 경고
+- WebGPU Renderer — Canvas2D → WebGPU 렌더링 파이프라인 전환, GPU 가속 노드 렌더링, 대규모 씬 성능 개선
+- Design Token Theming — 라이트/다크 모드 자동 전환, 시맨틱 토큰 매핑 (primary/secondary/surface), 테마 프리뷰 split-view
 
 ## 백로그 정리 (2026-04-01)
 - "Canvas presentation mode" 제거 — 이미 완료 (추가 81)
@@ -1868,12 +1870,14 @@
 - Properties panel: Prototype Variables section (CRUD UI), per-interaction condition editor, SetVariable action fields
 - All serde backward-compatible
 
-## 2026-04-03: Plugin System (Enhanced — Iframe Sandbox)
+## 2026-04-03: Plugin System (Enhanced — Iframe Sandbox + Random Fill)
 - IframeSandbox: sandboxed iframe plugin host (`<iframe sandbox="allow-scripts">`) with postMessage protocol
 - PluginManifest interface: id, name, version, description, icon, main, permissions[]
 - PluginPermission: scene:read/write, selection:read/write, ui:panels/notifications, viewport:read/write
 - Permission-based access control — each postMessage request validated against manifest permissions
 - createSandboxedPlugin(): factory function wrapping manifest+code into standard Plugin interface
 - Sandbox runtime injected into iframe: `_os.scene.*`, `_os.ui.*`, `_os.viewport.*`, `_os.on()`
-- Existing (already implemented): PluginManager, PluginAPI, 5 sample plugins, Plugin Marketplace, Figma compat
-- specs/FEATURES.md, specs/ARCHITECTURE.md updated
+- Random Fill sample plugin: 4 palette presets (Vivid/Pastel/Mono/Earth) + true random mode, panel UI with palette preview
+- Existing (already implemented): PluginManager, PluginAPI, 5+1 sample plugins, Plugin Marketplace, Figma compat
+- specs/PLUGINS.md updated with iframe sandbox docs + all 6 sample plugins
+- 총 6개 샘플 플러그인: Lorem Ipsum, Color Palette, Grid Generator, Auto Rename, Accessibility Checker, Random Fill

@@ -29,7 +29,7 @@ import { setupAccessibilityPanel } from "./ui/accessibility-panel";
 import { createMigrationPanel } from "./ui/migration-panel";
 import { createIconSearchPanel } from "./ui/icon-search-panel";
 import { initComponentLibrary, renderComponentLibraryPanel } from "./ui/component-library";
-import { PluginManager, loremIpsumPlugin, colorPalettePlugin, GridGeneratorPlugin, AutoRenamePlugin, AccessibilityCheckerPlugin } from "./plugins";
+import { PluginManager, loremIpsumPlugin, colorPalettePlugin, GridGeneratorPlugin, AutoRenamePlugin, AccessibilityCheckerPlugin, RandomFillPlugin } from "./plugins";
 import { setupProfilerPanel } from "./ui/profiler-panel";
 import { setupMarketplacePanel } from "./ui/plugin-marketplace";
 import { createAnimationTimeline } from "./ui/animation-timeline";
@@ -345,9 +345,11 @@ async function main() {
   pluginManager.register(GridGeneratorPlugin);
   pluginManager.register(AutoRenamePlugin);
   pluginManager.register(AccessibilityCheckerPlugin);
+  pluginManager.register(RandomFillPlugin);
   // Auto-activate defaults
   pluginManager.activate("lorem-ipsum");
   pluginManager.activate("color-palette");
+  pluginManager.activate("random-fill");
 
   // ── Collaboration ──────────────────────────────────────────────
   const collabClient = new CollabClient();

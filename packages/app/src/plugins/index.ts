@@ -5,6 +5,7 @@ export { ColorPalettePlugin, ColorPalettePlugin as colorPalettePlugin } from "./
 export { GridGeneratorPlugin } from "./samples/grid-generator";
 export { AutoRenamePlugin } from "./samples/auto-rename";
 export { AccessibilityCheckerPlugin } from "./samples/accessibility-checker";
+export { RandomFillPlugin } from "./samples/random-fill";
 export { PLUGIN_CATALOG, searchCatalog, ALL_CATEGORIES } from "./catalog";
 export type { CatalogEntry, PluginCategory } from "./catalog";
 export { createFigmaCompat, runFigmaPlugin } from "./figma-compat";

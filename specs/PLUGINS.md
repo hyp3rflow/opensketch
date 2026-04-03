@@ -26,6 +26,18 @@
   - **Browse**: search bar, category filter pills, plugin cards with icon/name/author/description/rating/downloads/install button
 - Figma plugin compatibility dialog (paste & run Figma plugin code)
 
+### Iframe Sandbox (`packages/app/src/plugins/iframe-sandbox.ts`)
+- `PluginManifest`: id, name, version, description, icon, main, permissions
+- `PluginPermission`: scene:read/write, selection:read/write, ui:panels/notifications, viewport:read/write
+- `IframeSandbox`: sandboxed iframe (allow-scripts only), postMessage protocol
+- Protocol: Plugin→Host `plugin-request` (id, method, args), Host→Plugin `plugin-response` (id, result/error), Host→Plugin `plugin-event` (event, data)
+- `createSandboxedPlugin()`: wraps manifest+code into standard Plugin interface
+
+### Figma Compatibility (`packages/app/src/plugins/figma-compat.ts`)
+- `FigmaCompat`: emulates subset of Figma Plugin API (`figma.*` global)
+- Supports: createRectangle, createEllipse, createText, createFrame, notify, viewport, fills, strokes
+- Paste & run Figma plugin code directly in OpenSketch
+
 ## Demo Plugins
 
 | Plugin | File | Description |
@@ -33,6 +45,9 @@
 | Lorem Ipsum Generator | `plugins/samples/lorem-ipsum.ts` | Generate/fill text nodes with placeholder text |
 | Color Palette | `plugins/samples/color-palette.ts` | Curated color palettes (Material, Pastel, Ocean, Monochrome) |
 | Grid Generator | `plugins/samples/grid-generator.ts` | Auto-generate rect grids (rows/cols/size/gap/color/rainbow) |
+| Random Fill | `plugins/samples/random-fill.ts` | Apply random colors from palette presets (Vivid/Pastel/Mono/Earth) |
+| Auto Rename | `plugins/samples/auto-rename.ts` | Auto-rename nodes based on type and content |
+| Accessibility Checker | `plugins/samples/accessibility-checker.ts` | WCAG contrast and touch target checks |
 
 ## Plugin Development
 
