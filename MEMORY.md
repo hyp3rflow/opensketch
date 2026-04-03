@@ -39,6 +39,9 @@
 - Copy/Paste: Cmd+C (copy), Cmd+X (cut), Cmd+V (paste with +10px offset), Cmd+D (duplicate)
 - 계층 구조 보존 (children/parent ID 리매핑), undo 통합
 
+## 완료된 기능 (추가 — 2026-04-04)
+- Drag Reorder in Layers Panel: 레이어 행 드래그로 노드 순서/계층 변경, 파란색 삽입 인디케이터, 멀티셀렉트 드래그, Frame/Group/Section 안으로 reparent, 순환 참조 방지, Undo 통합
+
 ## 완료된 기능 (추가 4)
 - Alignment tools: align left/center_h/right/top/center_v/bottom + distribute horizontal/vertical
 - Scene 메서드 + WASM align_selection/distribute_selection 바인딩

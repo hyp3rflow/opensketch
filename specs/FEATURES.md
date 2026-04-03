@@ -709,6 +709,7 @@
   - Batch export all variants at once
 - [x] **WASM**: add_slice(name, x, y, w, h), get_slices() → JSON, export_region_svg(x, y, w, h)
 - [x] **Layers panel**: Slice icon in node tree
+- [x] **Layers panel**: Drag reorder — drag layer rows to reorder nodes within same parent or reparent into Frame/Group/Section containers. Visual blue (#0d99ff) insertion indicator. Multi-select drag support. Undo integrated. Circular reparent prevention.
 - [x] **Export formats**:
   - PNG: Canvas crop at specified scale → PNG download
   - JPG: Canvas crop with white background → JPEG download (quality 0.92)

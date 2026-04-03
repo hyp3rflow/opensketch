@@ -27,20 +27,6 @@ function iconSized(svg: string, size = 14) {
 // Collapse state persisted per session
 const collapsed = new Set<number>();
 
-// ── Drag Reorder State ──
-interface DragState {
-  draggedIds: number[];
-  /** Target parent id (null = root) */
-  targetParent: number | null;
-  /** Index within target parent's children */
-  targetIndex: number;
-  /** Depth level for indicator indentation */
-  targetDepth: number;
-  /** Whether dropping INTO a container (Frame/Group/Section) */
-  dropInside: boolean;
-}
-
-
 interface LayerNode {
   id: number;
   name: string;
@@ -56,6 +42,7 @@ interface LayerNode {
 const dragState = {
   active: false,
   sourceId: -1,
+  sourceIds: [] as number[],
   targetId: -1,
   position: "after" as "before" | "after" | "inside",
 };
@@ -169,30 +156,6 @@ export function setupLayersPanel(container: HTMLElement, editor: Editor) {
   list.id = "layers-list";
   container.appendChild(list);
 
-  // ── Drag Reorder ──
-  let dragState: DragState | null = null;
-  const dropIndicator = document.createElement("div");
-  dropIndicator.className = "layers-drop-indicator";
-  dropIndicator.style.cssText = "display:none;position:absolute;left:0;right:0;height:2px;background:#0d99ff;pointer-events:none;z-index:100;border-radius:1px;";
-  list.style.position = "relative";
-  list.appendChild(dropIndicator);
-
-  function isAncestor(ancestorId: number, nodeId: number, nodeMap: Map<number, LayerNode>): boolean {
-    let cur = nodeMap.get(nodeId);
-    while (cur) {
-      if (cur.parent != null && cur.parent === ancestorId) return true;
-      cur = cur.parent != null ? nodeMap.get(cur.parent) : undefined;
-    }
-    return false;
-  }
-
-  function hideIndicator() {
-    dropIndicator.style.display = "none";
-    dragState = null;
-    // Remove all drag-over highlights
-    list.querySelectorAll(".layer-item--drag-over").forEach(el => el.classList.remove("layer-item--drag-over"));
-  }
-
   function isDescendant(parentId: number, childId: number, nodeMap: Map<number, LayerNode>): boolean {
     const parent = nodeMap.get(parentId);
     if (!parent) return false;
@@ -203,11 +166,11 @@ export function setupLayersPanel(container: HTMLElement, editor: Editor) {
     return false;
   }
 
-  function executeDrop(sourceId: number, targetId: number, position: "before" | "after" | "inside", targetNode: LayerNode, nodeMap: Map<number, LayerNode>) {
+  function executeDrop(sourceId: number, targetId: number, position: "before" | "after" | "inside", targetNode: LayerNode, nodeMap: Map<number, LayerNode>, skipUndo = false) {
     // Prevent circular reparent
     if (isDescendant(sourceId, targetId, nodeMap)) return;
 
-    editor.engine.push_undo();
+    if (!skipUndo) editor.engine.push_undo();
 
     if (position === "inside") {
       // Reparent as first child of target (top = last index visually, but children are reversed)
@@ -227,7 +190,7 @@ export function setupLayersPanel(container: HTMLElement, editor: Editor) {
           const srcIdx = parentNode.children.indexOf(sourceId);
           if (srcIdx >= 0 && srcIdx < idx) idx -= 1;
         }
-        editor.engine.reparent_node_at(BigInt(sourceId), parentId, idx);
+        editor.engine.reparent_node_at(BigInt(sourceId), parentId!, idx);
       } else {
         // Root level — parentId = -1
         // Get root ordering from scene
@@ -434,29 +397,33 @@ export function setupLayersPanel(container: HTMLElement, editor: Editor) {
 
       item.addEventListener("dragstart", (e) => {
         e.stopPropagation();
+        const sel = Array.from(editor.engine.get_selection()).map(Number);
+        const ids = sel.includes(node.id) ? sel : [node.id];
         dragState.sourceId = node.id;
+        dragState.sourceIds = ids;
         dragState.active = true;
         item.style.opacity = "0.4";
         e.dataTransfer!.effectAllowed = "move";
-        e.dataTransfer!.setData("text/plain", String(node.id));
+        e.dataTransfer!.setData("text/plain", ids.join(","));
       });
 
       item.addEventListener("dragend", () => {
         item.style.opacity = "";
         dragState.active = false;
         dragState.sourceId = -1;
+        dragState.sourceIds = [];
         clearIndicator();
       });
 
       item.addEventListener("dragover", (e) => {
         e.preventDefault();
         e.stopPropagation();
-        if (!dragState.active || dragState.sourceId === node.id) return;
+        if (!dragState.active || dragState.sourceIds.includes(node.id)) return;
         e.dataTransfer!.dropEffect = "move";
         const rect = item.getBoundingClientRect();
         const y = e.clientY - rect.top;
         const h = rect.height;
-        const isContainer = isFrame && hasChildren;
+        const isContainer = isFrame;
         // Top 25% = before, Bottom 25% = after, Middle 50% = inside (containers only)
         let position: "before" | "after" | "inside";
         if (y < h * 0.25) position = "before";
@@ -480,133 +447,17 @@ export function setupLayersPanel(container: HTMLElement, editor: Editor) {
       item.addEventListener("drop", (e) => {
         e.preventDefault();
         e.stopPropagation();
-        if (!dragState.active || dragState.sourceId < 0 || dragState.sourceId === node.id) return;
-        executeDrop(dragState.sourceId, node.id, dragState.position, node, nodeMap);
+        if (!dragState.active || dragState.sourceIds.length === 0 || dragState.sourceIds.includes(node.id)) return;
+        // Push undo once for the whole batch
+        editor.engine.push_undo();
+        // Execute drop for each dragged node (multi-select support)
+        for (const sid of dragState.sourceIds) {
+          executeDrop(sid, node.id, dragState.position, node, nodeMap, true);
+        }
         dragState.active = false;
         dragState.sourceId = -1;
+        dragState.sourceIds = [];
         clearIndicator();
-      });
-
-      // ── Drag reorder handlers ──
-      item.draggable = true;
-      item.dataset.nodeId = String(node.id);
-      item.dataset.depth = String(depth);
-      item.dataset.parentId = node.parent != null ? String(node.parent) : "";
-      item.dataset.kind = node.kind;
-      item.dataset.childCount = String(node.children.length);
-
-      item.addEventListener("dragstart", (e) => {
-        e.stopPropagation();
-        const sel = Array.from(editor.engine.get_selection()).map(Number);
-        const ids = sel.includes(node.id) ? sel : [node.id];
-        dragState = { draggedIds: ids, targetParent: null, targetIndex: 0, targetDepth: 0, dropInside: false };
-        e.dataTransfer!.effectAllowed = "move";
-        e.dataTransfer!.setData("text/plain", ids.join(","));
-        item.style.opacity = "0.4";
-      });
-
-      item.addEventListener("dragend", () => {
-        item.style.opacity = "";
-        hideIndicator();
-      });
-
-      item.addEventListener("dragover", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (!dragState) return;
-        e.dataTransfer!.dropEffect = "move";
-
-        const rect = item.getBoundingClientRect();
-        const y = e.clientY - rect.top;
-        const h = rect.height;
-        const isContainer = node.kind === "Frame" || node.kind === "Group" || node.kind === "Section";
-        const itemDepth = depth;
-
-        // Determine drop zone: top 25% = above, bottom 25% = below, middle 50% = inside (for containers)
-        let zone: "above" | "below" | "inside";
-        if (isContainer && y > h * 0.25 && y < h * 0.75) {
-          zone = "inside";
-        } else if (y < h * 0.5) {
-          zone = "above";
-        } else {
-          zone = "below";
-        }
-
-        // Check if dropping onto self or descendant
-        for (const did of dragState.draggedIds) {
-          if (did === node.id) return;
-          if (isAncestor(did, node.id, nodeMap)) return;
-        }
-
-        list.querySelectorAll(".layer-item--drag-over").forEach(el => el.classList.remove("layer-item--drag-over"));
-
-        if (zone === "inside") {
-          // Drop inside container
-          dragState.targetParent = node.id;
-          dragState.targetIndex = 0; // prepend (top of reversed list = last child = front)
-          dragState.targetDepth = itemDepth + 1;
-          dragState.dropInside = true;
-          dropIndicator.style.display = "none";
-          item.classList.add("layer-item--drag-over");
-        } else {
-          dragState.dropInside = false;
-          item.classList.remove("layer-item--drag-over");
-
-          // Compute target parent and index
-          // In the layers panel, children are rendered reversed (last child = front = top)
-          // So "above" in visual = after in reversed order, "below" = before
-          const parentId = node.parent ?? null;
-          const siblings = parentId != null ? (nodeMap.get(parentId)?.children ?? []) : roots.map(r => r.id);
-          // The visual order is reversed, so find position
-          const posInSiblings = siblings.indexOf(node.id);
-
-          if (zone === "above") {
-            // Insert after this node in children array (visually above = later index in reversed display)
-            dragState.targetParent = parentId;
-            dragState.targetIndex = posInSiblings + 1;
-            dragState.targetDepth = itemDepth;
-            // Show indicator above item
-            const listRect = list.getBoundingClientRect();
-            dropIndicator.style.display = "block";
-            dropIndicator.style.top = `${rect.top - listRect.top}px`;
-            dropIndicator.style.left = `${8 + itemDepth * 16}px`;
-            dropIndicator.style.right = "8px";
-          } else {
-            // Insert at this node's position in children array (visually below = earlier index)
-            dragState.targetParent = parentId;
-            dragState.targetIndex = posInSiblings;
-            dragState.targetDepth = itemDepth;
-            // Show indicator below item
-            const listRect = list.getBoundingClientRect();
-            dropIndicator.style.display = "block";
-            dropIndicator.style.top = `${rect.bottom - listRect.top}px`;
-            dropIndicator.style.left = `${8 + itemDepth * 16}px`;
-            dropIndicator.style.right = "8px";
-          }
-        }
-      });
-
-      item.addEventListener("dragleave", (e) => {
-        item.classList.remove("layer-item--drag-over");
-      });
-
-      item.addEventListener("drop", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (!dragState) return;
-
-        const { draggedIds, targetParent, targetIndex, dropInside } = dragState;
-        editor.engine.push_undo();
-
-        // Sort dragged IDs by their current position to maintain relative order
-        for (const nid of draggedIds) {
-          const parentArg = targetParent != null ? Number(targetParent) : -1;
-          editor.engine.reparent_node_at(BigInt(nid), parentArg, dropInside ? 0 : targetIndex);
-        }
-
-        hideIndicator();
-        editor.requestRender();
-        refresh();
       });
 
       item.addEventListener("click", () => {
