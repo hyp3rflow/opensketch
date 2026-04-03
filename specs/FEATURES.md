@@ -2188,3 +2188,5 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] **Keyboard Shortcut**: Ctrl/Cmd+Shift+Alt+G to open panel
 - [x] **Quick Prompts**: Pre-built prompt chips (landscape, gradient, avatar, mockup, icon, pattern)
 - [x] **Ctrl+Enter**: Submit prompt via keyboard shortcut within panel
+
+- [x] **Live HTML/CSS Preview panel**: Right pane "Preview" tab, selected node → HTML+CSS real-time iframe render, auto-refresh, scale selector (25%-200%), light/dark bg toggle, code view, copy HTML
