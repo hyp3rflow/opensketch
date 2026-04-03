@@ -675,6 +675,61 @@ impl Engine {
         }
     }
 
+    /// Unmerge a previously merged cell back to 1x1
+    pub fn table_unmerge_cell(&mut self, id: u64, row: u32, col: u32) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Table { ref mut cells, .. } = node.kind {
+                if let Some(cell) = cells.iter_mut().find(|c| c.row == row && c.col == col) {
+                    cell.row_span = 1;
+                    cell.col_span = 1;
+                }
+            }
+        }
+    }
+
+    /// Set table size (add/remove rows and cols to match target)
+    pub fn set_table_size(&mut self, id: u64, new_rows: u32, new_cols: u32) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Table { ref mut rows, ref mut cols, ref mut cells, ref mut col_widths, ref mut row_heights } = node.kind {
+                let old_rows = *rows;
+                let old_cols = *cols;
+                // Remove cells outside new bounds
+                cells.retain(|c| c.row < new_rows && c.col < new_cols);
+                // Add missing cells
+                for r in 0..new_rows {
+                    for c in 0..new_cols {
+                        if !cells.iter().any(|cell| cell.row == r && cell.col == c) {
+                            cells.push(crate::node::TableCell::new(r, c));
+                        }
+                    }
+                }
+                // Adjust col_widths
+                let default_w = col_widths.first().copied().unwrap_or(100.0);
+                col_widths.resize(new_cols as usize, default_w);
+                // Adjust row_heights
+                let default_h = row_heights.first().copied().unwrap_or(36.0);
+                row_heights.resize(new_rows as usize, default_h);
+                // Update total size
+                *rows = new_rows;
+                *cols = new_cols;
+                node.width = col_widths.iter().sum();
+                node.height = row_heights.iter().sum();
+            }
+        }
+    }
+
+    /// Relayout table — recalculate node width/height from col_widths/row_heights
+    pub fn relayout_table(&mut self, id: u64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Table { ref col_widths, ref row_heights, .. } = node.kind {
+                let w: f64 = col_widths.iter().sum();
+                let h: f64 = row_heights.iter().sum();
+                node.width = w.max(1.0);
+                node.height = h.max(1.0);
+            }
+        }
+    }
+
     pub fn table_get_info(&self, id: u64) -> String {
         if let Some(node) = self.scene.get_node(id) {
             if let NodeKind::Table { rows, cols, ref cells, ref col_widths, ref row_heights } = node.kind {

@@ -723,7 +723,7 @@
 ## Table Node
 - [x] **NodeKind::Table**: Row/column/cell structure with `rows`, `cols`, `cells: Vec<TableCell>`, `col_widths`, `row_heights`
 - [x] **TableCell**: row, col, row_span, col_span, content, fill, text_align
-- [x] **WASM bindings**: add_table, table_set_cell, table_get_cell, table_set_cell_fill, table_merge_cells, table_add_row/col, table_remove_row/col, table_set_col_width/row_height, table_import_csv, table_sort, table_get_info
+- [x] **WASM bindings**: add_table, table_set_cell, table_get_cell, table_set_cell_fill, table_merge_cells, table_unmerge_cell, table_add_row/col, table_remove_row/col, table_set_col_width/row_height, table_import_csv, table_sort, table_get_info, set_table_size, relayout_table
 - [x] **Canvas rendering**: Grid lines, cell fills, cell text with alignment
 - [x] **SVG export**: Table → `<g>` with `<rect>`, `<line>`, `<text>` elements
 - [x] **Toolbar**: Table button (B keyboard shortcut)
