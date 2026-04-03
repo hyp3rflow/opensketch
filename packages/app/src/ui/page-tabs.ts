@@ -87,6 +87,17 @@ export function setupPageTabs(container: HTMLElement, editor: Editor) {
       }
     });
     bar.appendChild(addBtn);
+
+    // Artboard View toggle button
+    const abBtn = document.createElement("div");
+    abBtn.className = "page-tab page-tab-artboard" + (editor.artboardViewEnabled ? " active" : "");
+    abBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="8" height="7" rx="1"/><rect x="14" y="3" width="8" height="7" rx="1"/><rect x="2" y="14" width="8" height="7" rx="1"/><rect x="14" y="14" width="8" height="7" rx="1"/></svg>`;
+    abBtn.title = "Artboard View (⌘⌥A)";
+    abBtn.addEventListener("click", () => {
+      editor.toggleArtboardView();
+      render();
+    });
+    bar.appendChild(abBtn);
   }
 
   function switchPage(pageId: number) {

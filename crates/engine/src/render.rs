@@ -25,6 +25,8 @@ pub struct Renderer {
     /// Number of nodes culled in the last frame
     pub last_culled_count: Cell<u32>,
     current_vp: Option<ViewportBounds>,
+    /// When true, skip background fill in render() (for artboard multi-page rendering)
+    pub skip_background: bool,
 }
 
 impl Renderer {
@@ -32,6 +34,7 @@ impl Renderer {
         Self {
             viewport: Transform::identity(),
             canvas_width: width,
+            skip_background: false,
             canvas_height: height,
             last_rendered_count: Cell::new(0),
             last_culled_count: Cell::new(0),
@@ -187,11 +190,13 @@ impl Renderer {
         self.last_culled_count.set(0);
         let vp = self.get_viewport_bounds();
 
-        let bg = &scene.canvas_background;
-        let bg_css = format!("#{}", bg.bg_color);
-        ctx.set_fill_style_str(&bg_css);
-        ctx.fill_rect(0.0, 0.0, self.canvas_width, self.canvas_height);
-        self.draw_background_pattern(ctx, bg);
+        if !self.skip_background {
+            let bg = &scene.canvas_background;
+            let bg_css = format!("#{}", bg.bg_color);
+            ctx.set_fill_style_str(&bg_css);
+            ctx.fill_rect(0.0, 0.0, self.canvas_width, self.canvas_height);
+            self.draw_background_pattern(ctx, bg);
+        }
 
         ctx.save();
         ctx.transform(

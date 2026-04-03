@@ -1534,6 +1534,18 @@
   - Backward-compatible serde (#[serde(default)])
   - specs/COMPONENTS.md 업데이트
 
+## 완료된 기능 (추가 — Multi-canvas Artboard View)
+- Multi-canvas artboard view: 여러 페이지를 하나의 무한 캔버스에 동시 표시
+  - Rust: Page에 canvas_x, canvas_y 필드 추가 (serde(default) backward-compatible)
+  - Rust: get_all_pages_layout(), set_page_canvas_position() Scene 메서드
+  - Rust: 새 페이지 추가 시 자동 배치 (기존 페이지 오른쪽 100px 간격)
+  - WASM: get_all_pages_layout(), set_page_canvas_position() 바인딩
+  - TypeScript: ArtboardView 클래스 (ui/artboard-view.ts)
+    - enabled 토글, render (페이지 배경/경계/라벨), hitTest (페이지 클릭 감지)
+    - 클릭으로 active page 전환, 줌아웃 시 전체 조감도
+  - 단축키: Cmd+Shift+A 또는 Cmd+Alt+A 토글
+  - Editor 통합: render loop, pointer events, shortcut
+
 ## 다음 할 것
 - Lottie animation export — 캔버스 애니메이션을 Lottie JSON으로 내보내기, keyframe 기반 변환
 - Multi-cursor collaborative editing — 동시 편집 시 노드별 잠금 표시 + 실시간 변경 반영 (operational transform 고도화)

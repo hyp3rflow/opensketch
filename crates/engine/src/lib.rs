@@ -7300,6 +7300,20 @@ impl Engine {
         self.scene.get_page_count()
     }
 
+    /// Get layout info for all pages (for artboard view)
+    pub fn get_all_pages_layout(&self) -> String {
+        let layout = self.scene.get_all_pages_layout();
+        let arr: Vec<serde_json::Value> = layout.iter().map(|(id, name, cx, cy, w, h)| {
+            serde_json::json!({"id": id, "name": name, "canvas_x": cx, "canvas_y": cy, "width": w, "height": h})
+        }).collect();
+        serde_json::to_string(&arr).unwrap_or_default()
+    }
+
+    /// Set a page's artboard position
+    pub fn set_page_canvas_position(&mut self, page_id: u64, x: f64, y: f64) -> bool {
+        self.scene.set_page_canvas_position(page_id, x, y)
+    }
+
     // =============================================
     // Prototype Flows
     // =============================================
@@ -7409,6 +7423,11 @@ impl Engine {
             })
         }).collect();
         serde_json::to_string(&arr).unwrap_or_else(|_| "[]".into())
+    }
+
+    /// Set whether to skip background clearing in render (for artboard multi-page mode)
+    pub fn set_skip_background(&mut self, skip: bool) {
+        self.renderer.skip_background = skip;
     }
 
     /// Render a specific page to the given canvas context.

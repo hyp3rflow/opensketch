@@ -28,6 +28,7 @@ import { SpatialAudio } from "./spatial-audio";
 import { initSpatialAudioPanel, toggleSpatialAudioPanel, closeSpatialAudioPanel, isSpatialAudioPanelOpen } from "./ui/spatial-audio-panel";
 import { findSpacingHandles, hitTestSpacingHandle, renderSpacingHandles, type SpacingHandle, findPaddingHandles, hitTestPaddingHandle, renderPaddingHandles, type PaddingHandle } from "./tools/spacing-handles";
 import { showLayoutSuggestion, dismissSuggestion } from "./ui/ai-layout-suggest";
+import { ArtboardView } from "./ui/artboard-view";
 import { toggleFindReplace, closeFindReplace } from "./ui/find-replace-panel";
 import { toggleSearchPanel, closeSearchPanel, isSearchPanelOpen, getSearchHighlightIds, getSearchCurrentId } from "./ui/search-panel";
 import { beginStroke, addStrokePoint, finishStroke, isDrawing, tickAnnotations, renderAnnotations, renderAnnotationPalette, removeAnnotationPalette } from "./ui/annotation-brush";
@@ -185,6 +186,7 @@ export class Editor {
 
   // Rulers & guides
   private _rulers: RulersAPI | null = null;
+  private _artboardView: ArtboardView;
   private _diffOverlay: ReturnType<typeof setupDiffOverlay> | null = null;
   private _gradientEditor: GradientEditor | null = null;
   private _smartSelectPanel: SmartSelectPanel;
@@ -248,6 +250,7 @@ export class Editor {
       () => this.fireSelectionNow(Array.from(this.engine.get_selection()).map(Number)),
     );
     this._diffOverlay = setupDiffOverlay(this);
+    this._artboardView = new ArtboardView(engine);
     this._devModeOverlay = new DevModeOverlay(this);
     this.whiteboardMode = new WhiteboardMode(this);
     this._responsiveResize = new ResponsiveResize(engine, canvas);
@@ -691,13 +694,11 @@ export class Editor {
         import("./ui/batch-export").then(m => m.openBatchExport(this));
         return;
       }
-      // Smart Select: Cmd+Shift+A
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "a" || e.key === "A")) {
+      // Artboard View: Cmd+Shift+A or Cmd+Alt+A
+      if (((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "a" || e.key === "A")) ||
+          ((e.metaKey || e.ctrlKey) && e.altKey && !e.shiftKey && (e.key === "a" || e.key === "A" || e.key === "å"))) {
         e.preventDefault();
-        const sel = Array.from(this.engine.get_selection()).map(Number);
-        if (sel.length === 1) {
-          this.openSmartSelect(sel[0]!);
-        }
+        this.toggleArtboardView();
         return;
       }
       // Boolean operations
@@ -1112,6 +1113,20 @@ export class Editor {
   private onPointerDown(e: PointerEvent) {
     const x = e.offsetX;
     const y = e.offsetY;
+
+    // Artboard view: click on a page to switch to it
+    if (this._artboardView.enabled && !this.spaceHeld && this.currentTool !== "hand") {
+      const pageId = this.artboardViewHitTest(x, y);
+      if (pageId !== null) {
+        const currentId = Number(this.engine.get_active_page_id());
+        if (pageId !== currentId) {
+          this.engine.set_active_page(BigInt(pageId));
+          this.needsRender = true;
+          // Page changed — UI will update on next render
+        }
+        // Don't consume — allow normal interactions within the active page
+      }
+    }
 
     // Space + click = pan
     if (this.spaceHeld || this.currentTool === "hand") {
@@ -4104,7 +4119,21 @@ export class Editor {
           this.ctx.imageSmoothingEnabled = false;
         }
         this.renderOnionSkin();
-        this.engine.render(this.ctx);
+        if (this._artboardView.enabled) {
+          const cw = this.canvas.width / dpr;
+          const ch = this.canvas.height / dpr;
+          const savedZoom = this.zoom;
+          const savedPanX = this.panX;
+          const savedPanY = this.panY;
+          this._artboardView.render(
+            this.ctx as any, this.zoom, this.panX, this.panY,
+            cw, ch, Number(this.engine.get_active_page_id()), dpr,
+          );
+          // Restore viewport for overlays
+          this.engine.set_viewport(savedZoom, savedPanX, savedPanY);
+        } else {
+          this.engine.render(this.ctx);
+        }
         this.renderImages();
         this.render3DPerspective();
         this.renderPatternFills();
@@ -6160,6 +6189,24 @@ export class Editor {
     this.engine.set_viewport(1.0, newTx, newTy);
     this.needsRender = true;
     this.onZoomChange();
+  }
+
+  /** Toggle multi-page artboard view (Cmd+Alt+A) */
+  toggleArtboardView(): boolean {
+    const enabled = this._artboardView.toggle();
+    this.needsRender = true;
+    return enabled;
+  }
+
+  get artboardViewEnabled(): boolean {
+    return this._artboardView.enabled;
+  }
+
+  /** In artboard view, check if a click hits a page and switch to it */
+  artboardViewHitTest(screenX: number, screenY: number): number | null {
+    if (!this._artboardView.enabled) return null;
+    const dpr = window.devicePixelRatio || 1;
+    return this._artboardView.hitTest(screenX, screenY, this.zoom, this.panX, this.panY, dpr);
   }
 
   zoomToFit() {

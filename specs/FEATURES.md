@@ -301,6 +301,15 @@
   - Context menu: Rename, Duplicate, Delete (minimum 1 page enforced)
   - Undo/redo: full scene snapshots include all pages
   - WASM API: add_page, remove_page, rename_page, set_active_page, duplicate_page, get_pages, get_active_page_id, get_page_count
+- [x] **Artboard View (multi-page canvas)**: toggle to show all pages simultaneously on infinite canvas
+  - Each page rendered at its canvas_x/canvas_y position with white artboard background + shadow
+  - Active page highlighted with blue border
+  - Page name labels above each artboard
+  - Click to switch active page, viewport culling for off-screen pages
+  - Renderer skip_background flag for compositing multiple pages
+  - Page tabs bar: artboard view toggle button (grid icon)
+  - Keyboard shortcut: Cmd+Alt+A
+  - WASM API: get_all_pages_layout, set_page_canvas_position, set_skip_background, render_page
 - [x] Boolean operations (Union, Subtract, Intersect, Exclude)
 - [x] Constraints (responsive resizing) — Horizontal: Left/Right/LeftAndRight/Center/Scale, Vertical: Top/Bottom/TopAndBottom/Center/Scale
 - [x] Prototyping (interactions/transitions)

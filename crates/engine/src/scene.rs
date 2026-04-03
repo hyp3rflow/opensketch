@@ -198,6 +198,12 @@ pub struct Page {
     pub name: String,
     pub nodes: Vec<Node>,
     pub root_children: Vec<NodeId>,
+    /// Artboard X position in the infinite canvas (for multi-page artboard view)
+    #[serde(default)]
+    pub canvas_x: f64,
+    /// Artboard Y position in the infinite canvas (for multi-page artboard view)
+    #[serde(default)]
+    pub canvas_y: f64,
 }
 
 /// Serialization format — backward compatible with old single-page SceneData
@@ -348,7 +354,7 @@ impl Scene {
             root_children: vec![],
             next_id: 1,
             selection: vec![],
-            pages: vec![Page { id: 1, name: "Page 1".to_string(), nodes: vec![], root_children: vec![] }],
+            pages: vec![Page { id: 1, name: "Page 1".to_string(), nodes: vec![], root_children: vec![], canvas_x: 0.0, canvas_y: 0.0 }],
             active_page_index: 0,
             next_page_id: 2,
             comments: vec![],
@@ -363,7 +369,7 @@ impl Scene {
                 parent_branch_id: None,
                 created_at: 0.0,
                 base_snapshot: BranchSnapshot {
-                    pages: vec![Page { id: 1, name: "Page 1".to_string(), nodes: vec![], root_children: vec![] }],
+                    pages: vec![Page { id: 1, name: "Page 1".to_string(), nodes: vec![], root_children: vec![], canvas_x: 0.0, canvas_y: 0.0 }],
                     active_page_index: 0,
                     next_page_id: 2,
                     next_id: 1,
@@ -1033,6 +1039,8 @@ impl Scene {
                 name: "Page 1".to_string(),
                 nodes: data.nodes,
                 root_children: data.root_children.clone(),
+                canvas_x: 0.0,
+                canvas_y: 0.0,
             };
             Self {
                 nodes,
@@ -1702,13 +1710,65 @@ impl Scene {
         self.save_active_page();
         let id = self.next_page_id;
         self.next_page_id += 1;
+        // Auto-place: position to the right of the rightmost page with 100px gap
+        let (canvas_x, canvas_y) = self.compute_next_page_position();
         self.pages.push(Page {
             id,
             name: name.to_string(),
             nodes: vec![],
             root_children: vec![],
+            canvas_x,
+            canvas_y,
         });
         id
+    }
+
+    /// Compute the position for the next page (right of rightmost, 100px gap)
+    fn compute_next_page_position(&self) -> (f64, f64) {
+        if self.pages.is_empty() {
+            return (0.0, 0.0);
+        }
+        let mut max_right = f64::NEG_INFINITY;
+        for page in &self.pages {
+            let page_width = self.compute_page_bounds_width(page);
+            let right = page.canvas_x + page_width;
+            if right > max_right {
+                max_right = right;
+            }
+        }
+        (max_right + 100.0, 0.0)
+    }
+
+    /// Compute the bounding width of a page's content (or default 400 if empty)
+    fn compute_page_bounds_width(&self, page: &Page) -> f64 {
+        if page.nodes.is_empty() {
+            return 400.0;
+        }
+        let mut max_right = f64::NEG_INFINITY;
+        let mut min_left = f64::INFINITY;
+        for node in &page.nodes {
+            if node.x < min_left { min_left = node.x; }
+            if node.x + node.width > max_right { max_right = node.x + node.width; }
+        }
+        if max_right > min_left { max_right - min_left } else { 400.0 }
+    }
+
+    /// Compute bounding box of a page's content. Returns (min_x, min_y, width, height).
+    fn compute_page_bounds(page: &Page) -> (f64, f64, f64, f64) {
+        if page.nodes.is_empty() {
+            return (0.0, 0.0, 400.0, 300.0);
+        }
+        let mut min_x = f64::INFINITY;
+        let mut min_y = f64::INFINITY;
+        let mut max_x = f64::NEG_INFINITY;
+        let mut max_y = f64::NEG_INFINITY;
+        for node in &page.nodes {
+            if node.x < min_x { min_x = node.x; }
+            if node.y < min_y { min_y = node.y; }
+            if node.x + node.width > max_x { max_x = node.x + node.width; }
+            if node.y + node.height > max_y { max_y = node.y + node.height; }
+        }
+        (min_x, min_y, (max_x - min_x).max(1.0), (max_y - min_y).max(1.0))
     }
 
     pub fn remove_page(&mut self, page_id: u64) -> bool {
@@ -1764,11 +1824,14 @@ impl Scene {
         };
         let new_id = self.next_page_id;
         self.next_page_id += 1;
+        let (canvas_x, canvas_y) = self.compute_next_page_position();
         self.pages.push(Page {
             id: new_id,
             name: format!("{} copy", src.name),
             nodes: src.nodes,
             root_children: src.root_children,
+            canvas_x,
+            canvas_y,
         });
         new_id
     }
@@ -1783,6 +1846,25 @@ impl Scene {
 
     pub fn get_pages_info(&self) -> Vec<(u64, String)> {
         self.pages.iter().map(|p| (p.id, p.name.clone())).collect()
+    }
+
+    /// Get layout info for all pages: id, name, canvas_x, canvas_y, content bounds (w, h)
+    pub fn get_all_pages_layout(&self) -> Vec<(u64, String, f64, f64, f64, f64)> {
+        self.pages.iter().map(|p| {
+            let (_, _, w, h) = Self::compute_page_bounds(p);
+            (p.id, p.name.clone(), p.canvas_x, p.canvas_y, w, h)
+        }).collect()
+    }
+
+    /// Set a page's artboard position in the infinite canvas
+    pub fn set_page_canvas_position(&mut self, page_id: u64, x: f64, y: f64) -> bool {
+        if let Some(page) = self.pages.iter_mut().find(|p| p.id == page_id) {
+            page.canvas_x = x;
+            page.canvas_y = y;
+            true
+        } else {
+            false
+        }
     }
 
     // ── Prototype Flows ─────────────────────────────────────────────
