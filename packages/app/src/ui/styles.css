@@ -39,6 +39,8 @@ body { font-family: Inter, system-ui, sans-serif; background: #1e1e1e; color: #c
 .layer-item .layer-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .layer-item .layer-visibility { opacity: 0.3; cursor: pointer; display: flex; align-items: center; }
 .layer-item .layer-visibility:hover { opacity: 1; }
+.layer-item--drag-over { background: #0d99ff20 !important; outline: 1px solid #0d99ff; outline-offset: -1px; }
+.layer-item[draggable="true"] { user-select: none; -webkit-user-select: none; }
 
 .prop-section { margin-bottom: 16px; }
 .prop-section-title { font-size: 11px; font-weight: 600; color: #888; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }

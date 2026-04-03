@@ -43,6 +43,10 @@ Two tabs: **LAYERS** | **DESIGN**
 - Click → select node on canvas
 - Collapse state persisted per session
 - Icons: rect (□), ellipse (○), text (T), frame (⊡)
+- **Drag reorder**: drag layer rows to reorder or reparent nodes
+  - Visual insertion indicator (#0d99ff blue line)
+  - Drop zones: top 25% = before, bottom 25% = after, middle 50% = inside (containers only)
+  - Circular reparent prevention, undo integrated
 
 ### Design Tab
 Three sub-tabs: **Colors** | **Type** | **Space**
