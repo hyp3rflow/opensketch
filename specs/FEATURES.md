@@ -224,6 +224,11 @@
 - [x] **Sample: Color Palette**: 4 curated palettes (Material/Pastel/Monochrome/Ocean), click-to-apply
 - [x] **External registration**: `window.__pluginManager` for runtime plugin loading
 - [x] **Auto-cleanup**: Deactivation removes all event listeners, panels, buttons, menu items
+- [x] **Iframe Sandbox**: Sandboxed iframe plugin host with postMessage API, permission-based access control
+- [x] **Plugin Manifest**: manifest.json-based plugin definition (id, name, version, permissions, main)
+- [x] **Plugin Marketplace**: Browse/search/install/uninstall UI with categories, ratings, download counts
+- [x] **Figma Plugin Compat**: Run Figma plugin code with compatibility layer
+- [x] **Plugin Catalog**: Built-in catalog with 5 plugins (Lorem Ipsum, Color Palette, Grid Generator, Auto Rename, Accessibility Checker)
 
 ## 🔮 Future Ideas
 - [x] Multi-select (shift+click, shift+click deselect, drag-select marquee, multi-node move)
@@ -234,7 +239,7 @@
 - [ ] Components/instances
 - [x] SVG export (per-node, selection, full canvas; Rust engine + WASM + toolbar button)
 - [ ] Collaborative editing (CRDT)
-- [ ] Plugin system
+- [x] Plugin system (iframe sandbox, manifest.json, marketplace, 5 sample plugins, Figma compat)
 - [ ] Canvas text cursor + multi-line text
 - [x] Image nodes (drag & drop, URL, clipboard paste, cover/contain/fill)
 - [x] **Gradient fills**: Solid/LinearGradient/RadialGradient/ConicGradient fill types with gradient stops editor

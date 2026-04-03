@@ -9,3 +9,5 @@ export { PLUGIN_CATALOG, searchCatalog, ALL_CATEGORIES } from "./catalog";
 export type { CatalogEntry, PluginCategory } from "./catalog";
 export { createFigmaCompat, runFigmaPlugin } from "./figma-compat";
 export type { FigmaCompat } from "./figma-compat";
+export { IframeSandbox, createSandboxedPlugin } from "./iframe-sandbox";
+export type { PluginManifest, PluginPermission } from "./iframe-sandbox";

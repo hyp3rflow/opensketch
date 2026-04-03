@@ -105,6 +105,41 @@ JS side converts `Number ↔ BigInt` at the boundary.
 | `hit_test/hit_test_handle` | Mouse picking |
 | `render(ctx)` | Draw to canvas |
 
+## Plugin System
+
+```
+packages/app/src/plugins/
+├── types.ts              # Plugin, PluginAPI, PluginPanel interfaces
+├── plugin-manager.ts     # PluginManager: lifecycle, event bus, UI registry
+├── iframe-sandbox.ts     # Sandboxed iframe host + postMessage API
+├── figma-compat.ts       # Figma plugin compatibility layer
+├── catalog.ts            # Built-in plugin catalog with metadata
+├── index.ts              # Public exports
+└── samples/              # Built-in sample plugins
+    ├── lorem-ipsum.ts
+    ├── color-palette.ts
+    ├── grid-generator.ts
+    ├── auto-rename.ts
+    └── accessibility-checker.ts
+```
+
+### Plugin Types
+- **In-process plugins**: Implement `Plugin` interface, run in main JS context (trusted)
+- **Sandboxed plugins**: Run in `<iframe sandbox="allow-scripts">`, communicate via postMessage
+  - manifest.json defines: id, name, version, permissions, main entry
+  - Permissions: `scene:read`, `scene:write`, `selection:read/write`, `ui:panels/notifications`, `viewport:read/write`
+
+### Plugin API
+- **Scene**: CRUD (addRect/Ellipse/Text/Frame, removeNode), property setters, selection
+- **UI**: registerPanel, addToolbarButton, addMenuItem, registerCommand, showNotification
+- **Events**: selection:change, layers:change, node:create/delete, tool:change, save
+- **Viewport**: getTransform, panTo, zoomTo
+
+### Plugin Marketplace
+- Browse/search with categories (Design, Layout, Text, Accessibility, Developer)
+- Install/uninstall, enable/disable toggle
+- Ratings and download counts
+
 ## Build
 
 ```bash
