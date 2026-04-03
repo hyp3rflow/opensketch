@@ -1408,6 +1408,10 @@ export class Editor {
           const nodeJson = this.engine.get_node_json(sel[0]!);
           if (nodeJson) {
             const node = JSON.parse(nodeJson);
+            // Prevent resize of locked nodes
+            if (node.locked) {
+              // Skip — don't start resize drag
+            } else {
             this.engine.push_undo();
             this.drag = {
               startX: x, startY: y, currentX: x, currentY: y,
@@ -1417,6 +1421,7 @@ export class Editor {
             };
             this.canvas.setPointerCapture(e.pointerId);
             return;
+          } // end else (not locked)
           }
         }
       }
@@ -1458,11 +1463,19 @@ export class Editor {
           this.engine.select(hit);
         }
         // Start drag for moving — nodeId is used as anchor
-        this.engine.push_undo();
-        this.drag = {
-          startX: x, startY: y, currentX: x, currentY: y,
-          nodeId: hit,
-        };
+        // Check if node is locked — allow selection but prevent move
+        let hitLocked = false;
+        try {
+          const hdata = JSON.parse(this.engine.get_node_json(BigInt(Number(hit))));
+          hitLocked = !!hdata.locked;
+        } catch {}
+        if (!hitLocked) {
+          this.engine.push_undo();
+          this.drag = {
+            startX: x, startY: y, currentX: x, currentY: y,
+            nodeId: hit,
+          };
+        }
       } else {
         // Start marquee drag-select
         if (!e.shiftKey) {

@@ -384,8 +384,25 @@ export function setupLayersPanel(container: HTMLElement, editor: Editor) {
         editor.requestRender();
         refresh();
       });
+      // Lock toggle icon
+      const lockBtn = document.createElement("span");
+      lockBtn.className = "layer-lock";
+      lockBtn.innerHTML = iconSized(node.locked ? icons.lock : icons.lockOpen, 14);
+      lockBtn.style.cssText = `cursor:pointer;flex-shrink:0;margin-right:2px;opacity:${node.locked ? "0.9" : "0"};color:${node.locked ? "#f97316" : "#666"};transition:opacity 0.15s;`;
+      lockBtn.title = node.locked ? "Unlock" : "Lock";
+      lockBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        editor.engine.push_undo();
+        editor.engine.set_locked(BigInt(node.id), !node.locked);
+        editor.requestRender();
+        refresh();
+      });
+      item.addEventListener("mouseenter", () => { if (!node.locked) lockBtn.style.opacity = "0.4"; });
+      item.addEventListener("mouseleave", () => { if (!node.locked) lockBtn.style.opacity = "0"; });
+
       item.appendChild(bookmark);
       item.appendChild(bm);
+      item.appendChild(lockBtn);
       item.appendChild(vis);
 
       // --- Drag reorder ---

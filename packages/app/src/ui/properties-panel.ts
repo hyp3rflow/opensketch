@@ -1651,7 +1651,19 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
     nameInput.addEventListener("change", () => {
       editor.engine.set_node_name(id, nameInput.value);
     });
+    // Lock toggle button next to name
+    const lockToggle = document.createElement("button");
+    lockToggle.title = node.locked ? "Unlock (locked nodes cannot be moved or resized)" : "Lock (prevent move/resize)";
+    lockToggle.innerHTML = (node.locked ? icons.lock : icons.lockOpen).replace(/width="18"/, 'width="16"').replace(/height="18"/, 'height="16"');
+    lockToggle.style.cssText = `background:${node.locked ? "rgba(249,115,22,0.15)" : "transparent"};border:1px solid ${node.locked ? "#f97316" : "#444"};border-radius:4px;padding:3px 5px;cursor:pointer;color:${node.locked ? "#f97316" : "#888"};flex-shrink:0;margin-left:4px;display:flex;align-items:center;`;
+    lockToggle.addEventListener("click", () => {
+      editor.engine.push_undo();
+      editor.engine.set_locked(id, !node.locked);
+      editor.requestRender();
+      renderProperties(editor);
+    });
     header.appendChild(nameInput);
+    header.appendChild(lockToggle);
     container.appendChild(header);
 
     // --- Position ---

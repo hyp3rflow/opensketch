@@ -209,8 +209,12 @@ impl Renderer {
         self.render_children(ctx, &scene.get_root_children(), scene);
         self.current_vp = None;
 
+        // Render locked node overlays (subtle hatching + orange border)
         for &id in &scene.selection {
             if let Some(node) = scene.get_node(id) {
+                if node.locked {
+                    self.render_locked_overlay(ctx, node);
+                }
                 self.render_selection(ctx, node);
             }
         }
@@ -2222,23 +2226,63 @@ impl Renderer {
     }
 
     fn render_selection(&self, ctx: &CanvasRenderingContext2d, node: &Node) {
-        let sel_color = Color::blue().to_css();
+        let sel_color = if node.locked {
+            "#f97316".to_string() // orange for locked
+        } else {
+            Color::blue().to_css()
+        };
         ctx.set_stroke_style_str(&sel_color);
         ctx.set_line_width(1.5 / self.viewport.a);
         ctx.stroke_rect(node.x, node.y, node.width, node.height);
 
-        let hs = 6.0 / self.viewport.a;
-        let handles = [
-            (node.x, node.y),
-            (node.x + node.width, node.y),
-            (node.x, node.y + node.height),
-            (node.x + node.width, node.y + node.height),
-        ];
-        ctx.set_fill_style_str("white");
-        for (hx, hy) in handles {
-            ctx.fill_rect(hx - hs / 2.0, hy - hs / 2.0, hs, hs);
-            ctx.stroke_rect(hx - hs / 2.0, hy - hs / 2.0, hs, hs);
+        if !node.locked {
+            // Only show resize handles for unlocked nodes
+            let hs = 6.0 / self.viewport.a;
+            let handles = [
+                (node.x, node.y),
+                (node.x + node.width, node.y),
+                (node.x, node.y + node.height),
+                (node.x + node.width, node.y + node.height),
+            ];
+            ctx.set_fill_style_str("white");
+            for (hx, hy) in handles {
+                ctx.fill_rect(hx - hs / 2.0, hy - hs / 2.0, hs, hs);
+                ctx.stroke_rect(hx - hs / 2.0, hy - hs / 2.0, hs, hs);
+            }
+        } else {
+            // Show a small lock badge at top-left corner for locked nodes
+            let badge_size = 16.0 / self.viewport.a;
+            let bx = node.x - badge_size * 0.25;
+            let by = node.y - badge_size * 0.25;
+            ctx.set_fill_style_str("rgba(249, 115, 22, 0.85)");
+            let br = badge_size * 0.2;
+            self.draw_rounded_rect(ctx, bx, by, badge_size, badge_size, br);
+            ctx.fill();
+            // Draw a simple lock shape
+            ctx.set_stroke_style_str("white");
+            ctx.set_fill_style_str("white");
+            ctx.set_line_width(1.0 / self.viewport.a);
+            let lx = bx + badge_size * 0.28;
+            let ly = by + badge_size * 0.45;
+            let lw = badge_size * 0.44;
+            let lh = badge_size * 0.35;
+            ctx.fill_rect(lx, ly, lw, lh); // lock body
+            ctx.begin_path();
+            let arc_cx = bx + badge_size * 0.5;
+            let arc_cy = ly;
+            let arc_r = badge_size * 0.16;
+            ctx.arc(arc_cx, arc_cy, arc_r, std::f64::consts::PI, 0.0).ok();
+            ctx.stroke(); // lock shackle
         }
+    }
+
+    /// Render a subtle overlay for locked nodes (diagonal stripes)
+    fn render_locked_overlay(&self, ctx: &CanvasRenderingContext2d, node: &Node) {
+        ctx.save();
+        ctx.set_global_alpha(0.06);
+        ctx.set_fill_style_str("#f97316");
+        ctx.fill_rect(node.x, node.y, node.width, node.height);
+        ctx.restore();
     }
 
     fn draw_rounded_rect(&self, ctx: &CanvasRenderingContext2d, x: f64, y: f64, w: f64, h: f64, r: f64) {
