@@ -2194,6 +2194,37 @@ impl Scene {
         serde_json::to_string(&filtered).unwrap_or_else(|_| "[]".to_string())
     }
 
+    /// Reparent a node into a new parent at a specific child index.
+    /// If `index` is None, appends to end.
+    pub fn reparent_at(&mut self, node_id: NodeId, new_parent: Option<NodeId>, index: Option<usize>) {
+        // Remove from old parent
+        if let Some(node) = self.nodes.get(&node_id) {
+            if let Some(old_parent) = node.parent {
+                if let Some(p) = self.nodes.get_mut(&old_parent) {
+                    p.children.retain(|&c| c != node_id);
+                }
+            } else {
+                self.root_children.retain(|&c| c != node_id);
+            }
+        }
+        // Add to new parent at index
+        if let Some(pid) = new_parent {
+            if let Some(p) = self.nodes.get_mut(&pid) {
+                let idx = index.unwrap_or(p.children.len()).min(p.children.len());
+                p.children.insert(idx, node_id);
+            }
+            if let Some(node) = self.nodes.get_mut(&node_id) {
+                node.parent = Some(pid);
+            }
+        } else {
+            let idx = index.unwrap_or(self.root_children.len()).min(self.root_children.len());
+            self.root_children.insert(idx, node_id);
+            if let Some(node) = self.nodes.get_mut(&node_id) {
+                node.parent = None;
+            }
+        }
+    }
+
     pub fn reparent(&mut self, node_id: NodeId, new_parent: Option<NodeId>) {
         // Remove from old parent
         if let Some(node) = self.nodes.get(&node_id) {

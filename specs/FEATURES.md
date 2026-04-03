@@ -280,6 +280,16 @@
   - Delete/Backspace: remove selected point
   - Visual overlay: anchor squares, handle circles, connecting lines (screen-space sizing)
   - Selected point highlighted in blue
+- [x] **Drag-to-Reparent with Auto-Layout Insertion Indicator**: Figma-style drag into Frame
+  - Dragging nodes over auto-layout (Flex) Frames shows blue insertion line
+  - Insertion index computed from cursor position relative to children midpoints
+  - Diamond endpoints on indicator line, #0d99ff color
+  - On drop: reparent node(s) at indicated position, position converted to frame-local coords
+  - Supports row/column direction, handles empty frames, multi-select drag
+  - Prevents circular reparent (can't drop into descendant)
+  - Rust: Scene.reparent_at(), Engine.reparent_node_at(), get_layout_drop_zones(), get_auto_layout_frame_ids(), get_node_parent()
+  - TS: tools/drag-reparent.ts (computeDropTarget, renderDropIndicator, executeDropReparent)
+  - Undo integration, layers panel auto-refresh
 - [x] **Smart Guides / Snapping**: Figma-style alignment guides during drag-move
   - Snap to edges (left/right/top/bottom) and centers of other nodes
   - Configurable threshold (5px screen-space)

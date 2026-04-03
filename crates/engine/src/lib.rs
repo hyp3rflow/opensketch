@@ -4058,6 +4058,77 @@ impl Engine {
         self.scene.reparent(node_id, new_parent);
     }
 
+    /// Move a node into a frame at a specific child index (reparent with insertion point)
+    /// index < 0 means append to end
+    pub fn reparent_node_at(&mut self, node_id: u64, new_parent_id: f64, index: f64) {
+        let parent = if new_parent_id < 0.0 { None } else { Some(new_parent_id as u64) };
+        let idx = if index < 0.0 { None } else { Some(index as usize) };
+        self.scene.reparent_at(node_id, parent, idx);
+    }
+
+    /// Get layout info for a frame: returns JSON with mode, direction, children positions
+    /// Used by drag-to-reparent to compute insertion indicators
+    pub fn get_layout_drop_zones(&self, frame_id: u64) -> String {
+        let node = match self.scene.get_node(frame_id) {
+            Some(n) => n,
+            None => return "null".to_string(),
+        };
+        let mode = match node.layout.mode {
+            LayoutMode::Flex => "flex",
+            LayoutMode::Grid => "grid",
+            LayoutMode::None => return "null".to_string(),
+        };
+        let dir = match node.layout.direction {
+            FlexDirection::Row => "row",
+            FlexDirection::Column => "column",
+        };
+        let children_info: Vec<serde_json::Value> = node.children.iter().filter_map(|&cid| {
+            let child = self.scene.get_node(cid)?;
+            Some(serde_json::json!({
+                "id": cid,
+                "x": child.x,
+                "y": child.y,
+                "w": child.width,
+                "h": child.height,
+            }))
+        }).collect();
+        serde_json::json!({
+            "mode": mode,
+            "direction": dir,
+            "gap": node.layout.gap,
+            "padding_top": node.layout.padding_top,
+            "padding_right": node.layout.padding_right,
+            "padding_bottom": node.layout.padding_bottom,
+            "padding_left": node.layout.padding_left,
+            "frame_x": node.x,
+            "frame_y": node.y,
+            "frame_w": node.width,
+            "frame_h": node.height,
+            "children": children_info,
+        }).to_string()
+    }
+
+    /// Get all frame IDs with auto-layout as JSON array
+    pub fn get_auto_layout_frame_ids(&self) -> String {
+        let ids: Vec<u64> = self.scene.all_node_ids().iter()
+            .filter(|&&id| {
+                self.scene.get_node(id)
+                    .map(|n| matches!(n.kind, NodeKind::Frame { .. }) && n.layout.mode != LayoutMode::None)
+                    .unwrap_or(false)
+            })
+            .copied()
+            .collect();
+        serde_json::to_string(&ids).unwrap_or_else(|_| "[]".to_string())
+    }
+
+    /// Get parent ID of a node, returns -1 if root
+    pub fn get_node_parent(&self, id: u64) -> f64 {
+        self.scene.get_node(id)
+            .and_then(|n| n.parent)
+            .map(|p| p as f64)
+            .unwrap_or(-1.0)
+    }
+
     /// Duplicate a node (shallow copy)
     pub fn duplicate_node(&mut self, id: u64) -> u64 {
         if let Some(node) = self.scene.get_node(id) {

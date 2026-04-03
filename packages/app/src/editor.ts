@@ -3,6 +3,7 @@ import { showBatchRenameDialog } from "./ui/batch-rename";
 import { toggleColorHarmonyPanel } from "./ui/color-harmony";
 import { renderPixelGrid, renderDeviceFrame } from "./ui/pixel-preview";
 import { computeSnap, renderGuides, type SnapGuide } from "./tools/smart-guides";
+import { computeDropTarget, renderDropIndicator, executeDropReparent, type DropTarget } from "./tools/drag-reparent";
 import { computePointSnap, renderPointSnapIndicators, collectPathPointTargets, addRulerTargets, constrainAngle, type PointSnapIndicator, type PointSnapTarget } from "./tools/point-snap";
 import { renderGrid, computeGridSnap } from "./tools/grid-snap";
 import { computeMeasureLines, renderMeasureLines, renderTargetHighlight, type MeasureLine } from "./tools/measure";
@@ -182,6 +183,7 @@ export class Editor {
 
   // Smart guides state
   private _snapGuides: SnapGuide[] = [];
+  private _dropTarget: DropTarget | null = null;
 
   // Breakpoint indicator for responsive resize preview
   private _breakpointIndicator: { label: string; maxWidth: number; currentWidth: number } | null = null;
@@ -2241,6 +2243,10 @@ export class Editor {
           }
         }
         this._snapGuides = sgGuides;
+        // Compute drop target for drag-to-reparent into auto-layout frames
+        const dragSceneX = this.engine.screen_to_scene_x(x, y);
+        const dragSceneY = this.engine.screen_to_scene_y(x, y);
+        this._dropTarget = computeDropTarget(this.engine, dragSceneX, dragSceneY, selSet);
         this.drag.currentX = x;
         this.drag.currentY = y;
         // Update connector bounds for all moved nodes
@@ -2489,6 +2495,17 @@ export class Editor {
       this.fireSelectionNow(Array.from(this.engine.get_selection()).map(Number));
     }
 
+    // Execute drag-to-reparent if dropping on auto-layout frame
+    if (this._dropTarget && this.drag && this.drag.handleIndex == null) {
+      const sel = Array.from(this.engine.get_selection()).map(Number);
+      if (sel.length > 0) {
+        this.engine.push_undo();
+        executeDropReparent(this.engine, sel, this._dropTarget);
+        this.onLayersChanges.forEach(fn => fn());
+        this.fireSelectionNow(sel);
+      }
+    }
+    this._dropTarget = null;
     this._snapGuides = [];
     this._pointSnapIndicators = [];
     // Clear breakpoint indicator with delay for visibility
@@ -4018,6 +4035,10 @@ export class Editor {
     const panX = this.engine.get_pan_x();
     const panY = this.engine.get_pan_y();
     renderGuides(this.ctx, this._snapGuides, zoom, panX, panY);
+    // Render drop indicator for drag-to-reparent
+    if (this._dropTarget) {
+      renderDropIndicator(this.ctx, this._dropTarget, zoom, panX, panY);
+    }
   }
 
   private renderPointSnap() {
