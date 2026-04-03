@@ -14,6 +14,7 @@ pub mod styles;
 pub mod variable;
 mod design_tokens;
 pub mod token;
+pub mod style_transfer;
 pub mod path_utils;
 pub mod animation;
 mod design_lint;
@@ -7932,6 +7933,81 @@ impl Engine {
             _ => design_tokens::TokenFormat::W3C,
         };
         design_tokens::export_design_tokens(&self.styles, &self.scene.variable_collections, fmt)
+    }
+
+    // ── Style Transfer ──
+
+    /// Extract style from a source node as JSON StyleBundle.
+    pub fn extract_style(&self, node_id: u64) -> String {
+        let nid = node_id as crate::node::NodeId;
+        if let Some(node) = self.scene.get_node(nid) {
+            let bundle = style_transfer::extract_style(node);
+            serde_json::to_string(&bundle).unwrap_or_default()
+        } else {
+            "null".to_string()
+        }
+    }
+
+    /// Extract style from selected nodes (uses first selected as base).
+    pub fn extract_selection_style(&self) -> String {
+        let ids = &self.scene.selection;
+        if ids.is_empty() {
+            return "null".to_string();
+        }
+        let nodes: Vec<&crate::node::Node> = ids.iter()
+            .filter_map(|id| self.scene.get_node(*id))
+            .collect();
+        match style_transfer::extract_style_from_multiple(&nodes) {
+            Some(bundle) => serde_json::to_string(&bundle).unwrap_or_default(),
+            None => "null".to_string(),
+        }
+    }
+
+    /// Apply a JSON StyleBundle to selected nodes.
+    /// `options_json`: JSON TransferOptions (which properties to apply).
+    /// Returns number of nodes affected.
+    pub fn apply_style_transfer(&mut self, bundle_json: &str, options_json: &str) -> u32 {
+        let bundle: style_transfer::StyleBundle = match serde_json::from_str(bundle_json) {
+            Ok(b) => b,
+            Err(_) => return 0,
+        };
+        let options: style_transfer::TransferOptions = serde_json::from_str(options_json)
+            .unwrap_or_else(|_| style_transfer::TransferOptions::all());
+
+        self.push_undo();
+        let ids: Vec<crate::node::NodeId> = self.scene.selection.clone();
+        let mut count = 0u32;
+        for id in &ids {
+            if let Some(node) = self.scene.get_node_mut(*id) {
+                style_transfer::apply_style(node, &bundle, &options);
+                count += 1;
+            }
+        }
+        count
+    }
+
+    /// Quick style transfer: copy style from source node and apply to all selected nodes.
+    /// Returns number of nodes affected.
+    pub fn transfer_style_from(&mut self, source_id: u64) -> u32 {
+        let nid = source_id as crate::node::NodeId;
+        let bundle = if let Some(node) = self.scene.get_node(nid) {
+            style_transfer::extract_style(node)
+        } else {
+            return 0;
+        };
+        let options = style_transfer::TransferOptions::all();
+        self.push_undo();
+        let ids: Vec<crate::node::NodeId> = self.scene.selection.clone();
+        let mut count = 0u32;
+        for id in &ids {
+            if *id != nid {
+                if let Some(node) = self.scene.get_node_mut(*id) {
+                    style_transfer::apply_style(node, &bundle, &options);
+                    count += 1;
+                }
+            }
+        }
+        count
     }
 
     // ── Design Token Theme Switching ──

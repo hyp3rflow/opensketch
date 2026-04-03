@@ -7,6 +7,7 @@ import { createEasingEditor } from "./easing-editor";
 import { createTokenThemeSwitcher, createTokenBindingSection } from "./token-panel";
 import { createNodeLinksSection } from "./node-links";
 import { t } from "./i18n";
+import { createStyleTransferSection } from "./style-transfer";
 
 // Stage 4: Google Fonts list
 const googleFonts = [
@@ -7759,6 +7760,9 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
 
     // === Token Bindings Section ===
     container.appendChild(createTokenBindingSection(editor, ids[0], () => { editor.render(); refresh(ids); }));
+
+    // === Style Transfer Section ===
+    container.appendChild(createStyleTransferSection(editor, () => refresh(ids)));
 
     // === Export Presets Section (all node types) ===
     container.appendChild(createExportPresetsSection(editor, ids[0], () => refresh(ids)));
