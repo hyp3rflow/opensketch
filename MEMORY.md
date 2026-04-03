@@ -1724,6 +1724,7 @@
   - Context menu: 기존 2+ 노드 선택 시 "Batch Rename…" 유지
   - Keyboard: Cmd/Ctrl+Shift+R
   - Undo 통합 (push_undo before rename)
+  - **추가 (2026-04-04)**: Prefix/Suffix 모드 (batch_add_fix), # 시퀀스 단축 문법, UI 3탭 (Sequence / Find & Replace / Prefix/Suffix)
 
 ## 완료된 기능 (추가 — Cursor Annotation Brush)
 - 캔버스 위 임시 드로잉/하이라이트 (리뷰용, 자동 5초 소멸)

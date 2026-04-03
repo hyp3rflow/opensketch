@@ -3287,6 +3287,19 @@ impl Scene {
         }
     }
 
+    /// Batch add prefix/suffix to node names.
+    pub fn batch_add_fix(&mut self, ids: &[NodeId], prefix: &str, suffix: &str) -> u32 {
+        let mut count = 0u32;
+        if prefix.is_empty() && suffix.is_empty() { return 0; }
+        for &id in ids {
+            if let Some(node) = self.get_node_mut(id) {
+                node.name = format!("{}{}{}", prefix, node.name, suffix);
+                count += 1;
+            }
+        }
+        count
+    }
+
     /// Batch find/replace in node names.
     pub fn batch_find_replace(&mut self, ids: &[NodeId], find: &str, replace: &str, use_regex: bool) -> u32 {
         let mut count = 0u32;

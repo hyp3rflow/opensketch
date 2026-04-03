@@ -1,6 +1,6 @@
 import type { Editor } from "../editor";
 
-type RenameMode = "pattern" | "findReplace";
+type RenameMode = "pattern" | "findReplace" | "prefixSuffix";
 
 interface PreviewItem {
   id: number;
@@ -26,6 +26,8 @@ export function showBatchRenameDialog(editor: Editor) {
   let find = "";
   let replace = "";
   let useRegex = false;
+  let prefix = "";
+  let suffix = "";
 
   const overlay = document.createElement("div");
   overlay.style.cssText = `
@@ -69,8 +71,9 @@ export function showBatchRenameDialog(editor: Editor) {
     tabs.appendChild(btn);
     return btn;
   };
-  makeTab("Pattern", "pattern");
+  makeTab("Sequence", "pattern");
   makeTab("Find & Replace", "findReplace");
+  makeTab("Prefix / Suffix", "prefixSuffix");
   modal.appendChild(tabs);
 
   function updateTabs() {
@@ -108,7 +111,7 @@ export function showBatchRenameDialog(editor: Editor) {
     padding:7px 16px; border:1px solid #555; border-radius:6px;
     background:#333; color:#e0e0e0; cursor:pointer; font-size:13px; font-family:inherit;
   `;
-  cancelBtn.addEventListener("click", hideBatchRename);
+  cancelBtn.addEventListener("click", hideBatchRenameDialog);
 
   const applyBtn = document.createElement("button");
   applyBtn.textContent = "Rename";
@@ -118,9 +121,12 @@ export function showBatchRenameDialog(editor: Editor) {
   `;
   applyBtn.addEventListener("click", () => {
     if (mode === "pattern") {
-      editor.engine.batch_rename_selection(pattern, startNum);
-    } else {
+      const p = pattern.replace(/#/g, "{n}");
+      editor.engine.batch_rename_selection(p, startNum);
+    } else if (mode === "findReplace") {
       editor.engine.batch_find_replace_selection(find, replace, useRegex);
+    } else {
+      editor.engine.batch_add_fix_selection(prefix, suffix);
     }
     editor.requestRender();
     hideBatchRenameDialog();
@@ -175,9 +181,9 @@ export function showBatchRenameDialog(editor: Editor) {
   function updateFields() {
     fields.innerHTML = "";
     if (mode === "pattern") {
-      fields.appendChild(makeInput("Pattern ({name} = original, {n} = number, {N} = padded)", pattern, (v) => { pattern = v; }));
+      fields.appendChild(makeInput("Pattern ({name} = original, {n} = number, {N} = padded, # → sequence)", pattern, (v) => { pattern = v; }));
       fields.appendChild(makeNumberInput("Start number", startNum, (v) => { startNum = v; }));
-    } else {
+    } else if (mode === "findReplace") {
       fields.appendChild(makeInput("Find", find, (v) => { find = v; }));
       fields.appendChild(makeInput("Replace with", replace, (v) => { replace = v; }));
       // Regex toggle
@@ -195,15 +201,26 @@ export function showBatchRenameDialog(editor: Editor) {
       regRow.appendChild(cb);
       regRow.appendChild(regLabel);
       fields.appendChild(regRow);
+    } else {
+      // Prefix/Suffix mode
+      fields.appendChild(makeInput("Prefix (added before name)", prefix, (v) => { prefix = v; }));
+      fields.appendChild(makeInput("Suffix (added after name)", suffix, (v) => { suffix = v; }));
     }
   }
 
   function updatePreview() {
     let items: PreviewItem[] = [];
     try {
-      const json = mode === "pattern"
-        ? editor.engine.batch_rename_preview(pattern, startNum)
-        : editor.engine.batch_find_replace_preview(find, replace, useRegex);
+      let json: string;
+      if (mode === "pattern") {
+        // Support # as sequence shorthand: replace # with {n} before preview
+        const p = pattern.replace(/#/g, "{n}");
+        json = editor.engine.batch_rename_preview(p, startNum);
+      } else if (mode === "findReplace") {
+        json = editor.engine.batch_find_replace_preview(find, replace, useRegex);
+      } else {
+        json = editor.engine.batch_add_fix_preview(prefix, suffix);
+      }
       items = JSON.parse(json);
     } catch { /* ignore */ }
 

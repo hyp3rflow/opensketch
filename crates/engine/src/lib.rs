@@ -3061,6 +3061,29 @@ impl Engine {
         self.scene.batch_find_replace(&ids, find, replace, use_regex)
     }
 
+    /// Batch add prefix/suffix to selected node names.
+    pub fn batch_add_fix_selection(&mut self, prefix: &str, suffix: &str) -> u32 {
+        let ids = self.scene.selection.clone();
+        if ids.is_empty() { return 0; }
+        self.push_undo();
+        self.scene.batch_add_fix(&ids, prefix, suffix)
+    }
+
+    /// Preview batch add prefix/suffix (returns JSON array of {id, oldName, newName}).
+    pub fn batch_add_fix_preview(&self, prefix: &str, suffix: &str) -> String {
+        let ids = &self.scene.selection;
+        let mut results = Vec::new();
+        if prefix.is_empty() && suffix.is_empty() { return "[]".to_string(); }
+        for &id in ids {
+            if let Some(node) = self.scene.get_node(id) {
+                let old = &node.name;
+                let new_name = format!("{}{}{}", prefix, old, suffix);
+                results.push(serde_json::json!({"id": id, "oldName": old, "newName": new_name}));
+            }
+        }
+        serde_json::to_string(&results).unwrap_or_else(|_| "[]".to_string())
+    }
+
     /// Preview batch rename (returns JSON array of {id, oldName, newName}).
     pub fn batch_rename_preview(&self, pattern: &str, start_num: u32) -> String {
         let ids = &self.scene.selection;

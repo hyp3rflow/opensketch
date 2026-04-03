@@ -665,8 +665,10 @@
 - [x] **Find/Replace mode**: case-sensitive/insensitive text find & replace in node names
 - [x] **Regex mode**: regex pattern matching with capture group references ($1, $2)
 - [x] **Rust engine**: Scene.batch_rename(), batch_find_replace(), batch_rename_preview() methods
-- [x] **WASM bindings**: batch_rename_selection, batch_find_replace_selection, batch_rename_preview, batch_find_replace_preview, batch_rename_preview_ex
-- [x] **Dialog UI**: Modal dialog with mode tabs (Pattern / Find & Replace), live preview, regex toggle
+- [x] **WASM bindings**: batch_rename_selection, batch_find_replace_selection, batch_add_fix_selection, batch_rename_preview, batch_find_replace_preview, batch_add_fix_preview, batch_rename_preview_ex
+- [x] **Prefix/Suffix mode**: Add prefix and/or suffix to node names (batch_add_fix)
+- [x] **Sequence shorthand**: # character in pattern replaced with sequential number (1, 2, 3...)
+- [x] **Dialog UI**: Modal dialog with 3 mode tabs (Sequence / Find & Replace / Prefix/Suffix), live preview, regex toggle
 - [x] **Separate module**: ui/batch-rename.ts standalone file
 - [x] **Context menu**: "Batch Rename…" option when 2+ nodes selected
 - [x] **Layers panel**: Right-click context menu with "Batch Rename…" for multi-selection
