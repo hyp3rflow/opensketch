@@ -1779,7 +1779,8 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 
 
 ### Canvas Background Patterns
-- [x] Configurable canvas background pattern: Grid, Dots, Lines, Cross, None
+- [x] Configurable canvas background pattern: Grid, Dots, Lines, Cross, Checkerboard, None
+- [x] Preset buttons: White, Dark (#1a1a2e), Transparent (checkerboard)
 - [x] Customizable background color and pattern color (hex)
 - [x] Adjustable spacing (5-500px), opacity (0-1), dot size (0.5-10)
 - [x] Scene-level persistence (saved/loaded with project, backward-compatible serde)

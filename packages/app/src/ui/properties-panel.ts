@@ -185,6 +185,35 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       const inputCss = "width:100%;padding:4px 6px;font-size:11px;border:1px solid #444;border-radius:4px;background:#2a2a2a;color:#ccc;box-sizing:border-box;";
       const labelCss = "font-size:10px;color:#666;margin-bottom:2px;";
 
+      // Preset buttons
+      const presetRow = document.createElement("div");
+      presetRow.style.cssText = "display:flex;gap:4px;margin-bottom:10px;";
+      const presets: [string, string, string, number][] = [
+        ["White", "ffffff", "none", 0.04],
+        ["Dark", "1a1a2e", "grid", 0.04],
+        ["Transparent", "cccccc", "checkerboard", 0.5],
+      ];
+      for (const [label, bgCol, pat, opa] of presets) {
+        const btn = document.createElement("button");
+        const isActive = bgSettings.bg_color === bgCol && bgSettings.pattern === pat;
+        btn.textContent = label;
+        btn.style.cssText = `flex:1;padding:5px 4px;font-size:10px;border:1px solid ${isActive ? "#4f46e5" : "#444"};border-radius:4px;background:${isActive ? "rgba(79,70,229,0.15)" : "#2a2a2a"};color:${isActive ? "#818cf8" : "#ccc"};cursor:pointer;transition:all 0.15s;`;
+        btn.addEventListener("mouseenter", () => { if (!isActive) { btn.style.borderColor = "#4f46e5"; btn.style.color = "#818cf8"; } });
+        btn.addEventListener("mouseleave", () => { if (!isActive) { btn.style.borderColor = "#444"; btn.style.color = "#ccc"; } });
+        btn.onclick = () => {
+          editor.engine.push_undo();
+          editor.engine.set_bg_color(bgCol);
+          editor.engine.set_bg_pattern(pat);
+          editor.engine.set_bg_opacity(opa);
+          if (pat === "checkerboard") editor.engine.set_bg_pattern_color("888888");
+          else editor.engine.set_bg_pattern_color("ffffff");
+          editor.requestRender();
+          refresh(ids);
+        };
+        presetRow.appendChild(btn);
+      }
+      bgSection.appendChild(presetRow);
+
       // Pattern type
       const patternRow = document.createElement("div");
       patternRow.style.cssText = "margin-bottom:8px;";
@@ -194,7 +223,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       patternRow.appendChild(patternLabel);
       const patternSelect = document.createElement("select");
       patternSelect.style.cssText = inputCss;
-      for (const opt of ["grid", "dots", "lines", "cross", "none"]) {
+      for (const opt of ["grid", "dots", "lines", "cross", "checkerboard", "none"]) {
         const o = document.createElement("option");
         o.value = opt; o.textContent = opt.charAt(0).toUpperCase() + opt.slice(1);
         if (opt === bgSettings.pattern) o.selected = true;

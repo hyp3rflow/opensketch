@@ -1902,3 +1902,11 @@
 - 파일: packages/app/src/ui/component-export.ts
 - index.html: "Export" 탭 + component-export-panel div
 - main.ts: setupComponentExport 호출 + tabContentMap 등록
+
+## 완료된 기능 (Canvas Background Settings 강화)
+- Checkerboard 패턴 추가 (투명 배경 표현용)
+- 프리셋 버튼: White, Dark (#1a1a2e), Transparent (checkerboard)
+- render.rs: checkerboard 패턴 렌더링 (zoom/pan aware, alternating opacity tiles)
+- properties-panel.ts: 프리셋 버튼 UI (active 상태 하이라이트)
+- pattern dropdown에 checkerboard 옵션 추가
+- specs/FEATURES.md 업데이트

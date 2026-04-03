@@ -2772,6 +2772,27 @@ impl Renderer {
                 }
                 ctx.stroke();
             }
+            "checkerboard" => {
+                // Checkerboard pattern for transparent background representation
+                let size = (spacing * zoom * 0.5).max(4.0);
+                let light_str = format!("rgba({},{},{},{})", pr, pg, pb, bg.opacity * 0.3);
+                let dark_str = format!("rgba({},{},{},{})", pr, pg, pb, bg.opacity * 0.15);
+                let mut xi = 0u32;
+                let mut x = offset_x - screen_step;
+                while x < self.canvas_width + screen_step {
+                    let mut yi = 0u32;
+                    let mut y = offset_y - screen_step;
+                    while y < self.canvas_height + screen_step {
+                        let is_dark = (xi + yi) % 2 == 0;
+                        ctx.set_fill_style_str(if is_dark { &dark_str } else { &light_str });
+                        ctx.fill_rect(x, y, size, size);
+                        y += size;
+                        yi += 1;
+                    }
+                    x += size;
+                    xi += 1;
+                }
+            }
             "cross" => {
                 // Cross marks at intersections
                 ctx.set_stroke_style_str(&color_str);
