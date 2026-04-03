@@ -82,9 +82,59 @@ async function main() {
   // Save before unload
   window.addEventListener("beforeunload", () => autoSave.save("auto"));
 
-  // Service Worker registration
+  // PWA: Service Worker registration (vite-plugin-pwa)
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("/sw.js").catch(() => {});
+    import("virtual:pwa-register").then(({ registerSW }) => {
+      registerSW({
+        onRegisteredSW(swUrl, r) {
+          console.log("[PWA] SW registered:", swUrl);
+        },
+        onOfflineReady() {
+          showPwaToast("App ready for offline use ✈️");
+        },
+      });
+    }).catch(() => {});
+  }
+
+  // Offline/online toast notifications
+  function showPwaToast(msg: string, duration = 3500) {
+    const t = document.createElement("div");
+    t.textContent = msg;
+    t.style.cssText = "position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#4f46e5;color:#fff;padding:10px 20px;border-radius:8px;font:14px/1.4 system-ui,sans-serif;z-index:99999;box-shadow:0 4px 12px rgba(0,0,0,.3);opacity:0;transition:opacity .3s;pointer-events:none;";
+    document.body.appendChild(t);
+    requestAnimationFrame(() => { t.style.opacity = "1"; });
+    setTimeout(() => { t.style.opacity = "0"; setTimeout(() => t.remove(), 400); }, duration);
+  }
+
+  window.addEventListener("online", () => showPwaToast("Back online 🌐"));
+  window.addEventListener("offline", () => showPwaToast("You are offline — changes saved locally 💾", 4000));
+
+  // Install prompt (beforeinstallprompt)
+  let deferredPrompt: any = null;
+  window.addEventListener("beforeinstallprompt", (e: Event) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    showInstallBanner();
+  });
+
+  function showInstallBanner() {
+    if (document.getElementById("pwa-install-banner")) return;
+    const banner = document.createElement("div");
+    banner.id = "pwa-install-banner";
+    banner.style.cssText = "position:fixed;bottom:16px;right:16px;background:#1e1e3a;border:1px solid #4f46e5;color:#e0e0e0;padding:12px 16px;border-radius:12px;z-index:99998;display:flex;align-items:center;gap:12px;font:13px/1.4 system-ui,sans-serif;box-shadow:0 4px 16px rgba(0,0,0,.4);";
+    banner.innerHTML = `<span>📦 Install OpenSketch as an app</span>
+      <button id="pwa-install-btn" style="background:#4f46e5;color:#fff;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font:inherit;">Install</button>
+      <button id="pwa-dismiss-btn" style="background:none;border:none;color:#888;cursor:pointer;font-size:18px;padding:0 4px;">✕</button>`;
+    document.body.appendChild(banner);
+    document.getElementById("pwa-install-btn")!.addEventListener("click", async () => {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        await deferredPrompt.userChoice;
+        deferredPrompt = null;
+      }
+      banner.remove();
+    });
+    document.getElementById("pwa-dismiss-btn")!.addEventListener("click", () => banner.remove());
   }
 
   // Sync status indicator

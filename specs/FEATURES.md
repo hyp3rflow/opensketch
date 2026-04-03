@@ -2149,3 +2149,12 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] **Properties panel — Interaction condition UI**: Per-interaction optional condition (variable name, operator select, compare value), clear button
 - [x] **Properties panel — SetVariable action UI**: Variable name + expression inputs shown when action is SetVariable
 - [x] **Backward-compatible serde**: All new Interaction fields use #[serde(default)]
+
+### Offline PWA + Service Worker
+- [x] **vite-plugin-pwa**: generateSW mode, precache all JS/CSS/HTML/WASM assets
+- [x] **Web App Manifest**: name "OpenSketch", icons 192/512, theme_color #1a1a2e, display standalone
+- [x] **Runtime caching**: Google Fonts (CacheFirst), images (StaleWhileRevalidate)
+- [x] **Offline/online toast**: Network status change notifications
+- [x] **Install prompt**: beforeinstallprompt banner UI with Install/Dismiss buttons
+- [x] **Auto-update**: registerType "autoUpdate" for seamless SW updates
+- [x] **Coexists with localStorage auto-save**: Existing auto-save untouched
