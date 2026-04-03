@@ -32,6 +32,8 @@ import { initComponentLibrary, renderComponentLibraryPanel } from "./ui/componen
 import { PluginManager, loremIpsumPlugin, colorPalettePlugin, GridGeneratorPlugin, AutoRenamePlugin, AccessibilityCheckerPlugin, RandomFillPlugin } from "./plugins";
 import { setupProfilerPanel } from "./ui/profiler-panel";
 import { setupLivePreview } from "./ui/live-preview";
+import { setupComponentExport } from "./ui/component-export";
+import { setupComponentExport } from "./ui/component-export";
 import { setupMarketplacePanel } from "./ui/plugin-marketplace";
 import { createAnimationTimeline } from "./ui/animation-timeline";
 import { createComponentDocsPanel } from "./ui/component-docs-panel";
@@ -285,6 +287,8 @@ async function main() {
   // Profiler panel (inside right pane)
   setupProfilerPanel(document.getElementById("profiler-panel")!, editor);
   setupLivePreview(document.getElementById("live-preview-panel")!, editor);
+  setupComponentExport(document.getElementById("component-export-panel")!, editor);
+  setupComponentExport(document.getElementById("component-export-panel")!, editor);
 
   // Color palette panel
   const palettePanel = setupColorPalettePanel(document.getElementById("palette-panel")!, editor);
@@ -440,7 +444,7 @@ async function main() {
     tab.addEventListener("click", () => {
       const target = (tab as HTMLElement).dataset.tab!;
       rightPaneTabs.forEach((t) => t.classList.toggle("active", (t as HTMLElement).dataset.tab === target));
-      const tabContentMap: Record<string, string> = { agent: "agent-panel", properties: "properties-panel", history: "history-panel", handoff: "handoff-panel", comments: "comments-panel", variables: "variables-panel", assets: "assets-panel", bookmarks: "bookmarks-panel", accessibility: "accessibility-panel", plugins: "plugins-panel", palette: "palette-panel", docs: "docs-panel", permissions: "permissions-panel", quiz: "quiz-panel", migration: "migration-panel", icons: "icons-panel", templates: "templates-panel", artboards: "artboards-panel", dependencies: "dependencies-panel", profiler: "profiler-panel", "live-preview": "live-preview-panel" };
+      const tabContentMap: Record<string, string> = { agent: "agent-panel", properties: "properties-panel", history: "history-panel", handoff: "handoff-panel", comments: "comments-panel", variables: "variables-panel", assets: "assets-panel", bookmarks: "bookmarks-panel", accessibility: "accessibility-panel", plugins: "plugins-panel", palette: "palette-panel", docs: "docs-panel", permissions: "permissions-panel", quiz: "quiz-panel", migration: "migration-panel", icons: "icons-panel", templates: "templates-panel", artboards: "artboards-panel", dependencies: "dependencies-panel", profiler: "profiler-panel", "live-preview": "live-preview-panel", "component-export": "component-export-panel" };
       rightPaneContents.forEach((c) => c.classList.toggle("active", c.id === tabContentMap[target]));
       if (target === "agent") {
         agentPanel.querySelector<HTMLInputElement>(".agent-input")?.focus();

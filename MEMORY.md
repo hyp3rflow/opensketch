@@ -1881,3 +1881,14 @@
 - Existing (already implemented): PluginManager, PluginAPI, 5+1 sample plugins, Plugin Marketplace, Figma compat
 - specs/PLUGINS.md updated with iframe sandbox docs + all 6 sample plugins
 - 총 6개 샘플 플러그인: Lorem Ipsum, Color Palette, Grid Generator, Auto Rename, Accessibility Checker, Random Fill
+
+## 완료된 기능 (추가 — React/Vue Component Export)
+- Right pane "Export" 탭: 선택 노드 트리를 React JSX 또는 Vue SFC로 변환
+- React CSS 옵션: inline styles, styled-components, CSS modules
+- Vue: scoped style로 출력
+- Props 매핑: Text 노드 → children prop, Image → src prop
+- Component 이름: 노드 name을 PascalCase로 변환
+- 코드 복사 / 파일 다운로드 기능
+- 파일: packages/app/src/ui/component-export.ts
+- index.html: "Export" 탭 + component-export-panel div
+- main.ts: setupComponentExport 호출 + tabContentMap 등록
