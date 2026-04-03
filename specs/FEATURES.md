@@ -474,7 +474,8 @@
 - [x] **UI**: Properties panel empty state "Design Tokens" section (3 format buttons), Inspect panel "Design Tokens" download section
 - [x] **File naming**: .json for W3C/StyleDictionary, .js (module.exports) for Tailwind, .css for CSS Variables
 - [x] **CSS Variables format**: :root { --color-*, --font-family-*, --font-size-*, --font-weight-*, --line-height-* } + variable collections
-- [x] **Design Token Export modal**: Format selection cards (W3C/Style Dictionary/Tailwind/CSS Variables), live preview, copy to clipboard, download
+- [x] **SCSS Variables format**: $color-*, $font-family-*, $font-size-*, $font-weight-*, $line-height-* + variable collections
+- [x] **Design Token Export modal**: Format selection cards (W3C/Style Dictionary/Tailwind/CSS Variables/SCSS), live preview, copy to clipboard, download
 
 ### Design Token Aliasing
 - [x] **Token aliases**: TokenValue::Alias variant — tokens can reference other tokens via `{token.name}` syntax

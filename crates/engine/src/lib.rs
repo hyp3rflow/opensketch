@@ -7946,13 +7946,14 @@ impl Engine {
     }
 
     /// Export design tokens in the specified format.
-    /// format: "w3c" | "style-dictionary" | "tailwind"
-    /// Returns JSON string.
+    /// format: "w3c" | "style-dictionary" | "tailwind" | "css" | "scss"
+    /// Returns formatted string (JSON for w3c/style-dictionary/tailwind, CSS/SCSS for css/scss).
     pub fn export_design_tokens(&self, format: &str) -> String {
         let fmt = match format {
             "style-dictionary" => design_tokens::TokenFormat::StyleDictionary,
             "tailwind" => design_tokens::TokenFormat::Tailwind,
             "css-variables" | "css" => design_tokens::TokenFormat::CssVariables,
+            "scss" => design_tokens::TokenFormat::Scss,
             _ => design_tokens::TokenFormat::W3C,
         };
         design_tokens::export_design_tokens(&self.styles, &self.scene.variable_collections, fmt)

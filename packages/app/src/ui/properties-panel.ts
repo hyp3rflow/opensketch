@@ -152,9 +152,11 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       tokensSection.appendChild(tokensTitle);
 
       const tokenFormats = [
+        { label: "CSS Variables", key: "css" },
+        { label: "Tailwind", key: "tailwind" },
+        { label: "SCSS", key: "scss" },
         { label: "W3C DTCG", key: "w3c" },
         { label: "Style Dictionary", key: "style-dictionary" },
-        { label: "Tailwind", key: "tailwind" },
       ];
       const tokenBtnRow = document.createElement("div");
       tokenBtnRow.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;";

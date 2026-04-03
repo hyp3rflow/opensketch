@@ -1911,3 +1911,11 @@
 - properties-panel.ts: 프리셋 버튼 UI (active 상태 하이라이트)
 - pattern dropdown에 checkerboard 옵션 추가
 - specs/FEATURES.md 업데이트
+
+## 완료된 기능 (Design Token Export — SCSS 추가)
+- SCSS Variables 포맷 추가: $color-*, $font-family-*, $font-size-*, $font-weight-*, $line-height-*
+- design_tokens.rs: TokenFormat::Scss, export_scss_variables() 함수
+- lib.rs: "scss" 포맷 매핑 추가
+- editor.ts: .scss 확장자 지원
+- properties-panel.ts: CSS Variables, SCSS 버튼 추가 (총 5개 포맷)
+- specs/FEATURES.md 업데이트

@@ -1,5 +1,6 @@
 import type { Engine } from "./wasm/opensketch_engine";
 import { showBatchRenameDialog } from "./ui/batch-rename";
+import { toggleColorHarmonyPanel } from "./ui/color-harmony";
 import { renderPixelGrid, renderDeviceFrame } from "./ui/pixel-preview";
 import { computeSnap, renderGuides, type SnapGuide } from "./tools/smart-guides";
 import { computePointSnap, renderPointSnapIndicators, collectPathPointTargets, addRulerTargets, constrainAngle, type PointSnapIndicator, type PointSnapTarget } from "./tools/point-snap";
@@ -6367,7 +6368,7 @@ export class Editor {
   downloadDesignTokens(format: string = 'w3c', filename?: string) {
     const json = this.exportDesignTokens(format);
     if (!json || json === '{}') return false;
-    const ext = format === 'tailwind' ? 'js' : format === 'css-variables' || format === 'css' ? 'css' : 'json';
+    const ext = format === 'tailwind' ? 'js' : format === 'css-variables' || format === 'css' ? 'css' : format === 'scss' ? 'scss' : 'json';
     let content = json;
     if (format === 'tailwind') {
       content = `/** @type {import('tailwindcss').Config} */\nmodule.exports = ${json};\n`;
