@@ -43,6 +43,7 @@ const tools: { id: ToolType; icon: string; labelKey: string }[] = [
   { id: "table", icon: icons.table, labelKey: "tool.table" },
   { id: "chart", icon: icons.chart, labelKey: "tool.chart" },
   { id: "freehand", icon: icons.freehand, labelKey: "tool.freehand" },
+  { id: "eyedropper", icon: icons.eyedropper, labelKey: "tool.eyedropper" },
   { id: "annotate", icon: icons.annotationBrush, labelKey: "tool.annotate" },
   { id: "measure", icon: icons.measure, labelKey: "tool.measure" },
 ];

@@ -54,7 +54,7 @@ import { showImageDropChoice, processAILayout } from "./ui/ai-layout";
 import { toggleColorBlindnessPanel, closeCBPanel, setColorBlindnessMode } from "./ui/color-blindness";
 import { toggleFocusMode } from "./ui/focus-mode";
 
-export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "section" | "image" | "pen" | "star" | "polygon" | "slice" | "connector" | "callout" | "sticky" | "table" | "chart" | "freehand" | "measure" | "annotate";
+export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "section" | "image" | "pen" | "star" | "polygon" | "slice" | "connector" | "callout" | "sticky" | "table" | "chart" | "freehand" | "measure" | "annotate" | "eyedropper";
 
 /** Snap threshold in screen pixels */
 const SNAP_THRESHOLD_PX = 5;
@@ -1006,6 +1006,7 @@ export class Editor {
       else if (_sm.matches(e, "tool.slice")) this.setTool("slice");
       else if (_sm.matches(e, "tool.connector")) this.setTool("connector");
       else if (_sm.matches(e, "tool.callout")) this.setTool("callout");
+      else if (e.key === "i" && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) this.setTool("eyedropper");
       else if (e.key === "m" && !e.metaKey && !e.ctrlKey && !e.altKey) this.setTool("measure");
       else if (e.key === "a" && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) this.setTool("annotate");
       else if (_sm.matches(e, "misc.voice")) { (window as any).__toggleVoice?.(); }
@@ -1482,6 +1483,36 @@ export class Editor {
       this._penDragStartY = sy;
       this.needsRender = true;
       this.canvas.setPointerCapture(e.pointerId);
+      return;
+    }
+
+    if (this.currentTool === "eyedropper") {
+      // Read pixel color from canvas at click position
+      const dpr = window.devicePixelRatio || 1;
+      const pixel = this.ctx.getImageData(x * dpr, y * dpr, 1, 1).data;
+      const r = pixel[0]! / 255;
+      const g = pixel[1]! / 255;
+      const b = pixel[2]! / 255;
+      const a = pixel[3]! / 255;
+      const hex = `#${(pixel[0]! << 16 | pixel[1]! << 8 | pixel[2]!).toString(16).padStart(6, "0")}`;
+
+      // Apply to selected nodes
+      const sel = this.engine.get_selection();
+      const ids: number[] = sel ? JSON.parse(sel).map(Number) : [];
+      if (ids.length > 0) {
+        this.engine.push_undo();
+        for (const id of ids) {
+          this.engine.set_fill(BigInt(id), r, g, b, a);
+        }
+        this.needsRender = true;
+        this.fireSelectionNow(ids);
+      }
+
+      // Show color toast
+      this._showEyedropperToast(hex);
+
+      // Return to select tool after picking
+      this.setTool("select");
       return;
     }
 
@@ -4381,7 +4412,7 @@ export class Editor {
       section: "crosshair", image: "crosshair", pen: "crosshair",
       star: "crosshair", polygon: "crosshair",
       slice: "crosshair", connector: "crosshair", callout: "crosshair", sticky: "crosshair", chart: "crosshair", freehand: "crosshair",
-      measure: "crosshair", annotate: "crosshair",
+      measure: "crosshair", annotate: "crosshair", eyedropper: "crosshair",
     };
     this.canvas.style.cursor = cursors[this.currentTool] || "default";
   }
@@ -7017,5 +7048,40 @@ export class Editor {
 
     this.engine.set_scroll_offset(id, newScrollX, newScrollY);
     this.needsRender = true;
+  }
+
+  /** Show a small toast with the picked color */
+  private _showEyedropperToast(hex: string) {
+    const existing = document.getElementById("eyedropper-toast");
+    if (existing) existing.remove();
+    const toast = document.createElement("div");
+    toast.id = "eyedropper-toast";
+    toast.style.cssText = `
+      position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
+      display: flex; align-items: center; gap: 8px;
+      background: rgba(30,30,46,0.95); border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px; padding: 8px 14px; z-index: 9999;
+      font-family: Inter, system-ui, sans-serif; font-size: 12px; color: #ccc;
+      backdrop-filter: blur(8px); box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      transition: opacity 0.3s;
+    `;
+    const swatch = document.createElement("div");
+    swatch.style.cssText = `width: 20px; height: 20px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.2); background: ${hex};`;
+    toast.appendChild(swatch);
+    const label = document.createElement("span");
+    label.textContent = hex.toUpperCase();
+    label.style.cssText = "font-family: 'JetBrains Mono', monospace; font-weight: 500;";
+    toast.appendChild(label);
+    const copyBtn = document.createElement("button");
+    copyBtn.textContent = "Copy";
+    copyBtn.style.cssText = "background: none; border: 1px solid #555; border-radius: 4px; padding: 2px 8px; color: #888; cursor: pointer; font-size: 10px;";
+    copyBtn.addEventListener("click", () => {
+      navigator.clipboard.writeText(hex.toUpperCase());
+      copyBtn.textContent = "✓";
+      setTimeout(() => toast.remove(), 500);
+    });
+    toast.appendChild(copyBtn);
+    document.body.appendChild(toast);
+    setTimeout(() => { toast.style.opacity = "0"; setTimeout(() => toast.remove(), 300); }, 2500);
   }
 }

@@ -2192,3 +2192,5 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] **Live HTML/CSS Preview panel**: Right pane "Preview" tab, selected node → HTML+CSS real-time iframe render, auto-refresh, scale selector (25%-200%), light/dark bg toggle, code view, copy HTML
 
 - [x] **React/Vue Component Export**: Right pane "Export" tab, converts selected node tree to React JSX (inline styles / styled-components / CSS modules) or Vue SFC, props mapping (Text→children, Image→src), PascalCase component names, copy to clipboard, download files
+
+- [x] **Eyedropper / Color Picker tool**: Press I to activate, click canvas to pick pixel color, applies to selected node fill, color toast with hex + copy button, auto-returns to select tool
