@@ -1572,6 +1572,9 @@
 - Multi-player cursors with tool state — 협업 커서에 현재 도구/액션 상태 표시 (✎ editing, ↔ resizing, ✋ panning), 실시간 selection 충돌 경고
 - WebGPU Renderer — Canvas2D → WebGPU 렌더링 파이프라인 전환, GPU 가속 노드 렌더링, 대규모 씬 성능 개선
 - Design Token Theming — 라이트/다크 모드 자동 전환, 시맨틱 토큰 매핑 (primary/secondary/surface), 테마 프리뷰 split-view
+- Auto Layout Spacing Override (per-child) — 개별 자식 노드마다 gap override 설정 (Figma "absolute spacing"), Node에 spacing_before/spacing_after 필드 추가, Flex 계산 시 개별 간격 적용, Properties panel UI (소규모, 고 임팩트)
+- Shared Prototype Variables Sync — 프로토타입 변수를 design token/variable collection과 양방향 동기화, 변수 변경 시 프로토타입 상태 자동 반영, 디자인↔프로토타입 간 일관성 유지 (중규모, 고 임팩트)
+- Component Playground Panel — 컴포넌트 선택 시 모든 variant 조합을 인터랙티브 미리보기, prop 슬라이더/토글로 실시간 변경, 스냅샷 비교, 문서와 통합 (중규모, 고 임팩트)
 
 ## 완료된 기능 (추가 — Responsive Breakpoints Preview)
 - SceneBreakpoint 구조체 (types.rs): name, width, height + default_presets()
