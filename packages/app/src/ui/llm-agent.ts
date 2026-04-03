@@ -191,6 +191,12 @@ export function buildToolDefs(): ToolDef[] {
       fix_ids: { type: "array", items: { type: "number" }, description: "Fix IDs to apply (omit for all)" },
     }, []),
 
+    // Image generation
+    tool("generate_image", "Generate an AI image from a text prompt and place it on the canvas as an Image node", {
+      prompt: str("Text description of the image to generate"),
+      size: str("Image size: 1024x1024, 1792x1024, or 1024x1792 (default: 1024x1024)"),
+    }, ["prompt"]),
+
     // Scene tools
     tool("select_node", "Select a node (highlights it)", { node_id: num("Node ID") }, ["node_id"]),
     tool("export_scene", "Export entire scene as JSON", {}),
@@ -414,6 +420,29 @@ export function executeTool(name: string, args: Record<string, any>, editor: any
         const count = engine.apply_polish(ids);
         editor.requestRender();
         return JSON.stringify({ applied: count });
+      }
+
+      case "generate_image": {
+        // This is async — return a placeholder. The actual generation happens via editor method.
+        const prompt = args.prompt || "abstract background";
+        const size = args.size || "1024x1024";
+        // Trigger async generation
+        (async () => {
+          try {
+            const { generateImage: genImg } = await import("./ai-image-gen");
+            const result = await genImg(prompt, size);
+            const [w, h] = size.split("x").map(Number);
+            const scale = Math.min(400 / w, 400 / h, 1);
+            const pw = w * scale;
+            const ph = h * scale;
+            const id = engine.add_image(100, 100, pw, ph, result.dataUrl);
+            engine.set_node_name(BigInt(id), `AI: ${prompt.slice(0, 40)}`);
+            editor.requestRender();
+          } catch (e: any) {
+            console.error("AI image gen failed:", e);
+          }
+        })();
+        return JSON.stringify({ status: "generating", prompt, size, note: "Image will appear on canvas when ready. Ensure API key is set in AI Image panel." });
       }
 
       case "select_node":

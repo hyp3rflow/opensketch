@@ -16,6 +16,7 @@ import { CursorPresence } from "./ui/cursor-presence";
 import { CursorChat } from "./ui/cursor-chat";
 import { openComponentSwapModal } from "./ui/component-swap";
 import { openSmartReplace, closeSmartReplace, isSmartReplaceOpen } from "./ui/smart-replace";
+import { openImageGen, closeImageGen, isImageGenOpen, generateImage } from "./ui/ai-image-gen";
 import { renderStamps as renderStampsOverlay, hitTestStamp, isStampModeActive, getActiveStampKind, setActiveStampKind, toggleStampPalette, closeStampPalette } from "./ui/stamp-tool";
 import { openComponentLibraryPanel } from "./ui/component-library";
 import { openComponentAnalytics, closeComponentAnalytics, isComponentAnalyticsOpen } from "./ui/component-analytics";
@@ -768,6 +769,13 @@ export class Editor {
         e.preventDefault();
         const sel = Array.from(this.engine.get_selection()).map(Number);
         if (sel.length === 1) this.openSmartReplacePanel(sel[0]!);
+        return;
+      }
+
+      // Ctrl/Cmd+Shift+G (with Alt): AI image generation
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.altKey && (e.key === "g" || e.key === "G")) {
+        e.preventDefault();
+        this.openAIImageGen();
         return;
       }
 
@@ -6481,6 +6489,22 @@ export class Editor {
     );
   }
 
+  openAIImageGen() {
+    openImageGen((dataUrl, w, h, prompt) => {
+      // Place image at center of viewport
+      const cx = this.scrollX + this.canvas.width / 2 / this.zoom;
+      const cy = this.scrollY + this.canvas.height / 2 / this.zoom;
+      const scale = Math.min(400 / w, 400 / h, 1); // scale down large images for canvas
+      const pw = w * scale;
+      const ph = h * scale;
+      const id = this.engine.add_image(cx - pw / 2, cy - ph / 2, pw, ph, dataUrl);
+      this.engine.set_node_name(BigInt(id), `AI: ${prompt.slice(0, 40)}`);
+      this.engine.deselect_all();
+      this.engine.select(BigInt(id));
+      this.requestRender();
+    });
+  }
+
   openComponentSwap() {
     openComponentSwapModal(this);
   }
@@ -6725,6 +6749,8 @@ export class Editor {
       items.push({ label: "Fill with Prices", action: () => this.fillSelectionContent("prices") });
       items.push({ label: "Fill with Numbers", action: () => this.fillSelectionContent("numbers") });
       items.push({ label: "Fill with Avatars", action: () => this.fillSelectionContent("avatars") });
+      items.push({ separator: true, label: "" });
+      items.push({ label: "🎨 AI Image Generation…", action: () => this.openAIImageGen() });
       items.push({ separator: true, label: "" });
       items.push({ label: "Edit All Matching Layers", enabled: selAfter.length === 1, action: () => this.selectSameNameAndKind(selAfter[0]!) });
       items.push({ label: "Select All with Same Name", enabled: selAfter.length === 1, action: () => this.selectSameName(selAfter[0]!) });

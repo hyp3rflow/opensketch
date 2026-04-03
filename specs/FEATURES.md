@@ -2167,3 +2167,14 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] **Install prompt**: beforeinstallprompt banner UI with Install/Dismiss buttons
 - [x] **Auto-update**: registerType "autoUpdate" for seamless SW updates
 - [x] **Coexists with localStorage auto-save**: Existing auto-save untouched
+
+### AI Image Generation
+- [x] **Text-to-Image**: Generate images from text prompts using OpenAI DALL-E API (or compatible endpoints)
+- [x] **AI Image Panel**: Modal UI with prompt input, size selector (1024x1024, 1792x1024, 1024x1792, 512x512, 256x256), quick prompt chips
+- [x] **Settings**: Configurable API endpoint, API key, model (persisted in localStorage)
+- [x] **Canvas Integration**: Generated images auto-placed as Image nodes at viewport center, named "AI: <prompt>"
+- [x] **LLM Agent Tool**: `generate_image` tool for AI assistant to create images via tool calling
+- [x] **Context Menu**: "AI Image Generation…" entry in right-click menu
+- [x] **Keyboard Shortcut**: Ctrl/Cmd+Shift+Alt+G to open panel
+- [x] **Quick Prompts**: Pre-built prompt chips (landscape, gradient, avatar, mockup, icon, pattern)
+- [x] **Ctrl+Enter**: Submit prompt via keyboard shortcut within panel
