@@ -1,7 +1,11 @@
 import { Editor } from "../editor";
 
-const MINIMAP_W = 200;
-const MINIMAP_H = 140;
+const DEFAULT_MINIMAP_W = 200;
+const DEFAULT_MINIMAP_H = 140;
+const MIN_MINIMAP_W = 120;
+const MIN_MINIMAP_H = 80;
+const MAX_MINIMAP_W = 400;
+const MAX_MINIMAP_H = 300;
 const PADDING = 10;
 const PAGE_TAB_H = 22;
 
@@ -22,11 +26,17 @@ const KIND_COLORS: Record<string, string> = {
 type MinimapEntry = [number, number, number, number, number, string, string]; // id, x, y, w, h, fillColor, kindChar
 
 export function setupMinimap(container: HTMLElement, editor: Editor) {
+  // Restore saved size or use defaults
+  let MINIMAP_W = parseInt(localStorage.getItem("minimap_w") || "") || DEFAULT_MINIMAP_W;
+  let MINIMAP_H = parseInt(localStorage.getItem("minimap_h") || "") || DEFAULT_MINIMAP_H;
+  MINIMAP_W = Math.max(MIN_MINIMAP_W, Math.min(MAX_MINIMAP_W, MINIMAP_W));
+  MINIMAP_H = Math.max(MIN_MINIMAP_H, Math.min(MAX_MINIMAP_H, MINIMAP_H));
+
   const wrapper = document.createElement("div");
   wrapper.className = "minimap-wrapper";
 
-  const totalH = MINIMAP_H + PAGE_TAB_H;
   wrapper.innerHTML = `
+    <div class="minimap-resize-handle" title="Drag to resize"></div>
     <div class="minimap-header">
       <span>Minimap</span>
       <div class="minimap-header-actions">
@@ -45,6 +55,57 @@ export function setupMinimap(container: HTMLElement, editor: Editor) {
   canvas.style.width = MINIMAP_W + "px";
   canvas.style.height = MINIMAP_H + "px";
   const ctx = canvas.getContext("2d")!;
+  const resizeHandle = wrapper.querySelector(".minimap-resize-handle") as HTMLDivElement;
+
+  // --- Resize handle drag ---
+  let resizing = false;
+  let resizeStartX = 0;
+  let resizeStartY = 0;
+  let resizeStartW = 0;
+  let resizeStartH = 0;
+
+  resizeHandle.addEventListener("dblclick", (e) => {
+    e.stopPropagation();
+    MINIMAP_W = DEFAULT_MINIMAP_W;
+    MINIMAP_H = DEFAULT_MINIMAP_H;
+    canvas.width = MINIMAP_W * 2;
+    canvas.height = MINIMAP_H * 2;
+    canvas.style.width = MINIMAP_W + "px";
+    canvas.style.height = MINIMAP_H + "px";
+    localStorage.setItem("minimap_w", String(MINIMAP_W));
+    localStorage.setItem("minimap_h", String(MINIMAP_H));
+  });
+
+  resizeHandle.addEventListener("mousedown", (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    resizing = true;
+    resizeStartX = e.clientX;
+    resizeStartY = e.clientY;
+    resizeStartW = MINIMAP_W;
+    resizeStartH = MINIMAP_H;
+  });
+
+  window.addEventListener("mousemove", (e) => {
+    if (!resizing) return;
+    // Handle is top-left, dragging left/up = bigger
+    const dw = resizeStartX - e.clientX;
+    const dh = resizeStartY - e.clientY;
+    MINIMAP_W = Math.max(MIN_MINIMAP_W, Math.min(MAX_MINIMAP_W, resizeStartW + dw));
+    MINIMAP_H = Math.max(MIN_MINIMAP_H, Math.min(MAX_MINIMAP_H, resizeStartH + dh));
+    canvas.width = MINIMAP_W * 2;
+    canvas.height = MINIMAP_H * 2;
+    canvas.style.width = MINIMAP_W + "px";
+    canvas.style.height = MINIMAP_H + "px";
+  });
+
+  window.addEventListener("mouseup", () => {
+    if (resizing) {
+      resizing = false;
+      localStorage.setItem("minimap_w", String(MINIMAP_W));
+      localStorage.setItem("minimap_h", String(MINIMAP_H));
+    }
+  });
 
   const toggleBtn = wrapper.querySelector(".minimap-toggle") as HTMLButtonElement;
   const colorModeSelect = wrapper.querySelector(".minimap-color-mode") as HTMLSelectElement;

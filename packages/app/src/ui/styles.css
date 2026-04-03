@@ -245,6 +245,9 @@ select.prop-input { appearance: none; background: #333 url("data:image/svg+xml,%
 
 /* Minimap */
 .minimap-wrapper { position: absolute; bottom: 56px; right: 16px; z-index: 20; background: #1e1e1e; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.06); overflow: hidden; }
+.minimap-resize-handle { position: absolute; top: 0; left: 0; width: 12px; height: 12px; cursor: nwse-resize; z-index: 2; }
+.minimap-resize-handle::after { content: ''; position: absolute; top: 2px; left: 2px; width: 6px; height: 6px; border-left: 2px solid rgba(255,255,255,0.25); border-top: 2px solid rgba(255,255,255,0.25); border-radius: 2px 0 0 0; }
+.minimap-resize-handle:hover::after { border-color: rgba(255,255,255,0.5); }
 .minimap-wrapper.collapsed { border-radius: 8px; }
 .minimap-header { display: flex; align-items: center; justify-content: space-between; padding: 4px 8px; background: #2a2a2a; font-size: 10px; color: #888; user-select: none; }
 .minimap-header span { font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
