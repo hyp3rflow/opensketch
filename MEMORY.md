@@ -1867,3 +1867,13 @@
 - Prototype Viewer: runtime variable state Map, condition evaluation, SetVariable execution, floating debug panel
 - Properties panel: Prototype Variables section (CRUD UI), per-interaction condition editor, SetVariable action fields
 - All serde backward-compatible
+
+## 2026-04-03: Plugin System (Enhanced — Iframe Sandbox)
+- IframeSandbox: sandboxed iframe plugin host (`<iframe sandbox="allow-scripts">`) with postMessage protocol
+- PluginManifest interface: id, name, version, description, icon, main, permissions[]
+- PluginPermission: scene:read/write, selection:read/write, ui:panels/notifications, viewport:read/write
+- Permission-based access control — each postMessage request validated against manifest permissions
+- createSandboxedPlugin(): factory function wrapping manifest+code into standard Plugin interface
+- Sandbox runtime injected into iframe: `_os.scene.*`, `_os.ui.*`, `_os.viewport.*`, `_os.on()`
+- Existing (already implemented): PluginManager, PluginAPI, 5 sample plugins, Plugin Marketplace, Figma compat
+- specs/FEATURES.md, specs/ARCHITECTURE.md updated
