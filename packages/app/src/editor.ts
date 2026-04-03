@@ -88,6 +88,10 @@ export class Editor {
   private rafId = 0;
   private onSelectionChanges: ((ids: number[]) => void)[] = [];
   private onLayersChanges: (() => void)[] = [];
+  // Selection history (back/forward)
+  private _selHistory: number[][] = [];
+  private _selHistoryIdx = -1;
+  private _selHistoryNavigating = false;
   private spaceHeld = false;
   private _clipboard: string | null = null;
   private _pasteCount = 0;
@@ -430,6 +434,11 @@ export class Editor {
     window.addEventListener("keydown", (e) => {
       if (e.key === "Alt") this._altHeld = true;
       if (this.isInputFocused()) return;
+      // Selection history: Alt+[ back, Alt+] forward
+      if (e.altKey && !e.metaKey && !e.ctrlKey && !e.shiftKey) {
+        if (e.code === "BracketLeft") { e.preventDefault(); this.selectionBack(); return; }
+        if (e.code === "BracketRight") { e.preventDefault(); this.selectionForward(); return; }
+      }
       const _sm = getShortcutManager();
       // Shortcuts panel: Cmd+/ or ?
       if (_sm.matches(e, "panel.shortcuts") || (e.key === "?" && !e.metaKey && !e.ctrlKey)) {
@@ -2497,10 +2506,48 @@ export class Editor {
       cancelAnimationFrame(this.selectionThrottleId);
       this.selectionThrottleId = 0;
     }
+    // Track selection history (skip if navigating via back/forward)
+    if (!this._selHistoryNavigating) {
+      const prev = this._selHistory[this._selHistoryIdx];
+      const same = prev && prev.length === ids.length && prev.every((v, i) => v === ids[i]);
+      if (!same) {
+        // Truncate forward history
+        this._selHistory = this._selHistory.slice(0, this._selHistoryIdx + 1);
+        this._selHistory.push([...ids]);
+        if (this._selHistory.length > 50) this._selHistory.shift();
+        this._selHistoryIdx = this._selHistory.length - 1;
+      }
+    }
     this._gradientEditor?.updateFromSelection();
     this._spacingHandles = findSpacingHandles(this.engine);
     this._paddingHandles = findPaddingHandles(this.engine);
     this.onSelectionChanges.forEach(fn => fn(ids));
+  }
+
+  /** Navigate to previous selection (Alt+[) */
+  selectionBack() {
+    if (this._selHistoryIdx <= 0) return;
+    this._selHistoryIdx--;
+    const ids = this._selHistory[this._selHistoryIdx];
+    this._selHistoryNavigating = true;
+    this.engine.deselect_all();
+    for (const id of ids) this.engine.add_to_selection(BigInt(id));
+    this.fireSelectionNow(ids);
+    this._selHistoryNavigating = false;
+    this.requestRender();
+  }
+
+  /** Navigate to next selection (Alt+]) */
+  selectionForward() {
+    if (this._selHistoryIdx >= this._selHistory.length - 1) return;
+    this._selHistoryIdx++;
+    const ids = this._selHistory[this._selHistoryIdx];
+    this._selHistoryNavigating = true;
+    this.engine.deselect_all();
+    for (const id of ids) this.engine.add_to_selection(BigInt(id));
+    this.fireSelectionNow(ids);
+    this._selHistoryNavigating = false;
+    this.requestRender();
   }
 
   private fireSelectionThrottled(ids: number[]) {
