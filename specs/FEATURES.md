@@ -2208,3 +2208,4 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] **React/Vue Component Export**: Right pane "Export" tab, converts selected node tree to React JSX (inline styles / styled-components / CSS modules) or Vue SFC, props mapping (Text→children, Image→src), PascalCase component names, copy to clipboard, download files
 
 - [x] **Eyedropper / Color Picker tool**: Press I to activate, click canvas to pick pixel color, applies to selected node fill, color toast with hex + copy button, auto-returns to select tool
+- [x] **Scale Tool (K)**: Dedicated proportional scaling tool — handle drag always maintains aspect ratio and scales all visual properties (font size, stroke width, corner radius, shadows, blur, layout padding/gap, min/max constraints). Uses engine `scale_node_proportional()` with recursive children scaling. Slice tool moved to Shift+K.
