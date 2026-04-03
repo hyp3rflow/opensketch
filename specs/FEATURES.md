@@ -2136,3 +2136,16 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] **Context menu**: "Create Repeat Grid" (single node selection)
 - [x] **SVG export**: Each cell exported as `<g transform="translate(...)">` group
 - [x] **Backward-compatible serde**: All new fields have #[serde(default)]
+
+### Conditional Logic in Prototypes
+- [x] **PrototypeVariable struct**: name, var_type (number/boolean/string), default_value — stored at Scene level
+- [x] **Scene CRUD**: add/remove/update_prototype_variable, get_prototype_variables_json
+- [x] **InteractionCondition**: variable + ConditionOperator (Eq/Ne/Gt/Lt/Gte/Lte) + compare_value — attached to Interaction
+- [x] **ConditionOperator.evaluate()**: Numeric, boolean, and string comparison
+- [x] **SetVariable action**: InteractionAction::SetVariable with set_variable_name + set_variable_expression
+- [x] **WASM bindings**: add/remove/update_prototype_variable, get_prototype_variables, set_interaction_condition, set_interaction_set_variable
+- [x] **Prototype Viewer**: Runtime variable state (Map), condition evaluation, SetVariable execution (+N/-N/toggle/literal), debug panel showing current variable values
+- [x] **Properties panel — Variables section**: Scene-level variable CRUD UI (name, type select, default value, add/delete)
+- [x] **Properties panel — Interaction condition UI**: Per-interaction optional condition (variable name, operator select, compare value), clear button
+- [x] **Properties panel — SetVariable action UI**: Variable name + expression inputs shown when action is SetVariable
+- [x] **Backward-compatible serde**: All new Interaction fields use #[serde(default)]

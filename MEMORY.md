@@ -1847,3 +1847,11 @@
 - Toolbar chart button + Properties panel with type selector, data table, config toggles
 - Default 10-color palette auto-assigned when data points lack explicit colors
 - All serde fields backward-compatible with defaults
+
+## 2026-04-03: Conditional Logic in Prototypes
+- PrototypeVariable (name, var_type, default_value) at Scene level with CRUD
+- InteractionCondition (variable, ConditionOperator, value) on Interaction — conditional navigation
+- SetVariable action type with set_variable_name + set_variable_expression (+N/-N/toggle/literal)
+- Prototype Viewer: runtime variable state Map, condition evaluation, SetVariable execution, floating debug panel
+- Properties panel: Prototype Variables section (CRUD UI), per-interaction condition editor, SetVariable action fields
+- All serde backward-compatible

@@ -1425,6 +1425,100 @@ pub enum InteractionAction {
     OpenOverlay,
     CloseOverlay,
     SwapVariant,
+    /// Set a prototype variable value
+    SetVariable,
+}
+
+/// Comparison operators for prototype conditions
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub enum ConditionOperator {
+    Equal,
+    NotEqual,
+    GreaterThan,
+    LessThan,
+    GreaterThanOrEqual,
+    LessThanOrEqual,
+}
+
+impl Default for ConditionOperator {
+    fn default() -> Self { ConditionOperator::Equal }
+}
+
+impl ConditionOperator {
+    pub fn from_str(s: &str) -> Self {
+        match s {
+            "==" | "eq" => ConditionOperator::Equal,
+            "!=" | "ne" => ConditionOperator::NotEqual,
+            ">" | "gt" => ConditionOperator::GreaterThan,
+            "<" | "lt" => ConditionOperator::LessThan,
+            ">=" | "gte" => ConditionOperator::GreaterThanOrEqual,
+            "<=" | "lte" => ConditionOperator::LessThanOrEqual,
+            _ => ConditionOperator::Equal,
+        }
+    }
+
+    pub fn to_str(&self) -> &'static str {
+        match self {
+            ConditionOperator::Equal => "==",
+            ConditionOperator::NotEqual => "!=",
+            ConditionOperator::GreaterThan => ">",
+            ConditionOperator::LessThan => "<",
+            ConditionOperator::GreaterThanOrEqual => ">=",
+            ConditionOperator::LessThanOrEqual => "<=",
+        }
+    }
+
+    /// Evaluate the condition: compare left vs right as numbers if possible, else string comparison
+    pub fn evaluate(&self, left: &str, right: &str) -> bool {
+        // Try numeric comparison first
+        if let (Ok(l), Ok(r)) = (left.parse::<f64>(), right.parse::<f64>()) {
+            return match self {
+                ConditionOperator::Equal => (l - r).abs() < f64::EPSILON,
+                ConditionOperator::NotEqual => (l - r).abs() >= f64::EPSILON,
+                ConditionOperator::GreaterThan => l > r,
+                ConditionOperator::LessThan => l < r,
+                ConditionOperator::GreaterThanOrEqual => l >= r,
+                ConditionOperator::LessThanOrEqual => l <= r,
+            };
+        }
+        // Boolean: "true"/"false"
+        if let (Ok(l), Ok(r)) = (left.parse::<bool>(), right.parse::<bool>()) {
+            return match self {
+                ConditionOperator::Equal => l == r,
+                ConditionOperator::NotEqual => l != r,
+                _ => false,
+            };
+        }
+        // String comparison
+        match self {
+            ConditionOperator::Equal => left == right,
+            ConditionOperator::NotEqual => left != right,
+            ConditionOperator::GreaterThan => left > right,
+            ConditionOperator::LessThan => left < right,
+            ConditionOperator::GreaterThanOrEqual => left >= right,
+            ConditionOperator::LessThanOrEqual => left <= right,
+        }
+    }
+}
+
+/// Condition for conditional interactions
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct InteractionCondition {
+    /// Variable name to check
+    pub variable: String,
+    /// Comparison operator
+    pub operator: ConditionOperator,
+    /// Value to compare against
+    pub value: String,
+}
+
+/// Prototype variable definition (stored at scene level)
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct PrototypeVariable {
+    pub name: String,
+    /// "number" | "string" | "boolean"
+    pub var_type: String,
+    pub default_value: String,
 }
 
 impl Default for InteractionAction {
@@ -1547,6 +1641,15 @@ pub struct Interaction {
     /// For SwapVariant action: JSON variant key (e.g. {"State":"Hover","Disabled":"false"})
     #[serde(default)]
     pub variant_key_json: String,
+    /// Optional condition — interaction only fires when condition is met
+    #[serde(default)]
+    pub condition: Option<InteractionCondition>,
+    /// For SetVariable action: variable name to set
+    #[serde(default)]
+    pub set_variable_name: String,
+    /// For SetVariable action: expression to evaluate (literal value, or "+1"/"-1" for increment/decrement)
+    #[serde(default)]
+    pub set_variable_expression: String,
 }
 
 fn default_easing_str() -> String { "ease_in_out".to_string() }
@@ -1562,6 +1665,9 @@ impl Default for Interaction {
             transition_duration_ms: 300,
             easing: "ease_in_out".to_string(),
             variant_key_json: String::new(),
+            condition: None,
+            set_variable_name: String::new(),
+            set_variable_expression: String::new(),
         }
     }
 }

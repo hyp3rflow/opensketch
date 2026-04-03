@@ -3914,11 +3914,11 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         const actSelect = document.createElement("select");
         actSelect.className = "prop-input";
         actSelect.style.flex = "1";
-        for (const a of ["navigate-to", "back", "scroll-to", "open-overlay", "close-overlay", "swap-variant"]) {
+        for (const a of ["navigate-to", "back", "scroll-to", "open-overlay", "close-overlay", "swap-variant", "set-variable"]) {
           const opt = document.createElement("option");
           opt.value = a;
           opt.textContent = a.split("-").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
-          const actMap: Record<string, string> = { NavigateTo: "navigate-to", Back: "back", ScrollTo: "scroll-to", OpenOverlay: "open-overlay", CloseOverlay: "close-overlay", SwapVariant: "swap-variant" };
+          const actMap: Record<string, string> = { NavigateTo: "navigate-to", Back: "back", ScrollTo: "scroll-to", OpenOverlay: "open-overlay", CloseOverlay: "close-overlay", SwapVariant: "swap-variant", SetVariable: "set-variable" };
           if ((actMap[inter.action] || "navigate-to") === a) opt.selected = true;
           actSelect.appendChild(opt);
         }
@@ -3977,9 +3977,124 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         variantRow.appendChild(variantInput);
         interEl.appendChild(variantRow);
 
+        // --- SetVariable fields (shown when action is SetVariable) ---
+        const setVarRow = document.createElement("div");
+        setVarRow.style.cssText = "margin-bottom:4px;";
+        setVarRow.style.display = inter.action === "SetVariable" ? "" : "none";
+        {
+          const r1 = document.createElement("div");
+          r1.style.cssText = "display:flex;gap:4px;margin-bottom:4px;align-items:center;";
+          const l1 = document.createElement("span");
+          l1.style.cssText = "font-size:10px;color:#666;width:50px;flex-shrink:0;";
+          l1.textContent = "Var Name";
+          r1.appendChild(l1);
+          const svNameInput = document.createElement("input");
+          svNameInput.className = "prop-input";
+          svNameInput.style.flex = "1";
+          svNameInput.placeholder = "variable name";
+          svNameInput.value = inter.set_variable_name || "";
+          svNameInput.addEventListener("change", () => {
+            ensureUndo();
+            editor.engine.set_interaction_set_variable(id, idx, svNameInput.value, svExprInput.value);
+            editor.requestRender();
+          });
+          r1.appendChild(svNameInput);
+          setVarRow.appendChild(r1);
+
+          const r2 = document.createElement("div");
+          r2.style.cssText = "display:flex;gap:4px;align-items:center;";
+          const l2 = document.createElement("span");
+          l2.style.cssText = "font-size:10px;color:#666;width:50px;flex-shrink:0;";
+          l2.textContent = "Expr";
+          r2.appendChild(l2);
+          const svExprInput = document.createElement("input");
+          svExprInput.className = "prop-input";
+          svExprInput.style.flex = "1";
+          svExprInput.placeholder = "+1, -1, toggle, or value";
+          svExprInput.value = inter.set_variable_expression || "";
+          svExprInput.addEventListener("change", () => {
+            ensureUndo();
+            editor.engine.set_interaction_set_variable(id, idx, svNameInput.value, svExprInput.value);
+            editor.requestRender();
+          });
+          r2.appendChild(svExprInput);
+          setVarRow.appendChild(r2);
+        }
+        interEl.appendChild(setVarRow);
+
+        // --- Condition (optional, applies to any interaction) ---
+        const condRow = document.createElement("div");
+        condRow.style.cssText = "margin-top:6px;border-top:1px solid #333;padding-top:6px;";
+        {
+          const condLabel = document.createElement("span");
+          condLabel.style.cssText = "font-size:10px;color:#818cf8;display:block;margin-bottom:4px;";
+          condLabel.textContent = "Condition (optional)";
+          condRow.appendChild(condLabel);
+
+          const cond = inter.condition || { variable: "", operator: "Equal", value: "" };
+          const cr = document.createElement("div");
+          cr.style.cssText = "display:flex;gap:4px;align-items:center;";
+
+          const condVarInput = document.createElement("input");
+          condVarInput.className = "prop-input";
+          condVarInput.style.cssText = "flex:1;";
+          condVarInput.placeholder = "variable";
+          condVarInput.value = cond.variable;
+
+          const condOpSelect = document.createElement("select");
+          condOpSelect.className = "prop-input";
+          condOpSelect.style.cssText = "width:50px;";
+          for (const [val, label] of [["Equal","=="],["NotEqual","!="],["GreaterThan",">"],["LessThan","<"],["GreaterThanOrEqual",">="],["LessThanOrEqual","<="]]) {
+            const o = document.createElement("option");
+            o.value = val; o.textContent = label;
+            if (cond.operator === val) o.selected = true;
+            condOpSelect.appendChild(o);
+          }
+
+          const condValInput = document.createElement("input");
+          condValInput.className = "prop-input";
+          condValInput.style.cssText = "flex:1;";
+          condValInput.placeholder = "value";
+          condValInput.value = cond.value;
+
+          const applyCond = () => {
+            ensureUndo();
+            if (condVarInput.value.trim()) {
+              const condJson = JSON.stringify({ variable: condVarInput.value.trim(), operator: condOpSelect.value, value: condValInput.value });
+              editor.engine.set_interaction_condition(id, idx, condJson);
+            } else {
+              editor.engine.set_interaction_condition(id, idx, "");
+            }
+            editor.requestRender();
+          };
+          condVarInput.addEventListener("change", applyCond);
+          condOpSelect.addEventListener("change", applyCond);
+          condValInput.addEventListener("change", applyCond);
+
+          cr.appendChild(condVarInput);
+          cr.appendChild(condOpSelect);
+          cr.appendChild(condValInput);
+          condRow.appendChild(cr);
+
+          if (inter.condition) {
+            const clearCondBtn = document.createElement("button");
+            clearCondBtn.style.cssText = "margin-top:4px;font-size:10px;color:#e94560;background:none;border:none;cursor:pointer;padding:0;";
+            clearCondBtn.textContent = "Clear condition";
+            clearCondBtn.addEventListener("click", () => {
+              ensureUndo();
+              editor.engine.set_interaction_condition(id, idx, "");
+              editor.requestRender();
+              refresh(ids);
+            });
+            condRow.appendChild(clearCondBtn);
+          }
+        }
+        interEl.appendChild(condRow);
+
         // Show/hide variant row based on action
         actSelect.addEventListener("change", () => {
           variantRow.style.display = actSelect.value === "swap-variant" ? "flex" : "none";
+          setVarRow.style.display = actSelect.value === "set-variable" ? "" : "none";
         });
 
         // Transition select
@@ -4070,6 +4185,86 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       interSection.appendChild(addInterBtn);
 
       container.appendChild(interSection);
+    }
+
+    // --- Prototype Variables (scene-level) ---
+    {
+      const varSection = createSection("Prototype Variables");
+      let vars: { name: string; var_type: string; default_value: string }[] = [];
+      try { vars = JSON.parse(editor.engine.get_prototype_variables() || "[]"); } catch {}
+
+      vars.forEach((v) => {
+        const row = document.createElement("div");
+        row.style.cssText = "display:flex;gap:4px;margin-bottom:4px;align-items:center;";
+
+        const nameSpan = document.createElement("span");
+        nameSpan.style.cssText = "font-size:11px;color:#ccc;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
+        nameSpan.textContent = v.name;
+        nameSpan.title = `${v.name} (${v.var_type}) = ${v.default_value}`;
+        row.appendChild(nameSpan);
+
+        const typeSpan = document.createElement("span");
+        typeSpan.style.cssText = "font-size:10px;color:#818cf8;width:48px;text-align:center;";
+        typeSpan.textContent = v.var_type;
+        row.appendChild(typeSpan);
+
+        const valSpan = document.createElement("span");
+        valSpan.style.cssText = "font-size:10px;color:#4ade80;width:48px;text-align:right;";
+        valSpan.textContent = v.default_value;
+        row.appendChild(valSpan);
+
+        const delBtn = document.createElement("button");
+        delBtn.style.cssText = "width:18px;height:18px;border:1px solid #444;border-radius:4px;background:#2a2a2a;cursor:pointer;padding:0;color:#888;font-size:12px;line-height:1;";
+        delBtn.textContent = "×";
+        delBtn.addEventListener("click", () => {
+          ensureUndo();
+          editor.engine.remove_prototype_variable(v.name);
+          editor.requestRender();
+          refresh(ids);
+        });
+        row.appendChild(delBtn);
+
+        varSection.appendChild(row);
+      });
+
+      // Add variable form
+      const addForm = document.createElement("div");
+      addForm.style.cssText = "display:flex;gap:4px;align-items:center;margin-top:4px;";
+      const addName = document.createElement("input");
+      addName.className = "prop-input";
+      addName.style.flex = "1";
+      addName.placeholder = "name";
+      const addType = document.createElement("select");
+      addType.className = "prop-input";
+      addType.style.width = "60px";
+      for (const t of ["number", "boolean", "string"]) {
+        const o = document.createElement("option");
+        o.value = t; o.textContent = t;
+        addType.appendChild(o);
+      }
+      const addVal = document.createElement("input");
+      addVal.className = "prop-input";
+      addVal.style.width = "50px";
+      addVal.placeholder = "default";
+      const addBtn = document.createElement("button");
+      addBtn.className = "prop-add-btn";
+      addBtn.style.cssText = "padding:4px 8px;font-size:10px;";
+      addBtn.textContent = "+";
+      addBtn.addEventListener("click", () => {
+        const name = addName.value.trim();
+        if (!name) return;
+        ensureUndo();
+        editor.engine.add_prototype_variable(name, addType.value, addVal.value || (addType.value === "number" ? "0" : addType.value === "boolean" ? "false" : ""));
+        editor.requestRender();
+        refresh(ids);
+      });
+      addForm.appendChild(addName);
+      addForm.appendChild(addType);
+      addForm.appendChild(addVal);
+      addForm.appendChild(addBtn);
+      varSection.appendChild(addForm);
+
+      container.appendChild(varSection);
     }
 
     // --- Prototype Flows ---

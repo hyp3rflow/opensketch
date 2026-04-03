@@ -3221,6 +3221,7 @@ impl Engine {
             "open-overlay" => InteractionAction::OpenOverlay,
             "close-overlay" => InteractionAction::CloseOverlay,
             "swap-variant" => InteractionAction::SwapVariant,
+            "set-variable" => InteractionAction::SetVariable,
             _ => InteractionAction::NavigateTo,
         };
         let trans = match transition {
@@ -3242,6 +3243,9 @@ impl Engine {
                 transition_duration_ms,
                 easing: easing_str.to_string(),
                 variant_key_json: String::new(),
+                condition: None,
+                set_variable_name: String::new(),
+                set_variable_expression: String::new(),
             };
             node.interactions.push(interaction);
             (node.interactions.len() - 1) as i32
@@ -7323,6 +7327,58 @@ impl Engine {
     /// Get all prototype flows as JSON array.
     pub fn get_prototype_flows(&self) -> String {
         serde_json::to_string(self.scene.get_prototype_flows()).unwrap_or_else(|_| "[]".into())
+    }
+
+    // ── Prototype Variables (Conditional Logic) ─────────────────
+
+    /// Add a prototype variable. var_type: "number"|"string"|"boolean"
+    pub fn add_prototype_variable(&mut self, name: &str, var_type: &str, default_value: &str) -> bool {
+        self.scene.add_prototype_variable(name, var_type, default_value)
+    }
+
+    /// Remove a prototype variable by name
+    pub fn remove_prototype_variable(&mut self, name: &str) -> bool {
+        self.scene.remove_prototype_variable(name)
+    }
+
+    /// Update a prototype variable's type and default value
+    pub fn update_prototype_variable(&mut self, name: &str, var_type: &str, default_value: &str) -> bool {
+        self.scene.update_prototype_variable(name, var_type, default_value)
+    }
+
+    /// Get all prototype variables as JSON array
+    pub fn get_prototype_variables(&self) -> String {
+        self.scene.get_prototype_variables_json()
+    }
+
+    /// Set condition on an interaction: condition_json = {"variable":"x","operator":"==","value":"5"} or "" to clear
+    pub fn set_interaction_condition(&mut self, node_id: u64, interaction_index: u32, condition_json: &str) -> bool {
+        if let Some(node) = self.scene.get_node_mut(node_id) {
+            if let Some(interaction) = node.interactions.get_mut(interaction_index as usize) {
+                if condition_json.is_empty() {
+                    interaction.condition = None;
+                } else {
+                    match serde_json::from_str(condition_json) {
+                        Ok(cond) => interaction.condition = Some(cond),
+                        Err(_) => return false,
+                    }
+                }
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Set SetVariable action fields on an interaction
+    pub fn set_interaction_set_variable(&mut self, node_id: u64, interaction_index: u32, var_name: &str, expression: &str) -> bool {
+        if let Some(node) = self.scene.get_node_mut(node_id) {
+            if let Some(interaction) = node.interactions.get_mut(interaction_index as usize) {
+                interaction.set_variable_name = var_name.to_string();
+                interaction.set_variable_expression = expression.to_string();
+                return true;
+            }
+        }
+        false
     }
 
     /// Get flow connections for a specific flow as JSON array.

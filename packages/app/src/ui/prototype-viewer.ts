@@ -17,6 +17,100 @@ export function createPrototypeViewer(editor: Editor): {
   let currentFrameId: number | null = null;
   let navigationStack: number[] = [];
   let transitioning = false;
+  /** Prototype variable runtime state */
+  let protoVars: Map<string, string> = new Map();
+  let varsPanel: HTMLDivElement | null = null;
+
+  /** Initialize prototype variables from engine definitions */
+  function initProtoVars() {
+    protoVars.clear();
+    try {
+      const defs: { name: string; var_type: string; default_value: string }[] =
+        JSON.parse(editor.engine.get_prototype_variables());
+      for (const v of defs) protoVars.set(v.name, v.default_value);
+    } catch {}
+  }
+
+  /** Evaluate a SetVariable expression */
+  function evalSetVariable(varName: string, expression: string) {
+    const current = protoVars.get(varName) ?? "0";
+    // Increment/decrement shorthand
+    if (/^[+-]\d+(\.\d+)?$/.test(expression)) {
+      const num = parseFloat(current) || 0;
+      protoVars.set(varName, String(num + parseFloat(expression)));
+    } else if (expression === "toggle") {
+      protoVars.set(varName, current === "true" ? "false" : "true");
+    } else {
+      // Literal value
+      protoVars.set(varName, expression);
+    }
+    renderVarsPanel();
+  }
+
+  /** Check if an interaction's condition passes */
+  function checkCondition(inter: any): boolean {
+    if (!inter.condition) return true;
+    const { variable, operator, value } = inter.condition;
+    const current = protoVars.get(variable) ?? "";
+    // Numeric comparison
+    const l = parseFloat(current);
+    const r = parseFloat(value);
+    if (!isNaN(l) && !isNaN(r)) {
+      switch (operator) {
+        case "Equal": return Math.abs(l - r) < 1e-9;
+        case "NotEqual": return Math.abs(l - r) >= 1e-9;
+        case "GreaterThan": return l > r;
+        case "LessThan": return l < r;
+        case "GreaterThanOrEqual": return l >= r;
+        case "LessThanOrEqual": return l <= r;
+      }
+    }
+    // String/boolean
+    switch (operator) {
+      case "Equal": return current === value;
+      case "NotEqual": return current !== value;
+      case "GreaterThan": return current > value;
+      case "LessThan": return current < value;
+      case "GreaterThanOrEqual": return current >= value;
+      case "LessThanOrEqual": return current <= value;
+    }
+    return true;
+  }
+
+  /** Build floating variables debug panel */
+  function buildVarsPanel() {
+    if (!overlay) return;
+    varsPanel = document.createElement("div");
+    varsPanel.style.cssText = `
+      position:absolute;bottom:12px;left:12px;
+      background:rgba(22,33,62,0.92);border:1px solid #333;
+      border-radius:8px;padding:8px 12px;z-index:2;
+      font-size:11px;color:#ccc;min-width:140px;
+      backdrop-filter:blur(8px);
+    `;
+    varsPanel.innerHTML = `<div style="font-weight:600;margin-bottom:4px;color:#818cf8;">Variables</div>`;
+    overlay.appendChild(varsPanel);
+    renderVarsPanel();
+  }
+
+  function renderVarsPanel() {
+    if (!varsPanel) return;
+    if (protoVars.size === 0) {
+      varsPanel.style.display = "none";
+      return;
+    }
+    varsPanel.style.display = "";
+    // Keep header, rebuild rows
+    const rows = varsPanel.querySelectorAll(".pv-row");
+    rows.forEach(r => r.remove());
+    for (const [name, val] of protoVars) {
+      const row = document.createElement("div");
+      row.className = "pv-row";
+      row.style.cssText = "display:flex;justify-content:space-between;gap:8px;padding:2px 0;";
+      row.innerHTML = `<span style="color:#aaa;">${name}</span><span style="color:#4ade80;font-weight:600;">${val}</span>`;
+      varsPanel.appendChild(row);
+    }
+  }
 
   function show(startFrameId?: number) {
     if (active) return;
@@ -74,12 +168,18 @@ export function createPrototypeViewer(editor: Editor): {
       currentFrameId = selIds.length > 0 ? selIds[0] : null;
     }
 
+    // Initialize prototype variables
+    initProtoVars();
+
     // Initialize event runtime for JS callbacks
     eventRuntime = new EventRuntime(editor);
     eventRuntime.setNavigateCallback((pageId: number) => {
       editor.engine.set_active_page(BigInt(pageId));
       renderCurrentView();
     });
+
+    // Build variables debug panel
+    buildVarsPanel();
 
     renderCurrentView();
     startMotionPathPlayback();
@@ -750,7 +850,17 @@ export function createPrototypeViewer(editor: Editor): {
 
   /** Execute a matched interaction */
   function executeInteraction(inter: any, sourceNodeId?: number) {
+    // Check condition first
+    if (!checkCondition(inter)) return;
+
     const targetId = Number(inter.target_node_id);
+
+    // Handle SetVariable action
+    if (inter.action === "SetVariable" && inter.set_variable_name) {
+      evalSetVariable(inter.set_variable_name, inter.set_variable_expression || "0");
+      return;
+    }
+
     if (inter.action === "NavigateTo" && targetId > 0) {
       const targetPageId = Number(inter.target_page_id);
       if (targetPageId > 0) editor.engine.set_active_page(BigInt(targetPageId));

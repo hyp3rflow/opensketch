@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use serde::{Serialize, Deserialize};
-use crate::node::{Node, NodeId, NodeKind, ConstraintH, ConstraintV, Comment, CommentReply};
+use crate::node::{Node, NodeId, NodeKind, ConstraintH, ConstraintV, Comment, CommentReply, PrototypeVariable};
 use crate::types::Point;
 use crate::variable::{VariableCollection, VariableBinding, VariableScope, CollectionId, ModeId, VariableId, VariableValue};
 use crate::token::TokenStore;
@@ -282,6 +282,9 @@ pub struct SceneData {
     pub prototype_flows: Vec<PrototypeFlow>,
     #[serde(default)]
     pub next_flow_id: u64,
+    /// Prototype variables for conditional interactions
+    #[serde(default)]
+    pub prototype_variables: Vec<PrototypeVariable>,
 }
 
 pub struct Scene {
@@ -334,6 +337,8 @@ pub struct Scene {
     // Prototype flows
     prototype_flows: Vec<PrototypeFlow>,
     next_flow_id: u64,
+    // Prototype variables for conditional interactions
+    pub prototype_variables: Vec<PrototypeVariable>,
 }
 
 impl Scene {
@@ -386,6 +391,7 @@ impl Scene {
             next_annotation_id: 1,
             prototype_flows: vec![],
             next_flow_id: 1,
+            prototype_variables: vec![],
         }
     }
 
@@ -923,6 +929,7 @@ impl Scene {
             next_annotation_id: self.next_annotation_id,
             prototype_flows: self.prototype_flows.clone(),
             next_flow_id: self.next_flow_id,
+            prototype_variables: self.prototype_variables.clone(),
         }
     }
 
@@ -1010,6 +1017,7 @@ impl Scene {
                 next_annotation_id: if data.next_annotation_id > 0 { data.next_annotation_id } else { 1 },
                 prototype_flows: data.prototype_flows.clone(),
                 next_flow_id: if data.next_flow_id > 0 { data.next_flow_id } else { 1 },
+                prototype_variables: data.prototype_variables.clone(),
             }
         } else {
             // Legacy single-page format
@@ -1074,6 +1082,7 @@ impl Scene {
                 next_annotation_id: if data.next_annotation_id > 0 { data.next_annotation_id } else { 1 },
                 prototype_flows: data.prototype_flows.clone(),
                 next_flow_id: if data.next_flow_id > 0 { data.next_flow_id } else { 1 },
+                prototype_variables: data.prototype_variables.clone(),
             }
         }
     }
@@ -1887,6 +1896,41 @@ impl Scene {
 
     pub fn get_prototype_flows(&self) -> &[PrototypeFlow] {
         &self.prototype_flows
+    }
+
+    // ── Prototype Variables ─────────────────────────────────────
+
+    pub fn add_prototype_variable(&mut self, name: &str, var_type: &str, default_value: &str) -> bool {
+        // Don't allow duplicate names
+        if self.prototype_variables.iter().any(|v| v.name == name) {
+            return false;
+        }
+        self.prototype_variables.push(PrototypeVariable {
+            name: name.to_string(),
+            var_type: var_type.to_string(),
+            default_value: default_value.to_string(),
+        });
+        true
+    }
+
+    pub fn remove_prototype_variable(&mut self, name: &str) -> bool {
+        let len = self.prototype_variables.len();
+        self.prototype_variables.retain(|v| v.name != name);
+        self.prototype_variables.len() < len
+    }
+
+    pub fn update_prototype_variable(&mut self, name: &str, var_type: &str, default_value: &str) -> bool {
+        if let Some(v) = self.prototype_variables.iter_mut().find(|v| v.name == name) {
+            v.var_type = var_type.to_string();
+            v.default_value = default_value.to_string();
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn get_prototype_variables_json(&self) -> String {
+        serde_json::to_string(&self.prototype_variables).unwrap_or_else(|_| "[]".to_string())
     }
 
     // ── Page Comparison Helpers ─────────────────────────────────────
