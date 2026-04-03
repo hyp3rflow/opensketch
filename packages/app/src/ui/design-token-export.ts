@@ -2,7 +2,7 @@
  * Design Token Export Panel
  *
  * Modal panel for exporting design tokens (color styles, text styles, variables)
- * in multiple formats: W3C DTCG, Style Dictionary, Tailwind CSS, CSS Variables.
+ * in multiple formats: W3C DTCG, Style Dictionary, Tailwind CSS, CSS Variables, SCSS.
  */
 
 import type { Editor } from '../editor';
@@ -12,6 +12,7 @@ const FORMATS = [
   { id: 'style-dictionary', label: 'Style Dictionary', ext: 'json', desc: 'Amazon Style Dictionary format' },
   { id: 'tailwind', label: 'Tailwind CSS', ext: 'js', desc: 'Tailwind theme config (module.exports)' },
   { id: 'css-variables', label: 'CSS Variables', ext: 'css', desc: 'CSS Custom Properties (:root)' },
+  { id: 'scss', label: 'SCSS Variables', ext: 'scss', desc: 'SCSS $variables for Sass projects' },
 ] as const;
 
 let panel: HTMLDivElement | null = null;
