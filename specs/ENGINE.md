@@ -265,3 +265,10 @@ Output: `packages/app/src/wasm/` (opensketch_engine.js + .wasm + .d.ts)
 - `set_repeat_grid_params(id, cols, rows, col_gap, row_gap)`: updates grid params + bounds
 - `sync_repeat_grid(id)`: recalculates bounds from master cell dimensions
 - Per-cell overrides via `overrides` HashMap (key format: "row,col:child_path:field")
+
+### Scene Diff (Version History)
+- **Module**: `scene_diff.rs` — compare two scene JSON snapshots and produce a structured change list
+- **NodeSummary**: id, name, kind, x/y/width/height, rotation, opacity, visible, fill_hex, children_count, parent_id
+- **SceneDiff**: added/removed/modified NodeChange arrays with property-level PropertyChange (property, old_value, new_value)
+- **Properties compared**: name, x, y, width, height, rotation, opacity, visible, fill color, children count, kind
+- **WASM API**: `diff_scenes(old_json, new_json) → JSON SceneDiff`

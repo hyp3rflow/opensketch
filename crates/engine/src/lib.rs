@@ -48,6 +48,7 @@ pub mod stamp;
 pub mod typo_scale;
 mod lottie_export;
 pub mod dep_graph;
+pub mod scene_diff;
 
 use wasm_bindgen::prelude::*;
 use web_sys::CanvasRenderingContext2d;
@@ -11084,6 +11085,15 @@ impl Engine {
     pub fn auto_dark_mode_selection(&mut self) -> u32 {
         self.push_undo();
         self.scene.auto_dark_mode_selection()
+    }
+
+    // ── Scene Diff (Version History) ─────────────────────────────
+
+    /// Compare two scene JSON strings and return a diff as JSON.
+    /// Returns JSON: { added: [...], removed: [...], modified: [...], total_changes, added_count, removed_count, modified_count }
+    pub fn diff_scenes(&self, old_json: &str, new_json: &str) -> String {
+        let diff = scene_diff::diff_scenes(old_json, new_json);
+        serde_json::to_string(&diff).unwrap_or_else(|_| "{}".to_string())
     }
 
     // ── Canvas Background Pattern ──────────────────────────────

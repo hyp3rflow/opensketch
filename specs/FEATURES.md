@@ -422,6 +422,11 @@
 - [x] **Clear history**: trash button to wipe all snapshots
 - [x] **Storage management**: auto-trims old entries on localStorage quota errors
 - [x] **Change detection**: simple hash to skip redundant saves
+- [x] **Scene diff engine**: Rust `scene_diff.rs` — compare two scene JSON snapshots, detect added/removed/modified nodes with property-level diff (name, position, size, rotation, opacity, visibility, fill, children, kind)
+- [x] **Diff visualization**: modal UI showing color-coded changes (green=added, red=removed, yellow=modified) with property-level before→after values
+- [x] **Version comparison**: compare any two versions side-by-side via ⇔ button, select versions from dropdowns
+- [x] **Auto-save labeling**: enriched labels showing currently-edited node name ("Auto · editing 'Button'"), node/page count metadata per version
+- [x] **Relative timestamps**: "Just now", "5m ago", "2h ago" alongside absolute timestamps
 - [x] **IndexedDB storage**: migrated from localStorage to IndexedDB (OfflineStore class, idb-keyval pattern, no external deps)
 - [x] **localStorage migration**: auto-migrates existing data to IndexedDB on first run
 - [x] **Service Worker**: cache-first strategy for static assets (HTML/JS/CSS/WASM), network-first for navigation, version-based cache invalidation
