@@ -153,14 +153,157 @@ function openSpotlight() {
   }
   renderFilters();
 
+  // --- Quick Create command parsing ---
+  // Patterns: "create rect 200x100", "create ellipse 50x50", "create text Hello World",
+  //           "create frame 400x300", "create star", "create polygon"
+  // Optional position: "create rect 200x100 at 50,100"
+  const CREATE_RE = /^create\s+(rect|ellipse|frame|text|star|polygon|section|image)\s*(.*)/i;
+  const SIZE_RE = /^(\d+)\s*[x×]\s*(\d+)/;
+  const AT_RE = /at\s+(-?\d+)\s*[,\s]\s*(-?\d+)/i;
+
+  interface QuickCreateCmd {
+    kind: string;
+    width: number;
+    height: number;
+    x: number;
+    y: number;
+    textContent?: string;
+  }
+
+  function parseCreateCmd(q: string): QuickCreateCmd | null {
+    const m = CREATE_RE.exec(q);
+    if (!m) return null;
+    const kind = m[1].toLowerCase();
+    const rest = m[2].trim();
+    let width = 100, height = 100;
+    let x = 0, y = 0;
+    let textContent: string | undefined;
+
+    // For text nodes, check if there's quoted or unquoted text content
+    if (kind === 'text') {
+      const quotedMatch = rest.match(/^["'](.+?)["']\s*(.*)/);
+      if (quotedMatch) {
+        textContent = quotedMatch[1];
+        const afterText = quotedMatch[2];
+        const sizeM = SIZE_RE.exec(afterText);
+        if (sizeM) { width = parseInt(sizeM[1]); height = parseInt(sizeM[2]); }
+        else { width = 200; height = 40; }
+        const atM = AT_RE.exec(afterText);
+        if (atM) { x = parseInt(atM[1]); y = parseInt(atM[2]); }
+      } else {
+        // No quotes — treat everything before "at" or size as text
+        const atM = AT_RE.exec(rest);
+        const sizeM = SIZE_RE.exec(rest);
+        let textEnd = rest.length;
+        if (atM && atM.index !== undefined) textEnd = Math.min(textEnd, atM.index);
+        if (sizeM && sizeM.index !== undefined) textEnd = Math.min(textEnd, sizeM.index);
+        textContent = rest.slice(0, textEnd).trim() || 'Text';
+        if (sizeM) { width = parseInt(sizeM[1]); height = parseInt(sizeM[2]); }
+        else { width = 200; height = 40; }
+        if (atM) { x = parseInt(atM[1]); y = parseInt(atM[2]); }
+      }
+    } else {
+      const sizeM = SIZE_RE.exec(rest);
+      if (sizeM) { width = parseInt(sizeM[1]); height = parseInt(sizeM[2]); }
+      const atM = AT_RE.exec(rest);
+      if (atM) { x = parseInt(atM[1]); y = parseInt(atM[2]); }
+    }
+
+    // Default position: center of viewport
+    if (!AT_RE.test(q) && editorRef) {
+      const canvas = editorRef.canvas;
+      const zoom = editorRef.zoom;
+      const panX = editorRef.panX;
+      const panY = editorRef.panY;
+      const cw = canvas.width / (window.devicePixelRatio || 1);
+      const ch = canvas.height / (window.devicePixelRatio || 1);
+      x = Math.round((cw / 2 - panX) / zoom - width / 2);
+      y = Math.round((ch / 2 - panY) / zoom - height / 2);
+    }
+
+    return { kind, width, height, x, y, textContent };
+  }
+
+  function executeCreateCmd(cmd: QuickCreateCmd): boolean {
+    if (!editorRef) return false;
+    const e = editorRef.engine;
+    let nodeId: bigint | number = 0;
+    try {
+      switch (cmd.kind) {
+        case 'rect':
+          nodeId = e.add_rect(cmd.x, cmd.y, cmd.width, cmd.height);
+          break;
+        case 'ellipse':
+          nodeId = e.add_ellipse(cmd.x, cmd.y, cmd.width, cmd.height);
+          break;
+        case 'frame':
+          nodeId = e.add_frame(cmd.x, cmd.y, cmd.width, cmd.height);
+          break;
+        case 'text':
+          nodeId = e.add_text(cmd.textContent || 'Text', cmd.x, cmd.y);
+          break;
+        case 'star':
+          nodeId = e.add_star(cmd.x, cmd.y, cmd.width, cmd.height, 5, 0.38);
+          break;
+        case 'polygon':
+          nodeId = e.add_polygon(cmd.x, cmd.y, cmd.width, cmd.height, 6);
+          break;
+        case 'section':
+          nodeId = e.add_section(cmd.x, cmd.y, cmd.width, cmd.height);
+          break;
+        case 'image':
+          nodeId = e.add_image('', cmd.x, cmd.y, cmd.width, cmd.height);
+          break;
+        default:
+          return false;
+      }
+      const nid = Number(nodeId);
+      if (nid > 0) {
+        e.select(BigInt(nid));
+        editorRef.notifySelectionChanged([nid]);
+        editorRef.requestRender();
+      }
+      return nid > 0;
+    } catch {
+      return false;
+    }
+  }
+
   function doSearch() {
     const q = input.value.trim();
     if (!q || !editorRef) {
-      results.innerHTML = '<div style="padding:24px;text-align:center;color:#666">Type to search…</div>';
+      results.innerHTML = '<div style="padding:24px;text-align:center;color:#666">Type to search… or <span style="color:#818cf8">create rect 200x100</span></div>';
       items = [];
       selectedIdx = 0;
       return;
     }
+
+    // Check for quick create command
+    const createCmd = parseCreateCmd(q);
+    if (createCmd) {
+      items = [];
+      selectedIdx = 0;
+      const preview = `${createCmd.kind} ${createCmd.width}×${createCmd.height} at (${createCmd.x}, ${createCmd.y})${createCmd.textContent ? ` — "${createCmd.textContent}"` : ''}`;
+      results.innerHTML = `
+        <div class="spotlight-item spotlight-create-item" data-action="create" style="padding:12px 16px;cursor:pointer;background:#1a2744;border-left:3px solid #818cf8;margin:8px 12px;border-radius:6px;">
+          <div style="display:flex;align-items:center;gap:8px">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <span style="color:#818cf8;font-weight:600;font-size:13px">Quick Create</span>
+          </div>
+          <div style="color:#aaa;font-size:12px;margin-top:4px">${escapeHtml(preview)}</div>
+          <div style="color:#666;font-size:11px;margin-top:2px">Press Enter to create</div>
+        </div>
+      `;
+      const createEl = results.querySelector('.spotlight-create-item');
+      createEl?.addEventListener('click', () => {
+        executeCreateCmd(createCmd);
+        closeSpotlight();
+      });
+      // Override Enter to execute create
+      (input as any).__createCmd = createCmd;
+      return;
+    }
+    (input as any).__createCmd = null;
 
     const allItems: SpotlightItem[] = [];
     const ql = q.toLowerCase();
@@ -358,7 +501,13 @@ function openSpotlight() {
       }
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      if (items.length > 0) selectItem(selectedIdx);
+      const cmd = (input as any).__createCmd as QuickCreateCmd | null;
+      if (cmd) {
+        executeCreateCmd(cmd);
+        closeSpotlight();
+      } else if (items.length > 0) {
+        selectItem(selectedIdx);
+      }
     } else if (e.key === 'Tab') {
       e.preventDefault();
       // Cycle filter
