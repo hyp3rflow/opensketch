@@ -2270,6 +2270,7 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] **Renderer toggle advanced control**: renderer button right-click toggles auto-render mode (persisted `localStorage['opensketch-auto-renderer']`)
 - [x] **WebGPU shadow pre-pass (Stage 5, approximation)**: visible outer shadows are emitted as additional GPU instances (offset + spread/blur-derived pad) before main shape draw for large-scene effect parity
 - [x] **Robust color decode for WebGPU path**: parser now accepts CSS rgb/rgba + hex + serialized `{r,g,b,a}` objects used by Rust scene JSON, improving fill/shadow color fidelity
+- [x] **Soft shadow edge pass (Stage 6)**: per-instance blur radius (`blurPx`) drives feathered alpha mask in WGSL fragment stage, reducing hard-edge artifacts for WebGPU shadow quads
 
 ### Minimap UX Enhancements (2026-04-04)
 - [x] **Minimap status info bar**: shows `Active Page · Zoom% · Pan(x/y)` directly under header

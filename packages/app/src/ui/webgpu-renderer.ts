@@ -10,6 +10,7 @@ type InstanceData = {
   textureMix: number;
   shapeKind: number; // 0 rect, 1 ellipse
   cornerRadius: number;
+  blurPx: number;
 };
 
 type SceneNode = {
@@ -189,7 +190,7 @@ export class WebGPURenderer {
 
     const GPUUsage = (globalThis as any).GPUBufferUsage;
     this._uniformBuffer = this._device.createBuffer({ size: 32, usage: GPUUsage.UNIFORM | GPUUsage.COPY_DST });
-    this._instanceBuffer = this._device.createBuffer({ size: 4 * 15 * 1024, usage: GPUUsage.VERTEX | GPUUsage.COPY_DST });
+    this._instanceBuffer = this._device.createBuffer({ size: 4 * 16 * 1024, usage: GPUUsage.VERTEX | GPUUsage.COPY_DST });
     this._instanceCapacity = 1024;
 
     this._atlasTexture = this._device.createTexture({
@@ -225,6 +226,7 @@ struct VSIn {
   @location(4) textureMix: f32,
   @location(5) shapeKind: f32,
   @location(6) cornerRadius: f32,
+  @location(7) blurPx: f32,
 }
 
 struct VSOut {
@@ -236,6 +238,7 @@ struct VSOut {
   @location(4) size: vec2f,
   @location(5) shapeKind: f32,
   @location(6) cornerRadius: f32,
+  @location(7) blurPx: f32,
 }
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
@@ -273,18 +276,21 @@ fn vs_main(input: VSIn, @builtin(vertex_index) vertexIndex: u32) -> VSOut {
   out.size = input.size;
   out.shapeKind = input.shapeKind;
   out.cornerRadius = input.cornerRadius;
+  out.blurPx = input.blurPx;
   return out;
 }
 
 @fragment
 fn fs_main(input: VSOut) -> @location(0) vec4f {
+  var maskAlpha = 1.0;
+  let feather = max(0.5, input.blurPx);
+
   if (input.shapeKind > 0.5) {
     let center = input.size * 0.5;
     let radius = max(vec2f(1e-5), center);
     let p = (input.local - center) / radius;
-    if (dot(p, p) > 1.0) {
-      discard;
-    }
+    let dist = length(p) - 1.0;
+    maskAlpha = 1.0 - smoothstep(0.0, feather / max(min(input.size.x, input.size.y), 1.0), dist);
   } else {
     let minSide = min(input.size.x, input.size.y);
     let radius = clamp(input.cornerRadius, 0.0, minSide * 0.5);
@@ -292,14 +298,16 @@ fn fs_main(input: VSOut) -> @location(0) vec4f {
       let innerMin = vec2f(radius);
       let innerMax = input.size - vec2f(radius);
       let q = max(max(innerMin - input.local, vec2f(0.0)), input.local - innerMax);
-      if (dot(q, q) > radius * radius) {
-        discard;
-      }
+      let outside = length(q) - radius;
+      maskAlpha = 1.0 - smoothstep(0.0, feather, outside);
     }
   }
 
+  if (maskAlpha <= 0.001) { discard; }
+
   let texColor = textureSample(atlasTexture, atlasSampler, input.uv);
-  return mix(input.color, texColor * input.color.a, clamp(input.textureMix, 0.0, 1.0));
+  let baseColor = mix(input.color, texColor * input.color.a, clamp(input.textureMix, 0.0, 1.0));
+  return vec4f(baseColor.rgb, baseColor.a * maskAlpha);
 }`,
     });
 
@@ -309,7 +317,7 @@ fn fs_main(input: VSOut) -> @location(0) vec4f {
         module: shader,
         entryPoint: "vs_main",
         buffers: [{
-          arrayStride: 60,
+          arrayStride: 64,
           stepMode: "instance",
           attributes: [
             { shaderLocation: 0, offset: 0, format: "float32x2" },
@@ -319,6 +327,7 @@ fn fs_main(input: VSOut) -> @location(0) vec4f {
             { shaderLocation: 4, offset: 48, format: "float32" },
             { shaderLocation: 5, offset: 52, format: "float32" },
             { shaderLocation: 6, offset: 56, format: "float32" },
+            { shaderLocation: 7, offset: 60, format: "float32" },
           ],
         }],
       },
@@ -494,6 +503,7 @@ fn fs_main(input: VSOut) -> @location(0) vec4f {
             textureMix: 0,
             shapeKind,
             cornerRadius: cornerRadius + pad,
+            blurPx: Math.max(1, blur * 0.75),
           });
         }
 
@@ -508,6 +518,7 @@ fn fs_main(input: VSOut) -> @location(0) vec4f {
           textureMix: source ? 1 : 0,
           shapeKind,
           cornerRadius,
+          blurPx: 0,
         });
       }
 
@@ -565,7 +576,7 @@ fn fs_main(input: VSOut) -> @location(0) vec4f {
       this._instanceBuffer.destroy();
       const GPUUsage = (globalThis as any).GPUBufferUsage;
       this._instanceBuffer = this._device.createBuffer({
-        size: this._instanceCapacity * 60,
+        size: this._instanceCapacity * 64,
         usage: GPUUsage.VERTEX | GPUUsage.COPY_DST,
       });
       this._lastUploadedKey = "";
@@ -573,12 +584,12 @@ fn fs_main(input: VSOut) -> @location(0) vec4f {
 
     const instanceUploadKey = `${this._cachedSceneJson.length}:${viewKey}:${count}:${this._atlasEntries.size}`;
     if (sceneOrViewChanged || this._lastUploadedKey !== instanceUploadKey) {
-      const needed = count * 15;
+      const needed = count * 16;
       if (this._instanceRaw.length < needed) {
         this._instanceRaw = new Float32Array(Math.ceil(needed * 1.25));
       }
       for (let i = 0; i < count; i++) {
-        const base = i * 15;
+        const base = i * 16;
         const it = instances[i];
         this._instanceRaw[base] = it.x;
         this._instanceRaw[base + 1] = it.y;
@@ -595,9 +606,10 @@ fn fs_main(input: VSOut) -> @location(0) vec4f {
         this._instanceRaw[base + 12] = it.textureMix;
         this._instanceRaw[base + 13] = it.shapeKind;
         this._instanceRaw[base + 14] = it.cornerRadius;
+        this._instanceRaw[base + 15] = it.blurPx;
       }
 
-      this._device.queue.writeBuffer(this._instanceBuffer, 0, this._instanceRaw.buffer, 0, count * 15 * 4);
+      this._device.queue.writeBuffer(this._instanceBuffer, 0, this._instanceRaw.buffer, 0, count * 16 * 4);
       this._lastUploadedKey = instanceUploadKey;
     }
 
