@@ -993,6 +993,28 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
                 buf.push('\n');
             }
         }
+        NodeKind::Video { ref src, .. } => {
+            // Placeholder rect with play icon
+            let x = node.x;
+            let y = node.y;
+            let w = node.width;
+            let h = node.height;
+            let r = node.corner_radius.min(w / 2.0).min(h / 2.0);
+            buf.push_str(&format!(
+                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"{}\" fill=\"#1e1e1e\" stroke=\"#555\" stroke-width=\"1\"/>",
+                x, y, w, h, r
+            ));
+            buf.push('\n');
+            // Play triangle
+            let cx = x + w / 2.0;
+            let cy = y + h / 2.0;
+            let tr = (w.min(h) * 0.1).min(20.0);
+            buf.push_str(&format!(
+                r#"<polygon points="{},{} {},{} {},{}" fill="rgba(255,255,255,0.5)"/>"#,
+                cx - tr * 0.5, cy - tr * 0.7, cx + tr, cy, cx - tr * 0.5, cy + tr * 0.7
+            ));
+            buf.push('\n');
+        }
         NodeKind::RepeatGrid { columns, rows, column_gap, row_gap, .. } => {
             // Export each cell as a separate group
             if let Some(master_id) = node.children.first() {

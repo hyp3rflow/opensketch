@@ -242,6 +242,7 @@ fn kind_str(kind: &NodeKind) -> String {
         NodeKind::Chart { .. } => "Chart".into(),
         NodeKind::RepeatGrid { .. } => "RepeatGrid".into(),
         NodeKind::Callout { .. } => "Callout".into(),
+        NodeKind::Video { .. } => "Video".into(),
     }
 }
 

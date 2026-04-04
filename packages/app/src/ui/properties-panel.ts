@@ -5616,6 +5616,75 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       container.appendChild(imgSection);
     }
 
+    // --- Video-specific ---
+    if (typeof node.kind === "object" && node.kind.Video) {
+      const vidSection = createSection("Video");
+      const vidData = node.kind.Video;
+
+      // Source URL
+      const srcRow = document.createElement("div");
+      srcRow.style.cssText = "display:flex;align-items:center;gap:6px;margin-bottom:6px;";
+      const srcLabel = document.createElement("span");
+      srcLabel.style.cssText = "font-size:11px;color:#999;min-width:40px;";
+      srcLabel.textContent = "Src";
+      const srcInput = document.createElement("input");
+      srcInput.type = "text";
+      srcInput.className = "prop-input";
+      srcInput.placeholder = "Video URL (mp4, webm, YouTube…)";
+      srcInput.value = vidData.src || "";
+      srcInput.addEventListener("change", () => {
+        editor.engine.set_video_src(id, srcInput.value);
+        editor.requestRender();
+      });
+      srcRow.appendChild(srcLabel);
+      srcRow.appendChild(srcInput);
+      vidSection.appendChild(srcRow);
+
+      // Poster URL
+      const posterRow = document.createElement("div");
+      posterRow.style.cssText = "display:flex;align-items:center;gap:6px;margin-bottom:6px;";
+      const posterLabel = document.createElement("span");
+      posterLabel.style.cssText = "font-size:11px;color:#999;min-width:40px;";
+      posterLabel.textContent = "Poster";
+      const posterInput = document.createElement("input");
+      posterInput.type = "text";
+      posterInput.className = "prop-input";
+      posterInput.placeholder = "Poster/thumbnail image URL";
+      posterInput.value = vidData.poster || "";
+      posterInput.addEventListener("change", () => {
+        editor.engine.set_video_poster(id, posterInput.value);
+        editor.requestRender();
+      });
+      posterRow.appendChild(posterLabel);
+      posterRow.appendChild(posterInput);
+      vidSection.appendChild(posterRow);
+
+      // Checkboxes: autoplay, loop, muted
+      const checkRow = document.createElement("div");
+      checkRow.style.cssText = "display:flex;gap:12px;margin-bottom:6px;flex-wrap:wrap;";
+      for (const [label, getter, setter] of [
+        ["Autoplay", "get_video_autoplay", "set_video_autoplay"],
+        ["Loop", "get_video_loop", "set_video_loop"],
+        ["Muted", "get_video_muted", "set_video_muted"],
+      ] as const) {
+        const wrap = document.createElement("label");
+        wrap.style.cssText = "display:flex;align-items:center;gap:4px;font-size:11px;color:#ccc;cursor:pointer;";
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.checked = (editor.engine as any)[getter](id);
+        cb.addEventListener("change", () => {
+          (editor.engine as any)[setter](id, cb.checked);
+          editor.requestRender();
+        });
+        wrap.appendChild(cb);
+        wrap.appendChild(document.createTextNode(label));
+        checkRow.appendChild(wrap);
+      }
+      vidSection.appendChild(checkRow);
+
+      container.appendChild(vidSection);
+    }
+
     // === Path Section ===
     if (typeof node.kind === "object" && node.kind.Path) {
       const pathSection = createSection("Path");
@@ -7870,6 +7939,7 @@ function getKindLabel(kind: unknown): string {
     if ("Star" in kind) return "Star";
     if ("Polygon" in kind) return "Polygon";
     if ("Table" in kind) return "Table";
+    if ("Video" in kind) return "Video";
   }
   return "Unknown";
 }

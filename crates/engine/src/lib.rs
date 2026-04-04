@@ -50,6 +50,7 @@ pub mod typo_scale;
 mod lottie_export;
 pub mod dep_graph;
 pub mod scene_diff;
+pub mod ink;
 
 use wasm_bindgen::prelude::*;
 use web_sys::CanvasRenderingContext2d;
@@ -888,6 +889,98 @@ impl Engine {
             }
         }
         0
+    }
+
+    // =============================================
+    // Ink Recognition (Freehand Drawing)
+    // =============================================
+
+    /// Recognize shape from ink points JSON. Returns JSON with shape type and confidence.
+    pub fn ink_recognize(&self, points_json: &str) -> String {
+        let points: Vec<ink::InkPoint> = match serde_json::from_str(points_json) {
+            Ok(p) => p,
+            Err(_) => return r#"{"shape":"freehand","confidence":0}"#.to_string(),
+        };
+        let result = ink::recognize_shape(&points);
+        serde_json::to_string(&result).unwrap_or_else(|_| r#"{"shape":"freehand","confidence":0}"#.to_string())
+    }
+
+    /// Convert ink points to a smoothed Path node. Returns node id.
+    pub fn ink_to_path(&mut self, points_json: &str, simplify_tolerance: f64) -> u64 {
+        let points: Vec<ink::InkPoint> = match serde_json::from_str(points_json) {
+            Ok(p) => p,
+            Err(_) => return 0,
+        };
+        if points.len() < 2 { return 0; }
+        let path_points = ink::ink_to_path_points(&points, simplify_tolerance);
+        if path_points.is_empty() { return 0; }
+
+        let mut node = Node::new(0, NodeKind::Path { points: path_points, closed: false });
+        node.name = format!("Freehand {}", self.scene.node_count() + 1);
+        node.fills = vec![];
+        node.strokes = vec![Stroke::new(crate::types::Color::white(), 2.0)];
+        let id = self.scene.add_node(node);
+        if let Some(n) = self.scene.get_node_mut(id) {
+            recalc_path_bounds(n);
+        }
+        id
+    }
+
+    /// Recognize shape from ink points and create appropriate node (Rect/Ellipse/Path).
+    /// Returns node id.
+    pub fn ink_to_shape(&mut self, points_json: &str) -> u64 {
+        let points: Vec<ink::InkPoint> = match serde_json::from_str(points_json) {
+            Ok(p) => p,
+            Err(_) => return 0,
+        };
+        if points.len() < 2 { return 0; }
+        let recognition = ink::recognize_shape(&points);
+        let (bx, by, bw, bh) = recognition.bounds;
+
+        match recognition.shape.as_str() {
+            "circle" if recognition.confidence > 0.7 => {
+                self.add_ellipse(bx, by, bw, bh)
+            }
+            "rect" if recognition.confidence > 0.7 => {
+                self.add_rect(bx, by, bw, bh)
+            }
+            "triangle" if recognition.confidence > 0.7 => {
+                if let Some(verts) = &recognition.vertices {
+                    let path_points: Vec<PathPoint> = verts.iter()
+                        .map(|(x, y)| PathPoint::corner(*x, *y))
+                        .collect();
+                    let mut node = Node::new(0, NodeKind::Path { points: path_points, closed: true });
+                    node.name = format!("Triangle {}", self.scene.node_count() + 1);
+                    node.fills = vec![Fill::solid(crate::types::Color { r: 200, g: 200, b: 200, a: 1.0, color_space: crate::types::ColorSpace::default() })];
+                    node.strokes = vec![Stroke::new(crate::types::Color::white(), 2.0)];
+                    let id = self.scene.add_node(node);
+                    if let Some(n) = self.scene.get_node_mut(id) { recalc_path_bounds(n); }
+                    id
+                } else {
+                    self.ink_to_path(points_json, 2.0)
+                }
+            }
+            "line" if recognition.confidence > 0.7 => {
+                if let Some(verts) = &recognition.vertices {
+                    let path_points: Vec<PathPoint> = verts.iter()
+                        .map(|(x, y)| PathPoint::corner(*x, *y))
+                        .collect();
+                    let mut node = Node::new(0, NodeKind::Path { points: path_points, closed: false });
+                    node.name = format!("Line {}", self.scene.node_count() + 1);
+                    node.fills = vec![];
+                    node.strokes = vec![Stroke::new(crate::types::Color::white(), 2.0)];
+                    let id = self.scene.add_node(node);
+                    if let Some(n) = self.scene.get_node_mut(id) { recalc_path_bounds(n); }
+                    id
+                } else {
+                    self.ink_to_path(points_json, 2.0)
+                }
+            }
+            _ => {
+                // Fallback to smoothed freehand path
+                self.ink_to_path(points_json, 2.0)
+            }
+        }
     }
 
     // =============================================
@@ -1765,6 +1858,108 @@ impl Engine {
                     "tail_y": tail_y,
                     "tail_width": tail_width,
                     "theme": theme,
+                }).to_string();
+            }
+        }
+        "null".to_string()
+    }
+
+    // =============================================
+    // Video API
+    // =============================================
+
+    pub fn add_video(&mut self, x: f64, y: f64, w: f64, h: f64, src: &str) -> u64 {
+        let mut node = Node::new(0, NodeKind::Video {
+            src: src.to_string(),
+            autoplay: false,
+            loop_video: false,
+            muted: true,
+            poster: None,
+        });
+        node.x = x; node.y = y; node.width = w; node.height = h;
+        node.name = format!("Video {}", self.scene.node_count() + 1);
+        node.fills = vec![];
+        self.scene.add_node(node)
+    }
+
+    pub fn set_video_src(&mut self, id: u64, src: &str) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Video { src: ref mut s, .. } = node.kind { *s = src.to_string(); }
+        }
+    }
+
+    pub fn get_video_src(&self, id: u64) -> String {
+        if let Some(node) = self.scene.get_node(id) {
+            if let NodeKind::Video { ref src, .. } = node.kind { return src.clone(); }
+        }
+        String::new()
+    }
+
+    pub fn set_video_autoplay(&mut self, id: u64, autoplay: bool) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Video { autoplay: ref mut a, .. } = node.kind { *a = autoplay; }
+        }
+    }
+
+    pub fn get_video_autoplay(&self, id: u64) -> bool {
+        if let Some(node) = self.scene.get_node(id) {
+            if let NodeKind::Video { autoplay, .. } = node.kind { return autoplay; }
+        }
+        false
+    }
+
+    pub fn set_video_loop(&mut self, id: u64, loop_video: bool) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Video { loop_video: ref mut l, .. } = node.kind { *l = loop_video; }
+        }
+    }
+
+    pub fn get_video_loop(&self, id: u64) -> bool {
+        if let Some(node) = self.scene.get_node(id) {
+            if let NodeKind::Video { loop_video, .. } = node.kind { return loop_video; }
+        }
+        false
+    }
+
+    pub fn set_video_muted(&mut self, id: u64, muted: bool) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Video { muted: ref mut m, .. } = node.kind { *m = muted; }
+        }
+    }
+
+    pub fn get_video_muted(&self, id: u64) -> bool {
+        if let Some(node) = self.scene.get_node(id) {
+            if let NodeKind::Video { muted, .. } = node.kind { return muted; }
+        }
+        true
+    }
+
+    pub fn set_video_poster(&mut self, id: u64, poster: &str) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Video { poster: ref mut p, .. } = node.kind {
+                *p = if poster.is_empty() { None } else { Some(poster.to_string()) };
+            }
+        }
+    }
+
+    pub fn get_video_poster(&self, id: u64) -> String {
+        if let Some(node) = self.scene.get_node(id) {
+            if let NodeKind::Video { ref poster, .. } = node.kind {
+                return poster.clone().unwrap_or_default();
+            }
+        }
+        String::new()
+    }
+
+    pub fn get_video_info(&self, id: u64) -> String {
+        if let Some(node) = self.scene.get_node(id) {
+            if let NodeKind::Video { ref src, autoplay, loop_video, muted, ref poster } = node.kind {
+                return serde_json::json!({
+                    "src": src,
+                    "autoplay": autoplay,
+                    "loop_video": loop_video,
+                    "muted": muted,
+                    "poster": poster,
                 }).to_string();
             }
         }
@@ -8700,6 +8895,7 @@ impl Engine {
                 NodeKind::Table { .. } => "Table",
                 NodeKind::RepeatGrid { .. } => "RepeatGrid",
                 NodeKind::Callout { .. } => "Callout",
+                NodeKind::Video { .. } => "Video",
                 NodeKind::Chart { .. } => "Chart",
             }.to_string();
             *kind_counts.entry(kind_str).or_insert(0) += 1;

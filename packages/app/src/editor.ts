@@ -58,7 +58,7 @@ import { showImageDropChoice, processAILayout } from "./ui/ai-layout";
 import { toggleColorBlindnessPanel, closeCBPanel, setColorBlindnessMode } from "./ui/color-blindness";
 import { toggleFocusMode } from "./ui/focus-mode";
 
-export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "section" | "image" | "pen" | "star" | "polygon" | "slice" | "connector" | "callout" | "sticky" | "table" | "chart" | "freehand" | "measure" | "annotate" | "eyedropper" | "scale";
+export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "section" | "image" | "video" | "pen" | "star" | "polygon" | "slice" | "connector" | "callout" | "sticky" | "table" | "chart" | "freehand" | "measure" | "annotate" | "eyedropper" | "scale";
 
 /** Snap threshold in screen pixels */
 const SNAP_THRESHOLD_PX = 5;
@@ -151,8 +151,9 @@ export class Editor {
 
   // Freehand drawing state
   private _freehandPathId: number | null = null;
-  private _freehandPoints: { x: number; y: number }[] = [];
+  private _freehandPoints: { x: number; y: number; pressure?: number; timestamp?: number }[] = [];
   private _freehandDrawing = false;
+  private _inkShapeRecognition = true;
   private _pathEditHandleOffsets: { hix: number; hiy: number; hox: number; hoy: number } | null = null;
 
   // Vector Network edit mode state
@@ -1028,6 +1029,7 @@ export class Editor {
       else if (_sm.matches(e, "tool.text")) this.setTool("text");
       else if (_sm.matches(e, "tool.frame")) this.setTool("frame");
       else if (_sm.matches(e, "tool.image")) this.setTool("image");
+      else if (e.key === "V" && e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) { this.setTool("video"); return; }
       else if (_sm.matches(e, "tool.pen")) this.setTool("pen");
       else if (_sm.matches(e, "tool.star")) this.setTool("star");
       else if (_sm.matches(e, "tool.polygon")) this.setTool("polygon");
@@ -1607,7 +1609,8 @@ export class Editor {
       const pathId = Number(this.engine.add_path(sx, sy));
       this.engine.path_add_point(pathId, sx, sy);
       this._freehandPathId = pathId;
-      this._freehandPoints = [{ x: sx, y: sy }];
+      const pressure = e.pressure > 0 ? e.pressure : 0.5;
+      this._freehandPoints = [{ x: sx, y: sy, pressure, timestamp: performance.now() }];
       this._freehandDrawing = true;
       // Set stroke for freehand drawing
       this.engine.set_stroke(pathId, 255, 255, 255, 1.0, 2.0);
@@ -1650,7 +1653,7 @@ export class Editor {
       return;
     }
 
-    if (["rect", "ellipse", "text", "frame", "section", "image", "slice"].includes(this.currentTool)) {
+    if (["rect", "ellipse", "text", "frame", "section", "image", "video", "slice"].includes(this.currentTool)) {
       const sx = this.engine.screen_to_scene_x(x, y);
       const sy = this.engine.screen_to_scene_y(x, y);
       this.drag = { startX: sx, startY: sy, currentX: sx, currentY: sy };
@@ -1982,7 +1985,8 @@ export class Editor {
       const dist = Math.hypot(sx - last.x, sy - last.y);
       // Only add points with minimum distance (prevents too many points)
       if (dist > 2) {
-        this._freehandPoints.push({ x: sx, y: sy });
+        const pressure = e.pressure > 0 ? e.pressure : 0.5;
+        this._freehandPoints.push({ x: sx, y: sy, pressure, timestamp: performance.now() });
         this.engine.path_add_point(this._freehandPathId, sx, sy);
         this.needsRender = true;
       }
@@ -2276,7 +2280,7 @@ export class Editor {
       return;
     }
 
-    if (["rect", "ellipse", "text", "frame", "section", "image", "slice"].includes(this.currentTool)) {
+    if (["rect", "ellipse", "text", "frame", "section", "image", "video", "slice"].includes(this.currentTool)) {
       this.drag.currentX = this.engine.screen_to_scene_x(x, y);
       this.drag.currentY = this.engine.screen_to_scene_y(x, y);
       this.needsRender = true;
@@ -2368,18 +2372,45 @@ export class Editor {
       return;
     }
 
-    // Freehand: finish drawing
+    // Freehand: finish drawing with ink recognition
     if (this._freehandDrawing && this._freehandPathId != null) {
       const pts = this._freehandPoints;
+      // Remove the temporary raw path
+      this.engine.remove_node(this._freehandPathId);
+
       if (pts.length < 2) {
-        // Too short, remove the path
-        this.engine.remove_node(this._freehandPathId);
+        // Too short, nothing to create
       } else {
-        // Smooth the path by converting raw points to bezier curves
-        this._smoothFreehandPath(this._freehandPathId, pts);
-        this.engine.select(this._freehandPathId);
-        this.fireSelectionNow([this._freehandPathId]);
-        this.onLayersChanges.forEach(fn => fn());
+        const inkPoints = pts.map(p => ({
+          x: p.x, y: p.y,
+          pressure: p.pressure ?? 0.5,
+          timestamp: p.timestamp ?? 0,
+        }));
+        const pointsJson = JSON.stringify(inkPoints);
+        let newId: number;
+
+        if (this._inkShapeRecognition) {
+          // Try shape recognition first
+          try {
+            const recognitionJson = this.engine.ink_recognize(pointsJson);
+            const recognition = JSON.parse(recognitionJson);
+            if (recognition.confidence > 0.7 && recognition.shape !== "freehand") {
+              newId = Number(this.engine.ink_to_shape(pointsJson));
+            } else {
+              newId = Number(this.engine.ink_to_path(pointsJson, 2.0));
+            }
+          } catch {
+            newId = Number(this.engine.ink_to_path(pointsJson, 2.0));
+          }
+        } else {
+          newId = Number(this.engine.ink_to_path(pointsJson, 2.0));
+        }
+
+        if (newId && newId > 0) {
+          this.engine.select(newId);
+          this.fireSelectionNow([newId]);
+          this.onLayersChanges.forEach(fn => fn());
+        }
       }
       this._freehandPathId = null;
       this._freehandPoints = [];
@@ -2472,6 +2503,7 @@ export class Editor {
           case "section": id = this.engine.add_section("", x, y, w, h); break;
           case "text": id = this.engine.add_text(x, y, "Text", 16); break;
           case "image": id = this.engine.add_image(x, y, w, h, ""); this.promptImageSrc(id); break;
+          case "video": id = this.engine.add_video(x, y, Math.max(w, 320), Math.max(h, 180), ""); break;
           case "star": id = this.engine.add_star(x, y, w, h, 5, 0.4); break;
           case "polygon": id = this.engine.add_polygon(x, y, w, h, 6); break;
           case "slice": id = this.engine.add_slice("", x, y, w, h); break;
@@ -4837,6 +4869,31 @@ export class Editor {
       if (!nj) continue;
       const node = JSON.parse(nj);
       const kind = node.kind;
+
+      // Video poster rendering
+      if (typeof kind === "object" && kind.Video) {
+        const posterSrc = kind.Video.poster;
+        if (posterSrc) {
+          const img = this._imageCache.get(posterSrc);
+          if (!img) { this.loadImageForNode(posterSrc); continue; }
+          const vx = node.x * zoom + panX;
+          const vy = node.y * zoom + panY;
+          const vw = node.width * zoom;
+          const vh = node.height * zoom;
+          this.ctx.save();
+          this.ctx.globalAlpha = node.opacity ?? 1;
+          if (node.corner_radius > 0) {
+            const r = node.corner_radius * zoom;
+            this.ctx.beginPath();
+            this.ctx.roundRect(vx, vy, vw, vh, r);
+            this.ctx.clip();
+          }
+          this.ctx.drawImage(img, vx, vy, vw, vh);
+          this.ctx.restore();
+        }
+        continue;
+      }
+
       if (typeof kind !== "object" || !kind.Image) continue;
 
       const src = kind.Image.src;

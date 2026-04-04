@@ -114,6 +114,14 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
     imgBtn.addEventListener("click", () => addImageFromFile(editor));
     container.appendChild(imgBtn);
 
+    // Video button
+    const vidBtn = document.createElement("button");
+    vidBtn.className = "tool-btn";
+    vidBtn.title = "Add Video (Shift+V)";
+    vidBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><polygon points="10 8 16 12 10 16"/></svg>`;
+    vidBtn.addEventListener("click", () => editor.setTool("video"));
+    container.appendChild(vidBtn);
+
     // SVG Import button
     const svgBtn = document.createElement("button");
     svgBtn.className = "tool-btn";

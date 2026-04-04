@@ -24,7 +24,7 @@ Pure Rust crate compiled to WASM via `wasm-pack`. No NAPI — runs entirely in t
 - `ListStyle` enum: `None`, `Bullet`, `Numbered`, `Dash`, `Checkbox`, `CheckboxChecked`
 - Text node fields: `list_style: ListStyle`, `indent_level: u8` (0-10)
 - Text node fields: `text_transform: TextTransform` (None/Uppercase/Lowercase/Capitalize), `text_indent: f64` (px)
-- `NodeKind` enum: `Rect`, `Ellipse`, `Text { ... }`, `Frame`, `Group`, `Path { points, closed }`, `VectorNetwork(Box<VectorNetwork>)`, `Image { src, fit }`, `Star { points, inner_radius }`, `Polygon { sides }`, `Table { rows, cols, cells, col_widths, row_heights }`, `RepeatGrid { columns, rows, column_gap, row_gap, overrides }`, `Callout { content, font_size, tail_x, tail_y, tail_width, theme }`
+- `NodeKind` enum: `Rect`, `Ellipse`, `Text { ... }`, `Frame`, `Group`, `Path { points, closed }`, `VectorNetwork(Box<VectorNetwork>)`, `Image { src, fit }`, `Video { src, autoplay, loop_video, muted, poster }`, `Star { points, inner_radius }`, `Polygon { sides }`, `Table { rows, cols, cells, col_widths, row_heights }`, `RepeatGrid { columns, rows, column_gap, row_gap, overrides }`, `Callout { content, font_size, tail_x, tail_y, tail_width, theme }`
 - `PathPoint { x, y, handle_in_x, handle_in_y, handle_out_x, handle_out_y }` — anchor + bezier control handles (absolute coords)
 - `VectorNetwork { vertices, segments, regions }` — Figma-style vector network with multi-connection vertices
 - `VectorVertex { id, x, y }`, `VectorSegment { id, start_vertex_id, end_vertex_id, handle_start, handle_end }`, `VectorRegion { segment_ids }`
@@ -272,3 +272,12 @@ Output: `packages/app/src/wasm/` (opensketch_engine.js + .wasm + .d.ts)
 - **SceneDiff**: added/removed/modified NodeChange arrays with property-level PropertyChange (property, old_value, new_value)
 - **Properties compared**: name, x, y, width, height, rotation, opacity, visible, fill color, children count, kind
 - **WASM API**: `diff_scenes(old_json, new_json) → JSON SceneDiff`
+
+## Ink Recognition
+- **Module**: `ink.rs` — handwriting / freehand drawing recognition and conversion
+- **InkPoint**: x, y, pressure, timestamp
+- **simplify_path**: Ramer-Douglas-Peucker algorithm for point reduction
+- **smooth_path**: Chaikin's corner cutting for curve smoothing
+- **recognize_shape**: Shape classification (circle, rect, triangle, line, arrow, freehand) with confidence score
+- **ink_to_path_points**: Convert ink points to bezier PathPoints via simplify→smooth→Catmull-Rom pipeline
+- **WASM API**: `ink_recognize(json)`, `ink_to_path(json, tolerance)`, `ink_to_shape(json)`

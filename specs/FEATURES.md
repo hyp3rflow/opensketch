@@ -2236,3 +2236,10 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] **Eyedropper / Color Picker tool**: Press I to activate, click canvas to pick pixel color, applies to selected node fill, color toast with hex + copy button, auto-returns to select tool
 - [x] **Scale Tool (K)**: Dedicated proportional scaling tool — handle drag always maintains aspect ratio and scales all visual properties (font size, stroke width, corner radius, shadows, blur, layout padding/gap, min/max constraints). Uses engine `scale_node_proportional()` with recursive children scaling. Slice tool moved to Shift+K.
 - [x] **Node Locking Layers (enhanced)**: Visual distinction for locked nodes — orange selection border (no resize handles), subtle orange overlay, lock badge at top-left corner. Layers panel: dedicated lock/unlock icon per layer (hover-reveal, always-visible when locked). Properties panel: lock toggle button next to node name. Locked nodes are selectable but cannot be moved or resized. Hit test already skips locked nodes for accidental selection prevention.
+
+### Ink Recognition (Handwriting / Freehand Drawing)
+- [x] **Rust ink.rs module**: InkPoint struct with pressure/timestamp, Ramer-Douglas-Peucker path simplification, Chaikin's corner cutting smoothing, shape recognition (circle/rect/triangle/line/arrow/freehand)
+- [x] **WASM bindings**: `ink_recognize(points_json)` → shape recognition JSON, `ink_to_path(points_json, tolerance)` → smoothed Path node, `ink_to_shape(points_json)` → auto-detected shape node (Rect/Ellipse/Path)
+- [x] **Freehand tool enhanced**: Pressure-sensitive input capture, ink recognition on pointer up — confidence > 0.7 converts to geometric shape, otherwise smoothed bezier path
+- [x] **Shape detection**: Circularity metric for circles, area ratio for rectangles, corner detection for triangles, endpoint distance for line detection
+- [x] **Ink → Path conversion**: Simplify → Smooth → Catmull-Rom to bezier handle conversion pipeline

@@ -265,7 +265,7 @@ impl Renderer {
     fn build_clip_path(&self, ctx: &CanvasRenderingContext2d, node: &Node) {
         ctx.begin_path();
         match &node.kind {
-            NodeKind::Rect | NodeKind::Frame | NodeKind::Section | NodeKind::Instance(_) | NodeKind::Image { .. } => {
+            NodeKind::Rect | NodeKind::Frame | NodeKind::Section | NodeKind::Instance(_) | NodeKind::Image { .. } | NodeKind::Video { .. } => {
                 if node.corner_radius > 0.0 {
                     let r = node.corner_radius.min(node.width / 2.0).min(node.height / 2.0);
                     ctx.move_to(node.x + r, node.y);
@@ -467,7 +467,7 @@ impl Renderer {
             ctx.save();
             ctx.translate(-far, 0.0).ok();
             match &node.kind {
-                NodeKind::Rect | NodeKind::Frame | NodeKind::Section | NodeKind::Instance(_) | NodeKind::Image { .. } => {
+                NodeKind::Rect | NodeKind::Frame | NodeKind::Section | NodeKind::Instance(_) | NodeKind::Image { .. } | NodeKind::Video { .. } => {
                     ctx.set_fill_style_str("rgba(0,0,0,1)");
                     if node.corner_radius > 0.0 {
                         self.draw_rounded_rect_smooth(ctx, node.x + far, node.y, node.width, node.height, node.corner_radius, node.corner_smoothing);
@@ -544,6 +544,7 @@ impl Renderer {
             NodeKind::Path { ref points, closed } => self.render_path(ctx, node, points, *closed),
             NodeKind::VectorNetwork(ref vn) => self.render_vector_network(ctx, node, vn),
             NodeKind::Image { .. } => self.render_image_placeholder(ctx, node),
+            NodeKind::Video { .. } => self.render_video_placeholder(ctx, node),
             NodeKind::Star { points, inner_radius } => self.render_star(ctx, node, *points, *inner_radius),
             NodeKind::Polygon { sides } => self.render_polygon(ctx, node, *sides),
             NodeKind::Section => self.render_section(ctx, node, scene),
@@ -1172,6 +1173,43 @@ impl Renderer {
         ctx.stroke();
 
         // Frame label
+        let font_size = (11.0 / self.viewport.a).min(11.0);
+        let gap = (4.0 / self.viewport.a).min(4.0);
+        ctx.set_fill_style_str("rgba(255,255,255,0.4)");
+        ctx.set_font(&format!("{}px Inter, system-ui, sans-serif", font_size));
+        ctx.set_text_baseline("bottom");
+        ctx.fill_text(&node.name, node.x, node.y - gap).ok();
+    }
+
+    fn render_video_placeholder(&self, ctx: &CanvasRenderingContext2d, node: &Node) {
+        // Dark placeholder rect — actual poster/video drawn by TS overlay
+        ctx.set_fill_style_str("rgba(30,30,30,1)");
+        if node.corner_radius > 0.0 {
+            self.draw_rounded_rect_smooth(ctx, node.x, node.y, node.width, node.height, node.corner_radius, node.corner_smoothing);
+            ctx.fill();
+        } else {
+            ctx.fill_rect(node.x, node.y, node.width, node.height);
+        }
+        // Play button icon (circle + triangle)
+        let cx = node.x + node.width / 2.0;
+        let cy = node.y + node.height / 2.0;
+        let r = (node.width.min(node.height) * 0.15).min(24.0 / self.viewport.a);
+        // Circle
+        ctx.set_fill_style_str("rgba(255,255,255,0.25)");
+        ctx.begin_path();
+        ctx.arc(cx, cy, r, 0.0, std::f64::consts::TAU).ok();
+        ctx.fill();
+        // Triangle (play icon)
+        ctx.set_fill_style_str("rgba(255,255,255,0.6)");
+        ctx.begin_path();
+        let tri_r = r * 0.5;
+        ctx.move_to(cx - tri_r * 0.4, cy - tri_r * 0.7);
+        ctx.line_to(cx + tri_r * 0.8, cy);
+        ctx.line_to(cx - tri_r * 0.4, cy + tri_r * 0.7);
+        ctx.close_path();
+        ctx.fill();
+
+        // Node label
         let font_size = (11.0 / self.viewport.a).min(11.0);
         let gap = (4.0 / self.viewport.a).min(4.0);
         ctx.set_fill_style_str("rgba(255,255,255,0.4)");

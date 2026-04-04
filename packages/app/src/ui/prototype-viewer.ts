@@ -232,6 +232,7 @@ export function createPrototypeViewer(editor: Editor): {
     if (!active || !overlay) return;
     active = false;
     transitioning = false;
+    clearVideoOverlays();
     stopMotionPathPlayback();
     document.removeEventListener("keydown", onKeyDown);
     overlay.remove();
@@ -705,6 +706,57 @@ export function createPrototypeViewer(editor: Editor): {
     drawHotspotHints(ctx, bounds, scale * dpr);
     // Draw event hotspot hints (orange dotted border on nodes with JS events)
     drawEventHints(ctx, bounds, scale * dpr);
+
+    // Overlay HTML5 <video> elements for Video nodes
+    renderVideoOverlays(bounds, scale);
+  }
+
+  /** Remove old video overlays */
+  function clearVideoOverlays() {
+    if (!overlay) return;
+    overlay.querySelectorAll(".proto-video-overlay").forEach(el => el.remove());
+  }
+
+  /** Create HTML5 <video> elements positioned over Video nodes */
+  function renderVideoOverlays(frameBounds: { x: number; y: number; width: number; height: number }, scale: number) {
+    clearVideoOverlays();
+    if (!overlay || !viewCanvas || currentFrameId === null) return;
+
+    // Get all layers and find Video nodes within the current frame's subtree
+    const layers = JSON.parse(editor.engine.get_layer_list());
+    const canvasRect = viewCanvas.getBoundingClientRect();
+
+    for (const layer of layers) {
+      if (!layer.visible) continue;
+      const nj = editor.engine.get_node_json(BigInt(layer.id));
+      if (!nj) continue;
+      const node = JSON.parse(nj);
+      if (typeof node.kind !== "object" || !node.kind.Video) continue;
+      const vid = node.kind.Video;
+      if (!vid.src) continue;
+
+      // Position relative to frame bounds
+      const x = (node.x - frameBounds.x) * scale + canvasRect.left;
+      const y = (node.y - frameBounds.y) * scale + canvasRect.top;
+      const w = node.width * scale;
+      const h = node.height * scale;
+
+      const videoEl = document.createElement("video");
+      videoEl.className = "proto-video-overlay";
+      videoEl.src = vid.src;
+      videoEl.autoplay = vid.autoplay ?? false;
+      videoEl.loop = vid.loop_video ?? false;
+      videoEl.muted = vid.muted ?? true;
+      videoEl.playsInline = true;
+      if (vid.poster) videoEl.poster = vid.poster;
+      videoEl.style.cssText = `
+        position:fixed;left:${x}px;top:${y}px;width:${w}px;height:${h}px;
+        z-index:1;object-fit:cover;border-radius:${(node.corner_radius || 0) * scale}px;
+        pointer-events:auto;background:#000;
+      `;
+      videoEl.controls = true;
+      overlay.appendChild(videoEl);
+    }
   }
 
   function drawHotspotHints(ctx: CanvasRenderingContext2D, frameBounds: { x: number; y: number; width: number; height: number }, totalScale: number) {

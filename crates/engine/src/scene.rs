@@ -4396,6 +4396,7 @@ impl Scene {
             crate::node::NodeKind::VectorNetwork(_) => "Vector".to_string(),
             crate::node::NodeKind::RepeatGrid { columns, rows, .. } => format!("Repeat Grid {}×{}", columns, rows),
             crate::node::NodeKind::Callout { .. } => "Callout".to_string(),
+            crate::node::NodeKind::Video { .. } => "Video".to_string(),
             crate::node::NodeKind::Chart { ref chart_type, ref config, .. } => {
                 if config.title.is_empty() {
                     let s = chart_type.as_str();

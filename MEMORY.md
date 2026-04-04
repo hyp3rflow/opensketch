@@ -1925,3 +1925,12 @@
 - editor.ts: .scss 확장자 지원
 - properties-panel.ts: CSS Variables, SCSS 버튼 추가 (총 5개 포맷)
 - specs/FEATURES.md 업데이트
+
+## 완료된 기능 (추가 — Ink Recognition / Handwriting)
+- Ink recognition & freehand drawing enhancement:
+  - ink.rs: InkPoint struct, RDP simplification, Chaikin smoothing, shape recognition (circle/rect/triangle/line/arrow)
+  - WASM: ink_recognize, ink_to_path, ink_to_shape 바인딩
+  - Editor: freehand tool에서 pressure 캡처 + ink recognition 통합
+  - Shape confidence > 0.7 → 자동 도형 변환 (Ellipse/Rect/Triangle Path)
+  - Otherwise → smoothed bezier Path
+  - specs/FEATURES.md, ENGINE.md 업데이트

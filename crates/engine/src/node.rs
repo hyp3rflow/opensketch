@@ -489,6 +489,23 @@ pub enum NodeKind {
         #[serde(default)]
         overrides: std::collections::HashMap<String, String>,
     },
+    /// A video embed node (rendered as thumbnail/poster in editor, plays in prototype viewer)
+    Video {
+        /// Video URL (mp4, webm, YouTube, etc.)
+        src: String,
+        /// Auto-play when entering prototype view
+        #[serde(default)]
+        autoplay: bool,
+        /// Loop the video
+        #[serde(default)]
+        loop_video: bool,
+        /// Mute audio
+        #[serde(default = "default_true")]
+        muted: bool,
+        /// Poster/thumbnail image URL
+        #[serde(default)]
+        poster: Option<String>,
+    },
     /// A callout shape — rounded rect body with a triangular tail pointing to a target
     Callout {
         /// Text content inside the callout
@@ -2301,6 +2318,7 @@ impl Node {
             NodeKind::Chart { .. } => "Chart",
             NodeKind::RepeatGrid { .. } => "RepeatGrid",
             NodeKind::Callout { .. } => "Callout",
+            NodeKind::Video { .. } => "Video",
         }
     }
 
