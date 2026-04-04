@@ -4962,12 +4962,12 @@ export class Editor {
       const node = JSON.parse(nj);
       const kind = node.kind;
 
-      // Video poster rendering
+      // Video thumbnail rendering (poster 우선, 없으면 src fallback)
       if (typeof kind === "object" && kind.Video) {
-        const posterSrc = kind.Video.poster;
-        if (posterSrc) {
-          const img = this._imageCache.get(posterSrc);
-          if (!img) { this.loadImageForNode(posterSrc); continue; }
+        const thumbSrc = (kind.Video.poster || kind.Video.src || "").trim();
+        if (thumbSrc) {
+          const img = this._imageCache.get(thumbSrc);
+          if (!img) { this.loadImageForNode(thumbSrc); continue; }
           const vx = node.x * zoom + panX;
           const vy = node.y * zoom + panY;
           const vw = node.width * zoom;
