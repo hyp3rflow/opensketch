@@ -124,6 +124,11 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
 
     const col = collections.find(c => c.id === selectedCollectionId)!;
 
+    const brokenBindings: Array<{ node_id: number; property: string; reason: string }> = (() => {
+      try { return JSON.parse((editor.engine as any).get_broken_variable_bindings?.() || "[]"); }
+      catch { return []; }
+    })();
+
     // Scope section
     const scopeSection = document.createElement("div");
     scopeSection.style.cssText = "margin-bottom:12px;background:#1e1e1e;border-radius:6px;padding:8px;";
@@ -231,6 +236,43 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
     }
 
     container.appendChild(scopeSection);
+
+    // Inspector
+    const inspector = document.createElement("div");
+    inspector.style.cssText = "margin-bottom:12px;background:#1b1d24;border:1px solid #2f3545;border-radius:6px;padding:8px;";
+    const brokenTitle = document.createElement("div");
+    brokenTitle.style.cssText = "display:flex;align-items:center;justify-content:space-between;font-size:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;margin-bottom:6px;";
+    brokenTitle.innerHTML = `<span>Variables Inspector</span><span style=\"color:${brokenBindings.length > 0 ? "#f59e0b" : "#64748b"}\">Broken ${brokenBindings.length}</span>`;
+    inspector.appendChild(brokenTitle);
+
+    if (brokenBindings.length > 0) {
+      const list = document.createElement("div");
+      list.style.cssText = "display:flex;flex-direction:column;gap:4px;max-height:110px;overflow:auto;margin-bottom:6px;";
+      for (const b of brokenBindings.slice(0, 20)) {
+        const row = document.createElement("div");
+        row.style.cssText = "font-size:10px;color:#fca5a5;background:#2a1f1f;border:1px solid #3f2a2a;border-radius:4px;padding:4px 6px;";
+        row.textContent = `Node ${b.node_id || "?"} · ${b.property} · ${b.reason}`;
+        list.appendChild(row);
+      }
+      inspector.appendChild(list);
+
+      const cleanBtn = document.createElement("button");
+      cleanBtn.style.cssText = "background:#3b1f1f;border:1px solid #7f1d1d;border-radius:4px;color:#fca5a5;cursor:pointer;font-size:10px;padding:4px 8px;";
+      cleanBtn.textContent = "Clean broken bindings";
+      cleanBtn.addEventListener("click", () => {
+        editor.engine.push_undo();
+        const removed = Number((editor.engine as any).cleanup_broken_variable_bindings?.() || 0);
+        if (removed > 0) editor.engine.apply_variables();
+        refresh();
+      });
+      inspector.appendChild(cleanBtn);
+    } else {
+      const ok = document.createElement("div");
+      ok.style.cssText = "font-size:11px;color:#6ee7b7;";
+      ok.textContent = "No broken bindings detected.";
+      inspector.appendChild(ok);
+    }
+    container.appendChild(inspector);
 
     // Modes
     const modesSection = document.createElement("div");
@@ -348,6 +390,49 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
       });
       nameRow.appendChild(delVarBtn);
       varRow.appendChild(nameRow);
+
+      const usages: Array<{ node_id: number; node_name: string; property: string }> = (() => {
+        try { return JSON.parse((editor.engine as any).get_variable_usages?.(BigInt(col.id), BigInt(v.id)) || "[]"); }
+        catch { return []; }
+      })();
+      const usageRow = document.createElement("div");
+      usageRow.style.cssText = "display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;";
+      const usagePill = document.createElement("span");
+      const usageColor = usages.length === 0 ? "#f59e0b" : "#60a5fa";
+      usagePill.style.cssText = `font-size:10px;padding:2px 6px;border-radius:999px;background:rgba(59,130,246,0.14);color:${usageColor};border:1px solid rgba(96,165,250,0.35);`;
+      usagePill.textContent = `Usage ${usages.length}`;
+      usageRow.appendChild(usagePill);
+
+      if (usages.length > 0) {
+        const jumpBtn = document.createElement("button");
+        jumpBtn.style.cssText = "background:none;border:1px solid #334155;border-radius:4px;color:#93c5fd;cursor:pointer;font-size:10px;padding:2px 6px;";
+        jumpBtn.textContent = "Show usage";
+        let detailsEl: HTMLDivElement | null = null;
+        jumpBtn.addEventListener("click", () => {
+          if (detailsEl) {
+            detailsEl.remove();
+            detailsEl = null;
+            jumpBtn.textContent = "Show usage";
+            return;
+          }
+          detailsEl = document.createElement("div");
+          detailsEl.style.cssText = "display:flex;flex-direction:column;gap:3px;margin:4px 0 6px 0;max-height:96px;overflow:auto;";
+          usages.forEach((u) => {
+            const item = document.createElement("button");
+            item.style.cssText = "text-align:left;background:#232736;border:1px solid #364152;border-radius:4px;color:#cbd5e1;font-size:10px;padding:4px 6px;cursor:pointer;";
+            item.textContent = `${u.node_name || `Node ${u.node_id}`} · ${u.property}`;
+            item.addEventListener("click", () => {
+              editor.engine.select(u.node_id);
+              editor.requestRender();
+            });
+            detailsEl!.appendChild(item);
+          });
+          varRow.insertBefore(detailsEl, usageRow.nextSibling);
+          jumpBtn.textContent = "Hide usage";
+        });
+        usageRow.appendChild(jumpBtn);
+      }
+      varRow.appendChild(usageRow);
 
       // Values per mode
       for (const mode of col.modes) {

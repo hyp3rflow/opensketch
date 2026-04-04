@@ -9804,6 +9804,101 @@ impl Engine {
         serde_json::to_string(&result).unwrap_or_else(|_| "[]".to_string())
     }
 
+    /// Get usage list for one variable across the scene.
+    pub fn get_variable_usages(&self, collection_id: u64, variable_id: u64) -> String {
+        let mut usages: Vec<serde_json::Value> = Vec::new();
+        for (key, binding) in &self.scene.variable_bindings {
+            if binding.collection_id != collection_id || binding.variable_id != variable_id {
+                continue;
+            }
+            let mut parts = key.splitn(2, ':');
+            let node_id = match parts.next().and_then(|s| s.parse::<u64>().ok()) {
+                Some(id) => id,
+                None => continue,
+            };
+            let property = parts.next().unwrap_or("").to_string();
+            if let Some(node) = self.scene.get_node(node_id) {
+                usages.push(serde_json::json!({
+                    "node_id": node_id,
+                    "node_name": node.name,
+                    "property": property,
+                }));
+            }
+        }
+        serde_json::to_string(&usages).unwrap_or_else(|_| "[]".to_string())
+    }
+
+    /// Get invalid variable bindings (missing node/collection/variable).
+    pub fn get_broken_variable_bindings(&self) -> String {
+        let mut broken: Vec<serde_json::Value> = Vec::new();
+        for (key, binding) in &self.scene.variable_bindings {
+            let mut parts = key.splitn(2, ':');
+            let node_id = parts.next().and_then(|s| s.parse::<u64>().ok()).unwrap_or(0);
+            let property = parts.next().unwrap_or("").to_string();
+
+            let node_exists = node_id != 0 && self.scene.get_node(node_id).is_some();
+            if !node_exists {
+                broken.push(serde_json::json!({
+                    "key": key,
+                    "node_id": node_id,
+                    "property": property,
+                    "reason": "node_missing",
+                }));
+                continue;
+            }
+
+            let collection = self.scene.get_collection(binding.collection_id);
+            if collection.is_none() {
+                broken.push(serde_json::json!({
+                    "key": key,
+                    "node_id": node_id,
+                    "property": property,
+                    "reason": "collection_missing",
+                    "collection_id": binding.collection_id,
+                    "variable_id": binding.variable_id,
+                }));
+                continue;
+            }
+
+            let has_variable = collection
+                .map(|c| c.variables.iter().any(|v| v.id == binding.variable_id))
+                .unwrap_or(false);
+            if !has_variable {
+                broken.push(serde_json::json!({
+                    "key": key,
+                    "node_id": node_id,
+                    "property": property,
+                    "reason": "variable_missing",
+                    "collection_id": binding.collection_id,
+                    "variable_id": binding.variable_id,
+                }));
+            }
+        }
+        serde_json::to_string(&broken).unwrap_or_else(|_| "[]".to_string())
+    }
+
+    /// Remove invalid variable bindings. Returns removed count.
+    pub fn cleanup_broken_variable_bindings(&mut self) -> u32 {
+        let mut remove_keys: Vec<String> = Vec::new();
+        for (key, binding) in &self.scene.variable_bindings {
+            let mut parts = key.splitn(2, ':');
+            let node_id = parts.next().and_then(|s| s.parse::<u64>().ok()).unwrap_or(0);
+            let node_exists = node_id != 0 && self.scene.get_node(node_id).is_some();
+            let has_variable = self.scene
+                .get_collection(binding.collection_id)
+                .map(|c| c.variables.iter().any(|v| v.id == binding.variable_id))
+                .unwrap_or(false);
+            if !node_exists || !has_variable {
+                remove_keys.push(key.clone());
+            }
+        }
+        let removed = remove_keys.len() as u32;
+        for key in remove_keys {
+            self.scene.variable_bindings.remove(&key);
+        }
+        removed
+    }
+
     pub fn apply_variables(&mut self) {
         self.scene.apply_variables();
     }
