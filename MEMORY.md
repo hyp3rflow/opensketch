@@ -1572,6 +1572,14 @@
 - JSON import/export 지원 (프리셋 백업/복원)
 - Apply 시 기존 effects를 교체 적용 (undo + refresh 연동)
 
+## 완료된 기능 (추가 — Spreadsheet Data Binding Repeat Grid 연동, 2026-04-04)
+- Data Binding 패널 확장: "Apply to selected Repeat Grid" 액션 추가
+- CSV/JSON 데이터를 Repeat Grid 셀에 row/col 순회로 자동 주입
+- master 셀의 Text `{{field}}` 템플릿을 child_path 기반으로 탐색 후 셀별 override 생성
+- Repeat Grid rows 자동 확장 (입력 데이터 길이에 맞춰 증가)
+- Rust 렌더러: Repeat Grid override 해석 구현 (`row,col:path:field`) + `text_content/text/src` 반영
+- engine.sync_repeat_grid() 연동으로 즉시 미리보기 렌더 반영
+
 ## 다음 할 것
 - ~~Multi-cursor collaborative editing~~ ✅ 완료 (원격 selection 기반 노드 잠금 오버레이 MVP)
 - ~~Canvas minimap enhanced~~ ✅ 완료 (페이지 탭 네비게이션 + 활성 페이지/배율/팬 위치 인포 라벨)
@@ -1581,7 +1589,7 @@
 - Auto layout padding individual per-side — Figma처럼 padding top/right/bottom/left 각각 독립 설정 (현재 uniform/H+V만), 4-value 입력 UI
 - Table auto-layout — Table 노드에 auto-layout 적용 (셀 내 텍스트 wrap, 행/열 자동 리사이즈, 헤더 고정, 정렬)
 - Freehand smoothing — Pen/Freehand 도구의 스트로크 후처리 자동 스무딩 (Catmull-Rom/simplify), 감도 조절 슬라이더
-- Repeat Grid — 노드 복제 grid (Figma Repeat Grid), row/col 갯수 + gap, 개별 셀 콘텐츠 오버라이드, 드래그로 인스턴스 수 조절
+- ~~Repeat Grid — 노드 복제 grid (Figma Repeat Grid), row/col 갯수 + gap, 개별 셀 콘텐츠 오버라이드, 드래그로 인스턴스 수 조절~~ ✅ 완료 (셀별 텍스트 오버라이드 렌더 + 데이터 바인딩 패널 연동)
 - ~~Component Sets~~ ✅ 완료
 - Multi-window / detachable panels — 패널을 별도 윈도우로 분리 (Layers, Properties, Agent 등), window.open + postMessage 통신
 - Smart selection grouping — 유사 속성 노드 자동 그룹 제안, one-click grouping + auto-layout 적용

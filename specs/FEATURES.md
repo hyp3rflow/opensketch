@@ -2282,9 +2282,11 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Includes color style swatches, text style live previews, and token JSON block
 - [x] Downloads single-file artifact: `design-system-docs.html` (offline-share friendly)
 
-### Spreadsheet Data Binding (MVP, 2026-04-04)
+### Spreadsheet Data Binding (MVP+, 2026-04-04)
 - [x] Toolbar button opens **Spreadsheet Data Binding** panel
 - [x] Paste CSV (header+rows) or JSON array data source
 - [x] Apply selected record index to selected **Text** nodes that use `{{field}}` templates
+- [x] Apply whole dataset to selected **Repeat Grid** nodes (cell-by-cell)
+- [x] Repeat Grid auto-expands rows to fit incoming data
+- [x] Repeat Grid per-cell overrides now render `text_content` / `text` (and media `src`) correctly in canvas
 - [x] Local data source persistence (`localStorage`)
-- [x] Safe scope for MVP: text binding only (no image binding/repeat-grid automation yet)

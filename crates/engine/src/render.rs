@@ -1939,9 +1939,42 @@ impl Renderer {
         (cx + dx * t, cy + dy * t)
     }
 
-    fn render_repeat_grid(&self, ctx: &CanvasRenderingContext2d, node: &Node, scene: &Scene, columns: u32, rows: u32, column_gap: f64, row_gap: f64, _overrides: &std::collections::HashMap<String, String>) {
+    fn apply_repeat_grid_overrides(&self, mut node: Node, row: u32, col: u32, path: &str, overrides: &std::collections::HashMap<String, String>) -> Node {
+        let prefix = format!("{},{}:{}:", row, col, path);
+        for (key, value) in overrides.iter() {
+            if !key.starts_with(&prefix) { continue; }
+            let field = &key[prefix.len()..];
+            match (&mut node.kind, field) {
+                (NodeKind::Text { content, .. }, "text") | (NodeKind::Text { content, .. }, "text_content") => {
+                    *content = value.clone();
+                }
+                (NodeKind::Image { src, .. }, "src") => {
+                    *src = value.clone();
+                }
+                (NodeKind::Video { src, .. }, "src") => {
+                    *src = value.clone();
+                }
+                _ => {}
+            }
+        }
+        node
+    }
+
+    fn render_repeat_grid_node(&self, ctx: &CanvasRenderingContext2d, scene: &Scene, node_id: u64, row: u32, col: u32, path: &str, overrides: &std::collections::HashMap<String, String>) {
+        let node = match scene.get_node(node_id) {
+            Some(n) => n.clone(),
+            None => return,
+        };
+        let rendered = self.apply_repeat_grid_overrides(node, row, col, path, overrides);
+        self.render_node(ctx, &rendered, scene);
+        for (idx, child_id) in rendered.children.iter().enumerate() {
+            let child_path = format!("{}/{}", path, idx);
+            self.render_repeat_grid_node(ctx, scene, *child_id, row, col, &child_path, overrides);
+        }
+    }
+
+    fn render_repeat_grid(&self, ctx: &CanvasRenderingContext2d, node: &Node, scene: &Scene, columns: u32, rows: u32, column_gap: f64, row_gap: f64, overrides: &std::collections::HashMap<String, String>) {
         // RepeatGrid renders by drawing the first child (master cell) at each grid position.
-        // The master cell is the first child of this node.
         if node.children.is_empty() { return; }
         let master_id = node.children[0];
         let master = match scene.get_node(master_id) {
@@ -1959,10 +1992,7 @@ impl Renderer {
                 let offset_y = r as f64 * (cell_h + row_gap);
                 ctx.save();
                 ctx.translate(offset_x + base_x - master.x, offset_y + base_y - master.y).ok();
-                // Render the master cell subtree
-                self.render_node(ctx, master, scene);
-                // Render master's children
-                self.render_children(ctx, &master.children, scene);
+                self.render_repeat_grid_node(ctx, scene, master_id, r, c, "0", overrides);
                 ctx.restore();
             }
         }
