@@ -1554,6 +1554,9 @@
 - Fill 파싱 강화: `type.Solid.color` 및 direct `color` 형태를 모두 지원, 노드 opacity와 합성
 - 렌더러 전환 UX 추가: Zoom controls에 Renderer 토글 버튼 추가 (Canvas2D ↔ WebGPU)
 - WebGPU 미지원 환경 처리: 토글 버튼 disabled + 안내 tooltip, 강제 WebGPU 선택 시 Canvas2D로 안전 fallback
+- WebGPU 뷰포트 컬링 추가: 현재 카메라(viewport/zoom/pan) 기준 화면 밖 노드 인스턴스를 업로드 전에 제외
+- 렌더 경로 캐시 추가: `sceneJson + viewKey` 기반 캐시로 동일 프레임 재파싱/재순회 비용 절감
+- bind group 재사용 최적화: 매 프레임 생성 대신 초기화 시 1회 생성 후 재사용
 
 ## 다음 할 것
 - Lottie animation export — 캔버스 애니메이션을 Lottie JSON으로 내보내기, keyframe 기반 변환

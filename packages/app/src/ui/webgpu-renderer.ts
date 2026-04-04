@@ -56,8 +56,12 @@ export class WebGPURenderer {
   private _pipeline: any = null;
   private _uniformBuffer: any = null;
   private _instanceBuffer: any = null;
+  private _bindGroup: any = null;
   private _instanceCapacity = 0;
   private _ready = false;
+  private _cachedSceneJson = "";
+  private _cachedViewKey = "";
+  private _cachedInstances: InstanceData[] = [];
 
   constructor() {
     this.canvas = document.createElement("canvas");
@@ -161,6 +165,11 @@ fn fs_main(input: VSOut) -> @location(0) vec4f {
       primitive: { topology: "triangle-list" },
     });
 
+    this._bindGroup = this._device.createBindGroup({
+      layout: this._pipeline.getBindGroupLayout(0),
+      entries: [{ binding: 0, resource: { buffer: this._uniformBuffer } }],
+    });
+
     this._ready = true;
     return true;
   }
@@ -178,7 +187,7 @@ fn fs_main(input: VSOut) -> @location(0) vec4f {
     }
   }
 
-  private collectInstances(scene: any): InstanceData[] {
+  private collectInstances(scene: any, viewportW: number, viewportH: number, zoom: number, panX: number, panY: number): InstanceData[] {
     const nodes = Array.isArray(scene?.nodes) ? scene.nodes as SceneNode[] : [];
     if (!nodes.length) return [];
 
@@ -196,6 +205,14 @@ fn fs_main(input: VSOut) -> @location(0) vec4f {
     const roots = nodes.filter((n) => typeof n?.id === "number" && !childIds.has(n.id!));
     const instances: InstanceData[] = [];
 
+    const isVisibleInViewport = (x: number, y: number, w: number, h: number) => {
+      const sx = x * zoom + panX;
+      const sy = y * zoom + panY;
+      const sw = w * zoom;
+      const sh = h * zoom;
+      return sx + sw >= 0 && sy + sh >= 0 && sx <= viewportW && sy <= viewportH;
+    };
+
     const walk = (node: SceneNode, parentX: number, parentY: number, parentOpacity: number) => {
       if (!node || node.visible === false) return;
 
@@ -207,7 +224,7 @@ fn fs_main(input: VSOut) -> @location(0) vec4f {
       const worldY = parentY + localY;
       const opacity = parentOpacity * Math.max(0, Math.min(1, Number(node.opacity ?? 1)));
 
-      if (width > 0 && height > 0) {
+      if (width > 0 && height > 0 && isVisibleInViewport(worldX, worldY, width, height)) {
         const fills = Array.isArray(node.fills) ? node.fills : [];
         const color = fills.map(extractSolidColor).find(Boolean) as [number, number, number, number] | undefined;
         instances.push({
@@ -234,14 +251,20 @@ fn fs_main(input: VSOut) -> @location(0) vec4f {
   renderFromScene(sceneJson: string, viewportW: number, viewportH: number, zoom: number, panX: number, panY: number) {
     if (!this._ready || !this._device || !this._ctx || !this._pipeline) return;
 
-    let scene: any;
-    try {
-      scene = JSON.parse(sceneJson);
-    } catch {
-      return;
+    const viewKey = `${viewportW}:${viewportH}:${zoom.toFixed(3)}:${panX.toFixed(1)}:${panY.toFixed(1)}`;
+    let instances = this._cachedInstances;
+    if (sceneJson !== this._cachedSceneJson || viewKey !== this._cachedViewKey) {
+      let scene: any;
+      try {
+        scene = JSON.parse(sceneJson);
+      } catch {
+        return;
+      }
+      this._cachedSceneJson = sceneJson;
+      this._cachedViewKey = viewKey;
+      this._cachedInstances = this.collectInstances(scene, viewportW, viewportH, zoom, panX, panY);
+      instances = this._cachedInstances;
     }
-
-    const instances = this.collectInstances(scene);
     const count = instances.length;
     if (count === 0) {
       const encoder = this._device.createCommandEncoder();
@@ -285,11 +308,6 @@ fn fs_main(input: VSOut) -> @location(0) vec4f {
     this._device.queue.writeBuffer(this._instanceBuffer, 0, raw.buffer, raw.byteOffset, raw.byteLength);
     this._device.queue.writeBuffer(this._uniformBuffer, 0, new Float32Array([viewportW, viewportH, zoom, 0, panX, panY, 0, 0]));
 
-    const bindGroup = this._device.createBindGroup({
-      layout: this._pipeline.getBindGroupLayout(0),
-      entries: [{ binding: 0, resource: { buffer: this._uniformBuffer } }],
-    });
-
     const encoder = this._device.createCommandEncoder();
     const pass = encoder.beginRenderPass({
       colorAttachments: [{
@@ -300,7 +318,7 @@ fn fs_main(input: VSOut) -> @location(0) vec4f {
       }],
     });
     pass.setPipeline(this._pipeline);
-    pass.setBindGroup(0, bindGroup);
+    if (this._bindGroup) pass.setBindGroup(0, this._bindGroup);
     pass.setVertexBuffer(0, this._instanceBuffer);
     pass.draw(6, count, 0, 0);
     pass.end();

@@ -2255,3 +2255,6 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] **Hierarchy-aware instance collection**: recursively traverses scene graph (root + children) and composes parent offsets/opacity before GPU instance upload
 - [x] **Robust solid-fill parsing**: supports multiple fill JSON shapes (`type.Solid.color`, direct `color`) with opacity composition
 - [x] **Quick backend toggle in Zoom controls**: one-click Canvas2D/WebGPU switch, disabled state when WebGPU unsupported
+- [x] **Viewport culling on WebGPU path**: off-screen node instances are skipped before GPU upload (camera-aware culling in instance collector)
+- [x] **Render-path caching**: scene JSON + view-key cache reduces repeated parse/walk cost on unchanged frames
+- [x] **Persistent uniform bind group**: bind group is created once at init and reused every frame to lower per-frame allocations
