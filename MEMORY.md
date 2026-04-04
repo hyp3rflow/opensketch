@@ -2028,3 +2028,10 @@
   - Shape confidence > 0.7 → 자동 도형 변환 (Ellipse/Rect/Triangle Path)
   - Otherwise → smoothed bezier Path
   - specs/FEATURES.md, ENGINE.md 업데이트
+
+## 완료된 기능 (추가 — Smart Paste to Frame, 2026-04-05)
+- 붙여넣기(Cmd+V) 시 Smart Paste 적용
+- 단일 auto-layout Frame/Group 선택 상태면 해당 컨테이너 flow 끝(index=children.length)에 자동 삽입
+- 선택 프레임이 없으면 포인터 아래 auto-layout frame을 drop target으로 사용
+- 기존 drag-reparent drop zone/reparent 로직 재사용 (reparent_node_at + recompute_layout)
+- Paste in Place(Cmd+Shift+V)는 기존 동작 유지

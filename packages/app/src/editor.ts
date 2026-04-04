@@ -4825,14 +4825,78 @@ export class Editor {
 
   private pasteNodes() {
     if (this._clipboard) {
+      const sourceSelection = this.getSelection();
       this.engine.push_undo();
       this._pasteCount++;
       const offset = this._pasteCount * 10;
       const newIds = this.engine.paste_nodes(this._clipboard, offset, offset);
       const ids = JSON.parse(newIds).map(Number);
+
+      // Smart Paste to Frame: if source selection (or hover target) is an auto-layout frame,
+      // insert pasted nodes into that frame at a flow-aware position.
+      const pasteTarget = this.findSmartPasteTarget(sourceSelection, ids);
+      if (pasteTarget) {
+        executeDropReparent(this.engine, ids, pasteTarget);
+      }
+
       this.onLayersChanges.forEach(fn => fn());
       this.fireSelectionNow(ids);
       this.needsRender = true;
+    }
+  }
+
+  private findSmartPasteTarget(sourceSelection: number[], pastedIds: number[]): DropTarget | null {
+    const sx = this.engine.screen_to_scene_x(this._lastPointerScreenX, this._lastPointerScreenY);
+    const sy = this.engine.screen_to_scene_y(this._lastPointerScreenX, this._lastPointerScreenY);
+
+    // Priority 1: selected auto-layout frame/group
+    if (sourceSelection.length === 1) {
+      const candidateId = sourceSelection[0]!;
+      const target = this.buildAppendDropTarget(candidateId);
+      if (target) return target;
+    }
+
+    // Priority 2: frame under pointer (using drag-reparent heuristics)
+    return computeDropTarget(this.engine, sx, sy, new Set<number>(pastedIds));
+  }
+
+  private buildAppendDropTarget(frameId: number): DropTarget | null {
+    try {
+      const json = (this.engine as any).get_layout_drop_zones(BigInt(frameId));
+      if (!json || json === "null") return null;
+      const zone = JSON.parse(json);
+      if (!zone || zone.mode !== "flex") return null;
+
+      const children = Array.isArray(zone.children) ? zone.children : [];
+      const contentTop = zone.frame_y + zone.padding_top;
+      const contentBottom = zone.frame_y + zone.frame_h - zone.padding_bottom;
+      const contentLeft = zone.frame_x + zone.padding_left;
+      const contentRight = zone.frame_x + zone.frame_w - zone.padding_right;
+      const isRow = zone.direction === "row";
+
+      // Dummy indicator line values are not rendered for paste, but required by DropTarget type.
+      const lineX = isRow
+        ? (children.length > 0
+            ? zone.frame_x + children[children.length - 1].x + children[children.length - 1].w + zone.gap / 2
+            : contentLeft)
+        : contentLeft;
+      const lineY = !isRow
+        ? (children.length > 0
+            ? zone.frame_y + children[children.length - 1].y + children[children.length - 1].h + zone.gap / 2
+            : contentTop)
+        : contentTop;
+
+      return {
+        frameId,
+        insertIndex: children.length,
+        lineX1: lineX,
+        lineY1: lineY,
+        lineX2: isRow ? lineX : contentRight,
+        lineY2: isRow ? contentBottom : lineY,
+        direction: isRow ? "row" : "column",
+      };
+    } catch {
+      return null;
     }
   }
 

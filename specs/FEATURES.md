@@ -136,6 +136,7 @@
 - [x] **Copy** (Cmd+C): serialize selected nodes + subtrees to internal clipboard
 - [x] **Cut** (Cmd+X): copy + delete selected nodes
 - [x] **Paste** (Cmd+V): deserialize with new IDs, offset +10px per paste
+- [x] **Smart Paste to Frame**: when a single auto-layout frame/group is selected, pasted nodes are auto-inserted into that container's flow (append). If not selected, frame under cursor is used as drop target.
 - [x] **Duplicate** (Cmd+D): instant copy+paste with 10px offset
 - [x] Hierarchy preservation: children/parent relationships remapped
 - [x] Undo integration: all paste/cut operations push undo
