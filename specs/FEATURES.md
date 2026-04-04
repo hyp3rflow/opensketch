@@ -2243,3 +2243,12 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] **Freehand tool enhanced**: Pressure-sensitive input capture, ink recognition on pointer up — confidence > 0.7 converts to geometric shape, otherwise smoothed bezier path
 - [x] **Shape detection**: Circularity metric for circles, area ratio for rectangles, corner detection for triangles, endpoint distance for line detection
 - [x] **Ink → Path conversion**: Simplify → Smooth → Catmull-Rom to bezier handle conversion pipeline
+
+### Experimental WebGPU Renderer (MVP)
+- [x] **WebGPU renderer module**: `ui/webgpu-renderer.ts` added with adapter/device setup + fallback-safe init
+- [x] **Instanced quad pipeline**: node bounds drawn as GPU instances (position/size/color per instance)
+- [x] **Viewport uniform**: zoom/pan/viewport uniforms applied in WGSL vertex stage
+- [x] **Dynamic buffer growth**: instance buffer auto-resizes for large scenes
+- [x] **Editor backend switch**: `canvas2d | webgpu` runtime mode in `Editor`
+- [x] **Persisted preference**: `localStorage['opensketch-renderer-backend']`
+- [x] **Graceful fallback**: auto-revert to Canvas2D when WebGPU is unavailable

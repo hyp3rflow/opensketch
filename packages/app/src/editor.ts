@@ -57,6 +57,7 @@ import { importFigmaJSON, showFigmaDropOverlay, hideFigmaDropOverlay } from "./u
 import { showImageDropChoice, processAILayout } from "./ui/ai-layout";
 import { toggleColorBlindnessPanel, closeCBPanel, setColorBlindnessMode } from "./ui/color-blindness";
 import { toggleFocusMode } from "./ui/focus-mode";
+import { WebGPURenderer } from "./ui/webgpu-renderer";
 
 export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "section" | "image" | "video" | "pen" | "star" | "polygon" | "slice" | "connector" | "callout" | "sticky" | "table" | "chart" | "freehand" | "measure" | "annotate" | "eyedropper" | "scale";
 
@@ -254,6 +255,10 @@ export class Editor {
   private selectionDirty = false;
   private selectionThrottleId = 0;
 
+  // Experimental renderer backend
+  private _renderBackend: "canvas2d" | "webgpu" = "canvas2d";
+  private _webgpuRenderer: WebGPURenderer | null = null;
+
   constructor(engine: Engine, canvas: HTMLCanvasElement) {
     this.engine = engine;
     this.canvas = canvas;
@@ -292,6 +297,13 @@ export class Editor {
         }));
       },
     });
+
+    const preferredBackend = localStorage.getItem("opensketch-renderer-backend");
+    if (preferredBackend === "webgpu") {
+      this._renderBackend = "webgpu";
+    }
+    this.initWebGPURenderer();
+
     this.startLoop();
     checkUrlViewHash(this);
   }
@@ -304,10 +316,38 @@ export class Editor {
       this.canvas.height = rect.height * dpr;
       this.ctx.scale(dpr, dpr);
       this.engine.resize(rect.width, rect.height);
+      this._webgpuRenderer?.resize(this.canvas.width, this.canvas.height);
       this.needsRender = true;
     };
     resize();
     window.addEventListener("resize", resize);
+  }
+
+  private async initWebGPURenderer() {
+    if (typeof window === "undefined") return;
+    if (!(navigator as any).gpu) {
+      if (this._renderBackend === "webgpu") this._renderBackend = "canvas2d";
+      return;
+    }
+    const renderer = new WebGPURenderer();
+    const ok = await renderer.init();
+    if (!ok) {
+      if (this._renderBackend === "webgpu") this._renderBackend = "canvas2d";
+      return;
+    }
+    renderer.resize(this.canvas.width, this.canvas.height);
+    this._webgpuRenderer = renderer;
+    this.needsRender = true;
+  }
+
+  setRenderBackend(mode: "canvas2d" | "webgpu") {
+    this._renderBackend = mode;
+    localStorage.setItem("opensketch-renderer-backend", mode);
+    this.needsRender = true;
+  }
+
+  getRenderBackend() {
+    return this._renderBackend;
   }
 
   private setupEvents() {
@@ -4414,6 +4454,18 @@ export class Editor {
           );
           // Restore viewport for overlays
           this.engine.set_viewport(savedZoom, savedPanX, savedPanY);
+        } else if (this._renderBackend === "webgpu" && this._webgpuRenderer?.ready) {
+          const sceneJson = this.engine.export_scene();
+          this._webgpuRenderer.renderFromScene(
+            sceneJson,
+            this.canvas.width,
+            this.canvas.height,
+            this.zoom,
+            this.panX,
+            this.panY,
+          );
+          this.ctx.clearRect(0, 0, this.canvas.width / dpr, this.canvas.height / dpr);
+          this.ctx.drawImage(this._webgpuRenderer.canvas, 0, 0, this.canvas.width / dpr, this.canvas.height / dpr);
         } else {
           this.engine.render(this.ctx);
         }
