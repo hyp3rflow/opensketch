@@ -111,6 +111,10 @@ export class WebGPURenderer {
   private _cachedSceneJson = "";
   private _cachedViewKey = "";
   private _cachedInstances: InstanceData[] = [];
+  private _instanceRaw = new Float32Array(0);
+  private _lastUploadedKey = "";
+  private _uniformRaw = new Float32Array(8);
+  private _lastUniformKey = "";
 
   constructor() {
     this.canvas = document.createElement("canvas");
@@ -456,7 +460,8 @@ fn fs_main(input: VSOut) -> @location(0) vec4f {
 
     const viewKey = `${viewportW}:${viewportH}:${zoom.toFixed(3)}:${panX.toFixed(1)}:${panY.toFixed(1)}`;
     let instances = this._cachedInstances;
-    if (sceneJson !== this._cachedSceneJson || viewKey !== this._cachedViewKey) {
+    const sceneOrViewChanged = sceneJson !== this._cachedSceneJson || viewKey !== this._cachedViewKey;
+    if (sceneOrViewChanged) {
       let scene: any;
       try {
         scene = JSON.parse(sceneJson);
@@ -495,31 +500,52 @@ fn fs_main(input: VSOut) -> @location(0) vec4f {
         size: this._instanceCapacity * 60,
         usage: GPUUsage.VERTEX | GPUUsage.COPY_DST,
       });
+      this._lastUploadedKey = "";
     }
 
-    const raw = new Float32Array(count * 15);
-    for (let i = 0; i < count; i++) {
-      const base = i * 15;
-      const it = instances[i];
-      raw[base] = it.x;
-      raw[base + 1] = it.y;
-      raw[base + 2] = it.width;
-      raw[base + 3] = it.height;
-      raw[base + 4] = it.color[0];
-      raw[base + 5] = it.color[1];
-      raw[base + 6] = it.color[2];
-      raw[base + 7] = it.color[3];
-      raw[base + 8] = it.uv[0];
-      raw[base + 9] = it.uv[1];
-      raw[base + 10] = it.uv[2];
-      raw[base + 11] = it.uv[3];
-      raw[base + 12] = it.textureMix;
-      raw[base + 13] = it.shapeKind;
-      raw[base + 14] = it.cornerRadius;
+    const instanceUploadKey = `${this._cachedSceneJson.length}:${viewKey}:${count}:${this._atlasEntries.size}`;
+    if (sceneOrViewChanged || this._lastUploadedKey !== instanceUploadKey) {
+      const needed = count * 15;
+      if (this._instanceRaw.length < needed) {
+        this._instanceRaw = new Float32Array(Math.ceil(needed * 1.25));
+      }
+      for (let i = 0; i < count; i++) {
+        const base = i * 15;
+        const it = instances[i];
+        this._instanceRaw[base] = it.x;
+        this._instanceRaw[base + 1] = it.y;
+        this._instanceRaw[base + 2] = it.width;
+        this._instanceRaw[base + 3] = it.height;
+        this._instanceRaw[base + 4] = it.color[0];
+        this._instanceRaw[base + 5] = it.color[1];
+        this._instanceRaw[base + 6] = it.color[2];
+        this._instanceRaw[base + 7] = it.color[3];
+        this._instanceRaw[base + 8] = it.uv[0];
+        this._instanceRaw[base + 9] = it.uv[1];
+        this._instanceRaw[base + 10] = it.uv[2];
+        this._instanceRaw[base + 11] = it.uv[3];
+        this._instanceRaw[base + 12] = it.textureMix;
+        this._instanceRaw[base + 13] = it.shapeKind;
+        this._instanceRaw[base + 14] = it.cornerRadius;
+      }
+
+      this._device.queue.writeBuffer(this._instanceBuffer, 0, this._instanceRaw.buffer, 0, count * 15 * 4);
+      this._lastUploadedKey = instanceUploadKey;
     }
 
-    this._device.queue.writeBuffer(this._instanceBuffer, 0, raw.buffer, raw.byteOffset, raw.byteLength);
-    this._device.queue.writeBuffer(this._uniformBuffer, 0, new Float32Array([viewportW, viewportH, zoom, 0, panX, panY, 0, 0]));
+    const uniformKey = `${viewKey}`;
+    if (uniformKey !== this._lastUniformKey) {
+      this._uniformRaw[0] = viewportW;
+      this._uniformRaw[1] = viewportH;
+      this._uniformRaw[2] = zoom;
+      this._uniformRaw[3] = 0;
+      this._uniformRaw[4] = panX;
+      this._uniformRaw[5] = panY;
+      this._uniformRaw[6] = 0;
+      this._uniformRaw[7] = 0;
+      this._device.queue.writeBuffer(this._uniformBuffer, 0, this._uniformRaw.buffer, 0, this._uniformRaw.byteLength);
+      this._lastUniformKey = uniformKey;
+    }
 
     const encoder = this._device.createCommandEncoder();
     const pass = encoder.beginRenderPass({

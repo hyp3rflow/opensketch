@@ -3258,6 +3258,141 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         effectsSection.appendChild(shadowWrap);
       });
 
+      // Effect presets (shadow/blur/filter combos)
+      {
+        type EffectPreset = {
+          name: string;
+          blur: number;
+          backdropBlur: number;
+          blend: string;
+          bitmapFilter: any | null;
+          shadows: any[];
+        };
+        const PRESET_KEY = "opensketch-effect-presets";
+        const loadPresets = (): EffectPreset[] => {
+          try {
+            const raw = localStorage.getItem(PRESET_KEY);
+            if (!raw) return [];
+            const parsed = JSON.parse(raw);
+            return Array.isArray(parsed) ? parsed : [];
+          } catch {
+            return [];
+          }
+        };
+        const savePresets = (presets: EffectPreset[]) => {
+          localStorage.setItem(PRESET_KEY, JSON.stringify(presets));
+        };
+        const readCurrent = (): EffectPreset => ({
+          name: "",
+          blur: parseFloat(blurInput.value) || 0,
+          backdropBlur: parseFloat(bdBlurInput.value) || 0,
+          blend: blendSelect.value || "normal",
+          bitmapFilter: (() => {
+            try { return editor.engine.get_bitmap_filter(BigInt(id)) ? JSON.parse(editor.engine.get_bitmap_filter(BigInt(id))) : null; } catch { return null; }
+          })(),
+          shadows: (() => {
+            try { return JSON.parse(editor.engine.get_shadows(BigInt(id)) || "[]"); } catch { return []; }
+          })(),
+        });
+
+        const presetRow = document.createElement("div");
+        presetRow.style.cssText = "display:flex;gap:4px;margin-top:8px;flex-wrap:wrap;";
+
+        const saveBtn = document.createElement("button");
+        saveBtn.className = "prop-add-btn";
+        saveBtn.style.marginTop = "0";
+        saveBtn.textContent = "Save preset";
+        saveBtn.addEventListener("click", () => {
+          const name = prompt("Preset name", `Effect Preset ${new Date().toLocaleTimeString()}`)?.trim();
+          if (!name) return;
+          const presets = loadPresets();
+          presets.push({ ...readCurrent(), name });
+          savePresets(presets);
+          alert(`Saved: ${name}`);
+        });
+        presetRow.appendChild(saveBtn);
+
+        const applyBtn = document.createElement("button");
+        applyBtn.className = "prop-add-btn";
+        applyBtn.style.marginTop = "0";
+        applyBtn.textContent = "Apply preset";
+        applyBtn.addEventListener("click", () => {
+          const presets = loadPresets();
+          if (!presets.length) { alert("No effect presets saved yet."); return; }
+          const list = presets.map((p, i) => `${i + 1}. ${p.name}`).join("\n");
+          const idx = Math.max(0, (parseInt(prompt(`Apply which preset?\n${list}`, "1") || "1", 10) || 1) - 1);
+          const p = presets[idx];
+          if (!p) return;
+          ensureUndo();
+          editor.engine.set_blur(BigInt(id), Number(p.blur) || 0);
+          editor.engine.set_backdrop_blur(BigInt(id), Number(p.backdropBlur) || 0);
+          editor.engine.set_blend_mode(BigInt(id), p.blend || "normal");
+          // Replace bitmap filter
+          editor.engine.remove_bitmap_filter(BigInt(id));
+          if (p.bitmapFilter) {
+            editor.engine.set_bitmap_filter(
+              BigInt(id),
+              p.bitmapFilter.brightness ?? 1,
+              p.bitmapFilter.contrast ?? 1,
+              p.bitmapFilter.saturation ?? 1,
+              p.bitmapFilter.hue_rotate ?? 0,
+              p.bitmapFilter.invert ?? 0,
+              p.bitmapFilter.grayscale ?? 0,
+              p.bitmapFilter.sepia ?? 0,
+            );
+            if (typeof p.bitmapFilter.enabled === "boolean") {
+              editor.engine.set_bitmap_filter_enabled(BigInt(id), p.bitmapFilter.enabled);
+            }
+          }
+          // Replace shadows
+          const existing = (() => { try { return JSON.parse(editor.engine.get_shadows(BigInt(id)) || "[]"); } catch { return []; } })();
+          for (let i = existing.length - 1; i >= 0; i--) editor.engine.remove_shadow(BigInt(id), i);
+          for (const s of (p.shadows || [])) {
+            const isInner = !!s.inset;
+            if (isInner && (editor.engine as any).add_inner_shadow) {
+              (editor.engine as any).add_inner_shadow(BigInt(id), s.color?.r ?? 0, s.color?.g ?? 0, s.color?.b ?? 0, s.color?.a ?? 0.25, s.offset_x ?? 0, s.offset_y ?? 4, s.blur ?? 8, s.spread ?? 0);
+            } else {
+              editor.engine.add_shadow(BigInt(id), s.color?.r ?? 0, s.color?.g ?? 0, s.color?.b ?? 0, s.color?.a ?? 0.25, s.offset_x ?? 0, s.offset_y ?? 4, s.blur ?? 8, s.spread ?? 0);
+            }
+            const newIdx = Math.max(0, (JSON.parse(editor.engine.get_shadows(BigInt(id)) || "[]").length - 1));
+            editor.engine.set_shadow_visible(BigInt(id), newIdx, s.visible !== false);
+          }
+          editor.requestRender();
+          refresh(ids);
+        });
+        presetRow.appendChild(applyBtn);
+
+        const exportBtn = document.createElement("button");
+        exportBtn.className = "prop-add-btn";
+        exportBtn.style.marginTop = "0";
+        exportBtn.textContent = "Export";
+        exportBtn.addEventListener("click", () => {
+          const payload = JSON.stringify(loadPresets(), null, 2);
+          prompt("Copy effect presets JSON", payload);
+        });
+        presetRow.appendChild(exportBtn);
+
+        const importBtn = document.createElement("button");
+        importBtn.className = "prop-add-btn";
+        importBtn.style.marginTop = "0";
+        importBtn.textContent = "Import";
+        importBtn.addEventListener("click", () => {
+          const raw = prompt("Paste effect presets JSON");
+          if (!raw) return;
+          try {
+            const parsed = JSON.parse(raw);
+            if (!Array.isArray(parsed)) throw new Error("Expected array");
+            savePresets(parsed);
+            alert(`Imported ${parsed.length} presets`);
+          } catch {
+            alert("Invalid JSON");
+          }
+        });
+        presetRow.appendChild(importBtn);
+
+        effectsSection.appendChild(presetRow);
+      }
+
       const addShadowBtn = document.createElement("button");
       addShadowBtn.className = "prop-add-btn";
       addShadowBtn.textContent = "+ Add drop shadow";

@@ -2238,6 +2238,7 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] **Eyedropper / Color Picker tool**: Press I to activate, click canvas to pick pixel color, applies to selected node fill, color toast with hex + copy button, auto-returns to select tool
 - [x] **Scale Tool (K)**: Dedicated proportional scaling tool — handle drag always maintains aspect ratio and scales all visual properties (font size, stroke width, corner radius, shadows, blur, layout padding/gap, min/max constraints). Uses engine `scale_node_proportional()` with recursive children scaling. Slice tool moved to Shift+K.
 - [x] **Node Locking Layers (enhanced)**: Visual distinction for locked nodes — orange selection border (no resize handles), subtle orange overlay, lock badge at top-left corner. Layers panel: dedicated lock/unlock icon per layer (hover-reveal, always-visible when locked). Properties panel: lock toggle button next to node name. Locked nodes are selectable but cannot be moved or resized. Hit test already skips locked nodes for accidental selection prevention.
+- [x] **Node Effect Presets Library (MVP)**: Effects panel can save/apply/import/export reusable effect combos (blur, backdrop blur, blend mode, bitmap filters, drop/inner shadows) via localStorage-backed JSON preset library
 
 ### Ink Recognition (Handwriting / Freehand Drawing)
 - [x] **Rust ink.rs module**: InkPoint struct with pressure/timestamp, Ramer-Douglas-Peucker path simplification, Chaikin's corner cutting smoothing, shape recognition (circle/rect/triangle/line/arrow/freehand)
@@ -2263,6 +2264,7 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] **Image/Video texture atlas (Stage 2)**: GPU atlas texture (2048x2048, tiled) with async image/poster loading for Image/Video nodes
 - [x] **Textured instancing path**: per-instance UV rect + textureMix flag to blend solid-color quads and sampled atlas textures in one pipeline
 - [x] **Atlas upload invalidation**: atlas canvas is uploaded to GPU only when dirty to avoid redundant per-frame texture transfers
+- [x] **Low-GC instance/uniform uploads (Stage 3)**: reusable typed-array pools + upload key cache skip per-frame Float32Array allocation and redundant GPU `writeBuffer` calls when scene/view are unchanged
 
 ### Design System Documentation Site Export (MVP, 2026-04-04)
 - [x] Styles Library section (empty selection state) has **Docs HTML** action

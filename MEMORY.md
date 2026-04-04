@@ -1565,9 +1565,15 @@
 - editor.ts: renderRemoteNodeLocks() 추가, 메인 렌더 파이프라인 통합
 - specs/FEATURES.md Cursor Presence 섹션 업데이트
 
+## 완료된 기능 (추가 — Node Effect Presets Library MVP, 2026-04-04)
+- Effects 패널에 프리셋 액션 추가: Save preset / Apply preset / Export / Import
+- 프리셋 저장 데이터: blur, backdrop blur, blend mode, bitmap filter, drop/inner shadows
+- localStorage(`opensketch-effect-presets`) 기반 라이브러리 관리
+- JSON import/export 지원 (프리셋 백업/복원)
+- Apply 시 기존 effects를 교체 적용 (undo + refresh 연동)
+
 ## 다음 할 것
 - ~~Multi-cursor collaborative editing~~ ✅ 완료 (원격 selection 기반 노드 잠금 오버레이 MVP)
-- Node effect presets library — 자주 쓰는 shadow/blur/filter 조합을 프리셋으로 저장/적용, JSON import/export, 카테고리별 브라우저
 - Canvas minimap enhanced — 미니맵에 페이지 프리뷰 + 멀티페이지 네비게이션, 배율/위치 라벨
 - Smart auto-naming — 노드 내용 기반 자동 이름 생성 (Text → 첫 단어, Image → 파일명, Frame → children 기반 추론)
 - Figma DevMode parity — 선택 노드 inspect 시 spacing/padding/margin 인라인 오버레이 + 코드 스니펫 복사 원클릭
