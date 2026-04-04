@@ -1559,7 +1559,6 @@
 - bind group 재사용 최적화: 매 프레임 생성 대신 초기화 시 1회 생성 후 재사용
 
 ## 다음 할 것
-- Lottie animation export — 캔버스 애니메이션을 Lottie JSON으로 내보내기, keyframe 기반 변환
 - Multi-cursor collaborative editing — 동시 편집 시 노드별 잠금 표시 + 실시간 변경 반영 (operational transform 고도화)
 - Design system documentation site export — 컴포넌트/스타일/토큰을 정적 HTML 문서 사이트로 빌드 (Storybook 스타일)
 - Node effect presets library — 자주 쓰는 shadow/blur/filter 조합을 프리셋으로 저장/적용, JSON import/export, 카테고리별 브라우저
@@ -1578,6 +1577,15 @@
 - Smart selection filter — 선택 영역 내 특정 노드 타입만 필터링 (Figma "Select All with..." 확장), 정규식 이름 매칭, 깊이/속성 필터
 - Scroll-to animation triggers — Prototype viewer에서 스크롤 위치 기반 애니메이션 트리거 (parallax, reveal-on-scroll), 트리거 threshold 설정
 - Conditional visibility — 변수/조건 기반 노드 visibility 토글 (if variable == value → show/hide), 프로토타입에서 동적 UI 시뮬레이션
+
+## 완료된 기능 (추가 — WebGPU Renderer Stage 2: Texture Atlas, 2026-04-04)
+- WebGPU 인스턴스 데이터 확장: UV rect + textureMix 필드 추가, 단일 instanced 파이프라인에서 solid/textured quad 혼합 렌더
+- 2048x2048 타일 atlas(canvas 기반) 추가, Image/Video(poster/src) 비동기 로딩 후 atlas dirty 플래그 기반 업로드
+- node.kind 파싱으로 Image/Video 소스 감지, atlas 슬롯 UV 자동 계산 및 인스턴스별 텍스처 샘플링 적용
+- atlas 업로드 최적화: 변경 시에만 `copyExternalImageToTexture` 실행
+
+## 완료된 기능 (백로그 정리 25 — 이미 구현 확인, 2026-04-04)
+- ~~Lottie animation export~~ ✅ 이미 구현 (animation-timeline export, toolbar dialog, Rust/WASM `export_lottie*`, lottie-export.ts)
 - Multi-player cursors with tool state — 협업 커서에 현재 도구/액션 상태 표시 (✎ editing, ↔ resizing, ✋ panning), 실시간 selection 충돌 경고
 - Design Token Theming — 라이트/다크 모드 자동 전환, 시맨틱 토큰 매핑 (primary/secondary/surface), 테마 프리뷰 split-view
 - Auto Layout Spacing Override (per-child) — 개별 자식 노드마다 gap override 설정 (Figma "absolute spacing"), Node에 spacing_before/spacing_after 필드 추가, Flex 계산 시 개별 간격 적용, Properties panel UI (소규모, 고 임팩트)

@@ -2258,3 +2258,6 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] **Viewport culling on WebGPU path**: off-screen node instances are skipped before GPU upload (camera-aware culling in instance collector)
 - [x] **Render-path caching**: scene JSON + view-key cache reduces repeated parse/walk cost on unchanged frames
 - [x] **Persistent uniform bind group**: bind group is created once at init and reused every frame to lower per-frame allocations
+- [x] **Image/Video texture atlas (Stage 2)**: GPU atlas texture (2048x2048, tiled) with async image/poster loading for Image/Video nodes
+- [x] **Textured instancing path**: per-instance UV rect + textureMix flag to blend solid-color quads and sampled atlas textures in one pipeline
+- [x] **Atlas upload invalidation**: atlas canvas is uploaded to GPU only when dirty to avoid redundant per-frame texture transfers

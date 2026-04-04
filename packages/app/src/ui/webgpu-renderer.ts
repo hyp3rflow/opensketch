@@ -6,10 +6,13 @@ type InstanceData = {
   width: number;
   height: number;
   color: [number, number, number, number];
+  uv: [number, number, number, number];
+  textureMix: number;
 };
 
 type SceneNode = {
   id?: number;
+  kind?: any;
   x?: number;
   y?: number;
   width?: number;
@@ -19,6 +22,20 @@ type SceneNode = {
   fills?: any[];
   children?: number[];
 };
+
+type AtlasEntry = {
+  src: string;
+  slot: number;
+  width: number;
+  height: number;
+  image: HTMLImageElement;
+  loaded: boolean;
+};
+
+const ATLAS_SIZE = 2048;
+const ATLAS_TILE = 256;
+const ATLAS_COLS = Math.floor(ATLAS_SIZE / ATLAS_TILE);
+const ATLAS_CAPACITY = ATLAS_COLS * ATLAS_COLS;
 
 function parseColor(css: string | undefined): [number, number, number, number] {
   if (!css) return [0.24, 0.24, 0.28, 1];
@@ -48,6 +65,28 @@ function applyOpacity(color: [number, number, number, number], opacity: number):
   return [color[0], color[1], color[2], Math.max(0, Math.min(1, color[3] * opacity))];
 }
 
+function nodeKindName(kind: any): string {
+  if (!kind) return "";
+  if (typeof kind === "string") return kind;
+  if (typeof kind === "object") {
+    const keys = Object.keys(kind);
+    if (keys.length === 1) return keys[0] || "";
+  }
+  return "";
+}
+
+function extractImageSource(kind: any): string | null {
+  if (!kind || typeof kind !== "object") return null;
+  const img = kind.Image || kind.image;
+  const video = kind.Video || kind.video;
+  if (img && typeof img.src === "string" && img.src.trim()) return img.src;
+  if (video) {
+    if (typeof video.poster === "string" && video.poster.trim()) return video.poster;
+    if (typeof video.src === "string" && video.src.trim()) return video.src;
+  }
+  return null;
+}
+
 export class WebGPURenderer {
   readonly canvas: HTMLCanvasElement;
   private _ctx: any = null;
@@ -57,6 +96,13 @@ export class WebGPURenderer {
   private _uniformBuffer: any = null;
   private _instanceBuffer: any = null;
   private _bindGroup: any = null;
+  private _sampler: any = null;
+  private _atlasTexture: any = null;
+  private _atlasView: any = null;
+  private _atlasCanvas: HTMLCanvasElement;
+  private _atlasCtx: CanvasRenderingContext2D;
+  private _atlasEntries = new Map<string, AtlasEntry>();
+  private _atlasDirty = true;
   private _instanceCapacity = 0;
   private _ready = false;
   private _cachedSceneJson = "";
@@ -65,6 +111,13 @@ export class WebGPURenderer {
 
   constructor() {
     this.canvas = document.createElement("canvas");
+    this._atlasCanvas = document.createElement("canvas");
+    this._atlasCanvas.width = ATLAS_SIZE;
+    this._atlasCanvas.height = ATLAS_SIZE;
+    const ctx = this._atlasCanvas.getContext("2d");
+    if (!ctx) throw new Error("Failed to create atlas canvas context");
+    this._atlasCtx = ctx;
+    this._atlasCtx.clearRect(0, 0, ATLAS_SIZE, ATLAS_SIZE);
   }
 
   get ready() { return this._ready; }
@@ -86,8 +139,24 @@ export class WebGPURenderer {
 
     const GPUUsage = (globalThis as any).GPUBufferUsage;
     this._uniformBuffer = this._device.createBuffer({ size: 32, usage: GPUUsage.UNIFORM | GPUUsage.COPY_DST });
-    this._instanceBuffer = this._device.createBuffer({ size: 4 * 8 * 1024, usage: GPUUsage.VERTEX | GPUUsage.COPY_DST });
+    this._instanceBuffer = this._device.createBuffer({ size: 4 * 13 * 1024, usage: GPUUsage.VERTEX | GPUUsage.COPY_DST });
     this._instanceCapacity = 1024;
+
+    this._atlasTexture = this._device.createTexture({
+      size: [ATLAS_SIZE, ATLAS_SIZE, 1],
+      format: "rgba8unorm",
+      usage: (globalThis as any).GPUTextureUsage.TEXTURE_BINDING
+        | (globalThis as any).GPUTextureUsage.COPY_DST
+        | (globalThis as any).GPUTextureUsage.RENDER_ATTACHMENT,
+    });
+    this._atlasView = this._atlasTexture.createView();
+    this._sampler = this._device.createSampler({
+      magFilter: "linear",
+      minFilter: "linear",
+      mipmapFilter: "linear",
+      addressModeU: "clamp-to-edge",
+      addressModeV: "clamp-to-edge",
+    });
 
     const shader = this._device.createShaderModule({
       code: `
@@ -102,14 +171,20 @@ struct VSIn {
   @location(0) pos: vec2f,
   @location(1) size: vec2f,
   @location(2) color: vec4f,
+  @location(3) uv: vec4f,
+  @location(4) textureMix: f32,
 }
 
 struct VSOut {
   @builtin(position) position: vec4f,
   @location(0) color: vec4f,
+  @location(1) uv: vec2f,
+  @location(2) textureMix: f32,
 }
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
+@group(0) @binding(1) var atlasSampler: sampler;
+@group(0) @binding(2) var atlasTexture: texture_2d<f32>;
 
 @vertex
 fn vs_main(input: VSIn, @builtin(vertex_index) vertexIndex: u32) -> VSOut {
@@ -133,12 +208,18 @@ fn vs_main(input: VSIn, @builtin(vertex_index) vertexIndex: u32) -> VSOut {
   var out: VSOut;
   out.position = vec4f(ndc, 0.0, 1.0);
   out.color = input.color;
+  out.uv = vec2f(
+    mix(input.uv.x, input.uv.z, corner.x),
+    mix(input.uv.y, input.uv.w, corner.y)
+  );
+  out.textureMix = input.textureMix;
   return out;
 }
 
 @fragment
 fn fs_main(input: VSOut) -> @location(0) vec4f {
-  return input.color;
+  let texColor = textureSample(atlasTexture, atlasSampler, input.uv);
+  return mix(input.color, texColor * input.color.a, clamp(input.textureMix, 0.0, 1.0));
 }`,
     });
 
@@ -148,12 +229,14 @@ fn fs_main(input: VSOut) -> @location(0) vec4f {
         module: shader,
         entryPoint: "vs_main",
         buffers: [{
-          arrayStride: 32,
+          arrayStride: 52,
           stepMode: "instance",
           attributes: [
             { shaderLocation: 0, offset: 0, format: "float32x2" },
             { shaderLocation: 1, offset: 8, format: "float32x2" },
             { shaderLocation: 2, offset: 16, format: "float32x4" },
+            { shaderLocation: 3, offset: 32, format: "float32x4" },
+            { shaderLocation: 4, offset: 48, format: "float32" },
           ],
         }],
       },
@@ -167,7 +250,11 @@ fn fs_main(input: VSOut) -> @location(0) vec4f {
 
     this._bindGroup = this._device.createBindGroup({
       layout: this._pipeline.getBindGroupLayout(0),
-      entries: [{ binding: 0, resource: { buffer: this._uniformBuffer } }],
+      entries: [
+        { binding: 0, resource: { buffer: this._uniformBuffer } },
+        { binding: 1, resource: this._sampler },
+        { binding: 2, resource: this._atlasView },
+      ],
     });
 
     this._ready = true;
@@ -185,6 +272,77 @@ fn fs_main(input: VSOut) -> @location(0) vec4f {
         alphaMode: "premultiplied",
       });
     }
+  }
+
+  private ensureAtlasEntry(src: string) {
+    if (!src || this._atlasEntries.has(src)) return;
+    if (this._atlasEntries.size >= ATLAS_CAPACITY) return;
+    const slot = this._atlasEntries.size;
+    const image = new Image();
+    image.decoding = "async";
+    image.crossOrigin = "anonymous";
+    const entry: AtlasEntry = {
+      src,
+      slot,
+      width: 0,
+      height: 0,
+      image,
+      loaded: false,
+    };
+    this._atlasEntries.set(src, entry);
+
+    image.onload = () => {
+      entry.width = image.naturalWidth || image.width || ATLAS_TILE;
+      entry.height = image.naturalHeight || image.height || ATLAS_TILE;
+      entry.loaded = true;
+      const col = slot % ATLAS_COLS;
+      const row = Math.floor(slot / ATLAS_COLS);
+      const x = col * ATLAS_TILE;
+      const y = row * ATLAS_TILE;
+
+      const scale = Math.max(ATLAS_TILE / Math.max(1, entry.width), ATLAS_TILE / Math.max(1, entry.height));
+      const dw = entry.width * scale;
+      const dh = entry.height * scale;
+      const ox = x + (ATLAS_TILE - dw) * 0.5;
+      const oy = y + (ATLAS_TILE - dh) * 0.5;
+
+      this._atlasCtx.save();
+      this._atlasCtx.clearRect(x, y, ATLAS_TILE, ATLAS_TILE);
+      this._atlasCtx.imageSmoothingEnabled = true;
+      this._atlasCtx.drawImage(image, ox, oy, dw, dh);
+      this._atlasCtx.restore();
+      this._atlasDirty = true;
+    };
+
+    image.onerror = () => {
+      entry.loaded = false;
+    };
+
+    image.src = src;
+  }
+
+  private atlasUV(src: string | null): [number, number, number, number] {
+    if (!src) return [0, 0, 1, 1];
+    const entry = this._atlasEntries.get(src);
+    if (!entry || !entry.loaded) return [0, 0, 1, 1];
+    const col = entry.slot % ATLAS_COLS;
+    const row = Math.floor(entry.slot / ATLAS_COLS);
+    const pad = 1 / ATLAS_SIZE;
+    const x0 = (col * ATLAS_TILE) / ATLAS_SIZE + pad;
+    const y0 = (row * ATLAS_TILE) / ATLAS_SIZE + pad;
+    const x1 = ((col + 1) * ATLAS_TILE) / ATLAS_SIZE - pad;
+    const y1 = ((row + 1) * ATLAS_TILE) / ATLAS_SIZE - pad;
+    return [x0, y0, x1, y1];
+  }
+
+  private uploadAtlasIfNeeded() {
+    if (!this._atlasDirty || !this._device || !this._atlasTexture) return;
+    this._device.queue.copyExternalImageToTexture(
+      { source: this._atlasCanvas },
+      { texture: this._atlasTexture },
+      { width: ATLAS_SIZE, height: ATLAS_SIZE },
+    );
+    this._atlasDirty = false;
   }
 
   private collectInstances(scene: any, viewportW: number, viewportH: number, zoom: number, panX: number, panY: number): InstanceData[] {
@@ -227,12 +385,18 @@ fn fs_main(input: VSOut) -> @location(0) vec4f {
       if (width > 0 && height > 0 && isVisibleInViewport(worldX, worldY, width, height)) {
         const fills = Array.isArray(node.fills) ? node.fills : [];
         const color = fills.map(extractSolidColor).find(Boolean) as [number, number, number, number] | undefined;
+        const kindName = nodeKindName(node.kind);
+        const imageLike = kindName === "Image" || kindName === "Video";
+        const source = imageLike ? extractImageSource(node.kind) : null;
+        if (source) this.ensureAtlasEntry(source);
         instances.push({
           x: worldX,
           y: worldY,
           width,
           height,
-          color: applyOpacity(color ?? [0.24, 0.24, 0.28, 0.35], opacity),
+          color: applyOpacity(color ?? [0.24, 0.24, 0.28, imageLike ? 1 : 0.35], opacity),
+          uv: this.atlasUV(source),
+          textureMix: source ? 1 : 0,
         });
       }
 
@@ -266,6 +430,9 @@ fn fs_main(input: VSOut) -> @location(0) vec4f {
       instances = this._cachedInstances;
     }
     const count = instances.length;
+
+    this.uploadAtlasIfNeeded();
+
     if (count === 0) {
       const encoder = this._device.createCommandEncoder();
       const pass = encoder.beginRenderPass({
@@ -286,14 +453,14 @@ fn fs_main(input: VSOut) -> @location(0) vec4f {
       this._instanceBuffer.destroy();
       const GPUUsage = (globalThis as any).GPUBufferUsage;
       this._instanceBuffer = this._device.createBuffer({
-        size: this._instanceCapacity * 32,
+        size: this._instanceCapacity * 52,
         usage: GPUUsage.VERTEX | GPUUsage.COPY_DST,
       });
     }
 
-    const raw = new Float32Array(count * 8);
+    const raw = new Float32Array(count * 13);
     for (let i = 0; i < count; i++) {
-      const base = i * 8;
+      const base = i * 13;
       const it = instances[i];
       raw[base] = it.x;
       raw[base + 1] = it.y;
@@ -303,6 +470,11 @@ fn fs_main(input: VSOut) -> @location(0) vec4f {
       raw[base + 5] = it.color[1];
       raw[base + 6] = it.color[2];
       raw[base + 7] = it.color[3];
+      raw[base + 8] = it.uv[0];
+      raw[base + 9] = it.uv[1];
+      raw[base + 10] = it.uv[2];
+      raw[base + 11] = it.uv[3];
+      raw[base + 12] = it.textureMix;
     }
 
     this._device.queue.writeBuffer(this._instanceBuffer, 0, raw.buffer, raw.byteOffset, raw.byteLength);
