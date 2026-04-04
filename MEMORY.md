@@ -1598,6 +1598,12 @@
 - Scroll-to animation triggers — Prototype viewer에서 스크롤 위치 기반 애니메이션 트리거 (parallax, reveal-on-scroll), 트리거 threshold 설정
 - Conditional visibility — 변수/조건 기반 노드 visibility 토글 (if variable == value → show/hide), 프로토타입에서 동적 UI 시뮬레이션
 
+## 완료된 기능 (추가 — Spreadsheet Data Binding 확장, 2026-04-05)
+- Spreadsheet Data Binding 패널에서 Text + Image 노드 템플릿(`{{field}}`) 바인딩 지원
+- Repeat Grid 바인딩에서 `text_content`와 `image_src` 오버라이드를 동시에 처리
+- Row 변경/데이터 편집 시 실시간 미리보기 옵션 추가
+- 로컬 데이터 소스(localStorage) 유지 및 기존 undo/render 흐름과 호환
+
 ## 완료된 기능 (추가 — Canvas Minimap Enhanced, 2026-04-04)
 - Minimap 헤더 하단에 상태 인포 라벨 추가: `활성 페이지명 · 줌% · pan(x/y)`
 - 활성 페이지 전환 시 인포 라벨이 즉시 동기화되도록 page tabs 업데이트 로직 보강

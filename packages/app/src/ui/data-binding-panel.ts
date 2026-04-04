@@ -4,7 +4,7 @@ type DataRow = Record<string, string>;
 
 const STORAGE_KEY = "opensketch-data-binding-source";
 
-type TemplateTarget = { nodeId: number; path: string; template: string };
+type TemplateTarget = { nodeId: number; path: string; template: string; field: "text_content" | "image_src" };
 
 function parseCsv(text: string): DataRow[] {
   const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
@@ -47,7 +47,11 @@ function collectTemplateTargets(editor: Editor, rootId: number, path: string, ou
   if (!info) return;
   if (info.kind === "Text") {
     const template = String(info.text_content ?? "");
-    if (template.includes("{{")) out.push({ nodeId: rootId, path, template });
+    if (template.includes("{{")) out.push({ nodeId: rootId, path, template, field: "text_content" });
+  }
+  if (info.kind === "Image") {
+    const template = String(info.image_src ?? "");
+    if (template.includes("{{")) out.push({ nodeId: rootId, path, template, field: "image_src" });
   }
   const children: number[] = Array.isArray(info.children) ? info.children : [];
   children.forEach((cid, idx) => collectTemplateTargets(editor, cid, `${path}/${idx}`, out));
@@ -79,7 +83,7 @@ function applyToRepeatGrid(editor: Editor, gridId: number, rows: DataRow[]): { c
     let cellChanged = false;
     targets.forEach((target) => {
       const value = applyTemplate(target.template, row);
-      editor.engine.set_repeat_grid_override(BigInt(gridId), r, c, target.path, "text_content", value);
+      editor.engine.set_repeat_grid_override(BigInt(gridId), r, c, target.path, target.field, value);
       touchedFields += 1;
       cellChanged = true;
     });
@@ -107,12 +111,12 @@ export function openDataBindingPanel(editor: Editor) {
   panel.appendChild(title);
 
   const help = document.createElement("div");
-  help.textContent = "CSV/JSON을 붙여넣고 Text 템플릿 {{field}}를 바인딩하세요. Repeat Grid도 지원합니다.";
+  help.textContent = "CSV/JSON을 붙여넣고 Text/Image 템플릿 {{field}}를 바인딩하세요. Repeat Grid도 지원합니다.";
   help.style.cssText = "color:#a8b0c0;margin-bottom:8px;";
   panel.appendChild(help);
 
   const source = document.createElement("textarea");
-  source.value = localStorage.getItem(STORAGE_KEY) ?? "name,role\nAva,Designer\nNoah,Engineer";
+  source.value = localStorage.getItem(STORAGE_KEY) ?? "name,role,avatar\nAva,Designer,https://picsum.photos/seed/ava/200/200\nNoah,Engineer,https://picsum.photos/seed/noah/200/200";
   source.style.cssText = "width:100%;height:140px;background:#151521;color:#dbe2ff;border:1px solid #3b3b54;border-radius:8px;padding:8px;resize:vertical;";
   panel.appendChild(source);
 
@@ -130,13 +134,24 @@ export function openDataBindingPanel(editor: Editor) {
   rowInput.style.cssText = "width:72px;background:#151521;color:#fff;border:1px solid #3b3b54;border-radius:6px;padding:4px 6px;";
 
   const applyBtn = document.createElement("button");
-  applyBtn.textContent = "Apply to selected text";
+  applyBtn.textContent = "Apply to selected nodes";
   applyBtn.style.cssText = "flex:1;background:#0d99ff;color:white;border:none;border-radius:8px;padding:8px 10px;cursor:pointer;font-weight:600;";
 
   controls.appendChild(idxLabel);
   controls.appendChild(rowInput);
   controls.appendChild(applyBtn);
   panel.appendChild(controls);
+
+  const liveRow = document.createElement("label");
+  liveRow.style.cssText = "display:flex;align-items:center;gap:8px;margin-top:8px;color:#a8b0c0;";
+  const liveCheckbox = document.createElement("input");
+  liveCheckbox.type = "checkbox";
+  liveCheckbox.checked = true;
+  liveRow.appendChild(liveCheckbox);
+  const liveText = document.createElement("span");
+  liveText.textContent = "행 번호 변경 시 실시간 미리보기";
+  liveRow.appendChild(liveText);
+  panel.appendChild(liveRow);
 
   const gridBtn = document.createElement("button");
   gridBtn.textContent = "Apply to selected Repeat Grid";
@@ -168,7 +183,7 @@ export function openDataBindingPanel(editor: Editor) {
     }
   };
 
-  const runApply = () => {
+  const runApply = (pushUndo = true) => {
     const rows = parseRowsOrStatus();
     if (!rows) return;
     const idx = Math.max(0, Math.min(rows.length - 1, Number(rowInput.value) || 0));
@@ -182,19 +197,25 @@ export function openDataBindingPanel(editor: Editor) {
     }
 
     let changed = 0;
-    editor.engine.push_undo();
+    if (pushUndo) editor.engine.push_undo();
     for (const id of sel) {
       const info = safeNodeInfo(editor, id);
-      if (info?.kind !== "Text") continue;
-      const template = String(info?.text_content ?? "");
-      if (!template.includes("{{")) continue;
-      editor.engine.set_text_content(BigInt(id), applyTemplate(template, row));
-      changed += 1;
+      if (info?.kind === "Text") {
+        const template = String(info?.text_content ?? "");
+        if (!template.includes("{{")) continue;
+        editor.engine.set_text_content(BigInt(id), applyTemplate(template, row));
+        changed += 1;
+      } else if (info?.kind === "Image") {
+        const template = String(info?.image_src ?? "");
+        if (!template.includes("{{")) continue;
+        editor.engine.set_image_src(BigInt(id), applyTemplate(template, row));
+        changed += 1;
+      }
     }
     editor.requestRender();
     status.textContent = changed > 0
-      ? `${changed}개 Text 노드에 데이터를 적용했습니다.`
-      : "적용할 Text 템플릿({{field}})이 선택에 없습니다.";
+      ? `${changed}개 Text/Image 노드에 데이터를 적용했습니다.`
+      : "적용할 템플릿({{field}})이 선택에 없습니다.";
   };
 
   const runApplyRepeatGrid = () => {
@@ -226,13 +247,17 @@ export function openDataBindingPanel(editor: Editor) {
     editor.requestRender();
     status.textContent = gridCount > 0
       ? `${gridCount}개 Repeat Grid에 ${cells}개 셀 / ${fields}개 필드를 바인딩했습니다.`
-      : "선택한 Repeat Grid에서 {{field}} 템플릿 Text를 찾지 못했습니다.";
+      : "선택한 Repeat Grid에서 {{field}} 템플릿(Text/Image)을 찾지 못했습니다.";
   };
 
-  applyBtn.addEventListener("click", runApply);
+  applyBtn.addEventListener("click", () => runApply(true));
   gridBtn.addEventListener("click", runApplyRepeatGrid);
-  rowInput.addEventListener("change", runApply);
+  rowInput.addEventListener("change", () => runApply(Boolean(!liveCheckbox.checked)));
   source.addEventListener("blur", () => localStorage.setItem(STORAGE_KEY, source.value));
+  source.addEventListener("input", () => {
+    if (!liveCheckbox.checked) return;
+    runApply(false);
+  });
 
   document.body.appendChild(panel);
 }
