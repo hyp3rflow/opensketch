@@ -688,6 +688,7 @@
 
 ### Auto-rename Layers
 - [x] **Smart naming**: Node kind + properties → descriptive name (Text → first line, Image → filename, Star → "5-Point Star", etc.)
+- [x] **Frame content-aware naming**: Frame children composition 기반 추론 (Image+Text → `Card`, all text → `Text Group`, all shapes → `Shape Group`, single child → `<Child> Container`, fallback `Frame N items`)
 - [x] **Instance resolution**: Instance nodes get component name from ComponentStore
 - [x] **Sibling dedup**: Numeric suffix when siblings share the same base name
 - [x] **Rust engine**: Scene.auto_name_for_node(), auto_rename_node(), auto_rename_all(), auto_rename_selection()
@@ -2265,6 +2266,8 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] **Textured instancing path**: per-instance UV rect + textureMix flag to blend solid-color quads and sampled atlas textures in one pipeline
 - [x] **Atlas upload invalidation**: atlas canvas is uploaded to GPU only when dirty to avoid redundant per-frame texture transfers
 - [x] **Low-GC instance/uniform uploads (Stage 3)**: reusable typed-array pools + upload key cache skip per-frame Float32Array allocation and redundant GPU `writeBuffer` calls when scene/view are unchanged
+- [x] **Auto backend promotion for large scenes (Stage 4)**: when auto mode is enabled and scene node count reaches 1000+, editor auto-switches Canvas2D → WebGPU and shows one-shot performance toast
+- [x] **Renderer toggle advanced control**: renderer button right-click toggles auto-render mode (persisted `localStorage['opensketch-auto-renderer']`)
 
 ### Design System Documentation Site Export (MVP, 2026-04-04)
 - [x] Styles Library section (empty selection state) has **Docs HTML** action

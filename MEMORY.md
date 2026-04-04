@@ -1575,7 +1575,7 @@
 ## 다음 할 것
 - ~~Multi-cursor collaborative editing~~ ✅ 완료 (원격 selection 기반 노드 잠금 오버레이 MVP)
 - Canvas minimap enhanced — 미니맵에 페이지 프리뷰 + 멀티페이지 네비게이션, 배율/위치 라벨
-- Smart auto-naming — 노드 내용 기반 자동 이름 생성 (Text → 첫 단어, Image → 파일명, Frame → children 기반 추론)
+- ~~Smart auto-naming~~ ✅ 완료 (Frame children composition 기반 추론 이름 생성 포함)
 - Figma DevMode parity — 선택 노드 inspect 시 spacing/padding/margin 인라인 오버레이 + 코드 스니펫 복사 원클릭
 - Canvas grid/guide templates — 미리 정의된 그리드 레이아웃 (12-column, 8pt grid 등) 원클릭 적용
 - Auto layout padding individual per-side — Figma처럼 padding top/right/bottom/left 각각 독립 설정 (현재 uniform/H+V만), 4-value 입력 UI
@@ -1589,6 +1589,13 @@
 - Smart selection filter — 선택 영역 내 특정 노드 타입만 필터링 (Figma "Select All with..." 확장), 정규식 이름 매칭, 깊이/속성 필터
 - Scroll-to animation triggers — Prototype viewer에서 스크롤 위치 기반 애니메이션 트리거 (parallax, reveal-on-scroll), 트리거 threshold 설정
 - Conditional visibility — 변수/조건 기반 노드 visibility 토글 (if variable == value → show/hide), 프로토타입에서 동적 UI 시뮬레이션
+
+## 완료된 기능 (추가 — Smart Auto-naming Frame Heuristics, 2026-04-04)
+- Frame auto-name 규칙 강화: children 구성 기반 추론 추가
+- 규칙: Image+Text → `Card`, all Text → `Text Group`, all Shape → `Shape Group`
+- 단일 child frame → `<Child Name> Container`
+- fallback: `Frame N items`로 레이어 스캔 가독성 향상
+- 기존 Text/Image/Star/Polygon 등 naming 규칙 유지 + sibling dedup 규칙 그대로 적용
 
 ## 완료된 기능 (추가 — Design System Documentation Site Export, 2026-04-04)
 - Properties panel (빈 선택 상태) Styles Library 섹션에 `Docs HTML` 버튼 추가

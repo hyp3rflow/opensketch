@@ -88,14 +88,20 @@ export function setupZoomControls(container: HTMLElement, editor: Editor) {
     }
     updateRendererBtn();
   });
+  rendererBtn.addEventListener("contextmenu", (ev) => {
+    ev.preventDefault();
+    editor.setAutoRenderBackend(!editor.isAutoRenderBackendEnabled());
+    updateRendererBtn();
+  });
   const updateRendererBtn = () => {
     const mode = editor.getRenderBackend();
     const available = editor.isWebGPUAvailable();
+    const auto = editor.isAutoRenderBackendEnabled();
     rendererBtn.classList.toggle("active", mode === "webgpu");
     rendererBtn.disabled = !available;
     rendererBtn.style.opacity = available ? "1" : "0.45";
     rendererBtn.title = available
-      ? `Renderer: ${mode === "webgpu" ? "WebGPU" : "Canvas2D"} (click to toggle)`
+      ? `Renderer: ${mode === "webgpu" ? "WebGPU" : "Canvas2D"} (click to toggle, right-click auto: ${auto ? "ON" : "OFF"})`
       : "WebGPU not available on this browser/device";
   };
   updateRendererBtn();

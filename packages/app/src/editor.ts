@@ -258,6 +258,9 @@ export class Editor {
   // Experimental renderer backend
   private _renderBackend: "canvas2d" | "webgpu" = "canvas2d";
   private _webgpuRenderer: WebGPURenderer | null = null;
+  private _autoRenderBackendEnabled = true;
+  private _autoWebGPUThreshold = 1000;
+  private _autoWebGPUNotified = false;
 
   constructor(engine: Engine, canvas: HTMLCanvasElement) {
     this.engine = engine;
@@ -302,6 +305,8 @@ export class Editor {
     if (preferredBackend === "webgpu") {
       this._renderBackend = "webgpu";
     }
+    const autoRenderer = localStorage.getItem("opensketch-auto-renderer");
+    if (autoRenderer === "off") this._autoRenderBackendEnabled = false;
     this.initWebGPURenderer();
 
     this.startLoop();
@@ -358,6 +363,28 @@ export class Editor {
 
   isWebGPUAvailable() {
     return !!this._webgpuRenderer?.ready;
+  }
+
+  setAutoRenderBackend(enabled: boolean) {
+    this._autoRenderBackendEnabled = !!enabled;
+    localStorage.setItem("opensketch-auto-renderer", enabled ? "on" : "off");
+  }
+
+  isAutoRenderBackendEnabled() {
+    return this._autoRenderBackendEnabled;
+  }
+
+  private maybeAutoSwitchRenderBackend(nodeCount: number) {
+    if (!this._autoRenderBackendEnabled) return;
+    if (!this._webgpuRenderer?.ready) return;
+    if (this._renderBackend === "webgpu") return;
+    if (nodeCount < this._autoWebGPUThreshold) return;
+    this._renderBackend = "webgpu";
+    localStorage.setItem("opensketch-renderer-backend", "webgpu");
+    if (!this._autoWebGPUNotified) {
+      this._autoWebGPUNotified = true;
+      this.showToast(`Large scene detected (${nodeCount.toLocaleString()} nodes) → switched to WebGPU renderer`, 2600);
+    }
   }
 
   private setupEvents() {
@@ -4447,6 +4474,8 @@ export class Editor {
         const frameStart = performance.now();
         const dpr = window.devicePixelRatio || 1;
         this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        const sceneNodeCount = Number(this.engine.get_node_count?.() ?? 0);
+        this.maybeAutoSwitchRenderBackend(sceneNodeCount);
         // Pixel preview: disable smoothing for crisp 1:1 pixels
         if (this._pixelPreview) {
           this.ctx.imageSmoothingEnabled = false;

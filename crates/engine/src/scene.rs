@@ -4354,10 +4354,46 @@ impl Scene {
             crate::node::NodeKind::Frame => {
                 if node.layout.mode != crate::node::LayoutMode::None {
                     "Auto Layout Frame".to_string()
-                } else if !node.children.is_empty() {
+                } else if node.children.is_empty() {
                     "Frame".to_string()
                 } else {
-                    "Frame".to_string()
+                    let mut has_image = false;
+                    let mut has_text = false;
+                    let mut text_count = 0usize;
+                    let mut shape_count = 0usize;
+                    for &cid in &node.children {
+                        if let Some(child) = self.get_node(cid) {
+                            match &child.kind {
+                                crate::node::NodeKind::Image { .. } | crate::node::NodeKind::Video { .. } => has_image = true,
+                                crate::node::NodeKind::Text { .. } => {
+                                    has_text = true;
+                                    text_count += 1;
+                                }
+                                crate::node::NodeKind::Rect
+                                | crate::node::NodeKind::Ellipse
+                                | crate::node::NodeKind::Star { .. }
+                                | crate::node::NodeKind::Polygon { .. }
+                                | crate::node::NodeKind::Path { .. } => shape_count += 1,
+                                _ => {}
+                            }
+                        }
+                    }
+
+                    if has_image && has_text {
+                        "Card".to_string()
+                    } else if text_count == node.children.len() {
+                        "Text Group".to_string()
+                    } else if shape_count == node.children.len() {
+                        "Shape Group".to_string()
+                    } else if node.children.len() == 1 {
+                        if let Some(child) = self.get_node(node.children[0]) {
+                            format!("{} Container", child.name)
+                        } else {
+                            "Frame".to_string()
+                        }
+                    } else {
+                        format!("Frame {} items", node.children.len())
+                    }
                 }
             }
             crate::node::NodeKind::Group => "Group".to_string(),
