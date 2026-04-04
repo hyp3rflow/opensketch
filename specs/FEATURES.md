@@ -2264,6 +2264,12 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] **Textured instancing path**: per-instance UV rect + textureMix flag to blend solid-color quads and sampled atlas textures in one pipeline
 - [x] **Atlas upload invalidation**: atlas canvas is uploaded to GPU only when dirty to avoid redundant per-frame texture transfers
 
+### Design System Documentation Site Export (MVP, 2026-04-04)
+- [x] Styles Library section (empty selection state) has **Docs HTML** action
+- [x] Generates static HTML docs from shared styles + W3C design tokens
+- [x] Includes color style swatches, text style live previews, and token JSON block
+- [x] Downloads single-file artifact: `design-system-docs.html` (offline-share friendly)
+
 ### Spreadsheet Data Binding (MVP, 2026-04-04)
 - [x] Toolbar button opens **Spreadsheet Data Binding** panel
 - [x] Paste CSV (header+rows) or JSON array data source

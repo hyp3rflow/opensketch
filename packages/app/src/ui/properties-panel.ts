@@ -10,6 +10,7 @@ import { t } from "./i18n";
 import { createStyleTransferSection } from "./style-transfer";
 import { renderScrollAnimSection } from "./scroll-animation";
 import { openARQuickLook } from "./ar-quicklook";
+import { downloadDesignSystemDocs } from "./design-system-docs";
 
 // Stage 4: Google Fonts list
 const googleFonts = [
@@ -96,7 +97,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
 
       const btnStyle = "padding:6px 12px;font-size:11px;border:1px solid #444;border-radius:4px;background:#2a2a2a;color:#ccc;cursor:pointer;flex:1;text-align:center;";
       const btnRow = document.createElement("div");
-      btnRow.style.cssText = "display:flex;gap:6px;";
+      btnRow.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;";
 
       const exportBtn = document.createElement("button");
       exportBtn.textContent = t("properties.exportStyles");
@@ -134,8 +135,14 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         input.click();
       };
 
+      const docsBtn = document.createElement("button");
+      docsBtn.textContent = "Docs HTML";
+      docsBtn.style.cssText = btnStyle;
+      docsBtn.onclick = () => downloadDesignSystemDocs(editor);
+
       btnRow.appendChild(exportBtn);
       btnRow.appendChild(importBtn);
+      btnRow.appendChild(docsBtn);
       libSection.appendChild(btnRow);
       emptyDiv.appendChild(libSection);
 

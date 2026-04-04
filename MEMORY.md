@@ -1567,7 +1567,6 @@
 
 ## 다음 할 것
 - ~~Multi-cursor collaborative editing~~ ✅ 완료 (원격 selection 기반 노드 잠금 오버레이 MVP)
-- Design system documentation site export — 컴포넌트/스타일/토큰을 정적 HTML 문서 사이트로 빌드 (Storybook 스타일)
 - Node effect presets library — 자주 쓰는 shadow/blur/filter 조합을 프리셋으로 저장/적용, JSON import/export, 카테고리별 브라우저
 - Canvas minimap enhanced — 미니맵에 페이지 프리뷰 + 멀티페이지 네비게이션, 배율/위치 라벨
 - Smart auto-naming — 노드 내용 기반 자동 이름 생성 (Text → 첫 단어, Image → 파일명, Frame → children 기반 추론)
@@ -1584,6 +1583,13 @@
 - Smart selection filter — 선택 영역 내 특정 노드 타입만 필터링 (Figma "Select All with..." 확장), 정규식 이름 매칭, 깊이/속성 필터
 - Scroll-to animation triggers — Prototype viewer에서 스크롤 위치 기반 애니메이션 트리거 (parallax, reveal-on-scroll), 트리거 threshold 설정
 - Conditional visibility — 변수/조건 기반 노드 visibility 토글 (if variable == value → show/hide), 프로토타입에서 동적 UI 시뮬레이션
+
+## 완료된 기능 (추가 — Design System Documentation Site Export, 2026-04-04)
+- Properties panel (빈 선택 상태) Styles Library 섹션에 `Docs HTML` 버튼 추가
+- shared styles(`export_styles`) + design tokens(`export_design_tokens` W3C)를 단일 정적 HTML 문서로 빌드
+- 문서 구성: Color Styles 갤러리, Text Styles 샘플 프리뷰, 토큰 JSON 코드 블록
+- 산출물: `design-system-docs.html` 다운로드 (오프라인 공유 가능)
+- 구현: `packages/app/src/ui/design-system-docs.ts`
 
 ## 완료된 기능 (추가 — Spreadsheet Data Binding MVP, 2026-04-04)
 - Toolbar에 "Spreadsheet Data Binding" 버튼 추가
