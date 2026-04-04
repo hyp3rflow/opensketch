@@ -1574,7 +1574,7 @@
 
 ## 다음 할 것
 - ~~Multi-cursor collaborative editing~~ ✅ 완료 (원격 selection 기반 노드 잠금 오버레이 MVP)
-- Canvas minimap enhanced — 미니맵에 페이지 프리뷰 + 멀티페이지 네비게이션, 배율/위치 라벨
+- ~~Canvas minimap enhanced~~ ✅ 완료 (페이지 탭 네비게이션 + 활성 페이지/배율/팬 위치 인포 라벨)
 - ~~Smart auto-naming~~ ✅ 완료 (Frame children composition 기반 추론 이름 생성 포함)
 - Figma DevMode parity — 선택 노드 inspect 시 spacing/padding/margin 인라인 오버레이 + 코드 스니펫 복사 원클릭
 - Canvas grid/guide templates — 미리 정의된 그리드 레이아웃 (12-column, 8pt grid 등) 원클릭 적용
@@ -1589,6 +1589,12 @@
 - Smart selection filter — 선택 영역 내 특정 노드 타입만 필터링 (Figma "Select All with..." 확장), 정규식 이름 매칭, 깊이/속성 필터
 - Scroll-to animation triggers — Prototype viewer에서 스크롤 위치 기반 애니메이션 트리거 (parallax, reveal-on-scroll), 트리거 threshold 설정
 - Conditional visibility — 변수/조건 기반 노드 visibility 토글 (if variable == value → show/hide), 프로토타입에서 동적 UI 시뮬레이션
+
+## 완료된 기능 (추가 — Canvas Minimap Enhanced, 2026-04-04)
+- Minimap 헤더 하단에 상태 인포 라벨 추가: `활성 페이지명 · 줌% · pan(x/y)`
+- 활성 페이지 전환 시 인포 라벨이 즉시 동기화되도록 page tabs 업데이트 로직 보강
+- 접기/펼치기 상태에서 info/canvas/page-tabs 동시 토글 처리
+- 스타일 추가: compact 정보 바(`.minimap-info`) + tabular 숫자 표시
 
 ## 완료된 기능 (추가 — Smart Auto-naming Frame Heuristics, 2026-04-04)
 - Frame auto-name 규칙 강화: children 구성 기반 추론 추가
@@ -1616,6 +1622,11 @@
 - 2048x2048 타일 atlas(canvas 기반) 추가, Image/Video(poster/src) 비동기 로딩 후 atlas dirty 플래그 기반 업로드
 - node.kind 파싱으로 Image/Video 소스 감지, atlas 슬롯 UV 자동 계산 및 인스턴스별 텍스처 샘플링 적용
 - atlas 업로드 최적화: 변경 시에만 `copyExternalImageToTexture` 실행
+
+## 완료된 기능 (추가 — WebGPU Renderer Stage 5, 2026-04-04)
+- Scene JSON 색상 파서 확장: CSS rgb/rgba/hex + Rust 직렬화 `{r,g,b,a}` 포맷 공통 처리
+- WebGPU 경로에서 visible outer shadow를 별도 인스턴스로 프리패스 렌더 (offset/spread/blur 기반 패딩 근사)
+- fill/shadow 색상 fidelity 개선 + 대형 씬에서 Canvas2D 대비 효과 일관성 보강
 
 ## 완료된 기능 (백로그 정리 25 — 이미 구현 확인, 2026-04-04)
 - ~~Lottie animation export~~ ✅ 이미 구현 (animation-timeline export, toolbar dialog, Rust/WASM `export_lottie*`, lottie-export.ts)

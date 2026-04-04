@@ -47,6 +47,7 @@ export function setupMinimap(container: HTMLElement, editor: Editor) {
         <button class="minimap-toggle" title="Toggle minimap (M)">−</button>
       </div>
     </div>
+    <div class="minimap-info">100% · x0 y0</div>
     <canvas class="minimap-canvas" width="${MINIMAP_W * 2}" height="${MINIMAP_H * 2}"></canvas>
     <div class="minimap-pages"></div>
   `;
@@ -109,6 +110,7 @@ export function setupMinimap(container: HTMLElement, editor: Editor) {
 
   const toggleBtn = wrapper.querySelector(".minimap-toggle") as HTMLButtonElement;
   const colorModeSelect = wrapper.querySelector(".minimap-color-mode") as HTMLSelectElement;
+  const infoEl = wrapper.querySelector(".minimap-info") as HTMLDivElement;
   const pagesDiv = wrapper.querySelector(".minimap-pages") as HTMLDivElement;
   let collapsed = false;
   let colorMode: "type" | "fill" = "type";
@@ -120,6 +122,7 @@ export function setupMinimap(container: HTMLElement, editor: Editor) {
   toggleBtn.addEventListener("click", (e) => {
     e.stopPropagation();
     collapsed = !collapsed;
+    infoEl.style.display = collapsed ? "none" : "block";
     canvas.style.display = collapsed ? "none" : "block";
     pagesDiv.style.display = collapsed ? "none" : "flex";
     toggleBtn.textContent = collapsed ? "+" : "−";
@@ -238,6 +241,10 @@ export function setupMinimap(container: HTMLElement, editor: Editor) {
 
     // Draw viewport rectangle
     const vp = getViewportRect();
+    const zoomPct = Math.round(editor.engine.get_zoom() * 100);
+    const panX = Math.round(editor.engine.get_pan_x());
+    const panY = Math.round(editor.engine.get_pan_y());
+    infoEl.textContent = `${activePageName} · ${zoomPct}% · x${panX} y${panY}`;
     ctx.strokeStyle = "#4a90d9";
     ctx.lineWidth = 2;
     ctx.strokeRect(vp.x1, vp.y1, vp.x2 - vp.x1, vp.y2 - vp.y1);
@@ -258,6 +265,7 @@ export function setupMinimap(container: HTMLElement, editor: Editor) {
 
   // --- Page tabs ---
   let lastPagesJson = "";
+  let activePageName = "Page";
 
   function updatePageTabs() {
     let pagesJson: string;
@@ -269,6 +277,8 @@ export function setupMinimap(container: HTMLElement, editor: Editor) {
     try { pages = JSON.parse(pagesJson); } catch { return; }
 
     const activeId = Number(editor.engine.get_active_page_id());
+    const activePage = pages.find((p) => p.id === activeId);
+    activePageName = activePage?.name || "Page";
     pagesDiv.innerHTML = "";
     for (const p of pages) {
       const tab = document.createElement("button");

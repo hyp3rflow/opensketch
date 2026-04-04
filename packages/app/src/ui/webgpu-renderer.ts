@@ -23,6 +23,7 @@ type SceneNode = {
   visible?: boolean;
   opacity?: number;
   fills?: any[];
+  shadows?: any[];
   children?: number[];
 };
 
@@ -40,28 +41,70 @@ const ATLAS_TILE = 256;
 const ATLAS_COLS = Math.floor(ATLAS_SIZE / ATLAS_TILE);
 const ATLAS_CAPACITY = ATLAS_COLS * ATLAS_COLS;
 
-function parseColor(css: string | undefined): [number, number, number, number] {
-  if (!css) return [0.24, 0.24, 0.28, 1];
-  const m = css.match(/rgba?\(([^)]+)\)/i);
-  if (!m) return [0.24, 0.24, 0.28, 1];
-  const parts = m[1].split(",").map((p) => p.trim());
-  const r = Math.max(0, Math.min(255, Number(parts[0]) || 0)) / 255;
-  const g = Math.max(0, Math.min(255, Number(parts[1]) || 0)) / 255;
-  const b = Math.max(0, Math.min(255, Number(parts[2]) || 0)) / 255;
-  const a = Math.max(0, Math.min(1, parts[3] != null ? Number(parts[3]) : 1));
-  return [r, g, b, a];
+function parseColor(input: unknown): [number, number, number, number] {
+  if (!input) return [0.24, 0.24, 0.28, 1];
+
+  if (typeof input === "string") {
+    const css = input.trim();
+    const m = css.match(/rgba?\(([^)]+)\)/i);
+    if (m) {
+      const parts = m[1].split(",").map((p) => p.trim());
+      const r = Math.max(0, Math.min(255, Number(parts[0]) || 0)) / 255;
+      const g = Math.max(0, Math.min(255, Number(parts[1]) || 0)) / 255;
+      const b = Math.max(0, Math.min(255, Number(parts[2]) || 0)) / 255;
+      const a = Math.max(0, Math.min(1, parts[3] != null ? Number(parts[3]) : 1));
+      return [r, g, b, a];
+    }
+
+    const hex = css.replace("#", "");
+    if (/^[0-9a-f]{6}$/i.test(hex)) {
+      const n = Number.parseInt(hex, 16);
+      return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255, 1];
+    }
+    if (/^[0-9a-f]{8}$/i.test(hex)) {
+      const n = Number.parseInt(hex, 16);
+      return [((n >> 24) & 255) / 255, ((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
+    }
+    return [0.24, 0.24, 0.28, 1];
+  }
+
+  if (typeof input === "object") {
+    const c = input as any;
+    if (Array.isArray(c) && c.length >= 3) {
+      const r = Number(c[0] ?? 0);
+      const g = Number(c[1] ?? 0);
+      const b = Number(c[2] ?? 0);
+      const a = Number(c[3] ?? 1);
+      return [Math.max(0, Math.min(1, r)), Math.max(0, Math.min(1, g)), Math.max(0, Math.min(1, b)), Math.max(0, Math.min(1, a))];
+    }
+    if (typeof c.r === "number" && typeof c.g === "number" && typeof c.b === "number") {
+      return [
+        Math.max(0, Math.min(1, c.r)),
+        Math.max(0, Math.min(1, c.g)),
+        Math.max(0, Math.min(1, c.b)),
+        Math.max(0, Math.min(1, typeof c.a === "number" ? c.a : 1)),
+      ];
+    }
+  }
+
+  return [0.24, 0.24, 0.28, 1];
 }
 
 function extractSolidColor(fill: any): [number, number, number, number] | null {
   if (!fill || fill.visible === false) return null;
   const t = fill.type;
 
-  if (typeof fill.color === "string") return parseColor(fill.color);
-  if (t?.Solid?.color) return parseColor(t.Solid.color);
-  if (t?.solid?.color) return parseColor(t.solid.color);
-  if (typeof t?.color === "string") return parseColor(t.color);
+  if (fill.color != null) return parseColor(fill.color);
+  if (t?.Solid?.color != null) return parseColor(t.Solid.color);
+  if (t?.solid?.color != null) return parseColor(t.solid.color);
+  if (t?.color != null) return parseColor(t.color);
 
   return null;
+}
+
+function extractVisibleShadows(node: SceneNode): any[] {
+  if (!Array.isArray(node.shadows)) return [];
+  return node.shadows.filter((s) => s && s.visible !== false && s.inset !== true);
 }
 
 function applyOpacity(color: [number, number, number, number], opacity: number): [number, number, number, number] {
@@ -429,6 +472,31 @@ fn fs_main(input: VSOut) -> @location(0) vec4f {
         const source = imageLike ? extractImageSource(node.kind) : null;
         const shapeKind = kindName === "Ellipse" ? 1 : 0;
         const cornerRadius = Math.max(0, Number(node.corner_radius ?? 0));
+
+        const shadows = extractVisibleShadows(node);
+        for (const shadow of shadows) {
+          const sx = Number(shadow.offset_x ?? 0);
+          const sy = Number(shadow.offset_y ?? 0);
+          const blur = Math.max(0, Number(shadow.blur ?? 0));
+          const spread = Number(shadow.spread ?? 0);
+          const pad = Math.max(0, blur * 0.5 + spread);
+          const shadowColor = applyOpacity(parseColor(shadow.color), opacity);
+          shadowColor[3] *= 0.85;
+          const shadowW = Math.max(1, width + pad * 2);
+          const shadowH = Math.max(1, height + pad * 2);
+          instances.push({
+            x: worldX + sx - pad,
+            y: worldY + sy - pad,
+            width: shadowW,
+            height: shadowH,
+            color: shadowColor,
+            uv: [0, 0, 1, 1],
+            textureMix: 0,
+            shapeKind,
+            cornerRadius: cornerRadius + pad,
+          });
+        }
+
         if (source) this.ensureAtlasEntry(source);
         instances.push({
           x: worldX,

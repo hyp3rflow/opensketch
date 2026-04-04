@@ -2268,6 +2268,13 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] **Low-GC instance/uniform uploads (Stage 3)**: reusable typed-array pools + upload key cache skip per-frame Float32Array allocation and redundant GPU `writeBuffer` calls when scene/view are unchanged
 - [x] **Auto backend promotion for large scenes (Stage 4)**: when auto mode is enabled and scene node count reaches 1000+, editor auto-switches Canvas2D → WebGPU and shows one-shot performance toast
 - [x] **Renderer toggle advanced control**: renderer button right-click toggles auto-render mode (persisted `localStorage['opensketch-auto-renderer']`)
+- [x] **WebGPU shadow pre-pass (Stage 5, approximation)**: visible outer shadows are emitted as additional GPU instances (offset + spread/blur-derived pad) before main shape draw for large-scene effect parity
+- [x] **Robust color decode for WebGPU path**: parser now accepts CSS rgb/rgba + hex + serialized `{r,g,b,a}` objects used by Rust scene JSON, improving fill/shadow color fidelity
+
+### Minimap UX Enhancements (2026-04-04)
+- [x] **Minimap status info bar**: shows `Active Page · Zoom% · Pan(x/y)` directly under header
+- [x] **Page-aware minimap feedback**: active page name syncs immediately when switching minimap page tabs
+- [x] **Collapsed-state consistency**: info bar visibility follows minimap collapse/expand with canvas + tabs
 
 ### Design System Documentation Site Export (MVP, 2026-04-04)
 - [x] Styles Library section (empty selection state) has **Docs HTML** action
