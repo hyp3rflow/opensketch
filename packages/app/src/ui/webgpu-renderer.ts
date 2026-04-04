@@ -8,6 +8,18 @@ type InstanceData = {
   color: [number, number, number, number];
 };
 
+type SceneNode = {
+  id?: number;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  visible?: boolean;
+  opacity?: number;
+  fills?: any[];
+  children?: number[];
+};
+
 function parseColor(css: string | undefined): [number, number, number, number] {
   if (!css) return [0.24, 0.24, 0.28, 1];
   const m = css.match(/rgba?\(([^)]+)\)/i);
@@ -18,6 +30,22 @@ function parseColor(css: string | undefined): [number, number, number, number] {
   const b = Math.max(0, Math.min(255, Number(parts[2]) || 0)) / 255;
   const a = Math.max(0, Math.min(1, parts[3] != null ? Number(parts[3]) : 1));
   return [r, g, b, a];
+}
+
+function extractSolidColor(fill: any): [number, number, number, number] | null {
+  if (!fill || fill.visible === false) return null;
+  const t = fill.type;
+
+  if (typeof fill.color === "string") return parseColor(fill.color);
+  if (t?.Solid?.color) return parseColor(t.Solid.color);
+  if (t?.solid?.color) return parseColor(t.solid.color);
+  if (typeof t?.color === "string") return parseColor(t.color);
+
+  return null;
+}
+
+function applyOpacity(color: [number, number, number, number], opacity: number): [number, number, number, number] {
+  return [color[0], color[1], color[2], Math.max(0, Math.min(1, color[3] * opacity))];
 }
 
 export class WebGPURenderer {
@@ -150,6 +178,59 @@ fn fs_main(input: VSOut) -> @location(0) vec4f {
     }
   }
 
+  private collectInstances(scene: any): InstanceData[] {
+    const nodes = Array.isArray(scene?.nodes) ? scene.nodes as SceneNode[] : [];
+    if (!nodes.length) return [];
+
+    const byId = new Map<number, SceneNode>();
+    const childIds = new Set<number>();
+    for (const node of nodes) {
+      if (typeof node?.id === "number") byId.set(node.id, node);
+      if (Array.isArray(node?.children)) {
+        for (const cid of node.children) {
+          if (typeof cid === "number") childIds.add(cid);
+        }
+      }
+    }
+
+    const roots = nodes.filter((n) => typeof n?.id === "number" && !childIds.has(n.id!));
+    const instances: InstanceData[] = [];
+
+    const walk = (node: SceneNode, parentX: number, parentY: number, parentOpacity: number) => {
+      if (!node || node.visible === false) return;
+
+      const localX = Number(node.x ?? 0);
+      const localY = Number(node.y ?? 0);
+      const width = Number(node.width ?? 0);
+      const height = Number(node.height ?? 0);
+      const worldX = parentX + localX;
+      const worldY = parentY + localY;
+      const opacity = parentOpacity * Math.max(0, Math.min(1, Number(node.opacity ?? 1)));
+
+      if (width > 0 && height > 0) {
+        const fills = Array.isArray(node.fills) ? node.fills : [];
+        const color = fills.map(extractSolidColor).find(Boolean) as [number, number, number, number] | undefined;
+        instances.push({
+          x: worldX,
+          y: worldY,
+          width,
+          height,
+          color: applyOpacity(color ?? [0.24, 0.24, 0.28, 0.35], opacity),
+        });
+      }
+
+      if (Array.isArray(node.children)) {
+        for (const cid of node.children) {
+          const child = byId.get(Number(cid));
+          if (child) walk(child, worldX, worldY, opacity);
+        }
+      }
+    };
+
+    for (const root of roots) walk(root, 0, 0, 1);
+    return instances;
+  }
+
   renderFromScene(sceneJson: string, viewportW: number, viewportH: number, zoom: number, panX: number, panY: number) {
     if (!this._ready || !this._device || !this._ctx || !this._pipeline) return;
 
@@ -160,26 +241,7 @@ fn fs_main(input: VSOut) -> @location(0) vec4f {
       return;
     }
 
-    const instances: InstanceData[] = [];
-    const nodes = Array.isArray(scene?.nodes) ? scene.nodes : [];
-    for (const node of nodes) {
-      if (!node || node.visible === false) continue;
-      const width = Number(node.width ?? 0);
-      const height = Number(node.height ?? 0);
-      if (width <= 0 || height <= 0) continue;
-      const fills = Array.isArray(node.fills) ? node.fills : [];
-      const solid = fills.find((f: any) => f?.visible !== false && f?.type?.Solid?.color != null) || fills.find((f: any) => f?.visible !== false);
-      let color: [number, number, number, number] = [0.24, 0.24, 0.28, 0.35];
-      if (solid?.type?.Solid?.color) color = parseColor(solid.type.Solid.color);
-      instances.push({
-        x: Number(node.x ?? 0),
-        y: Number(node.y ?? 0),
-        width,
-        height,
-        color,
-      });
-    }
-
+    const instances = this.collectInstances(scene);
     const count = instances.length;
     if (count === 0) {
       const encoder = this._device.createCommandEncoder();

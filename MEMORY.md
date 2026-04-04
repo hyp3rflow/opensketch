@@ -1549,6 +1549,12 @@
   - 단축키: Cmd+Shift+A 또는 Cmd+Alt+A 토글
   - Editor 통합: render loop, pointer events, shortcut
 
+## 완료된 기능 (추가 — WebGPU Renderer 개선, 2026-04-04)
+- WebGPU 인스턴스 수집 로직 개선: Scene graph를 루트→자식으로 재귀 순회하여 부모 오프셋/opacity를 합성한 뒤 GPU 인스턴스로 업로드
+- Fill 파싱 강화: `type.Solid.color` 및 direct `color` 형태를 모두 지원, 노드 opacity와 합성
+- 렌더러 전환 UX 추가: Zoom controls에 Renderer 토글 버튼 추가 (Canvas2D ↔ WebGPU)
+- WebGPU 미지원 환경 처리: 토글 버튼 disabled + 안내 tooltip, 강제 WebGPU 선택 시 Canvas2D로 안전 fallback
+
 ## 다음 할 것
 - Lottie animation export — 캔버스 애니메이션을 Lottie JSON으로 내보내기, keyframe 기반 변환
 - Multi-cursor collaborative editing — 동시 편집 시 노드별 잠금 표시 + 실시간 변경 반영 (operational transform 고도화)

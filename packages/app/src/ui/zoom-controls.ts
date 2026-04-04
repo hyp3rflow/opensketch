@@ -28,6 +28,12 @@ export function setupZoomControls(container: HTMLElement, editor: Editor) {
     <button class="zoom-btn zoom-fit" title="Zoom to fit (⌘1)">
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="2" y="2" width="10" height="10" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M5 2v10M9 2v10M2 5h10M2 9h10" stroke="currentColor" stroke-width="0.6" opacity="0.4"/></svg>
     </button>
+    <button class="zoom-btn renderer-btn" title="Toggle renderer backend (Canvas2D/WebGPU)">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <rect x="1.5" y="2" width="11" height="7" rx="1.5" stroke="currentColor" stroke-width="1"/>
+        <rect x="4.5" y="10" width="5" height="1.5" rx="0.75" fill="currentColor" opacity="0.7"/>
+      </svg>
+    </button>
     <button class="zoom-btn pixel-snap-btn" title="Snap to Pixel Grid (default ON)">
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
         <rect x="1" y="1" width="5" height="5" stroke="currentColor" stroke-width="1" rx="0.5"/>
@@ -70,6 +76,29 @@ export function setupZoomControls(container: HTMLElement, editor: Editor) {
   el.querySelector(".zoom-in")!.addEventListener("click", () => editor.zoomBy(1.25));
   levelBtn.addEventListener("click", () => editor.zoomTo100());
   el.querySelector(".zoom-fit")!.addEventListener("click", () => editor.zoomToFit());
+
+  // Renderer backend toggle
+  const rendererBtn = el.querySelector(".renderer-btn") as HTMLButtonElement;
+  rendererBtn.addEventListener("click", () => {
+    const current = editor.getRenderBackend();
+    if (current === "webgpu") {
+      editor.setRenderBackend("canvas2d");
+    } else if (editor.isWebGPUAvailable()) {
+      editor.setRenderBackend("webgpu");
+    }
+    updateRendererBtn();
+  });
+  const updateRendererBtn = () => {
+    const mode = editor.getRenderBackend();
+    const available = editor.isWebGPUAvailable();
+    rendererBtn.classList.toggle("active", mode === "webgpu");
+    rendererBtn.disabled = !available;
+    rendererBtn.style.opacity = available ? "1" : "0.45";
+    rendererBtn.title = available
+      ? `Renderer: ${mode === "webgpu" ? "WebGPU" : "Canvas2D"} (click to toggle)`
+      : "WebGPU not available on this browser/device";
+  };
+  updateRendererBtn();
 
   // Pixel preview button
   const ppBtn = el.querySelector(".pixel-preview-btn") as HTMLButtonElement;
@@ -158,6 +187,7 @@ export function setupZoomControls(container: HTMLElement, editor: Editor) {
   const poll = () => {
     const z = editor.getZoomLevel();
     if (z !== lastZoom) { lastZoom = z; update(); }
+    updateRendererBtn();
     requestAnimationFrame(poll);
   };
   poll();

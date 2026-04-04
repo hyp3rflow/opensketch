@@ -341,6 +341,12 @@ export class Editor {
   }
 
   setRenderBackend(mode: "canvas2d" | "webgpu") {
+    if (mode === "webgpu" && !this._webgpuRenderer?.ready) {
+      this._renderBackend = "canvas2d";
+      localStorage.setItem("opensketch-renderer-backend", "canvas2d");
+      this.needsRender = true;
+      return;
+    }
     this._renderBackend = mode;
     localStorage.setItem("opensketch-renderer-backend", mode);
     this.needsRender = true;
@@ -348,6 +354,10 @@ export class Editor {
 
   getRenderBackend() {
     return this._renderBackend;
+  }
+
+  isWebGPUAvailable() {
+    return !!this._webgpuRenderer?.ready;
   }
 
   private setupEvents() {

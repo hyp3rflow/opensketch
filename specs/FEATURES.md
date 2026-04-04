@@ -2252,3 +2252,6 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] **Editor backend switch**: `canvas2d | webgpu` runtime mode in `Editor`
 - [x] **Persisted preference**: `localStorage['opensketch-renderer-backend']`
 - [x] **Graceful fallback**: auto-revert to Canvas2D when WebGPU is unavailable
+- [x] **Hierarchy-aware instance collection**: recursively traverses scene graph (root + children) and composes parent offsets/opacity before GPU instance upload
+- [x] **Robust solid-fill parsing**: supports multiple fill JSON shapes (`type.Solid.color`, direct `color`) with opacity composition
+- [x] **Quick backend toggle in Zoom controls**: one-click Canvas2D/WebGPU switch, disabled state when WebGPU unsupported
