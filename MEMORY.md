@@ -1558,8 +1558,15 @@
 - 렌더 경로 캐시 추가: `sceneJson + viewKey` 기반 캐시로 동일 프레임 재파싱/재순회 비용 절감
 - bind group 재사용 최적화: 매 프레임 생성 대신 초기화 시 1회 생성 후 재사용
 
+## 완료된 기능 (추가 — Multi-cursor Collaborative Lock Overlay MVP, 2026-04-04)
+- 원격 협업 사용자의 selection 정보를 이용해 노드 잠금 오버레이 렌더링
+- 캔버스 오버레이: 사용자 색상 dashed outline + 🔒 락 마커
+- 충돌 방지 가시성 강화: 누가 잡고 있는 노드인지 즉시 확인 가능
+- editor.ts: renderRemoteNodeLocks() 추가, 메인 렌더 파이프라인 통합
+- specs/FEATURES.md Cursor Presence 섹션 업데이트
+
 ## 다음 할 것
-- Multi-cursor collaborative editing — 동시 편집 시 노드별 잠금 표시 + 실시간 변경 반영 (operational transform 고도화)
+- ~~Multi-cursor collaborative editing~~ ✅ 완료 (원격 selection 기반 노드 잠금 오버레이 MVP)
 - Design system documentation site export — 컴포넌트/스타일/토큰을 정적 HTML 문서 사이트로 빌드 (Storybook 스타일)
 - Node effect presets library — 자주 쓰는 shadow/blur/filter 조합을 프리셋으로 저장/적용, JSON import/export, 카테고리별 브라우저
 - Canvas minimap enhanced — 미니맵에 페이지 프리뷰 + 멀티페이지 네비게이션, 배율/위치 라벨

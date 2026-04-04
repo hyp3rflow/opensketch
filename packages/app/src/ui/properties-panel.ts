@@ -9,6 +9,7 @@ import { createNodeLinksSection } from "./node-links";
 import { t } from "./i18n";
 import { createStyleTransferSection } from "./style-transfer";
 import { renderScrollAnimSection } from "./scroll-animation";
+import { openARQuickLook } from "./ar-quicklook";
 
 // Stage 4: Google Fonts list
 const googleFonts = [
@@ -3532,6 +3533,29 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           refresh(ids);
         });
         section3d.appendChild(resetBtn);
+
+        // AR Quick Look / model-viewer preview for 3D assets
+        const kindObj: any = node?.kind;
+        const arSource = (
+          kindObj?.Image?.src
+          || kindObj?.image?.src
+          || kindObj?.Video?.src
+          || kindObj?.video?.src
+        );
+        if (typeof arSource === "string" && arSource.trim()) {
+          const arBtn = document.createElement("button");
+          arBtn.className = "prop-btn";
+          arBtn.textContent = "AR Preview";
+          arBtn.style.cssText = "margin-top:6px;font-size:10px;padding:3px 8px;";
+          arBtn.title = "Open Quick Look / model-viewer preview + mobile QR";
+          arBtn.addEventListener("click", () => {
+            openARQuickLook({
+              src: arSource,
+              title: String((node as any)?.name || ""),
+            });
+          });
+          section3d.appendChild(arBtn);
+        }
       }
 
       container.appendChild(section3d);

@@ -863,6 +863,7 @@ Simulated multi-user cursor display for collaboration readiness.
 - [x] Name label pill (rounded rect with user color + white text)
 - [x] Fade-out animation for stale cursors (10s timeout, 2s fade)
 - [x] Selection highlights: dashed colored rectangles around remote-selected nodes
+- [x] Remote node lock indicator (MVP): selected nodes by collaborators render 🔒 dashed lock overlays to prevent edit collisions
 
 ### Demo Simulation
 - [x] `startDemo()`: 3 fake users (Alice, Bob, Carol) with smooth random movement
@@ -1516,7 +1517,8 @@ Frame overflow control and content scrolling.
 - [x] **3D Perspective Transform**: Per-node 3D rotation (X/Y/Z) + perspective distance + vanishing point origin
   - Rust engine: Perspective3D struct (rotate_x/y/z, perspective distance, origin_x/y), WASM bindings (set/get/clear_perspective, set_perspective_rotation/distance/origin)
   - Canvas rendering: Strip-based perspective warp using DOMMatrix 3D projection
-  - Properties panel: "3D Transform" section with enable checkbox, rotation sliders, distance, origin controls, reset button
+  - Properties panel: "3D Transform" section with enable checkbox, rotation sliders, distance, origin controls, reset button, AR Preview button
+  - AR Preview: Quick Look/model-viewer modal + mobile QR for .usdz/.glb/.gltf sources (ui/ar-quicklook.ts)
   - SVG export: CSS transform with perspective() rotateX/Y/Z() + transform-origin
   - Inspect panel: CSS code generation for perspective transforms
 

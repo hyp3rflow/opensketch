@@ -4501,6 +4501,7 @@ export class Editor {
         this.renderComponentSetOverlays();
         this.renderGradientEditor();
         this.renderSpacingHandles();
+        this.renderRemoteNodeLocks();
         this.renderCursorPresence();
         this.renderBreakpointIndicator();
         this.renderStamps();
@@ -5400,6 +5401,57 @@ export class Editor {
 
   private renderSearchFilterOverlay() {
     renderSearchFilterDimming(this.ctx, this);
+  }
+
+  private renderRemoteNodeLocks() {
+    const cursors = this._cursorPresence.getCursors();
+    if (!cursors.length) return;
+
+    const zoom = this.engine.get_zoom();
+    const panX = this.engine.get_pan_x();
+    const panY = this.engine.get_pan_y();
+    const lockOwners = new Map<number, string>();
+
+    for (const c of cursors) {
+      const ids = Array.isArray(c.selectedIds) ? c.selectedIds : [];
+      for (const id of ids) {
+        if (!lockOwners.has(id)) lockOwners.set(id, c.color || "#7c3aed");
+      }
+    }
+    if (!lockOwners.size) return;
+
+    const ctx = this.ctx;
+    ctx.save();
+    for (const [id, color] of lockOwners) {
+      try {
+        const nodeJson = this.engine.get_node_json(BigInt(id));
+        if (!nodeJson) continue;
+        const node = JSON.parse(nodeJson);
+        if (node?.visible === false) continue;
+
+        const sx = (Number(node.x || 0) - panX) * zoom;
+        const sy = (Number(node.y || 0) - panY) * zoom;
+        const sw = Number(node.width || 0) * zoom;
+        const sh = Number(node.height || 0) * zoom;
+        if (sw <= 0 || sh <= 0) continue;
+
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([6, 4]);
+        ctx.strokeRect(sx - 1.5, sy - 1.5, sw + 3, sh + 3);
+
+        // tiny lock marker
+        ctx.setLineDash([]);
+        ctx.fillStyle = color;
+        ctx.fillRect(sx - 1.5, sy - 14, 24, 12);
+        ctx.fillStyle = "#fff";
+        ctx.font = "10px Inter, sans-serif";
+        ctx.fillText("🔒", sx + 2, sy - 4);
+      } catch {
+        // ignore invalid ids
+      }
+    }
+    ctx.restore();
   }
 
   private renderCursorPresence() {
