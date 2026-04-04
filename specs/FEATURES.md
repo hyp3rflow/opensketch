@@ -910,6 +910,8 @@ Right pane "A11y" tab — automated accessibility audit for design nodes.
 - [x] Cmd+Shift+A shortcut to open A11y panel tab
 - [x] UI: "Fix All (N)" button in header to batch-fix all contrast issues
 - [x] Undo integration for all fixes
+- [x] WASM: `get_contrast_ratio(fg, bg) -> f64` — standalone contrast ratio calculation between two hex colors
+- [x] Properties panel: Alt Text input field for Image nodes (inline editing with undo support)
 
 ### Scrollable Frames (Overflow Control)
 - [x] Node.overflow: Visible (default), Hidden, Scroll

@@ -8461,6 +8461,20 @@ impl Engine {
             .unwrap_or_default()
     }
 
+    /// Get WCAG 2.1 contrast ratio between two hex colors (e.g. "#ffffff", "#000000")
+    pub fn get_contrast_ratio(&self, fg: &str, bg: &str) -> f64 {
+        let fg_color = crate::scene::parse_hex_color(fg);
+        let bg_color = crate::scene::parse_hex_color(bg);
+        match (fg_color, bg_color) {
+            (Some(f), Some(b)) => {
+                let fl = accessibility::relative_luminance(&f);
+                let bl = accessibility::relative_luminance(&b);
+                accessibility::contrast_ratio(fl, bl)
+            }
+            _ => 0.0,
+        }
+    }
+
     /// Analyze scene and return statistics as JSON (node count, type distribution, style usage, component coverage)
     #[wasm_bindgen]
     pub fn get_scene_analysis(&self) -> String {

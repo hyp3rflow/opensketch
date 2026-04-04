@@ -5387,6 +5387,28 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       srcRow.appendChild(srcInput);
       imgSection.appendChild(srcRow);
 
+      // Alt text (accessibility)
+      const altRow = document.createElement("div");
+      altRow.className = "prop-row";
+      altRow.style.marginTop = "6px";
+      const altLabel = document.createElement("span");
+      altLabel.className = "prop-label";
+      altLabel.style.width = "28px";
+      altLabel.textContent = "Alt";
+      altRow.appendChild(altLabel);
+      const altInput = document.createElement("input");
+      altInput.className = "prop-input";
+      altInput.style.flex = "1";
+      altInput.placeholder = "Alt text for accessibility";
+      altInput.value = (editor.engine as any).get_alt_text(id) || "";
+      altInput.addEventListener("change", () => {
+        ensureUndo();
+        (editor.engine as any).set_alt_text(id, altInput.value);
+        editor.requestRender();
+      });
+      altRow.appendChild(altInput);
+      imgSection.appendChild(altRow);
+
       // Fit mode
       const fitRow = document.createElement("div");
       fitRow.style.cssText = "display:flex;gap:2px;margin-top:6px;";
