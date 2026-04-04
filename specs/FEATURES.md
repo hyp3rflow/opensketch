@@ -2256,6 +2256,7 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] **Freehand tool enhanced**: Pressure-sensitive input capture, ink recognition on pointer up — confidence > 0.7 converts to geometric shape, otherwise smoothed bezier path
 - [x] **Shape detection**: Circularity metric for circles, area ratio for rectangles, corner detection for triangles, endpoint distance for line detection
 - [x] **Ink → Path conversion**: Simplify → Smooth → Catmull-Rom to bezier handle conversion pipeline
+- [x] **Freehand mode controls (2026-04-05)**: Properties panel now exposes Ink Recognition settings while Freehand tool is active — shape recognition toggle + simplify tolerance slider (0.2~8.0) used by `ink_to_path`
 
 ### Experimental WebGPU Renderer (MVP)
 - [x] **WebGPU renderer module**: `ui/webgpu-renderer.ts` added with adapter/device setup + fallback-safe init

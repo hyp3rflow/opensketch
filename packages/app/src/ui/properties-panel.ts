@@ -295,6 +295,64 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       bgSection.appendChild(numRow);
       emptyDiv.appendChild(bgSection);
 
+      // Freehand / Ink settings
+      if (editor.currentTool === "freehand") {
+        const inkSection = document.createElement("div");
+        inkSection.style.cssText = "width:100%;padding:12px 16px;border-top:1px solid #333;";
+
+        const inkTitle = document.createElement("div");
+        inkTitle.style.cssText = "font-size:11px;font-weight:600;color:#888;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px;";
+        inkTitle.textContent = "Ink Recognition";
+        inkSection.appendChild(inkTitle);
+
+        const settings = editor.getInkSettings();
+
+        const recogRow = document.createElement("label");
+        recogRow.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;font-size:11px;color:#ccc;";
+        recogRow.textContent = "Shape recognition";
+        const recogToggle = document.createElement("input");
+        recogToggle.type = "checkbox";
+        recogToggle.checked = !!settings.shapeRecognition;
+        recogToggle.onchange = () => {
+          editor.setInkShapeRecognition(recogToggle.checked);
+          editor.requestRender();
+        };
+        recogRow.appendChild(recogToggle);
+        inkSection.appendChild(recogRow);
+
+        const simplifyWrap = document.createElement("div");
+        simplifyWrap.style.cssText = "display:flex;flex-direction:column;gap:4px;";
+        const simplifyLabel = document.createElement("div");
+        simplifyLabel.style.cssText = "font-size:10px;color:#666;";
+        simplifyLabel.textContent = "Path simplify tolerance";
+        const simplifyInput = document.createElement("input");
+        simplifyInput.type = "range";
+        simplifyInput.min = "0.2";
+        simplifyInput.max = "8";
+        simplifyInput.step = "0.2";
+        simplifyInput.value = String(settings.simplifyTolerance ?? 2.0);
+        const simplifyValue = document.createElement("div");
+        simplifyValue.style.cssText = "font-size:10px;color:#8a8a8a;";
+        simplifyValue.textContent = `${Number(simplifyInput.value).toFixed(1)}`;
+        simplifyInput.oninput = () => {
+          const v = parseFloat(simplifyInput.value) || 2.0;
+          simplifyValue.textContent = v.toFixed(1);
+          editor.setInkSimplifyTolerance(v);
+          editor.requestRender();
+        };
+        simplifyWrap.appendChild(simplifyLabel);
+        simplifyWrap.appendChild(simplifyInput);
+        simplifyWrap.appendChild(simplifyValue);
+        inkSection.appendChild(simplifyWrap);
+
+        const hint = document.createElement("div");
+        hint.style.cssText = "margin-top:8px;font-size:10px;line-height:1.4;color:#777;";
+        hint.textContent = "Recognizes line/circle/rectangle/triangle/arrow when confidence is high.";
+        inkSection.appendChild(hint);
+
+        emptyDiv.appendChild(inkSection);
+      }
+
       container.appendChild(emptyDiv);
       return;
     }

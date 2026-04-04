@@ -156,6 +156,7 @@ export class Editor {
   private _freehandPoints: { x: number; y: number; pressure?: number; timestamp?: number }[] = [];
   private _freehandDrawing = false;
   private _inkShapeRecognition = true;
+  private _inkSimplifyTolerance = 2.0;
   private _pathEditHandleOffsets: { hix: number; hiy: number; hox: number; hoy: number } | null = null;
 
   // Vector Network edit mode state
@@ -2478,13 +2479,13 @@ export class Editor {
             if (recognition.confidence > 0.7 && recognition.shape !== "freehand") {
               newId = Number(this.engine.ink_to_shape(pointsJson));
             } else {
-              newId = Number(this.engine.ink_to_path(pointsJson, 2.0));
+              newId = Number(this.engine.ink_to_path(pointsJson, this._inkSimplifyTolerance));
             }
           } catch {
-            newId = Number(this.engine.ink_to_path(pointsJson, 2.0));
+            newId = Number(this.engine.ink_to_path(pointsJson, this._inkSimplifyTolerance));
           }
         } else {
-          newId = Number(this.engine.ink_to_path(pointsJson, 2.0));
+          newId = Number(this.engine.ink_to_path(pointsJson, this._inkSimplifyTolerance));
         }
 
         if (newId && newId > 0) {
@@ -4819,6 +4820,22 @@ export class Editor {
       measure: "crosshair", annotate: "crosshair", eyedropper: "crosshair", scale: "nwse-resize",
     };
     this.canvas.style.cursor = cursors[this.currentTool] || "default";
+  }
+
+  // Freehand / ink settings
+  getInkSettings() {
+    return {
+      shapeRecognition: this._inkShapeRecognition,
+      simplifyTolerance: this._inkSimplifyTolerance,
+    };
+  }
+
+  setInkShapeRecognition(enabled: boolean) {
+    this._inkShapeRecognition = !!enabled;
+  }
+
+  setInkSimplifyTolerance(value: number) {
+    this._inkSimplifyTolerance = Math.max(0.2, Math.min(12, Number.isFinite(value) ? value : 2.0));
   }
 
   // === Image support ===
