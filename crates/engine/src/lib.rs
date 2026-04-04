@@ -732,6 +732,82 @@ impl Engine {
         }
     }
 
+    /// Auto layout table size from cell content.
+    /// - wrap_text: if true, keeps columns moderate and increases row height from wrapped lines.
+    /// - header_rows: first N rows are treated as header (optional visual fill if empty fill).
+    pub fn table_auto_layout(&mut self, id: u64, wrap_text: bool, header_rows: u32) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let NodeKind::Table { rows, cols, ref mut cells, ref mut col_widths, ref mut row_heights } = node.kind {
+                if rows == 0 || cols == 0 { return; }
+
+                let padding_x = 16.0;
+                let line_h = 18.0;
+                let min_col = 64.0;
+                let max_col = 320.0;
+
+                let mut max_chars_per_col = vec![0usize; cols as usize];
+                for cell in cells.iter() {
+                    if (cell.col as usize) >= max_chars_per_col.len() { continue; }
+                    let mut local_max = 0usize;
+                    for line in cell.content.lines() {
+                        local_max = local_max.max(line.chars().count());
+                    }
+                    max_chars_per_col[cell.col as usize] = max_chars_per_col[cell.col as usize].max(local_max);
+                }
+
+                for c in 0..cols as usize {
+                    let chars = max_chars_per_col[c].max(2) as f64;
+                    let mut w = chars * 7.2 + padding_x;
+                    if wrap_text {
+                        w = w.min(220.0);
+                    }
+                    col_widths[c] = w.clamp(min_col, max_col);
+                }
+
+                let mut line_count_per_row = vec![1usize; rows as usize];
+                for cell in cells.iter() {
+                    if (cell.row as usize) >= line_count_per_row.len() || (cell.col as usize) >= col_widths.len() { continue; }
+                    let width = col_widths[cell.col as usize].max(min_col);
+                    let chars_per_line = ((width - padding_x).max(20.0) / 7.2).floor().max(1.0) as usize;
+
+                    let mut lines = 0usize;
+                    for base in cell.content.lines() {
+                        let ch = base.chars().count();
+                        if ch == 0 {
+                            lines += 1;
+                        } else if wrap_text {
+                            lines += ((ch + chars_per_line - 1) / chars_per_line).max(1);
+                        } else {
+                            lines += 1;
+                        }
+                    }
+                    if lines == 0 { lines = 1; }
+                    line_count_per_row[cell.row as usize] = line_count_per_row[cell.row as usize].max(lines);
+                }
+
+                for r in 0..rows as usize {
+                    row_heights[r] = (line_count_per_row[r] as f64 * line_h + 10.0).clamp(28.0, 260.0);
+                }
+
+                let header = header_rows.min(rows);
+                if header > 0 {
+                    for r in 0..header {
+                        for c in 0..cols {
+                            if let Some(cell) = cells.iter_mut().find(|x| x.row == r && x.col == c) {
+                                if cell.fill.is_none() {
+                                    cell.fill = Some(crate::types::Color { r: 55, g: 65, b: 81, a: 0.85, color_space: ColorSpace::default() });
+                                }
+                            }
+                        }
+                    }
+                }
+
+                node.width = col_widths.iter().sum::<f64>().max(1.0);
+                node.height = row_heights.iter().sum::<f64>().max(1.0);
+            }
+        }
+    }
+
     pub fn table_get_info(&self, id: u64) -> String {
         if let Some(node) = self.scene.get_node(id) {
             if let NodeKind::Table { rows, cols, ref cells, ref col_widths, ref row_heights } = node.kind {

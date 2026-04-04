@@ -757,11 +757,11 @@
 ## Table Node
 - [x] **NodeKind::Table**: Row/column/cell structure with `rows`, `cols`, `cells: Vec<TableCell>`, `col_widths`, `row_heights`
 - [x] **TableCell**: row, col, row_span, col_span, content, fill, text_align
-- [x] **WASM bindings**: add_table, table_set_cell, table_get_cell, table_set_cell_fill, table_merge_cells, table_unmerge_cell, table_add_row/col, table_remove_row/col, table_set_col_width/row_height, table_import_csv, table_sort, table_get_info, set_table_size, relayout_table
-- [x] **Canvas rendering**: Grid lines, cell fills, cell text with alignment
+- [x] **WASM bindings**: add_table, table_set_cell, table_get_cell, table_set_cell_fill, table_merge_cells, table_unmerge_cell, table_add_row/col, table_remove_row/col, table_set_col_width/row_height, table_import_csv, table_sort, table_get_info, set_table_size, relayout_table, `table_auto_layout(id, wrap_text, header_rows)`
+- [x] **Canvas rendering**: Grid lines, cell fills, cell text with alignment + cell-width-aware word wrap
 - [x] **SVG export**: Table → `<g>` with `<rect>`, `<line>`, `<text>` elements
 - [x] **Toolbar**: Table button (B keyboard shortcut)
-- [x] **Properties panel**: Rows/Cols display, +/- row/col buttons, CSV import, sort
+- [x] **Properties panel**: Rows/Cols display, +/- row/col buttons, CSV import, sort, Auto Layout (wrap/no-wrap) quick actions
 - [x] **Cell editing**: Double-click cell → inline input, Tab to move to next cell, Enter/Escape to finish
 - [x] **CSV paste**: Cmd+V with table selected → auto-detect TSV/CSV and import into table
 

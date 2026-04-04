@@ -6311,6 +6311,30 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       };
       tableSection.appendChild(csvBtn);
 
+      // Auto layout sizing + header style
+      const autoRow = document.createElement("div");
+      autoRow.style.cssText = "display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:6px;";
+      const autoBtn = document.createElement("button");
+      autoBtn.textContent = "Auto Layout";
+      autoBtn.style.cssText = "background:#2a2a2a;color:#ccc;border:1px solid #444;border-radius:4px;padding:4px 8px;font-size:11px;cursor:pointer;";
+      autoBtn.onclick = () => {
+        editor.engine.push_undo();
+        editor.engine.table_auto_layout(BigInt(id), true, 1);
+        editor.requestRender();
+        refresh(ids);
+      };
+      const autoNoWrapBtn = document.createElement("button");
+      autoNoWrapBtn.textContent = "Auto (No Wrap)";
+      autoNoWrapBtn.style.cssText = "background:#2a2a2a;color:#ccc;border:1px solid #444;border-radius:4px;padding:4px 8px;font-size:11px;cursor:pointer;";
+      autoNoWrapBtn.onclick = () => {
+        editor.engine.push_undo();
+        editor.engine.table_auto_layout(BigInt(id), false, 1);
+        editor.requestRender();
+        refresh(ids);
+      };
+      autoRow.append(autoBtn, autoNoWrapBtn);
+      tableSection.appendChild(autoRow);
+
       // Sort buttons (by first col)
       const sortRow = document.createElement("div");
       sortRow.style.cssText = "display:grid;grid-template-columns:1fr 1fr;gap:4px;";

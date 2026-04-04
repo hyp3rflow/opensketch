@@ -1534,13 +1534,47 @@ impl Renderer {
             let cy = node.y + row_y.get(cell.row as usize).copied().unwrap_or(0.0);
             let cw_span: f64 = (cell.col..cell.col + cell.col_span).map(|c| col_widths.get(c as usize).copied().unwrap_or(default_cw)).sum();
             let ch_span: f64 = (cell.row..cell.row + cell.row_span).map(|r| row_heights.get(r as usize).copied().unwrap_or(default_rh)).sum();
-            let padding = 4.0;
-            let text_x = match cell.text_align {
-                crate::node::TableCellAlign::Left => { ctx.set_text_align("left"); cx + padding }
-                crate::node::TableCellAlign::Center => { ctx.set_text_align("center"); cx + cw_span / 2.0 }
-                crate::node::TableCellAlign::Right => { ctx.set_text_align("right"); cx + cw_span - padding }
-            };
-            ctx.fill_text(&cell.content, text_x, cy + ch_span / 2.0).ok();
+            let padding = 6.0;
+
+            // Simple word-wrap inside each cell
+            let max_w = (cw_span - padding * 2.0).max(10.0);
+            let mut lines: Vec<String> = vec![];
+            for para in cell.content.split('\n') {
+                let mut cur = String::new();
+                for word in para.split_whitespace() {
+                    let candidate = if cur.is_empty() { word.to_string() } else { format!("{} {}", cur, word) };
+                    let fits = ctx.measure_text(&candidate).ok().map(|m| m.width() <= max_w).unwrap_or(true);
+                    if fits {
+                        cur = candidate;
+                    } else {
+                        if !cur.is_empty() { lines.push(cur); }
+                        cur = word.to_string();
+                    }
+                }
+                if !cur.is_empty() {
+                    lines.push(cur);
+                } else if para.is_empty() {
+                    lines.push(String::new());
+                }
+            }
+            if lines.is_empty() {
+                lines.push(cell.content.clone());
+            }
+
+            let line_h = 14.0;
+            let total_h = lines.len() as f64 * line_h;
+            let mut y = cy + (ch_span - total_h) / 2.0 + line_h / 2.0;
+
+            for line in lines {
+                let text_x = match cell.text_align {
+                    crate::node::TableCellAlign::Left => { ctx.set_text_align("left"); cx + padding }
+                    crate::node::TableCellAlign::Center => { ctx.set_text_align("center"); cx + cw_span / 2.0 }
+                    crate::node::TableCellAlign::Right => { ctx.set_text_align("right"); cx + cw_span - padding }
+                };
+                ctx.fill_text(&line, text_x, y).ok();
+                y += line_h;
+                if y > cy + ch_span - 2.0 { break; }
+            }
         }
         ctx.set_text_align("start");
     }

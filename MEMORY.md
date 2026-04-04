@@ -1585,7 +1585,7 @@
 - ~~Canvas minimap enhanced~~ ✅ 완료 (페이지 탭 네비게이션 + 활성 페이지/배율/팬 위치 인포 라벨)
 - ~~Smart auto-naming~~ ✅ 완료 (Frame children composition 기반 추론 이름 생성 포함)
 - ~~Figma DevMode parity~~ ✅ 완료 (선택 노드 spacing/padding/margin 인라인 Dev Inspect 배지 + 코드 스니펫 원클릭 복사)
-- Table auto-layout — Table 노드에 auto-layout 적용 (셀 내 텍스트 wrap, 행/열 자동 리사이즈, 헤더 고정, 정렬)
+- ~~Table auto-layout — Table 노드에 auto-layout 적용 (셀 내 텍스트 wrap, 행/열 자동 리사이즈, 헤더 고정, 정렬)~~ ✅ 완료 (Auto Layout 버튼 + row/col content-fit + wrap 렌더링 + header row 스타일)
 - Freehand smoothing — Pen/Freehand 도구의 스트로크 후처리 자동 스무딩 (Catmull-Rom/simplify), 감도 조절 슬라이더
 - ~~Repeat Grid — 노드 복제 grid (Figma Repeat Grid), row/col 갯수 + gap, 개별 셀 콘텐츠 오버라이드, 드래그로 인스턴스 수 조절~~ ✅ 완료 (셀별 텍스트 오버라이드 렌더 + 데이터 바인딩 패널 연동)
 - ~~Component Sets~~ ✅ 완료
@@ -1595,6 +1595,14 @@
 - Smart selection filter — 선택 영역 내 특정 노드 타입만 필터링 (Figma "Select All with..." 확장), 정규식 이름 매칭, 깊이/속성 필터
 - Scroll-to animation triggers — Prototype viewer에서 스크롤 위치 기반 애니메이션 트리거 (parallax, reveal-on-scroll), 트리거 threshold 설정
 - Conditional visibility — 변수/조건 기반 노드 visibility 토글 (if variable == value → show/hide), 프로토타입에서 동적 UI 시뮬레이션
+
+## 완료된 기능 (추가 — Table auto-layout, 2026-04-05)
+- Table Properties에 `Auto Layout` / `Auto (No Wrap)` 버튼 추가
+- Rust/WASM: `table_auto_layout(id, wrap_text, header_rows)` 추가
+  - 셀 콘텐츠 기반 col_widths/row_heights 자동 산출
+  - wrap 모드일 때 컬럼 폭 상한 유지 + 행 높이 증가
+  - header_rows(기본 1) 영역에 헤더 fill 자동 적용(빈 fill 셀만)
+- Canvas 렌더링: Table cell 텍스트 word-wrap 렌더링(셀 너비 기준)
 
 ## 완료된 기능 (추가 — Auto layout padding 4-value shorthand, 2026-04-05)
 - Auto Layout Padding에 CSS 스타일 shorthand 입력 추가 (`8`, `8 12`, `8 12 16`, `8 12 16 20`)
