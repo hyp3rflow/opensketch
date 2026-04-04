@@ -1170,6 +1170,116 @@ impl Default for ScrollSnapAlign {
     fn default() -> Self { ScrollSnapAlign::None }
 }
 
+/// Scroll-driven animation: animates a node property based on parent scroll position.
+/// When the parent frame's scroll offset is between `start_scroll` and `end_scroll`,
+/// the target property interpolates from `from_value` to `to_value`.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct ScrollAnimation {
+    /// Property to animate
+    pub property: ScrollAnimProperty,
+    /// Scroll offset (px) where animation begins
+    pub start_scroll: f64,
+    /// Scroll offset (px) where animation ends
+    pub end_scroll: f64,
+    /// Property value at start_scroll
+    pub from_value: f64,
+    /// Property value at end_scroll
+    pub to_value: f64,
+    /// Easing function
+    #[serde(default)]
+    pub easing: ScrollAnimEasing,
+    /// Whether this node should stick (position: sticky) within the scroll range
+    #[serde(default)]
+    pub sticky: bool,
+    /// Sticky top offset (px from parent top when stuck)
+    #[serde(default)]
+    pub sticky_offset: f64,
+    /// Parallax speed factor (1.0 = normal, 0.5 = half speed, 2.0 = double)
+    #[serde(default = "default_parallax_factor")]
+    pub parallax_factor: f64,
+    /// Enabled toggle
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+}
+
+fn default_parallax_factor() -> f64 { 1.0 }
+
+/// Properties that can be scroll-animated
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub enum ScrollAnimProperty {
+    Opacity,
+    X,
+    Y,
+    Scale,
+    Rotation,
+    Blur,
+}
+
+impl Default for ScrollAnimProperty {
+    fn default() -> Self { ScrollAnimProperty::Opacity }
+}
+
+impl ScrollAnimProperty {
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "opacity" => Some(Self::Opacity),
+            "x" => Some(Self::X),
+            "y" => Some(Self::Y),
+            "scale" => Some(Self::Scale),
+            "rotation" => Some(Self::Rotation),
+            "blur" => Some(Self::Blur),
+            _ => None,
+        }
+    }
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::Opacity => "opacity",
+            Self::X => "x",
+            Self::Y => "y",
+            Self::Scale => "scale",
+            Self::Rotation => "rotation",
+            Self::Blur => "blur",
+        }
+    }
+}
+
+/// Easing for scroll animations
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub enum ScrollAnimEasing {
+    Linear,
+    EaseIn,
+    EaseOut,
+    EaseInOut,
+}
+
+impl Default for ScrollAnimEasing {
+    fn default() -> Self { ScrollAnimEasing::Linear }
+}
+
+impl ScrollAnimEasing {
+    pub fn evaluate(&self, t: f64) -> f64 {
+        let t = t.clamp(0.0, 1.0);
+        match self {
+            Self::Linear => t,
+            Self::EaseIn => t * t * t,
+            Self::EaseOut => 1.0 - (1.0 - t).powi(3),
+            Self::EaseInOut => {
+                if t < 0.5 { 4.0 * t * t * t }
+                else { 1.0 - (-2.0 * t + 2.0).powi(3) / 2.0 }
+            }
+        }
+    }
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "linear" => Some(Self::Linear),
+            "ease_in" => Some(Self::EaseIn),
+            "ease_out" => Some(Self::EaseOut),
+            "ease_in_out" => Some(Self::EaseInOut),
+            _ => None,
+        }
+    }
+}
+
 /// Text sizing mode
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub enum TextSizing {
@@ -2112,6 +2222,9 @@ pub struct Node {
     /// External resource links (GitHub, Storybook, Jira, etc.)
     #[serde(default)]
     pub resource_links: Vec<ResourceLink>,
+    /// Scroll-driven animations (animate properties based on parent frame scroll position)
+    #[serde(default)]
+    pub scroll_animations: Vec<ScrollAnimation>,
     /// Alt text for Image nodes (accessibility / screen readers)
     #[serde(default)]
     pub alt_text: Option<String>,
@@ -2248,6 +2361,7 @@ impl Node {
             links: vec![],
             text_flow_next: None,
             resource_links: vec![],
+            scroll_animations: vec![],
             alt_text: None,
             anchors: vec![],
             hyperlink: None,

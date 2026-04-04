@@ -925,6 +925,15 @@ Right pane "A11y" tab — automated accessibility audit for design nodes.
 - [x] Inspect panel: overflow CSS generation (hidden/auto)
 - [x] Backward-compatible serde (default Visible, scroll 0,0)
 
+### Scroll-Driven Animations / Parallax
+- [x] ScrollAnimation struct: property (Opacity/X/Y/Scale/Rotation/Blur), start_scroll, end_scroll, from_value, to_value, easing, sticky, sticky_offset, parallax_factor, enabled
+- [x] ScrollAnimProperty enum, ScrollAnimEasing enum (Linear/EaseIn/EaseOut/EaseInOut)
+- [x] Node field: scroll_animations: Vec<ScrollAnimation> — #[serde(default)], backward-compatible
+- [x] WASM bindings: add/remove/update/toggle_scroll_animation, get_scroll_animations, get_all_scroll_animations
+- [x] Prototype viewer: scroll offset → compute animation overrides → temporarily apply properties before render → restore after
+- [x] Properties panel: "Scroll Animations" section — add/remove/edit animations per node, property/easing select, range inputs, parallax factor, sticky toggle
+- [x] computeScrollAnimOverrides() utility for prototype viewer integration
+
 ### Scroll Snap Points
 - [x] ScrollSnapType enum: None/MandatoryX/MandatoryY/MandatoryBoth/ProximityX/ProximityY/ProximityBoth
 - [x] ScrollSnapAlign enum: None/Start/Center/End

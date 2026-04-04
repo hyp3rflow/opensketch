@@ -8,6 +8,7 @@ import { createTokenThemeSwitcher, createTokenBindingSection } from "./token-pan
 import { createNodeLinksSection } from "./node-links";
 import { t } from "./i18n";
 import { createStyleTransferSection } from "./style-transfer";
+import { renderScrollAnimSection } from "./scroll-animation";
 
 // Stage 4: Google Fonts list
 const googleFonts = [
@@ -4229,6 +4230,11 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       interSection.appendChild(addInterBtn);
 
       container.appendChild(interSection);
+    }
+
+    // --- Scroll Animations ---
+    {
+      renderScrollAnimSection(container, editor);
     }
 
     // --- Prototype Variables (scene-level) ---

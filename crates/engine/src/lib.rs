@@ -8475,6 +8475,202 @@ impl Engine {
         }
     }
 
+    // === Scroll Animation methods ===
+
+    /// Add a scroll-driven animation to a node. Returns index of added animation.
+    #[wasm_bindgen]
+    pub fn add_scroll_animation(
+        &mut self, node_id: u64, property: &str,
+        start_scroll: f64, end_scroll: f64,
+        from_value: f64, to_value: f64,
+        easing: &str, sticky: bool, sticky_offset: f64, parallax_factor: f64,
+    ) -> i32 {
+        use crate::node::{ScrollAnimation, ScrollAnimProperty, ScrollAnimEasing};
+        let prop = match ScrollAnimProperty::from_str(property) {
+            Some(p) => p,
+            None => return -1,
+        };
+        let ease = ScrollAnimEasing::from_str(easing).unwrap_or(ScrollAnimEasing::Linear);
+        self.push_undo();
+        let nid = node_id as crate::node::NodeId;
+        if let Some(node) = self.scene.get_node_mut(nid) {
+            let anim = ScrollAnimation {
+                property: prop,
+                start_scroll,
+                end_scroll,
+                from_value,
+                to_value,
+                easing: ease,
+                sticky,
+                sticky_offset,
+                parallax_factor: if parallax_factor == 0.0 { 1.0 } else { parallax_factor },
+                enabled: true,
+            };
+            node.scroll_animations.push(anim);
+            (node.scroll_animations.len() - 1) as i32
+        } else {
+            -1
+        }
+    }
+
+    /// Remove a scroll animation by index
+    #[wasm_bindgen]
+    pub fn remove_scroll_animation(&mut self, node_id: u64, index: u32) -> bool {
+        self.push_undo();
+        let nid = node_id as crate::node::NodeId;
+        if let Some(node) = self.scene.get_node_mut(nid) {
+            let i = index as usize;
+            if i < node.scroll_animations.len() {
+                node.scroll_animations.remove(i);
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Update a scroll animation at index
+    #[wasm_bindgen]
+    pub fn update_scroll_animation(
+        &mut self, node_id: u64, index: u32, property: &str,
+        start_scroll: f64, end_scroll: f64,
+        from_value: f64, to_value: f64,
+        easing: &str, sticky: bool, sticky_offset: f64, parallax_factor: f64,
+    ) -> bool {
+        use crate::node::{ScrollAnimProperty, ScrollAnimEasing};
+        let prop = match ScrollAnimProperty::from_str(property) {
+            Some(p) => p,
+            None => return false,
+        };
+        let ease = ScrollAnimEasing::from_str(easing).unwrap_or(ScrollAnimEasing::Linear);
+        self.push_undo();
+        let nid = node_id as crate::node::NodeId;
+        if let Some(node) = self.scene.get_node_mut(nid) {
+            let i = index as usize;
+            if i < node.scroll_animations.len() {
+                let a = &mut node.scroll_animations[i];
+                a.property = prop;
+                a.start_scroll = start_scroll;
+                a.end_scroll = end_scroll;
+                a.from_value = from_value;
+                a.to_value = to_value;
+                a.easing = ease;
+                a.sticky = sticky;
+                a.sticky_offset = sticky_offset;
+                a.parallax_factor = if parallax_factor == 0.0 { 1.0 } else { parallax_factor };
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Toggle enabled state of a scroll animation
+    #[wasm_bindgen]
+    pub fn toggle_scroll_animation(&mut self, node_id: u64, index: u32) -> bool {
+        let nid = node_id as crate::node::NodeId;
+        if let Some(node) = self.scene.get_node_mut(nid) {
+            let i = index as usize;
+            if i < node.scroll_animations.len() {
+                node.scroll_animations[i].enabled = !node.scroll_animations[i].enabled;
+                return node.scroll_animations[i].enabled;
+            }
+        }
+        false
+    }
+
+    /// Get all scroll animations for a node as JSON
+    #[wasm_bindgen]
+    pub fn get_scroll_animations(&self, node_id: u64) -> String {
+        let nid = node_id as crate::node::NodeId;
+        if let Some(node) = self.scene.nodes_map().get(&nid) {
+            #[derive(serde::Serialize)]
+            struct AnimOut {
+                property: String,
+                start_scroll: f64,
+                end_scroll: f64,
+                from_value: f64,
+                to_value: f64,
+                easing: String,
+                sticky: bool,
+                sticky_offset: f64,
+                parallax_factor: f64,
+                enabled: bool,
+            }
+            let anims: Vec<AnimOut> = node.scroll_animations.iter().map(|a| AnimOut {
+                property: a.property.as_str().to_string(),
+                start_scroll: a.start_scroll,
+                end_scroll: a.end_scroll,
+                from_value: a.from_value,
+                to_value: a.to_value,
+                easing: match &a.easing {
+                    crate::node::ScrollAnimEasing::Linear => "linear",
+                    crate::node::ScrollAnimEasing::EaseIn => "ease_in",
+                    crate::node::ScrollAnimEasing::EaseOut => "ease_out",
+                    crate::node::ScrollAnimEasing::EaseInOut => "ease_in_out",
+                }.to_string(),
+                sticky: a.sticky,
+                sticky_offset: a.sticky_offset,
+                parallax_factor: a.parallax_factor,
+                enabled: a.enabled,
+            }).collect();
+            serde_json::to_string(&anims).unwrap_or_else(|_| "[]".to_string())
+        } else {
+            "[]".to_string()
+        }
+    }
+
+    /// Get all nodes with scroll animations in the current page as JSON
+    /// Returns [{node_id, node_name, animations: [...]}]
+    #[wasm_bindgen]
+    pub fn get_all_scroll_animations(&self) -> String {
+        #[derive(serde::Serialize)]
+        struct NodeAnims {
+            node_id: u64,
+            node_name: String,
+            scroll_animations: Vec<ScrollAnimOut>,
+        }
+        #[derive(serde::Serialize)]
+        struct ScrollAnimOut {
+            property: String,
+            start_scroll: f64,
+            end_scroll: f64,
+            from_value: f64,
+            to_value: f64,
+            easing: String,
+            sticky: bool,
+            sticky_offset: f64,
+            parallax_factor: f64,
+            enabled: bool,
+        }
+        let mut result: Vec<NodeAnims> = vec![];
+        for (id, node) in self.scene.nodes_map() {
+            if !node.scroll_animations.is_empty() {
+                let anims = node.scroll_animations.iter().map(|a| ScrollAnimOut {
+                    property: a.property.as_str().to_string(),
+                    start_scroll: a.start_scroll,
+                    end_scroll: a.end_scroll,
+                    from_value: a.from_value,
+                    to_value: a.to_value,
+                    easing: match &a.easing {
+                        crate::node::ScrollAnimEasing::Linear => "linear",
+                        crate::node::ScrollAnimEasing::EaseIn => "ease_in",
+                        crate::node::ScrollAnimEasing::EaseOut => "ease_out",
+                        crate::node::ScrollAnimEasing::EaseInOut => "ease_in_out",
+                    }.to_string(),
+                    sticky: a.sticky,
+                    sticky_offset: a.sticky_offset,
+                    parallax_factor: a.parallax_factor,
+                    enabled: a.enabled,
+                }).collect();
+                result.push(NodeAnims {
+                    node_id: *id,
+                    node_name: node.name.clone(),
+                    scroll_animations: anims,
+                });
+            }
+        }
+        serde_json::to_string(&result).unwrap_or_else(|_| "[]".to_string())
+    }
+
     /// Analyze scene and return statistics as JSON (node count, type distribution, style usage, component coverage)
     #[wasm_bindgen]
     pub fn get_scene_analysis(&self) -> String {

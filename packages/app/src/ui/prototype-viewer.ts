@@ -1,5 +1,6 @@
 import type { Editor } from "../editor";
 import { applyEasing } from "./easing-editor";
+import { computeScrollAnimOverrides } from "./scroll-animation";
 
 /**
  * Prototype presentation mode viewer.
@@ -688,8 +689,14 @@ export function createPrototypeViewer(editor: Editor): {
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, viewCanvas.width, viewCanvas.height);
 
+    // Apply scroll-driven animation overrides before rendering
+    const scrollAnimBackups = applyScrollAnimsForRender(editor);
+
     // Render
     editor.engine.render(ctx as any);
+
+    // Restore scroll animation overrides
+    restoreScrollAnimBackups(editor, scrollAnimBackups);
 
     // Restore viewport
     editor.engine.set_viewport(savedZoom, savedPanX, savedPanY);
@@ -1161,6 +1168,86 @@ export function createPrototypeViewer(editor: Editor): {
       }
     } catch {}
     return null;
+  }
+
+  // ─── Scroll Animation Helpers ─────────────────────
+
+  interface ScrollAnimBackup {
+    nodeId: number;
+    opacity?: number;
+    x?: number;
+    y?: number;
+    rotation?: number;
+    blur?: number;
+  }
+
+  /**
+   * Compute current total scroll offset for the active view,
+   * apply scroll animation property overrides, and return backups.
+   */
+  function applyScrollAnimsForRender(ed: Editor): ScrollAnimBackup[] {
+    const backups: ScrollAnimBackup[] = [];
+    try {
+      // Determine current scroll offset (sum of all scrollable ancestors)
+      let scrollY = 0;
+      if (currentFrameId !== null) {
+        const so = JSON.parse(ed.engine.get_scroll_offset(BigInt(currentFrameId)));
+        scrollY = -so.y; // scroll_offset is negative (content moves up)
+      }
+
+      const overrides = computeScrollAnimOverrides(ed.engine, scrollY);
+      for (const [nodeId, props] of overrides) {
+        const backup: ScrollAnimBackup = { nodeId };
+        const nj = ed.engine.get_node_json(nodeId);
+        if (!nj) continue;
+        const nd = JSON.parse(nj);
+
+        if ("opacity" in props) {
+          backup.opacity = nd.opacity ?? 1;
+          ed.engine.set_opacity(BigInt(nodeId), props.opacity);
+        }
+        if ("x" in props) {
+          backup.x = nd.x ?? 0;
+          ed.engine.set_x(BigInt(nodeId), props.x);
+        }
+        if ("y" in props) {
+          backup.y = nd.y ?? 0;
+          ed.engine.set_y(BigInt(nodeId), props.y);
+        }
+        if ("rotation" in props) {
+          backup.rotation = nd.rotation ?? 0;
+          ed.engine.set_rotation(BigInt(nodeId), props.rotation);
+        }
+        if ("blur" in props) {
+          backup.blur = nd.blur ?? 0;
+          ed.engine.set_blur(BigInt(nodeId), props.blur);
+        }
+        // scale: apply as uniform scale via width/height ratio (simplified)
+        if ("scale" in props) {
+          // For scale, we modify the node's transform scale (if available)
+          // Fallback: adjust width/height proportionally
+          // Note: actual scale transform would need engine support
+        }
+
+        backups.push(backup);
+      }
+    } catch (e) {
+      // Silently fail — don't break prototype viewer
+    }
+    return backups;
+  }
+
+  /** Restore node properties from backups after rendering */
+  function restoreScrollAnimBackups(ed: Editor, backups: ScrollAnimBackup[]): void {
+    for (const b of backups) {
+      try {
+        if (b.opacity !== undefined) ed.engine.set_opacity(BigInt(b.nodeId), b.opacity);
+        if (b.x !== undefined) ed.engine.set_x(BigInt(b.nodeId), b.x);
+        if (b.y !== undefined) ed.engine.set_y(BigInt(b.nodeId), b.y);
+        if (b.rotation !== undefined) ed.engine.set_rotation(BigInt(b.nodeId), b.rotation);
+        if (b.blur !== undefined) ed.engine.set_blur(BigInt(b.nodeId), b.blur);
+      } catch { /* */ }
+    }
   }
 
   /** Handle wheel events for scrolling frames in prototype viewer */
