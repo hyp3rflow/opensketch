@@ -1584,7 +1584,7 @@
 - ~~Multi-cursor collaborative editing~~ ✅ 완료 (원격 selection 기반 노드 잠금 오버레이 MVP)
 - ~~Canvas minimap enhanced~~ ✅ 완료 (페이지 탭 네비게이션 + 활성 페이지/배율/팬 위치 인포 라벨)
 - ~~Smart auto-naming~~ ✅ 완료 (Frame children composition 기반 추론 이름 생성 포함)
-- Figma DevMode parity — 선택 노드 inspect 시 spacing/padding/margin 인라인 오버레이 + 코드 스니펫 복사 원클릭
+- ~~Figma DevMode parity~~ ✅ 완료 (선택 노드 spacing/padding/margin 인라인 Dev Inspect 배지 + 코드 스니펫 원클릭 복사)
 - Canvas grid/guide templates — 미리 정의된 그리드 레이아웃 (12-column, 8pt grid 등) 원클릭 적용
 - Auto layout padding individual per-side — Figma처럼 padding top/right/bottom/left 각각 독립 설정 (현재 uniform/H+V만), 4-value 입력 UI
 - Table auto-layout — Table 노드에 auto-layout 적용 (셀 내 텍스트 wrap, 행/열 자동 리사이즈, 헤더 고정, 정렬)
@@ -1597,6 +1597,12 @@
 - Smart selection filter — 선택 영역 내 특정 노드 타입만 필터링 (Figma "Select All with..." 확장), 정규식 이름 매칭, 깊이/속성 필터
 - Scroll-to animation triggers — Prototype viewer에서 스크롤 위치 기반 애니메이션 트리거 (parallax, reveal-on-scroll), 트리거 threshold 설정
 - Conditional visibility — 변수/조건 기반 노드 visibility 토글 (if variable == value → show/hide), 프로토타입에서 동적 UI 시뮬레이션
+
+## 완료된 기능 (추가 — Figma DevMode parity, 2026-04-05)
+- Dev Mode 선택 노드 인라인 Inspect 배지 추가 (Spacing / Padding / Margin 4값 표시)
+- 배지 내 `Copy` 버튼으로 선택 노드 CSS 스니펫 원클릭 복사
+- 선택 변경/줌·팬 렌더 루프에서 배지 위치와 값 자동 동기화
+- hover tooltip 기반 기존 DevMode overlay와 공존
 
 ## 완료된 기능 (추가 — Spreadsheet Data Binding 확장, 2026-04-05)
 - Spreadsheet Data Binding 패널에서 Text + Image 노드 템플릿(`{{field}}`) 바인딩 지원

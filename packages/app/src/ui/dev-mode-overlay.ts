@@ -9,6 +9,7 @@ export class DevModeOverlay {
   private editor: Editor;
   private container: HTMLDivElement;
   private tooltip: HTMLDivElement;
+  private inspectBadge: HTMLDivElement;
   private hoveredNodeId: number | null = null;
   private visible = false;
   private _enabled = false;
@@ -41,6 +42,11 @@ export class DevModeOverlay {
       border: 1px solid #313244;
     `;
     this.container.appendChild(this.tooltip);
+
+    this.inspectBadge = document.createElement("div");
+    this.inspectBadge.className = "dev-inspect-badge";
+    this.inspectBadge.style.cssText = "position:absolute;display:none;pointer-events:auto;background:#0f172a;color:#cbd5e1;border:1px solid #334155;border-radius:8px;padding:6px 8px;font:11px/1.4 -apple-system,BlinkMacSystemFont,sans-serif;box-shadow:0 8px 20px rgba(0,0,0,.25);min-width:180px;";
+    this.container.appendChild(this.inspectBadge);
   }
 
   get enabled() { return this._enabled; }
@@ -48,6 +54,70 @@ export class DevModeOverlay {
   setEnabled(v: boolean) {
     this._enabled = v;
     if (!v) this.hide();
+  }
+
+  updateSelectionInspect(ids: number[]) {
+    if (!this._enabled || ids.length !== 1) {
+      this.inspectBadge.style.display = "none";
+      return;
+    }
+    const id = ids[0]!;
+    const nj = this.editor.engine.get_node_json(BigInt(id));
+    if (!nj) return;
+    const node = JSON.parse(nj);
+    const layout = (() => { try { return JSON.parse(this.editor.engine.get_layout(BigInt(id))); } catch { return null; } })();
+
+    const spacing = layout?.gap ?? 0;
+    const pt = layout?.padding_top ?? layout?.padding ?? 0;
+    const pr = layout?.padding_right ?? layout?.padding ?? 0;
+    const pb = layout?.padding_bottom ?? layout?.padding ?? 0;
+    const pl = layout?.padding_left ?? layout?.padding ?? 0;
+
+    let margin = { t: 0, r: 0, b: 0, l: 0 };
+    try {
+      if (node.parent) {
+        const pj = this.editor.engine.get_node_json(BigInt(Number(node.parent)));
+        if (pj) {
+          const p = JSON.parse(pj);
+          margin = {
+            l: Math.round((node.x ?? 0) - (p.x ?? 0)),
+            t: Math.round((node.y ?? 0) - (p.y ?? 0)),
+            r: Math.round((p.x ?? 0) + (p.width ?? 0) - ((node.x ?? 0) + (node.width ?? 0))),
+            b: Math.round((p.y ?? 0) + (p.height ?? 0) - ((node.y ?? 0) + (node.height ?? 0))),
+          };
+        }
+      }
+    } catch {}
+
+    const css = this.generateCSS(node, BigInt(id));
+    this.inspectBadge.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:4px;">
+        <strong style="font-size:10px;color:#93c5fd;">Dev Inspect</strong>
+        <button class="dev-inspect-copy" style="background:#2563eb;color:white;border:none;border-radius:4px;padding:2px 6px;font-size:10px;cursor:pointer;">Copy</button>
+      </div>
+      <div>Spacing: <b>${Math.round(spacing)}px</b></div>
+      <div>Padding: <b>${Math.round(pt)} ${Math.round(pr)} ${Math.round(pb)} ${Math.round(pl)}</b></div>
+      <div>Margin: <b>${margin.t} ${margin.r} ${margin.b} ${margin.l}</b></div>
+    `;
+    this.inspectBadge.querySelector<HTMLButtonElement>(".dev-inspect-copy")?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this.copyCSS(css);
+    });
+
+    try {
+      const b = JSON.parse(this.editor.engine.get_selection_bounds());
+      if (!b) return;
+      const zoom = this.editor.engine.get_zoom();
+      const panX = this.editor.engine.get_pan_x();
+      const panY = this.editor.engine.get_pan_y();
+      const sx = b.x * zoom + panX;
+      const sy = b.y * zoom + panY;
+      this.inspectBadge.style.left = `${Math.max(8, sx + 8)}px`;
+      this.inspectBadge.style.top = `${Math.max(8, sy - 70)}px`;
+      this.inspectBadge.style.display = "block";
+    } catch {
+      this.inspectBadge.style.display = "none";
+    }
   }
 
   show(nodeId: number, screenX: number, screenY: number) {
@@ -118,6 +188,7 @@ export class DevModeOverlay {
 
   hide() {
     this.tooltip.style.display = "none";
+    this.inspectBadge.style.display = "none";
     this.hoveredNodeId = null;
     this.visible = false;
   }

@@ -84,6 +84,7 @@ export class Editor {
   currentTool: ToolType = "select";
   private drag: DragState | null = null;
   private marquee: { startX: number; startY: number; currentX: number; currentY: number } | null = null;
+  private _marqueeBaseMode: "crossing" | "contain" = "crossing";
   private isPanning = false;
   private lastPanX = 0;
   private lastPanY = 0;
@@ -1122,6 +1123,10 @@ export class Editor {
       else if (e.key === "m" && !e.metaKey && !e.ctrlKey && !e.altKey) this.setTool("measure");
       else if (e.key === "a" && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) this.setTool("annotate");
       else if (e.key === "k" && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) this.setTool("scale");
+      else if (e.key.toLowerCase() === "x" && e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        this._marqueeBaseMode = this._marqueeBaseMode === "crossing" ? "contain" : "crossing";
+        this.needsRender = true;
+      }
       else if (_sm.matches(e, "misc.voice")) { (window as any).__toggleVoice?.(); }
       else if (_sm.matches(e, "misc.fileDiff")) { (window as any).__openFileDiffMerge?.(); }
       if (e.key === "Delete" || e.key === "Backspace") {
@@ -2124,17 +2129,16 @@ export class Editor {
     if (this.marquee) {
       this.marquee.currentX = e.offsetX;
       this.marquee.currentY = e.offsetY;
-      // Live preview: select nodes in marquee rect
+      // Live preview: smart marquee selection (crossing/contain)
       const mx = Math.min(this.marquee.startX, this.marquee.currentX);
       const my = Math.min(this.marquee.startY, this.marquee.currentY);
       const mx2 = Math.max(this.marquee.startX, this.marquee.currentX);
       const my2 = Math.max(this.marquee.startY, this.marquee.currentY);
       if (Math.abs(mx2 - mx) > 2 || Math.abs(my2 - my) > 2) {
-        const ids = Array.from(this.engine.hit_test_rect(mx, my, mx2, my2)).map(Number);
+        const useContain = e.altKey ? this._marqueeBaseMode !== "contain" : this._marqueeBaseMode === "contain";
+        const ids = this.computeMarqueeSelection(mx, my, mx2, my2, useContain);
         this.engine.deselect_all();
-        for (const id of ids) {
-          this.engine.add_to_selection(id);
-        }
+        for (const id of ids) this.engine.add_to_selection(id);
         this.fireSelectionThrottled(ids);
       }
       this.needsRender = true;
@@ -2661,6 +2665,7 @@ export class Editor {
     this._gradientEditor?.updateFromSelection();
     this._spacingHandles = findSpacingHandles(this.engine);
     this._paddingHandles = findPaddingHandles(this.engine);
+    this._devModeOverlay.updateSelectionInspect(ids);
     this.onSelectionChanges.forEach(fn => fn(ids));
   }
 
@@ -4171,6 +4176,60 @@ export class Editor {
     renderPointSnapIndicators(this.ctx, this._pointSnapIndicators, zoom, panX, panY);
   }
 
+  private computeMarqueeSelection(sx1: number, sy1: number, sx2: number, sy2: number, containOnly: boolean): number[] {
+    const sceneX1 = this.engine.screen_to_scene_x(sx1, sy1);
+    const sceneY1 = this.engine.screen_to_scene_y(sx1, sy1);
+    const sceneX2 = this.engine.screen_to_scene_x(sx2, sy2);
+    const sceneY2 = this.engine.screen_to_scene_y(sx2, sy2);
+    const rx = Math.min(sceneX1, sceneX2);
+    const ry = Math.min(sceneY1, sceneY2);
+    const rw = Math.abs(sceneX2 - sceneX1);
+    const rh = Math.abs(sceneY2 - sceneY1);
+    const rx2 = rx + rw;
+    const ry2 = ry + rh;
+
+    const candidates = containOnly
+      ? Array.from(this.engine.get_visible_node_ids(rx, ry, rw, rh)).map(Number)
+      : Array.from(this.engine.hit_test_rect(sx1, sy1, sx2, sy2)).map(Number);
+
+    const nodeMap = new Map<number, any>();
+    const selected = new Set<number>();
+    for (const id of candidates) {
+      try {
+        const node = JSON.parse(this.engine.get_node_json(BigInt(id)));
+        nodeMap.set(id, node);
+        const nx = Number(node.x ?? 0);
+        const ny = Number(node.y ?? 0);
+        const nw = Number(node.width ?? 0);
+        const nh = Number(node.height ?? 0);
+        const inside = nx >= rx && ny >= ry && nx + nw <= rx2 && ny + nh <= ry2;
+        if (!containOnly || inside) selected.add(id);
+      } catch {
+        // ignore malformed node
+      }
+    }
+
+    // Figma-like priority: when descendants are selected, avoid selecting parent Frame/Group by overlap.
+    for (const id of Array.from(selected)) {
+      const node = nodeMap.get(id);
+      if (!node) continue;
+      const kind = String(node.kind || "");
+      if (kind !== "Frame" && kind !== "Group") continue;
+      const children: number[] = Array.isArray(node.children) ? node.children.map((v: any) => Number(v)) : [];
+      const hasSelectedDescendant = children.some((childId) => selected.has(childId));
+      if (!hasSelectedDescendant) continue;
+
+      const nx = Number(node.x ?? 0);
+      const ny = Number(node.y ?? 0);
+      const nw = Number(node.width ?? 0);
+      const nh = Number(node.height ?? 0);
+      const fullyInside = nx >= rx && ny >= ry && nx + nw <= rx2 && ny + nh <= ry2;
+      if (!fullyInside) selected.delete(id);
+    }
+
+    return Array.from(selected);
+  }
+
   private renderMarquee() {
     if (!this.marquee) return;
     const { startX, startY, currentX, currentY } = this.marquee;
@@ -4186,6 +4245,11 @@ export class Editor {
     this.ctx.lineWidth = 1;
     this.ctx.fillRect(x, y, w, h);
     this.ctx.strokeRect(x + 0.5, y + 0.5, w, h);
+
+    const mode = this._altHeld ? (this._marqueeBaseMode === "contain" ? "Crossing" : "Contain") : (this._marqueeBaseMode === "contain" ? "Contain" : "Crossing");
+    this.ctx.fillStyle = "rgba(37, 99, 235, 0.92)";
+    this.ctx.font = "11px -apple-system, BlinkMacSystemFont, sans-serif";
+    this.ctx.fillText(`Net: ${mode} (Alt to toggle)`, x + 6, Math.max(12, y - 6));
     this.ctx.restore();
   }
 
@@ -4543,6 +4607,9 @@ export class Editor {
         this.renderSearchFilterOverlay();
         this.renderPixelPreviewOverlay();
         this._rulers?.render();
+        if (this._devMode) {
+          this._devModeOverlay.updateSelectionInspect(Array.from(this.engine.get_selection()).map(Number));
+        }
         this.needsRender = false;
         // Annotations need continuous rendering during fade
         if (tickAnnotations()) this.needsRender = true;
