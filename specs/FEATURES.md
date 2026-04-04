@@ -454,6 +454,9 @@
 - [x] **Remove guides**: Double-click a guide to delete, or drag back to ruler
 - [x] **Adaptive tick spacing**: Tick intervals auto-adjust based on zoom level (50-200px screen spacing)
 - [x] **Corner square**: Top-left 20×20px corner piece between rulers
+- [x] **Grid/Guide templates**: Zoom bar 템플릿 드롭다운으로 8pt/4pt Grid, 12-column, Safe Area 프리셋 원클릭 적용
+- [x] **12-column template**: 현재 뷰포트 기준 좌우 4% margin + 12등분 세로 가이드 자동 생성
+- [x] **Safe Area template**: 현재 뷰포트 기준 상하/좌우 5% 인셋 가이드 자동 생성
 - Pure TypeScript implementation (no Rust changes)
 
 ### Inspect Mode (CSS Code Gen)

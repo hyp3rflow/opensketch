@@ -1585,7 +1585,6 @@
 - ~~Canvas minimap enhanced~~ ✅ 완료 (페이지 탭 네비게이션 + 활성 페이지/배율/팬 위치 인포 라벨)
 - ~~Smart auto-naming~~ ✅ 완료 (Frame children composition 기반 추론 이름 생성 포함)
 - ~~Figma DevMode parity~~ ✅ 완료 (선택 노드 spacing/padding/margin 인라인 Dev Inspect 배지 + 코드 스니펫 원클릭 복사)
-- Canvas grid/guide templates — 미리 정의된 그리드 레이아웃 (12-column, 8pt grid 등) 원클릭 적용
 - Auto layout padding individual per-side — Figma처럼 padding top/right/bottom/left 각각 독립 설정 (현재 uniform/H+V만), 4-value 입력 UI
 - Table auto-layout — Table 노드에 auto-layout 적용 (셀 내 텍스트 wrap, 행/열 자동 리사이즈, 헤더 고정, 정렬)
 - Freehand smoothing — Pen/Freehand 도구의 스트로크 후처리 자동 스무딩 (Catmull-Rom/simplify), 감도 조절 슬라이더
@@ -1597,6 +1596,13 @@
 - Smart selection filter — 선택 영역 내 특정 노드 타입만 필터링 (Figma "Select All with..." 확장), 정규식 이름 매칭, 깊이/속성 필터
 - Scroll-to animation triggers — Prototype viewer에서 스크롤 위치 기반 애니메이션 트리거 (parallax, reveal-on-scroll), 트리거 threshold 설정
 - Conditional visibility — 변수/조건 기반 노드 visibility 토글 (if variable == value → show/hide), 프로토타입에서 동적 UI 시뮬레이션
+
+## 완료된 기능 (추가 — Canvas Grid/Guide Templates, 2026-04-05)
+- Zoom controls에 Templates 드롭다운 추가 (8pt Grid, 4pt Grid, 12 Columns, Safe Area)
+- 8pt/4pt 선택 시 grid snap size 자동 적용 + 가이드 초기화
+- 12 Columns 선택 시 현재 뷰포트 기준 좌우 4% margin + 12등분 세로 guide 생성
+- Safe Area 선택 시 현재 뷰포트 기준 상하/좌우 5% inset guide 생성
+- rulers.clearGuides() + editor.requestRender() 연동으로 즉시 반영
 
 ## 완료된 기능 (추가 — Figma DevMode parity, 2026-04-05)
 - Dev Mode 선택 노드 인라인 Inspect 배지 추가 (Spacing / Padding / Margin 4값 표시)

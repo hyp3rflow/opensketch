@@ -64,6 +64,13 @@ export function setupZoomControls(container: HTMLElement, editor: Editor) {
       <option value="32">32px</option>
       <option value="custom">Custom…</option>
     </select>
+    <select class="grid-template-select" title="Grid/Guide Template" style="background:rgba(255,255,255,0.08);color:#ccc;border:1px solid rgba(255,255,255,0.12);border-radius:4px;font-size:11px;padding:1px 2px;height:22px;outline:none;cursor:pointer;min-width:116px">
+      <option value="">Templates…</option>
+      <option value="8pt">8pt Grid</option>
+      <option value="4pt">4pt Grid</option>
+      <option value="12col">12 Columns</option>
+      <option value="safe">Safe Area</option>
+    </select>
   `;
 
   const levelBtn = el.querySelector(".zoom-level") as HTMLButtonElement;
@@ -185,6 +192,52 @@ export function setupZoomControls(container: HTMLElement, editor: Editor) {
 
   editor.onGridSnapChanged(updateGridUI);
   updateGridUI();
+
+  const templateSelect = el.querySelector(".grid-template-select") as HTMLSelectElement;
+  const applyTemplate = (template: string) => {
+    const rulers = editor.getRulers();
+    if (template === "8pt" || template === "4pt") {
+      editor.setGridSize(template === "8pt" ? 8 : 4);
+      if (!editor.gridSnapEnabled) editor.toggleGridSnap();
+      rulers?.clearGuides();
+      return;
+    }
+
+    if (!rulers) return;
+    rulers.clearGuides();
+
+    const viewW = editor.canvas.width / (window.devicePixelRatio || 1);
+    const viewH = editor.canvas.height / (window.devicePixelRatio || 1);
+    const left = editor.engine.screen_to_scene_x(0, 0);
+    const right = editor.engine.screen_to_scene_x(viewW, 0);
+    const top = editor.engine.screen_to_scene_y(0, 0);
+    const bottom = editor.engine.screen_to_scene_y(0, viewH);
+    const width = Math.max(1, right - left);
+    const height = Math.max(1, bottom - top);
+
+    if (template === "12col") {
+      const margin = width * 0.04;
+      const usable = Math.max(1, width - margin * 2);
+      const col = usable / 12;
+      for (let i = 0; i <= 12; i++) {
+        rulers.guides.push({ axis: "v", pos: left + margin + col * i });
+      }
+    } else if (template === "safe") {
+      const mx = width * 0.05;
+      const my = height * 0.05;
+      rulers.guides.push({ axis: "v", pos: left + mx });
+      rulers.guides.push({ axis: "v", pos: right - mx });
+      rulers.guides.push({ axis: "h", pos: top + my });
+      rulers.guides.push({ axis: "h", pos: bottom - my });
+    }
+    editor.requestRender();
+  };
+
+  templateSelect.addEventListener("change", () => {
+    if (!templateSelect.value) return;
+    applyTemplate(templateSelect.value);
+    templateSelect.value = "";
+  });
 
   editor.onZoomChanged(update);
 
