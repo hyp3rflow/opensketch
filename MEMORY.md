@@ -1578,6 +1578,13 @@
 - Scroll-to animation triggers — Prototype viewer에서 스크롤 위치 기반 애니메이션 트리거 (parallax, reveal-on-scroll), 트리거 threshold 설정
 - Conditional visibility — 변수/조건 기반 노드 visibility 토글 (if variable == value → show/hide), 프로토타입에서 동적 UI 시뮬레이션
 
+## 완료된 기능 (추가 — Spreadsheet Data Binding MVP, 2026-04-04)
+- Toolbar에 "Spreadsheet Data Binding" 버튼 추가
+- CSV(header+rows) 또는 JSON array 데이터 소스를 패널에 붙여넣어 사용
+- Text 노드의 `{{field}}` 템플릿을 선택한 row index 값으로 치환 적용
+- 선택된 Text 노드만 변경되며, 데이터 소스는 localStorage에 저장
+- 범위: 텍스트 바인딩 MVP만 포함 (이미지 바인딩/Repeat Grid 자동 연동은 후속)
+
 ## 완료된 기능 (추가 — WebGPU Renderer Stage 2: Texture Atlas, 2026-04-04)
 - WebGPU 인스턴스 데이터 확장: UV rect + textureMix 필드 추가, 단일 instanced 파이프라인에서 solid/textured quad 혼합 렌더
 - 2048x2048 타일 atlas(canvas 기반) 추가, Image/Video(poster/src) 비동기 로딩 후 atlas dirty 플래그 기반 업로드

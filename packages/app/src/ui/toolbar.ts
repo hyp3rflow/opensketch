@@ -13,6 +13,7 @@ import { setupVoiceControl } from "./voice-control";
 import { openFileDiffMerge } from "./file-diff-merge";
 import { togglePerfProfiler } from "./perf-profiler";
 import { toggleStampPalette, isStampModeActive, setActiveStampKind, closeStampPalette } from "./stamp-tool";
+import { openDataBindingPanel } from "./data-binding-panel";
 import { t, onLocaleChange, createLanguagePicker } from "./i18n";
 
 const toolI18nKeys: Record<string, string> = {
@@ -161,6 +162,20 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
       wbBtn.classList.toggle("active");
     });
     container.appendChild(wbBtn);
+  }
+
+  // Spreadsheet Data Binding (MVP)
+  {
+    const sep = document.createElement("div");
+    sep.className = "tool-btn-separator";
+    container.appendChild(sep);
+
+    const dataBtn = document.createElement("button");
+    dataBtn.className = "tool-btn";
+    dataBtn.title = "Spreadsheet Data Binding";
+    dataBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/></svg>`;
+    dataBtn.addEventListener("click", () => openDataBindingPanel(editor));
+    container.appendChild(dataBtn);
   }
 
   // Stamp tool button

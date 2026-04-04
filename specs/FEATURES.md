@@ -2261,3 +2261,10 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] **Image/Video texture atlas (Stage 2)**: GPU atlas texture (2048x2048, tiled) with async image/poster loading for Image/Video nodes
 - [x] **Textured instancing path**: per-instance UV rect + textureMix flag to blend solid-color quads and sampled atlas textures in one pipeline
 - [x] **Atlas upload invalidation**: atlas canvas is uploaded to GPU only when dirty to avoid redundant per-frame texture transfers
+
+### Spreadsheet Data Binding (MVP, 2026-04-04)
+- [x] Toolbar button opens **Spreadsheet Data Binding** panel
+- [x] Paste CSV (header+rows) or JSON array data source
+- [x] Apply selected record index to selected **Text** nodes that use `{{field}}` templates
+- [x] Local data source persistence (`localStorage`)
+- [x] Safe scope for MVP: text binding only (no image binding/repeat-grid automation yet)
