@@ -7422,6 +7422,57 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
 
         layoutSection.appendChild(padWrap);
 
+        // Padding shorthand input (CSS-style: 1~4 values => T/R/B/L)
+        const padShWrap = document.createElement("div");
+        padShWrap.style.cssText = "margin-top:6px;display:flex;gap:6px;align-items:center;";
+        const padSh = document.createElement("input");
+        padSh.className = "prop-input";
+        padSh.placeholder = "padding: 8 or 8 12 or 8 12 16 20";
+        padSh.value = `${layout.padding_top || 0} ${layout.padding_right || 0} ${layout.padding_bottom || 0} ${layout.padding_left || 0}`;
+        padSh.style.cssText = "flex:1;font-size:10px;padding:4px 6px;";
+        const applyPadSh = document.createElement("button");
+        applyPadSh.className = "prop-btn";
+        applyPadSh.textContent = "Apply";
+        applyPadSh.style.cssText = "font-size:10px;padding:4px 8px;";
+
+        const parsePaddingShorthand = (text: string): [number, number, number, number] | null => {
+          const parts = text.trim().split(/\s+/).filter(Boolean).map((p) => parseFloat(p));
+          if (!parts.length || parts.some((n) => !Number.isFinite(n))) return null;
+          if (parts.length === 1) return [parts[0], parts[0], parts[0], parts[0]];
+          if (parts.length === 2) return [parts[0], parts[1], parts[0], parts[1]];
+          if (parts.length === 3) return [parts[0], parts[1], parts[2], parts[1]];
+          return [parts[0], parts[1], parts[2], parts[3]];
+        };
+
+        const commitPaddingShorthand = () => {
+          const parsed = parsePaddingShorthand(padSh.value);
+          if (!parsed) {
+            padSh.style.borderColor = "#ef4444";
+            return;
+          }
+          padSh.style.borderColor = "";
+          const [t, r, b, l] = parsed;
+          topInput.value = String(t);
+          rightInput.value = String(r);
+          bottomInput.value = String(b);
+          leftInput.value = String(l);
+          editor.engine.push_undo();
+          editor.engine.set_layout_padding(BigInt(id), t, r, b, l);
+          editor.requestRender();
+        };
+
+        applyPadSh.addEventListener("click", commitPaddingShorthand);
+        padSh.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            commitPaddingShorthand();
+          }
+        });
+
+        padShWrap.appendChild(padSh);
+        padShWrap.appendChild(applyPadSh);
+        layoutSection.appendChild(padShWrap);
+
         // --- Spacing Presets (quick apply gap + uniform padding) ---
         const SPACING_PRESETS = [
           { label: "XS", gap: 4, pad: 4 },

@@ -3,6 +3,16 @@ export interface ARQuickLookOptions {
   title?: string;
 }
 
+export function getARSourceFromUrl(url: string = window.location.href): string | null {
+  try {
+    const parsed = new URL(url, window.location.origin);
+    const value = (parsed.searchParams.get("ar_src") || "").trim();
+    return value || null;
+  } catch {
+    return null;
+  }
+}
+
 function isUsd(src: string): boolean {
   return /\.(usdz?|reality)$/i.test(src);
 }
@@ -119,4 +129,24 @@ export function openARQuickLook(opts: ARQuickLookOptions) {
     if (e.target === overlay) overlay.remove();
   });
   document.body.appendChild(overlay);
+}
+
+export function openARQuickLookFromQuery(): boolean {
+  const src = getARSourceFromUrl();
+  if (!src) return false;
+
+  openARQuickLook({
+    src,
+    title: "Shared AR Preview",
+  });
+
+  try {
+    const url = new URL(window.location.href);
+    url.searchParams.delete("ar_src");
+    window.history.replaceState({}, "", url.toString());
+  } catch {
+    // no-op
+  }
+
+  return true;
 }

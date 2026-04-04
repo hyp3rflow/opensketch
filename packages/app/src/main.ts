@@ -46,6 +46,7 @@ import { setupTemplatePanel } from "./ui/template-panel";
 import { setupDependencyGraphPanel } from "./ui/dependency-graph-panel";
 import { setupArtboardPresetsPanel } from "./ui/artboard-presets";
 import { setupPanelSync, addPopOutButton } from "./ui/panel-detach";
+import { openARQuickLookFromQuery } from "./ui/ar-quicklook";
 
 async function main() {
   await initI18n();
@@ -55,6 +56,10 @@ async function main() {
   const engine = new wasm.Engine(rect.width, rect.height);
 
   const editor = new Editor(engine, canvas);
+
+  // Shared AR deep-link: ?ar_src=<url>
+  // (opens once, then removes query to avoid reopening on refresh)
+  setTimeout(() => openARQuickLookFromQuery(), 0);
 
   // Auto-save: restore previous session & start periodic saves
   const autoSave = new AutoSave(editor);
