@@ -197,6 +197,7 @@ export class Editor {
   private _breakpointIndicator: { label: string; maxWidth: number; currentWidth: number } | null = null;
   private _breakpointIndicatorTimeout: ReturnType<typeof setTimeout> | null = null;
   private _pointSnapIndicators: PointSnapIndicator[] = [];
+  private _constraintPinsOverlay: { x: number; y: number; boxSize: number; selectedId: number } | null = null;
   private _measureLines: MeasureLine[] = [];
   private _measureTargetBounds: { x: number; y: number; w: number; h: number } | null = null;
   public measureTool = new MeasureToolState();
@@ -1278,6 +1279,23 @@ export class Editor {
       this.canvas.style.cursor = "grabbing";
       this.canvas.setPointerCapture(e.pointerId);
       return;
+    }
+
+    // Constraints visual pins: click-to-edit quick constraints (single-select)
+    if (this.currentTool === "select" && this._constraintPinsOverlay) {
+      const { x: ox, y: oy, boxSize, selectedId } = this._constraintPinsOverlay;
+      if (x >= ox && x <= ox + boxSize && y >= oy && y <= oy + boxSize) {
+        const col = Math.max(0, Math.min(2, Math.floor((x - (ox + 3)) / 12)));
+        const row = Math.max(0, Math.min(2, Math.floor((y - (oy + 3)) / 12)));
+        const horizontal = col === 0 ? "left" : col === 1 ? "center" : "right";
+        const vertical = row === 0 ? "top" : row === 1 ? "center" : "bottom";
+        this.engine.push_undo();
+        this.engine.set_constraints(BigInt(selectedId), horizontal, vertical);
+        this.needsRender = true;
+        this.fireSelectionNow(Array.from(this.engine.get_selection()).map(Number));
+        this.canvas.setPointerCapture(e.pointerId);
+        return;
+      }
     }
 
     // Image crop mode: handle crop drag
@@ -5894,6 +5912,7 @@ export class Editor {
   }
 
   private renderConstraintPinsOverlay() {
+    this._constraintPinsOverlay = null;
     const sel = Array.from(this.engine.get_selection()).map(Number);
     if (sel.length !== 1) return;
 
@@ -5928,6 +5947,7 @@ export class Editor {
     const radius = 2.5;
     const ox = sx + sw / 2 - boxSize / 2;
     const oy = sy - boxSize - 10;
+    this._constraintPinsOverlay = { x: ox, y: oy, boxSize, selectedId: sel[0] };
 
     const active = new Set<number>();
     const applyH = (h: string) => {

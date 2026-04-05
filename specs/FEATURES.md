@@ -401,6 +401,7 @@
 - WASM: `set_constraints(id, horizontal, vertical)`, `get_constraints(id)`, `resize_node_with_constraints(id, w, h)`
 - Properties panel: Constraints section with H/V dropdowns (shown for nodes with Frame/Group parent)
 - Canvas overlay (MVP): single-selection 시 노드 상단에 3×3 Constraint Pins 미니맵 표시 (현재 H/V 상태를 파란 점으로 시각화)
+- Canvas overlay click-to-edit: 핀 미니맵 클릭으로 H/V constraints를 즉시 변경 (좌/중/우 × 상/중/하 프리셋), undo + properties 패널 즉시 반영
 - Constraint Set Presets (MVP): Save/Apply preset buttons in Constraints section
   - Saved fields: H/V constraints, sizing_h/sizing_v, min/max width/height
   - Storage: localStorage (`opensketch-constraint-set-presets-v1`)
@@ -1093,6 +1094,7 @@ Frame overflow control and content scrolling.
 - [x] SVG export: <defs><path/></defs> + <text><textPath href startOffset letter-spacing dy side>
 - [x] WASM: set_text_path, clear_text_path, set_text_path_offset, set_text_path_baseline_offset, set_text_path_flip, get_text_path_info, get_text_on_path_positions, get_path_svg_d
 - [x] Properties panel: Text Path section — attach/detach, offset slider, baseline input, path letter-spacing input, flip toggle, path name display
+- [x] 2026-04-06 UX polish: Attach to Path 버튼이 선택된 Path가 없을 때 씬 내 Path 후보 목록(빠른 번호/ID 입력) 제공
 - [x] Backward-compatible serde defaults
 - [x] 2026-04-06 polish: get_text_on_path_positions now includes baseline-offset-adjusted coordinates for downstream UI overlays/tools
 - [x] 2026-04-06 UX polish: canvas context menu adds "Attach Text to Path" (when Text+Path are selected) and "Detach Text from Path" quick action

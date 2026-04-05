@@ -1601,9 +1601,20 @@
 - ~~Constraint Set Presets — Frame/컴포넌트 단위로 constraints+auto-layout 조합을 프리셋으로 저장/적용 (responsive 작업 가속)~~ ✅ 완료 (Constraints 섹션 Save/Apply preset + sizing/min-max 포함)
 - ~~Smart Rename Tokens — 노드명 패턴에서 의미 토큰을 추출해 일괄 rename 규칙 추천 (예: btn/primary/hover)~~ ✅ 완료 (Batch Rename 패턴 모드 Smart Rename Tokens 추천 칩)
 - ~~Text Style Lint Autofix — 폰트/크기/line-height 불일치 텍스트를 감지하고 style library 기준으로 일괄 정리~~ ✅ 완료 (Design Health > Typography에서 lint 목록 + Auto-fix 일괄 적용)
-- Constraints Visual Pins Overlay — 선택 노드의 constraint pin 상태를 캔버스 오버레이로 즉시 표시/클릭 편집
+- ~~Constraints Visual Pins Overlay — 선택 노드의 constraint pin 상태를 캔버스 오버레이로 즉시 표시/클릭 편집~~ ✅ 완료 (캔버스 3×3 핀 오버레이 클릭으로 H/V constraints 즉시 변경, undo + Properties 동기화)
 - Component Property Defaults — Variant별 Boolean/Text/Swap property 기본값 저장/초기화
 - Instance Override Diff Inspector — 인스턴스의 override 변경점만 필터링/일괄 reset
+- Pen Pressure Width Profile — Path/Freehand 스트로크에 pressure curve 기반 width profile 적용 + taper(start/end)
+- Dev Handoff Tokens Export — Variables/Styles를 W3C Design Tokens JSON + CSS variables + Tailwind preset으로 내보내기
+- Prototyping Scroll Triggers — 스크롤 위치 기반 interaction trigger(enter/exit/threshold) + timeline 연동
+- Vector Network Boolean Cleanup — shape-builder/boolean 결과 self-intersection 정리 + simplify tolerance
+
+## 완료된 기능 (추가 — Constraints Visual Pins Overlay click-edit, 2026-04-06)
+- 캔버스 상단 3×3 Constraint Pins 오버레이를 클릭 가능한 UI로 확장
+- 클릭한 셀(좌/중/우 × 상/중/하)에 맞춰 `set_constraints()` 즉시 적용
+- 변경 시 `push_undo()` 호출로 undo/redo 스택 일관성 유지
+- selection refresh를 통해 Properties panel의 Constraints 드롭다운 상태 즉시 동기화
+- specs/FEATURES.md Constraints 섹션에 click-to-edit 동작 명세 추가
 
 ## 완료된 기능 (추가 — Variable Mode Quick Preview, 2026-04-06)
 - Frame/Section Properties > Breakpoints에 "Variable Mode Quick Preview" 카드 추가

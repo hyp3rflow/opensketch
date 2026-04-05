@@ -6134,30 +6134,90 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           attachBtn.textContent = "Attach to Path…";
           attachBtn.title = "Select a Path node, then click to attach text";
           attachBtn.addEventListener("click", () => {
-            // Find a Path node in the scene to attach to (prefer selected paths)
+            // Prefer selected Path nodes first.
             const sel = Array.from(editor.engine.get_selection()).map(Number);
             let pathId: number | null = null;
             for (const sid of sel) {
               if (sid === id) continue;
               try {
                 const nj = editor.engine.get_node_json(BigInt(sid));
-                if (nj) {
-                  const nd = JSON.parse(nj);
-                  if (nd.kind === "Path" || (nd.kind && typeof nd.kind === "object" && "Path" in nd.kind)) {
-                    pathId = sid;
-                    break;
-                  }
+                if (!nj) continue;
+                const nd = JSON.parse(nj);
+                if (nd.kind === "Path" || (nd.kind && typeof nd.kind === "object" && "Path" in nd.kind)) {
+                  pathId = sid;
+                  break;
                 }
               } catch {}
             }
-            if (pathId) {
-              ensureUndo();
-              editor.engine.set_text_path(BigInt(id), BigInt(pathId));
-              editor.requestRender();
-              refresh(ids);
-            } else {
-              alert("Select both a Text node and a Path node, then click 'Attach to Path'.");
+
+            // If there is no selected path, offer a quick picker from scene paths.
+            if (!pathId) {
+              type PathCandidate = { id: number; name: string };
+              const candidates: PathCandidate[] = [];
+              const seen = new Set<number>();
+              try {
+                const boundsJson = editor.engine.get_scene_bounds?.();
+                const bounds = boundsJson ? JSON.parse(boundsJson) : null;
+                if (Array.isArray(bounds) && bounds.length >= 4) {
+                  const [x1, y1, x2, y2] = bounds.map(Number);
+                  const pad = 20000;
+                  const nodeIds = Array.from(
+                    editor.engine.get_visible_node_ids(
+                      x1 - pad,
+                      y1 - pad,
+                      (x2 - x1) + pad * 2,
+                      (y2 - y1) + pad * 2,
+                    ),
+                  ).map(Number);
+                  for (const nid of nodeIds) {
+                    if (nid === id || seen.has(nid)) continue;
+                    seen.add(nid);
+                    try {
+                      const nj = editor.engine.get_node_json(BigInt(nid));
+                      if (!nj) continue;
+                      const nd = JSON.parse(nj);
+                      const isPath = nd.kind === "Path" || (nd.kind && typeof nd.kind === "object" && "Path" in nd.kind);
+                      if (!isPath) continue;
+                      candidates.push({ id: nid, name: String(nd.name || `Path ${nid}`) });
+                    } catch {}
+                  }
+                }
+              } catch {}
+
+              if (candidates.length > 0) {
+                candidates.sort((a, b) => a.name.localeCompare(b.name));
+                const maxItems = 30;
+                const list = candidates.slice(0, maxItems);
+                const promptText = [
+                  "Attach to which Path?",
+                  ...list.map((c, i) => `${i + 1}. ${c.name} (#${c.id})`),
+                  candidates.length > maxItems ? `...and ${candidates.length - maxItems} more` : "",
+                  "Enter number or Path ID:",
+                ].filter(Boolean).join("\n");
+                const picked = window.prompt(promptText, "1");
+                if (picked != null) {
+                  const parsed = parseInt(picked, 10);
+                  if (Number.isFinite(parsed)) {
+                    const byIndex = list[parsed - 1];
+                    if (byIndex) pathId = byIndex.id;
+                    else {
+                      const byId = candidates.find(c => c.id === parsed);
+                      if (byId) pathId = byId.id;
+                    }
+                  }
+                }
+              }
             }
+
+            if (!pathId) {
+              alert("Select both a Text node and a Path node, then click 'Attach to Path'.");
+              return;
+            }
+
+            ensureUndo();
+            editor.engine.set_text_path(BigInt(id), BigInt(pathId));
+            editor.requestRender();
+            refresh(ids);
           });
           topRow.appendChild(attachBtn);
           textSection.appendChild(topRow);
