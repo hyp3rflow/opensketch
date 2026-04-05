@@ -3597,6 +3597,7 @@ impl Engine {
                 condition: None,
                 set_variable_name: String::new(),
                 set_variable_expression: String::new(),
+                smart_animate_timeline_json: String::new(),
             };
             node.interactions.push(interaction);
             (node.interactions.len() - 1) as i32
@@ -3643,6 +3644,27 @@ impl Engine {
             }
         }
         false
+    }
+
+    /// Set Smart Animate timeline JSON on an interaction (MVP keyframes payload)
+    pub fn set_interaction_timeline(&mut self, id: u64, index: u32, timeline_json: &str) -> bool {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            if let Some(inter) = node.interactions.get_mut(index as usize) {
+                inter.smart_animate_timeline_json = timeline_json.to_string();
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Get Smart Animate timeline JSON from an interaction
+    pub fn get_interaction_timeline(&self, id: u64, index: u32) -> String {
+        if let Some(node) = self.scene.get_node(id) {
+            if let Some(inter) = node.interactions.get(index as usize) {
+                return inter.smart_animate_timeline_json.clone();
+            }
+        }
+        String::new()
     }
 
     /// Get interactions as JSON array

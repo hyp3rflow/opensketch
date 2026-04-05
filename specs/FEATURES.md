@@ -333,8 +333,9 @@
 - [x] Constraints (responsive resizing) — Horizontal: Left/Right/LeftAndRight/Center/Scale, Vertical: Top/Bottom/TopAndBottom/Center/Scale
 - [x] Prototyping (interactions/transitions)
   - Interaction struct: trigger (OnClick/OnHover/OnPress/OnDrag/OnSwipeLeft/OnSwipeRight/OnSwipeUp/OnSwipeDown/OnLongPress/OnPinchIn/OnPinchOut), action (NavigateTo/Back/ScrollTo/OpenOverlay/CloseOverlay), target node/page ID, transition type (Instant/Dissolve/SmartAnimate/SlideIn/SlideOut/Push), duration, easing (linear/ease_in/ease_out/ease_in_out/cubic_bezier:x1,y1,x2,y2), easing (Linear/EaseIn/EaseOut/EaseInOut/CubicBezier)
-  - WASM API: add_interaction (with easing param), remove_interaction, clear_interactions, get_interactions, get_interaction_count, get_all_interactions, set_interaction_easing
+  - WASM API: add_interaction (with easing param), remove_interaction, clear_interactions, get_interactions, get_interaction_count, get_all_interactions, set_interaction_easing, set/get_interaction_timeline
   - Properties panel: "Interactions" section with trigger/action/target/transition/duration/easing editors, add/remove
+  - Smart Animate Timeline (MVP): interaction card에 timeline mini editor 추가 (Start/Mid/End keyframe time + segment easing 문자열 편집, Mid keyframe 추가/삭제), interaction에 `smart_animate_timeline_json`으로 저장
   - Easing curve editor: SVG-based 120×120 cubic-bezier editor with draggable control points, preset buttons (Linear/EaseIn/EaseOut/EaseInOut/Custom), inline in interaction section
   - Prototype viewer: full-screen overlay, click navigation, back stack, Esc to close
   - Animated transitions: Dissolve (cross-fade), SlideIn (from right), SlideOut (old exits right), Push (both move), SmartAnimate (name-matched node interpolation with position/size cross-fade)

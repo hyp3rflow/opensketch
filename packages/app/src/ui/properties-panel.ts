@@ -4608,6 +4608,41 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         const interEl = document.createElement("div");
         interEl.style.cssText = "background:#1e1e1e;border-radius:6px;padding:8px;margin-bottom:6px;position:relative;";
 
+        const rebuildInteraction = (override: Partial<{ trigger: string; action: string; target_node_id: number; target_page_id: number; transition: string; transition_duration_ms: number; easing: string; variant_key_json: string; smart_animate_timeline_json: string; }>) => {
+          const trigMap: Record<string, string> = {
+            OnClick: "click", OnHover: "hover", OnPress: "press", OnDrag: "drag",
+            OnSwipeLeft: "swipe-left", OnSwipeRight: "swipe-right",
+            OnSwipeUp: "swipe-up", OnSwipeDown: "swipe-down",
+            OnLongPress: "long-press", OnPinchIn: "pinch-in", OnPinchOut: "pinch-out",
+          };
+          const actMap: Record<string, string> = { NavigateTo: "navigate-to", Back: "back", ScrollTo: "scroll-to", OpenOverlay: "open-overlay", CloseOverlay: "close-overlay", SwapVariant: "swap-variant", SetVariable: "set-variable" };
+          const trMap: Record<string, string> = { Instant: "instant", Dissolve: "dissolve", SmartAnimate: "smart-animate", SlideIn: "slide-in", SlideOut: "slide-out", Push: "push" };
+
+          const next = {
+            trigger: override.trigger ?? trigMap[inter.trigger] ?? "click",
+            action: override.action ?? actMap[inter.action] ?? "navigate-to",
+            target_node_id: override.target_node_id ?? Number(inter.target_node_id || 0),
+            target_page_id: override.target_page_id ?? Number(inter.target_page_id || 0),
+            transition: override.transition ?? trMap[inter.transition] ?? "instant",
+            transition_duration_ms: override.transition_duration_ms ?? Number(inter.transition_duration_ms || 300),
+            easing: override.easing ?? inter.easing ?? "ease_in_out",
+            variant_key_json: override.variant_key_json ?? inter.variant_key_json ?? "",
+            smart_animate_timeline_json: override.smart_animate_timeline_json ?? inter.smart_animate_timeline_json ?? "",
+          };
+
+          editor.engine.remove_interaction(id, idx);
+          const newIdx = editor.engine.add_interaction(
+            id, next.trigger, next.action,
+            BigInt(next.target_node_id), BigInt(next.target_page_id),
+            next.transition, next.transition_duration_ms,
+            next.easing
+          );
+          if (newIdx >= 0) {
+            if (next.variant_key_json) editor.engine.set_interaction_variant_key(id, newIdx, next.variant_key_json);
+            if (next.smart_animate_timeline_json) editor.engine.set_interaction_timeline(id, newIdx, next.smart_animate_timeline_json);
+          }
+        };
+
         // Header: trigger label + delete
         const hdr = document.createElement("div");
         hdr.style.cssText = "display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;";
@@ -4666,16 +4701,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         }
         trigSelect.addEventListener("change", () => {
           ensureUndo();
-          editor.engine.remove_interaction(id, idx);
-          const newIdx = editor.engine.add_interaction(
-            id, trigSelect.value, actSelect.value,
-            BigInt(inter.target_node_id || 0), BigInt(inter.target_page_id || 0),
-            transSelect.value, parseInt(durInput.value) || 300,
-            inter.easing || "ease_in_out"
-          );
-          if (newIdx >= 0 && inter.variant_key_json) {
-            editor.engine.set_interaction_variant_key(id, newIdx, inter.variant_key_json);
-          }
+          rebuildInteraction({ trigger: trigSelect.value, action: actSelect.value, transition: transSelect.value, transition_duration_ms: parseInt(durInput.value) || 300 });
           editor.requestRender();
           refresh(ids);
         });
@@ -4718,16 +4744,14 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         targetInput.value = String(inter.target_node_id || "");
         targetInput.addEventListener("change", () => {
           ensureUndo();
-          editor.engine.remove_interaction(id, idx);
-          const newIdx = editor.engine.add_interaction(
-            id, trigSelect.value, actSelect.value,
-            BigInt(parseInt(targetInput.value) || 0), BigInt(inter.target_page_id || 0),
-            transSelect.value, parseInt(durInput.value) || 300,
-            inter.easing || "ease_in_out"
-          );
-          if (newIdx >= 0 && variantInput.value) {
-            editor.engine.set_interaction_variant_key(id, newIdx, variantInput.value);
-          }
+          rebuildInteraction({
+            trigger: trigSelect.value,
+            action: actSelect.value,
+            target_node_id: parseInt(targetInput.value) || 0,
+            transition: transSelect.value,
+            transition_duration_ms: parseInt(durInput.value) || 300,
+            variant_key_json: variantInput.value,
+          });
           editor.requestRender();
           refresh(ids);
         });
@@ -4960,6 +4984,19 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         }
         transRow.appendChild(transSelect);
         interEl.appendChild(transRow);
+        transSelect.addEventListener("change", () => {
+          ensureUndo();
+          rebuildInteraction({
+            trigger: trigSelect.value,
+            action: actSelect.value,
+            target_node_id: parseInt(targetInput.value) || Number(inter.target_node_id || 0),
+            transition: transSelect.value,
+            transition_duration_ms: parseInt(durInput.value) || 300,
+            variant_key_json: variantInput.value,
+          });
+          editor.requestRender();
+          refresh(ids);
+        });
 
         // Duration
         const durRow = document.createElement("div");
@@ -4977,13 +5014,14 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         durInput.value = String(inter.transition_duration_ms || 300);
         durInput.addEventListener("change", () => {
           ensureUndo();
-          editor.engine.remove_interaction(id, idx);
-          editor.engine.add_interaction(
-            id, trigSelect.value, actSelect.value,
-            BigInt(inter.target_node_id || 0), BigInt(inter.target_page_id || 0),
-            transSelect.value, parseInt(durInput.value) || 300,
-            inter.easing || "ease_in_out"
-          );
+          rebuildInteraction({
+            trigger: trigSelect.value,
+            action: actSelect.value,
+            target_node_id: parseInt(targetInput.value) || Number(inter.target_node_id || 0),
+            transition: transSelect.value,
+            transition_duration_ms: parseInt(durInput.value) || 300,
+            variant_key_json: variantInput.value,
+          });
           editor.requestRender();
           refresh(ids);
         });
@@ -5010,6 +5048,125 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           });
           easingRow.appendChild(easingEditor);
           interEl.appendChild(easingRow);
+        }
+
+        // Smart Animate Timeline (MVP)
+        {
+          const timelineWrap = document.createElement("div");
+          timelineWrap.style.cssText = "margin-top:8px;padding-top:8px;border-top:1px solid #333;";
+          const label = document.createElement("div");
+          label.style.cssText = "font-size:10px;color:#818cf8;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;";
+          label.textContent = "Smart Animate Timeline";
+          timelineWrap.appendChild(label);
+
+          const trMap: Record<string, string> = { Instant: "instant", Dissolve: "dissolve", SmartAnimate: "smart-animate", SlideIn: "slide-in", SlideOut: "slide-out", Push: "push" };
+          const isSmartAnimate = (trMap[inter.transition] || "instant") === "smart-animate";
+
+          const hint = document.createElement("div");
+          hint.style.cssText = "font-size:10px;color:#666;margin-bottom:6px;";
+          hint.textContent = isSmartAnimate ? "Edit start/mid/end keyframes and per-segment easing." : "Switch transition to Smart Animate to enable timeline.";
+          timelineWrap.appendChild(hint);
+
+          let timeline: Array<{ time: number; label: string; easing: string }> = [];
+          try { timeline = JSON.parse(inter.smart_animate_timeline_json || "[]"); } catch {}
+          if (!Array.isArray(timeline) || timeline.length === 0) {
+            const dur = Number(inter.transition_duration_ms || 300);
+            timeline = [
+              { time: 0, label: "Start", easing: inter.easing || "ease_in_out" },
+              { time: Math.round(dur / 2), label: "Mid", easing: inter.easing || "ease_in_out" },
+              { time: dur, label: "End", easing: inter.easing || "ease_in_out" },
+            ];
+          }
+          timeline.sort((a, b) => a.time - b.time);
+
+          const renderTimelineRows = () => {
+            list.innerHTML = "";
+            timeline.forEach((kf, kfIdx) => {
+              const row = document.createElement("div");
+              row.style.cssText = "display:grid;grid-template-columns:50px 1fr 1fr auto;gap:4px;align-items:center;margin-bottom:4px;";
+
+              const name = document.createElement("span");
+              name.style.cssText = "font-size:10px;color:#999;";
+              name.textContent = kf.label;
+              row.appendChild(name);
+
+              const timeInput = document.createElement("input");
+              timeInput.className = "prop-input";
+              timeInput.type = "number";
+              timeInput.min = "0";
+              timeInput.step = "10";
+              timeInput.value = String(kf.time);
+              timeInput.disabled = !isSmartAnimate;
+              row.appendChild(timeInput);
+
+              const easeInput = document.createElement("input");
+              easeInput.className = "prop-input";
+              easeInput.value = kf.easing || "ease_in_out";
+              easeInput.placeholder = "ease_in_out / cubic_bezier:...";
+              easeInput.disabled = !isSmartAnimate;
+              row.appendChild(easeInput);
+
+              const del = document.createElement("button");
+              del.style.cssText = "width:18px;height:18px;border:1px solid #444;border-radius:4px;background:#2a2a2a;color:#888;cursor:pointer;font-size:12px;";
+              del.textContent = "×";
+              del.disabled = !isSmartAnimate || kfIdx === 0 || kfIdx === timeline.length - 1;
+              row.appendChild(del);
+
+              timeInput.addEventListener("change", () => {
+                timeline[kfIdx].time = Math.max(0, parseInt(timeInput.value) || 0);
+                timeline.sort((a, b) => a.time - b.time);
+                persistTimeline();
+                renderTimelineRows();
+              });
+              easeInput.addEventListener("change", () => {
+                timeline[kfIdx].easing = easeInput.value || "ease_in_out";
+                persistTimeline();
+              });
+              del.addEventListener("click", () => {
+                timeline.splice(kfIdx, 1);
+                persistTimeline();
+                renderTimelineRows();
+              });
+
+              list.appendChild(row);
+            });
+          };
+
+          const list = document.createElement("div");
+          timelineWrap.appendChild(list);
+
+          const persistTimeline = () => {
+            ensureUndo();
+            const timelineJson = JSON.stringify(timeline);
+            rebuildInteraction({
+              trigger: trigSelect.value,
+              action: actSelect.value,
+              target_node_id: parseInt(targetInput.value) || Number(inter.target_node_id || 0),
+              transition: transSelect.value,
+              transition_duration_ms: parseInt(durInput.value) || 300,
+              easing: inter.easing || "ease_in_out",
+              variant_key_json: variantInput.value,
+              smart_animate_timeline_json: timelineJson,
+            });
+            editor.requestRender();
+            refresh(ids);
+          };
+
+          const addMidBtn = document.createElement("button");
+          addMidBtn.className = "prop-add-btn";
+          addMidBtn.style.marginTop = "4px";
+          addMidBtn.textContent = "+ Add Mid Keyframe";
+          addMidBtn.disabled = !isSmartAnimate || timeline.some(k => (k.label || "").toLowerCase().includes("mid"));
+          addMidBtn.addEventListener("click", () => {
+            const dur = parseInt(durInput.value) || Number(inter.transition_duration_ms || 300);
+            timeline.push({ time: Math.round(dur / 2), label: `Mid ${timeline.length - 1}` , easing: inter.easing || "ease_in_out" });
+            timeline.sort((a, b) => a.time - b.time);
+            persistTimeline();
+          });
+
+          timelineWrap.appendChild(addMidBtn);
+          renderTimelineRows();
+          interEl.appendChild(timelineWrap);
         }
 
         interSection.appendChild(interEl);

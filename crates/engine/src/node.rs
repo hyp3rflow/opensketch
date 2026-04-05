@@ -1777,6 +1777,9 @@ pub struct Interaction {
     /// For SetVariable action: expression to evaluate (literal value, or "+1"/"-1" for increment/decrement)
     #[serde(default)]
     pub set_variable_expression: String,
+    /// Smart Animate timeline keyframes JSON (MVP): [{"time":0,"label":"Start","easing":"..."}, ...]
+    #[serde(default)]
+    pub smart_animate_timeline_json: String,
 }
 
 fn default_easing_str() -> String { "ease_in_out".to_string() }
@@ -1795,6 +1798,7 @@ impl Default for Interaction {
             condition: None,
             set_variable_name: String::new(),
             set_variable_expression: String::new(),
+            smart_animate_timeline_json: String::new(),
         }
     }
 }

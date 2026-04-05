@@ -2200,7 +2200,19 @@
 - 기존 boolean_operation/undo/layers refresh 파이프라인 재사용
 - specs/FEATURES.md 반영
 
+## 완료된 기능 (추가 — Prototyping Smart Animate Timeline MVP, 2026-04-06)
+- Interaction 확장: `smart_animate_timeline_json` 필드 추가 (serde default)로 기존 파일과 호환 유지
+- WASM API 추가: `set_interaction_timeline(id, index, json)`, `get_interaction_timeline(id, index)`
+- Properties panel Interactions 카드에 Smart Animate Timeline 섹션 추가
+  - Start/Mid/End keyframe time(ms) 편집
+  - segment easing 문자열 편집(예: ease_in_out, cubic_bezier:...)
+  - Mid keyframe 추가/삭제 지원(MVP)
+- 기존 trigger/action/target/transition/duration 변경 시 timeline/variant가 보존되도록 interaction 재생성 로직 정리
+- specs/FEATURES.md 반영
+
 ## 다음 할 것 (2026-04-06 업데이트)
-- Prototyping Smart Animate Timeline — 페이지 전환 smart animate를 타임라인에서 keyframe/curve로 시각 편집
 - Auto Layout Gap Handles — 캔버스에서 gap/padding을 직접 드래그 조절하는 on-canvas 핸들
 - Vector Boolean Live Preview — boolean 후보(Union/Subtract/Intersect/Exclude)를 hover 시 실시간 프리뷰
+- Text Styles Scale Tokens — 타입 스케일(예: 12/14/16/20/24/32) 토큰 세트 생성/적용 + 문서 전체 일괄 리맵
+- Prototype Fixed Header/Footer — 프로토타입 미리보기에서 frame 내 고정 레이어(스크롤 시 pin) 지원
+- Variable Modes Quick Switch — Prototype Variables 모드(Desktop/Mobile, Light/Dark 등)를 툴바 토글로 즉시 전환
