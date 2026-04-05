@@ -250,6 +250,7 @@ export class Editor {
   private _cursorChat = new CursorChat();
   private _lastPointerScreenX = 0;
   private _lastPointerScreenY = 0;
+  private _hasPointerScreenPosition = false;
   private _smartPasteHoverFrameId: number | null = null;
 
   // Responsive auto-layout preview
@@ -1750,6 +1751,7 @@ export class Editor {
   private onPointerMove(e: PointerEvent) {
     this._lastPointerScreenX = e.offsetX;
     this._lastPointerScreenY = e.offsetY;
+    this._hasPointerScreenPosition = true;
     this._smartPasteHoverFrameId = this.resolveAutoLayoutFrameFromScreenPoint(e.offsetX, e.offsetY);
     if (this.isPanning) {
       const dx = e.clientX - this.lastPanX;
@@ -4899,9 +4901,10 @@ export class Editor {
 
   private findSmartPasteTarget(sourceSelection: number[], pastedIds: number[]): DropTarget | null {
     // Keyboard paste can happen before any pointer move in-session.
-    // In that case, fallback to viewport center instead of stale (0,0).
-    const pointerX = this._lastPointerScreenX > 0 ? this._lastPointerScreenX : this.canvas.width / 2;
-    const pointerY = this._lastPointerScreenY > 0 ? this._lastPointerScreenY : this.canvas.height / 2;
+    // In that case, fallback to viewport center instead of stale coordinates.
+    const rect = this.canvas.getBoundingClientRect();
+    const pointerX = this._hasPointerScreenPosition ? this._lastPointerScreenX : rect.width / 2;
+    const pointerY = this._hasPointerScreenPosition ? this._lastPointerScreenY : rect.height / 2;
     const sx = this.engine.screen_to_scene_x(pointerX, pointerY);
     const sy = this.engine.screen_to_scene_y(pointerX, pointerY);
 

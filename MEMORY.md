@@ -1593,11 +1593,15 @@
 - ~~Figma-style Variants Matrix UI~~ ✅ 완료 (Component Set 인스턴스 편집에서 2D 매트릭스 표시 + 클릭 전환 + 빈 셀 드래그 매핑)
 - ~~Smart selection filter — 선택 영역 내 특정 노드 타입만 필터링 (Figma "Select All with..." 확장), 정규식 이름 매칭, 깊이/속성 필터~~ ✅ 완료 (Smart Select 패널 Selection Filter 영역 + Filter Area 액션)
 - ~~Scroll-to animation triggers — Prototype viewer에서 스크롤 위치 기반 애니메이션 트리거 (parallax, reveal-on-scroll), 트리거 threshold 설정~~ ✅ 완료 (ScrollAnimation struct + easing/sticky/parallax + Prototype viewer 실시간 오버라이드 렌더)
-- Conditional visibility — 변수/조건 기반 노드 visibility 토글 (if variable == value → show/hide), 프로토타입에서 동적 UI 시뮬레이션
-- Auto-layout absolute position child — Auto-layout Frame 내부에서 특정 자식만 flow 제외(Absolute) + pin constraints 유지 (Figma "Absolute position")
-- Variant property controls — Component Instance에서 Boolean/Text/Instance Swap property 패널 지원 (토글/라벨/아이콘 교체)
-- Interactive components (hover/pressed variants) — Prototype viewer에서 컴포넌트 상태 전환(OnHover/OnPress) + 기본 transition
+- ~~Conditional visibility — 변수/조건 기반 노드 visibility 토글 (if variable == value → show/hide), 프로토타입에서 동적 UI 시뮬레이션~~ ✅ 완료 (Properties panel 조건식 설정 + 엔진 render/hit-test 반영)
+- ~~Auto-layout absolute position child — Auto-layout Frame 내부에서 특정 자식만 flow 제외(Absolute) + pin constraints 유지 (Figma "Absolute position")~~ ✅ 완료 (Absolute position 토글 + 부모 auto-layout flow 제외)
+- ~~Variant property controls — Component Instance에서 Boolean/Text/Instance Swap property 패널 지원 (토글/라벨/아이콘 교체)~~ ✅ 완료 (Instance property 패널 편집 + override 반영)
+- ~~Interactive components (hover/pressed variants) — Prototype viewer에서 컴포넌트 상태 전환(OnHover/OnPress) + 기본 transition~~ ✅ 완료 (interactive variants + prototype state 전환)
 - ~~Export slices/presets panel — Slice 노드 다중 선택 후 @1x/@2x/@3x, WebP/JPEG 품질 프리셋 일괄 내보내기~~ ✅ 완료 (Slice 단일/다중 선택 일괄 export + WebP/JPEG 품질 프리셋)
+- Constraint Set Presets — Frame/컴포넌트 단위로 constraints+auto-layout 조합을 프리셋으로 저장/적용 (responsive 작업 가속)
+- Smart Rename Tokens — 노드명 패턴에서 의미 토큰을 추출해 일괄 rename 규칙 추천 (예: btn/primary/hover)
+- Prototype Condition Builder — 인터랙션 조건식을 UI 빌더(AND/OR 그룹)로 편집하고 변수 기반 분기 프리뷰 제공
+- Text Style Lint Autofix — 폰트/크기/line-height 불일치 텍스트를 감지하고 style library 기준으로 일괄 정리
 
 ## 완료된 기능 (추가 — Smart Paste to Frame selection 확장, 2026-04-05)
 - Smart Paste 우선순위 1단계에서 단일 선택뿐 아니라 혼합 멀티 셀렉션의 auto-layout 컨테이너도 타겟으로 인식
@@ -1613,6 +1617,11 @@
 - 혼합 멀티 셀렉션에서 중첩 auto-layout 컨테이너가 함께 선택된 경우, shallow(top-most) 컨테이너를 우선 타겟으로 선택
 - paste 시점마다 포인터 좌표로 hover frame을 live 재해석해 stale hover id로 인한 오삽입 가능성 완화
 - Cmd+V / Cmd+Shift+V 모두 동일한 Smart Paste 타겟 결정 로직 유지
+
+## 완료된 기능 (추가 — Smart Paste viewport center fallback precision, 2026-04-05)
+- Smart Paste 포인터 이력 유무를 `_hasPointerScreenPosition`으로 명시적으로 추적해 (0,0) 유효 좌표 오판 가능성 제거
+- 포인터 이력이 없을 때 fallback 좌표를 캔버스 CSS 픽셀 기준 `getBoundingClientRect()` 중심점으로 계산해 dpr 환경에서도 정확도 보강
+- Cmd+V / Cmd+Shift+V 공통 타겟 탐색 경로에 동일 적용
 
 ## 완료된 기능 (추가 — Export slices/presets panel, 2026-04-05)
 - Slice Export 포맷에 WebP 추가 + JPG/WebP별 quality(0.1~1.0) 설정 지원
