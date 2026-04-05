@@ -1264,12 +1264,123 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
               }
               select.addEventListener("change", () => {
                 const newValues = { ...currentValues, [axis.name]: select.value };
+                editor.pushUndo();
                 (editor.engine as any).switch_instance_set_variant(BigInt(id), JSON.stringify(newValues));
                 editor.requestRender();
                 refresh([id]);
               });
               row.appendChild(select);
               setSection.appendChild(row);
+            }
+
+            // 2D variants matrix (Figma-like): first axis = columns, second axis = rows
+            if (setInfo.axes.length >= 2 && setInfo.set_id) {
+              try {
+                const setRaw = (editor.engine as any).get_component_set_info?.(BigInt(setInfo.set_id));
+                if (setRaw) {
+                  const fullSet = JSON.parse(setRaw);
+                  const xAxis = setInfo.axes[0];
+                  const yAxis = setInfo.axes[1];
+                  const variantMap: Record<string, number> = fullSet?.variant_map || {};
+
+                  const matrixSection = document.createElement("div");
+                  matrixSection.style.cssText = "margin-top:8px;padding-top:8px;border-top:1px dashed rgba(139,92,246,0.25);";
+
+                  const matrixTitle = document.createElement("div");
+                  matrixTitle.style.cssText = "font-size:10px;color:#a78bfa;margin-bottom:6px;font-weight:600;display:flex;align-items:center;justify-content:space-between;";
+                  matrixTitle.textContent = `VARIANTS MATRIX (${xAxis.name} × ${yAxis.name})`;
+                  matrixSection.appendChild(matrixTitle);
+
+                  const matrixHint = document.createElement("div");
+                  matrixHint.style.cssText = "font-size:9px;color:#7c3aed;margin-bottom:6px;line-height:1.35;";
+                  matrixHint.textContent = "Click: switch variant · Empty cell click/drag: map current variant here";
+                  matrixSection.appendChild(matrixHint);
+
+                  const makeKey = (values: Record<string, string>) => {
+                    return Object.keys(values)
+                      .sort()
+                      .map((k) => `${k}=${values[k] ?? ""}`)
+                      .join(",");
+                  };
+
+                  const grid = document.createElement("div");
+                  grid.style.cssText = `
+                    display:grid;
+                    grid-template-columns: 72px repeat(${Math.max(1, xAxis.values.length)}, minmax(58px, 1fr));
+                    gap:4px;
+                    align-items:stretch;
+                  `;
+
+                  const corner = document.createElement("div");
+                  corner.style.cssText = "font-size:9px;color:#6d28d9;display:flex;align-items:flex-end;padding:2px 4px;";
+                  corner.textContent = `${yAxis.name} ↓ / ${xAxis.name} →`;
+                  grid.appendChild(corner);
+
+                  for (const xVal of xAxis.values) {
+                    const h = document.createElement("div");
+                    h.style.cssText = "font-size:10px;color:#c4b5fd;text-align:center;padding:4px 2px;border:1px solid rgba(139,92,246,0.2);border-radius:4px;background:rgba(139,92,246,0.06);";
+                    h.textContent = xVal;
+                    grid.appendChild(h);
+                  }
+
+                  let dragMode: "switch" | "map" | null = null;
+                  const onMouseUp = () => { dragMode = null; };
+                  window.addEventListener("mouseup", onMouseUp, { once: true });
+
+                  for (const yVal of yAxis.values) {
+                    const yLabel = document.createElement("div");
+                    yLabel.style.cssText = "font-size:10px;color:#c4b5fd;display:flex;align-items:center;padding:0 4px;border:1px solid rgba(139,92,246,0.2);border-radius:4px;background:rgba(139,92,246,0.04);";
+                    yLabel.textContent = yVal;
+                    grid.appendChild(yLabel);
+
+                    for (const xVal of xAxis.values) {
+                      const values: Record<string, string> = { ...currentValues, [xAxis.name]: xVal, [yAxis.name]: yVal };
+                      const key = makeKey(values);
+                      const mappedCompId = Number(variantMap[key] || 0);
+                      const isMapped = mappedCompId > 0;
+                      const isActive = mappedCompId > 0 && mappedCompId === Number(setInfo.current_component_id || 0);
+
+                      const cell = document.createElement("button");
+                      cell.type = "button";
+                      cell.style.cssText = `
+                        min-height:24px;border-radius:4px;cursor:pointer;font-size:10px;padding:2px 4px;
+                        border:1px solid ${isActive ? "#8b5cf6" : isMapped ? "rgba(139,92,246,0.45)" : "rgba(139,92,246,0.2)"};
+                        background:${isActive ? "rgba(139,92,246,0.35)" : isMapped ? "rgba(139,92,246,0.15)" : "rgba(31,20,52,0.35)"};
+                        color:${isMapped ? "#ede9fe" : "#7c3aed"};
+                      `;
+                      cell.textContent = isMapped ? `#${mappedCompId}` : "+";
+                      cell.title = `${yAxis.name}=${yVal}, ${xAxis.name}=${xVal}`;
+
+                      const applyCell = () => {
+                        editor.pushUndo();
+                        if (isMapped) {
+                          (editor.engine as any).switch_instance_set_variant(BigInt(id), JSON.stringify(values));
+                        } else {
+                          (editor.engine as any).set_component_set_variant_mapping(BigInt(setInfo.set_id), JSON.stringify(values), BigInt(setInfo.current_component_id));
+                          (editor.engine as any).switch_instance_set_variant(BigInt(id), JSON.stringify(values));
+                        }
+                        editor.requestRender();
+                        refresh([id]);
+                      };
+
+                      cell.addEventListener("mousedown", () => {
+                        dragMode = isMapped ? "switch" : "map";
+                        applyCell();
+                      });
+                      cell.addEventListener("mouseenter", (ev) => {
+                        if ((ev as MouseEvent).buttons !== 1 || !dragMode) return;
+                        if (dragMode === "switch" && isMapped) applyCell();
+                        if (dragMode === "map" && !isMapped) applyCell();
+                      });
+
+                      grid.appendChild(cell);
+                    }
+                  }
+
+                  matrixSection.appendChild(grid);
+                  setSection.appendChild(matrixSection);
+                }
+              } catch {}
             }
 
             header.appendChild(setSection);

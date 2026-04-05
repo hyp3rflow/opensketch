@@ -97,6 +97,7 @@
 - [x] **Detach instance**: convert Instance to Frame (sever component link), Cmd+Alt+B shortcut, context menu + properties panel button
 - [x] **9 agent commands**: create, prop, variant, slot, instance, switch, fill, list, override
 - [x] **Component search & swap**: search components by name, view all instances, swap selected/all instances to different master component (Cmd+Shift+K)
+- [x] **Figma-style Variants Matrix UI (MVP)**: Component Set 인스턴스 편집 시 첫 2개 axis 조합을 2D 매트릭스로 시각화, 셀 클릭으로 variant 전환, 빈 셀 클릭/드래그로 현재 variant를 조합에 매핑
 
 ### Alignment & Distribution
 - [x] **Align**: left, center-H, right, top, center-V, bottom (multi-select, 2+ nodes)

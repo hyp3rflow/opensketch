@@ -1590,11 +1590,18 @@
 - ~~Repeat Grid — 노드 복제 grid (Figma Repeat Grid), row/col 갯수 + gap, 개별 셀 콘텐츠 오버라이드, 드래그로 인스턴스 수 조절~~ ✅ 완료 (셀별 텍스트 오버라이드 렌더 + 데이터 바인딩 패널 연동)
 - ~~Component Sets~~ ✅ 완료
 - ~~Multi-window / detachable panels — 패널을 별도 윈도우로 분리 (Layers, Properties, Agent 등)~~ ✅ 완료 (Handoff 탭 detach 지원 추가, 패널 목록 확장), window.open + postMessage 통신
-- Figma-style Variants Matrix UI — 컴포넌트 편집 시 모든 variant 조합을 2D 매트릭스로 시각화, 드래그로 variant 추가/삭제
+- ~~Figma-style Variants Matrix UI~~ ✅ 완료 (Component Set 인스턴스 편집에서 2D 매트릭스 표시 + 클릭 전환 + 빈 셀 드래그 매핑)
 - Smart selection filter — 선택 영역 내 특정 노드 타입만 필터링 (Figma "Select All with..." 확장), 정규식 이름 매칭, 깊이/속성 필터
 - Scroll-to animation triggers — Prototype viewer에서 스크롤 위치 기반 애니메이션 트리거 (parallax, reveal-on-scroll), 트리거 threshold 설정
 - Conditional visibility — 변수/조건 기반 노드 visibility 토글 (if variable == value → show/hide), 프로토타입에서 동적 UI 시뮬레이션
 
+
+## 완료된 기능 (추가 — Figma-style Variants Matrix UI, 2026-04-05)
+- Component Set 인스턴스 선택 시 Properties 패널에 `Variants Matrix (AxisX × AxisY)` 섹션 추가
+- 첫 2개 axis 기준으로 모든 조합을 2D 그리드로 시각화 (행/열 라벨 + 셀 매핑 상태)
+- 매핑된 셀 클릭 시 즉시 해당 variant로 switch
+- 빈 셀 클릭/드래그 시 현재 variant를 해당 조합으로 매핑(`set_component_set_variant_mapping`) 후 전환
+- 기존 axis 드롭다운 스위처와 공존, Undo + render/refresh 연동
 
 ## 완료된 기능 (추가 — Multi-window / Detachable Panels 확장, 2026-04-05)
 - 우측 탭 detach 대상에 Handoff 패널 추가 (기존 Properties/Agent/Comments/Variables/Assets/Bookmarks + Handoff)
