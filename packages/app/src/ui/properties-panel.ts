@@ -12,6 +12,46 @@ import { renderScrollAnimSection } from "./scroll-animation";
 import { openARQuickLook } from "./ar-quicklook";
 import { downloadDesignSystemDocs } from "./design-system-docs";
 
+type ConstraintSetPreset = {
+  id: string;
+  name: string;
+  createdAt: string;
+  layout: {
+    mode: string;
+    direction?: string;
+    align_items?: string;
+    justify_content?: string;
+    gap?: number;
+    padding_top?: number;
+    padding_right?: number;
+    padding_bottom?: number;
+    padding_left?: number;
+    wrap?: string;
+    align_content?: string;
+    grid_columns?: number;
+  };
+  selfConstraints: { horizontal: string; vertical: string };
+  childConstraints: Array<{ index: number; horizontal: string; vertical: string }>;
+};
+
+const CONSTRAINT_SET_PRESET_KEY = "opensketch-constraint-set-presets";
+
+function loadConstraintSetPresets(): ConstraintSetPreset[] {
+  try {
+    const raw = localStorage.getItem(CONSTRAINT_SET_PRESET_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed;
+  } catch {
+    return [];
+  }
+}
+
+function saveConstraintSetPresets(presets: ConstraintSetPreset[]): void {
+  localStorage.setItem(CONSTRAINT_SET_PRESET_KEY, JSON.stringify(presets));
+}
+
 // Stage 4: Google Fonts list
 const googleFonts = [
   "Inter", "Roboto", "Open Sans", "Lato", "Montserrat", "Poppins",
@@ -2266,9 +2306,255 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           vRow.appendChild(vSelect);
           constraintSection.appendChild(vRow);
 
+          // Constraint Set Presets (constraints + sizing/min-max)
+          type ConstraintPreset = {
+            name: string;
+            horizontal: string;
+            vertical: string;
+            sizing_h?: string;
+            sizing_v?: string;
+            min_w?: number | null;
+            max_w?: number | null;
+            min_h?: number | null;
+            max_h?: number | null;
+          };
+          const PRESET_KEY = "opensketch-constraint-set-presets-v1";
+          const loadPresets = (): ConstraintPreset[] => {
+            try {
+              const raw = localStorage.getItem(PRESET_KEY);
+              if (!raw) return [];
+              const parsed = JSON.parse(raw);
+              return Array.isArray(parsed) ? parsed : [];
+            } catch {
+              return [];
+            }
+          };
+          const savePresets = (presets: ConstraintPreset[]) => {
+            localStorage.setItem(PRESET_KEY, JSON.stringify(presets));
+          };
+          const readCurrentPreset = (): ConstraintPreset => {
+            let sizing_h = "fixed";
+            let sizing_v = "fixed";
+            try {
+              const sizing = JSON.parse(editor.engine.get_sizing(BigInt(id)));
+              sizing_h = String(sizing.horizontal || "fixed");
+              sizing_v = String(sizing.vertical || "fixed");
+            } catch {
+              // noop
+            }
+            return {
+              name: "",
+              horizontal: hSelect.value,
+              vertical: vSelect.value,
+              sizing_h,
+              sizing_v,
+              min_w: node.min_width ?? null,
+              max_w: node.max_width ?? null,
+              min_h: node.min_height ?? null,
+              max_h: node.max_height ?? null,
+            };
+          };
+
+          const presetRow = document.createElement("div");
+          presetRow.style.cssText = "display:flex;gap:6px;margin-top:8px;";
+          const makePresetBtn = (label: string) => {
+            const btn = document.createElement("button");
+            btn.textContent = label;
+            btn.style.cssText = "flex:1;padding:5px 8px;font-size:10px;border:1px solid #444;border-radius:4px;background:#2a2a2a;color:#ccc;cursor:pointer;";
+            return btn;
+          };
+
+          const savePresetBtn = makePresetBtn("Save Preset");
+          savePresetBtn.onclick = () => {
+            const name = (prompt("Preset name", `${hSelect.value}/${vSelect.value}`) || "").trim();
+            if (!name) return;
+            const presets = loadPresets();
+            presets.push({ ...readCurrentPreset(), name });
+            savePresets(presets);
+            alert(`Saved preset: ${name}`);
+          };
+
+          const applyPresetBtn = makePresetBtn("Apply Preset");
+          applyPresetBtn.onclick = () => {
+            const presets = loadPresets();
+            if (!presets.length) {
+              alert("No constraint presets saved yet.");
+              return;
+            }
+            const list = presets.map((p, i) => `${i + 1}. ${p.name}`).join("\n");
+            const picked = parseInt(prompt(`Apply which preset?\n${list}`, "1") || "1", 10);
+            const preset = presets[Math.max(0, Math.min(presets.length - 1, (Number.isFinite(picked) ? picked : 1) - 1))];
+            if (!preset) return;
+
+            editor.engine.push_undo();
+            for (const sid of ids) {
+              const sidBig = BigInt(sid);
+              const nRaw = editor.engine.get_node_json(sidBig);
+              if (!nRaw) continue;
+              const n = JSON.parse(nRaw);
+              if (!n.parent) continue;
+              const pRaw = editor.engine.get_node_json(BigInt(n.parent));
+              if (!pRaw) continue;
+              const p = JSON.parse(pRaw);
+              const pk = typeof p.kind === "string" ? p.kind : Object.keys(p.kind)[0];
+              if (pk !== "Frame" && pk !== "Group") continue;
+
+              editor.engine.set_constraints(sidBig, preset.horizontal, preset.vertical);
+              if (preset.sizing_h) editor.engine.set_sizing_h(sidBig, preset.sizing_h);
+              if (preset.sizing_v) editor.engine.set_sizing_v(sidBig, preset.sizing_v);
+              editor.engine.set_min_width(sidBig, preset.min_w ?? 0);
+              editor.engine.set_max_width(sidBig, preset.max_w ?? 0);
+              editor.engine.set_min_height(sidBig, preset.min_h ?? 0);
+              editor.engine.set_max_height(sidBig, preset.max_h ?? 0);
+            }
+            editor.requestRender();
+            refresh(ids);
+          };
+
+          presetRow.appendChild(savePresetBtn);
+          presetRow.appendChild(applyPresetBtn);
+          constraintSection.appendChild(presetRow);
+
           container.appendChild(constraintSection);
         }
       }
+    }
+
+    // --- Constraint Set Presets (constraints + auto-layout bundle) ---
+    {
+      const presetSection = createSection("Constraint Set Presets");
+      const presets = loadConstraintSetPresets();
+
+      const nameRow = document.createElement("div");
+      nameRow.style.cssText = "display:flex;gap:6px;align-items:center;";
+      const nameInput = document.createElement("input");
+      nameInput.className = "prop-input";
+      nameInput.placeholder = "Preset name";
+      nameInput.style.cssText = "flex:1;font-size:11px;padding:4px 6px;";
+      nameRow.appendChild(nameInput);
+
+      const saveBtn = document.createElement("button");
+      saveBtn.className = "prop-btn";
+      saveBtn.textContent = "Save from current";
+      saveBtn.style.cssText = "font-size:10px;padding:4px 8px;";
+      saveBtn.addEventListener("click", () => {
+        const name = nameInput.value.trim() || `${node.name || "Frame"} preset`;
+        const layout = JSON.parse(editor.engine.get_layout(BigInt(id)) || "{}");
+        const selfConstraints = JSON.parse(editor.engine.get_constraints(BigInt(id)) || '{"horizontal":"left","vertical":"top"}');
+        const childConstraints = (node.children || []).map((cid: number, idx: number) => {
+          const c = JSON.parse(editor.engine.get_constraints(BigInt(cid)) || '{"horizontal":"left","vertical":"top"}');
+          return { index: idx, horizontal: c.horizontal || "left", vertical: c.vertical || "top" };
+        });
+
+        const next: ConstraintSetPreset = {
+          id: `cset-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+          name,
+          createdAt: new Date().toISOString(),
+          layout: {
+            mode: layout.mode || "None",
+            direction: layout.direction,
+            align_items: layout.align_items,
+            justify_content: layout.justify_content,
+            gap: Number(layout.gap || 0),
+            padding_top: Number(layout.padding_top || 0),
+            padding_right: Number(layout.padding_right || 0),
+            padding_bottom: Number(layout.padding_bottom || 0),
+            padding_left: Number(layout.padding_left || 0),
+            wrap: layout.wrap,
+            align_content: layout.align_content,
+            grid_columns: Number(layout.grid_columns || 0),
+          },
+          selfConstraints: {
+            horizontal: selfConstraints.horizontal || "left",
+            vertical: selfConstraints.vertical || "top",
+          },
+          childConstraints,
+        };
+
+        saveConstraintSetPresets([next, ...presets].slice(0, 30));
+        refresh(ids);
+      });
+      nameRow.appendChild(saveBtn);
+      presetSection.appendChild(nameRow);
+
+      if (presets.length === 0) {
+        const empty = document.createElement("div");
+        empty.style.cssText = "font-size:10px;color:#666;margin-top:6px;";
+        empty.textContent = "저장된 프리셋이 없습니다.";
+        presetSection.appendChild(empty);
+      } else {
+        const list = document.createElement("div");
+        list.style.cssText = "display:flex;flex-direction:column;gap:4px;margin-top:6px;max-height:170px;overflow:auto;";
+        for (const preset of presets) {
+          const row = document.createElement("div");
+          row.style.cssText = "display:flex;align-items:center;gap:4px;background:#1f1f1f;border:1px solid #333;border-radius:6px;padding:4px;";
+
+          const label = document.createElement("div");
+          label.style.cssText = "flex:1;min-width:0;";
+          const n = document.createElement("div");
+          n.style.cssText = "font-size:10px;color:#ddd;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;";
+          n.textContent = preset.name;
+          const meta = document.createElement("div");
+          meta.style.cssText = "font-size:9px;color:#666;";
+          meta.textContent = `${preset.layout.mode}${preset.layout.direction ? ` · ${preset.layout.direction}` : ""} · gap ${preset.layout.gap ?? 0}`;
+          label.appendChild(n);
+          label.appendChild(meta);
+          row.appendChild(label);
+
+          const applyBtn = document.createElement("button");
+          applyBtn.className = "prop-btn";
+          applyBtn.textContent = "Apply";
+          applyBtn.style.cssText = "font-size:9px;padding:3px 7px;";
+          applyBtn.addEventListener("click", () => {
+            editor.engine.push_undo();
+            editor.engine.set_layout_mode(BigInt(id), preset.layout.mode || "None");
+            if (preset.layout.direction) editor.engine.set_flex_direction(BigInt(id), preset.layout.direction);
+            if (preset.layout.align_items) editor.engine.set_align_items(BigInt(id), preset.layout.align_items);
+            if (preset.layout.justify_content) editor.engine.set_justify_content(BigInt(id), preset.layout.justify_content);
+            editor.engine.set_layout_gap(BigInt(id), Number(preset.layout.gap || 0));
+            editor.engine.set_layout_padding(
+              BigInt(id),
+              Number(preset.layout.padding_top || 0),
+              Number(preset.layout.padding_right || 0),
+              Number(preset.layout.padding_bottom || 0),
+              Number(preset.layout.padding_left || 0),
+            );
+            if (preset.layout.wrap) editor.engine.set_flex_wrap(BigInt(id), preset.layout.wrap);
+            if (preset.layout.align_content) editor.engine.set_align_content(BigInt(id), preset.layout.align_content);
+            if (preset.layout.grid_columns && preset.layout.grid_columns > 0) {
+              editor.engine.set_grid_columns(BigInt(id), Math.max(1, Math.round(preset.layout.grid_columns)));
+            }
+            editor.engine.set_constraints(BigInt(id), preset.selfConstraints.horizontal, preset.selfConstraints.vertical);
+
+            const childIds: number[] = Array.isArray(node.children) ? node.children : [];
+            for (const childPreset of preset.childConstraints) {
+              const childId = childIds[childPreset.index];
+              if (!childId) continue;
+              editor.engine.set_constraints(BigInt(childId), childPreset.horizontal, childPreset.vertical);
+            }
+
+            editor.requestRender();
+            refresh(ids);
+          });
+          row.appendChild(applyBtn);
+
+          const delBtn = document.createElement("button");
+          delBtn.className = "prop-btn";
+          delBtn.textContent = "✕";
+          delBtn.style.cssText = "font-size:9px;padding:3px 6px;color:#fca5a5;";
+          delBtn.title = "Delete preset";
+          delBtn.addEventListener("click", () => {
+            saveConstraintSetPresets(presets.filter((p) => p.id !== preset.id));
+            refresh(ids);
+          });
+          row.appendChild(delBtn);
+
+          list.appendChild(row);
+        }
+        presetSection.appendChild(list);
+      }
+
+      container.appendChild(presetSection);
     }
 
     // --- Appearance ---

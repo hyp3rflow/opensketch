@@ -395,6 +395,10 @@
 - Local coordinate conversion (absolute → local → apply constraint → absolute)
 - WASM: `set_constraints(id, horizontal, vertical)`, `get_constraints(id)`, `resize_node_with_constraints(id, w, h)`
 - Properties panel: Constraints section with H/V dropdowns (shown for nodes with Frame/Group parent)
+- Constraint Set Presets (MVP): Save/Apply preset buttons in Constraints section
+  - Saved fields: H/V constraints, sizing_h/sizing_v, min/max width/height
+  - Storage: localStorage (`opensketch-constraint-set-presets-v1`)
+  - Apply supports multi-selection (only nodes with Frame/Group parent are updated)
 - Backward compatible via `#[serde(default)]`
 
 ### Mask / Clip (Figma-style)
