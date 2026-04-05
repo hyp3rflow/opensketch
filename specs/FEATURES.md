@@ -137,7 +137,7 @@
 - [x] **Copy** (Cmd+C): serialize selected nodes + subtrees to internal clipboard
 - [x] **Cut** (Cmd+X): copy + delete selected nodes
 - [x] **Paste** (Cmd+V): deserialize with new IDs, offset +10px per paste
-- [x] **Smart Paste to Frame**: flow-aware paste for auto-layout containers — (1) selected auto-layout container (single or mixed multi-selection): append into that container, (2) selected sibling nodes in same auto-layout parent: insert right after current selection block, (3) hover frame 우선(포인터 hit ancestor 포함) 자동 타겟팅, (4) fallback으로 frame under cursor drop-target 사용. Cmd+V와 Cmd+Shift+V(Paste in Place) 모두 동일 동작.
+- [x] **Smart Paste to Frame**: flow-aware paste for auto-layout containers — (1) selected auto-layout container (single or mixed multi-selection): append into that container, (2) selected sibling nodes in same auto-layout parent: insert right after current selection block, (3) hover frame 우선(포인터 hit ancestor 포함) 자동 타겟팅, (4) fallback으로 frame under cursor drop-target 사용. 키보드 paste 직전에 포인터 이력이 없으면 뷰포트 중심점을 fallback으로 사용해 타겟 탐색 안정성을 보강. Cmd+V와 Cmd+Shift+V(Paste in Place) 모두 동일 동작.
 - [x] **Duplicate** (Cmd+D): instant copy+paste with 10px offset
 - [x] Hierarchy preservation: children/parent relationships remapped
 - [x] Undo integration: all paste/cut operations push undo

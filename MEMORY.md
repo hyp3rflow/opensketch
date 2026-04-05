@@ -1604,6 +1604,11 @@
 - Cmd+V / Cmd+Shift+V 모두 동일하게 컨테이너 append 동작 적용
 - pasted node와 동일 ID 컨테이너는 제외해 self-parenting 가능성 차단
 
+## 완료된 기능 (추가 — Smart Paste to Frame keyboard fallback 보강, 2026-04-05)
+- 키보드 paste 시 포인터 이동 이력이 없는 세션 초기 상태에서도 Smart Paste 타겟 탐색이 안정적으로 동작하도록 보강
+- `_lastPointerScreenX/Y`가 유효하지 않으면 뷰포트 중심점을 fallback 좌표로 사용
+- auto-layout 타겟이 없을 때는 기존 paste offset 동작 유지
+
 ## 완료된 기능 (추가 — Export slices/presets panel, 2026-04-05)
 - Slice Export 포맷에 WebP 추가 + JPG/WebP별 quality(0.1~1.0) 설정 지원
 - Slice 개별 export preset에 품질값 저장/복원(localStorage)

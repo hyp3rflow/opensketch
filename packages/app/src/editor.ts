@@ -4898,8 +4898,12 @@ export class Editor {
   }
 
   private findSmartPasteTarget(sourceSelection: number[], pastedIds: number[]): DropTarget | null {
-    const sx = this.engine.screen_to_scene_x(this._lastPointerScreenX, this._lastPointerScreenY);
-    const sy = this.engine.screen_to_scene_y(this._lastPointerScreenX, this._lastPointerScreenY);
+    // Keyboard paste can happen before any pointer move in-session.
+    // In that case, fallback to viewport center instead of stale (0,0).
+    const pointerX = this._lastPointerScreenX > 0 ? this._lastPointerScreenX : this.canvas.width / 2;
+    const pointerY = this._lastPointerScreenY > 0 ? this._lastPointerScreenY : this.canvas.height / 2;
+    const sx = this.engine.screen_to_scene_x(pointerX, pointerY);
+    const sy = this.engine.screen_to_scene_y(pointerX, pointerY);
 
     // Priority 1: selected auto-layout frame/group itself → append at end
     // (supports single selection and mixed multi-selection where a container is selected)
