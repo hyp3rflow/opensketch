@@ -4808,6 +4808,9 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           condRow.appendChild(condLabel);
 
           const cond = inter.condition || { variable: "", operator: "Equal", value: "" };
+          let protoVars: Array<{ name?: string; value?: any }> = [];
+          try { protoVars = JSON.parse(editor.engine.get_prototype_variables() || "[]") || []; } catch {}
+
           const cr = document.createElement("div");
           cr.style.cssText = "display:flex;gap:4px;align-items:center;";
 
@@ -4816,10 +4819,20 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           condVarInput.style.cssText = "flex:1;";
           condVarInput.placeholder = "variable";
           condVarInput.value = cond.variable;
+          const varListId = `proto-cond-vars-${id}-${idx}`;
+          const varList = document.createElement("datalist");
+          varList.id = varListId;
+          for (const pv of protoVars) {
+            if (!pv?.name) continue;
+            const opt = document.createElement("option");
+            opt.value = String(pv.name);
+            varList.appendChild(opt);
+          }
+          condVarInput.setAttribute("list", varListId);
 
           const condOpSelect = document.createElement("select");
           condOpSelect.className = "prop-input";
-          condOpSelect.style.cssText = "width:50px;";
+          condOpSelect.style.cssText = "width:58px;";
           for (const [val, label] of [["Equal","=="],["NotEqual","!="],["GreaterThan",">"],["LessThan","<"],["GreaterThanOrEqual",">="],["LessThanOrEqual","<="]]) {
             const o = document.createElement("option");
             o.value = val; o.textContent = label;
@@ -4833,6 +4846,52 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           condValInput.placeholder = "value";
           condValInput.value = cond.value;
 
+          const preview = document.createElement("div");
+          preview.style.cssText = "margin-top:4px;font-size:10px;color:#8b8b8b;";
+
+          const evaluateCond = (): { result: boolean | null; current: string } => {
+            const vName = condVarInput.value.trim();
+            if (!vName) return { result: null, current: "" };
+            const current = protoVars.find(v => String(v?.name || "") === vName)?.value;
+            if (current == null) return { result: null, current: "(undefined)" };
+            const leftNum = Number(current);
+            const rightNum = Number(condValInput.value);
+            const asNumber = Number.isFinite(leftNum) && Number.isFinite(rightNum) && condValInput.value !== "";
+            let ok = false;
+            if (asNumber) {
+              if (condOpSelect.value === "Equal") ok = Math.abs(leftNum - rightNum) < Number.EPSILON;
+              else if (condOpSelect.value === "NotEqual") ok = Math.abs(leftNum - rightNum) >= Number.EPSILON;
+              else if (condOpSelect.value === "GreaterThan") ok = leftNum > rightNum;
+              else if (condOpSelect.value === "LessThan") ok = leftNum < rightNum;
+              else if (condOpSelect.value === "GreaterThanOrEqual") ok = leftNum >= rightNum;
+              else if (condOpSelect.value === "LessThanOrEqual") ok = leftNum <= rightNum;
+            } else {
+              const l = String(current);
+              const r = String(condValInput.value);
+              if (condOpSelect.value === "Equal") ok = l === r;
+              else if (condOpSelect.value === "NotEqual") ok = l !== r;
+              else if (condOpSelect.value === "GreaterThan") ok = l > r;
+              else if (condOpSelect.value === "LessThan") ok = l < r;
+              else if (condOpSelect.value === "GreaterThanOrEqual") ok = l >= r;
+              else if (condOpSelect.value === "LessThanOrEqual") ok = l <= r;
+            }
+            return { result: ok, current: String(current) };
+          };
+
+          const renderPreview = () => {
+            const { result, current } = evaluateCond();
+            if (!condVarInput.value.trim()) {
+              preview.textContent = "Branch preview: condition not set";
+              return;
+            }
+            if (result == null) {
+              preview.textContent = `Branch preview: variable current value ${current}`;
+              return;
+            }
+            preview.textContent = `Branch preview: ${result ? "TRUE" : "FALSE"} (current ${condVarInput.value.trim()}=${current})`;
+            preview.style.color = result ? "#22c55e" : "#f59e0b";
+          };
+
           const applyCond = () => {
             ensureUndo();
             if (condVarInput.value.trim()) {
@@ -4841,16 +4900,22 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             } else {
               editor.engine.set_interaction_condition(id, idx, "");
             }
+            renderPreview();
             editor.requestRender();
           };
           condVarInput.addEventListener("change", applyCond);
           condOpSelect.addEventListener("change", applyCond);
           condValInput.addEventListener("change", applyCond);
+          condVarInput.addEventListener("input", renderPreview);
+          condValInput.addEventListener("input", renderPreview);
 
           cr.appendChild(condVarInput);
           cr.appendChild(condOpSelect);
           cr.appendChild(condValInput);
           condRow.appendChild(cr);
+          condRow.appendChild(varList);
+          condRow.appendChild(preview);
+          renderPreview();
 
           if (inter.condition) {
             const clearCondBtn = document.createElement("button");

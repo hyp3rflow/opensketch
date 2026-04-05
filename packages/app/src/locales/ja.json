@@ -43,6 +43,7 @@
   "toolbar.figmaImport": "Figmaからインポート",
   "toolbar.codeToDesign": "コードからデザイン (⌘⇧D)",
   "toolbar.prototype": "プロトタイプ再生 (⌘⏎)",
+  "toolbar.flowDiagram": "フローダイアグラム",
   "toolbar.presentation": "プレゼンテーションモード (⌘⇧⏎)",
   "toolbar.responsive": "レスポンシブプレビュー (⌘⌥R)",
   "toolbar.responsiveTokens": "レスポンシブトークン (⌘⌥T)",

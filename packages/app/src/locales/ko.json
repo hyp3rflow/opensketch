@@ -43,6 +43,7 @@
   "toolbar.figmaImport": "Figma에서 가져오기",
   "toolbar.codeToDesign": "코드를 디자인으로 (⌘⇧D)",
   "toolbar.prototype": "프로토타입 재생 (⌘⏎)",
+  "toolbar.flowDiagram": "플로우 다이어그램",
   "toolbar.presentation": "프레젠테이션 모드 (⌘⇧⏎)",
   "toolbar.responsive": "반응형 미리보기 (⌘⌥R)",
   "toolbar.responsiveTokens": "반응형 토큰 (⌘⌥T)",

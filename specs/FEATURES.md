@@ -350,7 +350,7 @@
   - Flow connections: get_flow_connections (BFS from start frame), get_all_cross_page_interactions (cross-page only)
   - Flow Diagram View: full-screen overlay with page thumbnail cards, interaction arrows (bezier curves), start frame green marker, pan/zoom support
   - Properties panel: "Prototype Flows" section with flow list, add/remove/rename, start frame assignment
-  - Toolbar: Flow Diagram button next to prototype play button
+  - Toolbar: Flow Diagram button next to prototype play button (i18n tooltip: en/ko/ja)
 
 ### Styles Library (Shared Color & Text Styles)
 - [x] **ColorStyle**: name + RGBA fill color, CRUD via StyleStore
@@ -2229,7 +2229,7 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] **WASM bindings**: add/remove/update_prototype_variable, get_prototype_variables, set_interaction_condition, set_interaction_set_variable
 - [x] **Prototype Viewer**: Runtime variable state (Map), condition evaluation, SetVariable execution (+N/-N/toggle/literal), debug panel showing current variable values
 - [x] **Properties panel — Variables section**: Scene-level variable CRUD UI (name, type select, default value, add/delete)
-- [x] **Properties panel — Interaction condition UI**: Per-interaction optional condition (variable name, operator select, compare value), clear button
+- [x] **Properties panel — Interaction condition UI**: Per-interaction optional condition builder (prototype variable datalist, operator select, compare value), live branch preview (TRUE/FALSE with current variable value), clear button
 - [x] **Properties panel — SetVariable action UI**: Variable name + expression inputs shown when action is SetVariable
 - [x] **Backward-compatible serde**: All new Interaction fields use #[serde(default)]
 

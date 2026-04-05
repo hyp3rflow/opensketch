@@ -1600,12 +1600,17 @@
 - ~~Export slices/presets panel — Slice 노드 다중 선택 후 @1x/@2x/@3x, WebP/JPEG 품질 프리셋 일괄 내보내기~~ ✅ 완료 (Slice 단일/다중 선택 일괄 export + WebP/JPEG 품질 프리셋)
 - ~~Constraint Set Presets — Frame/컴포넌트 단위로 constraints+auto-layout 조합을 프리셋으로 저장/적용 (responsive 작업 가속)~~ ✅ 완료 (Constraints 섹션 Save/Apply preset + sizing/min-max 포함)
 - ~~Smart Rename Tokens — 노드명 패턴에서 의미 토큰을 추출해 일괄 rename 규칙 추천 (예: btn/primary/hover)~~ ✅ 완료 (Batch Rename 패턴 모드 Smart Rename Tokens 추천 칩)
-- Prototype Condition Builder — 인터랙션 조건식을 UI 빌더(AND/OR 그룹)로 편집하고 변수 기반 분기 프리뷰 제공
 - Text Style Lint Autofix — 폰트/크기/line-height 불일치 텍스트를 감지하고 style library 기준으로 일괄 정리
 - Variable Mode Quick Preview — 선택 Frame에서 mode(Desktop/Mobile 등) 토글 미리보기 + one-click revert
 - Constraints Visual Pins Overlay — 선택 노드의 constraint pin 상태를 캔버스 오버레이로 즉시 표시/클릭 편집
 - Component Property Defaults — Variant별 Boolean/Text/Swap property 기본값 저장/초기화
 - Instance Override Diff Inspector — 인스턴스의 override 변경점만 필터링/일괄 reset
+
+## 완료된 기능 (추가 — Prototype Condition Builder v1, 2026-04-05)
+- Interactions 섹션 Condition UI를 빌더 형태로 개선: prototype variable datalist + operator + value 조합
+- Condition 입력 중 실시간 Branch preview 추가 (TRUE/FALSE + 현재 변수값 표시)
+- 조건식 apply 시 기존 set_interaction_condition 흐름/undo/render 동작 유지
+- 변수 미정의/비어있는 경우 preview에 상태 안내 표시
 
 ## 완료된 기능 (추가 — Constraint Set Presets, 2026-04-05)
 - Properties panel > Constraints 섹션에 Save Preset / Apply Preset 버튼 추가

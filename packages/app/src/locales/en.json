@@ -43,6 +43,7 @@
   "toolbar.figmaImport": "Import from Figma",
   "toolbar.codeToDesign": "Code to Design (⌘⇧D)",
   "toolbar.prototype": "Present Prototype (⌘⏎)",
+  "toolbar.flowDiagram": "Flow Diagram",
   "toolbar.presentation": "Presentation Mode (⌘⇧⏎)",
   "toolbar.responsive": "Responsive Preview (⌘⌥R)",
   "toolbar.responsiveTokens": "Responsive Tokens (⌘⌥T)",

@@ -456,7 +456,7 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
     // Flow Diagram button
     const flowBtn = document.createElement("button");
     flowBtn.className = "tool-btn";
-    flowBtn.title = "Flow Diagram (⌘⇧F)";
+    flowBtn.title = t("toolbar.flowDiagram");
     flowBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="8" height="6" rx="1"/><rect x="15" y="3" width="8" height="6" rx="1"/><rect x="8" y="15" width="8" height="6" rx="1"/><path d="M9 6h6"/><path d="M5 9v3a2 2 0 002 2h2"/><path d="M19 9v3a2 2 0 01-2 2h-2"/></svg>`;
     flowBtn.addEventListener("click", () => {
       import("./flow-diagram").then(m => m.toggleFlowDiagram(editor));
