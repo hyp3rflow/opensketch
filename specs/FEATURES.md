@@ -711,16 +711,20 @@
 - [x] **Properties panel**: Full export section with per-slice export item list
   - Multiple export items per slice (add/remove)
   - Scale selector (0.5x–4x) per item
-  - Format selector (PNG/JPG/SVG) per item
+  - Format selector (PNG/JPG/WebP/SVG) per item
   - Suffix input per item (e.g. "@2x", "-thumb")
+  - Quality input per item for JPG/WebP (0.1~1.0)
   - Quick "iOS set" button (adds @1x/@2x/@3x PNG presets)
+  - Quick "Web set" button (PNG 1x + WebP/JPG 2x quality presets)
   - Batch export all variants at once
+  - Multi-select Slice nodes: one-click batch export for all selected slices
 - [x] **WASM**: add_slice(name, x, y, w, h), get_slices() → JSON, export_region_svg(x, y, w, h)
 - [x] **Layers panel**: Slice icon in node tree
 - [x] **Layers panel**: Drag reorder — drag layer rows to reorder nodes within same parent or reparent into Frame/Group/Section containers. Visual blue (#0d99ff) insertion indicator. Multi-select drag support. Undo integrated. Circular reparent prevention.
 - [x] **Export formats**:
   - PNG: Canvas crop at specified scale → PNG download
-  - JPG: Canvas crop with white background → JPEG download (quality 0.92)
+  - JPG: Canvas crop with white background → JPEG download (default quality 0.92, per-item override)
+  - WebP: Canvas crop → WebP download (default quality 0.92, per-item override)
   - SVG: Engine-side region export via export_region_svg → SVG download
 - [x] **Multi-resolution export**: exportSliceBatch() downloads multiple scale/format variants with staggered timing
 - [x] **Render/SVG skip**: Slice nodes excluded from normal rendering and SVG export

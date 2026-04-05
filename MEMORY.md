@@ -1597,12 +1597,20 @@
 - Auto-layout absolute position child — Auto-layout Frame 내부에서 특정 자식만 flow 제외(Absolute) + pin constraints 유지 (Figma "Absolute position")
 - Variant property controls — Component Instance에서 Boolean/Text/Instance Swap property 패널 지원 (토글/라벨/아이콘 교체)
 - Interactive components (hover/pressed variants) — Prototype viewer에서 컴포넌트 상태 전환(OnHover/OnPress) + 기본 transition
-- Export slices/presets panel — Slice 노드 다중 선택 후 @1x/@2x/@3x, WebP/JPEG 품질 프리셋 일괄 내보내기
+- ~~Export slices/presets panel — Slice 노드 다중 선택 후 @1x/@2x/@3x, WebP/JPEG 품질 프리셋 일괄 내보내기~~ ✅ 완료 (Slice 단일/다중 선택 일괄 export + WebP/JPEG 품질 프리셋)
 
 ## 완료된 기능 (추가 — Smart Paste to Frame selection 확장, 2026-04-05)
 - Smart Paste 우선순위 1단계에서 단일 선택뿐 아니라 혼합 멀티 셀렉션의 auto-layout 컨테이너도 타겟으로 인식
 - Cmd+V / Cmd+Shift+V 모두 동일하게 컨테이너 append 동작 적용
 - pasted node와 동일 ID 컨테이너는 제외해 self-parenting 가능성 차단
+
+## 완료된 기능 (추가 — Export slices/presets panel, 2026-04-05)
+- Slice Export 포맷에 WebP 추가 + JPG/WebP별 quality(0.1~1.0) 설정 지원
+- Slice 개별 export preset에 품질값 저장/복원(localStorage)
+- Slice Export에 Web set 프리셋 버튼 추가 (PNG 1x + WebP/JPG 2x 품질 프리셋)
+- Editor: exportSlice/exportSliceBatch가 quality 인자를 처리하고 WebP mime 지원
+- 다중 선택(모두 Slice) 시 Properties 패널에 `Slices Export` 섹션 노출
+- 선택된 여러 Slice에 동일 preset 일괄 적용 후 한 번에 batch export
 
 ## 완료된 기능 (추가 — Smart Selection Filter, 2026-04-05)
 - Smart Select 패널에 `Selection Filter (Current Area)` 섹션 추가

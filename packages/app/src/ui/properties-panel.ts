@@ -939,6 +939,76 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         }
       } catch {}
 
+      // Multi-slice batch export (when all selected nodes are Slice)
+      try {
+        const sliceIds = ids.filter((sid) => {
+          const j = editor.engine.get_node_json(BigInt(sid));
+          if (!j) return false;
+          const n = JSON.parse(j);
+          return (typeof n.kind === "string" ? n.kind : Object.keys(n.kind || {})[0]) === "Slice";
+        });
+        if (sliceIds.length === ids.length && sliceIds.length > 0) {
+          type SliceExportItem = { scale: number; format: "png" | "jpg" | "webp" | "svg"; suffix: string; quality?: number };
+          const exportSection = createSection("Slices Export");
+          const hint = document.createElement("div");
+          hint.style.cssText = "font-size:10px;color:#888;margin-bottom:8px;";
+          hint.textContent = `${sliceIds.length} slices selected`;
+          exportSection.appendChild(hint);
+
+          let exportItems: SliceExportItem[] = [
+            { scale: 1, format: "png", suffix: "" },
+            { scale: 2, format: "png", suffix: "@2x" },
+          ];
+
+          const row = document.createElement("div");
+          row.style.cssText = "display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:8px;";
+          const fmt = document.createElement("select");
+          fmt.className = "prop-input";
+          ["png", "jpg", "webp", "svg"].forEach((f) => {
+            const opt = document.createElement("option"); opt.value = f; opt.textContent = f.toUpperCase();
+            fmt.appendChild(opt);
+          });
+          const scale = document.createElement("select");
+          scale.className = "prop-input";
+          [1, 2, 3, 4].forEach((s) => {
+            const opt = document.createElement("option"); opt.value = String(s); opt.textContent = `${s}x`;
+            scale.appendChild(opt);
+          });
+          scale.value = "2";
+          const q = document.createElement("input");
+          q.className = "prop-input";
+          q.type = "number"; q.min = "0.1"; q.max = "1"; q.step = "0.05"; q.value = "0.9";
+          q.placeholder = "quality";
+          row.appendChild(fmt);
+          row.appendChild(scale);
+          row.appendChild(q);
+          exportSection.appendChild(row);
+
+          const applyBtn = document.createElement("button");
+          applyBtn.style.cssText = "width:100%;padding:6px;background:#2a2a2a;color:#ddd;border:1px solid #444;border-radius:6px;font-size:11px;cursor:pointer;margin-bottom:6px;";
+          applyBtn.textContent = "Apply format to presets";
+          applyBtn.addEventListener("click", () => {
+            const format = fmt.value as SliceExportItem["format"];
+            const s = parseFloat(scale.value) || 2;
+            const quality = Math.max(0.1, Math.min(1, parseFloat(q.value) || 0.9));
+            exportItems = [
+              { scale: 1, format: "png", suffix: "" },
+              { scale: s, format, suffix: `@${s}x`, quality: (format === "jpg" || format === "webp") ? quality : undefined },
+            ];
+          });
+          exportSection.appendChild(applyBtn);
+
+          const exportBtn = document.createElement("button");
+          exportBtn.style.cssText = "width:100%;padding:7px;background:#36b37e;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;";
+          exportBtn.textContent = `Export ${sliceIds.length} slices`;
+          exportBtn.addEventListener("click", () => {
+            editor.exportMultiSliceBatch(sliceIds, exportItems);
+          });
+          exportSection.appendChild(exportBtn);
+          wrap.appendChild(exportSection);
+        }
+      } catch {}
+
       container.appendChild(wrap);
       return;
     }
@@ -6940,7 +7010,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       const sliceSection = createSection("Slice Export");
 
       // Export items list
-      type SliceExportItem = { scale: number; format: "png" | "jpg" | "svg"; suffix: string };
+      type SliceExportItem = { scale: number; format: "png" | "jpg" | "webp" | "svg"; suffix: string; quality?: number };
       const storageKey = `opensketch-slice-exports-${id}`;
       let exportItems: SliceExportItem[] = [];
       try {
@@ -6977,14 +7047,38 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           // Format select
           const fmtSel = document.createElement("select");
           fmtSel.style.cssText = "width:55px;background:#2a2a2a;color:#ccc;border:1px solid #444;border-radius:4px;padding:2px 4px;font-size:10px;";
-          for (const f of ["png", "jpg", "svg"] as const) {
+          for (const f of ["png", "jpg", "webp", "svg"] as const) {
             const opt = document.createElement("option");
             opt.value = f; opt.textContent = f.toUpperCase();
             if (f === item.format) opt.selected = true;
             fmtSel.appendChild(opt);
           }
-          fmtSel.addEventListener("change", () => { item.format = fmtSel.value as any; saveItems(); });
+          fmtSel.addEventListener("change", () => {
+            item.format = fmtSel.value as any;
+            if (item.format !== "jpg" && item.format !== "webp") delete item.quality;
+            else if (item.quality == null) item.quality = 0.92;
+            saveItems();
+            renderItems();
+          });
           row.appendChild(fmtSel);
+
+          if (item.format === "jpg" || item.format === "webp") {
+            const qInput = document.createElement("input");
+            qInput.type = "number";
+            qInput.min = "0.1";
+            qInput.max = "1";
+            qInput.step = "0.05";
+            qInput.value = String(item.quality ?? 0.92);
+            qInput.title = "Quality (0.1 - 1.0)";
+            qInput.style.cssText = "width:52px;background:#2a2a2a;color:#ccc;border:1px solid #444;border-radius:4px;padding:2px 4px;font-size:10px;";
+            qInput.addEventListener("change", () => {
+              const q = Math.max(0.1, Math.min(1, parseFloat(qInput.value) || 0.92));
+              item.quality = q;
+              qInput.value = String(q);
+              saveItems();
+            });
+            row.appendChild(qInput);
+          }
 
           // Suffix input
           const suffixInput = document.createElement("input");
@@ -7001,7 +7095,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           removeBtn.textContent = "×";
           removeBtn.addEventListener("click", () => {
             exportItems.splice(idx, 1);
-            if (exportItems.length === 0) exportItems.push({ scale: 1, format: "png", suffix: "" });
+            if (exportItems.length === 0) exportItems.push({ scale: 1, format: "png", suffix: "", quality: 1 });
             saveItems();
             renderItems();
           });
@@ -7023,7 +7117,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         const lastScale = exportItems[exportItems.length - 1]?.scale || 1;
         const nextScale = lastScale < 3 ? lastScale * 2 : 4;
         const suffix = nextScale !== 1 ? `@${nextScale}x` : "";
-        exportItems.push({ scale: Math.min(nextScale, 4), format: "png", suffix });
+        exportItems.push({ scale: Math.min(nextScale, 4), format: "png", suffix, quality: 1 });
         saveItems();
         renderItems();
       });
@@ -7044,6 +7138,21 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         renderItems();
       });
       addRow.appendChild(quickBtn);
+
+      const webBtn = document.createElement("button");
+      webBtn.style.cssText = "padding:4px 8px;background:#2a2a2a;color:#888;border:1px solid #444;border-radius:4px;font-size:10px;cursor:pointer;white-space:nowrap;";
+      webBtn.textContent = "Web set";
+      webBtn.title = "Add 1x PNG + 2x WebP + 2x JPG quality presets";
+      webBtn.addEventListener("click", () => {
+        exportItems = [
+          { scale: 1, format: "png", suffix: "" },
+          { scale: 2, format: "webp", suffix: "@2x", quality: 0.9 },
+          { scale: 2, format: "jpg", suffix: "@2x", quality: 0.85 },
+        ];
+        saveItems();
+        renderItems();
+      });
+      addRow.appendChild(webBtn);
       sliceSection.appendChild(addRow);
 
       // Export button

@@ -6357,14 +6357,21 @@ export class Editor {
     } catch {}
   }
 
-  /** Export a slice region as PNG/JPG/SVG (crops the canvas area) */
-  exportSlice(sliceId: number, scale: number = 2, format: "png" | "jpg" | "svg" = "png", suffix: string = ""): void {
+  /** Export a slice region as PNG/JPG/WebP/SVG (crops the canvas area) */
+  exportSlice(
+    sliceId: number,
+    scale: number = 2,
+    format: "png" | "jpg" | "webp" | "svg" = "png",
+    suffix: string = "",
+    quality?: number,
+  ): void {
     const slices: Array<{id: number; name: string; x: number; y: number; width: number; height: number}> = JSON.parse(this.engine.get_slices());
     const slice = slices.find(s => s.id === sliceId);
     if (!slice) return;
 
     const baseName = slice.name || "slice";
-    const fileName = `${baseName}${suffix}.${format === "jpg" ? "jpg" : format}`;
+    const ext = format === "jpg" ? "jpg" : format;
+    const fileName = `${baseName}${suffix}.${ext}`;
 
     // SVG export: use engine's SVG exporter for the slice region
     if (format === "svg") {
@@ -6401,8 +6408,8 @@ export class Editor {
     // Also render images
     this.renderImagesToCtx(ctx, -slice.x, -slice.y, scale);
 
-    const mimeType = format === "jpg" ? "image/jpeg" : "image/png";
-    const quality = format === "jpg" ? 0.92 : undefined;
+    const mimeType = format === "jpg" ? "image/jpeg" : format === "webp" ? "image/webp" : "image/png";
+    const exportQuality = (format === "jpg" || format === "webp") ? (quality ?? 0.92) : undefined;
     offscreen.toBlob((blob) => {
       if (!blob) return;
       const url = URL.createObjectURL(blob);
@@ -6411,16 +6418,29 @@ export class Editor {
       a.download = fileName;
       a.click();
       URL.revokeObjectURL(url);
-    }, mimeType, quality);
+    }, mimeType, exportQuality);
   }
 
   /** Export a slice in multiple scales/formats at once */
-  exportSliceBatch(sliceId: number, configs: Array<{scale: number; format: "png" | "jpg" | "svg"; suffix: string}>): void {
-    for (const cfg of configs) {
+  exportSliceBatch(sliceId: number, configs: Array<{scale: number; format: "png" | "jpg" | "webp" | "svg"; suffix: string; quality?: number}>): void {
+    configs.forEach((cfg, idx) => {
       // Stagger downloads slightly to avoid browser blocking
       setTimeout(() => {
-        this.exportSlice(sliceId, cfg.scale, cfg.format, cfg.suffix);
-      }, configs.indexOf(cfg) * 200);
+        this.exportSlice(sliceId, cfg.scale, cfg.format, cfg.suffix, cfg.quality);
+      }, idx * 200);
+    });
+  }
+
+  /** Export multiple slices using the same export configs */
+  exportMultiSliceBatch(sliceIds: number[], configs: Array<{scale: number; format: "png" | "jpg" | "webp" | "svg"; suffix: string; quality?: number}>): void {
+    let offset = 0;
+    for (const sliceId of sliceIds) {
+      configs.forEach((cfg) => {
+        setTimeout(() => {
+          this.exportSlice(sliceId, cfg.scale, cfg.format, cfg.suffix, cfg.quality);
+        }, offset);
+        offset += 220;
+      });
     }
   }
 
