@@ -4915,8 +4915,10 @@ export class Editor {
     if (siblingTarget) return siblingTarget;
 
     // Priority 3: hovered auto-layout frame (updated on pointer move)
-    if (this._smartPasteHoverFrameId != null && !pastedIds.includes(this._smartPasteHoverFrameId)) {
-      const hoverTarget = this.buildAppendDropTarget(this._smartPasteHoverFrameId);
+    // Re-resolve from current pointer first to avoid stale hover ids after viewport changes.
+    const liveHoverFrameId = this.resolveAutoLayoutFrameFromScreenPoint(pointerX, pointerY) ?? this._smartPasteHoverFrameId;
+    if (liveHoverFrameId != null && !pastedIds.includes(liveHoverFrameId)) {
+      const hoverTarget = this.buildAppendDropTarget(liveHoverFrameId);
       if (hoverTarget) return hoverTarget;
     }
 
@@ -4937,14 +4939,33 @@ export class Editor {
       return null;
     }
 
-    // Mixed selection: prefer selected auto-layout container(s), top-most first.
-    for (const candidateId of sourceSelection) {
-      if (pastedIds.includes(candidateId)) continue;
+    // Mixed selection: prefer shallow (top-most) selected auto-layout container(s) first.
+    // This avoids selecting deeply nested child containers when both parent+child are selected.
+    const sortedCandidates = [...sourceSelection]
+      .filter(id => !pastedIds.includes(id))
+      .sort((a, b) => this.getNodeDepth(a) - this.getNodeDepth(b));
+
+    for (const candidateId of sortedCandidates) {
       const target = this.buildAppendDropTarget(candidateId);
       if (target) return target;
     }
 
     return null;
+  }
+
+  private getNodeDepth(id: number): number {
+    let depth = 0;
+    let currentId = id;
+    const maxDepth = 256;
+
+    while (depth < maxDepth) {
+      const parent = Number((this.engine as any).get_node_parent?.(BigInt(currentId)) ?? 0);
+      if (!Number.isFinite(parent) || parent <= 0 || parent === currentId) break;
+      depth++;
+      currentId = parent;
+    }
+
+    return depth;
   }
 
   private resolveAutoLayoutFrameFromScreenPoint(screenX: number, screenY: number): number | null {

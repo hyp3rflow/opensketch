@@ -1609,6 +1609,11 @@
 - `_lastPointerScreenX/Y`가 유효하지 않으면 뷰포트 중심점을 fallback 좌표로 사용
 - auto-layout 타겟이 없을 때는 기존 paste offset 동작 유지
 
+## 완료된 기능 (추가 — Smart Paste to Frame 타겟 안정화, 2026-04-05)
+- 혼합 멀티 셀렉션에서 중첩 auto-layout 컨테이너가 함께 선택된 경우, shallow(top-most) 컨테이너를 우선 타겟으로 선택
+- paste 시점마다 포인터 좌표로 hover frame을 live 재해석해 stale hover id로 인한 오삽입 가능성 완화
+- Cmd+V / Cmd+Shift+V 모두 동일한 Smart Paste 타겟 결정 로직 유지
+
 ## 완료된 기능 (추가 — Export slices/presets panel, 2026-04-05)
 - Slice Export 포맷에 WebP 추가 + JPG/WebP별 quality(0.1~1.0) 설정 지원
 - Slice 개별 export preset에 품질값 저장/복원(localStorage)
