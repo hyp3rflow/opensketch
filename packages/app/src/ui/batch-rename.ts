@@ -8,6 +8,79 @@ interface PreviewItem {
   newName: string;
 }
 
+interface RenameTokenSuggestion {
+  label: string;
+  pattern: string;
+  hint: string;
+}
+
+function buildSmartRenameTokenSuggestions(editor: Editor): RenameTokenSuggestion[] {
+  const ids = Array.from(editor.engine.get_selection()).map(Number);
+  const names = ids
+    .map((id) => {
+      try {
+        const raw = editor.engine.get_node_json(BigInt(id));
+        if (!raw) return "";
+        const n = JSON.parse(raw);
+        return typeof n?.name === "string" ? n.name.trim() : "";
+      } catch {
+        return "";
+      }
+    })
+    .filter((n) => n.length > 0);
+
+  if (names.length < 2) return [];
+
+  const firstSeg = new Map<string, number>();
+  const secondSeg = new Map<string, number>();
+  const suffixSeg = new Map<string, number>();
+
+  for (const name of names) {
+    const slashSegs = name.split("/").map((s) => s.trim().toLowerCase()).filter(Boolean);
+    if (slashSegs[0]) firstSeg.set(slashSegs[0], (firstSeg.get(slashSegs[0]) || 0) + 1);
+    if (slashSegs[1]) secondSeg.set(slashSegs[1], (secondSeg.get(slashSegs[1]) || 0) + 1);
+    if (slashSegs.length > 0) {
+      const last = slashSegs[slashSegs.length - 1];
+      suffixSeg.set(last, (suffixSeg.get(last) || 0) + 1);
+    }
+  }
+
+  const top = (m: Map<string, number>, minCount = 2): string | null => {
+    let best: string | null = null;
+    let bestCount = minCount - 1;
+    for (const [k, v] of m.entries()) {
+      if (v > bestCount) {
+        best = k;
+        bestCount = v;
+      }
+    }
+    return best;
+  };
+
+  const suggestions: RenameTokenSuggestion[] = [];
+  const t1 = top(firstSeg);
+  const t2 = top(secondSeg);
+  const tLast = top(suffixSeg);
+
+  if (t1) suggestions.push({ label: `${t1}/{n}`, pattern: `${t1}/{n}`, hint: "공통 1차 토큰" });
+  if (t1 && t2) suggestions.push({ label: `${t1}/${t2}/{n}`, pattern: `${t1}/${t2}/{n}`, hint: "공통 2단 토큰" });
+  if (tLast) suggestions.push({ label: `{name}/${tLast}`, pattern: `{name}/${tLast}`, hint: "자주 쓰는 suffix 토큰" });
+
+  // Generic, Figma-like semantic starter presets
+  suggestions.push(
+    { label: "btn/primary/{n}", pattern: "btn/primary/{n}", hint: "UI 컴포넌트" },
+    { label: "btn/secondary/{n}", pattern: "btn/secondary/{n}", hint: "대체 버튼군" },
+    { label: "icon/{name}/{n}", pattern: "icon/{name}/{n}", hint: "아이콘 그룹" },
+  );
+
+  const dedup = new Set<string>();
+  return suggestions.filter((s) => {
+    if (dedup.has(s.pattern)) return false;
+    dedup.add(s.pattern);
+    return true;
+  }).slice(0, 5);
+}
+
 let dialog: HTMLElement | null = null;
 
 export function hideBatchRenameDialog() {
@@ -183,6 +256,34 @@ export function showBatchRenameDialog(editor: Editor) {
     if (mode === "pattern") {
       fields.appendChild(makeInput("Pattern ({name} = original, {n} = number, {N} = padded, # → sequence)", pattern, (v) => { pattern = v; }));
       fields.appendChild(makeNumberInput("Start number", startNum, (v) => { startNum = v; }));
+
+      const smart = buildSmartRenameTokenSuggestions(editor);
+      if (smart.length > 0) {
+        const smartWrap = document.createElement("div");
+        smartWrap.style.cssText = "margin-top:8px;";
+        const smartLabel = document.createElement("div");
+        smartLabel.textContent = "Smart Rename Tokens";
+        smartLabel.style.cssText = "font-size:10px;color:#888;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.4px;";
+        smartWrap.appendChild(smartLabel);
+
+        const row = document.createElement("div");
+        row.style.cssText = "display:flex;gap:4px;flex-wrap:wrap;";
+        for (const s of smart) {
+          const chip = document.createElement("button");
+          chip.type = "button";
+          chip.textContent = s.label;
+          chip.title = `${s.hint} · ${s.pattern}`;
+          chip.style.cssText = "padding:3px 7px;border:1px solid #444;border-radius:999px;background:#242424;color:#b6b6b6;font-size:10px;cursor:pointer;";
+          chip.addEventListener("click", () => {
+            pattern = s.pattern;
+            updateFields();
+            updatePreview();
+          });
+          row.appendChild(chip);
+        }
+        smartWrap.appendChild(row);
+        fields.appendChild(smartWrap);
+      }
     } else if (mode === "findReplace") {
       fields.appendChild(makeInput("Find", find, (v) => { find = v; }));
       fields.appendChild(makeInput("Replace with", replace, (v) => { replace = v; }));

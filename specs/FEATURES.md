@@ -691,6 +691,7 @@
 - [x] **Prefix/Suffix mode**: Add prefix and/or suffix to node names (batch_add_fix)
 - [x] **Sequence shorthand**: # character in pattern replaced with sequential number (1, 2, 3...)
 - [x] **Dialog UI**: Modal dialog with 3 mode tabs (Sequence / Find & Replace / Prefix/Suffix), live preview, regex toggle
+- [x] **Smart Rename Tokens (Pattern mode)**: Selection 노드명의 `/` 토큰 빈도를 분석해 추천 패턴 칩 제공 (예: `btn/primary/{n}`)
 - [x] **Separate module**: ui/batch-rename.ts standalone file
 - [x] **Context menu**: "Batch Rename…" option when 2+ nodes selected
 - [x] **Layers panel**: Right-click context menu with "Batch Rename…" for multi-selection

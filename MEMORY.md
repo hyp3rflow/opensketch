@@ -1599,15 +1599,25 @@
 - ~~Interactive components (hover/pressed variants) — Prototype viewer에서 컴포넌트 상태 전환(OnHover/OnPress) + 기본 transition~~ ✅ 완료 (interactive variants + prototype state 전환)
 - ~~Export slices/presets panel — Slice 노드 다중 선택 후 @1x/@2x/@3x, WebP/JPEG 품질 프리셋 일괄 내보내기~~ ✅ 완료 (Slice 단일/다중 선택 일괄 export + WebP/JPEG 품질 프리셋)
 - ~~Constraint Set Presets — Frame/컴포넌트 단위로 constraints+auto-layout 조합을 프리셋으로 저장/적용 (responsive 작업 가속)~~ ✅ 완료 (Constraints 섹션 Save/Apply preset + sizing/min-max 포함)
-- Smart Rename Tokens — 노드명 패턴에서 의미 토큰을 추출해 일괄 rename 규칙 추천 (예: btn/primary/hover)
+- ~~Smart Rename Tokens — 노드명 패턴에서 의미 토큰을 추출해 일괄 rename 규칙 추천 (예: btn/primary/hover)~~ ✅ 완료 (Batch Rename 패턴 모드 Smart Rename Tokens 추천 칩)
 - Prototype Condition Builder — 인터랙션 조건식을 UI 빌더(AND/OR 그룹)로 편집하고 변수 기반 분기 프리뷰 제공
 - Text Style Lint Autofix — 폰트/크기/line-height 불일치 텍스트를 감지하고 style library 기준으로 일괄 정리
+- Variable Mode Quick Preview — 선택 Frame에서 mode(Desktop/Mobile 등) 토글 미리보기 + one-click revert
+- Constraints Visual Pins Overlay — 선택 노드의 constraint pin 상태를 캔버스 오버레이로 즉시 표시/클릭 편집
+- Component Property Defaults — Variant별 Boolean/Text/Swap property 기본값 저장/초기화
+- Instance Override Diff Inspector — 인스턴스의 override 변경점만 필터링/일괄 reset
 
 ## 완료된 기능 (추가 — Constraint Set Presets, 2026-04-05)
 - Properties panel > Constraints 섹션에 Save Preset / Apply Preset 버튼 추가
 - 프리셋 저장 항목: constraints(H/V) + sizing(H/V) + min/max width/height
 - localStorage 키 `opensketch-constraint-set-presets-v1` 기반으로 프리셋 라이브러리 유지
 - 단일/멀티 선택 노드에 프리셋 일괄 적용 (Frame/Group 자식 노드만 적용)
+
+## 완료된 기능 (추가 — Smart Rename Tokens, 2026-04-05)
+- Batch Rename 다이얼로그 `Sequence`(pattern) 모드에 `Smart Rename Tokens` 추천 칩 추가
+- 현재 selection 노드명에서 `/` 토큰 빈도를 분석해 공통 패턴(예: `btn/primary/{n}`) 우선 제안
+- 추천 칩 클릭 시 pattern 입력값을 즉시 채우고 preview를 갱신
+- 기본 semantic starter 패턴(`btn/primary/{n}`, `btn/secondary/{n}`, `icon/{name}/{n}`) 제공
 
 ## 완료된 기능 (추가 — Smart Paste to Frame selection 확장, 2026-04-05)
 - Smart Paste 우선순위 1단계에서 단일 선택뿐 아니라 혼합 멀티 셀렉션의 auto-layout 컨테이너도 타겟으로 인식
