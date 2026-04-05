@@ -1594,6 +1594,10 @@
 - ~~Smart selection filter — 선택 영역 내 특정 노드 타입만 필터링 (Figma "Select All with..." 확장), 정규식 이름 매칭, 깊이/속성 필터~~ ✅ 완료 (Smart Select 패널 Selection Filter 영역 + Filter Area 액션)
 - Scroll-to animation triggers — Prototype viewer에서 스크롤 위치 기반 애니메이션 트리거 (parallax, reveal-on-scroll), 트리거 threshold 설정
 - Conditional visibility — 변수/조건 기반 노드 visibility 토글 (if variable == value → show/hide), 프로토타입에서 동적 UI 시뮬레이션
+- Auto-layout absolute position child — Auto-layout Frame 내부에서 특정 자식만 flow 제외(Absolute) + pin constraints 유지 (Figma "Absolute position")
+- Variant property controls — Component Instance에서 Boolean/Text/Instance Swap property 패널 지원 (토글/라벨/아이콘 교체)
+- Interactive components (hover/pressed variants) — Prototype viewer에서 컴포넌트 상태 전환(OnHover/OnPress) + 기본 transition
+- Export slices/presets panel — Slice 노드 다중 선택 후 @1x/@2x/@3x, WebP/JPEG 품질 프리셋 일괄 내보내기
 
 ## 완료된 기능 (추가 — Smart Selection Filter, 2026-04-05)
 - Smart Select 패널에 `Selection Filter (Current Area)` 섹션 추가
