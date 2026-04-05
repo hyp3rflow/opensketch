@@ -4902,11 +4902,9 @@ export class Editor {
     const sy = this.engine.screen_to_scene_y(this._lastPointerScreenX, this._lastPointerScreenY);
 
     // Priority 1: selected auto-layout frame/group itself → append at end
-    if (sourceSelection.length === 1) {
-      const candidateId = sourceSelection[0]!;
-      const target = this.buildAppendDropTarget(candidateId);
-      if (target) return target;
-    }
+    // (supports single selection and mixed multi-selection where a container is selected)
+    const selectedFrameTarget = this.findSelectedAutoLayoutTarget(sourceSelection, pastedIds);
+    if (selectedFrameTarget) return selectedFrameTarget;
 
     // Priority 2: selection inside same auto-layout parent → insert right after selection
     const siblingTarget = this.buildInsertAfterSelectionDropTarget(sourceSelection);
@@ -4920,6 +4918,29 @@ export class Editor {
 
     // Priority 4: frame under pointer (using drag-reparent heuristics)
     return computeDropTarget(this.engine, sx, sy, new Set<number>(pastedIds));
+  }
+
+  private findSelectedAutoLayoutTarget(sourceSelection: number[], pastedIds: number[]): DropTarget | null {
+    if (sourceSelection.length === 0) return null;
+
+    // Keep explicit single-frame selection behavior first.
+    if (sourceSelection.length === 1) {
+      const candidateId = sourceSelection[0]!;
+      if (!pastedIds.includes(candidateId)) {
+        const target = this.buildAppendDropTarget(candidateId);
+        if (target) return target;
+      }
+      return null;
+    }
+
+    // Mixed selection: prefer selected auto-layout container(s), top-most first.
+    for (const candidateId of sourceSelection) {
+      if (pastedIds.includes(candidateId)) continue;
+      const target = this.buildAppendDropTarget(candidateId);
+      if (target) return target;
+    }
+
+    return null;
   }
 
   private resolveAutoLayoutFrameFromScreenPoint(screenX: number, screenY: number): number | null {
