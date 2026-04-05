@@ -1601,10 +1601,16 @@
 - ~~Constraint Set Presets — Frame/컴포넌트 단위로 constraints+auto-layout 조합을 프리셋으로 저장/적용 (responsive 작업 가속)~~ ✅ 완료 (Constraints 섹션 Save/Apply preset + sizing/min-max 포함)
 - ~~Smart Rename Tokens — 노드명 패턴에서 의미 토큰을 추출해 일괄 rename 규칙 추천 (예: btn/primary/hover)~~ ✅ 완료 (Batch Rename 패턴 모드 Smart Rename Tokens 추천 칩)
 - ~~Text Style Lint Autofix — 폰트/크기/line-height 불일치 텍스트를 감지하고 style library 기준으로 일괄 정리~~ ✅ 완료 (Design Health > Typography에서 lint 목록 + Auto-fix 일괄 적용)
-- Variable Mode Quick Preview — 선택 Frame에서 mode(Desktop/Mobile 등) 토글 미리보기 + one-click revert
 - Constraints Visual Pins Overlay — 선택 노드의 constraint pin 상태를 캔버스 오버레이로 즉시 표시/클릭 편집
 - Component Property Defaults — Variant별 Boolean/Text/Swap property 기본값 저장/초기화
 - Instance Override Diff Inspector — 인스턴스의 override 변경점만 필터링/일괄 reset
+
+## 완료된 기능 (추가 — Variable Mode Quick Preview, 2026-04-06)
+- Frame/Section Properties > Breakpoints에 "Variable Mode Quick Preview" 카드 추가
+- Responsive preset 칩 클릭으로 해당 preset의 variable mode 매핑 즉시 활성화
+- 첫 preview 시점의 active preset + collection별 active mode를 스냅샷 저장
+- Revert 버튼으로 preview 이전 상태(활성 preset + 각 collection active mode) 원클릭 복원
+- 변경은 undo + 즉시 렌더/패널 refresh와 연동
 
 ## 완료된 기능 (추가 — Text on Path 고도화, 2026-04-06)
 - Text on Path 렌더링 품질 개선: 문자별 배치 시 letter spacing 반영

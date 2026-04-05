@@ -64,6 +64,8 @@ const googleFonts = [
 
 const loadedFonts = new Set<string>(["Inter", "system-ui", "Arial", "Helvetica", "Georgia", "Times New Roman", "Courier New", "Menlo", "Monaco"]);
 
+const variableModePreviewSnapshot = new Map<number, { activePresetId: number; modes: Array<{ collectionId: number; modeId: number }> }>();
+
 async function loadGoogleFont(family: string, editor: Editor) {
   if (loadedFonts.has(family)) return;
   loadedFonts.add(family);
@@ -8339,6 +8341,74 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           infoText.style.cssText = "font-size:10px;color:#666;margin-bottom:8px;";
           infoText.textContent = "Layout overrides when frame width ≤ max_width";
           bpSection.appendChild(infoText);
+        }
+
+        // Variable Mode Quick Preview (per selected frame)
+        try {
+          const presets: any[] = JSON.parse(editor.engine.get_responsive_presets() || "[]");
+          if (presets.length > 0) {
+            const vmWrap = document.createElement("div");
+            vmWrap.style.cssText = "background:#1e1e1e;border:1px solid #333;border-radius:8px;padding:8px;margin-bottom:8px;";
+
+            const vmTitle = document.createElement("div");
+            vmTitle.style.cssText = "font-size:10px;color:#8b8fa3;margin-bottom:6px;font-weight:600;";
+            vmTitle.textContent = "Variable Mode Quick Preview";
+            vmWrap.appendChild(vmTitle);
+
+            const chips = document.createElement("div");
+            chips.style.cssText = "display:flex;flex-wrap:wrap;gap:4px;";
+            const activePresetId = Number(editor.engine.get_active_preset_id?.() ?? 0);
+
+            const ensureSnapshot = () => {
+              if (variableModePreviewSnapshot.has(id)) return;
+              const collections: any[] = JSON.parse(editor.engine.get_variable_collections() || "[]");
+              variableModePreviewSnapshot.set(id, {
+                activePresetId,
+                modes: collections
+                  .filter((c: any) => Number(c.id) > 0 && Number(c.active_mode_id) > 0)
+                  .map((c: any) => ({ collectionId: Number(c.id), modeId: Number(c.active_mode_id) })),
+              });
+            };
+
+            for (const preset of presets) {
+              const pId = Number(preset.id || 0);
+              const chip = document.createElement("button");
+              const isActivePreset = pId > 0 && activePresetId === pId;
+              chip.style.cssText = `padding:2px 8px;border:1px solid ${isActivePreset ? "#4f46e5" : "#444"};border-radius:999px;background:${isActivePreset ? "#4f46e520" : "#2a2a2a"};color:${isActivePreset ? "#a5b4fc" : "#aaa"};font-size:10px;cursor:pointer;`;
+              chip.textContent = `${preset.label || "Preset"} ${Math.round(Number(preset.width || 0))}w`;
+              chip.addEventListener("click", () => {
+                ensureUndo();
+                ensureSnapshot();
+                editor.engine.activate_responsive_preset(BigInt(pId));
+                editor.requestRender();
+                refresh(ids);
+              });
+              chips.appendChild(chip);
+            }
+
+            const revertBtn = document.createElement("button");
+            revertBtn.style.cssText = "padding:2px 8px;border:1px solid #555;border-radius:999px;background:#2a2a2a;color:#bbb;font-size:10px;cursor:pointer;";
+            revertBtn.textContent = "Revert";
+            revertBtn.title = "Restore previous active variable modes";
+            revertBtn.addEventListener("click", () => {
+              const snap = variableModePreviewSnapshot.get(id);
+              if (!snap) return;
+              ensureUndo();
+              for (const m of snap.modes) {
+                editor.engine.set_active_mode(BigInt(m.collectionId), BigInt(m.modeId));
+              }
+              editor.engine.activate_responsive_preset(BigInt(snap.activePresetId || 0));
+              variableModePreviewSnapshot.delete(id);
+              editor.requestRender();
+              refresh(ids);
+            });
+            chips.appendChild(revertBtn);
+
+            vmWrap.appendChild(chips);
+            bpSection.appendChild(vmWrap);
+          }
+        } catch {
+          // ignore quick preview rendering errors
         }
 
         breakpoints.forEach((bp: any, idx: number) => {

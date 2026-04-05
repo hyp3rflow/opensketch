@@ -657,6 +657,7 @@
 - [x] **WASM**: 8 bindings (add/remove/update preset, set/remove mode mapping, activate, set_preview_width, get presets, get active)
 - [x] **Backward-compatible**: serde(default) on new fields
 - [x] **Toolbar**: Tokens button (⚡ icon) + ⌘⌥T shortcut
+- [x] **Variable Mode Quick Preview**: Frame Breakpoints 섹션에서 preset 칩으로 mode를 즉시 미리보기하고 Revert로 이전 active mode/preset 복원
 
 ### Measure Tool
 - [x] **Alt+hover**: Hold Alt with selection → hover over another node to show distances
@@ -1088,6 +1089,7 @@ Frame overflow control and content scrolling.
 - [x] Properties panel: Text Path section — attach/detach, offset slider, baseline input, path letter-spacing input, flip toggle, path name display
 - [x] Backward-compatible serde defaults
 - [x] 2026-04-06 polish: get_text_on_path_positions now includes baseline-offset-adjusted coordinates for downstream UI overlays/tools
+- [x] 2026-04-06 UX polish: canvas context menu adds "Attach Text to Path" (when Text+Path are selected) and "Detach Text from Path" quick action
 
 ## Animation Timeline (Keyframe Animation)
 - [x] Rust: animation.rs — Easing (Linear/EaseIn/EaseOut/EaseInOut/CubicBezier), AnimProperty (x/y/width/height/rotation/opacity/corner_radius/blur/fill colors/stroke_width), Keyframe, AnimationTrack, AnimationClip, AnimationStore

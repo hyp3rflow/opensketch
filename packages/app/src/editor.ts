@@ -7449,6 +7449,39 @@ export class Editor {
     const selAfter = Array.from(this.engine.get_selection()).map(Number);
     const hasSelAfter = selAfter.length > 0;
 
+    const getNodeKind = (id: number): string | null => {
+      try {
+        const nj = this.engine.get_node_json(BigInt(id));
+        if (!nj) return null;
+        const nd = JSON.parse(nj);
+        return typeof nd.kind === "string" ? nd.kind : Object.keys(nd.kind || {})[0] || null;
+      } catch {
+        return null;
+      }
+    };
+
+    const textSelectionInfo = (() => {
+      let textId: number | null = null;
+      let pathId: number | null = null;
+      for (const sid of selAfter) {
+        const kind = getNodeKind(sid);
+        if (kind === "Text" && textId == null) textId = sid;
+        if (kind === "Path" && pathId == null) pathId = sid;
+      }
+
+      let textHasPath = false;
+      if (textId != null) {
+        try {
+          const info = this.engine.get_text_path_info(BigInt(textId));
+          textHasPath = info !== "null";
+        } catch {
+          textHasPath = false;
+        }
+      }
+
+      return { textId, pathId, textHasPath };
+    })();
+
     const items: MenuItem[] = [];
 
     if (hasSelAfter) {
@@ -7491,6 +7524,31 @@ export class Editor {
 
       items.push({ label: "Flatten", shortcut: `${mod}E`, enabled: true, action: () => this.flattenSelection() });
       items.push({ label: "Auto-rename", enabled: true, action: () => this.autoRenameSelection() });
+
+      if (textSelectionInfo.textId != null && textSelectionInfo.pathId != null) {
+        items.push({
+          label: "Attach Text to Path",
+          enabled: true,
+          action: () => {
+            this.engine.push_undo();
+            this.engine.set_text_path(BigInt(textSelectionInfo.textId!), BigInt(textSelectionInfo.pathId!));
+            this.requestRender();
+            this.fireSelectionNow(selAfter);
+          },
+        });
+      }
+      if (textSelectionInfo.textId != null && textSelectionInfo.textHasPath) {
+        items.push({
+          label: "Detach Text from Path",
+          enabled: true,
+          action: () => {
+            this.engine.push_undo();
+            this.engine.clear_text_path(BigInt(textSelectionInfo.textId!));
+            this.requestRender();
+            this.fireSelectionNow(selAfter);
+          },
+        });
+      }
 
       // Reset overrides for Instance nodes
       if (selAfter.length === 1) {
