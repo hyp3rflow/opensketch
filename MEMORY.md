@@ -1586,7 +1586,7 @@
 - ~~Smart auto-naming~~ ✅ 완료 (Frame children composition 기반 추론 이름 생성 포함)
 - ~~Figma DevMode parity~~ ✅ 완료 (선택 노드 spacing/padding/margin 인라인 Dev Inspect 배지 + 코드 스니펫 원클릭 복사)
 - ~~Table auto-layout — Table 노드에 auto-layout 적용 (셀 내 텍스트 wrap, 행/열 자동 리사이즈, 헤더 고정, 정렬)~~ ✅ 완료 (Auto Layout 버튼 + row/col content-fit + wrap 렌더링 + header row 스타일)
-- Freehand smoothing — Pen/Freehand 도구의 스트로크 후처리 자동 스무딩 (Catmull-Rom/simplify), 감도 조절 슬라이더
+- ~~Freehand smoothing~~ ✅ 완료 (아래 완료된 기능 섹션 참조)
 - ~~Repeat Grid — 노드 복제 grid (Figma Repeat Grid), row/col 갯수 + gap, 개별 셀 콘텐츠 오버라이드, 드래그로 인스턴스 수 조절~~ ✅ 완료 (셀별 텍스트 오버라이드 렌더 + 데이터 바인딩 패널 연동)
 - ~~Component Sets~~ ✅ 완료
 - Multi-window / detachable panels — 패널을 별도 윈도우로 분리 (Layers, Properties, Agent 등), window.open + postMessage 통신
@@ -1595,6 +1595,11 @@
 - Smart selection filter — 선택 영역 내 특정 노드 타입만 필터링 (Figma "Select All with..." 확장), 정규식 이름 매칭, 깊이/속성 필터
 - Scroll-to animation triggers — Prototype viewer에서 스크롤 위치 기반 애니메이션 트리거 (parallax, reveal-on-scroll), 트리거 threshold 설정
 - Conditional visibility — 변수/조건 기반 노드 visibility 토글 (if variable == value → show/hide), 프로토타입에서 동적 UI 시뮬레이션
+
+## 완료된 기능 (추가 — Freehand smoothing, 2026-04-05)
+- Freehand 도구 포인터 업 시 생성된 Path에 Catmull-Rom 기반 스무딩 후처리 적용
+- Ink Recognition 섹션에 `Stroke smoothing` 토글 + `Smoothing strength` 슬라이더(0.0~0.8) 추가
+- 기존 shape recognition/simplify tolerance와 함께 동작, shape로 인식된 경우 기존 결과 유지
 
 ## 완료된 기능 (추가 — Table auto-layout, 2026-04-05)
 - Table Properties에 `Auto Layout` / `Auto (No Wrap)` 버튼 추가

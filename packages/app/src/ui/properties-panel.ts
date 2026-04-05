@@ -345,6 +345,46 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         simplifyWrap.appendChild(simplifyValue);
         inkSection.appendChild(simplifyWrap);
 
+        const smoothRow = document.createElement("label");
+        smoothRow.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px;margin-bottom:8px;font-size:11px;color:#ccc;";
+        smoothRow.textContent = "Stroke smoothing";
+        const smoothToggle = document.createElement("input");
+        smoothToggle.type = "checkbox";
+        smoothToggle.checked = !!(settings as any).smoothingEnabled;
+        smoothRow.appendChild(smoothToggle);
+        inkSection.appendChild(smoothRow);
+
+        const smoothWrap = document.createElement("div");
+        smoothWrap.style.cssText = "display:flex;flex-direction:column;gap:4px;";
+        const smoothLabel = document.createElement("div");
+        smoothLabel.style.cssText = "font-size:10px;color:#666;";
+        smoothLabel.textContent = "Smoothing strength";
+        const smoothInput = document.createElement("input");
+        smoothInput.type = "range";
+        smoothInput.min = "0";
+        smoothInput.max = "0.8";
+        smoothInput.step = "0.05";
+        smoothInput.value = String((settings as any).smoothingStrength ?? 0.3);
+        smoothInput.disabled = !smoothToggle.checked;
+        const smoothValue = document.createElement("div");
+        smoothValue.style.cssText = "font-size:10px;color:#8a8a8a;";
+        smoothValue.textContent = `${Number(smoothInput.value).toFixed(2)}`;
+        smoothInput.oninput = () => {
+          const v = parseFloat(smoothInput.value) || 0.3;
+          smoothValue.textContent = v.toFixed(2);
+          editor.setFreehandSmoothingStrength(v);
+          editor.requestRender();
+        };
+        smoothToggle.onchange = () => {
+          editor.setFreehandSmoothingEnabled(smoothToggle.checked);
+          smoothInput.disabled = !smoothToggle.checked;
+          editor.requestRender();
+        };
+        smoothWrap.appendChild(smoothLabel);
+        smoothWrap.appendChild(smoothInput);
+        smoothWrap.appendChild(smoothValue);
+        inkSection.appendChild(smoothWrap);
+
         const hint = document.createElement("div");
         hint.style.cssText = "margin-top:8px;font-size:10px;line-height:1.4;color:#777;";
         hint.textContent = "Recognizes line/circle/rectangle/triangle/arrow when confidence is high.";

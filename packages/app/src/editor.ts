@@ -157,6 +157,8 @@ export class Editor {
   private _freehandDrawing = false;
   private _inkShapeRecognition = true;
   private _inkSimplifyTolerance = 2.0;
+  private _freehandSmoothingEnabled = true;
+  private _freehandSmoothingStrength = 0.3;
   private _pathEditHandleOffsets: { hix: number; hiy: number; hox: number; hoy: number } | null = null;
 
   // Vector Network edit mode state
@@ -2489,6 +2491,17 @@ export class Editor {
         }
 
         if (newId && newId > 0) {
+          if (this._freehandSmoothingEnabled && pts.length >= 3) {
+            try {
+              const created = JSON.parse(this.engine.get_node_json(BigInt(newId)));
+              const kind = typeof created?.kind === "string" ? created.kind : (created?.kind && Object.keys(created.kind)[0]);
+              if (kind === "Path") {
+                this._smoothFreehandPath(newId, pts.map((p) => ({ x: p.x, y: p.y })));
+              }
+            } catch {
+              // keep raw recognized path on parse failures
+            }
+          }
           this.engine.select(newId);
           this.fireSelectionNow([newId]);
           this.onLayersChanges.forEach(fn => fn());
@@ -3335,6 +3348,7 @@ export class Editor {
   }
 
   private _smoothFreehandPath(pathId: number, pts: { x: number; y: number }[]) {
+    const tension = Math.max(0, Math.min(0.8, this._freehandSmoothingStrength));
     // Downsample points for smoothing (keep every Nth point based on total count)
     const maxPoints = 100;
     let sampled = pts;
@@ -3361,7 +3375,6 @@ export class Editor {
       } else {
         const prev = sampled[i - 1];
         const next = sampled[i + 1];
-        const tension = 0.3;
         const hix = p.x - (next.x - prev.x) * tension;
         const hiy = p.y - (next.y - prev.y) * tension;
         const hox = p.x + (next.x - prev.x) * tension;
@@ -4210,22 +4223,32 @@ export class Editor {
       }
     }
 
-    // Figma-like priority: when descendants are selected, avoid selecting parent Frame/Group by overlap.
-    for (const id of Array.from(selected)) {
-      const node = nodeMap.get(id);
-      if (!node) continue;
-      const kind = String(node.kind || "");
-      if (kind !== "Frame" && kind !== "Group") continue;
-      const children: number[] = Array.isArray(node.children) ? node.children.map((v: any) => Number(v)) : [];
-      const hasSelectedDescendant = children.some((childId) => selected.has(childId));
-      if (!hasSelectedDescendant) continue;
+    // Figma-like priority: descendants win over container overlap.
+    // If a selected node has a selected ancestor Frame/Group/Section, drop the ancestor.
+    // (Contain mode still keeps a container when it is selected alone.)
+    const parentById = new Map<number, number | null>();
+    for (const [id, node] of nodeMap.entries()) {
+      const p = node?.parent;
+      if (p === null || p === undefined) parentById.set(id, null);
+      else {
+        const n = Number(p);
+        parentById.set(id, Number.isFinite(n) ? n : null);
+      }
+    }
 
-      const nx = Number(node.x ?? 0);
-      const ny = Number(node.y ?? 0);
-      const nw = Number(node.width ?? 0);
-      const nh = Number(node.height ?? 0);
-      const fullyInside = nx >= rx && ny >= ry && nx + nw <= rx2 && ny + nh <= ry2;
-      if (!fullyInside) selected.delete(id);
+    const containerKinds = new Set(["Frame", "Group", "Section"]);
+    for (const id of Array.from(selected)) {
+      let cur = parentById.get(id) ?? null;
+      while (cur != null) {
+        if (selected.has(cur)) {
+          const pNode = nodeMap.get(cur);
+          const pKind = String(pNode?.kind || "");
+          if (containerKinds.has(pKind)) {
+            selected.delete(cur);
+          }
+        }
+        cur = parentById.get(cur) ?? null;
+      }
     }
 
     return Array.from(selected);
@@ -4827,6 +4850,8 @@ export class Editor {
     return {
       shapeRecognition: this._inkShapeRecognition,
       simplifyTolerance: this._inkSimplifyTolerance,
+      smoothingEnabled: this._freehandSmoothingEnabled,
+      smoothingStrength: this._freehandSmoothingStrength,
     };
   }
 
@@ -4836,6 +4861,14 @@ export class Editor {
 
   setInkSimplifyTolerance(value: number) {
     this._inkSimplifyTolerance = Math.max(0.2, Math.min(12, Number.isFinite(value) ? value : 2.0));
+  }
+
+  setFreehandSmoothingEnabled(enabled: boolean) {
+    this._freehandSmoothingEnabled = !!enabled;
+  }
+
+  setFreehandSmoothingStrength(value: number) {
+    this._freehandSmoothingStrength = Math.max(0, Math.min(0.8, Number.isFinite(value) ? value : 0.3));
   }
 
   // === Image support ===
