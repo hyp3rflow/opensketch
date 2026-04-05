@@ -4601,6 +4601,7 @@ export class Editor {
           this.engine.render(this.ctx);
         }
         this.renderImages();
+        this.renderCornerPins();
         this.render3DPerspective();
         this.renderPatternFills();
         this.renderCanvasGrid();
@@ -5406,6 +5407,91 @@ export class Editor {
       result.push({ id: l.id, x: n.x, y: n.y, w: n.width, h: n.height });
     }
     return result;
+  }
+
+  /** Render 4-point corner pin distortion for Image nodes */
+  private renderCornerPins() {
+    const layers = JSON.parse(this.engine.get_layer_list());
+    const zoom = this.engine.get_zoom();
+    const panX = this.engine.get_pan_x();
+    const panY = this.engine.get_pan_y();
+
+    const drawTri = (
+      img: CanvasImageSource,
+      sx0: number, sy0: number, sx1: number, sy1: number, sx2: number, sy2: number,
+      dx0: number, dy0: number, dx1: number, dy1: number, dx2: number, dy2: number,
+    ) => {
+      this.ctx.save();
+      this.ctx.beginPath();
+      this.ctx.moveTo(dx0, dy0);
+      this.ctx.lineTo(dx1, dy1);
+      this.ctx.lineTo(dx2, dy2);
+      this.ctx.closePath();
+      this.ctx.clip();
+
+      const det = sx0 * (sy1 - sy2) + sx1 * (sy2 - sy0) + sx2 * (sy0 - sy1);
+      if (Math.abs(det) < 1e-6) {
+        this.ctx.restore();
+        return;
+      }
+
+      const a = (dx0 * (sy1 - sy2) + dx1 * (sy2 - sy0) + dx2 * (sy0 - sy1)) / det;
+      const b = (dy0 * (sy1 - sy2) + dy1 * (sy2 - sy0) + dy2 * (sy0 - sy1)) / det;
+      const c = (dx0 * (sx2 - sx1) + dx1 * (sx0 - sx2) + dx2 * (sx1 - sx0)) / det;
+      const d = (dy0 * (sx2 - sx1) + dy1 * (sx0 - sx2) + dy2 * (sx1 - sx0)) / det;
+      const e = (dx0 * (sx1 * sy2 - sx2 * sy1) + dx1 * (sx2 * sy0 - sx0 * sy2) + dx2 * (sx0 * sy1 - sx1 * sy0)) / det;
+      const f = (dy0 * (sx1 * sy2 - sx2 * sy1) + dy1 * (sx2 * sy0 - sx0 * sy2) + dy2 * (sx0 * sy1 - sx1 * sy0)) / det;
+      this.ctx.setTransform(a, b, c, d, e, f);
+      this.ctx.drawImage(img, 0, 0);
+      this.ctx.restore();
+    };
+
+    for (const layer of layers) {
+      if (!layer.visible) continue;
+      const cpJson = (this.engine as any).get_corner_pin?.(BigInt(layer.id));
+      if (!cpJson) continue;
+      let cp: any;
+      try { cp = JSON.parse(cpJson); } catch { continue; }
+      if (!cp) continue;
+
+      const nj = this.engine.get_node_json(BigInt(layer.id));
+      if (!nj) continue;
+      const node = JSON.parse(nj);
+      if (!node.kind?.Image) continue;
+
+      const src = node.kind.Image.src;
+      if (!src) continue;
+      const img = this._imageCache.get(src);
+      if (!img || !img.complete || img.naturalWidth === 0) continue;
+
+      const x = node.x * zoom + panX;
+      const y = node.y * zoom + panY;
+      const w = node.width * zoom;
+      const h = node.height * zoom;
+
+      const tl = { x: x + (cp.tl_x ?? 0) * w, y: y + (cp.tl_y ?? 0) * h };
+      const tr = { x: x + (cp.tr_x ?? 1) * w, y: y + (cp.tr_y ?? 0) * h };
+      const br = { x: x + (cp.br_x ?? 1) * w, y: y + (cp.br_y ?? 1) * h };
+      const bl = { x: x + (cp.bl_x ?? 0) * w, y: y + (cp.bl_y ?? 1) * h };
+
+      // Erase flat image drawn by renderImages first
+      this.ctx.save();
+      this.ctx.globalCompositeOperation = "destination-out";
+      this.ctx.fillStyle = "rgba(0,0,0,1)";
+      this.ctx.fillRect(x, y, w, h);
+      this.ctx.restore();
+
+      const off = new OffscreenCanvas(Math.max(1, Math.round(w)), Math.max(1, Math.round(h)));
+      const oc = off.getContext("2d");
+      if (!oc) continue;
+      oc.imageSmoothingEnabled = true;
+      oc.drawImage(img, 0, 0, off.width, off.height);
+
+      const sw = off.width;
+      const sh = off.height;
+      drawTri(off, 0, 0, sw, 0, sw, sh, tl.x, tl.y, tr.x, tr.y, br.x, br.y);
+      drawTri(off, 0, 0, sw, sh, 0, sh, tl.x, tl.y, br.x, br.y, bl.x, bl.y);
+    }
   }
 
   /** Render 3D perspective transforms using strip-based subdivision */

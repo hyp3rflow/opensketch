@@ -6376,6 +6376,67 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       focalRow.appendChild(focalInputs);
       imgSection.appendChild(focalRow);
 
+      // Corner pin / 4-point distort
+      const cpHeader = document.createElement("div");
+      cpHeader.style.cssText = "display:flex;align-items:center;justify-content:space-between;margin-top:10px;margin-bottom:4px;";
+      const cpTitle = document.createElement("span");
+      cpTitle.style.cssText = "font-size:10px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:0.5px;";
+      cpTitle.textContent = "Corner Pin";
+      cpHeader.appendChild(cpTitle);
+
+      const cpJson = (editor.engine as any).get_corner_pin?.(id) || "";
+      const cp = cpJson ? JSON.parse(cpJson) : { tl_x: 0, tl_y: 0, tr_x: 1, tr_y: 0, br_x: 1, br_y: 1, bl_x: 0, bl_y: 1 };
+      const resetCpBtn = document.createElement("button");
+      resetCpBtn.style.cssText = "background:none;border:1px solid #555;color:#aaa;font-size:9px;padding:1px 6px;border-radius:3px;cursor:pointer;";
+      resetCpBtn.textContent = cpJson ? "Reset" : "Off";
+      resetCpBtn.disabled = !cpJson;
+      resetCpBtn.addEventListener("click", () => {
+        ensureUndo();
+        (editor.engine as any).clear_corner_pin?.(id);
+        editor.requestRender();
+        refresh(ids);
+      });
+      cpHeader.appendChild(resetCpBtn);
+      imgSection.appendChild(cpHeader);
+
+      const cpGrid = document.createElement("div");
+      cpGrid.style.cssText = "display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-bottom:6px;";
+      const cpFields: Array<[string, keyof typeof cp]> = [
+        ["TL X", "tl_x"], ["TL Y", "tl_y"], ["TR X", "tr_x"], ["TR Y", "tr_y"],
+        ["BR X", "br_x"], ["BR Y", "br_y"], ["BL X", "bl_x"], ["BL Y", "bl_y"],
+      ];
+      const applyCornerPin = () => {
+        ensureUndo();
+        (editor.engine as any).set_corner_pin?.(
+          id,
+          parseFloat((cpGrid.querySelector('input[data-key="tl_x"]') as HTMLInputElement).value) || 0,
+          parseFloat((cpGrid.querySelector('input[data-key="tl_y"]') as HTMLInputElement).value) || 0,
+          parseFloat((cpGrid.querySelector('input[data-key="tr_x"]') as HTMLInputElement).value) || 1,
+          parseFloat((cpGrid.querySelector('input[data-key="tr_y"]') as HTMLInputElement).value) || 0,
+          parseFloat((cpGrid.querySelector('input[data-key="br_x"]') as HTMLInputElement).value) || 1,
+          parseFloat((cpGrid.querySelector('input[data-key="br_y"]') as HTMLInputElement).value) || 1,
+          parseFloat((cpGrid.querySelector('input[data-key="bl_x"]') as HTMLInputElement).value) || 0,
+          parseFloat((cpGrid.querySelector('input[data-key="bl_y"]') as HTMLInputElement).value) || 1,
+        );
+        editor.requestRender();
+      };
+      for (const [label, key] of cpFields) {
+        const wrap = document.createElement("div");
+        wrap.style.cssText = "display:flex;flex-direction:column;gap:2px;";
+        const l = document.createElement("span");
+        l.style.cssText = "font-size:9px;color:#777;";
+        l.textContent = label;
+        const input = document.createElement("input");
+        input.className = "prop-input";
+        input.setAttribute("data-key", key);
+        input.value = Number(cp[key] ?? 0).toFixed(2);
+        input.addEventListener("change", applyCornerPin);
+        wrap.appendChild(l);
+        wrap.appendChild(input);
+        cpGrid.appendChild(wrap);
+      }
+      imgSection.appendChild(cpGrid);
+
       // Crop section
       const cropHeader = document.createElement("div");
       cropHeader.style.cssText = "display:flex;align-items:center;justify-content:space-between;margin-top:10px;margin-bottom:4px;";

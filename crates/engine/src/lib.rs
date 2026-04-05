@@ -7604,6 +7604,40 @@ impl Engine {
     }
 
     // =============================================
+    // Corner Pin / 4-point Distort
+    // =============================================
+
+    pub fn set_corner_pin(&mut self, id: u64, tl_x: f64, tl_y: f64, tr_x: f64, tr_y: f64, br_x: f64, br_y: f64, bl_x: f64, bl_y: f64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            node.corner_pin = Some(crate::node::CornerPin {
+                tl_x: tl_x.clamp(-2.0, 3.0),
+                tl_y: tl_y.clamp(-2.0, 3.0),
+                tr_x: tr_x.clamp(-2.0, 3.0),
+                tr_y: tr_y.clamp(-2.0, 3.0),
+                br_x: br_x.clamp(-2.0, 3.0),
+                br_y: br_y.clamp(-2.0, 3.0),
+                bl_x: bl_x.clamp(-2.0, 3.0),
+                bl_y: bl_y.clamp(-2.0, 3.0),
+            });
+        }
+    }
+
+    pub fn get_corner_pin(&self, id: u64) -> String {
+        if let Some(node) = self.scene.get_node(id) {
+            if let Some(ref cp) = node.corner_pin {
+                return serde_json::to_string(cp).unwrap_or_default();
+            }
+        }
+        String::new()
+    }
+
+    pub fn clear_corner_pin(&mut self, id: u64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            node.corner_pin = None;
+        }
+    }
+
+    // =============================================
     // Constraints
     // =============================================
 

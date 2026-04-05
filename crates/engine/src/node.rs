@@ -2031,6 +2031,34 @@ impl Default for Perspective3D {
     }
 }
 
+/// 4-point corner pin distortion (normalized to node bounds)
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct CornerPin {
+    pub tl_x: f64,
+    pub tl_y: f64,
+    pub tr_x: f64,
+    pub tr_y: f64,
+    pub br_x: f64,
+    pub br_y: f64,
+    pub bl_x: f64,
+    pub bl_y: f64,
+}
+
+impl Default for CornerPin {
+    fn default() -> Self {
+        Self {
+            tl_x: 0.0,
+            tl_y: 0.0,
+            tr_x: 1.0,
+            tr_y: 0.0,
+            br_x: 1.0,
+            br_y: 1.0,
+            bl_x: 0.0,
+            bl_y: 1.0,
+        }
+    }
+}
+
 // =============================================
 // Design-to-code component mapping
 // =============================================
@@ -2230,6 +2258,9 @@ pub struct Node {
     /// 3D perspective transform
     #[serde(default)]
     pub perspective: Option<Perspective3D>,
+    /// 4-point corner pin distortion (normalized to node bounds)
+    #[serde(default)]
+    pub corner_pin: Option<CornerPin>,
     /// Design-to-code component mapping
     #[serde(default)]
     pub code_mapping: Option<CodeMapping>,
@@ -2382,6 +2413,7 @@ impl Node {
             text_path_baseline_offset: 0.0,
             text_path_flip: false,
             perspective: None,
+            corner_pin: None,
             code_mapping: None,
             background_pattern: None,
             links: vec![],

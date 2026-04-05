@@ -2177,3 +2177,18 @@
 - Properties panel: Text Path 섹션에 path letter spacing 입력 추가(기존 baseline/flip/offset과 통합)
 - specs/FEATURES.md 업데이트
 
+
+## 완료된 기능 (추가 — Corner Pin / Perspective Distort, 2026-04-06)
+- CornerPin 구조체 추가: TL/TR/BR/BL 4점을 노드 로컬 normalized 좌표(0~1 기본)로 저장
+- Node 필드 확장: `corner_pin: Option<CornerPin>` (serde default, 기존 문서 backward-compatible)
+- WASM API 추가: `set_corner_pin`, `get_corner_pin`, `clear_corner_pin`
+- Canvas 렌더러(앱): Image 노드 corner pin 활성 시 평면 이미지를 지운 뒤, 2-triangle affine warp로 왜곡 렌더
+- Properties panel(Image): Corner Pin 섹션 추가 (8개 수치 입력 + Reset)
+- specs/FEATURES.md 반영 완료
+
+## 다음 할 것 (2026-04-06 업데이트)
+- Shape Builder Tool — 겹친 벡터를 브러시 드래그 제스처로 add/subtract 분할 편집
+- Prototyping Smart Animate Timeline — 페이지 전환 smart animate를 타임라인에서 keyframe/curve로 시각 편집
+- Auto Layout Gap Handles — 캔버스에서 gap/padding을 직접 드래그 조절하는 on-canvas 핸들
+- Vector Boolean Live Preview — boolean 후보(Union/Subtract/Intersect/Exclude)를 hover 시 실시간 프리뷰
+- Constraint Pins UI — 부모 리사이즈 기준점(좌/우/상/하/중앙) 핀 매트릭스를 Figma 스타일로 직관화

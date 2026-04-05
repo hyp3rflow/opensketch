@@ -1549,6 +1549,11 @@ Frame overflow control and content scrolling.
   - AR modal actions: Source URL + Mobile Preview Link 분리 제공, "Copy Mobile Link"/"Open Mobile Preview" 버튼 추가
   - SVG export: CSS transform with perspective() rotateX/Y/Z() + transform-origin
   - Inspect panel: CSS code generation for perspective transforms
+- [x] **Corner Pin / Perspective Distort (Image)**: 4점 코너 핀 왜곡 (normalized TL/TR/BR/BL)
+  - Rust engine: `CornerPin` struct + Node `corner_pin` 필드 (serde default, backward compatible)
+  - WASM bindings: `set_corner_pin`, `get_corner_pin`, `clear_corner_pin`
+  - Canvas rendering: Image 노드를 2-triangle affine warp로 렌더 (flat draw 제거 후 재투영)
+  - Properties panel: Image 섹션에 Corner Pin 8개 수치 입력 + Reset
 
 ## 106. AI Code-to-Design (HTML/CSS → Nodes)
 - [x] **Rust HTML parser**: Pure Rust tokenizer + recursive descent parser (no DOMParser dependency, works in WASM)
