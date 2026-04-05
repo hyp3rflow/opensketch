@@ -84,12 +84,13 @@ export function getDetachedPanels(): string[] {
 // --- Pop-out / Pop-in ---
 
 /** Available panels that can be detached */
-export type DetachablePanelId = "layers" | "properties" | "agent" | "comments" | "variables" | "assets" | "bookmarks";
+export type DetachablePanelId = "layers" | "properties" | "agent" | "handoff" | "comments" | "variables" | "assets" | "bookmarks";
 
 const PANEL_SIZES: Record<DetachablePanelId, { w: number; h: number }> = {
   layers: { w: 280, h: 600 },
   properties: { w: 320, h: 700 },
   agent: { w: 400, h: 600 },
+  handoff: { w: 420, h: 650 },
   comments: { w: 350, h: 500 },
   variables: { w: 380, h: 550 },
   assets: { w: 320, h: 500 },
@@ -100,6 +101,7 @@ const PANEL_LABELS: Record<DetachablePanelId, string> = {
   layers: "Layers",
   properties: "Properties",
   agent: "Agent",
+  handoff: "Handoff",
   comments: "Comments",
   variables: "Variables",
   assets: "Assets",
@@ -236,6 +238,12 @@ function setupDetachedPanelContent(container: HTMLElement, panelId: DetachablePa
   } else if (panelId === "agent") {
     import("./agent-panel").then(({ setupAgentPanel }) => {
       setupAgentPanel(container, editor);
+    });
+  } else if (panelId === "handoff") {
+    import("./handoff-panel").then(({ setupHandoffPanel }) => {
+      setupHandoffPanel(container, editor);
+    }).catch(() => {
+      container.innerHTML = `<div style="padding:16px;color:#888;">Handoff panel</div>`;
     });
   } else if (panelId === "comments") {
     // Comments panel setup

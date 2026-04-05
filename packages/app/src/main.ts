@@ -215,9 +215,10 @@ async function main() {
       const popOutBar = document.createElement("div");
       popOutBar.style.cssText = "display:flex;align-items:center;gap:2px;margin-left:auto;padding-right:4px;";
 
-      const detachableTabs: Array<{ id: "layers"|"properties"|"agent"|"comments"|"variables"|"assets"|"bookmarks"; label: string }> = [
+      const detachableTabs: Array<{ id: "layers"|"properties"|"agent"|"handoff"|"comments"|"variables"|"assets"|"bookmarks"; label: string }> = [
         { id: "properties", label: "Properties" },
         { id: "agent", label: "Agent" },
+        { id: "handoff", label: "Handoff" },
         { id: "comments", label: "Comments" },
         { id: "variables", label: "Variables" },
         { id: "assets", label: "Assets" },

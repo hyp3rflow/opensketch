@@ -1589,12 +1589,18 @@
 - ~~Freehand smoothing~~ ✅ 완료 (아래 완료된 기능 섹션 참조)
 - ~~Repeat Grid — 노드 복제 grid (Figma Repeat Grid), row/col 갯수 + gap, 개별 셀 콘텐츠 오버라이드, 드래그로 인스턴스 수 조절~~ ✅ 완료 (셀별 텍스트 오버라이드 렌더 + 데이터 바인딩 패널 연동)
 - ~~Component Sets~~ ✅ 완료
-- Multi-window / detachable panels — 패널을 별도 윈도우로 분리 (Layers, Properties, Agent 등), window.open + postMessage 통신
+- ~~Multi-window / detachable panels — 패널을 별도 윈도우로 분리 (Layers, Properties, Agent 등)~~ ✅ 완료 (Handoff 탭 detach 지원 추가, 패널 목록 확장), window.open + postMessage 통신
 - Figma-style Variants Matrix UI — 컴포넌트 편집 시 모든 variant 조합을 2D 매트릭스로 시각화, 드래그로 variant 추가/삭제
 - Smart selection filter — 선택 영역 내 특정 노드 타입만 필터링 (Figma "Select All with..." 확장), 정규식 이름 매칭, 깊이/속성 필터
 - Scroll-to animation triggers — Prototype viewer에서 스크롤 위치 기반 애니메이션 트리거 (parallax, reveal-on-scroll), 트리거 threshold 설정
 - Conditional visibility — 변수/조건 기반 노드 visibility 토글 (if variable == value → show/hide), 프로토타입에서 동적 UI 시뮬레이션
 
+
+## 완료된 기능 (추가 — Multi-window / Detachable Panels 확장, 2026-04-05)
+- 우측 탭 detach 대상에 Handoff 패널 추가 (기존 Properties/Agent/Comments/Variables/Assets/Bookmarks + Handoff)
+- `panel-detach.ts`의 DetachablePanelId/PANEL_SIZES/PANEL_LABELS에 `handoff` 확장
+- detached window에서 `setupHandoffPanel()` 동적 로딩으로 독립 패널 렌더
+- 백로그 `Multi-window / detachable panels` 항목 완료 처리
 
 ## 완료된 기능 (추가 — Smart selection grouping one-click, 2026-04-05)
 - Smart Select 패널에 `Smart Group` 버튼 추가

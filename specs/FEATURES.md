@@ -136,7 +136,7 @@
 - [x] **Copy** (Cmd+C): serialize selected nodes + subtrees to internal clipboard
 - [x] **Cut** (Cmd+X): copy + delete selected nodes
 - [x] **Paste** (Cmd+V): deserialize with new IDs, offset +10px per paste
-- [x] **Smart Paste to Frame**: when a single auto-layout frame/group is selected, pasted nodes are auto-inserted into that container's flow (append). If not selected, frame under cursor is used as drop target.
+- [x] **Smart Paste to Frame**: flow-aware paste for auto-layout containers — (1) single selected frame/group: append into that container, (2) selected sibling nodes in same auto-layout parent: insert right after current selection block, (3) otherwise use frame under cursor as drop target.
 - [x] **Duplicate** (Cmd+D): instant copy+paste with 10px offset
 - [x] Hierarchy preservation: children/parent relationships remapped
 - [x] Undo integration: all paste/cut operations push undo
@@ -2058,7 +2058,7 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 
 ### Multi-window / Detachable Panels
 - [x] BroadcastChannel API for real-time state sync between main and detached panel windows
-- [x] Panels (Layers, Properties, Agent, Comments, Variables, Assets, Bookmarks) can be popped out to separate browser windows
+- [x] Panels (Layers, Properties, Agent, Handoff, Comments, Variables, Assets, Bookmarks) can be popped out to separate browser windows
 - [x] Pop-out button on panel headers (external link icon)
 - [x] window.open() with panel-specific sizing, copies main stylesheets
 - [x] Detached window: header with title + reattach button

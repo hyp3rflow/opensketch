@@ -4899,14 +4899,18 @@ export class Editor {
     const sx = this.engine.screen_to_scene_x(this._lastPointerScreenX, this._lastPointerScreenY);
     const sy = this.engine.screen_to_scene_y(this._lastPointerScreenX, this._lastPointerScreenY);
 
-    // Priority 1: selected auto-layout frame/group
+    // Priority 1: selected auto-layout frame/group itself → append at end
     if (sourceSelection.length === 1) {
       const candidateId = sourceSelection[0]!;
       const target = this.buildAppendDropTarget(candidateId);
       if (target) return target;
     }
 
-    // Priority 2: frame under pointer (using drag-reparent heuristics)
+    // Priority 2: selection inside same auto-layout parent → insert right after selection
+    const siblingTarget = this.buildInsertAfterSelectionDropTarget(sourceSelection);
+    if (siblingTarget) return siblingTarget;
+
+    // Priority 3: frame under pointer (using drag-reparent heuristics)
     return computeDropTarget(this.engine, sx, sy, new Set<number>(pastedIds));
   }
 
@@ -4941,6 +4945,74 @@ export class Editor {
         insertIndex: children.length,
         lineX1: lineX,
         lineY1: lineY,
+        lineX2: isRow ? lineX : contentRight,
+        lineY2: isRow ? contentBottom : lineY,
+        direction: isRow ? "row" : "column",
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  private buildInsertAfterSelectionDropTarget(sourceSelection: number[]): DropTarget | null {
+    if (sourceSelection.length === 0) return null;
+
+    try {
+      const parentIds = sourceSelection
+        .map(id => Number((this.engine as any).get_node_parent?.(BigInt(id)) ?? -1))
+        .filter(id => id > 0);
+      if (parentIds.length !== sourceSelection.length) return null;
+
+      const parentId = parentIds[0]!;
+      if (!parentIds.every(id => id === parentId)) return null;
+
+      const json = (this.engine as any).get_layout_drop_zones(BigInt(parentId));
+      if (!json || json === "null") return null;
+      const zone = JSON.parse(json);
+      if (!zone || zone.mode !== "flex" || !Array.isArray(zone.children)) return null;
+
+      const selectedSet = new Set<number>(sourceSelection);
+      const selectedChildIndices: number[] = [];
+      zone.children.forEach((child: any, idx: number) => {
+        if (selectedSet.has(Number(child?.id))) selectedChildIndices.push(idx);
+      });
+      if (selectedChildIndices.length === 0) return null;
+
+      const insertIndex = Math.max(...selectedChildIndices) + 1;
+      const contentTop = zone.frame_y + zone.padding_top;
+      const contentBottom = zone.frame_y + zone.frame_h - zone.padding_bottom;
+      const contentLeft = zone.frame_x + zone.padding_left;
+      const contentRight = zone.frame_x + zone.frame_w - zone.padding_right;
+      const isRow = zone.direction === "row";
+
+      let lineX = contentLeft;
+      let lineY = contentTop;
+
+      if (isRow) {
+        if (insertIndex >= zone.children.length) {
+          const last = zone.children[zone.children.length - 1];
+          lineX = zone.frame_x + last.x + last.w + zone.gap / 2;
+        } else {
+          const prev = zone.children[insertIndex - 1];
+          const curr = zone.children[insertIndex];
+          lineX = zone.frame_x + (prev.x + prev.w + curr.x) / 2;
+        }
+      } else {
+        if (insertIndex >= zone.children.length) {
+          const last = zone.children[zone.children.length - 1];
+          lineY = zone.frame_y + last.y + last.h + zone.gap / 2;
+        } else {
+          const prev = zone.children[insertIndex - 1];
+          const curr = zone.children[insertIndex];
+          lineY = zone.frame_y + (prev.y + prev.h + curr.y) / 2;
+        }
+      }
+
+      return {
+        frameId: parentId,
+        insertIndex,
+        lineX1: isRow ? lineX : contentLeft,
+        lineY1: isRow ? contentTop : lineY,
         lineX2: isRow ? lineX : contentRight,
         lineY2: isRow ? contentBottom : lineY,
         direction: isRow ? "row" : "column",
