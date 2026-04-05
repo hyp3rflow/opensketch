@@ -4623,6 +4623,7 @@ export class Editor {
         this.renderComponentSetOverlays();
         this.renderGradientEditor();
         this.renderSpacingHandles();
+        this.renderConstraintPinsOverlay();
         this.renderRemoteNodeLocks();
         this.renderCursorPresence();
         this.renderBreakpointIndicator();
@@ -5787,6 +5788,82 @@ export class Editor {
     }
     if (this._spacingHandles.length === 0) return;
     renderSpacingHandles(this.ctx, this._spacingHandles, this._spacingHovered, this._spacingDragging);
+  }
+
+  private renderConstraintPinsOverlay() {
+    const sel = Array.from(this.engine.get_selection()).map(Number);
+    if (sel.length !== 1) return;
+
+    let node: any;
+    try {
+      const nodeJson = this.engine.get_node_json(BigInt(sel[0]));
+      if (!nodeJson) return;
+      node = JSON.parse(nodeJson);
+    } catch {
+      return;
+    }
+
+    if (!node?.parent) return;
+
+    let constraints: { horizontal?: string; vertical?: string } = {};
+    try {
+      constraints = JSON.parse(this.engine.get_constraints(BigInt(sel[0])) || "{}");
+    } catch {
+      constraints = {};
+    }
+
+    const zoom = this.engine.get_zoom();
+    const panX = this.engine.get_pan_x();
+    const panY = this.engine.get_pan_y();
+
+    const sx = (node.x - panX) * zoom;
+    const sy = (node.y - panY) * zoom;
+    const sw = node.width * zoom;
+
+    const boxSize = 42;
+    const slot = 12;
+    const radius = 2.5;
+    const ox = sx + sw / 2 - boxSize / 2;
+    const oy = sy - boxSize - 10;
+
+    const active = new Set<number>();
+    const applyH = (h: string) => {
+      if (h === "left" || h === "leftAndRight" || h === "scale") [0, 3, 6].forEach((i) => active.add(i));
+      if (h === "right" || h === "leftAndRight" || h === "scale") [2, 5, 8].forEach((i) => active.add(i));
+      if (h === "center" || h === "scale") [1, 4, 7].forEach((i) => active.add(i));
+    };
+    const applyV = (v: string) => {
+      if (v === "top" || v === "topAndBottom" || v === "scale") [0, 1, 2].forEach((i) => active.add(i));
+      if (v === "bottom" || v === "topAndBottom" || v === "scale") [6, 7, 8].forEach((i) => active.add(i));
+      if (v === "center" || v === "scale") [3, 4, 5].forEach((i) => active.add(i));
+    };
+
+    applyH(constraints.horizontal || "left");
+    applyV(constraints.vertical || "top");
+
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.fillStyle = "rgba(20,22,30,0.88)";
+    ctx.strokeStyle = "rgba(255,255,255,0.18)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(ox, oy, boxSize, boxSize, 8);
+    ctx.fill();
+    ctx.stroke();
+
+    for (let row = 0; row < 3; row++) {
+      for (let col = 0; col < 3; col++) {
+        const i = row * 3 + col;
+        const x = ox + 9 + col * slot;
+        const y = oy + 9 + row * slot;
+        ctx.beginPath();
+        ctx.arc(x, y, radius, 0, Math.PI * 2);
+        ctx.fillStyle = active.has(i) ? "#0d99ff" : "rgba(255,255,255,0.32)";
+        ctx.fill();
+      }
+    }
+
+    ctx.restore();
   }
 
   private renderPixelPreviewOverlay() {

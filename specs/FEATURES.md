@@ -395,6 +395,7 @@
 - Local coordinate conversion (absolute → local → apply constraint → absolute)
 - WASM: `set_constraints(id, horizontal, vertical)`, `get_constraints(id)`, `resize_node_with_constraints(id, w, h)`
 - Properties panel: Constraints section with H/V dropdowns (shown for nodes with Frame/Group parent)
+- Canvas overlay (MVP): single-selection 시 노드 상단에 3×3 Constraint Pins 미니맵 표시 (현재 H/V 상태를 파란 점으로 시각화)
 - Constraint Set Presets (MVP): Save/Apply preset buttons in Constraints section
   - Saved fields: H/V constraints, sizing_h/sizing_v, min/max width/height
   - Storage: localStorage (`opensketch-constraint-set-presets-v1`)
