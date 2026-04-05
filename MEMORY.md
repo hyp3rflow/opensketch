@@ -2058,3 +2058,12 @@
 - 선택 프레임이 없으면 포인터 아래 auto-layout frame을 drop target으로 사용
 - 기존 drag-reparent drop zone/reparent 로직 재사용 (reparent_node_at + recompute_layout)
 - Paste in Place(Cmd+Shift+V)는 기존 동작 유지
+
+
+## 완료된 기능 (추가 — Smart Selection Net, 2026-04-05)
+- 드래그 마키 셀렉션에 Crossing/Contain 모드 추가
+- Shift+X로 기본 모드 토글, Alt로 드래그 중 임시 반전
+- 드래그 중 `Net: Crossing|Contain` HUD 라벨 표시
+- Frame/Group/Section 겹침 시 자식 노드 우선 선택(컨테이너 de-prioritize, Figma 유사)
+- specs/FEATURES.md에 동작 명세 반영
+
