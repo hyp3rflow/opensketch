@@ -1529,7 +1529,8 @@ Frame overflow control and content scrolling.
   - Canvas rendering: Strip-based perspective warp using DOMMatrix 3D projection
   - Properties panel: "3D Transform" section with enable checkbox, rotation sliders, distance, origin controls, reset button, AR Preview button
   - AR Preview: Quick Look/model-viewer modal + mobile QR for .usdz/.glb/.gltf sources (ui/ar-quicklook.ts)
-  - Shared deep-link: `?ar_src=<asset-url>` 자동 감지 → AR Preview 즉시 오픈 후 query 정리 (모바일 QR 진입 UX 개선)
+  - Shared deep-link: `?ar_src=<asset-url>&ar_title=<node-name>` 자동 감지 → AR Preview 즉시 오픈 후 query 정리 (모바일 QR 진입 UX 개선)
+  - AR modal actions: Source URL + Mobile Preview Link 분리 제공, "Copy Mobile Link"/"Open Mobile Preview" 버튼 추가
   - SVG export: CSS transform with perspective() rotateX/Y/Z() + transform-origin
   - Inspect panel: CSS code generation for perspective transforms
 

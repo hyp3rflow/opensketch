@@ -3,6 +3,11 @@ export interface ARQuickLookOptions {
   title?: string;
 }
 
+export interface ARPreviewQuery {
+  src: string;
+  title?: string;
+}
+
 export function getARSourceFromUrl(url: string = window.location.href): string | null {
   try {
     const parsed = new URL(url, window.location.origin);
@@ -19,6 +24,27 @@ function isUsd(src: string): boolean {
 
 function isModel(src: string): boolean {
   return /\.(glb|gltf)$/i.test(src);
+}
+
+function getARTitleFromUrl(url: string = window.location.href): string | null {
+  try {
+    const parsed = new URL(url, window.location.origin);
+    const value = (parsed.searchParams.get("ar_title") || "").trim();
+    return value || null;
+  } catch {
+    return null;
+  }
+}
+
+function makeArPreviewUrl(query: ARPreviewQuery): string {
+  const url = new URL(window.location.href);
+  url.searchParams.set("ar_src", query.src);
+  if (query.title?.trim()) {
+    url.searchParams.set("ar_title", query.title.trim());
+  } else {
+    url.searchParams.delete("ar_title");
+  }
+  return url.toString();
 }
 
 function makeQrUrl(targetUrl: string): string {
@@ -92,7 +118,7 @@ export function openARQuickLook(opts: ARQuickLookOptions) {
   const right = document.createElement("div");
   right.style.cssText = "width:280px;border-left:1px solid #303043;padding:14px;color:#d6d6e0;display:flex;flex-direction:column;gap:10px;background:#191926;";
 
-  const pageUrl = `${window.location.origin}${window.location.pathname}?ar_src=${encodeURIComponent(src)}`;
+  const pageUrl = makeArPreviewUrl({ src, title: opts.title });
 
   const qr = document.createElement("img");
   qr.src = makeQrUrl(pageUrl);
@@ -103,31 +129,75 @@ export function openARQuickLook(opts: ARQuickLookOptions) {
   hint.style.cssText = "font-size:12px;color:#a8a8b6;line-height:1.5;";
   hint.textContent = "모바일 카메라로 QR을 스캔해 AR 미리보기를 열 수 있습니다. iOS는 USDZ Quick Look, 그 외는 model-viewer AR 모드를 사용합니다.";
 
-  const link = document.createElement("input");
-  link.value = src;
-  link.readOnly = true;
-  link.style.cssText = "width:100%;background:#10101a;border:1px solid #3a3a4a;color:#e5e7eb;border-radius:8px;padding:8px;font-size:11px;";
+  const srcLink = document.createElement("input");
+  srcLink.value = src;
+  srcLink.readOnly = true;
+  srcLink.style.cssText = "width:100%;background:#10101a;border:1px solid #3a3a4a;color:#e5e7eb;border-radius:8px;padding:8px;font-size:11px;";
 
-  const copyBtn = document.createElement("button");
-  copyBtn.textContent = "Copy Source URL";
-  copyBtn.style.cssText = "height:32px;border:none;border-radius:8px;background:#2f6fed;color:white;font-size:12px;font-weight:600;cursor:pointer;";
-  copyBtn.onclick = async () => {
+  const previewLink = document.createElement("input");
+  previewLink.value = pageUrl;
+  previewLink.readOnly = true;
+  previewLink.style.cssText = "width:100%;background:#10101a;border:1px solid #3a3a4a;color:#93c5fd;border-radius:8px;padding:8px;font-size:11px;";
+
+  const btnRow = document.createElement("div");
+  btnRow.style.cssText = "display:flex;gap:8px;";
+
+  const copySrcBtn = document.createElement("button");
+  copySrcBtn.textContent = "Copy Source URL";
+  copySrcBtn.style.cssText = "flex:1;height:32px;border:none;border-radius:8px;background:#2f6fed;color:white;font-size:12px;font-weight:600;cursor:pointer;";
+  copySrcBtn.onclick = async () => {
     try {
       await navigator.clipboard.writeText(src);
-      copyBtn.textContent = "Copied";
-      setTimeout(() => copyBtn.textContent = "Copy Source URL", 1000);
+      copySrcBtn.textContent = "Copied";
+      setTimeout(() => copySrcBtn.textContent = "Copy Source URL", 1000);
     } catch {
       // no-op
     }
   };
 
-  right.append(qr, hint, link, copyBtn);
+  const copyPreviewBtn = document.createElement("button");
+  copyPreviewBtn.textContent = "Copy Mobile Link";
+  copyPreviewBtn.style.cssText = "flex:1;height:32px;border:none;border-radius:8px;background:#374151;color:#e5e7eb;font-size:12px;font-weight:600;cursor:pointer;";
+  copyPreviewBtn.onclick = async () => {
+    try {
+      await navigator.clipboard.writeText(pageUrl);
+      copyPreviewBtn.textContent = "Copied";
+      setTimeout(() => copyPreviewBtn.textContent = "Copy Mobile Link", 1000);
+    } catch {
+      // no-op
+    }
+  };
+
+  const openPreviewBtn = document.createElement("button");
+  openPreviewBtn.textContent = "Open Mobile Preview";
+  openPreviewBtn.style.cssText = "height:32px;border:none;border-radius:8px;background:#16a34a;color:#fff;font-size:12px;font-weight:600;cursor:pointer;";
+  openPreviewBtn.onclick = () => window.open(pageUrl, "_blank", "noopener");
+
+  btnRow.append(copySrcBtn, copyPreviewBtn);
+  right.append(qr, hint, srcLink, previewLink, btnRow, openPreviewBtn);
   card.append(left, right);
   overlay.appendChild(card);
+
+  const onEsc = (e: KeyboardEvent) => {
+    if (e.key === "Escape") {
+      overlay.remove();
+    }
+  };
 
   overlay.addEventListener("click", (e) => {
     if (e.target === overlay) overlay.remove();
   });
+  overlay.addEventListener("remove", () => {
+    document.removeEventListener("keydown", onEsc);
+  });
+  const observer = new MutationObserver(() => {
+    if (!document.body.contains(overlay)) {
+      document.removeEventListener("keydown", onEsc);
+      observer.disconnect();
+    }
+  });
+  observer.observe(document.body, { childList: true });
+  document.addEventListener("keydown", onEsc);
   document.body.appendChild(overlay);
 }
 
@@ -137,12 +207,13 @@ export function openARQuickLookFromQuery(): boolean {
 
   openARQuickLook({
     src,
-    title: "Shared AR Preview",
+    title: getARTitleFromUrl() || "Shared AR Preview",
   });
 
   try {
     const url = new URL(window.location.href);
     url.searchParams.delete("ar_src");
+    url.searchParams.delete("ar_title");
     window.history.replaceState({}, "", url.toString());
   } catch {
     // no-op
