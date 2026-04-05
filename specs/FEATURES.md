@@ -1584,9 +1584,11 @@ Frame overflow control and content scrolling.
 - [x] **Style health**: color/text style usage tracking, unused detection, style adoption rate
 - [x] **Color health**: unique color count, hardcoded colors (≥2 uses without style), near-duplicate detection (distance <15)
 - [x] **Typography health**: font family usage, font size inventory, unstandardized sizes (not in text styles)
+- [x] **Text Style Lint Autofix**: detect text style drift (font family/size/line-height) + unlinked text nodes, suggest closest shared text style
+- [x] **Typography auto-fix action**: one-click `apply_text_style_lint_autofix()` to relink/resync text nodes to style library
 - [x] **Issues list**: severity-tagged (error/warning/info), categorized, with suggestions
 - [x] **Cleanup actions**: `remove_unused_color_styles()`, `remove_unused_text_styles()` WASM bindings
-- [x] **WASM bindings**: `get_design_health()` → JSON report
+- [x] **WASM bindings**: `get_design_health()`, `get_text_style_lint_issues()`, `apply_text_style_lint_autofix()`
 - [x] **Tabbed modal UI**: Overview / Components / Styles / Colors / Typography / Issues tabs
 - [x] **Toolbar button**: Pulse/heartbeat icon
 - [x] **Implementation**: `crates/engine/src/design_health.rs` (Rust) + `ui/design-health.ts` (modal)

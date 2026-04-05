@@ -181,6 +181,14 @@ export function openDesignHealth(engine: Engine, opts?: { onNavigate?: (nodeId: 
       `;
     } else if (activeTab === "typography") {
       const t = r.typography;
+      const textStyleLintIssues = JSON.parse((engine as any).get_text_style_lint_issues?.() || "[]") as Array<{
+        node_id: number;
+        node_name: string;
+        reason: string;
+        suggested_style_name?: string | null;
+        size_delta: number;
+        line_height_delta: number;
+      }>;
       body = `
         ${t.font_families.length > 0 ? section("Font Families",
           `<div style="display:flex;flex-wrap:wrap;gap:8px">${t.font_families.map(f =>
@@ -191,6 +199,17 @@ export function openDesignHealth(engine: Engine, opts?: { onNavigate?: (nodeId: 
             `<div style="background:${t.unstandardized_sizes.includes(s) ? '#3d2a1a' : '#2a2a3e'};padding:4px 10px;border-radius:4px;font-size:11px">${s}px</div>`).join("")}</div>
           <div style="margin-top:6px;font-size:10px;color:#888">Orange = not in any text style</div>`
         ) : ""}
+        ${section("Text Style Lint Autofix",
+          `<div style="font-size:11px;color:#aaa;margin-bottom:8px">${textStyleLintIssues.length} text node(s) are off-style (family/size/line-height drift or no linked style).</div>
+          ${textStyleLintIssues.length > 0 ? `<div style="max-height:130px;overflow-y:auto;border:1px solid #333;border-radius:8px;padding:6px 8px;margin-bottom:8px">${textStyleLintIssues.slice(0, 20).map(it =>
+            `<div class="dh-nav" data-nid="${it.node_id}" style="padding:4px 0;border-bottom:1px solid #2a2a3e;cursor:pointer">
+              <span style="color:#ddd">${it.node_name}</span>
+              <span style="color:#888"> · ${it.reason}</span>
+              ${it.suggested_style_name ? `<span style="color:#4a90d9"> → ${it.suggested_style_name}</span>` : ""}
+              <span style="color:#777"> (Δsize ${it.size_delta.toFixed(2)}, Δlh ${it.line_height_delta.toFixed(2)})</span>
+            </div>`).join("")}</div>` : `<div style="font-size:11px;color:#36b37e">✅ 모든 텍스트가 style library 기준과 정렬됨</div>`}
+          ${textStyleLintIssues.length > 0 ? `<button id="dh-fix-text-style-lint" style="padding:8px 14px;border-radius:8px;border:none;background:#4a90d9;color:#fff;cursor:pointer;font-size:11px;font-weight:600">✨ Auto-fix ${textStyleLintIssues.length} Text Node(s)</button>` : ""}`
+        )}
         ${t.font_families.length > 3 ? `<div style="margin-top:12px;padding:8px 12px;background:#3d2a1a;border-radius:8px;font-size:12px;color:#ffab00">⚠ ${t.font_families.length} font families — consider reducing to 2–3</div>` : ""}
       `;
     } else if (activeTab === "issues") {
@@ -230,6 +249,14 @@ export function openDesignHealth(engine: Engine, opts?: { onNavigate?: (nodeId: 
     });
     modal.querySelector("#dh-clean-ts")?.addEventListener("click", () => {
       (engine as any).remove_unused_text_styles();
+      opts?.onRefresh?.();
+      render();
+    });
+    modal.querySelector("#dh-fix-text-style-lint")?.addEventListener("click", () => {
+      const fixed = (engine as any).apply_text_style_lint_autofix?.() || 0;
+      if (fixed > 0) {
+        alert(`Auto-fixed ${fixed} text node(s) to shared text styles.`);
+      }
       opts?.onRefresh?.();
       render();
     });

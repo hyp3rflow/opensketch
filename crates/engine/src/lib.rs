@@ -8590,6 +8590,144 @@ impl Engine {
         removed
     }
 
+    /// Analyze text nodes that are not aligned with style library (font family/size/line-height).
+    /// Returns JSON array of issues.
+    #[wasm_bindgen]
+    pub fn get_text_style_lint_issues(&self) -> String {
+        #[derive(serde::Serialize)]
+        struct TextStyleLintIssue {
+            node_id: u64,
+            node_name: String,
+            font_family: String,
+            font_size: f64,
+            line_height: f64,
+            reason: String,
+            suggested_style_id: Option<u64>,
+            suggested_style_name: Option<String>,
+            size_delta: f64,
+            line_height_delta: f64,
+        }
+
+        fn nearly_eq(a: f64, b: f64, eps: f64) -> bool {
+            (a - b).abs() <= eps
+        }
+
+        let mut issues: Vec<TextStyleLintIssue> = Vec::new();
+        let text_styles = self.styles.list_text_styles();
+
+        for (id, node) in self.scene.nodes_map() {
+            let NodeKind::Text { font_family, font_size, line_height, .. } = &node.kind else {
+                continue;
+            };
+
+            let linked_style = node.text_style_id.and_then(|sid| self.styles.get_text_style(sid));
+
+            if let Some(style) = linked_style {
+                let family_mismatch = font_family != &style.font_family;
+                let size_mismatch = !nearly_eq(*font_size, style.font_size, 0.05);
+                let lh_mismatch = !nearly_eq(*line_height, style.line_height, 0.01);
+                if family_mismatch || size_mismatch || lh_mismatch {
+                    issues.push(TextStyleLintIssue {
+                        node_id: *id,
+                        node_name: node.name.clone(),
+                        font_family: font_family.clone(),
+                        font_size: *font_size,
+                        line_height: *line_height,
+                        reason: "Linked style drift".to_string(),
+                        suggested_style_id: Some(style.id),
+                        suggested_style_name: Some(style.name.clone()),
+                        size_delta: (*font_size - style.font_size).abs(),
+                        line_height_delta: (*line_height - style.line_height).abs(),
+                    });
+                }
+                continue;
+            }
+
+            let mut best_same_family: Option<(u64, String, f64, f64, f64)> = None;
+            let mut best_any: Option<(u64, String, f64, f64, f64)> = None;
+            for ts in &text_styles {
+                let size_delta = (*font_size - ts.font_size).abs();
+                let line_height_delta = (*line_height - ts.line_height).abs();
+                let score = size_delta + (line_height_delta * 4.0);
+                if ts.font_family == *font_family {
+                    match &best_same_family {
+                        Some((_, _, best_score, _, _)) if *best_score <= score => {}
+                        _ => best_same_family = Some((ts.id, ts.name.clone(), score, size_delta, line_height_delta)),
+                    }
+                }
+                match &best_any {
+                    Some((_, _, best_score, _, _)) if *best_score <= score => {}
+                    _ => best_any = Some((ts.id, ts.name.clone(), score, size_delta, line_height_delta)),
+                }
+            }
+
+            let (suggested_style_id, suggested_style_name, size_delta, line_height_delta, reason) =
+                if let Some((sid, sname, _score, sd, lhd)) = best_same_family {
+                    (Some(sid), Some(sname), sd, lhd, "Not linked to text style".to_string())
+                } else if let Some((sid, sname, _score, sd, lhd)) = best_any {
+                    (Some(sid), Some(sname), sd, lhd, "Not linked to text style".to_string())
+                } else {
+                    (None, None, 0.0, 0.0, "No text styles available".to_string())
+                };
+
+            issues.push(TextStyleLintIssue {
+                node_id: *id,
+                node_name: node.name.clone(),
+                font_family: font_family.clone(),
+                font_size: *font_size,
+                line_height: *line_height,
+                reason,
+                suggested_style_id,
+                suggested_style_name,
+                size_delta,
+                line_height_delta,
+            });
+        }
+
+        serde_json::to_string(&issues).unwrap_or_else(|_| "[]".to_string())
+    }
+
+    /// Auto-fix text style lint issues using style library suggestions.
+    /// Returns number of fixed text nodes.
+    #[wasm_bindgen]
+    pub fn apply_text_style_lint_autofix(&mut self) -> u32 {
+        let issues_json = self.get_text_style_lint_issues();
+        let issues: Vec<serde_json::Value> = serde_json::from_str(&issues_json).unwrap_or_default();
+        if issues.is_empty() {
+            return 0;
+        }
+
+        let mut to_fix: Vec<(u64, u64)> = Vec::new();
+        for issue in &issues {
+            let node_id = issue.get("node_id").and_then(|v| v.as_u64());
+            let style_id = issue.get("suggested_style_id").and_then(|v| v.as_u64());
+            let reason = issue.get("reason").and_then(|v| v.as_str()).unwrap_or_default();
+            let size_delta = issue.get("size_delta").and_then(|v| v.as_f64()).unwrap_or(999.0);
+            let line_height_delta = issue.get("line_height_delta").and_then(|v| v.as_f64()).unwrap_or(999.0);
+            if let (Some(nid), Some(sid)) = (node_id, style_id) {
+                let should_apply = reason == "Linked style drift"
+                    || size_delta <= 2.0
+                    || line_height_delta <= 0.3;
+                if should_apply {
+                    to_fix.push((nid, sid));
+                }
+            }
+        }
+
+        if to_fix.is_empty() {
+            return 0;
+        }
+
+        self.push_undo();
+        let mut fixed = 0u32;
+        for (node_id, style_id) in to_fix {
+            if self.apply_text_style(node_id, style_id) {
+                fixed += 1;
+            }
+        }
+        fixed
+    }
+
     // =============================================
     // Migration Assistant
     // =============================================
