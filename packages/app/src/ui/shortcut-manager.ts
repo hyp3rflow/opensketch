@@ -102,6 +102,7 @@ const DEFAULTS: ShortcutDef[] = [
   { id: "misc.comment",     category: "Misc", description: "Comment mode",      defaultBinding: { key: "c" } },
   { id: "misc.voice",       category: "Misc", description: "Voice command",     defaultBinding: { key: "v", meta: true, shift: true } },
   { id: "misc.fileDiff",    category: "Misc", description: "File diff & merge", defaultBinding: { key: "d", meta: true, shift: true } },
+  { id: "misc.selectionNetMode", category: "Misc", description: "Toggle selection net mode (Crossing/Contain)", defaultBinding: { key: "x", shift: true } },
 ];
 
 // ── Preset profiles ──────────────────────────────────────────────────

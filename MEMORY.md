@@ -1590,11 +1590,17 @@
 - ~~Repeat Grid — 노드 복제 grid (Figma Repeat Grid), row/col 갯수 + gap, 개별 셀 콘텐츠 오버라이드, 드래그로 인스턴스 수 조절~~ ✅ 완료 (셀별 텍스트 오버라이드 렌더 + 데이터 바인딩 패널 연동)
 - ~~Component Sets~~ ✅ 완료
 - Multi-window / detachable panels — 패널을 별도 윈도우로 분리 (Layers, Properties, Agent 등), window.open + postMessage 통신
-- Smart selection grouping — 유사 속성 노드 자동 그룹 제안, one-click grouping + auto-layout 적용
 - Figma-style Variants Matrix UI — 컴포넌트 편집 시 모든 variant 조합을 2D 매트릭스로 시각화, 드래그로 variant 추가/삭제
 - Smart selection filter — 선택 영역 내 특정 노드 타입만 필터링 (Figma "Select All with..." 확장), 정규식 이름 매칭, 깊이/속성 필터
 - Scroll-to animation triggers — Prototype viewer에서 스크롤 위치 기반 애니메이션 트리거 (parallax, reveal-on-scroll), 트리거 threshold 설정
 - Conditional visibility — 변수/조건 기반 노드 visibility 토글 (if variable == value → show/hide), 프로토타입에서 동적 UI 시뮬레이션
+
+
+## 완료된 기능 (추가 — Smart selection grouping one-click, 2026-04-05)
+- Smart Select 패널에 `Smart Group` 버튼 추가
+- suggest_groups()의 최상위 추천 세트를 즉시 그룹화 (`group_selected`)하고 선택 전환
+- 그룹 생성 직후 auto-layout(Flex) + 기본 gap 8을 자동 적용해 후속 정렬 작업 최소화
+- 기존 `Suggest Groups` 미리보기 흐름은 유지 (선택만 변경)
 
 ## 완료된 기능 (추가 — Freehand smoothing, 2026-04-05)
 - Freehand 도구 포인터 업 시 생성된 Path에 Catmull-Rom 기반 스무딩 후처리 적용

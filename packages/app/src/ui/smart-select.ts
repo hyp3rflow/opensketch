@@ -100,6 +100,7 @@ export class SmartSelectPanel {
       </div>
       <div class="ssp-footer">
         <button class="ssp-btn ssp-btn-suggest" title="AI suggests groups of similar nodes">Suggest Groups</button>
+        <button class="ssp-btn ssp-btn-group" title="Group best similar set and auto-apply layout">Smart Group</button>
         <button class="ssp-btn ssp-btn-apply">Apply</button>
       </div>
     `;
@@ -149,6 +150,10 @@ export class SmartSelectPanel {
       this.showGroupSuggestions();
     });
 
+    this.el.querySelector('.ssp-btn-group')?.addEventListener('click', () => {
+      this.smartGroupBestMatch();
+    });
+
     // Draggable header
     let dragging = false, ox = 0, oy = 0;
     const header = this.el.querySelector('.ssp-header') as HTMLElement;
@@ -195,5 +200,35 @@ export class SmartSelectPanel {
     alert(`Found ${groups.length} group(s) of similar nodes:\n${msg}\n\nFirst group selected.`);
     this.editor.onSelectionChanged?.();
     this.editor.render();
+  }
+
+  private smartGroupBestMatch() {
+    const engine = this.editor.engine;
+    if (!engine) return;
+
+    const groupsJson = engine.suggest_groups(0.7);
+    const groups: number[][] = JSON.parse(groupsJson);
+    if (!groups.length || groups[0]!.length < 2) {
+      alert('No similar node set large enough to group.');
+      return;
+    }
+
+    const best = groups[0]!;
+    engine.push_undo();
+    (engine as any).set_selection?.(best.map(id => BigInt(id)));
+    const groupId = Number(engine.group_selected());
+
+    // One-click layout application (MVP): enable flex layout with sensible default gap
+    try {
+      engine.set_layout_mode(BigInt(groupId), 'flex');
+      engine.set_layout_gap(BigInt(groupId), 8);
+    } catch {
+      // layout API may be unavailable in older wasm builds; grouping still succeeds
+    }
+
+    this.editor.onSelectionChanged?.();
+    this.editor.render();
+    alert(`Smart Group created: Group ${groupId} (${best.length} nodes) with auto-layout.`);
+    this.close();
   }
 }

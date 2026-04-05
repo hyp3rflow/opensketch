@@ -1126,7 +1126,7 @@ export class Editor {
       else if (e.key === "m" && !e.metaKey && !e.ctrlKey && !e.altKey) this.setTool("measure");
       else if (e.key === "a" && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) this.setTool("annotate");
       else if (e.key === "k" && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) this.setTool("scale");
-      else if (e.key.toLowerCase() === "x" && e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      else if (_sm.matches(e, "misc.selectionNetMode")) {
         this._marqueeBaseMode = this._marqueeBaseMode === "crossing" ? "contain" : "crossing";
         this.needsRender = true;
       }

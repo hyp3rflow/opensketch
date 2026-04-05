@@ -11,8 +11,8 @@
 - [x] Viewport: pan, zoom (scroll wheel with rAF batching)
 - [x] Hit testing (reverse render order, respects visibility/lock)
 - [x] Selection (single + multi-select + marquee drag-select, with resize handles)
-- [x] Smart Selection Net: marquee now supports Crossing/Contain modes (Shift+X 토글, Alt로 임시 반전), drag 중 모드 라벨 표시, Frame/Group 내부 노드 우선 선택(Figma-like parent de-prioritization)
-- [x] Smart Selection: Cmd+click deep select into Frame/Group, "Select All with Same Fill/Stroke/Font/Kind" via context menu, "Select Similar" dialog (Cmd+Shift+A) with configurable criteria (color distance, size ratio, opacity, corner radius, font, stroke width thresholds), similarity scoring, group suggestions
+- [x] Smart Selection Net: marquee now supports Crossing/Contain modes (기본 Shift+X 토글, Alt로 임시 반전), drag 중 모드 라벨 표시, Frame/Group 내부 노드 우선 선택(Figma-like parent de-prioritization), Shortcut Manager에서 토글 키 커스텀 가능
+- [x] Smart Selection: Cmd+click deep select into Frame/Group, "Select All with Same Fill/Stroke/Font/Kind" via context menu, "Select Similar" dialog (Cmd+Shift+A) with configurable criteria (color distance, size ratio, opacity, corner radius, font, stroke width thresholds), similarity scoring, group suggestions, and one-click **Smart Group** (best suggestion auto-group + flex auto-layout)
 - [x] Scene serialization (JSON export/import)
 - [x] Node operations: create, delete, move, resize, duplicate, reparent
 - [x] Name search (partial match, case-insensitive)
