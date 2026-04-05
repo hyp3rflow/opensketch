@@ -32,6 +32,7 @@ export const icons = {
   // Edit/pen mode
   pen: s('<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/>'),
   penTool: s('<path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/>'),
+  shapeBuilder: s('<rect x="3" y="5" width="8" height="8" rx="1"/><rect x="9" y="11" width="8" height="8" rx="1"/><path d="M2 18c3-1 5-4 8-4 3 0 4 2 6 2 2 0 3-1 6-4"/>'),
   // Component (diamond)
   component: s('<path d="M12 2l10 10-10 10L2 12z"/>'),
   componentSet: s('<path d="M7 2l5 5-5 5L2 7z"/><path d="M17 2l5 5-5 5-5-5z"/><path d="M7 12l5 5-5 5-5-5z"/><path d="M17 12l5 5-5 5-5-5z"/>'),

@@ -21,7 +21,7 @@ const toolI18nKeys: Record<string, string> = {
   text: "tool.text", frame: "tool.frame", section: "tool.section", image: "tool.image",
   pen: "tool.pen", star: "tool.star", polygon: "tool.polygon", slice: "tool.slice",
   connector: "tool.connector", measure: "tool.measure", callout: "tool.callout",
-  sticky: "tool.sticky", table: "tool.table", chart: "tool.chart", freehand: "tool.freehand", annotate: "tool.annotate", scale: "tool.scale",
+  sticky: "tool.sticky", table: "tool.table", chart: "tool.chart", freehand: "tool.freehand", annotate: "tool.annotate", scale: "tool.scale", shapeBuilder: "tool.shapeBuilder",
 };
 
 const tools: { id: ToolType; icon: string; labelKey: string }[] = [
@@ -34,6 +34,7 @@ const tools: { id: ToolType; icon: string; labelKey: string }[] = [
   { id: "section", icon: icons.section, labelKey: "tool.section" },
   { id: "image", icon: icons.image, labelKey: "tool.image" },
   { id: "pen", icon: icons.penTool, labelKey: "tool.pen" },
+  { id: "shapeBuilder", icon: icons.shapeBuilder, labelKey: "tool.shapeBuilder" },
   { id: "star", icon: icons.star, labelKey: "tool.star" },
   { id: "polygon", icon: icons.polygon, labelKey: "tool.polygon" },
   { id: "slice", icon: icons.slice, labelKey: "tool.slice" },

@@ -2192,8 +2192,15 @@
 - 기존 Constraints 드롭다운 UI와 함께 동작 (설정 변경 시 오버레이 즉시 반영)
 - specs/FEATURES.md Constraints 섹션 반영
 
+## 완료된 기능 (추가 — Shape Builder Tool MVP, 2026-04-06)
+- Shape Builder 툴 추가: toolbar에서 진입 가능한 `shapeBuilder` 모드
+- 브러시 드래그 제스처 수집: 캔버스에 점선 stroke + HUD(Union/Subtract, hit count) 표시
+- 선택된 노드 대상 hit 테스트(MVP): stroke가 선택 노드 AABB를 지나가면 대상으로 집계
+- 제스처 종료 시 boolean 실행: 기본 Union, Alt 누른 채 드래그 시 Subtract
+- 기존 boolean_operation/undo/layers refresh 파이프라인 재사용
+- specs/FEATURES.md 반영
+
 ## 다음 할 것 (2026-04-06 업데이트)
-- Shape Builder Tool — 겹친 벡터를 브러시 드래그 제스처로 add/subtract 분할 편집
 - Prototyping Smart Animate Timeline — 페이지 전환 smart animate를 타임라인에서 keyframe/curve로 시각 편집
 - Auto Layout Gap Handles — 캔버스에서 gap/padding을 직접 드래그 조절하는 on-canvas 핸들
 - Vector Boolean Live Preview — boolean 후보(Union/Subtract/Intersect/Exclude)를 hover 시 실시간 프리뷰

@@ -59,7 +59,7 @@ import { toggleColorBlindnessPanel, closeCBPanel, setColorBlindnessMode } from "
 import { toggleFocusMode } from "./ui/focus-mode";
 import { WebGPURenderer } from "./ui/webgpu-renderer";
 
-export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "section" | "image" | "video" | "pen" | "star" | "polygon" | "slice" | "connector" | "callout" | "sticky" | "table" | "chart" | "freehand" | "measure" | "annotate" | "eyedropper" | "scale";
+export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "section" | "image" | "video" | "pen" | "star" | "polygon" | "slice" | "connector" | "callout" | "sticky" | "table" | "chart" | "freehand" | "measure" | "annotate" | "eyedropper" | "scale" | "shapeBuilder";
 
 /** Snap threshold in screen pixels */
 const SNAP_THRESHOLD_PX = 5;
@@ -85,6 +85,8 @@ export class Editor {
   private drag: DragState | null = null;
   private marquee: { startX: number; startY: number; currentX: number; currentY: number } | null = null;
   private _marqueeBaseMode: "crossing" | "contain" = "crossing";
+  private _shapeBuilderStroke: { x: number; y: number }[] | null = null;
+  private _shapeBuilderTouchedIds: number[] = [];
   private isPanning = false;
   private lastPanX = 0;
   private lastPanY = 0;
@@ -1489,6 +1491,16 @@ export class Editor {
       }
     }
 
+    if (this.currentTool === "shapeBuilder") {
+      const selected = Array.from(this.engine.get_selection()).map(Number);
+      if (selected.length < 2) return;
+      this._shapeBuilderStroke = [{ x: e.offsetX, y: e.offsetY }];
+      this._shapeBuilderTouchedIds = [];
+      this.canvas.setPointerCapture(e.pointerId);
+      this.needsRender = true;
+      return;
+    }
+
     if (this.currentTool === "select" || this.currentTool === "scale") {
       const handle = this.engine.hit_test_handle(x, y);
       if (handle >= 0) {
@@ -2133,6 +2145,18 @@ export class Editor {
       }
     }
 
+    if (this._shapeBuilderStroke) {
+      const last = this._shapeBuilderStroke[this._shapeBuilderStroke.length - 1];
+      const nx = e.offsetX;
+      const ny = e.offsetY;
+      if (!last || Math.hypot(nx - last.x, ny - last.y) > 2) {
+        this._shapeBuilderStroke.push({ x: nx, y: ny });
+      }
+      this._shapeBuilderTouchedIds = this.computeShapeBuilderTouchedIds(this._shapeBuilderStroke);
+      this.needsRender = true;
+      return;
+    }
+
     if (this.marquee) {
       this.marquee.currentX = e.offsetX;
       this.marquee.currentY = e.offsetY;
@@ -2514,6 +2538,26 @@ export class Editor {
       this._freehandPathId = null;
       this._freehandPoints = [];
       this._freehandDrawing = false;
+      this.needsRender = true;
+      return;
+    }
+
+    if (this._shapeBuilderStroke) {
+      const points = this._shapeBuilderStroke;
+      this._shapeBuilderStroke = null;
+      const touchedIds = this.computeShapeBuilderTouchedIds(points);
+      this._shapeBuilderTouchedIds = [];
+      if (touchedIds.length >= 2) {
+        this.engine.push_undo();
+        this.engine.deselect_all();
+        for (const id of touchedIds) this.engine.add_to_selection(id);
+        const op = _e.altKey ? "subtract" : "union";
+        const newId = this.engine.boolean_operation(op as any);
+        if (newId) {
+          this.fireSelectionNow([Number(newId)]);
+          this.onLayersChanges.forEach(fn => fn());
+        }
+      }
       this.needsRender = true;
       return;
     }
@@ -4258,6 +4302,60 @@ export class Editor {
     return Array.from(selected);
   }
 
+  private computeShapeBuilderTouchedIds(stroke: { x: number; y: number }[]): number[] {
+    const selected = new Set(Array.from(this.engine.get_selection()).map(Number));
+    if (selected.size < 2 || stroke.length === 0) return [];
+
+    const touched = new Set<number>();
+    for (const id of selected) {
+      try {
+        const nodeJson = this.engine.get_node_json(BigInt(id));
+        if (!nodeJson) continue;
+        const n = JSON.parse(nodeJson);
+        const x1 = Number(n.x);
+        const y1 = Number(n.y);
+        const x2 = x1 + Number(n.width);
+        const y2 = y1 + Number(n.height);
+        for (const p of stroke) {
+          const sx = this.engine.screen_to_scene_x(p.x, p.y);
+          const sy = this.engine.screen_to_scene_y(p.x, p.y);
+          if (sx >= x1 && sx <= x2 && sy >= y1 && sy <= y2) {
+            touched.add(id);
+            break;
+          }
+        }
+      } catch {
+        // ignore parse errors
+      }
+    }
+    return Array.from(touched);
+  }
+
+  private renderShapeBuilderStroke() {
+    if (!this._shapeBuilderStroke || this._shapeBuilderStroke.length < 2) return;
+    this.ctx.save();
+    this.ctx.beginPath();
+    this.ctx.moveTo(this._shapeBuilderStroke[0]!.x, this._shapeBuilderStroke[0]!.y);
+    for (let i = 1; i < this._shapeBuilderStroke.length; i++) {
+      const p = this._shapeBuilderStroke[i]!;
+      this.ctx.lineTo(p.x, p.y);
+    }
+    this.ctx.strokeStyle = "rgba(99, 102, 241, 0.95)";
+    this.ctx.lineWidth = 2;
+    this.ctx.setLineDash([6, 4]);
+    this.ctx.stroke();
+
+    const mode = this._altHeld ? "Subtract" : "Union";
+    const count = this._shapeBuilderTouchedIds.length;
+    const tip = `Shape Builder: ${mode} · ${count} hit${count === 1 ? "" : "s"}`;
+    const last = this._shapeBuilderStroke[this._shapeBuilderStroke.length - 1]!;
+    this.ctx.setLineDash([]);
+    this.ctx.fillStyle = "rgba(67, 56, 202, 0.9)";
+    this.ctx.font = "11px -apple-system, BlinkMacSystemFont, sans-serif";
+    this.ctx.fillText(tip, last.x + 8, last.y - 8);
+    this.ctx.restore();
+  }
+
   private renderMarquee() {
     if (!this.marquee) return;
     const { startX, startY, currentX, currentY } = this.marquee;
@@ -4616,6 +4714,7 @@ export class Editor {
         this.renderVNEditOverlay();
         this.renderMeshEditOverlay();
         this.renderCaret();
+        this.renderShapeBuilderStroke();
         this.renderMarquee();
         this.renderAnchorPoints();
         this.renderConnectorPreview();
@@ -4809,6 +4908,10 @@ export class Editor {
       this.finishPenPath();
     }
     this.currentTool = tool;
+    if (tool !== "shapeBuilder") {
+      this._shapeBuilderStroke = null;
+      this._shapeBuilderTouchedIds = [];
+    }
     this.updateCursor();
     document.querySelectorAll(".tool-btn").forEach((btn) => {
       btn.classList.toggle("active", btn.getAttribute("data-tool") === tool);
@@ -4846,7 +4949,7 @@ export class Editor {
       section: "crosshair", image: "crosshair", pen: "crosshair",
       star: "crosshair", polygon: "crosshair",
       slice: "crosshair", connector: "crosshair", callout: "crosshair", sticky: "crosshair", chart: "crosshair", freehand: "crosshair",
-      measure: "crosshair", annotate: "crosshair", eyedropper: "crosshair", scale: "nwse-resize",
+      measure: "crosshair", annotate: "crosshair", eyedropper: "crosshair", scale: "nwse-resize", shapeBuilder: "crosshair",
     };
     this.canvas.style.cursor = cursors[this.currentTool] || "default";
   }

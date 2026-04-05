@@ -8,6 +8,7 @@
   "tool.section": "セクション (⇧S)",
   "tool.image": "画像 (I)",
   "tool.pen": "ペン (P)",
+  "tool.shapeBuilder": "シェイプビルダー",
   "tool.star": "星 (S)",
   "tool.polygon": "多角形 (G)",
   "tool.slice": "スライス (K)",

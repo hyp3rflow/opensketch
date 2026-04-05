@@ -8,6 +8,7 @@
   "tool.section": "Section (⇧S)",
   "tool.image": "Image (I)",
   "tool.pen": "Pen (P)",
+  "tool.shapeBuilder": "Shape Builder",
   "tool.star": "Star (S)",
   "tool.polygon": "Polygon (G)",
   "tool.slice": "Slice (K)",

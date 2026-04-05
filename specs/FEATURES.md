@@ -377,6 +377,10 @@
 - [x] **Keyboard shortcuts**: Ctrl/Cmd+Shift+U (Union), +S (Subtract), +I (Intersect), +X (Exclude)
 - [x] **Toolbar UI**: 4 boolean op buttons (Union/Subtract/Intersect/Exclude) with icons
 - [x] **Selection-aware**: buttons disabled when < 2 nodes selected, enabled when 2+
+- [x] **Shape Builder Tool (MVP)**: 새로운 `shapeBuilder` 툴 추가 (toolbar 진입)
+- [x] **Gesture target detection (MVP)**: 드래그 브러시 궤적이 선택된 노드 AABB를 지나가면 hit로 집계
+- [x] **Quick add/subtract**: gesture 종료 시 hit 노드 2개 이상이면 Boolean 실행 (기본 Union, Alt 누른 채 드래그 시 Subtract)
+- [x] **Canvas overlay**: 드래그 궤적 점선 + 현재 모드/히트 수 HUD 렌더링
 
 ### Flatten Selection
 - [x] **Convert to Path**: Any shape (Rect, Ellipse, Star, Polygon, Text, Image) → Path node

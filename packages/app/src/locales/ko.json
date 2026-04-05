@@ -8,6 +8,7 @@
   "tool.section": "섹션 (⇧S)",
   "tool.image": "이미지 (I)",
   "tool.pen": "펜 (P)",
+  "tool.shapeBuilder": "셰이프 빌더",
   "tool.star": "별 (S)",
   "tool.polygon": "다각형 (G)",
   "tool.slice": "슬라이스 (K)",
