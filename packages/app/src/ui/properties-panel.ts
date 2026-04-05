@@ -5912,6 +5912,61 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           });
           offRow.appendChild(offSlider);
           textSection.appendChild(offRow);
+
+          const baseRow = document.createElement("div");
+          baseRow.className = "prop-row";
+          const baseLabel = document.createElement("span");
+          baseLabel.className = "prop-label";
+          baseLabel.textContent = "Baseline";
+          baseRow.appendChild(baseLabel);
+          const baseInput = document.createElement("input");
+          baseInput.type = "number";
+          baseInput.className = "prop-input";
+          baseInput.style.cssText = "width:78px;text-align:right;";
+          baseInput.value = String(pathInfo.baseline_offset ?? 0);
+          baseInput.addEventListener("change", () => {
+            ensureUndo();
+            editor.engine.set_text_path_baseline_offset(BigInt(id), parseFloat(baseInput.value) || 0);
+            editor.requestRender();
+          });
+          baseRow.appendChild(baseInput);
+          textSection.appendChild(baseRow);
+
+          const pathLsRow = document.createElement("div");
+          pathLsRow.className = "prop-row";
+          const pathLsLabel = document.createElement("span");
+          pathLsLabel.className = "prop-label";
+          pathLsLabel.textContent = "Letter Spacing";
+          pathLsRow.appendChild(pathLsLabel);
+          const pathLsInput = document.createElement("input");
+          pathLsInput.type = "number";
+          pathLsInput.className = "prop-input";
+          pathLsInput.style.cssText = "width:78px;text-align:right;";
+          pathLsInput.value = String(node.kind.Text.letter_spacing ?? 0);
+          pathLsInput.addEventListener("change", () => {
+            ensureUndo();
+            editor.engine.set_letter_spacing(id, parseFloat(pathLsInput.value) || 0);
+            editor.requestRender();
+          });
+          pathLsRow.appendChild(pathLsInput);
+          textSection.appendChild(pathLsRow);
+
+          const flipRow = document.createElement("div");
+          flipRow.className = "prop-row";
+          const flipLabel = document.createElement("span");
+          flipLabel.className = "prop-label";
+          flipLabel.textContent = "Flip";
+          flipRow.appendChild(flipLabel);
+          const flipInput = document.createElement("input");
+          flipInput.type = "checkbox";
+          flipInput.checked = !!pathInfo.flip;
+          flipInput.addEventListener("change", () => {
+            ensureUndo();
+            editor.engine.set_text_path_flip(BigInt(id), flipInput.checked);
+            editor.requestRender();
+          });
+          flipRow.appendChild(flipInput);
+          textSection.appendChild(flipRow);
         } else {
           // Show "Attach to path" button — requires a Path node in selection or scene
           const attachBtn = document.createElement("button");

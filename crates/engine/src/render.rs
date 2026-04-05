@@ -652,7 +652,7 @@ impl Renderer {
         if let Some(path_id) = node.text_path_id {
             if let Some(path_node) = scene.get_node(path_id) {
                 if let NodeKind::Path { ref points, closed } = path_node.kind {
-                    self.render_text_on_path(ctx, node, content, font_size, font_family, font_weight, font_style, points, closed);
+                    self.render_text_on_path(ctx, node, content, font_size, font_family, font_weight, font_style, letter_spacing, points, closed);
                     return;
                 }
             }
@@ -835,7 +835,7 @@ impl Renderer {
         }
     }
 
-    fn render_text_on_path(&self, ctx: &CanvasRenderingContext2d, node: &Node, content: &str, font_size: f64, font_family: &str, font_weight: u16, font_style: &FontStyle, points: &[crate::node::PathPoint], closed: bool) {
+    fn render_text_on_path(&self, ctx: &CanvasRenderingContext2d, node: &Node, content: &str, font_size: f64, font_family: &str, font_weight: u16, font_style: &FontStyle, letter_spacing: f64, points: &[crate::node::PathPoint], closed: bool) {
         if content.is_empty() || points.len() < 2 { return; }
 
         let fill_css = node.visible_fills().last()
@@ -850,17 +850,27 @@ impl Renderer {
         // Measure each character width
         let chars: Vec<char> = content.chars().collect();
         let widths: Vec<f64> = chars.iter().map(|c| {
-            ctx.measure_text(&c.to_string()).map(|m| m.width()).unwrap_or(font_size * 0.6)
+            ctx.measure_text(&c.to_string()).map(|m| m.width()).unwrap_or(font_size * 0.6).max(0.0)
         }).collect();
 
-        // Get positions along path
-        let samples = crate::path_utils::text_positions_on_path(points, closed, &widths, node.text_path_offset);
+        // Get positions along path (with path letter spacing + optional flipped direction)
+        let samples = crate::path_utils::text_positions_on_path(
+            points,
+            closed,
+            &widths,
+            node.text_path_offset,
+            letter_spacing,
+            node.text_path_flip,
+        );
+        let baseline_offset = node.text_path_baseline_offset;
 
-        // Render each character rotated along the path
+        // Render each character rotated along the path tangent
         for (i, sample) in samples.iter().enumerate() {
             if i >= chars.len() { break; }
             ctx.save();
-            ctx.translate(sample.x, sample.y).ok();
+            let nx = -sample.angle.sin();
+            let ny = sample.angle.cos();
+            ctx.translate(sample.x + nx * baseline_offset, sample.y + ny * baseline_offset).ok();
             ctx.rotate(sample.angle).ok();
             ctx.fill_text(&chars[i].to_string(), 0.0, -font_size * 0.15).ok();
             ctx.restore();

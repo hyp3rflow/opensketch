@@ -1078,12 +1078,15 @@ Frame overflow control and content scrolling.
 ### Text on Path (SVG textPath style)
 - [x] Node.text_path_id: Optional<NodeId> — links a Text node to a Path node
 - [x] Node.text_path_offset: f64 (0.0–1.0) — start offset along the path
+- [x] Node.text_path_baseline_offset: f64 — baseline shift (px)
+- [x] Node.text_path_flip: bool — reverse reading direction/orientation
 - [x] path_utils.rs: path_length, point_at_length, text_positions_on_path, path_to_svg_d
-- [x] Canvas rendering: per-character positioning along bezier path with tangent rotation
-- [x] SVG export: <defs><path/></defs> + <text><textPath href startOffset>
-- [x] WASM: set_text_path, clear_text_path, set_text_path_offset, get_text_path_info, get_text_on_path_positions, get_path_svg_d
-- [x] Properties panel: Text Path section — attach/detach, offset slider, path name display
-- [x] Backward-compatible serde (default None/0.0)
+- [x] Canvas rendering: per-character positioning along bezier path with tangent rotation + baseline normal offset + flip
+- [x] Text letter-spacing is applied in text-on-path glyph advance
+- [x] SVG export: <defs><path/></defs> + <text><textPath href startOffset letter-spacing dy side>
+- [x] WASM: set_text_path, clear_text_path, set_text_path_offset, set_text_path_baseline_offset, set_text_path_flip, get_text_path_info, get_text_on_path_positions, get_path_svg_d
+- [x] Properties panel: Text Path section — attach/detach, offset slider, baseline input, path letter-spacing input, flip toggle, path name display
+- [x] Backward-compatible serde defaults
 
 ## Animation Timeline (Keyframe Animation)
 - [x] Rust: animation.rs — Easing (Linear/EaseIn/EaseOut/EaseInOut/CubicBezier), AnimProperty (x/y/width/height/rotation/opacity/corner_radius/blur/fill colors/stroke_width), Keyframe, AnimationTrack, AnimationClip, AnimationStore

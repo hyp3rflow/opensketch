@@ -46,26 +46,55 @@ pub fn text_positions_on_path(
     closed: bool,
     char_widths: &[f64],
     start_offset: f64,
+    letter_spacing: f64,
+    flip: bool,
 ) -> Vec<PathSample> {
     let total = path_length(points, closed);
-    let text_width: f64 = char_widths.iter().sum();
-    let mut dist = start_offset * total;
+    if total <= 0.0 {
+        return vec![];
+    }
+
+    let spacing = letter_spacing;
+    let mut dist = start_offset.clamp(0.0, 1.0) * total;
     let mut result = Vec::with_capacity(char_widths.len());
-    for &w in char_widths {
+
+    for (i, &w) in char_widths.iter().enumerate() {
         // Place at the center of the glyph
-        let d = dist + w / 2.0;
-        if let Some(sample) = point_at_length(points, closed, d) {
+        let forward_d = if i == 0 { dist + w / 2.0 } else { dist + spacing + w / 2.0 };
+        let sampled_d = if flip {
+            (total - forward_d).clamp(0.0, total)
+        } else {
+            forward_d
+        };
+
+        if let Some(mut sample) = point_at_length(points, closed, sampled_d) {
+            if flip {
+                sample.angle += std::f64::consts::PI;
+            }
             result.push(sample);
         } else {
-            // Past end of path — still push last valid or skip
             result.push(PathSample { x: 0.0, y: 0.0, angle: 0.0 });
         }
-        dist += w;
+
+        dist = if i == 0 { dist + w } else { dist + spacing + w };
     }
+
     result
 }
 
 /// Generate an SVG path d-string from PathPoints.
+pub fn reverse_path_points(points: &[PathPoint]) -> Vec<PathPoint> {
+    points.iter().rev().map(|p| PathPoint {
+        x: p.x,
+        y: p.y,
+        handle_in_x: p.handle_out_x,
+        handle_in_y: p.handle_out_y,
+        handle_out_x: p.handle_in_x,
+        handle_out_y: p.handle_in_y,
+        stroke_width: p.stroke_width,
+    }).collect()
+}
+
 pub fn path_to_svg_d(points: &[PathPoint], closed: bool) -> String {
     if points.is_empty() { return String::new(); }
     let mut d = format!("M{},{}", points[0].x, points[0].y);

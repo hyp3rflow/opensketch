@@ -10323,6 +10323,8 @@ impl Engine {
         if let Some(node) = self.scene.get_node_mut(text_id) {
             node.text_path_id = None;
             node.text_path_offset = 0.0;
+            node.text_path_baseline_offset = 0.0;
+            node.text_path_flip = false;
         }
     }
 
@@ -10333,13 +10335,27 @@ impl Engine {
         }
     }
 
-    /// Get text-on-path info as JSON: { path_id, offset } or null.
+    pub fn set_text_path_baseline_offset(&mut self, text_id: u64, baseline_offset: f64) {
+        if let Some(node) = self.scene.get_node_mut(text_id) {
+            node.text_path_baseline_offset = baseline_offset.clamp(-200.0, 200.0);
+        }
+    }
+
+    pub fn set_text_path_flip(&mut self, text_id: u64, flip: bool) {
+        if let Some(node) = self.scene.get_node_mut(text_id) {
+            node.text_path_flip = flip;
+        }
+    }
+
+    /// Get text-on-path info as JSON: { path_id, offset, baseline_offset, flip } or null.
     pub fn get_text_path_info(&self, text_id: u64) -> String {
         if let Some(node) = self.scene.get_node(text_id) {
             if let Some(pid) = node.text_path_id {
                 return serde_json::json!({
                     "path_id": pid,
                     "offset": node.text_path_offset,
+                    "baseline_offset": node.text_path_baseline_offset,
+                    "flip": node.text_path_flip,
                 }).to_string();
             }
         }
@@ -10359,6 +10375,11 @@ impl Engine {
             None => return "[]".to_string(),
         };
         let offset = node.text_path_offset;
+        let flip = node.text_path_flip;
+        let letter_spacing = match &node.kind {
+            NodeKind::Text { letter_spacing, .. } => *letter_spacing,
+            _ => 0.0,
+        };
         let path_node = match self.scene.get_node(path_id) {
             Some(n) => n,
             None => return "[]".to_string(),
@@ -10368,7 +10389,7 @@ impl Engine {
             _ => return "[]".to_string(),
         };
         let widths: Vec<f64> = serde_json::from_str(char_widths_json).unwrap_or_default();
-        let samples = path_utils::text_positions_on_path(points, closed, &widths, offset);
+        let samples = path_utils::text_positions_on_path(points, closed, &widths, offset, letter_spacing, flip);
         let result: Vec<serde_json::Value> = samples.iter().map(|s| {
             serde_json::json!({"x": s.x, "y": s.y, "angle": s.angle})
         }).collect();

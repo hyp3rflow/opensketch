@@ -2221,6 +2221,12 @@ pub struct Node {
     /// Text-on-path offset along the path (0.0 = start, 1.0 = end)
     #[serde(default)]
     pub text_path_offset: f64,
+    /// Text-on-path baseline offset in px (+ moves away from path normal)
+    #[serde(default)]
+    pub text_path_baseline_offset: f64,
+    /// Text-on-path direction flip
+    #[serde(default)]
+    pub text_path_flip: bool,
     /// 3D perspective transform
     #[serde(default)]
     pub perspective: Option<Perspective3D>,
@@ -2373,6 +2379,8 @@ impl Node {
             absolute_position: false,
             text_path_id: None,
             text_path_offset: 0.0,
+            text_path_baseline_offset: 0.0,
+            text_path_flip: false,
             perspective: None,
             code_mapping: None,
             background_pattern: None,

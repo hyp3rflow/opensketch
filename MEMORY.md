@@ -1606,6 +1606,14 @@
 - Component Property Defaults — Variant별 Boolean/Text/Swap property 기본값 저장/초기화
 - Instance Override Diff Inspector — 인스턴스의 override 변경점만 필터링/일괄 reset
 
+## 완료된 기능 (추가 — Text on Path 고도화, 2026-04-06)
+- Text on Path 렌더링 품질 개선: 문자별 배치 시 letter spacing 반영
+- Baseline Offset 추가: 경로 법선 방향으로 텍스트 baseline 이동
+- Flip 옵션 추가: 경로 반대 방향/뒤집힌 방향으로 텍스트 배치
+- SVG export 확장: textPath에 letter-spacing / dy / side 속성 반영
+- Properties panel: Text Path 섹션에 Baseline 입력 + Flip 토글 추가
+- WASM API: set_text_path_baseline_offset, set_text_path_flip 추가
+
 ## 완료된 기능 (추가 — Text Style Lint Autofix, 2026-04-05)
 - Design Health > Typography 탭에 `Text Style Lint Autofix` 섹션 추가
 - 엔진: `get_text_style_lint_issues()`로 텍스트 노드별 drift/미연결 상태 분석(JSON)

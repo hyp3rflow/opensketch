@@ -265,8 +265,21 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
                         }
                         if node.opacity < 1.0 { attrs.push_str(&format!(r#" opacity="{}""#, node.opacity)); }
                         let offset_pct = (node.text_path_offset * 100.0).round();
-                        attrs.push_str(&format!("><textPath href=\"#{}\" startOffset=\"{}%\">{}</textPath></text>\n",
-                            def_id, offset_pct, escape_xml(content)));
+                        attrs.push_str(">\n");
+                        attrs.push_str("<textPath");
+                        attrs.push_str(&format!(" href=\"#{}\" startOffset=\"{}%\"", def_id, offset_pct));
+                        if *letter_spacing != 0.0 {
+                            attrs.push_str(&format!(r#" letter-spacing="{}""#, letter_spacing));
+                        }
+                        if node.text_path_baseline_offset != 0.0 {
+                            attrs.push_str(&format!(r#" dy="{}""#, node.text_path_baseline_offset));
+                        }
+                        if node.text_path_flip {
+                            attrs.push_str(r#" side="right""#);
+                        }
+                        attrs.push_str(">");
+                        attrs.push_str(&escape_xml(content));
+                        attrs.push_str("</textPath></text>\n");
                         buf.push_str(&attrs);
                         return;
                     }
