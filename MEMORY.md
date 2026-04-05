@@ -2222,8 +2222,14 @@
 - specs/FEATURES.md 반영
 
 ## 다음 할 것 (2026-04-06 업데이트)
-- Auto Layout Gap Handles — 캔버스에서 gap/padding을 직접 드래그 조절하는 on-canvas 핸들
 - Vector Boolean Live Preview — boolean 후보(Union/Subtract/Intersect/Exclude)를 hover 시 실시간 프리뷰
 - Text Styles Scale Tokens — 타입 스케일(예: 12/14/16/20/24/32) 토큰 세트 생성/적용 + 문서 전체 일괄 리맵
 - Prototype Fixed Header/Footer — 프로토타입 미리보기에서 frame 내 고정 레이어(스크롤 시 pin) 지원
 - Variable Modes Quick Switch — Prototype Variables 모드(Desktop/Mobile, Light/Dark 등)를 툴바 토글로 즉시 전환
+
+## 완료된 기능 (백로그 정리 27 — 이미 구현 확인, 2026-04-06)
+- ~~Auto Layout Gap Handles~~ ✅ 이미 구현 확인
+- 구현 위치:
+  - Tool: `packages/app/src/tools/spacing-handles.ts` (gap/padding 핸들 hit-test/drag)
+  - Editor 통합: `packages/app/src/editor.ts` (프레임 선택 시 on-canvas spacing handles 렌더/드래그 라우팅)
+- 스펙 반영 확인: `specs/FEATURES.md`의 Spacing Handles 관련 체크리스트 항목

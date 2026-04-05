@@ -1064,6 +1064,7 @@ Frame overflow control and content scrolling.
 - [x] Filters out invisible and absolute-positioned children
 - [x] Integrated into editor select tool (mousedown/mousemove/mouseup + render loop)
 - [x] Undo integration (push_undo before drag starts)
+- [x] 2026-04-06 backlog verification: feature is production-wired (tool + editor integration)
 
 ### Auto Layout Spacing Presets
 - [x] Spacing presets panel: XS(4) / S(8) / M(12) / Base(16) / L(24) / XL(32) / 2XL(48)
