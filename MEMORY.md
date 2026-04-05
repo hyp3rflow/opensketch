@@ -1591,10 +1591,16 @@
 - ~~Component Sets~~ ✅ 완료
 - ~~Multi-window / detachable panels — 패널을 별도 윈도우로 분리 (Layers, Properties, Agent 등)~~ ✅ 완료 (Handoff 탭 detach 지원 추가, 패널 목록 확장), window.open + postMessage 통신
 - ~~Figma-style Variants Matrix UI~~ ✅ 완료 (Component Set 인스턴스 편집에서 2D 매트릭스 표시 + 클릭 전환 + 빈 셀 드래그 매핑)
-- Smart selection filter — 선택 영역 내 특정 노드 타입만 필터링 (Figma "Select All with..." 확장), 정규식 이름 매칭, 깊이/속성 필터
+- ~~Smart selection filter — 선택 영역 내 특정 노드 타입만 필터링 (Figma "Select All with..." 확장), 정규식 이름 매칭, 깊이/속성 필터~~ ✅ 완료 (Smart Select 패널 Selection Filter 영역 + Filter Area 액션)
 - Scroll-to animation triggers — Prototype viewer에서 스크롤 위치 기반 애니메이션 트리거 (parallax, reveal-on-scroll), 트리거 threshold 설정
 - Conditional visibility — 변수/조건 기반 노드 visibility 토글 (if variable == value → show/hide), 프로토타입에서 동적 UI 시뮬레이션
 
+## 완료된 기능 (추가 — Smart Selection Filter, 2026-04-05)
+- Smart Select 패널에 `Selection Filter (Current Area)` 섹션 추가
+- Filter 조건: Node Type, Name regex, Max depth, Attr(visible/locked/text/image)
+- `Filter Area` 버튼으로 현재 selection bounds 범위 내 노드만 추출 후 조건 필터 적용
+- 조건 적용 결과를 즉시 selection으로 반영 + 결과 카운트 표시
+- invalid regex 안내 및 기존 Select Similar/Smart Group 플로우와 공존
 
 ## 완료된 기능 (추가 — Figma-style Variants Matrix UI, 2026-04-05)
 - Component Set 인스턴스 선택 시 Properties 패널에 `Variants Matrix (AxisX × AxisY)` 섹션 추가

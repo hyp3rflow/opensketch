@@ -12,7 +12,7 @@
 - [x] Hit testing (reverse render order, respects visibility/lock)
 - [x] Selection (single + multi-select + marquee drag-select, with resize handles)
 - [x] Smart Selection Net: marquee now supports Crossing/Contain modes (기본 Shift+X 토글, Alt로 임시 반전), drag 중 모드 라벨 표시, Frame/Group 내부 노드 우선 선택(Figma-like parent de-prioritization), Shortcut Manager에서 토글 키 커스텀 가능
-- [x] Smart Selection: Cmd+click deep select into Frame/Group, "Select All with Same Fill/Stroke/Font/Kind" via context menu, "Select Similar" dialog (Cmd+Shift+A) with configurable criteria (color distance, size ratio, opacity, corner radius, font, stroke width thresholds), similarity scoring, group suggestions, and one-click **Smart Group** (best suggestion auto-group + flex auto-layout)
+- [x] Smart Selection: Cmd+click deep select into Frame/Group, "Select All with Same Fill/Stroke/Font/Kind" via context menu, "Select Similar" dialog (Cmd+Shift+A) with configurable criteria (color distance, size ratio, opacity, corner radius, font, stroke width thresholds), similarity scoring, group suggestions, one-click **Smart Group** (best suggestion auto-group + flex auto-layout), and **Selection Filter (Current Area)** with node type / name regex / max-depth / attribute filters.
 - [x] Scene serialization (JSON export/import)
 - [x] Node operations: create, delete, move, resize, duplicate, reparent
 - [x] Name search (partial match, case-insensitive)
@@ -137,7 +137,7 @@
 - [x] **Copy** (Cmd+C): serialize selected nodes + subtrees to internal clipboard
 - [x] **Cut** (Cmd+X): copy + delete selected nodes
 - [x] **Paste** (Cmd+V): deserialize with new IDs, offset +10px per paste
-- [x] **Smart Paste to Frame**: flow-aware paste for auto-layout containers — (1) single selected frame/group: append into that container, (2) selected sibling nodes in same auto-layout parent: insert right after current selection block, (3) otherwise use frame under cursor as drop target.
+- [x] **Smart Paste to Frame**: flow-aware paste for auto-layout containers — (1) single selected frame/group: append into that container, (2) selected sibling nodes in same auto-layout parent: insert right after current selection block, (3) hover frame 우선(포인터 hit ancestor 포함) 자동 타겟팅, (4) fallback으로 frame under cursor drop-target 사용. Cmd+V와 Cmd+Shift+V(Paste in Place) 모두 동일 동작.
 - [x] **Duplicate** (Cmd+D): instant copy+paste with 10px offset
 - [x] Hierarchy preservation: children/parent relationships remapped
 - [x] Undo integration: all paste/cut operations push undo

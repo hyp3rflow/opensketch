@@ -250,6 +250,7 @@ export class Editor {
   private _cursorChat = new CursorChat();
   private _lastPointerScreenX = 0;
   private _lastPointerScreenY = 0;
+  private _smartPasteHoverFrameId: number | null = null;
 
   // Responsive auto-layout preview
   private _responsiveResize: ResponsiveResize | null = null;
@@ -1749,6 +1750,7 @@ export class Editor {
   private onPointerMove(e: PointerEvent) {
     this._lastPointerScreenX = e.offsetX;
     this._lastPointerScreenY = e.offsetY;
+    this._smartPasteHoverFrameId = this.resolveAutoLayoutFrameFromScreenPoint(e.offsetX, e.offsetY);
     if (this.isPanning) {
       const dx = e.clientX - this.lastPanX;
       const dy = e.clientY - this.lastPanY;
@@ -4910,8 +4912,34 @@ export class Editor {
     const siblingTarget = this.buildInsertAfterSelectionDropTarget(sourceSelection);
     if (siblingTarget) return siblingTarget;
 
-    // Priority 3: frame under pointer (using drag-reparent heuristics)
+    // Priority 3: hovered auto-layout frame (updated on pointer move)
+    if (this._smartPasteHoverFrameId != null && !pastedIds.includes(this._smartPasteHoverFrameId)) {
+      const hoverTarget = this.buildAppendDropTarget(this._smartPasteHoverFrameId);
+      if (hoverTarget) return hoverTarget;
+    }
+
+    // Priority 4: frame under pointer (using drag-reparent heuristics)
     return computeDropTarget(this.engine, sx, sy, new Set<number>(pastedIds));
+  }
+
+  private resolveAutoLayoutFrameFromScreenPoint(screenX: number, screenY: number): number | null {
+    try {
+      const hitBigInt = this.engine.hit_test(screenX, screenY);
+      if (hitBigInt == null) return null;
+      let currentId = Number(hitBigInt);
+
+      while (currentId > 0) {
+        const target = this.buildAppendDropTarget(currentId);
+        if (target) return target.frameId;
+
+        const parent = Number((this.engine as any).get_node_parent?.(BigInt(currentId)) ?? 0);
+        if (!Number.isFinite(parent) || parent <= 0 || parent === currentId) break;
+        currentId = parent;
+      }
+    } catch {
+      // ignore hit-test or parent traversal failures
+    }
+    return null;
   }
 
   private buildAppendDropTarget(frameId: number): DropTarget | null {
@@ -5024,9 +5052,16 @@ export class Editor {
 
   private pasteNodesInPlace() {
     if (this._clipboard) {
+      const sourceSelection = this.getSelection();
       this.engine.push_undo();
       const newIds = this.engine.paste_nodes(this._clipboard, 0, 0);
       const ids = JSON.parse(newIds).map(Number);
+
+      const pasteTarget = this.findSmartPasteTarget(sourceSelection, ids);
+      if (pasteTarget) {
+        executeDropReparent(this.engine, ids, pasteTarget);
+      }
+
       this.onLayersChanges.forEach(fn => fn());
       this.fireSelectionNow(ids);
       this.needsRender = true;

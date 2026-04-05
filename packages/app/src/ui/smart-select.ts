@@ -23,6 +23,13 @@ interface SmartSelectCriteria {
   stroke_width_threshold: number;
 }
 
+interface SelectionFilterState {
+  nodeKind: string;
+  nameRegex: string;
+  maxDepth: string;
+  attrFilter: 'any' | 'visible' | 'locked' | 'text' | 'image';
+}
+
 const DEFAULT_CRITERIA: SmartSelectCriteria = {
   fill_color: true,
   stroke_color: false,
@@ -41,15 +48,24 @@ const DEFAULT_CRITERIA: SmartSelectCriteria = {
   stroke_width_threshold: 1,
 };
 
+const DEFAULT_FILTER: SelectionFilterState = {
+  nodeKind: 'any',
+  nameRegex: '',
+  maxDepth: '',
+  attrFilter: 'any',
+};
+
 export class SmartSelectPanel {
   private el: HTMLDivElement | null = null;
   private editor: Editor;
   private criteria: SmartSelectCriteria;
+  private filter: SelectionFilterState;
   private referenceId: number = 0;
 
   constructor(editor: Editor) {
     this.editor = editor;
     this.criteria = { ...DEFAULT_CRITERIA };
+    this.filter = { ...DEFAULT_FILTER };
   }
 
   open(referenceId: number) {
@@ -96,9 +112,44 @@ export class SmartSelectPanel {
           ${this.slider('color_threshold', 'Color Distance', 0, 200, 1)}
           ${this.slider('size_threshold', 'Size Ratio', 0, 1, 0.05)}
         </div>
+        <div class="ssp-section">
+          <label class="ssp-label">Selection Filter (Current Area)</label>
+          <div class="ssp-slider-row">
+            <span>Node Type</span>
+            <select data-filter="nodeKind" style="width:120px;background:#111;color:#fff;border:1px solid #333;border-radius:6px;padding:4px;">
+              <option value="any" ${this.filter.nodeKind === 'any' ? 'selected' : ''}>Any</option>
+              <option value="Rect" ${this.filter.nodeKind === 'Rect' ? 'selected' : ''}>Rect</option>
+              <option value="Ellipse" ${this.filter.nodeKind === 'Ellipse' ? 'selected' : ''}>Ellipse</option>
+              <option value="Text" ${this.filter.nodeKind === 'Text' ? 'selected' : ''}>Text</option>
+              <option value="Frame" ${this.filter.nodeKind === 'Frame' ? 'selected' : ''}>Frame</option>
+              <option value="Group" ${this.filter.nodeKind === 'Group' ? 'selected' : ''}>Group</option>
+              <option value="Path" ${this.filter.nodeKind === 'Path' ? 'selected' : ''}>Path</option>
+              <option value="Image" ${this.filter.nodeKind === 'Image' ? 'selected' : ''}>Image</option>
+            </select>
+          </div>
+          <div class="ssp-slider-row">
+            <span>Name regex</span>
+            <input data-filter="nameRegex" value="${this.filter.nameRegex}" placeholder="ex: ^btn|icon" style="width:120px;background:#111;color:#fff;border:1px solid #333;border-radius:6px;padding:4px;" />
+          </div>
+          <div class="ssp-slider-row">
+            <span>Max depth</span>
+            <input data-filter="maxDepth" value="${this.filter.maxDepth}" placeholder="blank=any" style="width:120px;background:#111;color:#fff;border:1px solid #333;border-radius:6px;padding:4px;" />
+          </div>
+          <div class="ssp-slider-row">
+            <span>Attr</span>
+            <select data-filter="attrFilter" style="width:120px;background:#111;color:#fff;border:1px solid #333;border-radius:6px;padding:4px;">
+              <option value="any" ${this.filter.attrFilter === 'any' ? 'selected' : ''}>Any</option>
+              <option value="visible" ${this.filter.attrFilter === 'visible' ? 'selected' : ''}>Visible only</option>
+              <option value="locked" ${this.filter.attrFilter === 'locked' ? 'selected' : ''}>Locked only</option>
+              <option value="text" ${this.filter.attrFilter === 'text' ? 'selected' : ''}>Text only</option>
+              <option value="image" ${this.filter.attrFilter === 'image' ? 'selected' : ''}>Image only</option>
+            </select>
+          </div>
+        </div>
         <div class="ssp-result" id="ssp-result">—</div>
       </div>
       <div class="ssp-footer">
+        <button class="ssp-btn ssp-btn-filter" title="Filter nodes inside current selection area">Filter Area</button>
         <button class="ssp-btn ssp-btn-suggest" title="AI suggests groups of similar nodes">Suggest Groups</button>
         <button class="ssp-btn ssp-btn-group" title="Group best similar set and auto-apply layout">Smart Group</button>
         <button class="ssp-btn ssp-btn-apply">Apply</button>
@@ -146,6 +197,25 @@ export class SmartSelectPanel {
 
     this.el.querySelector('.ssp-btn-apply')?.addEventListener('click', () => this.close());
 
+    this.el.querySelectorAll('[data-filter]').forEach(inp => {
+      inp.addEventListener('input', () => {
+        const key = (inp as HTMLElement).getAttribute('data-filter') as keyof SelectionFilterState;
+        if (!key) return;
+        const value = (inp as HTMLInputElement).value;
+        (this.filter as any)[key] = value;
+      });
+      inp.addEventListener('change', () => {
+        const key = (inp as HTMLElement).getAttribute('data-filter') as keyof SelectionFilterState;
+        if (!key) return;
+        const value = (inp as HTMLInputElement).value;
+        (this.filter as any)[key] = value;
+      });
+    });
+
+    this.el.querySelector('.ssp-btn-filter')?.addEventListener('click', () => {
+      this.applyAreaFilter();
+    });
+
     this.el.querySelector('.ssp-btn-suggest')?.addEventListener('click', () => {
       this.showGroupSuggestions();
     });
@@ -181,6 +251,78 @@ export class SmartSelectPanel {
     }
     this.editor.onSelectionChanged?.();
     this.editor.render();
+  }
+
+  private applyAreaFilter() {
+    const engine = this.editor.engine;
+    if (!engine) return;
+
+    const boundsJson = engine.get_selection_bounds();
+    if (!boundsJson) {
+      alert('Select an area or nodes first, then run Filter Area.');
+      return;
+    }
+
+    let b: number[];
+    try { b = JSON.parse(boundsJson); } catch { return; }
+    if (!Array.isArray(b) || b.length < 4) return;
+
+    const [minX, minY, maxX, maxY] = b;
+    const width = Math.max(1, maxX - minX);
+    const height = Math.max(1, maxY - minY);
+    const candidateIds = Array.from(engine.get_visible_node_ids(minX, minY, width, height)).map(Number);
+
+    let re: RegExp | null = null;
+    const regexText = (this.filter.nameRegex || '').trim();
+    if (regexText) {
+      try { re = new RegExp(regexText, 'i'); }
+      catch {
+        alert('Invalid regex pattern.');
+        return;
+      }
+    }
+
+    const maxDepth = this.filter.maxDepth.trim() === '' ? null : Number(this.filter.maxDepth);
+    const filtered = candidateIds.filter((id) => {
+      const json = engine.get_node_json(BigInt(id));
+      if (!json) return false;
+
+      let node: any;
+      try { node = JSON.parse(json); } catch { return false; }
+
+      if (this.filter.nodeKind !== 'any' && node.kind !== this.filter.nodeKind) return false;
+      if (re && !re.test(String(node.name || ''))) return false;
+
+      if (maxDepth != null && Number.isFinite(maxDepth) && maxDepth >= 0) {
+        if (this.getTreeDepth(id) > maxDepth) return false;
+      }
+
+      if (this.filter.attrFilter === 'visible' && node.visible === false) return false;
+      if (this.filter.attrFilter === 'locked' && node.locked !== true) return false;
+      if (this.filter.attrFilter === 'text' && node.kind !== 'Text') return false;
+      if (this.filter.attrFilter === 'image' && node.kind !== 'Image') return false;
+
+      return true;
+    });
+
+    (engine as any).set_selection?.(filtered.map(id => BigInt(id)));
+    const resultEl = this.el?.querySelector('#ssp-result');
+    if (resultEl) resultEl.textContent = `${filtered.length} node${filtered.length !== 1 ? 's' : ''} in filtered area`;
+    this.editor.onSelectionChanged?.();
+    this.editor.render();
+  }
+
+  private getTreeDepth(nodeId: number): number {
+    const engine = this.editor.engine as any;
+    let depth = 0;
+    let cur = nodeId;
+    while (cur > 0 && depth < 200) {
+      const parent = Number(engine.get_node_parent?.(BigInt(cur)) ?? 0);
+      if (!Number.isFinite(parent) || parent <= 0 || parent === cur) break;
+      depth += 1;
+      cur = parent;
+    }
+    return depth;
   }
 
   private showGroupSuggestions() {
