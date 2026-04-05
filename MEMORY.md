@@ -2162,3 +2162,12 @@
 - Frame/Group/Section 겹침 시 자식 노드 우선 선택(컨테이너 de-prioritize, Figma 유사)
 - specs/FEATURES.md에 동작 명세 반영
 
+## 완료된 기능 (추가 — Text on Path 완성, 2026-04-06)
+- Text on Path를 end-to-end 마무리: baseline offset / letter spacing / flip 방향 제어 정합성 보강
+- Rust path_utils: glyph advance 계산에 letter spacing/flip 반영, reverse_path_points 유틸 추가
+- Rust render: text-on-path 렌더에서 baseline normal offset + flipped tangent 처리 일원화
+- Rust SVG export: flipped path defs(reverse path) + textPath letter-spacing/dy 반영
+- WASM/Engine: get_text_on_path_positions가 텍스트 노드 letter spacing/flip 설정을 함께 반영
+- Properties panel: Text Path 섹션에 path letter spacing 입력 추가(기존 baseline/flip/offset과 통합)
+- specs/FEATURES.md 업데이트
+

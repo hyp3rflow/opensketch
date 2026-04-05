@@ -1087,6 +1087,7 @@ Frame overflow control and content scrolling.
 - [x] WASM: set_text_path, clear_text_path, set_text_path_offset, set_text_path_baseline_offset, set_text_path_flip, get_text_path_info, get_text_on_path_positions, get_path_svg_d
 - [x] Properties panel: Text Path section — attach/detach, offset slider, baseline input, path letter-spacing input, flip toggle, path name display
 - [x] Backward-compatible serde defaults
+- [x] 2026-04-06 polish: get_text_on_path_positions now includes baseline-offset-adjusted coordinates for downstream UI overlays/tools
 
 ## Animation Timeline (Keyframe Animation)
 - [x] Rust: animation.rs — Easing (Linear/EaseIn/EaseOut/EaseInOut/CubicBezier), AnimProperty (x/y/width/height/rotation/opacity/corner_radius/blur/fill colors/stroke_width), Keyframe, AnimationTrack, AnimationClip, AnimationStore

@@ -5936,7 +5936,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           pathLsRow.className = "prop-row";
           const pathLsLabel = document.createElement("span");
           pathLsLabel.className = "prop-label";
-          pathLsLabel.textContent = "Letter Spacing";
+          pathLsLabel.textContent = "Path Letter Spacing";
           pathLsRow.appendChild(pathLsLabel);
           const pathLsInput = document.createElement("input");
           pathLsInput.type = "number";

@@ -10389,9 +10389,16 @@ impl Engine {
             _ => return "[]".to_string(),
         };
         let widths: Vec<f64> = serde_json::from_str(char_widths_json).unwrap_or_default();
+        let baseline_offset = node.text_path_baseline_offset;
         let samples = path_utils::text_positions_on_path(points, closed, &widths, offset, letter_spacing, flip);
         let result: Vec<serde_json::Value> = samples.iter().map(|s| {
-            serde_json::json!({"x": s.x, "y": s.y, "angle": s.angle})
+            let nx = -s.angle.sin();
+            let ny = s.angle.cos();
+            serde_json::json!({
+                "x": s.x + nx * baseline_offset,
+                "y": s.y + ny * baseline_offset,
+                "angle": s.angle
+            })
         }).collect();
         serde_json::to_string(&result).unwrap_or_else(|_| "[]".to_string())
     }
