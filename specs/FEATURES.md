@@ -1566,6 +1566,7 @@ Frame overflow control and content scrolling.
   - Rust engine: `CornerPin` struct + Node `corner_pin` 필드 (serde default, backward compatible)
   - WASM bindings: `set_corner_pin`, `get_corner_pin`, `clear_corner_pin`
   - Canvas rendering: Image/Frame 노드를 2-triangle affine warp로 렌더 (flat draw 제거 후 재투영)
+  - Frame corner pin은 프레임 영역을 캔버스 스냅샷으로 캡처해 자식 콘텐츠까지 함께 왜곡
   - Properties panel: Image + Frame 섹션에 Corner Pin 8개 수치 입력 + Reset
 
 ## 106. AI Code-to-Design (HTML/CSS → Nodes)

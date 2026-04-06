@@ -5661,13 +5661,6 @@ export class Editor {
       const br = { x: x + (cp.br_x ?? 1) * w, y: y + (cp.br_y ?? 1) * h };
       const bl = { x: x + (cp.bl_x ?? 0) * w, y: y + (cp.bl_y ?? 1) * h };
 
-      // Erase flat image drawn by renderImages first
-      this.ctx.save();
-      this.ctx.globalCompositeOperation = "destination-out";
-      this.ctx.fillStyle = "rgba(0,0,0,1)";
-      this.ctx.fillRect(x, y, w, h);
-      this.ctx.restore();
-
       const off = new OffscreenCanvas(Math.max(1, Math.round(w)), Math.max(1, Math.round(h)));
       const oc = off.getContext("2d");
       if (!oc) continue;
@@ -5680,9 +5673,27 @@ export class Editor {
         if (!img || !img.complete || img.naturalWidth === 0) continue;
         oc.drawImage(img, 0, 0, off.width, off.height);
       } else if (isFrame) {
-        // Frame warp snapshot (fill/stroke baseline). Children remain in regular render pass.
-        this.renderNodeToCtx(oc as any, node, 0, 0);
+        // Frame warp snapshot: capture current canvas region so child content warps together.
+        const dpr = window.devicePixelRatio || 1;
+        oc.drawImage(
+          this.canvas,
+          x * dpr,
+          y * dpr,
+          w * dpr,
+          h * dpr,
+          0,
+          0,
+          off.width,
+          off.height,
+        );
       }
+
+      // Erase flat-rendered original area before drawing warped result
+      this.ctx.save();
+      this.ctx.globalCompositeOperation = "destination-out";
+      this.ctx.fillStyle = "rgba(0,0,0,1)";
+      this.ctx.fillRect(x, y, w, h);
+      this.ctx.restore();
 
       const sw = off.width;
       const sh = off.height;
