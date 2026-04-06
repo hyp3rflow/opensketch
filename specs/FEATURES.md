@@ -1854,6 +1854,8 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - Prototype viewer: 보라색 핫스팟 힌트 (SwapVariant 인터랙션 표시)
 - WASM: set_interaction_variant_key(id, index, json) 바인딩
 - Backward-compatible serde (variant_key_json 기본값 빈 문자열)
+- [x] Interactive Components v2: Properties panel `INTERACTIVE VARIANTS`에 `Auto-map` 버튼 추가 (variant property 옵션에서 hover/press/focus/disabled 상태값 자동 매핑)
+- [x] Interactive Components v2: `Sync triggers` 버튼으로 현재 interactive state 매핑을 OnHover/OnPress 기반 `SwapVariant` 프로토타입 트리거와 연결
 
 ### Canvas Object Search & Filter
 - [x] Rust engine: Scene.filter_nodes(criteria_json) — 노드 타입, fill/stroke color, opacity range, visibility, locked, has_text, name pattern 기반 필터링

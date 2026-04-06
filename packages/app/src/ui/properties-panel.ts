@@ -1581,11 +1581,11 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         }
       } catch {}
 
-      // === Interactive Variants (hover/press/focus/disabled) ===
+      // === Interactive Variants v2 (variant-property aware + prototype trigger linkage) ===
       try {
         const ivJson = editor.engine.get_interactive_variants(BigInt(id));
-        const interactiveVariants: Record<string, Record<string, any>> = JSON.parse(ivJson);
-        const INTERACTIVE_STATES = ["hover", "press", "focus", "disabled"];
+        const interactiveVariants: Record<string, Record<string, any>> = JSON.parse(ivJson || "{}");
+        const INTERACTIVE_STATES = ["hover", "press", "focus", "disabled"] as const;
 
         const ivSection = document.createElement("div");
         ivSection.style.cssText = `
@@ -1593,13 +1593,146 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           background:rgba(236,72,153,0.06); border:1px solid rgba(236,72,153,0.15);
           border-radius:8px;
         `;
+        const ivTitleRow = document.createElement("div");
+        ivTitleRow.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:6px;";
         const ivTitle = document.createElement("div");
-        ivTitle.style.cssText = "font-size:10px;color:#ec4899;letter-spacing:0.3px;margin-bottom:6px;font-weight:600;";
+        ivTitle.style.cssText = "font-size:10px;color:#ec4899;letter-spacing:0.3px;font-weight:600;";
         ivTitle.textContent = "INTERACTIVE VARIANTS";
-        ivSection.appendChild(ivTitle);
+        ivTitleRow.appendChild(ivTitle);
+
+        const controlRow = document.createElement("div");
+        controlRow.style.cssText = "display:flex;align-items:center;gap:4px;";
+
+        const autoMapBtn = document.createElement("button");
+        autoMapBtn.textContent = "Auto-map";
+        autoMapBtn.style.cssText = "background:rgba(236,72,153,0.15);border:1px solid rgba(236,72,153,0.32);border-radius:4px;color:#f9a8d4;padding:1px 6px;font-size:10px;cursor:pointer;";
+
+        const syncBtn = document.createElement("button");
+        syncBtn.textContent = "Sync triggers";
+        syncBtn.style.cssText = "background:rgba(236,72,153,0.08);border:1px solid rgba(236,72,153,0.28);border-radius:4px;color:#fbcfe8;padding:1px 6px;font-size:10px;cursor:pointer;";
+
+        controlRow.appendChild(autoMapBtn);
+        controlRow.appendChild(syncBtn);
+        ivTitleRow.appendChild(controlRow);
+        ivSection.appendChild(ivTitleRow);
 
         // Collect available variant key strings from component info
         const variantKeyStrs: string[] = compInfo.variant_keys || [];
+
+        const decodeVariantValue = (v: any): string => {
+          if (typeof v === "object" && v !== null) {
+            if ("String" in v) return String((v as any).String);
+            if ("Boolean" in v) return String((v as any).Boolean);
+          }
+          return String(v ?? "");
+        };
+
+        const encodeVariantValue = (v: string): any => {
+          if (v === "true") return { Boolean: true };
+          if (v === "false") return { Boolean: false };
+          return { String: v };
+        };
+
+        const buildVariantKeyFromString = (s: string): Record<string, any> => {
+          const obj: Record<string, any> = {};
+          for (const part of s.split(",")) {
+            const [rawK, ...rest] = part.split("=");
+            const k = (rawK || "").trim();
+            const v = rest.join("=").trim();
+            if (!k) continue;
+            obj[k] = encodeVariantValue(v);
+          }
+          return obj;
+        };
+
+        const stringifyVariantKey = (obj: Record<string, any>): string => {
+          return Object.entries(obj)
+            .map(([k, v]) => `${k}=${decodeVariantValue(v)}`)
+            .sort()
+            .join(",");
+        };
+
+        const findStateProp = () => {
+          const props = Array.isArray(compInfo.properties) ? compInfo.properties : [];
+          const scoreState = (opt: string) => {
+            const t = opt.toLowerCase();
+            if (t === "default") return 1;
+            if (["hover", "pressed", "press", "focused", "focus", "disabled"].includes(t)) return 2;
+            return 0;
+          };
+          let best: { name: string; options: string[]; score: number } | null = null;
+          for (const p of props) {
+            if (!p || p?.type?.kind !== "string") continue;
+            const options: string[] = Array.isArray(p?.type?.options) ? p.type.options : [];
+            if (!options.length) continue;
+            const lowerName = String(p.name || "").toLowerCase();
+            const score = options.reduce((acc, o) => acc + scoreState(String(o)), 0) + (lowerName.includes("state") ? 3 : 0);
+            if (score <= 0) continue;
+            if (!best || score > best.score) best = { name: String(p.name), options: options.map((x) => String(x)), score };
+          }
+          return best;
+        };
+
+        const pickStateOption = (options: string[], state: typeof INTERACTIVE_STATES[number]): string | null => {
+          const wanted = {
+            hover: ["hover"],
+            press: ["pressed", "press", "active"],
+            focus: ["focus", "focused"],
+            disabled: ["disabled"],
+          }[state];
+          for (const w of wanted) {
+            const found = options.find((o) => o.toLowerCase() === w);
+            if (found) return found;
+          }
+          return null;
+        };
+
+        const syncSwapVariantInteractions = () => {
+          try {
+            const interJson = editor.engine.get_interactions(BigInt(id));
+            const interactions = JSON.parse(interJson || "[]");
+            const triggerMap: Record<string, string> = { hover: "OnHover", press: "OnPress", focus: "OnHover" };
+
+            for (const state of ["hover", "press", "focus"] as const) {
+              const vk = interactiveVariants[state];
+              if (!vk) continue;
+              const trigger = triggerMap[state];
+              let idx = interactions.findIndex((it: any) => it.action === "SwapVariant" && it.trigger === trigger);
+              if (idx < 0) {
+                idx = editor.engine.add_interaction(BigInt(id), trigger, "swap-variant", BigInt(id), BigInt(0), "instant", 0, "linear");
+                if (idx < 0) continue;
+              }
+              editor.engine.set_interaction_variant_key(BigInt(id), idx, JSON.stringify(vk));
+            }
+          } catch {}
+        };
+
+        autoMapBtn.onclick = () => {
+          const stateProp = findStateProp();
+          if (!stateProp) {
+            alert("No suitable variant state property found (expected options like default/hover/pressed/disabled).");
+            return;
+          }
+          const currentValues: Record<string, string> = compInfo.current_variant_values || {};
+          editor.pushUndo();
+          for (const state of INTERACTIVE_STATES) {
+            const stateOpt = pickStateOption(stateProp.options, state);
+            if (!stateOpt) continue;
+            const keyObj: Record<string, any> = {};
+            for (const [k, v] of Object.entries(currentValues)) keyObj[k] = encodeVariantValue(String(v));
+            keyObj[stateProp.name] = encodeVariantValue(stateOpt);
+            editor.engine.set_interactive_variant(BigInt(id), state, JSON.stringify(keyObj));
+          }
+          editor.requestRender();
+          updatePanel();
+        };
+
+        syncBtn.onclick = () => {
+          editor.pushUndo();
+          syncSwapVariantInteractions();
+          editor.requestRender();
+          updatePanel();
+        };
 
         for (const state of INTERACTIVE_STATES) {
           const row = document.createElement("div");
@@ -1613,13 +1746,11 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           const select = document.createElement("select");
           select.style.cssText = "flex:1;background:#1e1e2e;color:#e5e7eb;border:1px solid rgba(236,72,153,0.3);border-radius:4px;padding:2px 4px;font-size:10px;";
 
-          // "None" option
           const noneOpt = document.createElement("option");
           noneOpt.value = "";
           noneOpt.textContent = "— None —";
           select.appendChild(noneOpt);
 
-          // Add each variant key as an option
           for (const vkStr of variantKeyStrs) {
             const opt = document.createElement("option");
             opt.value = vkStr;
@@ -1627,36 +1758,15 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             select.appendChild(opt);
           }
 
-          // Set current value
           const currentKey = interactiveVariants[state];
-          if (currentKey) {
-            const currentStr = Object.entries(currentKey)
-              .map(([k, v]) => {
-                const val = typeof v === 'object' && v !== null && 'String' in (v as any) ? (v as any).String : (typeof v === 'object' && v !== null && 'Boolean' in (v as any) ? (v as any).Boolean : v);
-                return `${k}=${val}`;
-              })
-              .sort()
-              .join(",");
-            select.value = currentStr;
-          }
+          if (currentKey) select.value = stringifyVariantKey(currentKey);
 
           select.onchange = () => {
             editor.pushUndo();
             if (select.value === "") {
               editor.engine.clear_interactive_variant(BigInt(id), state);
             } else {
-              // Parse variant key string "prop1=val1,prop2=val2" back to JSON
-              const parts = select.value.split(",");
-              const keyObj: Record<string, any> = {};
-              for (const part of parts) {
-                const [k, v] = part.split("=");
-                if (k) {
-                  if (v === "true") keyObj[k] = { "Boolean": true };
-                  else if (v === "false") keyObj[k] = { "Boolean": false };
-                  else keyObj[k] = { "String": v };
-                }
-              }
-              editor.engine.set_interactive_variant(BigInt(id), state, JSON.stringify(keyObj));
+              editor.engine.set_interactive_variant(BigInt(id), state, JSON.stringify(buildVariantKeyFromString(select.value)));
             }
             editor.requestRender();
             updatePanel();
@@ -1668,7 +1778,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
 
         const ivHint = document.createElement("div");
         ivHint.style.cssText = "font-size:9px;color:#6b7280;font-style:italic;margin-top:4px;";
-        ivHint.textContent = "Map states to variants for prototype viewer interaction";
+        ivHint.textContent = "Auto-map uses a state-like variant property; Sync triggers creates/updates SwapVariant prototype triggers.";
         ivSection.appendChild(ivHint);
 
         header.appendChild(ivSection);
