@@ -2221,8 +2221,15 @@
 - 기존 trigger/action/target/transition/duration 변경 시 timeline/variant가 보존되도록 interaction 재생성 로직 정리
 - specs/FEATURES.md 반영
 
+## 완료된 기능 (추가 — Prototype Fixed Header/Footer MVP, 2026-04-06)
+- Node 필드 확장: `prototype_fixed: bool` (serde default, 기존 문서와 호환)
+- WASM API 추가: `set_prototype_fixed(id, fixed)`, `get_prototype_fixed(id)`
+- Properties panel: 스크롤 가능한 부모 프레임의 자식 노드에 `Fixed in prototype` 체크박스 추가
+- Prototype Viewer: 프레임 스크롤 시 `prototype_fixed` 노드를 스크롤 오프셋 반대로 임시 보정해 header/footer처럼 고정 유지
+- 렌더 후 노드 x/y를 원복하는 백업/복원 경로 추가
+- specs/FEATURES.md 반영
+
 ## 다음 할 것 (2026-04-06 업데이트)
-- Prototype Fixed Header/Footer — 프로토타입 미리보기에서 frame 내 고정 레이어(스크롤 시 pin) 지원 (중난이도 / 고임팩트)
 - Variable Modes Quick Switch — Prototype Variables 모드(Desktop/Mobile, Light/Dark 등)를 툴바 토글로 즉시 전환 (저난이도 / 중임팩트)
 - Component Properties Panel (Instance Controls) — Figma처럼 인스턴스 선택 시 variant/property 토글/텍스트 override를 한 카드에서 편집 (중난이도 / 고임팩트)
 - Smart Select Spacing Handles Upgrade — 인접 노드 간 간격 핸들에서 숫자 직접 입력·균등 분배·Auto Layout 변환 제안 (중난이도 / 고임팩트)

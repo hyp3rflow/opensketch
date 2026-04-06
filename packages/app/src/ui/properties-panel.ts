@@ -8210,6 +8210,26 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             refresh(ids);
           });
           snapAlignSection.appendChild(snapAlignSelect);
+
+          // Prototype fixed layer (header/footer) for scrollable parent frames
+          const fixedRow = document.createElement("label");
+          fixedRow.style.cssText = "display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:8px;";
+          const fixedCb = document.createElement("input");
+          fixedCb.type = "checkbox";
+          fixedCb.checked = !!(editor.engine as any).get_prototype_fixed?.(BigInt(id));
+          fixedCb.style.cssText = "accent-color:#4f46e5;";
+          fixedCb.addEventListener("change", () => {
+            editor.engine.push_undo();
+            (editor.engine as any).set_prototype_fixed?.(BigInt(id), fixedCb.checked);
+            editor.requestRender();
+            refresh(ids);
+          });
+          const fixedLabel = document.createElement("span");
+          fixedLabel.style.cssText = "font-size:11px;color:#aaa;";
+          fixedLabel.textContent = "Fixed in prototype";
+          fixedRow.append(fixedCb, fixedLabel);
+          snapAlignSection.appendChild(fixedRow);
+
           panel.appendChild(snapAlignSection);
         }
       }

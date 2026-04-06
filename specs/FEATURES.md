@@ -2341,3 +2341,10 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Repeat Grid auto-expands rows to fit incoming data
 - [x] Repeat Grid per-cell overrides render both `text_content` and `image_src`
 - [x] Local data source persistence (`localStorage`)
+
+### Prototype Fixed Header/Footer (MVP, 2026-04-06)
+- [x] Node 모델에 `prototype_fixed: bool` 필드 추가 (serde default, backward-compatible)
+- [x] WASM API: `set_prototype_fixed(id, fixed)`, `get_prototype_fixed(id)`
+- [x] Properties panel: 부모가 scroll frame인 자식 노드에서 `Fixed in prototype` 토글 제공
+- [x] Prototype viewer: 현재 프레임 scroll offset을 기준으로 fixed 노드 x/y를 렌더 직전 반대 방향 보정해 고정 레이어처럼 표시
+- [x] 렌더 후 원본 x/y 백업 복원으로 편집 상태 오염 방지

@@ -1238,55 +1238,85 @@ export function createPrototypeViewer(editor: Editor): {
    * apply scroll animation property overrides, and return backups.
    */
   function applyScrollAnimsForRender(ed: Editor): ScrollAnimBackup[] {
-    const backups: ScrollAnimBackup[] = [];
+    const backupMap = new Map<number, ScrollAnimBackup>();
+    const getBackup = (nodeId: number) => {
+      let b = backupMap.get(nodeId);
+      if (!b) {
+        b = { nodeId };
+        backupMap.set(nodeId, b);
+      }
+      return b;
+    };
+
     try {
       // Determine current scroll offset (sum of all scrollable ancestors)
       let scrollY = 0;
+      let frameScrollX = 0;
+      let frameScrollY = 0;
       if (currentFrameId !== null) {
         const so = JSON.parse(ed.engine.get_scroll_offset(BigInt(currentFrameId)));
         scrollY = -so.y; // scroll_offset is negative (content moves up)
+        frameScrollX = so.x || 0;
+        frameScrollY = so.y || 0;
       }
 
       const overrides = computeScrollAnimOverrides(ed.engine, scrollY);
       for (const [nodeId, props] of overrides) {
-        const backup: ScrollAnimBackup = { nodeId };
+        const backup = getBackup(nodeId);
         const nj = ed.engine.get_node_json(nodeId);
         if (!nj) continue;
         const nd = JSON.parse(nj);
 
         if ("opacity" in props) {
-          backup.opacity = nd.opacity ?? 1;
+          if (backup.opacity === undefined) backup.opacity = nd.opacity ?? 1;
           ed.engine.set_opacity(BigInt(nodeId), props.opacity);
         }
         if ("x" in props) {
-          backup.x = nd.x ?? 0;
+          if (backup.x === undefined) backup.x = nd.x ?? 0;
           ed.engine.set_x(BigInt(nodeId), props.x);
         }
         if ("y" in props) {
-          backup.y = nd.y ?? 0;
+          if (backup.y === undefined) backup.y = nd.y ?? 0;
           ed.engine.set_y(BigInt(nodeId), props.y);
         }
         if ("rotation" in props) {
-          backup.rotation = nd.rotation ?? 0;
+          if (backup.rotation === undefined) backup.rotation = nd.rotation ?? 0;
           ed.engine.set_rotation(BigInt(nodeId), props.rotation);
         }
         if ("blur" in props) {
-          backup.blur = nd.blur ?? 0;
+          if (backup.blur === undefined) backup.blur = nd.blur ?? 0;
           ed.engine.set_blur(BigInt(nodeId), props.blur);
         }
-        // scale: apply as uniform scale via width/height ratio (simplified)
-        if ("scale" in props) {
-          // For scale, we modify the node's transform scale (if available)
-          // Fallback: adjust width/height proportionally
-          // Note: actual scale transform would need engine support
-        }
-
-        backups.push(backup);
       }
-    } catch (e) {
+
+      // Prototype fixed layers: keep node visually pinned while current frame scrolls
+      if (currentFrameId !== null && (frameScrollX !== 0 || frameScrollY !== 0)) {
+        const frameJson = ed.engine.get_node_json(BigInt(currentFrameId));
+        if (frameJson) {
+          const frameNode = JSON.parse(frameJson);
+          const stack: number[] = [...(frameNode.children || [])];
+          while (stack.length > 0) {
+            const nodeId = Number(stack.pop());
+            const nj = ed.engine.get_node_json(BigInt(nodeId));
+            if (!nj) continue;
+            const nd = JSON.parse(nj);
+            const children: number[] = nd.children || [];
+            for (const cid of children) stack.push(Number(cid));
+
+            const isFixed = !!(ed.engine as any).get_prototype_fixed?.(BigInt(nodeId));
+            if (!isFixed) continue;
+
+            const backup = getBackup(nodeId);
+            if (backup.x === undefined) backup.x = nd.x ?? 0;
+            if (backup.y === undefined) backup.y = nd.y ?? 0;
+            ed.engine.set_node_position(BigInt(nodeId), (nd.x ?? 0) - frameScrollX, (nd.y ?? 0) - frameScrollY);
+          }
+        }
+      }
+    } catch {
       // Silently fail — don't break prototype viewer
     }
-    return backups;
+    return Array.from(backupMap.values());
   }
 
   /** Restore node properties from backups after rendering */

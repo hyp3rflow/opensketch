@@ -7660,6 +7660,20 @@ impl Engine {
     }
 
     // =============================================
+    // Prototype fixed layer (for scrollable prototype frames)
+    // =============================================
+
+    pub fn set_prototype_fixed(&mut self, id: u64, fixed: bool) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            node.prototype_fixed = fixed;
+        }
+    }
+
+    pub fn get_prototype_fixed(&self, id: u64) -> bool {
+        self.scene.get_node(id).map(|n| n.prototype_fixed).unwrap_or(false)
+    }
+
+    // =============================================
     // Constraints
     // =============================================
 

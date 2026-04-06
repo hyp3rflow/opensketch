@@ -2283,6 +2283,9 @@ pub struct Node {
     /// Scroll-driven animations (animate properties based on parent frame scroll position)
     #[serde(default)]
     pub scroll_animations: Vec<ScrollAnimation>,
+    /// Keep node fixed in Prototype viewer when parent scrolls (header/footer style)
+    #[serde(default)]
+    pub prototype_fixed: bool,
     /// Alt text for Image nodes (accessibility / screen readers)
     #[serde(default)]
     pub alt_text: Option<String>,
@@ -2424,6 +2427,7 @@ impl Node {
             text_flow_next: None,
             resource_links: vec![],
             scroll_animations: vec![],
+            prototype_fixed: false,
             alt_text: None,
             anchors: vec![],
             hyperlink: None,
