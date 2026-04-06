@@ -52,6 +52,12 @@ pub struct TextStyle {
     pub color_g: u8,
     pub color_b: u8,
     pub color_a: f64,
+    #[serde(default)]
+    pub letter_spacing: f64,
+    #[serde(default)]
+    pub opentype_features: crate::node::OpenTypeFeatures,
+    #[serde(default)]
+    pub font_variation_settings: std::collections::BTreeMap<String, f64>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
@@ -124,6 +130,9 @@ impl StyleStore {
         self.text_styles.insert(id, TextStyle {
             id, name, font_family, font_size, font_weight, font_style, line_height, text_align,
             color_r: r, color_g: g, color_b: b, color_a: a,
+            letter_spacing: 0.0,
+            opentype_features: crate::node::OpenTypeFeatures::default(),
+            font_variation_settings: std::collections::BTreeMap::new(),
         });
         id
     }
@@ -139,8 +148,19 @@ impl StyleStore {
                     s.font_style = if v == "Italic" { FontStyle::Italic } else { FontStyle::Normal };
                 }
                 if let Some(v) = updates.get("line_height").and_then(|v| v.as_f64()) { s.line_height = v; }
+                if let Some(v) = updates.get("letter_spacing").and_then(|v| v.as_f64()) { s.letter_spacing = v; }
                 if let Some(v) = updates.get("text_align").and_then(|v| v.as_str()) {
                     s.text_align = match v { "Center" => TextAlign::Center, "Right" => TextAlign::Right, _ => TextAlign::Left };
+                }
+                if let Some(v) = updates.get("opentype_features") {
+                    if let Ok(parsed) = serde_json::from_value::<crate::node::OpenTypeFeatures>(v.clone()) {
+                        s.opentype_features = parsed;
+                    }
+                }
+                if let Some(v) = updates.get("font_variation_settings") {
+                    if let Ok(parsed) = serde_json::from_value::<std::collections::BTreeMap<String, f64>>(v.clone()) {
+                        s.font_variation_settings = parsed;
+                    }
                 }
                 if let Some(v) = updates.get("color_r").and_then(|v| v.as_u64()) { s.color_r = v as u8; }
                 if let Some(v) = updates.get("color_g").and_then(|v| v.as_u64()) { s.color_g = v as u8; }
@@ -203,11 +223,16 @@ impl StyleStore {
         for ts in lib.text_styles {
             let font_style = ts.font_style;
             let text_align = ts.text_align;
-            self.add_text_style(
+            let sid = self.add_text_style(
                 ts.name, ts.font_family, ts.font_size, ts.font_weight,
                 font_style, ts.line_height, text_align,
                 ts.color_r, ts.color_g, ts.color_b, ts.color_a,
             );
+            if let Some(style) = self.text_styles.get_mut(&sid) {
+                style.letter_spacing = ts.letter_spacing;
+                style.opentype_features = ts.opentype_features;
+                style.font_variation_settings = ts.font_variation_settings;
+            }
         }
         (cc, tc)
     }

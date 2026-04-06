@@ -5695,6 +5695,16 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             const fs = (td.font_style || "Normal") === "Italic" ? "italic" : "normal";
             const ta = (td.text_align || "Left").toLowerCase();
             const sid = editor.engine.add_text_style(name, td.font_family || "Inter", td.font_size || 16, td.font_weight || 400, fs, td.line_height || 1.2, ta, c.r, c.g, c.b, c.a);
+            editor.engine.update_text_style(sid, JSON.stringify({
+              letter_spacing: td.letter_spacing || 0,
+              opentype_features: td.opentype_features || {
+                ligatures: true,
+                old_style_numerals: false,
+                small_caps: false,
+                tabular_numerals: false,
+              },
+              font_variation_settings: td.font_variation_settings || {},
+            }));
             editor.engine.apply_text_style(id, sid);
             editor.requestRender();
             refresh(ids);
@@ -5708,6 +5718,29 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           linkedLabel.style.cssText = "font-size:10px;color:#818cf8;margin-top:4px;";
           linkedLabel.textContent = `🔗 ${styleInfo.text_style_name}`;
           tsSection.appendChild(linkedLabel);
+
+          const replaceAllBtn = document.createElement("button");
+          replaceAllBtn.className = "prop-add-btn";
+          replaceAllBtn.style.marginTop = "6px";
+          replaceAllBtn.textContent = "Replace all with…";
+          replaceAllBtn.title = "Replace this linked text style across all nodes";
+          replaceAllBtn.addEventListener("click", () => {
+            const oldId = Number(styleInfo?.text_style_id || 0);
+            if (!oldId) return;
+            const choices = textStyles
+              .filter((s) => Number(s.id) !== oldId)
+              .map((s) => `${s.id}: ${s.name}`)
+              .join("\n");
+            const picked = prompt(`Replace '${styleInfo.text_style_name}' with style ID:\n\n${choices}`);
+            const newId = Number((picked || "").trim());
+            if (!newId || newId === oldId) return;
+            ensureUndo();
+            const changed = (editor.engine as any).replace_text_style_all(BigInt(oldId), BigInt(newId));
+            editor.requestRender();
+            alert(`Replaced ${changed} text node(s).`);
+            refresh(ids);
+          });
+          tsSection.appendChild(replaceAllBtn);
         }
 
         container.appendChild(tsSection);

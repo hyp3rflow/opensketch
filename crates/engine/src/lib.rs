@@ -8145,7 +8145,10 @@ impl Engine {
                 "id": s.id, "name": s.name,
                 "font_family": s.font_family, "font_size": s.font_size,
                 "font_weight": s.font_weight, "font_style": format!("{:?}", s.font_style),
-                "line_height": s.line_height, "text_align": format!("{:?}", s.text_align),
+                "line_height": s.line_height, "letter_spacing": s.letter_spacing,
+                "text_align": format!("{:?}", s.text_align),
+                "opentype_features": s.opentype_features,
+                "font_variation_settings": s.font_variation_settings,
                 "r": s.color_r, "g": s.color_g, "b": s.color_b, "a": s.color_a,
             })
         }).collect();
@@ -8224,13 +8227,27 @@ impl Engine {
     pub fn apply_text_style(&mut self, node_id: u64, style_id: u64) -> bool {
         if let Some(style) = self.styles.get_text_style(style_id).cloned() {
             if let Some(node) = self.scene.get_node_mut(node_id) {
-                if let NodeKind::Text { ref mut font_family, ref mut font_size, ref mut font_weight, ref mut font_style, ref mut line_height, ref mut text_align, .. } = node.kind {
+                if let NodeKind::Text {
+                    ref mut font_family,
+                    ref mut font_size,
+                    ref mut font_weight,
+                    ref mut font_style,
+                    ref mut line_height,
+                    ref mut letter_spacing,
+                    ref mut text_align,
+                    ref mut opentype_features,
+                    ref mut font_variation_settings,
+                    ..
+                } = node.kind {
                     *font_family = style.font_family;
                     *font_size = style.font_size;
                     *font_weight = style.font_weight;
                     *font_style = style.font_style;
                     *line_height = style.line_height;
+                    *letter_spacing = style.letter_spacing;
                     *text_align = style.text_align;
+                    *opentype_features = style.opentype_features.clone();
+                    *font_variation_settings = style.font_variation_settings.clone();
                     node.fills = vec![crate::node::Fill::solid(Color { r: style.color_r, g: style.color_g, b: style.color_b, a: style.color_a, color_space: ColorSpace::default() })];
                 }
                 node.text_style_id = Some(style_id);
@@ -8287,19 +8304,52 @@ impl Engine {
             for nid in node_ids {
                 if let Some(node) = self.scene.get_node_mut(nid) {
                     if node.text_style_id == Some(style_id) {
-                        if let NodeKind::Text { ref mut font_family, ref mut font_size, ref mut font_weight, ref mut font_style, ref mut line_height, ref mut text_align, .. } = node.kind {
+                        if let NodeKind::Text {
+                            ref mut font_family,
+                            ref mut font_size,
+                            ref mut font_weight,
+                            ref mut font_style,
+                            ref mut line_height,
+                            ref mut letter_spacing,
+                            ref mut text_align,
+                            ref mut opentype_features,
+                            ref mut font_variation_settings,
+                            ..
+                        } = node.kind {
                             *font_family = style.font_family.clone();
                             *font_size = style.font_size;
                             *font_weight = style.font_weight;
                             *font_style = style.font_style.clone();
                             *line_height = style.line_height;
+                            *letter_spacing = style.letter_spacing;
                             *text_align = style.text_align.clone();
+                            *opentype_features = style.opentype_features.clone();
+                            *font_variation_settings = style.font_variation_settings.clone();
                             node.fills = vec![crate::node::Fill::solid(Color { r: style.color_r, g: style.color_g, b: style.color_b, a: style.color_a, color_space: ColorSpace::default() })];
                         }
                     }
                 }
             }
         }
+    }
+
+    /// Replace all text-style links from old_style_id -> new_style_id across the scene.
+    /// Returns number of text nodes relinked.
+    pub fn replace_text_style_all(&mut self, old_style_id: u64, new_style_id: u64) -> u32 {
+        if old_style_id == new_style_id || self.styles.get_text_style(new_style_id).is_none() {
+            return 0;
+        }
+        let mut count = 0u32;
+        let node_ids = self.scene.all_node_ids();
+        for nid in node_ids {
+            let should_replace = self.scene.get_node(nid)
+                .map(|n| n.text_style_id == Some(old_style_id))
+                .unwrap_or(false);
+            if should_replace && self.apply_text_style(nid, new_style_id) {
+                count += 1;
+            }
+        }
+        count
     }
 
     /// Export all styles as JSON for file download.

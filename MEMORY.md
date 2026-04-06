@@ -2235,6 +2235,13 @@
 - 기존 override reset(개별/전체), variant switch, text override 플로우를 유지하면서 정보 탐색 동선을 축소
 - specs/FEATURES.md 반영
 
+## 완료된 기능 (추가 — Typography Styles Advanced, 2026-04-06)
+- TextStyle 데이터 모델 확장: letter_spacing, opentype_features, font_variation_settings 저장/직렬화
+- apply_text_style / sync_text_style가 letter spacing + OpenType + variable font axes까지 동기화
+- Text Style quick create(+) 시 현재 텍스트의 고급 타이포 속성까지 스타일로 캡처
+- Text Style linked 상태에서 "Replace all with…" 액션 추가 (기존 style ID → 새 style ID 문서 전체 일괄 교체)
+- WASM: `replace_text_style_all(old_style_id, new_style_id) -> u32`
+
 ## 다음 할 것 (2026-04-06 업데이트)
 - Smart Select Spacing Handles Upgrade — 인접 노드 간 간격 핸들에서 숫자 직접 입력·균등 분배·Auto Layout 변환 제안 (중난이도 / 고임팩트)
 - Dev Mode Spec Pins — 노드에 구현 메모/링크/GitHub 이슈를 핀으로 연결하고 Inspect에서 함께 노출 (저~중난이도 / 중임팩트)

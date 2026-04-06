@@ -365,6 +365,9 @@
 - [x] **Properties panel UI**: Color Style dropdown (apply/detach/create from current fill), Text Style dropdown (apply/detach/create from current text props)
 - [x] **Quick create**: "+" button creates a new style from the node's current properties
 - [x] **Linked indicator**: 🔗 badge shows linked style name
+- [x] **Typography Styles Advanced (2026-04-06)**: TextStyle includes `letter_spacing`, `opentype_features`, `font_variation_settings` for advanced typography parity
+- [x] **Advanced sync/apply**: `apply_text_style` / `sync_text_style` propagate OpenType + variable axes + letter spacing to linked text nodes
+- [x] **Replace-all workflow**: `replace_text_style_all(old, new)` relinks all matching text-style nodes document-wide
 
 
 ### Boolean Operations
