@@ -161,6 +161,56 @@ export function setupInspectPanel(container: HTMLElement, editor: Editor) {
       }
     }
 
+    // Spec notes / implementation memos section
+    {
+      const nodeJson = editor.engine.get_node_json(bid);
+      let notes: Array<{ title?: string; content?: string; tags?: string[] }> = [];
+      try {
+        const node = nodeJson ? JSON.parse(nodeJson) : null;
+        notes = Array.isArray(node?.notes) ? node.notes : [];
+      } catch {}
+      if (notes.length > 0) {
+        const notesSection = document.createElement("div");
+        notesSection.style.cssText = "margin-top:12px;";
+        const notesLabel = document.createElement("div");
+        notesLabel.textContent = "Spec Notes";
+        notesLabel.style.cssText = "color:#aaa;font-size:11px;font-weight:600;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;";
+        notesSection.appendChild(notesLabel);
+
+        notes.slice(0, 5).forEach((note, idx) => {
+          const card = document.createElement("div");
+          card.style.cssText = "padding:6px 8px;background:#1e1e2e;border:1px solid #33374a;border-radius:6px;margin-bottom:4px;";
+
+          const title = document.createElement("div");
+          title.style.cssText = "font-size:11px;color:#c7d2fe;font-weight:600;margin-bottom:3px;";
+          title.textContent = (note.title || "Implementation note").trim() || `Implementation note ${idx + 1}`;
+          card.appendChild(title);
+
+          const body = document.createElement("div");
+          body.style.cssText = "font-size:10px;color:#9ca3af;line-height:1.45;white-space:pre-wrap;";
+          const raw = String(note.content || "").trim();
+          body.textContent = raw.length > 160 ? `${raw.slice(0, 160)}…` : raw || "(no content)";
+          card.appendChild(body);
+
+          if (Array.isArray(note.tags) && note.tags.length > 0) {
+            const tags = document.createElement("div");
+            tags.style.cssText = "margin-top:4px;display:flex;flex-wrap:wrap;gap:4px;";
+            note.tags.slice(0, 4).forEach((tag) => {
+              const badge = document.createElement("span");
+              badge.style.cssText = "font-size:9px;padding:1px 5px;border-radius:999px;background:#0f172a;color:#93c5fd;border:1px solid #334155;";
+              badge.textContent = `#${tag}`;
+              tags.appendChild(badge);
+            });
+            card.appendChild(tags);
+          }
+
+          notesSection.appendChild(card);
+        });
+
+        wrap.appendChild(notesSection);
+      }
+    }
+
     // Code mapping section
     renderCodeMappingSection(wrap, editor, ids[0]!);
 

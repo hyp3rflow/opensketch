@@ -1551,6 +1551,8 @@ Frame overflow control and content scrolling.
 - [x] **Implementation**: `ui/dev-mode-overlay.ts` — DevModeOverlay class
 - [x] **Inline Dev Inspect badge**: selected node에 Spacing/Padding/Margin 값을 인라인 오버레이로 표시
 - [x] **One-click snippet copy**: 인라인 배지의 `Copy` 버튼으로 CSS 스니펫 즉시 복사
+- [x] **Spec Pins in Dev tooltip**: 노드 `Resources` 링크를 Dev Mode hover 툴팁에서 `📌` 핀 칩으로 노출하고 클릭 시 외부 문서(GitHub/Storybook/Jira/Figma) 즉시 오픈
+- [x] **Spec context in inline badge**: 인라인 Dev Inspect 배지에 Spec Pin 개수 + Note 개수를 함께 표시
 
 ## 95. Node-level Event System
 - [x] **EventTrigger enum**: onClick, onDoubleClick, onHover, onHoverEnd, onPress, onRelease, onDrag, onDragEnd, onFocus, onBlur
@@ -2047,6 +2049,8 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] WASM: add_resource_link, remove_resource_link, update_resource_link, get_resource_links, get_resource_link_count
 - [x] Properties panel: "Resources" section — link list with type icons, URL auto-detect, add/remove
 - [x] Inspect panel: Resources section with clickable links (window.open)
+- [x] Inspect panel: Spec Notes section — node note titles/content/tags 요약을 함께 노출
+- [x] Dev Mode tooltip: resource links를 Spec Pin 칩(`📌`)으로 표시하고 빠른 오픈 지원
 - [x] Canvas badge: blue dot indicator on nodes with resource links (top-left corner)
 - [x] Per-type SVG icons (GitHub, Storybook, Jira, Figma, Custom link)
 

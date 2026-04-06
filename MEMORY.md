@@ -2249,8 +2249,13 @@
 - spacing overlay에 quick actions 힌트(`Enter / E / A`) 추가
 - specs/FEATURES.md 반영
 
+## 완료된 기능 (추가 — Dev Mode Spec Pins, 2026-04-06)
+- Dev Mode hover tooltip에 Resource 링크를 `📌` Spec Pin 칩으로 노출하고 클릭 시 외부 문서(GitHub/Storybook/Jira/Figma/Custom) 즉시 오픈
+- 선택 노드의 인라인 Dev Inspect 배지에 Spec Pin 개수 + Note 개수 표시
+- Inspect 패널에 `Spec Notes` 섹션 추가 (노트 제목/내용/태그 요약)
+- 기존 `Resources` 섹션과 함께 구현 문맥(링크+메모) 확인 동선을 단축
+
 ## 다음 할 것 (2026-04-06 업데이트)
-- Dev Mode Spec Pins — 노드에 구현 메모/링크/GitHub 이슈를 핀으로 연결하고 Inspect에서 함께 노출 (저~중난이도 / 중임팩트)
 - Stroke Position on Paths (Inside/Outside for open/closed path parity) — Path 노드에도 shape와 동일한 stroke align UX/렌더 일관성 제공 (중난이도 / 중~고임팩트)
 - Symbol Instance Exposure in Inspect — Inspect 탭에서 instance의 master/variant/property 상태를 코드 스니펫과 함께 노출 (저~중난이도 / 중임팩트)
 - Prototype Hotspot Authoring Tool — 프레임 위 드래그로 투명 hotspot 생성 + interaction 자동 연결 (중난이도 / 고임팩트)

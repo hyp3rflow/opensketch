@@ -14,6 +14,17 @@ export class DevModeOverlay {
   private visible = false;
   private _enabled = false;
 
+  private getSpecPins(node: any): Array<{ url: string; label: string; link_type: string }> {
+    if (!Array.isArray(node?.resource_links)) return [];
+    return node.resource_links
+      .filter((l: any) => l && typeof l.url === "string" && l.url.trim())
+      .map((l: any) => ({
+        url: String(l.url),
+        label: String(l.label || "").trim(),
+        link_type: String(l.link_type || "Custom"),
+      }));
+  }
+
   constructor(editor: Editor) {
     this.editor = editor;
 
@@ -90,6 +101,8 @@ export class DevModeOverlay {
     } catch {}
 
     const css = this.generateCSS(node, BigInt(id));
+    const specPins = this.getSpecPins(node);
+    const noteCount = Array.isArray(node?.notes) ? node.notes.length : 0;
     this.inspectBadge.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:4px;">
         <strong style="font-size:10px;color:#93c5fd;">Dev Inspect</strong>
@@ -98,6 +111,7 @@ export class DevModeOverlay {
       <div>Spacing: <b>${Math.round(spacing)}px</b></div>
       <div>Padding: <b>${Math.round(pt)} ${Math.round(pr)} ${Math.round(pb)} ${Math.round(pl)}</b></div>
       <div>Margin: <b>${margin.t} ${margin.r} ${margin.b} ${margin.l}</b></div>
+      <div>Spec Pins: <b>${specPins.length}</b> · Notes: <b>${noteCount}</b></div>
     `;
     this.inspectBadge.querySelector<HTMLButtonElement>(".dev-inspect-copy")?.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -137,6 +151,24 @@ export class DevModeOverlay {
     // Build tooltip content
     const kindLabel = node.kind?.type || node.kind || "Node";
     const name = node.name || kindLabel;
+    const specPins = this.getSpecPins(node);
+    const notes = Array.isArray(node?.notes) ? node.notes : [];
+
+    const pinHtml = specPins.length > 0
+      ? `
+        <div style="padding:6px 10px;border-top:1px solid #313244;display:flex;flex-wrap:wrap;gap:6px;">
+          ${specPins.slice(0, 4).map((pin, idx) => `
+            <button class="dev-spec-pin" data-pin-index="${idx}" title="${this.escapeHtml(pin.url)}" style="pointer-events:auto;max-width:140px;padding:2px 6px;border-radius:999px;border:1px solid #334155;background:#0f172a;color:#93c5fd;font-size:10px;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+              📌 ${this.escapeHtml(pin.label || pin.link_type)}
+            </button>
+          `).join("")}
+        </div>
+      `
+      : "";
+
+    const noteHtml = notes.length > 0
+      ? `<div style="padding:4px 10px 6px;color:#94a3b8;font-size:10px;border-top:1px solid #313244;">📝 ${notes.length} implementation note${notes.length > 1 ? "s" : ""}</div>`
+      : "";
 
     this.tooltip.innerHTML = `
       <div style="padding:8px 10px;background:#181825;border-bottom:1px solid #313244;display:flex;align-items:center;justify-content:space-between;">
@@ -144,6 +176,8 @@ export class DevModeOverlay {
         <span style="color:#6c7086;font-size:10px;">${kindLabel}</span>
       </div>
       <div class="dev-css-code" style="padding:8px 10px;white-space:pre;overflow-x:auto;max-height:200px;overflow-y:auto;cursor:pointer;" title="Click to copy">${this.highlightCSS(css)}</div>
+      ${pinHtml}
+      ${noteHtml}
       <div style="padding:6px 10px;border-top:1px solid #313244;display:flex;gap:6px;">
         <button class="dev-export-btn" data-format="png" style="flex:1;padding:4px 0;background:#313244;color:#cdd6f4;border:none;border-radius:4px;font-size:10px;cursor:pointer;pointer-events:auto;">PNG</button>
         <button class="dev-export-btn" data-format="svg" style="flex:1;padding:4px 0;background:#313244;color:#cdd6f4;border:none;border-radius:4px;font-size:10px;cursor:pointer;pointer-events:auto;">SVG</button>
@@ -164,6 +198,16 @@ export class DevModeOverlay {
         const fmt = btn.dataset.format;
         if (fmt === "png") this.exportPNG(nodeId);
         else if (fmt === "svg") this.exportSVG(nodeId);
+      });
+    });
+
+    this.tooltip.querySelectorAll<HTMLButtonElement>(".dev-spec-pin").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const idx = Number(btn.dataset.pinIndex || "-1");
+        const pin = specPins[idx];
+        if (!pin?.url) return;
+        window.open(pin.url, "_blank", "noopener");
       });
     });
 
