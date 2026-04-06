@@ -342,6 +342,7 @@
   - Prototype viewer Smart Animate는 timeline segment별 easing을 반영해 시간 remap 후 보간
   - Easing curve editor: SVG-based 120×120 cubic-bezier editor with draggable control points, preset buttons (Linear/EaseIn/EaseOut/EaseInOut/Custom), inline in interaction section
   - Prototype viewer: full-screen overlay, click navigation, back stack, Esc to close
+  - Prototype viewer Device Preview: top-bar device preset selector (No Device/iPhone/Pixel/iPad), frame bezel+corner radius+notch overlay, safe-area inset guide, preview scrollbar indicator
   - Animated transitions: Dissolve (cross-fade), SlideIn (from right), SlideOut (old exits right), Push (both move), SmartAnimate (name-matched node interpolation with position/size cross-fade)
   - SmartAnimate: Rust engine `compute_auto_animate(from, to)` matches descendants by name, returns paired snapshots with full property diffs (position, size, rotation, opacity, corner_radius, blur, fill color, stroke width)
   - SmartAnimate rendering: matched nodes interpolate all properties with cubic ease-in-out, rotation via canvas transform, rounded clip for corner_radius, removed nodes fade out, added nodes fade in

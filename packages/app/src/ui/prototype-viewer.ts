@@ -23,6 +23,27 @@ export function createPrototypeViewer(editor: Editor): {
   let protoVars: Map<string, string> = new Map();
   let varsPanel: HTMLDivElement | null = null;
 
+  type PrototypeDevicePreset = {
+    id: string;
+    label: string;
+    bezel: number;
+    cornerRadius: number;
+    notchWidth?: number;
+    notchHeight?: number;
+    safeTop: number;
+    safeRight: number;
+    safeBottom: number;
+    safeLeft: number;
+  };
+
+  const DEVICE_PRESETS: PrototypeDevicePreset[] = [
+    { id: "none", label: "No Device", bezel: 0, cornerRadius: 0, safeTop: 0, safeRight: 0, safeBottom: 0, safeLeft: 0 },
+    { id: "iphone14", label: "iPhone 14 Pro", bezel: 18, cornerRadius: 34, notchWidth: 126, notchHeight: 34, safeTop: 59, safeRight: 0, safeBottom: 34, safeLeft: 0 },
+    { id: "pixel8", label: "Pixel 8", bezel: 14, cornerRadius: 28, notchWidth: 40, notchHeight: 24, safeTop: 30, safeRight: 0, safeBottom: 24, safeLeft: 0 },
+    { id: "ipad", label: "iPad", bezel: 22, cornerRadius: 24, safeTop: 24, safeRight: 0, safeBottom: 20, safeLeft: 0 },
+  ];
+  let selectedDeviceId = "none";
+
   type SmartTimelineKeyframe = { time: number; label?: string; easing?: string };
 
   /** Initialize prototype variables from engine definitions */
@@ -175,6 +196,28 @@ export function createPrototypeViewer(editor: Editor): {
       topBar.appendChild(themeWrap);
     }
 
+    const deviceWrap = document.createElement("div");
+    deviceWrap.style.cssText = "display:flex;align-items:center;gap:6px;";
+    const deviceLabel = document.createElement("span");
+    deviceLabel.style.cssText = "font-size:11px;color:#94a3b8;";
+    deviceLabel.textContent = "Device";
+    const deviceSel = document.createElement("select");
+    deviceSel.style.cssText = "background:#0f3460;color:#e2e8f0;border:1px solid #334155;border-radius:6px;padding:5px 8px;font-size:12px;";
+    for (const preset of DEVICE_PRESETS) {
+      const opt = document.createElement("option");
+      opt.value = preset.id;
+      opt.textContent = preset.label;
+      if (preset.id === selectedDeviceId) opt.selected = true;
+      deviceSel.appendChild(opt);
+    }
+    deviceSel.addEventListener("change", () => {
+      selectedDeviceId = deviceSel.value;
+      renderCurrentView();
+    });
+    deviceWrap.appendChild(deviceLabel);
+    deviceWrap.appendChild(deviceSel);
+    topBar.appendChild(deviceWrap);
+
     const closeBtn = document.createElement("button");
     closeBtn.style.cssText = "background:#e94560;color:white;border:none;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:12px;";
     closeBtn.textContent = "Close (Esc)";
@@ -307,16 +350,91 @@ export function createPrototypeViewer(editor: Editor): {
     return { x: node.x, y: node.y, width: node.width, height: node.height };
   }
 
+  function getSelectedDevicePreset(): PrototypeDevicePreset {
+    return DEVICE_PRESETS.find((d) => d.id === selectedDeviceId) || DEVICE_PRESETS[0];
+  }
+
   /** Get viewport scale + display dimensions for a frame */
   function getViewportParams(bounds: { width: number; height: number }) {
+    const device = getSelectedDevicePreset();
     const maxW = window.innerWidth * 0.9;
     const maxH = (window.innerHeight - 50) * 0.9;
-    const scale = Math.min(maxW / bounds.width, maxH / bounds.height, 2);
+
+    const usableW = Math.max(1, maxW - device.bezel * 2);
+    const usableH = Math.max(1, maxH - device.bezel * 2);
+
+    const scale = Math.min(usableW / bounds.width, usableH / bounds.height, 2);
     return {
       scale,
       displayW: bounds.width * scale,
       displayH: bounds.height * scale,
     };
+  }
+
+  function drawDeviceOverlay(
+    ctx: CanvasRenderingContext2D,
+    displayW: number,
+    displayH: number,
+    dpr: number,
+  ) {
+    const device = getSelectedDevicePreset();
+    if (device.id === "none") return;
+
+    const bezel = device.bezel * dpr;
+    const radius = device.cornerRadius * dpr;
+    const totalW = displayW * dpr;
+    const totalH = displayH * dpr;
+
+    ctx.save();
+    ctx.strokeStyle = "rgba(15,23,42,0.95)";
+    ctx.fillStyle = "rgba(2,6,23,0.82)";
+    ctx.lineWidth = Math.max(2, Math.round(2 * dpr));
+    const x = bezel / 2;
+    const y = bezel / 2;
+    const w = totalW - bezel;
+    const h = totalH - bezel;
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, radius);
+    ctx.fill();
+    ctx.stroke();
+
+    if (device.notchWidth && device.notchHeight) {
+      const nw = device.notchWidth * dpr;
+      const nh = device.notchHeight * dpr;
+      const nx = totalW / 2 - nw / 2;
+      const ny = bezel / 2;
+      ctx.fillStyle = "rgba(0,0,0,0.9)";
+      ctx.beginPath();
+      ctx.roundRect(nx, ny, nw, nh, Math.max(8, 10 * dpr));
+      ctx.fill();
+    }
+
+    const safeX = device.safeLeft * dpr;
+    const safeY = device.safeTop * dpr;
+    const safeW = totalW - (device.safeLeft + device.safeRight) * dpr;
+    const safeH = totalH - (device.safeTop + device.safeBottom) * dpr;
+    if (safeW > 0 && safeH > 0) {
+      ctx.strokeStyle = "rgba(56,189,248,0.85)";
+      ctx.setLineDash([6 * dpr, 6 * dpr]);
+      ctx.lineWidth = Math.max(1, Math.round(1 * dpr));
+      ctx.strokeRect(safeX, safeY, safeW, safeH);
+      ctx.setLineDash([]);
+      ctx.fillStyle = "rgba(56,189,248,0.9)";
+      ctx.font = `${11 * dpr}px sans-serif`;
+      ctx.fillText("Safe Area", safeX + 6 * dpr, safeY + 14 * dpr);
+    }
+
+    // Minimal iOS/Android style scrollbar indicator (preview only)
+    ctx.fillStyle = "rgba(255,255,255,0.45)";
+    const barW = Math.max(2 * dpr, 3);
+    const barH = Math.max(32 * dpr, totalH * 0.14);
+    const barX = totalW - Math.max(6 * dpr, bezel * 0.7);
+    const barY = totalH * 0.42;
+    ctx.beginPath();
+    ctx.roundRect(barX, barY, barW, barH, 2 * dpr);
+    ctx.fill();
+
+    ctx.restore();
   }
 
   /** Render a frame to an offscreen canvas and return it */
@@ -763,6 +881,9 @@ export function createPrototypeViewer(editor: Editor): {
     drawHotspotHints(ctx, bounds, scale * dpr);
     // Draw event hotspot hints (orange dotted border on nodes with JS events)
     drawEventHints(ctx, bounds, scale * dpr);
+
+    // Device frame / notch / safe-area / scrollbar preview overlay
+    drawDeviceOverlay(ctx, displayW, displayH, dpr);
 
     // Overlay HTML5 <video> elements for Video nodes
     renderVideoOverlays(bounds, scale);

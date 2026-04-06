@@ -2268,10 +2268,17 @@
 - 클릭 시 undo push + set_constraints + 캔버스 즉시 리렌더
 - specs/ENGINE.md, specs/FEATURES.md 동기화
 
+## 완료된 기능 (추가 — Prototype Device Frame Presets, 2026-04-07)
+- Prototype viewer top bar에 Device 드롭다운 추가 (No Device / iPhone 14 Pro / Pixel 8 / iPad)
+- 선택 디바이스별 bezel/corner radius/notch 오버레이 렌더링
+- Safe-area inset 점선 가이드 + `Safe Area` 라벨 표시
+- 프로토타입 미리보기용 우측 scrollbar indicator 오버레이 추가
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs/FEATURES.md Prototyping 섹션 동기화
+
 ## 다음 할 것 (2026-04-07 업데이트)
 - Prototype Hotspot Authoring Tool — 프레임 위 드래그로 투명 hotspot 생성 + interaction 자동 연결 (중난이도 / 고임팩트)
 - Variable Collection Panel Search & Usage Count — 변수 검색/필터 + 사용 노드 수 집계로 토큰 관리 생산성 향상 (저난이도 / 중임팩트)
-- Prototype Device Frame Presets — iPhone/Android/Web 프레임 프리셋 + safe area overlay로 프로토타입 검증 강화 (중난이도 / 고임팩트)
 - Interactive Components (Hover/Pressed variants) — 컴포넌트 상태 전이 정의 및 프로토타입 재생 시 상태 반영 (중~고난이도 / 고임팩트)
 - Auto Layout Wrap Controls UI — wrap 행/열 정렬 + align-content controls를 Figma 스타일로 노출 (중난이도 / 중임팩트)
 
