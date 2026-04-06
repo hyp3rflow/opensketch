@@ -347,7 +347,7 @@
   - SmartAnimate: Rust engine `compute_auto_animate(from, to)` matches descendants by name, returns paired snapshots with full property diffs (position, size, rotation, opacity, corner_radius, blur, fill color, stroke width)
   - SmartAnimate rendering: matched nodes interpolate all properties with cubic ease-in-out, rotation via canvas transform, rounded clip for corner_radius, removed nodes fade out, added nodes fade in
   - Toolbar: Play button (▶), keyboard shortcut Cmd+Enter
-  - Prototype Hotspot Authoring Tool: toolbar `Hotspot` 툴로 드래그해 투명 hotspot(rect) 생성, 생성 즉시 `OnClick → NavigateTo` interaction 자동 연결(선택된 Frame 우선, 없으면 문서 내 Frame fallback)
+  - Prototype Hotspot Authoring Tool: toolbar `Hotspot` 툴(Shift+H)로 프레임 위를 드래그해 투명 hotspot(rect) 생성, 생성 즉시 `OnClick → NavigateTo` interaction 자동 연결(선택된 Frame 우선, 없으면 문서 내 Frame fallback); 프레임 위에서 생성하면 해당 프레임 자식으로 자동 reparent
   - Interaction hotspot hints (color-coded: blue=click, green=gesture, orange=hover)
   - Gesture-based interactions: swipe (left/right/up/down), long-press (500ms), pinch in/out
   - Touch event handling in prototype viewer: swipe detection (>50px, <500ms), long-press timer, two-finger pinch distance ratio

@@ -1159,6 +1159,7 @@ export class Editor {
       else if (_sm.matches(e, "tool.table")) this.setTool("table");
       else if (_sm.matches(e, "tool.slice")) this.setTool("slice");
       else if (_sm.matches(e, "tool.connector")) this.setTool("connector");
+      else if (_sm.matches(e, "tool.hotspot")) this.setTool("hotspot");
       else if (_sm.matches(e, "tool.callout")) this.setTool("callout");
       else if (e.key === "i" && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) this.setTool("eyedropper");
       else if (e.key === "m" && !e.metaKey && !e.ctrlKey && !e.altKey) this.setTool("measure");

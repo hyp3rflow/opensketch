@@ -13,6 +13,7 @@
   "tool.polygon": "다각형 (G)",
   "tool.slice": "슬라이스 (K)",
   "tool.connector": "연결선 (L)",
+  "tool.hotspot": "핫스팟",
   "tool.measure": "측정 (M)",
   "tool.callout": "콜아웃 (O)",
   "tool.sticky": "메모 (N)",

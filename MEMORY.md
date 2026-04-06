@@ -2281,7 +2281,8 @@
 - 생성된 hotspot에 `OnClick → NavigateTo` interaction 자동 연결
 - 타겟 자동 결정 규칙: 현재 selection의 Frame 우선, 없으면 문서 내 Frame fallback
 - 생성 시 편집 가시성을 위해 옅은 fill/outline을 기본 적용
-- 구현: `packages/app/src/editor.ts`, `packages/app/src/ui/toolbar.ts`
+- 후속 보강: Frame 위에서 생성 시 hotspot을 Frame 자식으로 자동 reparent, 생성 후 타겟 프레임명 기반 자동 네이밍(`Hotspot → <Frame>`), `Shift+H` 단축키 및 i18n(`tool.hotspot`) 연결
+- 구현: `packages/app/src/editor.ts`, `packages/app/src/ui/toolbar.ts`, `packages/app/src/ui/shortcut-manager.ts`, `packages/app/src/locales/{en,ko,ja}.json`
 - specs/FEATURES.md Prototyping 섹션 동기화
 
 ## 다음 할 것 (2026-04-07 업데이트)

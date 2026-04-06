@@ -13,6 +13,7 @@
   "tool.polygon": "Polygon (G)",
   "tool.slice": "Slice (K)",
   "tool.connector": "Connector (L)",
+  "tool.hotspot": "Hotspot",
   "tool.measure": "Measure (M)",
   "tool.callout": "Callout (O)",
   "tool.sticky": "Sticky Note (N)",

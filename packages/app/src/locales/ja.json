@@ -13,6 +13,7 @@
   "tool.polygon": "多角形 (G)",
   "tool.slice": "スライス (K)",
   "tool.connector": "コネクタ (L)",
+  "tool.hotspot": "ホットスポット",
   "tool.measure": "測定 (M)",
   "tool.callout": "コールアウト (O)",
   "tool.sticky": "付箋 (N)",
