@@ -269,6 +269,7 @@
   - Click near first point to close path, Escape/Enter to finish open path
   - Canvas rendering: bezier_curve_to for curves, line_to for straight segments
   - SVG export: `<path d="M... C... L... Z"/>` with full bezier support
+  - Stroke align parity on Path: open/closed path 모두 Center/Inside/Outside 일관 렌더 (inside/outside는 경로 법선 오프셋 기반)
   - Properties panel: point count display, open/closed toggle
   - WASM bindings: add_path, path_add_point, path_add_curve_point, path_set_point, path_set_handle_out/in, path_remove_point, path_set_closed, path_get_data, path_point_count
   - Pressure sensitivity: stylus PointerEvent.pressure → per-point variable stroke width, auto-detect pen input, Properties panel toggle

@@ -544,17 +544,46 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
                     buf.push_str(&attrs);
                 }
             } else {
-                let d = build_svg_path_d(points, *closed);
-                let mut attrs = format!(r#"<path d="{}""#, d);
-                append_fill_stroke(&mut attrs, node);
-                if has_opacity {
-                    attrs.push_str(&format!(r#" opacity="{}""#, node.opacity));
+                if !*closed {
+                    // Open path: render strokes with centerline offset for inside/outside align parity.
+                    for stroke in node.visible_strokes() {
+                        let d = match stroke.align {
+                            crate::node::StrokeAlign::Inside => build_offset_open_path_d(points, stroke.width * 0.5),
+                            crate::node::StrokeAlign::Outside => build_offset_open_path_d(points, -stroke.width * 0.5),
+                            crate::node::StrokeAlign::Center => build_svg_path_d(points, false),
+                        };
+                        if d.is_empty() { continue; }
+                        let mut attrs = format!(r#"<path d="{}" fill="none" stroke="{}" stroke-width="{}""#,
+                            d,
+                            color_to_hex(stroke.color.r, stroke.color.g, stroke.color.b),
+                            stroke.width,
+                        );
+                        if stroke.color.a < 1.0 {
+                            attrs.push_str(&format!(r#" stroke-opacity="{}""#, stroke.color.a));
+                        }
+                        append_stroke_options(&mut attrs, stroke);
+                        if has_opacity {
+                            attrs.push_str(&format!(r#" opacity="{}""#, node.opacity));
+                        }
+                        append_blend_mode(&mut attrs, node);
+                        attrs.push_str(&filter_attr);
+                        attrs.push_str(&backdrop_attr);
+                        attrs.push_str("/>\n");
+                        buf.push_str(&attrs);
+                    }
+                } else {
+                    let d = build_svg_path_d(points, *closed);
+                    let mut attrs = format!(r#"<path d="{}""#, d);
+                    append_fill_stroke(&mut attrs, node);
+                    if has_opacity {
+                        attrs.push_str(&format!(r#" opacity="{}""#, node.opacity));
+                    }
+                    append_blend_mode(&mut attrs, node);
+                    attrs.push_str(&filter_attr);
+                    attrs.push_str(&backdrop_attr);
+                    attrs.push_str("/>\n");
+                    buf.push_str(&attrs);
                 }
-                append_blend_mode(&mut attrs, node);
-                attrs.push_str(&filter_attr);
-            attrs.push_str(&backdrop_attr);
-                attrs.push_str("/>\n");
-                buf.push_str(&attrs);
             }
         }
         NodeKind::VectorNetwork(ref vn) => {
@@ -1691,6 +1720,80 @@ fn build_svg_path_d(points: &[PathPoint], closed: bool) -> String {
                 first.x, first.y));
         }
         d.push_str(" Z");
+    }
+    d
+}
+
+fn sample_open_path_points(points: &[PathPoint], segments_per_curve: usize) -> Vec<(f64, f64)> {
+    if points.len() < 2 {
+        return points.iter().map(|p| (p.x, p.y)).collect();
+    }
+
+    let mut samples: Vec<(f64, f64)> = Vec::new();
+    for i in 0..(points.len() - 1) {
+        let p0 = &points[i];
+        let p1 = &points[i + 1];
+        let is_curve = p0.has_handle_out() || p1.has_handle_in();
+        let steps = if is_curve { segments_per_curve.max(1) } else { 1 };
+        for s in 0..steps {
+            let t = s as f64 / steps as f64;
+            let (x, y) = if is_curve {
+                let mt = 1.0 - t;
+                let x = mt.powi(3) * p0.x + 3.0 * mt.powi(2) * t * p0.handle_out_x + 3.0 * mt * t.powi(2) * p1.handle_in_x + t.powi(3) * p1.x;
+                let y = mt.powi(3) * p0.y + 3.0 * mt.powi(2) * t * p0.handle_out_y + 3.0 * mt * t.powi(2) * p1.handle_in_y + t.powi(3) * p1.y;
+                (x, y)
+            } else {
+                (p0.x + (p1.x - p0.x) * t, p0.y + (p1.y - p0.y) * t)
+            };
+            samples.push((x, y));
+        }
+    }
+
+    let last = points.last().unwrap();
+    samples.push((last.x, last.y));
+    samples
+}
+
+fn offset_polyline(samples: &[(f64, f64)], normal_offset: f64) -> Vec<(f64, f64)> {
+    if samples.len() < 2 {
+        return samples.to_vec();
+    }
+
+    let mut out = Vec::with_capacity(samples.len());
+    for i in 0..samples.len() {
+        let (tx, ty) = if i == 0 {
+            (samples[1].0 - samples[0].0, samples[1].1 - samples[0].1)
+        } else if i == samples.len() - 1 {
+            (
+                samples[samples.len() - 1].0 - samples[samples.len() - 2].0,
+                samples[samples.len() - 1].1 - samples[samples.len() - 2].1,
+            )
+        } else {
+            (samples[i + 1].0 - samples[i - 1].0, samples[i + 1].1 - samples[i - 1].1)
+        };
+        let len = (tx * tx + ty * ty).sqrt().max(1e-9);
+        let nx = -ty / len;
+        let ny = tx / len;
+        out.push((samples[i].0 + nx * normal_offset, samples[i].1 + ny * normal_offset));
+    }
+    out
+}
+
+fn build_offset_open_path_d(points: &[PathPoint], normal_offset: f64) -> String {
+    let samples = sample_open_path_points(points, 16);
+    if samples.is_empty() {
+        return String::new();
+    }
+
+    let shifted = if normal_offset.abs() < 1e-6 {
+        samples
+    } else {
+        offset_polyline(&samples, normal_offset)
+    };
+
+    let mut d = format!("M{},{}", shifted[0].0, shifted[0].1);
+    for (x, y) in shifted.iter().skip(1) {
+        d.push_str(&format!(" L{},{}", x, y));
     }
     d
 }

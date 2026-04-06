@@ -2255,10 +2255,19 @@
 - Inspect 패널에 `Spec Notes` 섹션 추가 (노트 제목/내용/태그 요약)
 - 기존 `Resources` 섹션과 함께 구현 문맥(링크+메모) 확인 동선을 단축
 
-## 다음 할 것 (2026-04-06 업데이트)
-- Stroke Position on Paths (Inside/Outside for open/closed path parity) — Path 노드에도 shape와 동일한 stroke align UX/렌더 일관성 제공 (중난이도 / 중~고임팩트)
+## 완료된 기능 (추가 — Stroke Position on Paths Parity, 2026-04-07)
+- Path 노드 stroke align(Inside/Outside/Center)을 open/closed 모두에서 일관되게 렌더링
+- Open path의 Inside/Outside는 경로 샘플링 후 법선(normal) 오프셋 centerline으로 stroke를 그려 시각적 parity 확보
+- SVG export도 open path align을 동일한 오프셋 경로로 내보내 Canvas/SVG 결과 차이를 축소
+- specs/FEATURES.md 반영
+
+## 다음 할 것 (2026-04-07 업데이트)
 - Symbol Instance Exposure in Inspect — Inspect 탭에서 instance의 master/variant/property 상태를 코드 스니펫과 함께 노출 (저~중난이도 / 중임팩트)
 - Prototype Hotspot Authoring Tool — 프레임 위 드래그로 투명 hotspot 생성 + interaction 자동 연결 (중난이도 / 고임팩트)
+- Variable Collection Panel Search & Usage Count — 변수 검색/필터 + 사용 노드 수 집계로 토큰 관리 생산성 향상 (저난이도 / 중임팩트)
+- Prototype Device Frame Presets — iPhone/Android/Web 프레임 프리셋 + safe area overlay로 프로토타입 검증 강화 (중난이도 / 고임팩트)
+- Interactive Components (Hover/Pressed variants) — 컴포넌트 상태 전이 정의 및 프로토타입 재생 시 상태 반영 (중~고난이도 / 고임팩트)
+- Auto Layout Wrap Controls UI — wrap 행/열 정렬 + align-content controls를 Figma 스타일로 노출 (중난이도 / 중임팩트)
 
 ## 완료된 기능 (추가 — Prototyping Smart Animate Timeline, 2026-04-06)
 - Interactions > Smart Animate Timeline을 리스트 입력형에서 시각 keyframe rail editor로 확장

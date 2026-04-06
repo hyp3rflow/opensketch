@@ -1274,8 +1274,119 @@ impl Renderer {
             let stroke_color = node.first_stroke().map(|s| s.color.to_css()).unwrap_or_else(|| "rgba(255,255,255,1)".to_string());
             Self::render_variable_width_stroke(ctx, points, closed, default_width, &stroke_color);
         } else {
-            self.apply_fill_stroke(ctx, node);
+            self.apply_fill_stroke_path(ctx, node, points, closed);
         }
+    }
+
+    fn apply_fill_stroke_path(&self, ctx: &CanvasRenderingContext2d, node: &Node, points: &[PathPoint], closed: bool) {
+        if closed {
+            self.apply_fill_stroke(ctx, node);
+            return;
+        }
+
+        // Open paths do not have fill area. Render stroke alignment by offsetting
+        // the centerline for inside/outside to keep parity with shape stroke UX.
+        for stroke in node.visible_strokes() {
+            ctx.save();
+            ctx.set_stroke_style_str(&stroke.color.to_css());
+            self.apply_stroke_options(ctx, stroke);
+            match stroke.align {
+                crate::node::StrokeAlign::Center => {
+                    self.build_open_path(ctx, points, 0.0);
+                    ctx.set_line_width(stroke.width);
+                    ctx.stroke();
+                }
+                crate::node::StrokeAlign::Inside => {
+                    self.build_open_path(ctx, points, stroke.width * 0.5);
+                    ctx.set_line_width(stroke.width);
+                    ctx.stroke();
+                }
+                crate::node::StrokeAlign::Outside => {
+                    self.build_open_path(ctx, points, -stroke.width * 0.5);
+                    ctx.set_line_width(stroke.width);
+                    ctx.stroke();
+                }
+            }
+            if !stroke.dash_array.is_empty() {
+                ctx.set_line_dash(&js_sys::Array::new()).ok();
+            }
+            ctx.restore();
+        }
+    }
+
+    fn build_open_path(&self, ctx: &CanvasRenderingContext2d, points: &[PathPoint], normal_offset: f64) {
+        let samples = Self::sample_open_path_points(points, 16);
+        if samples.is_empty() {
+            return;
+        }
+
+        let shifted = if normal_offset.abs() < 1e-6 {
+            samples
+        } else {
+            Self::offset_polyline(&samples, normal_offset)
+        };
+
+        ctx.begin_path();
+        ctx.move_to(shifted[0].0, shifted[0].1);
+        for (x, y) in shifted.iter().skip(1) {
+            ctx.line_to(*x, *y);
+        }
+    }
+
+    fn sample_open_path_points(points: &[PathPoint], segments_per_curve: usize) -> Vec<(f64, f64)> {
+        if points.len() < 2 {
+            return points.iter().map(|p| (p.x, p.y)).collect();
+        }
+
+        let mut samples: Vec<(f64, f64)> = Vec::new();
+        for i in 0..(points.len() - 1) {
+            let p0 = &points[i];
+            let p1 = &points[i + 1];
+            let is_curve = p0.has_handle_out() || p1.has_handle_in();
+            let steps = if is_curve { segments_per_curve.max(1) } else { 1 };
+            for s in 0..steps {
+                let t = s as f64 / steps as f64;
+                let (x, y) = if is_curve {
+                    cubic_bezier_point(
+                        p0.x, p0.y,
+                        p0.handle_out_x, p0.handle_out_y,
+                        p1.handle_in_x, p1.handle_in_y,
+                        p1.x, p1.y,
+                        t,
+                    )
+                } else {
+                    (p0.x + (p1.x - p0.x) * t, p0.y + (p1.y - p0.y) * t)
+                };
+                samples.push((x, y));
+            }
+        }
+        let last = points.last().unwrap();
+        samples.push((last.x, last.y));
+        samples
+    }
+
+    fn offset_polyline(samples: &[(f64, f64)], normal_offset: f64) -> Vec<(f64, f64)> {
+        if samples.len() < 2 {
+            return samples.to_vec();
+        }
+        let mut out = Vec::with_capacity(samples.len());
+        for i in 0..samples.len() {
+            let (tx, ty) = if i == 0 {
+                (samples[1].0 - samples[0].0, samples[1].1 - samples[0].1)
+            } else if i == samples.len() - 1 {
+                (
+                    samples[samples.len() - 1].0 - samples[samples.len() - 2].0,
+                    samples[samples.len() - 1].1 - samples[samples.len() - 2].1,
+                )
+            } else {
+                (samples[i + 1].0 - samples[i - 1].0, samples[i + 1].1 - samples[i - 1].1)
+            };
+            let len = (tx * tx + ty * ty).sqrt().max(1e-9);
+            let nx = -ty / len;
+            let ny = tx / len;
+            out.push((samples[i].0 + nx * normal_offset, samples[i].1 + ny * normal_offset));
+        }
+        out
     }
 
     /// Render a variable-width stroke by building left/right offset curves and filling.
