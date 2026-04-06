@@ -2227,6 +2227,12 @@
 - Prototype Fixed Header/Footer — 프로토타입 미리보기에서 frame 내 고정 레이어(스크롤 시 pin) 지원
 - Variable Modes Quick Switch — Prototype Variables 모드(Desktop/Mobile, Light/Dark 등)를 툴바 토글로 즉시 전환
 
+## 완료된 기능 (추가 — Text on Path UX completion, 2026-04-06)
+- Text tool 클릭만으로 point text 생성 (드래그 없이 생성 가능)
+- Text tool로 Path 위를 클릭/드래그 생성하면 새 Text가 해당 Path에 자동 attach
+- 기존 Text Path 속성(Offset/Baseline/Path Letter Spacing/Flip)과 연결되어 즉시 조절 가능
+- specs/FEATURES.md Text on Path 섹션에 UX 동작 명세 반영
+
 ## 완료된 기능 (백로그 정리 27 — 이미 구현 확인, 2026-04-06)
 - ~~Auto Layout Gap Handles~~ ✅ 이미 구현 확인
 - 구현 위치:

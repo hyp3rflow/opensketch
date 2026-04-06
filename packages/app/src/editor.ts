@@ -2654,6 +2654,21 @@ export class Editor {
       const w = Math.abs(this.drag.currentX - this.drag.startX);
       const h = Math.abs(this.drag.currentY - this.drag.startY);
 
+      const maybeAttachTextToPath = (textId: number) => {
+        const hit = this.engine.hit_test(_e.offsetX, _e.offsetY);
+        const hitId = hit != null ? Number(hit) : 0;
+        if (!hitId || hitId === textId) return;
+        try {
+          const hitJson = this.engine.get_node_json(BigInt(hitId));
+          if (!hitJson) return;
+          const hitNode = JSON.parse(hitJson);
+          const kind = typeof hitNode.kind === "string" ? hitNode.kind : Object.keys(hitNode.kind || {})[0];
+          if (kind === "Path") {
+            this.engine.set_text_path(BigInt(textId), BigInt(hitId));
+          }
+        } catch (_) {}
+      };
+
       if (w > 2 || h > 2) {
         this.engine.push_undo();
         let id: number;
@@ -2662,7 +2677,10 @@ export class Editor {
           case "ellipse": id = this.engine.add_ellipse(x, y, w, h); break;
           case "frame": id = this.engine.add_frame(x, y, w, h); break;
           case "section": id = this.engine.add_section("", x, y, w, h); break;
-          case "text": id = this.engine.add_text(x, y, "Text", 16); break;
+          case "text":
+            id = this.engine.add_text(x, y, "Text", 16);
+            maybeAttachTextToPath(id);
+            break;
           case "image": id = this.engine.add_image(x, y, w, h, ""); this.promptImageSrc(id); break;
           case "video": id = this.engine.add_video(x, y, Math.max(w, 320), Math.max(h, 180), ""); break;
           case "star": id = this.engine.add_star(x, y, w, h, 5, 0.4); break;
@@ -2681,6 +2699,16 @@ export class Editor {
           default: id = 0;
         }
         if (id > 0) {
+          this.engine.select(id);
+          this.fireSelectionNow([id]);
+          this.onLayersChanges.forEach(fn => fn());
+        }
+      } else if (this.currentTool === "text") {
+        // Figma-style point text on click (no drag required)
+        this.engine.push_undo();
+        const id = this.engine.add_text(this.drag.startX, this.drag.startY, "Text", 16);
+        if (id > 0) {
+          maybeAttachTextToPath(id);
           this.engine.select(id);
           this.fireSelectionNow([id]);
           this.onLayersChanges.forEach(fn => fn());

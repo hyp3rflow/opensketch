@@ -1099,6 +1099,7 @@ Frame overflow control and content scrolling.
 - [x] Backward-compatible serde defaults
 - [x] 2026-04-06 polish: get_text_on_path_positions now includes baseline-offset-adjusted coordinates for downstream UI overlays/tools
 - [x] 2026-04-06 UX polish: canvas context menu adds "Attach Text to Path" (when Text+Path are selected) and "Detach Text from Path" quick action
+- [x] 2026-04-06 UX polish: Text tool click creates point-text (no drag required), and when clicked on a Path the new Text auto-attaches to that Path
 
 ## Animation Timeline (Keyframe Animation)
 - [x] Rust: animation.rs — Easing (Linear/EaseIn/EaseOut/EaseInOut/CubicBezier), AnimProperty (x/y/width/height/rotation/opacity/corner_radius/blur/fill colors/stroke_width), Keyframe, AnimationTrack, AnimationClip, AnimationStore
