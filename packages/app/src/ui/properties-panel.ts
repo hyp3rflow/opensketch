@@ -2548,39 +2548,56 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             btn.type = "button";
             btn.textContent = label;
             btn.title = title;
-            btn.style.cssText = "width:26px;height:20px;border:1px solid #505050;border-radius:5px;background:#2f2f2f;color:#bbb;font-size:10px;cursor:pointer;line-height:1;";
+            btn.style.cssText = "width:22px;height:22px;border:1px solid #505050;border-radius:999px;background:#2f2f2f;color:#bbb;font-size:10px;cursor:pointer;line-height:1;padding:0;";
             return btn;
           };
 
-          const topRowPins = document.createElement("div");
-          topRowPins.style.cssText = "display:flex;gap:6px;";
           const leftBtn = makePinBtn("L", "Pin Left");
-          const centerHBtn = makePinBtn("C", "Center Horizontally");
+          const centerHBtn = makePinBtn("HC", "Center Horizontally");
           const rightBtn = makePinBtn("R", "Pin Right");
-          topRowPins.appendChild(leftBtn);
-          topRowPins.appendChild(centerHBtn);
-          topRowPins.appendChild(rightBtn);
-
-          const midRowPins = document.createElement("div");
-          midRowPins.style.cssText = "display:flex;gap:6px;align-items:center;";
           const topBtn = makePinBtn("T", "Pin Top");
-          const centerVBtn = makePinBtn("C", "Center Vertically");
+          const centerVBtn = makePinBtn("VC", "Center Vertically");
           const bottomBtn = makePinBtn("B", "Pin Bottom");
-          midRowPins.appendChild(topBtn);
-          midRowPins.appendChild(centerVBtn);
-          midRowPins.appendChild(bottomBtn);
+
+          const pinBox = document.createElement("div");
+          pinBox.style.cssText = "position:relative;width:112px;height:84px;border:1px dashed #565656;border-radius:8px;background:#1f1f1f;";
+
+          const placeEdgeBtn = (btn: HTMLButtonElement, css: string) => {
+            btn.style.position = "absolute";
+            btn.style.cssText += css;
+            pinBox.appendChild(btn);
+          };
+
+          placeEdgeBtn(topBtn, "left:50%;top:6px;transform:translateX(-50%);");
+          placeEdgeBtn(bottomBtn, "left:50%;bottom:6px;transform:translateX(-50%);");
+          placeEdgeBtn(leftBtn, "left:6px;top:50%;transform:translateY(-50%);");
+          placeEdgeBtn(rightBtn, "right:6px;top:50%;transform:translateY(-50%);");
+
+          centerHBtn.style.width = "34px";
+          centerHBtn.style.height = "18px";
+          centerVBtn.style.width = "18px";
+          centerVBtn.style.height = "34px";
+          centerHBtn.style.borderRadius = "5px";
+          centerVBtn.style.borderRadius = "5px";
+          placeEdgeBtn(centerHBtn, "left:50%;top:50%;transform:translate(-50%,-65%);");
+          placeEdgeBtn(centerVBtn, "left:50%;top:50%;transform:translate(-35%,-50%);");
 
           const scaleRowPins = document.createElement("div");
-          scaleRowPins.style.cssText = "display:flex;gap:6px;";
-          const scaleHBtn = makePinBtn("Scale H", "Scale Horizontally");
-          scaleHBtn.style.width = "80px";
-          const scaleVBtn = makePinBtn("Scale V", "Scale Vertically");
-          scaleVBtn.style.width = "80px";
+          scaleRowPins.style.cssText = "display:flex;gap:6px;width:100%;";
+          const scaleHBtn = document.createElement("button");
+          scaleHBtn.type = "button";
+          scaleHBtn.textContent = "Scale H";
+          scaleHBtn.title = "Scale Horizontally";
+          scaleHBtn.style.cssText = "flex:1;height:22px;border:1px solid #505050;border-radius:6px;background:#2f2f2f;color:#bbb;font-size:10px;cursor:pointer;";
+          const scaleVBtn = document.createElement("button");
+          scaleVBtn.type = "button";
+          scaleVBtn.textContent = "Scale V";
+          scaleVBtn.title = "Scale Vertically";
+          scaleVBtn.style.cssText = "flex:1;height:22px;border:1px solid #505050;border-radius:6px;background:#2f2f2f;color:#bbb;font-size:10px;cursor:pointer;";
           scaleRowPins.appendChild(scaleHBtn);
           scaleRowPins.appendChild(scaleVBtn);
 
-          pinWrap.appendChild(topRowPins);
-          pinWrap.appendChild(midRowPins);
+          pinWrap.appendChild(pinBox);
           pinWrap.appendChild(scaleRowPins);
           constraintSection.appendChild(pinWrap);
 

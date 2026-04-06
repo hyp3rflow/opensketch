@@ -490,6 +490,7 @@
 - [x] **SVG attributes**: stroke-dasharray, stroke-linecap, stroke-linejoin (separate section)
 - [x] **Clipboard copy**: One-click copy button with "Copied!" feedback
 - [x] **Syntax highlighting**: VS Code-inspired coloring (property names, values, colors, strings)
+- [x] **Instance metadata exposure**: Instance 선택 시 master/component set/variant key/property override 상태를 Inspect 패널에서 표시하고 JSON 스냅샷 코드 블록으로 복사 가능
 
 ### Export/Import Styles
 - [x] **Export styles**: JSON file download with all color + text styles

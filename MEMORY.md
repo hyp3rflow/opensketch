@@ -2269,12 +2269,18 @@
 - specs/ENGINE.md, specs/FEATURES.md 동기화
 
 ## 다음 할 것 (2026-04-07 업데이트)
-- Symbol Instance Exposure in Inspect — Inspect 탭에서 instance의 master/variant/property 상태를 코드 스니펫과 함께 노출 (저~중난이도 / 중임팩트)
 - Prototype Hotspot Authoring Tool — 프레임 위 드래그로 투명 hotspot 생성 + interaction 자동 연결 (중난이도 / 고임팩트)
 - Variable Collection Panel Search & Usage Count — 변수 검색/필터 + 사용 노드 수 집계로 토큰 관리 생산성 향상 (저난이도 / 중임팩트)
 - Prototype Device Frame Presets — iPhone/Android/Web 프레임 프리셋 + safe area overlay로 프로토타입 검증 강화 (중난이도 / 고임팩트)
 - Interactive Components (Hover/Pressed variants) — 컴포넌트 상태 전이 정의 및 프로토타입 재생 시 상태 반영 (중~고난이도 / 고임팩트)
 - Auto Layout Wrap Controls UI — wrap 행/열 정렬 + align-content controls를 Figma 스타일로 노출 (중난이도 / 중임팩트)
+
+## 완료된 기능 (추가 — Symbol Instance Exposure in Inspect, 2026-04-07)
+- Inspect 패널에서 Instance 선택 시 `Instance Metadata` 카드 표시
+- master(component), component set, variant key, instance property 값을 표 형태로 노출
+- `Instance Snapshot` JSON 코드 블록 + copy 버튼 제공 (handoff 시 상태 공유 용이)
+- 엔진 기존 API(`get_instance_component_info`, `get_instance_component_set_info`, `get_instance_prop_values`) 기반으로 구현
+- specs/FEATURES.md Inspect Mode 섹션 동기화
 
 ## 완료된 기능 (추가 — Prototyping Smart Animate Timeline, 2026-04-06)
 - Interactions > Smart Animate Timeline을 리스트 입력형에서 시각 keyframe rail editor로 확장

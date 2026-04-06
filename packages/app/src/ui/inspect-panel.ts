@@ -56,8 +56,14 @@ export function setupInspectPanel(container: HTMLElement, editor: Editor) {
     // Node info header
     const header = document.createElement("div");
     header.style.cssText = "font-size:10px;color:#666;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;";
-    header.textContent = getKindLabel(node.kind) + (node.name ? ` — ${node.name}` : "");
+    const kindLabel = getKindLabel(node.kind);
+    header.textContent = kindLabel + (node.name ? ` — ${node.name}` : "");
     wrap.appendChild(header);
+
+    if (kindLabel === "Instance") {
+      const instanceSection = createInstanceInspectSection(editor, bid);
+      if (instanceSection) wrap.appendChild(instanceSection);
+    }
 
     // Language tabs
     const tabBar = document.createElement("div");
@@ -215,6 +221,64 @@ export function setupInspectPanel(container: HTMLElement, editor: Editor) {
     renderCodeMappingSection(wrap, editor, ids[0]!);
 
     container.appendChild(wrap);
+  }
+
+  function createInstanceInspectSection(editor: Editor, instanceId: bigint): HTMLElement | null {
+    try {
+      const infoRaw = (editor.engine as any).get_instance_component_info?.(instanceId);
+      const setInfoRaw = (editor.engine as any).get_instance_component_set_info?.(instanceId);
+      const propValuesRaw = (editor.engine as any).get_instance_prop_values?.(instanceId);
+
+      const info = infoRaw ? JSON.parse(infoRaw) : null;
+      const setInfo = setInfoRaw ? JSON.parse(setInfoRaw) : null;
+      const propValues = propValuesRaw ? JSON.parse(propValuesRaw) : null;
+      if (!info && !setInfo && !propValues) return null;
+
+      const section = document.createElement("div");
+      section.style.cssText = "background:#1b2435;border:1px solid #32415f;border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:8px;";
+
+      const title = document.createElement("div");
+      title.textContent = "Instance Metadata";
+      title.style.cssText = "font-size:11px;font-weight:700;color:#93c5fd;text-transform:uppercase;letter-spacing:0.4px;";
+      section.appendChild(title);
+
+      const rows = document.createElement("div");
+      rows.style.cssText = "display:grid;grid-template-columns:88px 1fr;gap:4px 8px;font-size:11px;";
+      const addRow = (k: string, v: string) => {
+        const key = document.createElement("div");
+        key.textContent = k;
+        key.style.cssText = "color:#8b96ab;";
+        const value = document.createElement("div");
+        value.textContent = v || "-";
+        value.style.cssText = "color:#dbeafe;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
+        value.title = v || "-";
+        rows.appendChild(key);
+        rows.appendChild(value);
+      };
+
+      addRow("Master", info?.component_name || info?.name || "Unknown");
+      addRow("Component ID", String(info?.component_id ?? "-"));
+      addRow("Set", setInfo?.name || "-" );
+      addRow("Variant", setInfo?.variant_name || info?.variant_name || "Default");
+      addRow("Variant Key", JSON.stringify(info?.variant_key ?? setInfo?.variant_key ?? {}));
+      section.appendChild(rows);
+
+      const snippetObj = {
+        instance: {
+          componentId: info?.component_id ?? null,
+          componentName: info?.component_name ?? info?.name ?? null,
+          componentSet: setInfo?.name ?? null,
+          variantKey: info?.variant_key ?? setInfo?.variant_key ?? {},
+          properties: propValues ?? {},
+        },
+      };
+      const snippet = `// OpenSketch instance snapshot\n${JSON.stringify(snippetObj, null, 2)}`;
+      section.appendChild(createCodeSection("Instance Snapshot", snippet));
+
+      return section;
+    } catch {
+      return null;
+    }
   }
 
   function createDownloadBtn(label: string, action: () => void): HTMLButtonElement {
