@@ -103,15 +103,30 @@ export class DevModeOverlay {
     const css = this.generateCSS(node, BigInt(id));
     const specPins = this.getSpecPins(node);
     const noteCount = Array.isArray(node?.notes) ? node.notes.length : 0;
+    const textMetrics = this.getTextInspectMetrics(node);
+    const nearest = this.getNearestSpacing(id, node);
+    const nearestHtml = nearest
+      ? `<div>Nearest spacing: <b>${nearest.distance}px</b> <span style="color:#94a3b8;">(${nearest.axis}${nearest.target ? ` · ${this.escapeHtml(nearest.target)}` : ""})</span></div>`
+      : `<div>Nearest spacing: <b>—</b></div>`;
+    const textHtml = textMetrics
+      ? `
+      <div style="margin-top:4px;padding-top:4px;border-top:1px dashed #334155;">
+        <div>Baseline Y: <b>${textMetrics.baselineY}px</b></div>
+        <div>Line Height: <b>${textMetrics.lineHeightPx}px</b> <span style="color:#94a3b8;">(${textMetrics.lineHeightRatio})</span></div>
+      </div>`
+      : "";
+
     this.inspectBadge.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:4px;">
         <strong style="font-size:10px;color:#93c5fd;">Dev Inspect</strong>
         <button class="dev-inspect-copy" style="background:#2563eb;color:white;border:none;border-radius:4px;padding:2px 6px;font-size:10px;cursor:pointer;">Copy</button>
       </div>
       <div>Spacing: <b>${Math.round(spacing)}px</b></div>
+      ${nearestHtml}
       <div>Padding: <b>${Math.round(pt)} ${Math.round(pr)} ${Math.round(pb)} ${Math.round(pl)}</b></div>
       <div>Margin: <b>${margin.t} ${margin.r} ${margin.b} ${margin.l}</b></div>
       <div>Spec Pins: <b>${specPins.length}</b> · Notes: <b>${noteCount}</b></div>
+      ${textHtml}
     `;
     this.inspectBadge.querySelector<HTMLButtonElement>(".dev-inspect-copy")?.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -131,6 +146,81 @@ export class DevModeOverlay {
       this.inspectBadge.style.display = "block";
     } catch {
       this.inspectBadge.style.display = "none";
+    }
+  }
+
+  renderCanvasOverlay(ctx: CanvasRenderingContext2D) {
+    if (!this._enabled) return;
+    const ids = Array.from(this.editor.engine.get_selection()).map(Number);
+    if (ids.length !== 1) return;
+    const id = ids[0]!;
+    const nj = this.editor.engine.get_node_json(BigInt(id));
+    if (!nj) return;
+    const node = JSON.parse(nj);
+
+    const zoom = this.editor.engine.get_zoom();
+    const panX = this.editor.engine.get_pan_x();
+    const panY = this.editor.engine.get_pan_y();
+
+    const sx = (Number(node.x || 0) * zoom) + panX;
+    const sy = (Number(node.y || 0) * zoom) + panY;
+    const sw = Number(node.width || 0) * zoom;
+
+    const textMetrics = this.getTextInspectMetrics(node);
+    if (textMetrics) {
+      const baselineY = (textMetrics.baselineY * zoom) + panY;
+      const lineY = ((Number(node.y || 0) + textMetrics.lineHeightPx) * zoom) + panY;
+
+      ctx.save();
+      ctx.strokeStyle = "#22d3ee";
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath();
+      ctx.moveTo(sx, baselineY);
+      ctx.lineTo(sx + sw, baselineY);
+      ctx.moveTo(sx, lineY);
+      ctx.lineTo(sx + sw, lineY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.fillStyle = "#67e8f9";
+      ctx.font = "10px -apple-system, BlinkMacSystemFont, sans-serif";
+      ctx.fillText(`baseline ${textMetrics.baselineY}px`, sx + 4, baselineY - 4);
+      ctx.fillText(`line-height ${textMetrics.lineHeightPx}px`, sx + 4, lineY - 4);
+      ctx.restore();
+    }
+
+    const nearest = this.getNearestSpacing(id, node);
+    if (nearest) {
+      ctx.save();
+      ctx.strokeStyle = "#f59e0b";
+      ctx.lineWidth = 1;
+      ctx.setLineDash([2, 2]);
+
+      if (nearest.axis === "H") {
+        const y = sy + (Number(node.height || 0) * zoom) / 2;
+        const x1 = sx;
+        const x2 = sx - nearest.distance * zoom;
+        ctx.beginPath();
+        ctx.moveTo(x1, y);
+        ctx.lineTo(x2, y);
+        ctx.stroke();
+        ctx.fillStyle = "#fbbf24";
+        ctx.font = "10px -apple-system, BlinkMacSystemFont, sans-serif";
+        ctx.fillText(`${nearest.distance}px`, Math.min(x1, x2) + 4, y - 4);
+      } else {
+        const x = sx + sw / 2;
+        const y1 = sy;
+        const y2 = sy - nearest.distance * zoom;
+        ctx.beginPath();
+        ctx.moveTo(x, y1);
+        ctx.lineTo(x, y2);
+        ctx.stroke();
+        ctx.fillStyle = "#fbbf24";
+        ctx.font = "10px -apple-system, BlinkMacSystemFont, sans-serif";
+        ctx.fillText(`${nearest.distance}px`, x + 4, Math.min(y1, y2) - 4);
+      }
+      ctx.restore();
     }
   }
 
@@ -235,6 +325,84 @@ export class DevModeOverlay {
     this.inspectBadge.style.display = "none";
     this.hoveredNodeId = null;
     this.visible = false;
+  }
+
+  private getTextInspectMetrics(node: any): { baselineY: number; lineHeightPx: number; lineHeightRatio: string } | null {
+    const kind = typeof node?.kind === "string" ? node.kind : node?.kind?.type;
+    if (kind !== "Text") return null;
+    const fontSize = Number(node?.font_size || 16);
+    const lineHeightRatio = Number(node?.line_height || 1.2);
+    const baselineY = Math.round((Number(node?.y || 0) + fontSize) * 100) / 100;
+    const lineHeightPx = Math.round(fontSize * lineHeightRatio * 100) / 100;
+    return {
+      baselineY,
+      lineHeightPx,
+      lineHeightRatio: (Math.round(lineHeightRatio * 100) / 100).toString(),
+    };
+  }
+
+  private getNearestSpacing(nodeId: number, node: any): { axis: "H" | "V"; distance: number; target?: string } | null {
+    try {
+      const scene = JSON.parse(this.editor.engine.export_scene());
+      const nodes: any[] = [];
+      this.collectSceneNodes(scene, nodes);
+      const source = {
+        x: Number(node?.x || 0),
+        y: Number(node?.y || 0),
+        w: Number(node?.width || 0),
+        h: Number(node?.height || 0),
+      };
+      let best: { axis: "H" | "V"; distance: number; target?: string } | null = null;
+      for (const cand of nodes) {
+        if (!cand || Number(cand.id) === nodeId || cand.visible === false) continue;
+        const cx = Number(cand.x || 0);
+        const cy = Number(cand.y || 0);
+        const cw = Number(cand.width || 0);
+        const ch = Number(cand.height || 0);
+
+        const overlapY = !(source.y + source.h <= cy || cy + ch <= source.y);
+        if (overlapY) {
+          const leftGap = Math.abs(source.x - (cx + cw));
+          const rightGap = Math.abs(cx - (source.x + source.w));
+          const dist = Math.min(leftGap, rightGap);
+          if (!best || dist < best.distance) best = { axis: "H", distance: Math.round(dist), target: cand.name || undefined };
+        }
+
+        const overlapX = !(source.x + source.w <= cx || cx + cw <= source.x);
+        if (overlapX) {
+          const topGap = Math.abs(source.y - (cy + ch));
+          const bottomGap = Math.abs(cy - (source.y + source.h));
+          const dist = Math.min(topGap, bottomGap);
+          if (!best || dist < best.distance) best = { axis: "V", distance: Math.round(dist), target: cand.name || undefined };
+        }
+      }
+      return best;
+    } catch {
+      return null;
+    }
+  }
+
+  private collectSceneNodes(input: any, out: any[]) {
+    if (!input) return;
+    if (Array.isArray(input)) {
+      for (const item of input) this.collectSceneNodes(item, out);
+      return;
+    }
+    if (typeof input !== "object") return;
+
+    if (typeof input.id === "number" && typeof input.x === "number" && typeof input.y === "number") {
+      out.push(input);
+    }
+
+    if (Array.isArray(input.children)) {
+      for (const child of input.children) this.collectSceneNodes(child, out);
+    }
+
+    for (const key of Object.keys(input)) {
+      if (key === "children") continue;
+      const value = (input as any)[key];
+      if (value && typeof value === "object") this.collectSceneNodes(value, out);
+    }
   }
 
   private generateCSS(node: any, bid: bigint): string {

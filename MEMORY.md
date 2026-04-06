@@ -2285,10 +2285,19 @@
 - 구현: `packages/app/src/editor.ts`, `packages/app/src/ui/toolbar.ts`, `packages/app/src/ui/shortcut-manager.ts`, `packages/app/src/locales/{en,ko,ja}.json`
 - specs/FEATURES.md Prototyping 섹션 동기화
 
+## 완료된 기능 (추가 — Dev Inspect Distance/Baseline Overlay, 2026-04-07)
+- Dev Mode 단일 선택 시 캔버스 오버레이에 텍스트 baseline + line-height 가이드 라인 표시
+- 인라인 Dev Inspect 배지에 Baseline Y / Line Height(px, ratio) 정보 추가
+- 가장 가까운 이웃 노드와의 간격(Nearest spacing) 계산 및 배지/오버레이 표시
+- 구현: `packages/app/src/ui/dev-mode-overlay.ts`, `packages/app/src/editor.ts`
+- specs/FEATURES.md Dev Mode Enhancement 섹션 동기화
+
 ## 다음 할 것 (2026-04-07 업데이트)
-- Dev Inspect Distance/Baseline Overlay — 텍스트 baseline + line-height + nearest spacing 오버레이를 Dev/Inspect 모드에서 시각화 (중난이도 / 중임팩트)
 - Prototype Scroll Physics Presets — iOS/Android/Web 관성 스크롤 프리셋(감쇠/탄성) 전환 및 미리보기 (중난이도 / 중임팩트)
 - Variable Fallback Chain — 변수 바인딩 실패 시 mode→collection→literal fallback 체인 및 Broken binding 자동 복구 제안 (중난이도 / 고임팩트)
+- Auto Layout Min/Max Constraints — Hug/Fill와 함께 min/max width/height 제약을 지원해 반응형 레이아웃 안정성 강화 (중난이도 / 고임팩트)
+- Multi-Edit Text Cursor (Cross-node) — 여러 Text 노드 동시 선택 후 공통 입력/스타일 적용 (고난이도 / 고임팩트)
+- Prototype Fixed Header/Footer Regions — 스크롤 컨테이너 내 고정 영역 지정(top/bottom) 및 오버레이 클리핑 규칙 제공 (중난이도 / 중~고임팩트)
 
 ## 완료된 기능 (추가 — Variable Collection Panel Search & Usage Count, 2026-04-07)
 - Variables 패널 Variables 섹션에 검색 입력 + 타입 필터(All/Color/Number/String/Boolean) 추가

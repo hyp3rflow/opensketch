@@ -5008,6 +5008,7 @@ export class Editor {
         this.renderPixelPreviewOverlay();
         this._rulers?.render();
         if (this._devMode) {
+          this._devModeOverlay.renderCanvasOverlay(this.ctx);
           this._devModeOverlay.updateSelectionInspect(Array.from(this.engine.get_selection()).map(Number));
         }
         this.needsRender = false;
