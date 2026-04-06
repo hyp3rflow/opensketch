@@ -1,5 +1,6 @@
 import type { Editor } from "../editor";
 import { setupVariablesBulkEdit } from "./variables-bulk-edit";
+import { applyThemeMode, detectActiveThemeMode, listThemeModeOptions } from "./variable-theme-modes";
 
 interface VarMode { id: number; name: string; }
 interface VarVariable {
@@ -330,6 +331,44 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
     }
     modesSection.appendChild(modesRow);
     container.appendChild(modesSection);
+
+    // Theme modes (Light / Dark / custom names)
+    const themeOptions = listThemeModeOptions(editor);
+    if (themeOptions.length > 0) {
+      const themeSection = document.createElement("div");
+      themeSection.style.cssText = "margin-bottom:12px;background:#1e2433;border:1px solid #2c3550;border-radius:6px;padding:8px;";
+
+      const themeHeader = document.createElement("div");
+      themeHeader.style.cssText = "display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;";
+      const themeTitle = document.createElement("span");
+      themeTitle.style.cssText = "font-size:10px;color:#93c5fd;text-transform:uppercase;letter-spacing:0.5px;font-weight:700;";
+      themeTitle.textContent = "Theme Mode Set";
+      themeHeader.appendChild(themeTitle);
+
+      const activeTheme = detectActiveThemeMode(editor);
+      const activeBadge = document.createElement("span");
+      activeBadge.style.cssText = "font-size:10px;color:#a5b4fc;";
+      activeBadge.textContent = activeTheme ? `Active: ${activeTheme}` : "Active: mixed";
+      themeHeader.appendChild(activeBadge);
+      themeSection.appendChild(themeHeader);
+
+      const chips = document.createElement("div");
+      chips.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;";
+      for (const opt of themeOptions) {
+        const chip = document.createElement("button");
+        const isActive = activeTheme === opt.id;
+        chip.style.cssText = `padding:4px 10px;font-size:11px;border-radius:999px;cursor:pointer;border:1px solid ${isActive ? "#4f46e5" : "#445"};background:${isActive ? "#4f46e533" : "#273043"};color:${isActive ? "#c4b5fd" : "#cbd5e1"};`;
+        chip.textContent = opt.label;
+        chip.addEventListener("click", () => {
+          editor.engine.push_undo();
+          applyThemeMode(editor, opt.id);
+          refresh();
+        });
+        chips.appendChild(chip);
+      }
+      themeSection.appendChild(chips);
+      container.appendChild(themeSection);
+    }
 
     // Variables table
     const varsSection = document.createElement("div");

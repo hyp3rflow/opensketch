@@ -586,6 +586,7 @@
 - [x] **Bindable properties**: fill.0.color, stroke.color, opacity, corner_radius, width, height
 - [x] **WASM bindings**: create/rename/delete collection, add/rename/delete mode, create/set/delete variable, bind/unbind, get_collections, get_bindings, apply_variables
 - [x] **Variables panel**: Right pane "Variables" tab with collection CRUD, mode tabs, variable table with type-specific editors
+- [x] **Theme Mode Set quick apply**: Variables panel infers shared mode names across collections (e.g. Light/Dark/custom) and provides one-click chips to switch all mapped collections together (applies variables + re-render).
 - [x] **Variable Modes Quick Switch (Toolbar)**: 툴바 버튼으로 플로팅 패널을 열어 각 collection의 active mode를 즉시 전환 (예: Desktop/Mobile, Light/Dark), 변경 즉시 `set_active_mode` + `apply_variables` 반영
 - [x] **Binding UI**: Properties panel "Variable Bindings" section with bind/unbind per property, variable picker popup
 - [x] **Backward-compatible serde**: Default empty collections/bindings for existing files
@@ -2272,6 +2273,7 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] **SetVariable action**: InteractionAction::SetVariable with set_variable_name + set_variable_expression
 - [x] **WASM bindings**: add/remove/update_prototype_variable, get_prototype_variables, set_interaction_condition, set_interaction_set_variable
 - [x] **Prototype Viewer**: Runtime variable state (Map), condition evaluation, SetVariable execution (+N/-N/toggle/literal), debug panel showing current variable values
+- [x] **Prototype theme mode switch**: Top bar `Theme` selector mirrors variable mode names (Light/Dark/custom) and switches collection active modes live during preview.
 - [x] **Properties panel — Variables section**: Scene-level variable CRUD UI (name, type select, default value, add/delete)
 - [x] **Properties panel — Interaction condition UI**: Per-interaction optional condition builder (prototype variable datalist, operator select, compare value), live branch preview (TRUE/FALSE with current variable value), clear button
 - [x] **Properties panel — SetVariable action UI**: Variable name + expression inputs shown when action is SetVariable

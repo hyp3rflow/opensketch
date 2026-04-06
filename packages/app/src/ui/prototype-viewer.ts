@@ -1,6 +1,7 @@
 import type { Editor } from "../editor";
 import { applyEasing } from "./easing-editor";
 import { computeScrollAnimOverrides } from "./scroll-animation";
+import { applyThemeMode, detectActiveThemeMode, listThemeModeOptions } from "./variable-theme-modes";
 
 /**
  * Prototype presentation mode viewer.
@@ -146,6 +147,33 @@ export function createPrototypeViewer(editor: Editor): {
     title.textContent = "Prototype Preview";
     title.id = "proto-title";
     topBar.appendChild(title);
+
+    // Theme mode quick switch (Light / Dark / custom mode names)
+    const themeOptions = listThemeModeOptions(editor);
+    if (themeOptions.length > 0) {
+      const themeWrap = document.createElement("div");
+      themeWrap.style.cssText = "display:flex;align-items:center;gap:6px;";
+      const themeLabel = document.createElement("span");
+      themeLabel.style.cssText = "font-size:11px;color:#94a3b8;";
+      themeLabel.textContent = "Theme";
+      const themeSel = document.createElement("select");
+      themeSel.style.cssText = "background:#0f3460;color:#e2e8f0;border:1px solid #334155;border-radius:6px;padding:5px 8px;font-size:12px;";
+      const activeTheme = detectActiveThemeMode(editor);
+      for (const opt of themeOptions) {
+        const o = document.createElement("option");
+        o.value = opt.id;
+        o.textContent = opt.label;
+        if (opt.id === activeTheme) o.selected = true;
+        themeSel.appendChild(o);
+      }
+      themeSel.addEventListener("change", () => {
+        applyThemeMode(editor, themeSel.value);
+        renderCurrentView();
+      });
+      themeWrap.appendChild(themeLabel);
+      themeWrap.appendChild(themeSel);
+      topBar.appendChild(themeWrap);
+    }
 
     const closeBtn = document.createElement("button");
     closeBtn.style.cssText = "background:#e94560;color:white;border:none;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:12px;";
