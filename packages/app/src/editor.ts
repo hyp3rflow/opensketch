@@ -201,7 +201,13 @@ export class Editor {
   private _breakpointIndicator: { label: string; maxWidth: number; currentWidth: number } | null = null;
   private _breakpointIndicatorTimeout: ReturnType<typeof setTimeout> | null = null;
   private _pointSnapIndicators: PointSnapIndicator[] = [];
-  private _constraintPinsOverlay: { x: number; y: number; boxSize: number; selectedId: number } | null = null;
+  private _constraintPinsOverlay: {
+    x: number;
+    y: number;
+    boxSize: number;
+    selectedId: number;
+    controls: Array<{ x: number; y: number; w: number; h: number; axis: "h" | "v"; mode: string }>;
+  } | null = null;
   private _measureLines: MeasureLine[] = [];
   private _measureTargetBounds: { x: number; y: number; w: number; h: number } | null = null;
   public measureTool = new MeasureToolState();
@@ -1307,18 +1313,110 @@ export class Editor {
 
     // Constraints visual pins: click-to-edit quick constraints (single-select)
     if (this.currentTool === "select" && this._constraintPinsOverlay) {
-      const { x: ox, y: oy, boxSize, selectedId } = this._constraintPinsOverlay;
-      if (x >= ox && x <= ox + boxSize && y >= oy && y <= oy + boxSize) {
+      const { x: ox, y: oy, boxSize, selectedId, controls } = this._constraintPinsOverlay;
+      const maxCtrlY = controls.length > 0 ? Math.max(...controls.map((c) => c.y + c.h)) : oy + boxSize;
+      if (x < ox || x > ox + boxSize || y < oy || y > maxCtrlY) {
+        // outside constraint pin overlay
+      } else if (x >= ox && x <= ox + boxSize && y >= oy && y <= oy + boxSize) {
         const col = Math.max(0, Math.min(2, Math.floor((x - (ox + 3)) / 12)));
         const row = Math.max(0, Math.min(2, Math.floor((y - (oy + 3)) / 12)));
-        const horizontal = col === 0 ? "left" : col === 1 ? "center" : "right";
-        const vertical = row === 0 ? "top" : row === 1 ? "center" : "bottom";
+
+        let constraints: { horizontal?: string; vertical?: string } = {};
+        try {
+          constraints = JSON.parse(this.engine.get_constraints(BigInt(selectedId)) || "{}");
+        } catch {
+          constraints = {};
+        }
+
+        const currentH = constraints.horizontal || "left";
+        const currentV = constraints.vertical || "top";
+
+        const applyHorizontal = (mode: string): string => {
+          if (mode === "left") {
+            if (currentH === "right") return "leftAndRight";
+            if (currentH === "leftAndRight") return "right";
+            return "left";
+          }
+          if (mode === "right") {
+            if (currentH === "left") return "leftAndRight";
+            if (currentH === "leftAndRight") return "left";
+            return "right";
+          }
+          if (mode === "center") return "center";
+          if (mode === "scale") return "scale";
+          return currentH;
+        };
+
+        const applyVertical = (mode: string): string => {
+          if (mode === "top") {
+            if (currentV === "bottom") return "topAndBottom";
+            if (currentV === "topAndBottom") return "bottom";
+            return "top";
+          }
+          if (mode === "bottom") {
+            if (currentV === "top") return "topAndBottom";
+            if (currentV === "topAndBottom") return "top";
+            return "bottom";
+          }
+          if (mode === "center") return "center";
+          if (mode === "scale") return "scale";
+          return currentV;
+        };
+
+        const hMode = col === 0 ? "left" : col === 1 ? "center" : "right";
+        const vMode = row === 0 ? "top" : row === 1 ? "center" : "bottom";
+
         this.engine.push_undo();
-        this.engine.set_constraints(BigInt(selectedId), horizontal, vertical);
+        this.engine.set_constraints(BigInt(selectedId), applyHorizontal(hMode), applyVertical(vMode));
         this.needsRender = true;
         this.fireSelectionNow(Array.from(this.engine.get_selection()).map(Number));
         this.canvas.setPointerCapture(e.pointerId);
         return;
+      }
+
+      for (const ctrl of controls) {
+        if (x >= ctrl.x && x <= ctrl.x + ctrl.w && y >= ctrl.y && y <= ctrl.y + ctrl.h) {
+          let constraints: { horizontal?: string; vertical?: string } = {};
+          try {
+            constraints = JSON.parse(this.engine.get_constraints(BigInt(selectedId)) || "{}");
+          } catch {
+            constraints = {};
+          }
+
+          const currentH = constraints.horizontal || "left";
+          const currentV = constraints.vertical || "top";
+          let nextH = currentH;
+          let nextV = currentV;
+
+          if (ctrl.axis === "h") {
+            if (ctrl.mode === "left") {
+              nextH = currentH === "right" ? "leftAndRight" : currentH === "leftAndRight" ? "right" : "left";
+            } else if (ctrl.mode === "right") {
+              nextH = currentH === "left" ? "leftAndRight" : currentH === "leftAndRight" ? "left" : "right";
+            } else if (ctrl.mode === "center") {
+              nextH = "center";
+            } else if (ctrl.mode === "scale") {
+              nextH = "scale";
+            }
+          } else {
+            if (ctrl.mode === "top") {
+              nextV = currentV === "bottom" ? "topAndBottom" : currentV === "topAndBottom" ? "bottom" : "top";
+            } else if (ctrl.mode === "bottom") {
+              nextV = currentV === "top" ? "topAndBottom" : currentV === "topAndBottom" ? "top" : "bottom";
+            } else if (ctrl.mode === "center") {
+              nextV = "center";
+            } else if (ctrl.mode === "scale") {
+              nextV = "scale";
+            }
+          }
+
+          this.engine.push_undo();
+          this.engine.set_constraints(BigInt(selectedId), nextH, nextV);
+          this.needsRender = true;
+          this.fireSelectionNow(Array.from(this.engine.get_selection()).map(Number));
+          this.canvas.setPointerCapture(e.pointerId);
+          return;
+        }
       }
     }
 
@@ -6193,11 +6291,23 @@ export class Editor {
     const boxSize = 42;
     const slot = 12;
     const radius = 2.5;
+    const ctrlW = 24;
+    const ctrlH = 14;
+    const ctrlGap = 6;
+    const extraHeight = ctrlH * 2 + ctrlGap + 12;
     const ox = sx + sw / 2 - boxSize / 2;
-    const oy = sy - boxSize - 10;
-    this._constraintPinsOverlay = { x: ox, y: oy, boxSize, selectedId: sel[0] };
+    const oy = sy - (boxSize + extraHeight) - 10;
+
+    const controls = [
+      { x: ox, y: oy + boxSize + 8, w: ctrlW, h: ctrlH, axis: "h" as const, mode: "scale" },
+      { x: ox + boxSize - ctrlW, y: oy + boxSize + 8, w: ctrlW, h: ctrlH, axis: "v" as const, mode: "scale" },
+    ];
+
+    this._constraintPinsOverlay = { x: ox, y: oy, boxSize, selectedId: sel[0], controls };
 
     const active = new Set<number>();
+    const hMode = constraints.horizontal || "left";
+    const vMode = constraints.vertical || "top";
     const applyH = (h: string) => {
       if (h === "left" || h === "leftAndRight" || h === "scale") [0, 3, 6].forEach((i) => active.add(i));
       if (h === "right" || h === "leftAndRight" || h === "scale") [2, 5, 8].forEach((i) => active.add(i));
@@ -6209,8 +6319,8 @@ export class Editor {
       if (v === "center" || v === "scale") [3, 4, 5].forEach((i) => active.add(i));
     };
 
-    applyH(constraints.horizontal || "left");
-    applyV(constraints.vertical || "top");
+    applyH(hMode);
+    applyV(vMode);
 
     const ctx = this.ctx;
     ctx.save();
@@ -6218,8 +6328,15 @@ export class Editor {
     ctx.strokeStyle = "rgba(255,255,255,0.18)";
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.roundRect(ox, oy, boxSize, boxSize, 8);
+    ctx.roundRect(ox - 3, oy - 3, boxSize + 6, boxSize + extraHeight, 8);
     ctx.fill();
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.roundRect(ox, oy, boxSize, boxSize, 8);
+    ctx.fillStyle = "rgba(17,18,24,0.95)";
+    ctx.fill();
+    ctx.strokeStyle = "rgba(255,255,255,0.14)";
     ctx.stroke();
 
     for (let row = 0; row < 3; row++) {
@@ -6232,6 +6349,21 @@ export class Editor {
         ctx.fillStyle = active.has(i) ? "#0d99ff" : "rgba(255,255,255,0.32)";
         ctx.fill();
       }
+    }
+
+    for (const ctrl of controls) {
+      const activeCtrl = ctrl.axis === "h" ? hMode === "scale" : vMode === "scale";
+      ctx.beginPath();
+      ctx.roundRect(ctrl.x, ctrl.y, ctrl.w, ctrl.h, 4);
+      ctx.fillStyle = activeCtrl ? "#0d99ff" : "rgba(47,47,47,0.95)";
+      ctx.fill();
+      ctx.strokeStyle = activeCtrl ? "#5fbfff" : "rgba(255,255,255,0.18)";
+      ctx.stroke();
+      ctx.fillStyle = activeCtrl ? "#fff" : "rgba(255,255,255,0.8)";
+      ctx.font = "9px Inter, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(ctrl.axis === "h" ? "Scale H" : "Scale V", ctrl.x + ctrl.w / 2, ctrl.y + ctrl.h / 2 + 0.5);
     }
 
     ctx.restore();

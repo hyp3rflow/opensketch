@@ -2279,8 +2279,15 @@
 ## 다음 할 것 (2026-04-07 업데이트)
 - Prototype Hotspot Authoring Tool — 프레임 위 드래그로 투명 hotspot 생성 + interaction 자동 연결 (중난이도 / 고임팩트)
 - Variable Collection Panel Search & Usage Count — 변수 검색/필터 + 사용 노드 수 집계로 토큰 관리 생산성 향상 (저난이도 / 중임팩트)
-- Interactive Components (Hover/Pressed variants) — 컴포넌트 상태 전이 정의 및 프로토타입 재생 시 상태 반영 (중~고난이도 / 고임팩트)
-- Auto Layout Wrap Controls UI — wrap 행/열 정렬 + align-content controls를 Figma 스타일로 노출 (중난이도 / 중임팩트)
+- Dev Inspect Distance/Baseline Overlay — 텍스트 baseline + line-height + nearest spacing 오버레이를 Dev/Inspect 모드에서 시각화 (중난이도 / 중임팩트)
+- Prototype Scroll Physics Presets — iOS/Android/Web 관성 스크롤 프리셋(감쇠/탄성) 전환 및 미리보기 (중난이도 / 중임팩트)
+- Variable Fallback Chain — 변수 바인딩 실패 시 mode→collection→literal fallback 체인 및 Broken binding 자동 복구 제안 (중난이도 / 고임팩트)
+
+## 완료된 기능 (추가 — Constraints Pin UI Canvas Overlay polish, 2026-04-07)
+- 캔버스 상단 Constraint Pins 오버레이 클릭 동작 개선
+- 3×3 핀 미니맵 클릭 시 H/V를 독립 토글 규칙으로 적용 (Left↔Right 조합 시 Left&Right, Top↔Bottom 조합 시 Top&Bottom)
+- Scale H / Scale V 전용 버튼 추가로 scale constraints를 직접 지정
+- 클릭 시 undo + selection refresh로 Properties 패널 상태 즉시 동기화
 
 ## 완료된 기능 (추가 — Symbol Instance Exposure in Inspect, 2026-04-07)
 - Inspect 패널에서 Instance 선택 시 `Instance Metadata` 카드 표시
