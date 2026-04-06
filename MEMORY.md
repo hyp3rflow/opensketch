@@ -2230,10 +2230,16 @@
 - specs/FEATURES.md 반영
 
 ## 다음 할 것 (2026-04-06 업데이트)
-- Variable Modes Quick Switch — Prototype Variables 모드(Desktop/Mobile, Light/Dark 등)를 툴바 토글로 즉시 전환 (저난이도 / 중임팩트)
 - Component Properties Panel (Instance Controls) — Figma처럼 인스턴스 선택 시 variant/property 토글/텍스트 override를 한 카드에서 편집 (중난이도 / 고임팩트)
 - Smart Select Spacing Handles Upgrade — 인접 노드 간 간격 핸들에서 숫자 직접 입력·균등 분배·Auto Layout 변환 제안 (중난이도 / 고임팩트)
 - Dev Mode Spec Pins — 노드에 구현 메모/링크/GitHub 이슈를 핀으로 연결하고 Inspect에서 함께 노출 (저~중난이도 / 중임팩트)
+
+## 완료된 기능 (추가 — Variable Modes Quick Switch, 2026-04-06)
+- Toolbar에 Variable Modes Quick Switch 버튼 추가 (Desktop/Mobile, Light/Dark 등 즉시 전환)
+- 버튼 클릭 시 플로팅 패널에서 각 Variable Collection의 active mode를 드롭다운으로 빠르게 변경
+- mode 변경 즉시 `set_active_mode` + `apply_variables` 적용, 캔버스 즉시 리렌더
+- Variables 패널을 열지 않고 프로토타입 상태 토글 가능하도록 UX 단축
+- specs/FEATURES.md 반영
 
 ## 완료된 기능 (추가 — Text Styles Scale Tokens, 2026-04-06)
 - Properties 빈 상태 Styles Library에 "Text Scale Tokens" 버튼 추가

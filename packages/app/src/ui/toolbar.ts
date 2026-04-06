@@ -85,6 +85,115 @@ function addImageFromFile(editor: Editor) {
   input.click();
 }
 
+function openVariableModesQuickSwitch(anchor: HTMLElement, editor: Editor) {
+  const existing = document.getElementById("variable-modes-quick-switch");
+  if (existing) {
+    existing.remove();
+    return;
+  }
+
+  let collections: any[] = [];
+  try {
+    collections = JSON.parse(editor.engine.get_collections() || "[]") || [];
+  } catch {
+    collections = [];
+  }
+  collections = collections.filter((c: any) => Array.isArray(c?.modes) && c.modes.length > 0);
+
+  const panel = document.createElement("div");
+  panel.id = "variable-modes-quick-switch";
+  panel.style.cssText = `
+    position: fixed;
+    min-width: 280px;
+    max-width: 360px;
+    padding: 10px;
+    border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.12);
+    background: rgba(20,23,31,0.98);
+    box-shadow: 0 14px 40px rgba(0,0,0,0.45);
+    z-index: 3000;
+    color: #e5e7eb;
+    font-size: 12px;
+    backdrop-filter: blur(8px);
+  `;
+
+  const rect = anchor.getBoundingClientRect();
+  panel.style.left = `${Math.max(8, Math.min(window.innerWidth - 380, rect.left - 40))}px`;
+  panel.style.top = `${Math.max(8, rect.top - 12 - 8)}px`;
+  panel.style.transform = "translateY(-100%)";
+
+  const title = document.createElement("div");
+  title.style.cssText = "font-weight:600;margin-bottom:8px;color:#c7d2fe;";
+  title.textContent = "Variable Modes Quick Switch";
+  panel.appendChild(title);
+
+  if (collections.length === 0) {
+    const empty = document.createElement("div");
+    empty.style.cssText = "color:#94a3b8;line-height:1.4;";
+    empty.textContent = "No variable collections yet.";
+    panel.appendChild(empty);
+  } else {
+    collections.forEach((col: any) => {
+      const row = document.createElement("div");
+      row.style.cssText = "display:flex;align-items:center;gap:8px;margin-bottom:6px;";
+
+      const label = document.createElement("div");
+      label.style.cssText = "flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#cbd5e1;";
+      label.textContent = col.name || `Collection ${col.id}`;
+
+      const select = document.createElement("select");
+      select.style.cssText = "min-width:130px;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:6px;padding:4px 6px;font-size:12px;";
+      (col.modes || []).forEach((mode: any) => {
+        const opt = document.createElement("option");
+        opt.value = String(mode.id);
+        opt.textContent = mode.name || `Mode ${mode.id}`;
+        if (Number(mode.id) === Number(col.active_mode_id)) opt.selected = true;
+        select.appendChild(opt);
+      });
+
+      select.addEventListener("change", () => {
+        const modeId = Number(select.value);
+        if (!modeId) return;
+        editor.engine.set_active_mode(BigInt(col.id), BigInt(modeId));
+        editor.engine.apply_variables();
+        editor.requestRender();
+      });
+
+      row.appendChild(label);
+      row.appendChild(select);
+      panel.appendChild(row);
+    });
+  }
+
+  const foot = document.createElement("div");
+  foot.style.cssText = "margin-top:8px;padding-top:8px;border-top:1px solid rgba(148,163,184,0.25);display:flex;justify-content:space-between;gap:8px;align-items:center;";
+
+  const hint = document.createElement("div");
+  hint.style.cssText = "font-size:11px;color:#94a3b8;";
+  hint.textContent = "Desktop/Mobile · Light/Dark 즉시 전환";
+
+  const closeBtn = document.createElement("button");
+  closeBtn.className = "tool-btn";
+  closeBtn.style.cssText = "height:26px;min-width:26px;";
+  closeBtn.textContent = "✕";
+  closeBtn.addEventListener("click", () => panel.remove());
+
+  foot.appendChild(hint);
+  foot.appendChild(closeBtn);
+  panel.appendChild(foot);
+
+  document.body.appendChild(panel);
+
+  const onDocClick = (ev: MouseEvent) => {
+    const target = ev.target as Node;
+    if (!panel.contains(target) && !anchor.contains(target)) {
+      panel.remove();
+      document.removeEventListener("mousedown", onDocClick);
+    }
+  };
+  setTimeout(() => document.addEventListener("mousedown", onDocClick), 0);
+}
+
 export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSystem?: () => void, onModeChange?: (mode: AppMode) => void, onPrototype?: () => void) {
   let currentMode: AppMode = "edit";
   tools.forEach((tool, i) => {
@@ -177,6 +286,16 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
     dataBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/></svg>`;
     dataBtn.addEventListener("click", () => openDataBindingPanel(editor));
     container.appendChild(dataBtn);
+  }
+
+  // Variable Modes quick switch (Desktop/Mobile, Light/Dark)
+  {
+    const modeBtn = document.createElement("button");
+    modeBtn.className = "tool-btn";
+    modeBtn.title = "Variable Modes Quick Switch";
+    modeBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 9 9"/><path d="M12 3a9 9 0 0 1 0 18"/></svg>`;
+    modeBtn.addEventListener("click", () => openVariableModesQuickSwitch(modeBtn, editor));
+    container.appendChild(modeBtn);
   }
 
   // Stamp tool button
