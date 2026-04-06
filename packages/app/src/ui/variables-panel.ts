@@ -16,6 +16,8 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
   let selectedCollectionId: number | null = null;
   let bulkEditInstance: ReturnType<typeof setupVariablesBulkEdit> | null = null;
   let inBulkEditMode = false;
+  let variableSearchQuery = "";
+  let variableTypeFilter = "All";
 
   function enterBulkEdit(collectionId: number) {
     inBulkEditMode = true;
@@ -394,6 +396,60 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
     varsHeader.appendChild(addVarBtn);
     varsSection.appendChild(varsHeader);
 
+    const filterRow = document.createElement("div");
+    filterRow.style.cssText = "display:flex;gap:6px;margin-bottom:8px;";
+
+    const searchInput = document.createElement("input");
+    searchInput.type = "text";
+    searchInput.placeholder = "Search variables...";
+    searchInput.value = variableSearchQuery;
+    searchInput.style.cssText = "flex:1;background:#2a2a2a;border:1px solid #3a3a3a;border-radius:4px;color:#ccc;font-size:11px;padding:4px 8px;";
+    searchInput.addEventListener("input", () => {
+      variableSearchQuery = searchInput.value;
+      refresh();
+    });
+    filterRow.appendChild(searchInput);
+
+    const typeFilter = document.createElement("select");
+    typeFilter.style.cssText = "width:90px;background:#2a2a2a;border:1px solid #3a3a3a;border-radius:4px;color:#ccc;font-size:11px;padding:4px;";
+    for (const t of ["All", "Color", "Number", "String", "Boolean"]) {
+      const opt = document.createElement("option");
+      opt.value = t;
+      opt.textContent = t;
+      if (t === variableTypeFilter) opt.selected = true;
+      typeFilter.appendChild(opt);
+    }
+    typeFilter.addEventListener("change", () => {
+      variableTypeFilter = typeFilter.value;
+      refresh();
+    });
+    filterRow.appendChild(typeFilter);
+
+    varsSection.appendChild(filterRow);
+
+    const query = variableSearchQuery.trim().toLowerCase();
+    const filteredVariables = col.variables.filter((v) => {
+      const typeMatch = variableTypeFilter === "All" || v.value_type === variableTypeFilter;
+      if (!typeMatch) return false;
+      if (!query) return true;
+      return v.name.toLowerCase().includes(query);
+    });
+
+    const usageCounts = new Map<number, number>();
+    for (const v of filteredVariables) {
+      try {
+        const list = JSON.parse((editor.engine as any).get_variable_usages?.(BigInt(col.id), BigInt(v.id)) || "[]");
+        usageCounts.set(v.id, Array.isArray(list) ? list.length : 0);
+      } catch {
+        usageCounts.set(v.id, 0);
+      }
+    }
+
+    const summary = document.createElement("div");
+    summary.style.cssText = "display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;font-size:10px;color:#7c8598;";
+    summary.textContent = `Showing ${filteredVariables.length}/${col.variables.length} · Usage ${Array.from(usageCounts.values()).reduce((a, b) => a + b, 0)}`;
+    varsSection.appendChild(summary);
+
     if (col.variables.length === 0) {
       const empty = document.createElement("div");
       empty.style.cssText = "color:#555;font-size:11px;text-align:center;padding:20px 0;";
@@ -401,7 +457,14 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
       varsSection.appendChild(empty);
     }
 
-    for (const v of col.variables) {
+    if (filteredVariables.length === 0 && col.variables.length > 0) {
+      const emptyFiltered = document.createElement("div");
+      emptyFiltered.style.cssText = "color:#666;font-size:11px;text-align:center;padding:16px 0;";
+      emptyFiltered.textContent = "No variables match the current filters";
+      varsSection.appendChild(emptyFiltered);
+    }
+
+    for (const v of filteredVariables) {
       const varRow = document.createElement("div");
       varRow.style.cssText = "background:#1e1e1e;border-radius:6px;padding:8px;margin-bottom:6px;";
 

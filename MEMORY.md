@@ -2286,10 +2286,15 @@
 - specs/FEATURES.md Prototyping 섹션 동기화
 
 ## 다음 할 것 (2026-04-07 업데이트)
-- Variable Collection Panel Search & Usage Count — 변수 검색/필터 + 사용 노드 수 집계로 토큰 관리 생산성 향상 (저난이도 / 중임팩트)
 - Dev Inspect Distance/Baseline Overlay — 텍스트 baseline + line-height + nearest spacing 오버레이를 Dev/Inspect 모드에서 시각화 (중난이도 / 중임팩트)
 - Prototype Scroll Physics Presets — iOS/Android/Web 관성 스크롤 프리셋(감쇠/탄성) 전환 및 미리보기 (중난이도 / 중임팩트)
 - Variable Fallback Chain — 변수 바인딩 실패 시 mode→collection→literal fallback 체인 및 Broken binding 자동 복구 제안 (중난이도 / 고임팩트)
+
+## 완료된 기능 (추가 — Variable Collection Panel Search & Usage Count, 2026-04-07)
+- Variables 패널 Variables 섹션에 검색 입력 + 타입 필터(All/Color/Number/String/Boolean) 추가
+- 필터 결과 기준으로 `Showing X/Y` + `Usage N` 요약 배지 표시
+- 이름/타입으로 빠르게 변수 목록을 좁히고 사용량을 한눈에 확인 가능
+- 필터 결과가 없을 때 안내 상태(`No variables match the current filters`) 제공
 
 ## 완료된 기능 (추가 — Constraints Pin UI Canvas Overlay polish, 2026-04-07)
 - 캔버스 상단 Constraint Pins 오버레이 클릭 동작 개선
