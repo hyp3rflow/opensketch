@@ -234,6 +234,12 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
     btn.addEventListener("click", () => {
       editor.booleanOperation(op.id as any);
     });
+    btn.addEventListener("mouseenter", () => {
+      if (!btn.disabled) editor.previewBooleanOperation(op.id as any);
+    });
+    btn.addEventListener("mouseleave", () => {
+      editor.previewBooleanOperation(null);
+    });
     container.appendChild(btn);
     boolBtns.push(btn);
   }
@@ -255,6 +261,7 @@ export function setupToolbar(container: HTMLElement, editor: Editor, onDesignSys
     const enabled = sel.length >= 2;
     boolBtns.forEach(btn => btn.disabled = !enabled);
     flattenBtn.disabled = sel.length === 0;
+    if (!enabled) editor.previewBooleanOperation(null);
   };
   editor.onSelection(updateBoolState);
 

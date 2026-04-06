@@ -189,6 +189,10 @@ export class Editor {
   private _imageCropLastSceneX = 0;
   private _imageCropLastSceneY = 0;
 
+  // Corner pin interactive handles
+  private _cornerPinDragging: { nodeId: number; corner: "tl" | "tr" | "br" | "bl" } | null = null;
+  private _booleanPreviewBounds: { x: number; y: number; w: number; h: number; op: string } | null = null;
+
   // Smart guides state
   private _snapGuides: SnapGuide[] = [];
   private _dropTarget: DropTarget | null = null;
@@ -1318,6 +1322,18 @@ export class Editor {
       return;
     }
 
+    // Corner pin handle drag (Image nodes with corner pin)
+    if (this.currentTool === "select") {
+      const cpHit = this.hitTestCornerPinHandle(x, y);
+      if (cpHit) {
+        this.engine.push_undo();
+        this._cornerPinDragging = cpHit;
+        this.canvas.style.cursor = "grabbing";
+        this.canvas.setPointerCapture(e.pointerId);
+        return;
+      }
+    }
+
     // Responsive resize mode: handle edge drag
     if (this._responsiveResize?.isActive) {
       if (this._responsiveResize.onPointerDown(x, y)) {
@@ -1813,6 +1829,20 @@ export class Editor {
       const handle = hitTestCropHandle(this._imageCropState, e.offsetX, e.offsetY, zoom, panX, panY);
       this.canvas.style.cursor = getCropCursor(handle);
       return;
+    }
+
+    // Corner pin handle dragging / hover
+    if (this._cornerPinDragging) {
+      this.updateCornerPinFromPointer(this._cornerPinDragging.nodeId, this._cornerPinDragging.corner, e.offsetX, e.offsetY);
+      this.needsRender = true;
+      return;
+    }
+    if (this.currentTool === "select" && !this.engine.is_dragging()) {
+      const cpHover = this.hitTestCornerPinHandle(e.offsetX, e.offsetY);
+      if (cpHover) {
+        this.canvas.style.cursor = "grab";
+        return;
+      }
     }
 
     // Responsive resize dragging
@@ -2428,6 +2458,14 @@ export class Editor {
     if (this._imageCropMode && this._imageCropDragging) {
       this._imageCropDragging = false;
       this._imageCropHandle = null;
+      return;
+    }
+
+    // Corner pin handle release
+    if (this._cornerPinDragging) {
+      this._cornerPinDragging = null;
+      this.fireSelectionNow(Array.from(this.engine.get_selection()).map(Number));
+      this.needsRender = true;
       return;
     }
 
@@ -4746,12 +4784,14 @@ export class Editor {
         }
         this.renderImages();
         this.renderCornerPins();
+        this.renderCornerPinHandles();
         this.render3DPerspective();
         this.renderPatternFills();
         this.renderCanvasGrid();
         this.renderLayoutGrids();
         this.renderGuideLines();
         this.renderSmartGuides();
+        this.renderBooleanPreviewOverlay();
         this.renderPointSnap();
         this.renderMeasure();
         this.renderPersistentMeasures();
@@ -5642,6 +5682,118 @@ export class Editor {
       drawTri(off, 0, 0, sw, 0, sw, sh, tl.x, tl.y, tr.x, tr.y, br.x, br.y);
       drawTri(off, 0, 0, sw, sh, 0, sh, tl.x, tl.y, br.x, br.y, bl.x, bl.y);
     }
+  }
+
+  private getSingleSelectedCornerPinNode(): { nodeId: number; node: any; cp: any } | null {
+    const sel = Array.from(this.engine.get_selection()).map(Number);
+    if (sel.length !== 1) return null;
+    const nodeId = sel[0]!;
+    const nodeJson = this.engine.get_node_json(BigInt(nodeId));
+    if (!nodeJson) return null;
+    const node = JSON.parse(nodeJson);
+    if (!node?.kind?.Image) return null;
+    const cpJson = (this.engine as any).get_corner_pin?.(BigInt(nodeId));
+    if (!cpJson) return null;
+    let cp: any;
+    try { cp = JSON.parse(cpJson); } catch { return null; }
+    if (!cp) return null;
+    return { nodeId, node, cp };
+  }
+
+  private getCornerPinScreenPoints(node: any, cp: any): Record<"tl" | "tr" | "br" | "bl", { x: number; y: number }> {
+    const zoom = this.engine.get_zoom();
+    const panX = this.engine.get_pan_x();
+    const panY = this.engine.get_pan_y();
+    const x = node.x * zoom + panX;
+    const y = node.y * zoom + panY;
+    const w = node.width * zoom;
+    const h = node.height * zoom;
+    return {
+      tl: { x: x + (cp.tl_x ?? 0) * w, y: y + (cp.tl_y ?? 0) * h },
+      tr: { x: x + (cp.tr_x ?? 1) * w, y: y + (cp.tr_y ?? 0) * h },
+      br: { x: x + (cp.br_x ?? 1) * w, y: y + (cp.br_y ?? 1) * h },
+      bl: { x: x + (cp.bl_x ?? 0) * w, y: y + (cp.bl_y ?? 1) * h },
+    };
+  }
+
+  private hitTestCornerPinHandle(screenX: number, screenY: number): { nodeId: number; corner: "tl" | "tr" | "br" | "bl" } | null {
+    if (this._imageCropMode) return null;
+    const active = this.getSingleSelectedCornerPinNode();
+    if (!active) return null;
+    const points = this.getCornerPinScreenPoints(active.node, active.cp);
+    const radius = 8;
+    const keys: Array<"tl" | "tr" | "br" | "bl"> = ["tl", "tr", "br", "bl"];
+    for (const key of keys) {
+      const p = points[key];
+      const dx = screenX - p.x;
+      const dy = screenY - p.y;
+      if (dx * dx + dy * dy <= radius * radius) {
+        return { nodeId: active.nodeId, corner: key };
+      }
+    }
+    return null;
+  }
+
+  private updateCornerPinFromPointer(nodeId: number, corner: "tl" | "tr" | "br" | "bl", screenX: number, screenY: number) {
+    const nodeJson = this.engine.get_node_json(BigInt(nodeId));
+    if (!nodeJson) return;
+    const node = JSON.parse(nodeJson);
+    if (!node?.kind?.Image) return;
+    const cpJson = (this.engine as any).get_corner_pin?.(BigInt(nodeId));
+    if (!cpJson) return;
+    let cp: any;
+    try { cp = JSON.parse(cpJson); } catch { return; }
+    if (!cp) return;
+
+    const sx = this.engine.screen_to_scene_x(screenX, screenY);
+    const sy = this.engine.screen_to_scene_y(screenX, screenY);
+    const nx = node.width !== 0 ? (sx - node.x) / node.width : 0;
+    const ny = node.height !== 0 ? (sy - node.y) / node.height : 0;
+    const clampedX = Math.max(-1, Math.min(2, nx));
+    const clampedY = Math.max(-1, Math.min(2, ny));
+
+    cp[`${corner}_x`] = clampedX;
+    cp[`${corner}_y`] = clampedY;
+    (this.engine as any).set_corner_pin?.(
+      BigInt(nodeId),
+      cp.tl_x ?? 0, cp.tl_y ?? 0,
+      cp.tr_x ?? 1, cp.tr_y ?? 0,
+      cp.br_x ?? 1, cp.br_y ?? 1,
+      cp.bl_x ?? 0, cp.bl_y ?? 1,
+    );
+  }
+
+  private renderCornerPinHandles() {
+    if (this.currentTool !== "select") return;
+    const active = this.getSingleSelectedCornerPinNode();
+    if (!active) return;
+    const points = this.getCornerPinScreenPoints(active.node, active.cp);
+    const order: Array<"tl" | "tr" | "br" | "bl"> = ["tl", "tr", "br", "bl"];
+
+    this.ctx.save();
+    this.ctx.strokeStyle = "#7aa2ff";
+    this.ctx.lineWidth = 1.5;
+    this.ctx.setLineDash([4, 3]);
+    this.ctx.beginPath();
+    this.ctx.moveTo(points.tl.x, points.tl.y);
+    this.ctx.lineTo(points.tr.x, points.tr.y);
+    this.ctx.lineTo(points.br.x, points.br.y);
+    this.ctx.lineTo(points.bl.x, points.bl.y);
+    this.ctx.closePath();
+    this.ctx.stroke();
+    this.ctx.setLineDash([]);
+
+    for (const key of order) {
+      const p = points[key];
+      this.ctx.beginPath();
+      this.ctx.arc(p.x, p.y, 5.5, 0, Math.PI * 2);
+      this.ctx.fillStyle = this._cornerPinDragging?.corner === key ? "#0d99ff" : "#ffffff";
+      this.ctx.fill();
+      this.ctx.strokeStyle = "#0d99ff";
+      this.ctx.lineWidth = 1.5;
+      this.ctx.stroke();
+    }
+    this.ctx.restore();
   }
 
   /** Render 3D perspective transforms using strip-based subdivision */
@@ -7436,6 +7588,65 @@ export class Editor {
   // =============================================
   // Boolean Operations
   // =============================================
+
+  previewBooleanOperation(op: "union" | "subtract" | "intersect" | "exclude" | null) {
+    if (!op) {
+      if (this._booleanPreviewBounds) {
+        this._booleanPreviewBounds = null;
+        this.needsRender = true;
+      }
+      return;
+    }
+
+    const selection = Array.from(this.engine.get_selection());
+    if (selection.length < 2) {
+      this._booleanPreviewBounds = null;
+      this.needsRender = true;
+      return;
+    }
+
+    const snapshot = this.engine.export_scene();
+    try {
+      const newId = Number(this.engine.boolean_operation(op));
+      const nodeJson = this.engine.get_node_json(BigInt(newId));
+      if (nodeJson) {
+        const n = JSON.parse(nodeJson);
+        this._booleanPreviewBounds = { x: n.x, y: n.y, w: n.width, h: n.height, op };
+      } else {
+        this._booleanPreviewBounds = null;
+      }
+    } catch {
+      this._booleanPreviewBounds = null;
+    } finally {
+      this.engine.import_scene(snapshot);
+    }
+    this.needsRender = true;
+  }
+
+  private renderBooleanPreviewOverlay() {
+    const b = this._booleanPreviewBounds;
+    if (!b) return;
+    const zoom = this.engine.get_zoom();
+    const panX = this.engine.get_pan_x();
+    const panY = this.engine.get_pan_y();
+    const x = b.x * zoom + panX;
+    const y = b.y * zoom + panY;
+    const w = Math.max(1, b.w * zoom);
+    const h = Math.max(1, b.h * zoom);
+
+    this.ctx.save();
+    this.ctx.fillStyle = "rgba(13,153,255,0.12)";
+    this.ctx.strokeStyle = "rgba(13,153,255,0.9)";
+    this.ctx.lineWidth = 1.5;
+    this.ctx.setLineDash([6, 4]);
+    this.ctx.fillRect(x, y, w, h);
+    this.ctx.strokeRect(x, y, w, h);
+    this.ctx.setLineDash([]);
+    this.ctx.fillStyle = "rgba(13,153,255,0.95)";
+    this.ctx.font = "11px Inter, sans-serif";
+    this.ctx.fillText(`Boolean preview: ${b.op}`, x + 8, y - 8);
+    this.ctx.restore();
+  }
 
   booleanOperation(op: "union" | "subtract" | "intersect" | "exclude") {
     const sel = Array.from(this.engine.get_selection()).map(Number);

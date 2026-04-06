@@ -2222,10 +2222,16 @@
 - specs/FEATURES.md 반영
 
 ## 다음 할 것 (2026-04-06 업데이트)
-- Vector Boolean Live Preview — boolean 후보(Union/Subtract/Intersect/Exclude)를 hover 시 실시간 프리뷰
 - Text Styles Scale Tokens — 타입 스케일(예: 12/14/16/20/24/32) 토큰 세트 생성/적용 + 문서 전체 일괄 리맵
 - Prototype Fixed Header/Footer — 프로토타입 미리보기에서 frame 내 고정 레이어(스크롤 시 pin) 지원
 - Variable Modes Quick Switch — Prototype Variables 모드(Desktop/Mobile, Light/Dark 등)를 툴바 토글로 즉시 전환
+
+## 완료된 기능 (추가 — Vector Boolean Live Preview, 2026-04-06)
+- Boolean 툴바 버튼 hover 시 연산 결과를 실시간 preview (MVP bounding-box overlay)
+- 구현 방식: 현재 씬 snapshot(export_scene) → boolean_operation 시뮬레이션 → 결과 bounds 추출 → import_scene로 즉시 복원
+- 오버레이: 반투명 파란 박스 + 점선 경계 + `Boolean preview: <op>` 라벨 렌더링
+- 선택이 2개 미만이거나 hover 종료 시 preview 자동 해제
+- specs/FEATURES.md Boolean Operations 섹션에 Live Preview(MVP) 명세 반영
 
 ## 완료된 기능 (추가 — Text on Path UX completion, 2026-04-06)
 - Text tool 클릭만으로 point text 생성 (드래그 없이 생성 가능)
