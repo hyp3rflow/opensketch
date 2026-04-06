@@ -5121,7 +5121,12 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         durInput.min = "0";
         durInput.step = "50";
         durInput.value = String(inter.transition_duration_ms || 300);
+        let onDurationChange: (() => void) | null = null;
         durInput.addEventListener("change", () => {
+          if (onDurationChange) {
+            onDurationChange();
+            return;
+          }
           ensureUndo();
           rebuildInteraction({
             trigger: trigSelect.value,
@@ -5202,6 +5207,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           let dragIdx: number | null = null;
 
           const getDuration = () => Math.max(1, parseInt(durInput.value) || Number(inter.transition_duration_ms || 300));
+          const getPrevDuration = () => Math.max(1, parseInt(String(inter.transition_duration_ms || 300)) || 300);
           const sortAndClamp = () => {
             const dur = getDuration();
             timeline.forEach((kf, idx) => {
@@ -5228,6 +5234,23 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             });
             editor.requestRender();
             refresh(ids);
+          };
+
+          let lastDurationMs = getPrevDuration();
+          onDurationChange = () => {
+            const nextDuration = getDuration();
+            const prevDuration = Math.max(1, lastDurationMs);
+            if (isSmartAnimate && timeline.length > 1 && nextDuration !== prevDuration) {
+              const ratio = nextDuration / prevDuration;
+              timeline.forEach((kf, idx) => {
+                if (idx === 0) kf.time = 0;
+                else if (idx === timeline.length - 1) kf.time = nextDuration;
+                else kf.time = Math.round(kf.time * ratio);
+              });
+              sortAndClamp();
+            }
+            lastDurationMs = nextDuration;
+            persistTimeline();
           };
 
           const markerFor = (idx: number, kf: { time: number; label: string; easing: string }) => {
@@ -5277,7 +5300,8 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             const selected = timeline[selectedIdx] || timeline[0];
             const labelChip = document.createElement("span");
             labelChip.style.cssText = "font-size:10px;color:#a5b4fc;";
-            labelChip.textContent = selected?.label || "Key";
+            const selectedPct = Math.round(((selected?.time || 0) / Math.max(1, getDuration())) * 100);
+            labelChip.textContent = `${selected?.label || "Key"} (${selectedPct}%)`;
             details.appendChild(labelChip);
 
             const timeInput = document.createElement("input");
@@ -5324,6 +5348,19 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           const renderTimeline = () => {
             sortAndClamp();
             rail.innerHTML = "";
+            const dur = getDuration();
+            const tickCount = 5;
+            for (let i = 0; i <= tickCount; i++) {
+              const x = (i / tickCount) * 100;
+              const tick = document.createElement("div");
+              tick.style.cssText = `position:absolute;left:calc(${x}% - 0.5px);top:4px;width:1px;height:8px;background:#3f3f46;`;
+              rail.appendChild(tick);
+
+              const tickLabel = document.createElement("div");
+              tickLabel.style.cssText = `position:absolute;left:calc(${x}% - 14px);top:0px;width:28px;text-align:center;font-size:9px;color:#6b7280;pointer-events:none;`;
+              tickLabel.textContent = `${Math.round((dur * i) / tickCount)}ms`;
+              rail.appendChild(tickLabel);
+            }
             const baseline = document.createElement("div");
             baseline.style.cssText = "position:absolute;left:8px;right:8px;top:14px;height:2px;background:#3b3b3b;";
             rail.appendChild(baseline);
