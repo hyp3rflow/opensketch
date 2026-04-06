@@ -1073,6 +1073,10 @@ Frame overflow control and content scrolling.
 - [x] Filters out invisible and absolute-positioned children
 - [x] Integrated into editor select tool (mousedown/mousemove/mouseup + render loop)
 - [x] Undo integration (push_undo before drag starts)
+- [x] Smart Select spacing quick actions (selection mode): Enter=exact px input, E=equal spacing, A=convert to auto-layout frame
+- [x] Double-click spacing handle opens direct numeric spacing input prompt
+- [x] Auto-layout conversion suggestion flow wraps selection in frame, sets flex direction by axis, seeds gap from average spacing
+- [x] Hovered selection handle shows inline shortcut hint (`Enter / E / A`)
 - [x] 2026-04-06 backlog verification: feature is production-wired (tool + editor integration)
 
 ### Auto Layout Spacing Presets

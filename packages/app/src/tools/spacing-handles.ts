@@ -321,6 +321,25 @@ export function renderSpacingHandles(
     ctx.textAlign = "start";
     ctx.textBaseline = "alphabetic";
   }
+
+  // Smart Select spacing quick actions hint
+  if (hovered && hovered.mode === "selection") {
+    const cx = hovered.sx + hovered.sw / 2;
+    const cy = hovered.sy - 24;
+    const hint = "Enter: value · E: equalize · A: auto-layout";
+    ctx.font = "10px Inter, system-ui, sans-serif";
+    const tw = ctx.measureText(hint).width;
+    ctx.fillStyle = "rgba(17, 24, 39, 0.88)";
+    ctx.beginPath();
+    ctx.roundRect(cx - tw / 2 - 7, cy - 8, tw + 14, 16, 5);
+    ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,0.95)";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(hint, cx, cy + 0.5);
+    ctx.textAlign = "start";
+    ctx.textBaseline = "alphabetic";
+  }
 }
 
 /** Find padding regions for the selected auto-layout frame. */

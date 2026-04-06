@@ -2242,8 +2242,14 @@
 - Text Style linked 상태에서 "Replace all with…" 액션 추가 (기존 style ID → 새 style ID 문서 전체 일괄 교체)
 - WASM: `replace_text_style_all(old_style_id, new_style_id) -> u32`
 
+## 완료된 기능 (추가 — Smart Select Spacing Handles Upgrade, 2026-04-06)
+- Selection spacing handle 더블클릭 또는 Enter로 px 숫자 직접 입력(prompt) 지원
+- Hover 상태 단축키 추가: `E` 균등 간격 재정렬, `A` 선택 영역 Auto Layout Frame 변환 제안/실행
+- 선택 영역 Auto Layout 전환 시 wrap-in-frame + flex direction 자동 설정 + 평균 간격을 gap으로 초기화
+- spacing overlay에 quick actions 힌트(`Enter / E / A`) 추가
+- specs/FEATURES.md 반영
+
 ## 다음 할 것 (2026-04-06 업데이트)
-- Smart Select Spacing Handles Upgrade — 인접 노드 간 간격 핸들에서 숫자 직접 입력·균등 분배·Auto Layout 변환 제안 (중난이도 / 고임팩트)
 - Dev Mode Spec Pins — 노드에 구현 메모/링크/GitHub 이슈를 핀으로 연결하고 Inspect에서 함께 노출 (저~중난이도 / 중임팩트)
 - Stroke Position on Paths (Inside/Outside for open/closed path parity) — Path 노드에도 shape와 동일한 stroke align UX/렌더 일관성 제공 (중난이도 / 중~고임팩트)
 - Symbol Instance Exposure in Inspect — Inspect 탭에서 instance의 master/variant/property 상태를 코드 스니펫과 함께 노출 (저~중난이도 / 중임팩트)

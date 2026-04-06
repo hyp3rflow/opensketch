@@ -554,6 +554,25 @@ export class Editor {
         this.needsRender = true;
         return;
       }
+
+      // Smart spacing handles shortcuts (when hovering a spacing handle)
+      if (this.currentTool === "select" && this._spacingHovered && !e.metaKey && !e.ctrlKey) {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          this.promptSpacingValue(this._spacingHovered);
+          return;
+        }
+        if (!e.shiftKey && !e.altKey && (e.key === "e" || e.key === "E")) {
+          e.preventDefault();
+          this.applyEqualSpacingForSelection(this._spacingHovered);
+          return;
+        }
+        if (!e.shiftKey && !e.altKey && (e.key === "a" || e.key === "A")) {
+          e.preventDefault();
+          this.suggestConvertSelectionToAutoLayout(this._spacingHovered);
+          return;
+        }
+      }
       if (e.code === "Space") {
         e.preventDefault();
         this.spaceHeld = true;
@@ -3374,6 +3393,16 @@ export class Editor {
 
   private onDoubleClick(e: MouseEvent) {
     if (this.currentTool !== "select") return;
+
+    // Double-click on spacing handle → direct numeric input
+    if (this._spacingHandles.length > 0) {
+      const spacingHit = hitTestSpacingHandle(this._spacingHandles, e.offsetX, e.offsetY);
+      if (spacingHit) {
+        this.promptSpacingValue(spacingHit);
+        return;
+      }
+    }
+
     // Double-click on a guide line → remove it
     if (this._rulers) {
       const zoom = this.engine.get_zoom();
@@ -7940,6 +7969,85 @@ export class Editor {
       }
     } catch (e) {
       console.error('create_repeat_grid failed:', e);
+    }
+  }
+
+  private promptSpacingValue(handle: SpacingHandle) {
+    const axis = handle.axis || (handle.direction === "row" ? "horizontal" : "vertical");
+    const currentGap = handle.direction === "row" ? handle.sw : handle.sh;
+    const seed = Math.round(currentGap);
+    const val = window.prompt(`Set spacing (${axis}) in px`, String(seed));
+    if (val == null) return;
+    const parsed = Number(val.trim());
+    if (!Number.isFinite(parsed)) return;
+    const newGap = Math.round(parsed);
+
+    this.engine.push_undo();
+    if (handle.mode === "selection") {
+      this.engine.distribute_selection_with_spacing(axis, newGap);
+      this.showToast(`Spacing set to ${newGap}px (selection ${axis})`, 1800);
+    } else {
+      this.engine.set_layout_gap(BigInt(handle.parentId), newGap);
+      this.engine.compute_layout();
+      this.showToast(`Auto-layout gap set to ${newGap}px`, 1800);
+    }
+
+    this._spacingHandles = findSpacingHandles(this.engine);
+    this._paddingHandles = findPaddingHandles(this.engine);
+    this.needsRender = true;
+    this.fireSelectionNow(Array.from(this.engine.get_selection()).map(Number));
+  }
+
+  private applyEqualSpacingForSelection(handle: SpacingHandle) {
+    if (handle.mode !== "selection") return;
+    const axis = handle.axis || (handle.direction === "row" ? "horizontal" : "vertical");
+    try {
+      const info = JSON.parse(this.engine.get_selection_spacing(axis));
+      const avgGap = Math.round(info.avg_gap ?? 0);
+      this.engine.push_undo();
+      this.engine.distribute_selection_with_spacing(axis, avgGap);
+      this._spacingHandles = findSpacingHandles(this.engine);
+      this.needsRender = true;
+      this.fireSelectionNow(Array.from(this.engine.get_selection()).map(Number));
+      this.showToast(`Equalized spacing to ${avgGap}px (${axis})`, 1800);
+    } catch {
+      // ignore
+    }
+  }
+
+  private suggestConvertSelectionToAutoLayout(handle: SpacingHandle) {
+    if (handle.mode !== "selection") return;
+    const sel = Array.from(this.engine.get_selection()).map(Number);
+    if (sel.length < 2) {
+      this.showToast("Select at least 2 layers to convert into auto-layout", 1800);
+      return;
+    }
+    const axis = handle.axis || (handle.direction === "row" ? "horizontal" : "vertical");
+    const ok = window.confirm(`Convert this selection to an auto-layout frame (${axis})?\n\nTip: use Enter on a spacing handle to type an exact spacing value.`);
+    if (!ok) return;
+
+    try {
+      this.engine.push_undo();
+      const frameId = Number((this.engine as any).wrap_selection_in_frame());
+      if (!frameId) return;
+
+      this.engine.set_layout_mode(BigInt(frameId), "flex");
+      this.engine.set_flex_direction(BigInt(frameId), axis === "horizontal" ? "row" : "column");
+      try {
+        const spacingInfo = JSON.parse(this.engine.get_selection_spacing(axis));
+        const avgGap = Math.max(0, Math.round(spacingInfo.avg_gap ?? 0));
+        this.engine.set_layout_gap(BigInt(frameId), avgGap);
+      } catch {
+        this.engine.set_layout_gap(BigInt(frameId), 8);
+      }
+      this.engine.compute_layout();
+      this._spacingHandles = findSpacingHandles(this.engine);
+      this._paddingHandles = findPaddingHandles(this.engine);
+      this.showToast("Converted selection to auto-layout frame", 2200);
+      this.render();
+      this.updateUI();
+    } catch (e) {
+      console.error("convert to auto-layout from spacing handle failed:", e);
     }
   }
 
