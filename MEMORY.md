@@ -2261,6 +2261,13 @@
 - SVG export도 open path align을 동일한 오프셋 경로로 내보내 Canvas/SVG 결과 차이를 축소
 - specs/FEATURES.md 반영
 
+## 완료된 기능 (추가 — Constraints Pin UI in Properties Panel, 2026-04-07)
+- Constraints 섹션에 Pin UI 토글 추가 (Left/Right/Top/Bottom/Center/Scale)
+- Left+Right / Top+Bottom 조합 클릭 시 stretch(`leftAndRight`/`topAndBottom`)로 즉시 전환
+- 기존 H/V dropdown과 양방향 동기화 (dropdown 변경 ↔ pin 하이라이트)
+- 클릭 시 undo push + set_constraints + 캔버스 즉시 리렌더
+- specs/ENGINE.md, specs/FEATURES.md 동기화
+
 ## 다음 할 것 (2026-04-07 업데이트)
 - Symbol Instance Exposure in Inspect — Inspect 탭에서 instance의 master/variant/property 상태를 코드 스니펫과 함께 노출 (저~중난이도 / 중임팩트)
 - Prototype Hotspot Authoring Tool — 프레임 위 드래그로 투명 hotspot 생성 + interaction 자동 연결 (중난이도 / 고임팩트)

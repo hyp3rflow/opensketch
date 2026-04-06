@@ -124,7 +124,7 @@ Pure Rust crate compiled to WASM via `wasm-pack`. No NAPI — runs entirely in t
 - When a Frame/Group is resized, children are repositioned/resized based on their constraint settings
 - Child positions are absolute in the scene; constraint math converts to/from local coords relative to parent
 - WASM: `set_constraints(id, horizontal, vertical)`, `get_constraints(id)` → JSON, `resize_node_with_constraints(id, w, h)`
-- Properties panel shows Constraints section for children of Frame/Group nodes
+- Properties panel shows Constraints section for children of Frame/Group nodes (H/V dropdown + Pin UI quick toggles)
 - `#[serde(default)]` for backward compatibility with old scene files
 
 ## Dependencies

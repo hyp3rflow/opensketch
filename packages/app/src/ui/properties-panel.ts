@@ -2527,6 +2527,138 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           vRow.appendChild(vSelect);
           constraintSection.appendChild(vRow);
 
+          const applyConstraints = (nextH: string, nextV: string, pushUndo = true) => {
+            if (pushUndo) editor.engine.push_undo();
+            hSelect.value = nextH;
+            vSelect.value = nextV;
+            editor.engine.set_constraints(BigInt(id), nextH, nextV);
+            editor.requestRender();
+          };
+
+          const pinSectionLabel = document.createElement("div");
+          pinSectionLabel.textContent = "Pins";
+          pinSectionLabel.style.cssText = "font-size:10px;color:#9a9a9a;margin:8px 0 4px;";
+          constraintSection.appendChild(pinSectionLabel);
+
+          const pinWrap = document.createElement("div");
+          pinWrap.style.cssText = "display:flex;flex-direction:column;gap:6px;align-items:center;padding:8px;border:1px solid #3a3a3a;border-radius:6px;background:#222;";
+
+          const makePinBtn = (label: string, title: string) => {
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.textContent = label;
+            btn.title = title;
+            btn.style.cssText = "width:26px;height:20px;border:1px solid #505050;border-radius:5px;background:#2f2f2f;color:#bbb;font-size:10px;cursor:pointer;line-height:1;";
+            return btn;
+          };
+
+          const topRowPins = document.createElement("div");
+          topRowPins.style.cssText = "display:flex;gap:6px;";
+          const leftBtn = makePinBtn("L", "Pin Left");
+          const centerHBtn = makePinBtn("C", "Center Horizontally");
+          const rightBtn = makePinBtn("R", "Pin Right");
+          topRowPins.appendChild(leftBtn);
+          topRowPins.appendChild(centerHBtn);
+          topRowPins.appendChild(rightBtn);
+
+          const midRowPins = document.createElement("div");
+          midRowPins.style.cssText = "display:flex;gap:6px;align-items:center;";
+          const topBtn = makePinBtn("T", "Pin Top");
+          const centerVBtn = makePinBtn("C", "Center Vertically");
+          const bottomBtn = makePinBtn("B", "Pin Bottom");
+          midRowPins.appendChild(topBtn);
+          midRowPins.appendChild(centerVBtn);
+          midRowPins.appendChild(bottomBtn);
+
+          const scaleRowPins = document.createElement("div");
+          scaleRowPins.style.cssText = "display:flex;gap:6px;";
+          const scaleHBtn = makePinBtn("Scale H", "Scale Horizontally");
+          scaleHBtn.style.width = "80px";
+          const scaleVBtn = makePinBtn("Scale V", "Scale Vertically");
+          scaleVBtn.style.width = "80px";
+          scaleRowPins.appendChild(scaleHBtn);
+          scaleRowPins.appendChild(scaleVBtn);
+
+          pinWrap.appendChild(topRowPins);
+          pinWrap.appendChild(midRowPins);
+          pinWrap.appendChild(scaleRowPins);
+          constraintSection.appendChild(pinWrap);
+
+          const allPinButtons: HTMLButtonElement[] = [
+            leftBtn,
+            centerHBtn,
+            rightBtn,
+            topBtn,
+            centerVBtn,
+            bottomBtn,
+            scaleHBtn,
+            scaleVBtn,
+          ];
+          const setActive = (btn: HTMLButtonElement, active: boolean) => {
+            btn.style.background = active ? "#0d99ff" : "#2f2f2f";
+            btn.style.borderColor = active ? "#5fbfff" : "#505050";
+            btn.style.color = active ? "#fff" : "#bbb";
+          };
+          const updatePinUiFromSelects = () => {
+            for (const btn of allPinButtons) setActive(btn, false);
+            const h = hSelect.value;
+            const v = vSelect.value;
+            setActive(leftBtn, h === "left" || h === "leftAndRight");
+            setActive(rightBtn, h === "right" || h === "leftAndRight");
+            setActive(centerHBtn, h === "center");
+            setActive(scaleHBtn, h === "scale");
+            setActive(topBtn, v === "top" || v === "topAndBottom");
+            setActive(bottomBtn, v === "bottom" || v === "topAndBottom");
+            setActive(centerVBtn, v === "center");
+            setActive(scaleVBtn, v === "scale");
+          };
+
+          leftBtn.addEventListener("click", () => {
+            const current = hSelect.value;
+            const nextH = current === "right" ? "leftAndRight" : "left";
+            applyConstraints(nextH, vSelect.value);
+            updatePinUiFromSelects();
+          });
+          rightBtn.addEventListener("click", () => {
+            const current = hSelect.value;
+            const nextH = current === "left" ? "leftAndRight" : "right";
+            applyConstraints(nextH, vSelect.value);
+            updatePinUiFromSelects();
+          });
+          centerHBtn.addEventListener("click", () => {
+            applyConstraints("center", vSelect.value);
+            updatePinUiFromSelects();
+          });
+          scaleHBtn.addEventListener("click", () => {
+            applyConstraints("scale", vSelect.value);
+            updatePinUiFromSelects();
+          });
+
+          topBtn.addEventListener("click", () => {
+            const current = vSelect.value;
+            const nextV = current === "bottom" ? "topAndBottom" : "top";
+            applyConstraints(hSelect.value, nextV);
+            updatePinUiFromSelects();
+          });
+          bottomBtn.addEventListener("click", () => {
+            const current = vSelect.value;
+            const nextV = current === "top" ? "topAndBottom" : "bottom";
+            applyConstraints(hSelect.value, nextV);
+            updatePinUiFromSelects();
+          });
+          centerVBtn.addEventListener("click", () => {
+            applyConstraints(hSelect.value, "center");
+            updatePinUiFromSelects();
+          });
+          scaleVBtn.addEventListener("click", () => {
+            applyConstraints(hSelect.value, "scale");
+            updatePinUiFromSelects();
+          });
+
+          hSelect.addEventListener("change", updatePinUiFromSelects);
+          vSelect.addEventListener("change", updatePinUiFromSelects);
+          updatePinUiFromSelects();
+
           // Constraint Set Presets (constraints + sizing/min-max)
           type ConstraintPreset = {
             name: string;
