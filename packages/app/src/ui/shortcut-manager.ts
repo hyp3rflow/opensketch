@@ -36,6 +36,7 @@ const DEFAULTS: ShortcutDef[] = [
   { id: "tool.polygon",  category: "Tools", description: "Polygon",        defaultBinding: { key: "g" } },
   { id: "tool.sticky",   category: "Tools", description: "Sticky note",    defaultBinding: { key: "n" } },
   { id: "tool.table",    category: "Tools", description: "Table",          defaultBinding: { key: "b" } },
+  { id: "tool.shapeBuilder", category: "Tools", description: "Shape Builder", defaultBinding: { key: "b", shift: true } },
   { id: "tool.scale",    category: "Tools", description: "Scale",          defaultBinding: { key: "k" } },
   { id: "tool.slice",    category: "Tools", description: "Slice",          defaultBinding: { key: "k", shift: true } },
   { id: "tool.connector",category: "Tools", description: "Connector",      defaultBinding: { key: "l" } },

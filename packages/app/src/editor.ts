@@ -1125,6 +1125,7 @@ export class Editor {
       else if (_sm.matches(e, "tool.polygon")) this.setTool("polygon");
       else if (_sm.matches(e, "tool.sticky")) this.setTool("sticky");
       else if (_sm.matches(e, "tool.freehand")) this.setTool("freehand");
+      else if (_sm.matches(e, "tool.shapeBuilder")) this.setTool("shapeBuilder");
       else if (_sm.matches(e, "whiteboard.toggle")) { (window as any).__toggleWhiteboard?.(); }
       else if (_sm.matches(e, "whiteboard.timer")) { (window as any).__toggleTimer?.(); }
       else if (_sm.matches(e, "tool.table")) this.setTool("table");
@@ -1526,8 +1527,6 @@ export class Editor {
     }
 
     if (this.currentTool === "shapeBuilder") {
-      const selected = Array.from(this.engine.get_selection()).map(Number);
-      if (selected.length < 2) return;
       this._shapeBuilderStroke = [{ x: e.offsetX, y: e.offsetY }];
       this._shapeBuilderTouchedIds = [];
       this.canvas.setPointerCapture(e.pointerId);
@@ -4387,31 +4386,49 @@ export class Editor {
   }
 
   private computeShapeBuilderTouchedIds(stroke: { x: number; y: number }[]): number[] {
-    const selected = new Set(Array.from(this.engine.get_selection()).map(Number));
-    if (selected.size < 2 || stroke.length === 0) return [];
+    if (stroke.length === 0) return [];
+
+    const booleanKinds = new Set(["Rect", "Ellipse", "Star", "Polygon", "Path", "Text", "Image"]);
+    const selected = Array.from(this.engine.get_selection()).map(Number);
+    const selectedSet = new Set(selected);
+
+    let allNodes: any[] = [];
+    try {
+      allNodes = JSON.parse((this.engine as any).get_all_nodes?.() || "[]");
+    } catch {
+      allNodes = [];
+    }
+
+    const candidates = allNodes
+      .filter((n: any) => {
+        const kind = typeof n?.kind === "string" ? n.kind : (n?.kind && Object.keys(n.kind)[0]);
+        if (!booleanKinds.has(String(kind))) return false;
+        if (selectedSet.size >= 2) return selectedSet.has(Number(n.id));
+        return true;
+      })
+      .map((n: any) => ({
+        id: Number(n.id),
+        x1: Number(n.x),
+        y1: Number(n.y),
+        x2: Number(n.x) + Number(n.width),
+        y2: Number(n.y) + Number(n.height),
+      }))
+      .filter((n: any) => Number.isFinite(n.id) && Number.isFinite(n.x1) && Number.isFinite(n.y1) && Number.isFinite(n.x2) && Number.isFinite(n.y2));
+
+    if (candidates.length < 2) return [];
 
     const touched = new Set<number>();
-    for (const id of selected) {
-      try {
-        const nodeJson = this.engine.get_node_json(BigInt(id));
-        if (!nodeJson) continue;
-        const n = JSON.parse(nodeJson);
-        const x1 = Number(n.x);
-        const y1 = Number(n.y);
-        const x2 = x1 + Number(n.width);
-        const y2 = y1 + Number(n.height);
-        for (const p of stroke) {
-          const sx = this.engine.screen_to_scene_x(p.x, p.y);
-          const sy = this.engine.screen_to_scene_y(p.x, p.y);
-          if (sx >= x1 && sx <= x2 && sy >= y1 && sy <= y2) {
-            touched.add(id);
-            break;
-          }
+    for (const c of candidates) {
+      for (const p of stroke) {
+        const sx = this.engine.screen_to_scene_x(p.x, p.y);
+        const sy = this.engine.screen_to_scene_y(p.x, p.y);
+        if (sx >= c.x1 && sx <= c.x2 && sy >= c.y1 && sy <= c.y2) {
+          touched.add(c.id);
+          break;
         }
-      } catch {
-        // ignore parse errors
       }
     }
+
     return Array.from(touched);
   }
 
