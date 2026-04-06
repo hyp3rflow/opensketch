@@ -20,7 +20,7 @@ const toolI18nKeys: Record<string, string> = {
   select: "tool.select", hand: "tool.hand", rect: "tool.rect", ellipse: "tool.ellipse",
   text: "tool.text", frame: "tool.frame", section: "tool.section", image: "tool.image",
   pen: "tool.pen", star: "tool.star", polygon: "tool.polygon", slice: "tool.slice",
-  connector: "tool.connector", measure: "tool.measure", callout: "tool.callout",
+  connector: "tool.connector", hotspot: "tool.hotspot", measure: "tool.measure", callout: "tool.callout",
   sticky: "tool.sticky", table: "tool.table", chart: "tool.chart", freehand: "tool.freehand", annotate: "tool.annotate", scale: "tool.scale", shapeBuilder: "tool.shapeBuilder",
 };
 
@@ -39,6 +39,7 @@ const tools: { id: ToolType; icon: string; labelKey: string }[] = [
   { id: "polygon", icon: icons.polygon, labelKey: "tool.polygon" },
   { id: "slice", icon: icons.slice, labelKey: "tool.slice" },
   { id: "connector", icon: icons.connector, labelKey: "tool.connector" },
+  { id: "hotspot", icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2" stroke-dasharray="3 2"/><circle cx="12" cy="12" r="2"/></svg>`, labelKey: "tool.hotspot" },
   { id: "measure", icon: icons.measureTool, labelKey: "tool.measure" },
   { id: "callout", icon: icons.callout, labelKey: "tool.callout" },
   { id: "sticky", icon: icons.stickyNote, labelKey: "tool.sticky" },

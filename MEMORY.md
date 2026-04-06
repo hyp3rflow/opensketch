@@ -2276,8 +2276,15 @@
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
 - specs/FEATURES.md Prototyping 섹션 동기화
 
+## 완료된 기능 (추가 — Prototype Hotspot Authoring Tool, 2026-04-07)
+- Toolbar에 Hotspot 툴 추가, 캔버스 드래그로 투명 hotspot(rect) 생성
+- 생성된 hotspot에 `OnClick → NavigateTo` interaction 자동 연결
+- 타겟 자동 결정 규칙: 현재 selection의 Frame 우선, 없으면 문서 내 Frame fallback
+- 생성 시 편집 가시성을 위해 옅은 fill/outline을 기본 적용
+- 구현: `packages/app/src/editor.ts`, `packages/app/src/ui/toolbar.ts`
+- specs/FEATURES.md Prototyping 섹션 동기화
+
 ## 다음 할 것 (2026-04-07 업데이트)
-- Prototype Hotspot Authoring Tool — 프레임 위 드래그로 투명 hotspot 생성 + interaction 자동 연결 (중난이도 / 고임팩트)
 - Variable Collection Panel Search & Usage Count — 변수 검색/필터 + 사용 노드 수 집계로 토큰 관리 생산성 향상 (저난이도 / 중임팩트)
 - Dev Inspect Distance/Baseline Overlay — 텍스트 baseline + line-height + nearest spacing 오버레이를 Dev/Inspect 모드에서 시각화 (중난이도 / 중임팩트)
 - Prototype Scroll Physics Presets — iOS/Android/Web 관성 스크롤 프리셋(감쇠/탄성) 전환 및 미리보기 (중난이도 / 중임팩트)

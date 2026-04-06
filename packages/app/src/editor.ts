@@ -59,7 +59,7 @@ import { toggleColorBlindnessPanel, closeCBPanel, setColorBlindnessMode } from "
 import { toggleFocusMode } from "./ui/focus-mode";
 import { WebGPURenderer } from "./ui/webgpu-renderer";
 
-export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "section" | "image" | "video" | "pen" | "star" | "polygon" | "slice" | "connector" | "callout" | "sticky" | "table" | "chart" | "freehand" | "measure" | "annotate" | "eyedropper" | "scale" | "shapeBuilder";
+export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "section" | "image" | "video" | "pen" | "star" | "polygon" | "slice" | "connector" | "hotspot" | "callout" | "sticky" | "table" | "chart" | "freehand" | "measure" | "annotate" | "eyedropper" | "scale" | "shapeBuilder";
 
 /** Snap threshold in screen pixels */
 const SNAP_THRESHOLD_PX = 5;
@@ -148,6 +148,9 @@ export class Editor {
 
   // Connector tool state
   private _connectorDrag: { startNodeId: number; sx: number; sy: number; ex?: number; ey?: number; endNodeId?: number; startAnchor?: string; endAnchor?: string } | null = null;
+
+  // Prototype hotspot authoring
+  private _hotspotTargetNodeId: number | null = null;
 
   // Anchor point rendering state
   private _anchorHoverNodeId: number = 0;
@@ -1902,7 +1905,7 @@ export class Editor {
       return;
     }
 
-    if (["rect", "ellipse", "text", "frame", "section", "image", "video", "slice"].includes(this.currentTool)) {
+    if (["rect", "ellipse", "text", "frame", "section", "image", "video", "slice", "hotspot"].includes(this.currentTool)) {
       const sx = this.engine.screen_to_scene_x(x, y);
       const sy = this.engine.screen_to_scene_y(x, y);
       this.drag = { startX: sx, startY: sy, currentX: sx, currentY: sy };
@@ -2556,7 +2559,7 @@ export class Editor {
       return;
     }
 
-    if (["rect", "ellipse", "text", "frame", "section", "image", "video", "slice"].includes(this.currentTool)) {
+    if (["rect", "ellipse", "text", "frame", "section", "image", "video", "slice", "hotspot"].includes(this.currentTool)) {
       this.drag.currentX = this.engine.screen_to_scene_x(x, y);
       this.drag.currentY = this.engine.screen_to_scene_y(x, y);
       this.needsRender = true;
@@ -2840,6 +2843,43 @@ export class Editor {
           case "star": id = this.engine.add_star(x, y, w, h, 5, 0.4); break;
           case "polygon": id = this.engine.add_polygon(x, y, w, h, 6); break;
           case "slice": id = this.engine.add_slice("", x, y, w, h); break;
+          case "hotspot": {
+            id = this.engine.add_rect(x, y, w, h);
+            try {
+              this.engine.set_name(BigInt(id), `Hotspot ${id}`);
+              // transparent interactive layer with subtle outline in editor
+              this.engine.set_fill_color(BigInt(id), 13, 153, 255, 0.02);
+              this.engine.set_stroke(BigInt(id), 13, 153, 255, 0.7, 1);
+              this.engine.set_stroke_dash(BigInt(id), "4,3", 0);
+            } catch {}
+            // If authored over a frame, parent hotspot into that frame
+            try {
+              let parentFrameId = Number(this.engine.hit_test(_e.offsetX, _e.offsetY) || 0);
+              while (parentFrameId > 0 && this.getNodeKindById(parentFrameId) !== "Frame") {
+                const p = Number((this.engine as any).get_node_parent?.(BigInt(parentFrameId)) ?? 0);
+                if (!Number.isFinite(p) || p <= 0 || p === parentFrameId) { parentFrameId = 0; break; }
+                parentFrameId = p;
+              }
+              if (parentFrameId > 0) {
+                const parentJson = this.engine.get_node_json(BigInt(parentFrameId));
+                if (parentJson) {
+                  const parent = JSON.parse(parentJson);
+                  (this.engine as any).reparent_node_at(BigInt(id), parentFrameId, Number.MAX_SAFE_INTEGER);
+                  (this.engine as any).set_node_position(BigInt(id), x - Number(parent.x || 0), y - Number(parent.y || 0));
+                }
+              }
+            } catch {}
+
+            const targetId = this._hotspotTargetNodeId ?? this.chooseHotspotTargetNodeId(id);
+            if (targetId && targetId !== id) {
+              this.engine.add_interaction(BigInt(id), "click", "navigate-to", BigInt(targetId), BigInt(0), "instant", 300, "ease_in_out");
+              try {
+                const targetName = (this.engine as any).get_node_name?.(BigInt(targetId)) || `#${targetId}`;
+                this.engine.set_name(BigInt(id), `Hotspot → ${targetName}`);
+              } catch {}
+            }
+            break;
+          }
           case "sticky": id = this.engine.add_sticky_note(x, y, Math.max(w, 150), Math.max(h, 150), "", "yellow"); break;
           case "table": id = this.engine.add_table(x, y, 3, 3, Math.max(w / 3, 80), Math.max(h / 3, 32)); break;
           case "chart": id = this.engine.add_chart(x, y, Math.max(w, 300), Math.max(h, 200)); break;
@@ -5132,6 +5172,54 @@ export class Editor {
   get penPressureEnabled() { return this._penPressureEnabled; }
   set penPressureEnabled(v: boolean) { this._penPressureEnabled = v; }
 
+  private getNodeKindById(id: number): string {
+    if (!id) return "";
+    try {
+      const json = this.engine.get_node_json(BigInt(id));
+      if (!json) return "";
+      const node = JSON.parse(json);
+      return typeof node?.kind === "string" ? node.kind : String(Object.keys(node?.kind || {})[0] || "");
+    } catch {
+      return "";
+    }
+  }
+
+  private chooseHotspotTargetNodeId(excludeId?: number): number | null {
+    const selected = Array.from(this.engine.get_selection()).map(Number);
+    for (const id of selected) {
+      if (id !== excludeId && this.getNodeKindById(id) === "Frame") return id;
+    }
+
+    try {
+      const allNodes = JSON.parse((this.engine as any).get_all_nodes?.() || "[]");
+      const frames = (allNodes || [])
+        .filter((n: any) => {
+          const kind = typeof n?.kind === "string" ? n.kind : String(Object.keys(n?.kind || {})[0] || "");
+          return kind === "Frame" && Number(n?.id) !== Number(excludeId || 0);
+        })
+        .map((n: any) => ({ id: Number(n.id), x: Number(n.x), y: Number(n.y), w: Number(n.width), h: Number(n.height) }))
+        .filter((n: any) => Number.isFinite(n.id) && Number.isFinite(n.x) && Number.isFinite(n.y) && Number.isFinite(n.w) && Number.isFinite(n.h));
+
+      if (frames.length === 0) return null;
+
+      const selNodeId = selected[0];
+      if (selNodeId) {
+        const selJson = this.engine.get_node_json(BigInt(selNodeId));
+        if (selJson) {
+          const selNode = JSON.parse(selJson);
+          const cx = Number(selNode.x || 0) + Number(selNode.width || 0) / 2;
+          const cy = Number(selNode.y || 0) + Number(selNode.height || 0) / 2;
+          frames.sort((a: any, b: any) => Math.hypot(a.x + a.w / 2 - cx, a.y + a.h / 2 - cy) - Math.hypot(b.x + b.w / 2 - cx, b.y + b.h / 2 - cy));
+          return frames[0]?.id ?? null;
+        }
+      }
+
+      return frames[0]?.id ?? null;
+    } catch {
+      return null;
+    }
+  }
+
   setTool(tool: ToolType) {
     // Finish any in-progress pen path when switching away
     if (this._penPathId != null && tool !== "pen") {
@@ -5141,6 +5229,9 @@ export class Editor {
     if (tool !== "shapeBuilder") {
       this._shapeBuilderStroke = null;
       this._shapeBuilderTouchedIds = [];
+    }
+    if (tool === "hotspot") {
+      this._hotspotTargetNodeId = this.chooseHotspotTargetNodeId();
     }
     this.updateCursor();
     document.querySelectorAll(".tool-btn").forEach((btn) => {
@@ -5178,7 +5269,7 @@ export class Editor {
       ellipse: "crosshair", text: "text", frame: "crosshair",
       section: "crosshair", image: "crosshair", pen: "crosshair",
       star: "crosshair", polygon: "crosshair",
-      slice: "crosshair", connector: "crosshair", callout: "crosshair", sticky: "crosshair", chart: "crosshair", freehand: "crosshair",
+      slice: "crosshair", connector: "crosshair", hotspot: "crosshair", callout: "crosshair", sticky: "crosshair", chart: "crosshair", freehand: "crosshair",
       measure: "crosshair", annotate: "crosshair", eyedropper: "crosshair", scale: "nwse-resize", shapeBuilder: "crosshair",
     };
     this.canvas.style.cursor = cursors[this.currentTool] || "default";
