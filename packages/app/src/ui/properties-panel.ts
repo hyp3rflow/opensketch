@@ -1317,6 +1317,17 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
 
       header.appendChild(compCard);
 
+      const instanceControlsCard = document.createElement("div");
+      instanceControlsCard.style.cssText = `
+        margin-bottom:8px; padding:8px 10px;
+        background:rgba(79,70,229,0.06); border:1px solid rgba(79,70,229,0.18);
+        border-radius:8px;
+      `;
+      const instanceControlsTitle = document.createElement("div");
+      instanceControlsTitle.style.cssText = "font-size:10px;color:#818cf8;letter-spacing:0.3px;margin-bottom:6px;font-weight:600;";
+      instanceControlsTitle.textContent = "INSTANCE CONTROLS";
+      instanceControlsCard.appendChild(instanceControlsTitle);
+
       // === Variant Picker ===
       if (compInfo.properties && compInfo.properties.length > 0) {
         const variantSection = document.createElement("div");
@@ -1396,7 +1407,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           variantSection.appendChild(propRow);
         }
 
-        header.appendChild(variantSection);
+        instanceControlsCard.appendChild(variantSection);
       }
 
       // === Component Set Variant Switcher ===
@@ -1793,7 +1804,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             overrideCard.appendChild(ovRow);
           }
 
-          header.appendChild(overrideCard);
+          instanceControlsCard.appendChild(overrideCard);
         }
       } catch { /* ignore if engine doesn't support */ }
 
@@ -1924,9 +1935,13 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             cpSection.appendChild(propRow);
           }
 
-          header.appendChild(cpSection);
+          instanceControlsCard.appendChild(cpSection);
         }
       } catch { /* ignore if engine doesn't support */ }
+
+      if (instanceControlsCard.childElementCount > 1) {
+        header.appendChild(instanceControlsCard);
+      }
     }
 
     // === Component Properties Editor (for component source nodes) ===

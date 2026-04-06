@@ -2229,10 +2229,18 @@
 - 렌더 후 노드 x/y를 원복하는 백업/복원 경로 추가
 - specs/FEATURES.md 반영
 
+## 완료된 기능 (추가 — Component Properties Panel (Instance Controls), 2026-04-06)
+- Instance 선택 시 Properties panel에 `INSTANCE CONTROLS` 통합 카드 추가
+- Variant Picker, Override Indicators, Component Props(booleans/text/instance swap)를 한 카드 내에서 연속 편집 가능
+- 기존 override reset(개별/전체), variant switch, text override 플로우를 유지하면서 정보 탐색 동선을 축소
+- specs/FEATURES.md 반영
+
 ## 다음 할 것 (2026-04-06 업데이트)
-- Component Properties Panel (Instance Controls) — Figma처럼 인스턴스 선택 시 variant/property 토글/텍스트 override를 한 카드에서 편집 (중난이도 / 고임팩트)
 - Smart Select Spacing Handles Upgrade — 인접 노드 간 간격 핸들에서 숫자 직접 입력·균등 분배·Auto Layout 변환 제안 (중난이도 / 고임팩트)
 - Dev Mode Spec Pins — 노드에 구현 메모/링크/GitHub 이슈를 핀으로 연결하고 Inspect에서 함께 노출 (저~중난이도 / 중임팩트)
+- Stroke Position on Paths (Inside/Outside for open/closed path parity) — Path 노드에도 shape와 동일한 stroke align UX/렌더 일관성 제공 (중난이도 / 중~고임팩트)
+- Symbol Instance Exposure in Inspect — Inspect 탭에서 instance의 master/variant/property 상태를 코드 스니펫과 함께 노출 (저~중난이도 / 중임팩트)
+- Prototype Hotspot Authoring Tool — 프레임 위 드래그로 투명 hotspot 생성 + interaction 자동 연결 (중난이도 / 고임팩트)
 
 ## 완료된 기능 (추가 — Prototyping Smart Animate Timeline, 2026-04-06)
 - Interactions > Smart Animate Timeline을 리스트 입력형에서 시각 keyframe rail editor로 확장
