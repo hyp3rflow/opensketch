@@ -116,6 +116,65 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
   container.addEventListener("change", () => ensureUndo(), true);
   container.addEventListener("input", () => ensureUndo(), true);
 
+  const TEXT_SCALE_PRESET = [12, 14, 16, 20, 24, 32];
+  function applyTextScaleTokensToDocument() {
+    const styles: any[] = JSON.parse(editor.engine.list_text_styles() || "[]");
+    const layers: any[] = JSON.parse(editor.engine.get_layer_list() || "[]");
+    const baseFamily = styles[0]?.font_family || "Inter";
+    const baseWeight = Number(styles[0]?.font_weight ?? 400) || 400;
+    const baseLineHeight = Number(styles[0]?.line_height ?? 1.2) || 1.2;
+    const baseStyle = styles[0]?.font_style || "normal";
+    const baseAlign = styles[0]?.text_align || "left";
+    const baseColor = styles[0]?.color || { r: 17, g: 17, b: 17, a: 1 };
+
+    const bySize = new Map<number, bigint>();
+    for (const s of styles) {
+      if (typeof s.font_size === "number" && s.id != null && !bySize.has(s.font_size)) {
+        bySize.set(s.font_size, BigInt(s.id));
+      }
+    }
+
+    let created = 0;
+    for (const size of TEXT_SCALE_PRESET) {
+      if (!bySize.has(size)) {
+        const sid = editor.engine.add_text_style(
+          `Scale/${size}`,
+          baseFamily,
+          size,
+          baseWeight,
+          baseStyle,
+          baseLineHeight,
+          baseAlign,
+          baseColor.r ?? 17,
+          baseColor.g ?? 17,
+          baseColor.b ?? 17,
+          baseColor.a ?? 1,
+        );
+        bySize.set(size, sid);
+        created += 1;
+      }
+    }
+
+    let remapped = 0;
+    for (const layer of layers) {
+      const nj = editor.engine.get_node_json(BigInt(layer.id));
+      if (!nj) continue;
+      const node = JSON.parse(nj);
+      if (!node?.kind?.Text) continue;
+      const fs = Number(node.kind.Text.font_size ?? 16) || 16;
+      let nearest = TEXT_SCALE_PRESET[0]!;
+      for (const s of TEXT_SCALE_PRESET) {
+        if (Math.abs(s - fs) < Math.abs(nearest - fs)) nearest = s;
+      }
+      const sid = bySize.get(nearest);
+      if (!sid) continue;
+      if (editor.engine.apply_text_style(BigInt(layer.id), sid)) remapped += 1;
+    }
+
+    editor.requestRender();
+    alert(`Text scale tokens applied. Created ${created} style(s), remapped ${remapped} text node(s).`);
+  }
+
   function refresh(ids: number[]) {
     undoPushed = false;
     container.innerHTML = "";
@@ -182,9 +241,20 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       docsBtn.style.cssText = btnStyle;
       docsBtn.onclick = () => downloadDesignSystemDocs(editor);
 
+      const scaleBtn = document.createElement("button");
+      scaleBtn.textContent = "Text Scale Tokens";
+      scaleBtn.style.cssText = btnStyle;
+      scaleBtn.onclick = () => {
+        if (!confirm("Create/apply text scale tokens (12/14/16/20/24/32) and remap all text nodes?")) return;
+        ensureUndo();
+        applyTextScaleTokensToDocument();
+        refresh(ids);
+      };
+
       btnRow.appendChild(exportBtn);
       btnRow.appendChild(importBtn);
       btnRow.appendChild(docsBtn);
+      btnRow.appendChild(scaleBtn);
       libSection.appendChild(btnRow);
       emptyDiv.appendChild(libSection);
 
@@ -6745,6 +6815,70 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       }
 
       container.appendChild(imgSection);
+    }
+
+    // --- Corner Pin (Frame-specific quick controls) ---
+    if (kindStr === "Frame") {
+      const cpSection = createSection("Corner Pin");
+      const cpJson = (editor.engine as any).get_corner_pin?.(id) || "";
+      const cp = cpJson ? JSON.parse(cpJson) : { tl_x: 0, tl_y: 0, tr_x: 1, tr_y: 0, br_x: 1, br_y: 1, bl_x: 0, bl_y: 1 };
+
+      const header = document.createElement("div");
+      header.style.cssText = "display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;";
+      const hint = document.createElement("span");
+      hint.style.cssText = "font-size:10px;color:#777;";
+      hint.textContent = "4-point warp (normalized)";
+      header.appendChild(hint);
+      const resetBtn = document.createElement("button");
+      resetBtn.style.cssText = "background:none;border:1px solid #555;color:#aaa;font-size:10px;padding:2px 7px;border-radius:4px;cursor:pointer;";
+      resetBtn.textContent = cpJson ? "Reset" : "Off";
+      resetBtn.disabled = !cpJson;
+      resetBtn.addEventListener("click", () => {
+        ensureUndo();
+        (editor.engine as any).clear_corner_pin?.(id);
+        editor.requestRender();
+        refresh(ids);
+      });
+      header.appendChild(resetBtn);
+      cpSection.appendChild(header);
+
+      const grid = document.createElement("div");
+      grid.style.cssText = "display:grid;grid-template-columns:repeat(4,1fr);gap:4px;";
+      const fields: Array<[string, keyof typeof cp]> = [
+        ["TL X", "tl_x"], ["TL Y", "tl_y"], ["TR X", "tr_x"], ["TR Y", "tr_y"],
+        ["BR X", "br_x"], ["BR Y", "br_y"], ["BL X", "bl_x"], ["BL Y", "bl_y"],
+      ];
+      const apply = () => {
+        ensureUndo();
+        (editor.engine as any).set_corner_pin?.(
+          id,
+          parseFloat((grid.querySelector('input[data-key="tl_x"]') as HTMLInputElement).value) || 0,
+          parseFloat((grid.querySelector('input[data-key="tl_y"]') as HTMLInputElement).value) || 0,
+          parseFloat((grid.querySelector('input[data-key="tr_x"]') as HTMLInputElement).value) || 1,
+          parseFloat((grid.querySelector('input[data-key="tr_y"]') as HTMLInputElement).value) || 0,
+          parseFloat((grid.querySelector('input[data-key="br_x"]') as HTMLInputElement).value) || 1,
+          parseFloat((grid.querySelector('input[data-key="br_y"]') as HTMLInputElement).value) || 1,
+          parseFloat((grid.querySelector('input[data-key="bl_x"]') as HTMLInputElement).value) || 0,
+          parseFloat((grid.querySelector('input[data-key="bl_y"]') as HTMLInputElement).value) || 1,
+        );
+        editor.requestRender();
+      };
+      for (const [label, key] of fields) {
+        const wrap = document.createElement("div");
+        wrap.style.cssText = "display:flex;flex-direction:column;gap:2px;";
+        const l = document.createElement("span");
+        l.style.cssText = "font-size:9px;color:#777;";
+        l.textContent = label;
+        const input = document.createElement("input");
+        input.className = "prop-input";
+        input.setAttribute("data-key", key);
+        input.value = Number(cp[key] ?? 0).toFixed(2);
+        input.addEventListener("change", apply);
+        wrap.append(l, input);
+        grid.appendChild(wrap);
+      }
+      cpSection.appendChild(grid);
+      container.appendChild(cpSection);
     }
 
     // --- Video-specific ---

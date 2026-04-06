@@ -5599,7 +5599,7 @@ export class Editor {
     return result;
   }
 
-  /** Render 4-point corner pin distortion for Image nodes */
+  /** Render 4-point corner pin distortion for Image/Frame nodes */
   private renderCornerPins() {
     const layers = JSON.parse(this.engine.get_layer_list());
     const zoom = this.engine.get_zoom();
@@ -5647,12 +5647,9 @@ export class Editor {
       const nj = this.engine.get_node_json(BigInt(layer.id));
       if (!nj) continue;
       const node = JSON.parse(nj);
-      if (!node.kind?.Image) continue;
-
-      const src = node.kind.Image.src;
-      if (!src) continue;
-      const img = this._imageCache.get(src);
-      if (!img || !img.complete || img.naturalWidth === 0) continue;
+      const isImage = !!node.kind?.Image;
+      const isFrame = node.kind === "Frame";
+      if (!isImage && !isFrame) continue;
 
       const x = node.x * zoom + panX;
       const y = node.y * zoom + panY;
@@ -5675,7 +5672,17 @@ export class Editor {
       const oc = off.getContext("2d");
       if (!oc) continue;
       oc.imageSmoothingEnabled = true;
-      oc.drawImage(img, 0, 0, off.width, off.height);
+
+      if (isImage) {
+        const src = node.kind.Image.src;
+        if (!src) continue;
+        const img = this._imageCache.get(src);
+        if (!img || !img.complete || img.naturalWidth === 0) continue;
+        oc.drawImage(img, 0, 0, off.width, off.height);
+      } else if (isFrame) {
+        // Frame warp snapshot (fill/stroke baseline). Children remain in regular render pass.
+        this.renderNodeToCtx(oc as any, node, 0, 0);
+      }
 
       const sw = off.width;
       const sh = off.height;
@@ -5691,7 +5698,9 @@ export class Editor {
     const nodeJson = this.engine.get_node_json(BigInt(nodeId));
     if (!nodeJson) return null;
     const node = JSON.parse(nodeJson);
-    if (!node?.kind?.Image) return null;
+    const isImage = !!node?.kind?.Image;
+    const isFrame = node?.kind === "Frame";
+    if (!isImage && !isFrame) return null;
     const cpJson = (this.engine as any).get_corner_pin?.(BigInt(nodeId));
     if (!cpJson) return null;
     let cp: any;
@@ -5738,7 +5747,9 @@ export class Editor {
     const nodeJson = this.engine.get_node_json(BigInt(nodeId));
     if (!nodeJson) return;
     const node = JSON.parse(nodeJson);
-    if (!node?.kind?.Image) return;
+    const isImage = !!node?.kind?.Image;
+    const isFrame = node?.kind === "Frame";
+    if (!isImage && !isFrame) return;
     const cpJson = (this.engine as any).get_corner_pin?.(BigInt(nodeId));
     if (!cpJson) return;
     let cp: any;

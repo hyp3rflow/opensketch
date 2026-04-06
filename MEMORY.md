@@ -2222,9 +2222,18 @@
 - specs/FEATURES.md 반영
 
 ## 다음 할 것 (2026-04-06 업데이트)
-- Text Styles Scale Tokens — 타입 스케일(예: 12/14/16/20/24/32) 토큰 세트 생성/적용 + 문서 전체 일괄 리맵
-- Prototype Fixed Header/Footer — 프로토타입 미리보기에서 frame 내 고정 레이어(스크롤 시 pin) 지원
-- Variable Modes Quick Switch — Prototype Variables 모드(Desktop/Mobile, Light/Dark 등)를 툴바 토글로 즉시 전환
+- Prototype Fixed Header/Footer — 프로토타입 미리보기에서 frame 내 고정 레이어(스크롤 시 pin) 지원 (중난이도 / 고임팩트)
+- Variable Modes Quick Switch — Prototype Variables 모드(Desktop/Mobile, Light/Dark 등)를 툴바 토글로 즉시 전환 (저난이도 / 중임팩트)
+- Component Properties Panel (Instance Controls) — Figma처럼 인스턴스 선택 시 variant/property 토글/텍스트 override를 한 카드에서 편집 (중난이도 / 고임팩트)
+- Smart Select Spacing Handles Upgrade — 인접 노드 간 간격 핸들에서 숫자 직접 입력·균등 분배·Auto Layout 변환 제안 (중난이도 / 고임팩트)
+- Dev Mode Spec Pins — 노드에 구현 메모/링크/GitHub 이슈를 핀으로 연결하고 Inspect에서 함께 노출 (저~중난이도 / 중임팩트)
+
+## 완료된 기능 (추가 — Text Styles Scale Tokens, 2026-04-06)
+- Properties 빈 상태 Styles Library에 "Text Scale Tokens" 버튼 추가
+- 원클릭으로 12/14/16/20/24/32 스케일 텍스트 스타일 세트를 생성(없는 사이즈만 추가)
+- 문서 내 모든 Text 노드를 가장 가까운 스케일 스타일로 일괄 remap
+- remap 결과(생성 스타일 수/적용 노드 수) 알림 제공
+- specs/FEATURES.md에 Text Scale Tokens 항목 반영
 
 ## 완료된 기능 (추가 — Vector Boolean Live Preview, 2026-04-06)
 - Boolean 툴바 버튼 hover 시 연산 결과를 실시간 preview (MVP bounding-box overlay)

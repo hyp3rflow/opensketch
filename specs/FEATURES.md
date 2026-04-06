@@ -488,6 +488,7 @@
 - [x] **Import styles**: File picker → merge into current style library with new IDs
 - [x] **Portable format**: Version field, full ColorStyle + TextStyle serialization
 - [x] **UI**: "Styles Library" section in Properties panel empty state (no selection)
+- [x] **Text Scale Tokens**: one-click `12/14/16/20/24/32` text style preset 생성 + 문서 전체 Text 노드를 nearest scale style로 일괄 remap (Properties empty-state 버튼)
 - Rust StyleStore export_json/import_json + WASM bindings
 
 ### Design Tokens Export
@@ -1560,11 +1561,11 @@ Frame overflow control and content scrolling.
   - AR modal actions: Source URL + Mobile Preview Link 분리 제공, "Copy Mobile Link"/"Open Mobile Preview" 버튼 추가
   - SVG export: CSS transform with perspective() rotateX/Y/Z() + transform-origin
   - Inspect panel: CSS code generation for perspective transforms
-- [x] **Corner Pin / Perspective Distort (Image)**: 4점 코너 핀 왜곡 (normalized TL/TR/BR/BL)
+- [x] **Corner Pin / Perspective Distort (Image/Frame)**: 4점 코너 핀 왜곡 (normalized TL/TR/BR/BL)
   - Rust engine: `CornerPin` struct + Node `corner_pin` 필드 (serde default, backward compatible)
   - WASM bindings: `set_corner_pin`, `get_corner_pin`, `clear_corner_pin`
-  - Canvas rendering: Image 노드를 2-triangle affine warp로 렌더 (flat draw 제거 후 재투영)
-  - Properties panel: Image 섹션에 Corner Pin 8개 수치 입력 + Reset
+  - Canvas rendering: Image/Frame 노드를 2-triangle affine warp로 렌더 (flat draw 제거 후 재투영)
+  - Properties panel: Image + Frame 섹션에 Corner Pin 8개 수치 입력 + Reset
 
 ## 106. AI Code-to-Design (HTML/CSS → Nodes)
 - [x] **Rust HTML parser**: Pure Rust tokenizer + recursive descent parser (no DOMParser dependency, works in WASM)
