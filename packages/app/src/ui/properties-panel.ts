@@ -5120,7 +5120,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           interEl.appendChild(easingRow);
         }
 
-        // Smart Animate Timeline (MVP)
+        // Smart Animate Timeline (visual keyframe editor)
         {
           const timelineWrap = document.createElement("div");
           timelineWrap.style.cssText = "margin-top:8px;padding-top:8px;border-top:1px solid #333;";
@@ -5134,7 +5134,9 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
 
           const hint = document.createElement("div");
           hint.style.cssText = "font-size:10px;color:#666;margin-bottom:6px;";
-          hint.textContent = isSmartAnimate ? "Edit start/mid/end keyframes and per-segment easing." : "Switch transition to Smart Animate to enable timeline.";
+          hint.textContent = isSmartAnimate
+            ? "Drag keyframes on timeline. Click rail to add keyframe, edit selected easing."
+            : "Switch transition to Smart Animate to enable timeline.";
           timelineWrap.appendChild(hint);
 
           let timeline: Array<{ time: number; label: string; easing: string }> = [];
@@ -5149,61 +5151,28 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           }
           timeline.sort((a, b) => a.time - b.time);
 
-          const renderTimelineRows = () => {
-            list.innerHTML = "";
-            timeline.forEach((kf, kfIdx) => {
-              const row = document.createElement("div");
-              row.style.cssText = "display:grid;grid-template-columns:50px 1fr 1fr auto;gap:4px;align-items:center;margin-bottom:4px;";
+          const rail = document.createElement("div");
+          rail.style.cssText = "height:30px;border:1px solid #3a3a3a;border-radius:6px;position:relative;background:linear-gradient(180deg,#202020,#171717);margin-bottom:6px;cursor:pointer;";
+          timelineWrap.appendChild(rail);
 
-              const name = document.createElement("span");
-              name.style.cssText = "font-size:10px;color:#999;";
-              name.textContent = kf.label;
-              row.appendChild(name);
+          const details = document.createElement("div");
+          details.style.cssText = "display:grid;grid-template-columns:58px 1fr 1fr auto;gap:4px;align-items:center;";
+          timelineWrap.appendChild(details);
 
-              const timeInput = document.createElement("input");
-              timeInput.className = "prop-input";
-              timeInput.type = "number";
-              timeInput.min = "0";
-              timeInput.step = "10";
-              timeInput.value = String(kf.time);
-              timeInput.disabled = !isSmartAnimate;
-              row.appendChild(timeInput);
+          let selectedIdx = 0;
+          let dragIdx: number | null = null;
 
-              const easeInput = document.createElement("input");
-              easeInput.className = "prop-input";
-              easeInput.value = kf.easing || "ease_in_out";
-              easeInput.placeholder = "ease_in_out / cubic_bezier:...";
-              easeInput.disabled = !isSmartAnimate;
-              row.appendChild(easeInput);
-
-              const del = document.createElement("button");
-              del.style.cssText = "width:18px;height:18px;border:1px solid #444;border-radius:4px;background:#2a2a2a;color:#888;cursor:pointer;font-size:12px;";
-              del.textContent = "×";
-              del.disabled = !isSmartAnimate || kfIdx === 0 || kfIdx === timeline.length - 1;
-              row.appendChild(del);
-
-              timeInput.addEventListener("change", () => {
-                timeline[kfIdx].time = Math.max(0, parseInt(timeInput.value) || 0);
-                timeline.sort((a, b) => a.time - b.time);
-                persistTimeline();
-                renderTimelineRows();
-              });
-              easeInput.addEventListener("change", () => {
-                timeline[kfIdx].easing = easeInput.value || "ease_in_out";
-                persistTimeline();
-              });
-              del.addEventListener("click", () => {
-                timeline.splice(kfIdx, 1);
-                persistTimeline();
-                renderTimelineRows();
-              });
-
-              list.appendChild(row);
+          const getDuration = () => Math.max(1, parseInt(durInput.value) || Number(inter.transition_duration_ms || 300));
+          const sortAndClamp = () => {
+            const dur = getDuration();
+            timeline.forEach((kf, idx) => {
+              if (idx === 0) kf.time = 0;
+              else if (idx === timeline.length - 1) kf.time = dur;
+              else kf.time = Math.max(0, Math.min(dur, Math.round(kf.time)));
             });
+            timeline.sort((a, b) => a.time - b.time);
+            selectedIdx = Math.max(0, Math.min(selectedIdx, timeline.length - 1));
           };
-
-          const list = document.createElement("div");
-          timelineWrap.appendChild(list);
 
           const persistTimeline = () => {
             ensureUndo();
@@ -5222,20 +5191,134 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             refresh(ids);
           };
 
+          const markerFor = (idx: number, kf: { time: number; label: string; easing: string }) => {
+            const dur = getDuration();
+            const x = (kf.time / dur) * 100;
+            const marker = document.createElement("div");
+            const isEdge = idx === 0 || idx === timeline.length - 1;
+            marker.style.cssText = `position:absolute;left:calc(${x}% - 6px);top:8px;width:12px;height:12px;transform:rotate(45deg);border-radius:2px;border:1px solid ${idx === selectedIdx ? "#818cf8" : "#555"};background:${isEdge ? "#334155" : "#2a2a2a"};cursor:${isSmartAnimate && !isEdge ? "ew-resize" : "pointer"};`;
+            marker.title = `${kf.label} · ${kf.time}ms · ${kf.easing || "ease_in_out"}`;
+            marker.addEventListener("mousedown", (ev) => {
+              ev.stopPropagation();
+              selectedIdx = idx;
+              if (!isSmartAnimate || isEdge) { renderTimeline(); return; }
+              dragIdx = idx;
+              window.addEventListener("mousemove", onRailDrag);
+              window.addEventListener("mouseup", onRailUp);
+              renderTimeline();
+            });
+            marker.addEventListener("click", (ev) => {
+              ev.stopPropagation();
+              selectedIdx = idx;
+              renderTimeline();
+            });
+            return marker;
+          };
+
+          const onRailDrag = (ev: MouseEvent) => {
+            if (dragIdx === null) return;
+            const rect = rail.getBoundingClientRect();
+            const p = Math.max(0, Math.min(1, (ev.clientX - rect.left) / Math.max(1, rect.width)));
+            timeline[dragIdx].time = Math.round(p * getDuration());
+            sortAndClamp();
+            renderTimeline();
+          };
+
+          const onRailUp = () => {
+            if (dragIdx === null) return;
+            dragIdx = null;
+            window.removeEventListener("mousemove", onRailDrag);
+            window.removeEventListener("mouseup", onRailUp);
+            sortAndClamp();
+            persistTimeline();
+          };
+
+          const renderDetails = () => {
+            details.innerHTML = "";
+            const selected = timeline[selectedIdx] || timeline[0];
+            const labelChip = document.createElement("span");
+            labelChip.style.cssText = "font-size:10px;color:#a5b4fc;";
+            labelChip.textContent = selected?.label || "Key";
+            details.appendChild(labelChip);
+
+            const timeInput = document.createElement("input");
+            timeInput.className = "prop-input";
+            timeInput.type = "number";
+            timeInput.min = "0";
+            timeInput.step = "10";
+            timeInput.value = String(selected?.time || 0);
+            const edge = selectedIdx === 0 || selectedIdx === timeline.length - 1;
+            timeInput.disabled = !isSmartAnimate || edge;
+            timeInput.addEventListener("change", () => {
+              if (!timeline[selectedIdx]) return;
+              timeline[selectedIdx].time = Math.max(0, parseInt(timeInput.value) || 0);
+              sortAndClamp();
+              persistTimeline();
+            });
+            details.appendChild(timeInput);
+
+            const easeInput = document.createElement("input");
+            easeInput.className = "prop-input";
+            easeInput.value = selected?.easing || "ease_in_out";
+            easeInput.placeholder = "ease_in_out / cubic_bezier:...";
+            easeInput.disabled = !isSmartAnimate;
+            easeInput.addEventListener("change", () => {
+              if (!timeline[selectedIdx]) return;
+              timeline[selectedIdx].easing = easeInput.value || "ease_in_out";
+              persistTimeline();
+            });
+            details.appendChild(easeInput);
+
+            const del = document.createElement("button");
+            del.style.cssText = "width:18px;height:18px;border:1px solid #444;border-radius:4px;background:#2a2a2a;color:#888;cursor:pointer;font-size:12px;";
+            del.textContent = "×";
+            del.disabled = !isSmartAnimate || edge;
+            del.addEventListener("click", () => {
+              timeline.splice(selectedIdx, 1);
+              selectedIdx = Math.max(0, selectedIdx - 1);
+              sortAndClamp();
+              persistTimeline();
+            });
+            details.appendChild(del);
+          };
+
+          const renderTimeline = () => {
+            sortAndClamp();
+            rail.innerHTML = "";
+            const baseline = document.createElement("div");
+            baseline.style.cssText = "position:absolute;left:8px;right:8px;top:14px;height:2px;background:#3b3b3b;";
+            rail.appendChild(baseline);
+            timeline.forEach((kf, idx) => rail.appendChild(markerFor(idx, kf)));
+            renderDetails();
+          };
+
+          rail.addEventListener("click", (ev) => {
+            if (!isSmartAnimate) return;
+            const rect = rail.getBoundingClientRect();
+            const p = Math.max(0, Math.min(1, (ev.clientX - rect.left) / Math.max(1, rect.width)));
+            const newTime = Math.round(p * getDuration());
+            timeline.push({ time: newTime, label: `Mid ${Math.max(1, timeline.length - 1)}`, easing: inter.easing || "ease_in_out" });
+            sortAndClamp();
+            selectedIdx = timeline.findIndex(k => k.time === newTime);
+            persistTimeline();
+          });
+
           const addMidBtn = document.createElement("button");
           addMidBtn.className = "prop-add-btn";
           addMidBtn.style.marginTop = "4px";
           addMidBtn.textContent = "+ Add Mid Keyframe";
-          addMidBtn.disabled = !isSmartAnimate || timeline.some(k => (k.label || "").toLowerCase().includes("mid"));
+          addMidBtn.disabled = !isSmartAnimate;
           addMidBtn.addEventListener("click", () => {
-            const dur = parseInt(durInput.value) || Number(inter.transition_duration_ms || 300);
-            timeline.push({ time: Math.round(dur / 2), label: `Mid ${timeline.length - 1}` , easing: inter.easing || "ease_in_out" });
-            timeline.sort((a, b) => a.time - b.time);
+            const dur = getDuration();
+            const t = Math.round(dur / 2);
+            timeline.push({ time: t, label: `Mid ${Math.max(1, timeline.length - 1)}`, easing: inter.easing || "ease_in_out" });
+            sortAndClamp();
+            selectedIdx = timeline.findIndex(k => k.time === t);
             persistTimeline();
           });
 
           timelineWrap.appendChild(addMidBtn);
-          renderTimelineRows();
+          renderTimeline();
           interEl.appendChild(timelineWrap);
         }
 

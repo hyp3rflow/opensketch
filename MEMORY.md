@@ -2234,6 +2234,14 @@
 - Smart Select Spacing Handles Upgrade — 인접 노드 간 간격 핸들에서 숫자 직접 입력·균등 분배·Auto Layout 변환 제안 (중난이도 / 고임팩트)
 - Dev Mode Spec Pins — 노드에 구현 메모/링크/GitHub 이슈를 핀으로 연결하고 Inspect에서 함께 노출 (저~중난이도 / 중임팩트)
 
+## 완료된 기능 (추가 — Prototyping Smart Animate Timeline, 2026-04-06)
+- Interactions > Smart Animate Timeline을 리스트 입력형에서 시각 keyframe rail editor로 확장
+- Keyframe diamond를 드래그해 시간 이동, rail 클릭 또는 버튼으로 mid keyframe 추가
+- 선택 keyframe의 easing 문자열을 인라인 편집하고 mid keyframe 삭제 가능
+- Start/End keyframe은 transition duration anchor로 고정
+- Prototype viewer Smart Animate에서 `smart_animate_timeline_json` segment easing으로 time remap 후 보간 적용
+- specs/FEATURES.md 동기화
+
 ## 완료된 기능 (추가 — Variable Modes Quick Switch, 2026-04-06)
 - Toolbar에 Variable Modes Quick Switch 버튼 추가 (Desktop/Mobile, Light/Dark 등 즉시 전환)
 - 버튼 클릭 시 플로팅 패널에서 각 Variable Collection의 active mode를 드롭다운으로 빠르게 변경

@@ -22,6 +22,8 @@ export function createPrototypeViewer(editor: Editor): {
   let protoVars: Map<string, string> = new Map();
   let varsPanel: HTMLDivElement | null = null;
 
+  type SmartTimelineKeyframe = { time: number; label?: string; easing?: string };
+
   /** Initialize prototype variables from engine definitions */
   function initProtoVars() {
     protoVars.clear();
@@ -248,7 +250,7 @@ export function createPrototypeViewer(editor: Editor): {
     else if (e.key === "ArrowLeft" || e.key === "Backspace") navigateBack();
   }
 
-  function navigateTo(frameId: number, transition: string = "Instant", durationMs: number = 300, easing: string = "ease_in_out") {
+  function navigateTo(frameId: number, transition: string = "Instant", durationMs: number = 300, easing: string = "ease_in_out", timeline?: SmartTimelineKeyframe[]) {
     if (transitioning) return;
     const prevFrameId = currentFrameId;
     if (currentFrameId !== null) navigationStack.push(currentFrameId);
@@ -259,7 +261,7 @@ export function createPrototypeViewer(editor: Editor): {
       return;
     }
 
-    performTransition(prevFrameId, frameId, transition, durationMs, easing);
+    performTransition(prevFrameId, frameId, transition, durationMs, easing, timeline);
   }
 
   function navigateBack() {
@@ -331,7 +333,7 @@ export function createPrototypeViewer(editor: Editor): {
   }
 
   /** Perform animated transition between two frames */
-  function performTransition(fromId: number, toId: number, transition: string, durationMs: number, easingStr: string = "ease_in_out") {
+  function performTransition(fromId: number, toId: number, transition: string, durationMs: number, easingStr: string = "ease_in_out", timeline?: SmartTimelineKeyframe[]) {
     if (!viewCanvas) return;
     transitioning = true;
 
@@ -362,7 +364,7 @@ export function createPrototypeViewer(editor: Editor): {
     }
 
     if (transition === "SmartAnimate") {
-      performSmartAnimate(fromId, toId, fromCanvas, toCanvas, durationMs, easingStr);
+      performSmartAnimate(fromId, toId, fromCanvas, toCanvas, durationMs, easingStr, timeline);
       return;
     }
 
@@ -423,7 +425,7 @@ export function createPrototypeViewer(editor: Editor): {
   }
 
   /** Smart Animate: match nodes by name via engine, interpolate all properties */
-  function performSmartAnimate(fromId: number, toId: number, fromCanvas: HTMLCanvasElement, toCanvas: HTMLCanvasElement, durationMs: number, easingStr: string = "ease_in_out") {
+  function performSmartAnimate(fromId: number, toId: number, fromCanvas: HTMLCanvasElement, toCanvas: HTMLCanvasElement, durationMs: number, easingStr: string = "ease_in_out", timeline?: SmartTimelineKeyframe[]) {
     if (!viewCanvas) { transitioning = false; return; }
 
     const animData = computeAutoAnimate(fromId, toId);
@@ -440,8 +442,35 @@ export function createPrototypeViewer(editor: Editor): {
     const ctx = viewCanvas.getContext("2d")!;
     const startTime = performance.now();
 
-    function ease(t: number): number {
-      return applyEasing(easingStr, t);
+    const normalizedTimeline: SmartTimelineKeyframe[] = Array.isArray(timeline)
+      ? timeline
+          .filter((k) => Number.isFinite(k?.time))
+          .map((k) => ({
+            time: Math.max(0, Math.min(durationMs, Number(k.time) || 0)),
+            label: k.label,
+            easing: (k.easing || "").trim(),
+          }))
+          .sort((a, b) => a.time - b.time)
+      : [];
+
+    function remapTimelineTime(raw: number): number {
+      if (normalizedTimeline.length < 2) return applyEasing(easingStr, raw);
+      const absT = raw * durationMs;
+      const first = normalizedTimeline[0];
+      const last = normalizedTimeline[normalizedTimeline.length - 1];
+      if (absT <= first.time) return 0;
+      if (absT >= last.time) return 1;
+
+      for (let i = 0; i < normalizedTimeline.length - 1; i++) {
+        const a = normalizedTimeline[i];
+        const b = normalizedTimeline[i + 1];
+        if (absT < a.time || absT > b.time) continue;
+        const span = Math.max(1e-6, b.time - a.time);
+        const local = (absT - a.time) / span;
+        const easedLocal = applyEasing(a.easing || easingStr, local);
+        return (a.time + span * easedLocal) / durationMs;
+      }
+      return applyEasing(easingStr, raw);
     }
 
     function lerp(a: number, b: number, t: number): number {
@@ -452,7 +481,7 @@ export function createPrototypeViewer(editor: Editor): {
       if (!viewCanvas || !active) { transitioning = false; return; }
       const elapsed = performance.now() - startTime;
       const rawT = Math.min(elapsed / durationMs, 1);
-      const t = ease(rawT);
+      const t = remapTimelineTime(rawT);
 
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.clearRect(0, 0, viewCanvas.width, viewCanvas.height);
@@ -923,7 +952,12 @@ export function createPrototypeViewer(editor: Editor): {
     if (inter.action === "NavigateTo" && targetId > 0) {
       const targetPageId = Number(inter.target_page_id);
       if (targetPageId > 0) editor.engine.set_active_page(BigInt(targetPageId));
-      navigateTo(targetId, inter.transition || "Instant", inter.transition_duration_ms || 300, inter.easing || "ease_in_out");
+      let timeline: SmartTimelineKeyframe[] | undefined;
+      try {
+        const parsed = JSON.parse(inter.smart_animate_timeline_json || "[]");
+        if (Array.isArray(parsed)) timeline = parsed as SmartTimelineKeyframe[];
+      } catch {}
+      navigateTo(targetId, inter.transition || "Instant", inter.transition_duration_ms || 300, inter.easing || "ease_in_out", timeline);
     } else if (inter.action === "Back") {
       navigateBack();
     } else if (inter.action === "SwapVariant" && inter.variant_key_json) {
