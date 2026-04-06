@@ -2247,6 +2247,9 @@ pub struct Node {
     /// but remains a child of the frame (Figma "Absolute position")
     #[serde(default)]
     pub absolute_position: bool,
+    /// Auto-layout wrap break: when true and parent wrap is enabled, force this child to start a new line/column.
+    #[serde(default)]
+    pub wrap_before: bool,
     /// Text-on-path: ID of a Path node this Text follows (None = normal text)
     #[serde(default)]
     pub text_path_id: Option<NodeId>,
@@ -2415,6 +2418,7 @@ impl Node {
             bitmap_filter: None,
             breakpoints: vec![],
             absolute_position: false,
+            wrap_before: false,
             text_path_id: None,
             text_path_offset: 0.0,
             text_path_baseline_offset: 0.0,

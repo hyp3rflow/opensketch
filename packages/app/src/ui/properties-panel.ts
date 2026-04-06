@@ -2232,6 +2232,30 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           absRow.appendChild(absCheck);
           absRow.appendChild(absLabel);
           sizeSection.appendChild(absRow);
+
+          // Wrap break control (when parent auto-layout wrap is enabled)
+          const parentWrapEnabled = (_parentLayoutSz.wrap === "Wrap");
+          if (parentWrapEnabled) {
+            const wrapBefore = (editor.engine as any).get_wrap_before(BigInt(id));
+            const breakRow = document.createElement("div");
+            breakRow.style.cssText = "display:flex;align-items:center;gap:6px;margin-top:6px;";
+            const breakCheck = document.createElement("input");
+            breakCheck.type = "checkbox";
+            breakCheck.checked = !!wrapBefore;
+            breakCheck.style.cssText = "margin:0;accent-color:#4f46e5;";
+            breakCheck.addEventListener("change", () => {
+              editor.engine.push_undo();
+              (editor.engine as any).set_wrap_before(BigInt(id), breakCheck.checked);
+              editor.requestRender();
+              refresh(ids);
+            });
+            const breakLabel = document.createElement("span");
+            breakLabel.style.cssText = "font-size:11px;color:#999;";
+            breakLabel.textContent = "Wrap: Start new line";
+            breakRow.appendChild(breakCheck);
+            breakRow.appendChild(breakLabel);
+            sizeSection.appendChild(breakRow);
+          }
         }
       }
     }

@@ -177,6 +177,7 @@ fn compute_flex(scene: &mut Scene, layout: &Layout, px: f64, py: f64, pw: f64, p
         h: f64,
         fill_main: bool,
         fill_cross: bool,
+        wrap_before: bool,
     }
     let mut child_infos: Vec<ChildInfo> = vec![];
     for &cid in children {
@@ -192,7 +193,14 @@ fn compute_flex(scene: &mut Scene, layout: &Layout, px: f64, py: f64, pw: f64, p
             } else {
                 child.sizing_h == SizingMode::Fill
             };
-            child_infos.push(ChildInfo { id: cid, w: child.width, h: child.height, fill_main, fill_cross });
+            child_infos.push(ChildInfo {
+                id: cid,
+                w: child.width,
+                h: child.height,
+                fill_main,
+                fill_cross,
+                wrap_before: child.wrap_before,
+            });
         }
     }
 
@@ -207,6 +215,12 @@ fn compute_flex(scene: &mut Scene, layout: &Layout, px: f64, py: f64, pw: f64, p
         let mut line_main = 0.0;
         for (i, ci) in child_infos.iter().enumerate() {
             let child_main = if is_row { ci.w } else { ci.h };
+            let needs_forced_break = ci.wrap_before && !lines.last().unwrap().is_empty();
+            if needs_forced_break {
+                lines.push(vec![i]);
+                line_main = child_main;
+                continue;
+            }
             let needed = if lines.last().unwrap().is_empty() { child_main } else { line_main + gap + child_main };
             if !lines.last().unwrap().is_empty() && needed > avail_main {
                 // Start new line

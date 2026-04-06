@@ -7175,6 +7175,17 @@ impl Engine {
         self.scene.get_node(id).map(|n| n.absolute_position).unwrap_or(false)
     }
 
+    /// Auto-layout wrap break: force node to start a new wrapped line/column.
+    pub fn set_wrap_before(&mut self, id: u64, wrap_before: bool) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            node.wrap_before = wrap_before;
+        }
+    }
+
+    pub fn get_wrap_before(&self, id: u64) -> bool {
+        self.scene.get_node(id).map(|n| n.wrap_before).unwrap_or(false)
+    }
+
     // =============================================
     // Min/Max size constraints
 

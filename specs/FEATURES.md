@@ -2364,3 +2364,10 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Properties panel: 부모가 scroll frame인 자식 노드에서 `Fixed in prototype` 토글 제공
 - [x] Prototype viewer: 현재 프레임 scroll offset을 기준으로 fixed 노드 x/y를 렌더 직전 반대 방향 보정해 고정 레이어처럼 표시
 - [x] 렌더 후 원본 x/y 백업 복원으로 편집 상태 오염 방지
+
+### Auto Layout Absolute Child + Wrap Controls (2026-04-06)
+- [x] Auto-layout wrap child line break 지원: Node에 `wrap_before: bool` 필드 추가 (serde default, backward-compatible)
+- [x] Flex wrap 계산에서 `wrap_before=true`인 자식은 부모 `wrap=Wrap`일 때 강제로 새 줄/새 컬럼 시작
+- [x] WASM API: `set_wrap_before(id, bool)`, `get_wrap_before(id)`
+- [x] Properties panel: auto-layout 자식 + 부모 wrap 활성 시 `Wrap: Start new line` 체크박스 노출
+- [x] 기존 Absolute Position 토글과 함께 flow 제외/flow 개행을 분리 제어 (Figma 유사)
