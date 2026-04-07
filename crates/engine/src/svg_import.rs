@@ -447,6 +447,8 @@ fn apply_style(elem: &roxmltree::Node, node: &mut Node, gradients: &GradientDefs
                                 stops: def.stops.clone(),
                             },
                             visible: true,
+                            opacity: 1.0,
+                            blend_mode: crate::node::BlendMode::Normal,
                         },
                         GradientKind::Radial => Fill {
                             fill_type: FillType::RadialGradient {
@@ -455,6 +457,8 @@ fn apply_style(elem: &roxmltree::Node, node: &mut Node, gradients: &GradientDefs
                                 stops: def.stops.clone(),
                             },
                             visible: true,
+                            opacity: 1.0,
+                            blend_mode: crate::node::BlendMode::Normal,
                         },
                     };
                     node.fills = vec![fill];

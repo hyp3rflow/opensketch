@@ -3451,6 +3451,36 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         });
         hdr.appendChild(typeSelect);
 
+        const opInput = document.createElement("input");
+        opInput.className = "prop-input";
+        opInput.type = "number";
+        opInput.min = "0";
+        opInput.max = "100";
+        opInput.step = "1";
+        opInput.title = "Fill opacity (%)";
+        opInput.style.cssText = "width:50px;font-size:10px;";
+        opInput.value = String(Math.round((fill.opacity ?? 1) * 100));
+        opInput.addEventListener("change", () => {
+          ensureUndo();
+          editor.engine.set_fill_opacity_at(id, idx, (parseFloat(opInput.value) || 100) / 100);
+          editor.requestRender();
+          refresh(ids);
+        });
+        hdr.appendChild(opInput);
+
+        const blendSelect = document.createElement("select");
+        blendSelect.className = "prop-input";
+        blendSelect.style.cssText = "width:86px;font-size:10px;";
+        const blendModes = ["Normal","Multiply","Screen","Overlay","Darken","Lighten","ColorDodge","ColorBurn","HardLight","SoftLight","Difference","Exclusion","Hue","Saturation","Color","Luminosity"];
+        for (const bm of blendModes) { const opt = document.createElement("option"); opt.value = bm; opt.textContent = bm; if ((fill.blend_mode || "Normal") === bm) opt.selected = true; blendSelect.appendChild(opt); }
+        blendSelect.addEventListener("change", () => {
+          ensureUndo();
+          editor.engine.set_fill_blend_mode_at(id, idx, blendSelect.value);
+          editor.requestRender();
+          refresh(ids);
+        });
+        hdr.appendChild(blendSelect);
+
         // Move up/down buttons
         if (fills.length > 1) {
           if (idx > 0) {
@@ -4157,6 +4187,21 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           });
           headerRow.appendChild(wInput);
 
+          const sOpInput = document.createElement("input");
+          sOpInput.className = "prop-input";
+          sOpInput.style.width = "46px";
+          sOpInput.type = "number";
+          sOpInput.min = "0";
+          sOpInput.max = "100";
+          sOpInput.step = "1";
+          sOpInput.title = "Stroke opacity (%)";
+          sOpInput.value = String(Math.round((stroke.opacity ?? 1) * 100));
+          sOpInput.addEventListener("change", () => {
+            editor.engine.set_stroke_opacity_at(id, idx, (parseFloat(sOpInput.value) || 100) / 100);
+            editor.requestRender(); refresh(ids);
+          });
+          headerRow.appendChild(sOpInput);
+
           const removeBtn = document.createElement("button");
           removeBtn.className = "prop-icon-btn";
           removeBtn.innerHTML = "×";
@@ -4210,6 +4255,18 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             sel.addEventListener("change", () => { setter(sel.value); editor.requestRender(); });
             optRow.appendChild(sel);
           }
+          const sBlend = document.createElement("select");
+          sBlend.className = "prop-input";
+          sBlend.style.flex = "1";
+          for (const bm of ["Normal","Multiply","Screen","Overlay","Darken","Lighten","ColorDodge","ColorBurn","HardLight","SoftLight","Difference","Exclusion","Hue","Saturation","Color","Luminosity"]) {
+            const opt = document.createElement("option");
+            opt.value = bm;
+            opt.textContent = bm;
+            if ((stroke.blend_mode || "Normal") === bm) opt.selected = true;
+            sBlend.appendChild(opt);
+          }
+          sBlend.addEventListener("change", () => { editor.engine.set_stroke_blend_mode_at(id, idx, sBlend.value); editor.requestRender(); refresh(ids); });
+          optRow.appendChild(sBlend);
           strokeItem.appendChild(optRow);
 
           strokeSection.appendChild(strokeItem);

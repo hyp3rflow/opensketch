@@ -39,9 +39,6 @@
 - Copy/Paste: Cmd+C (copy), Cmd+X (cut), Cmd+V (paste with +10px offset), Cmd+D (duplicate)
 - 계층 구조 보존 (children/parent ID 리매핑), undo 통합
 
-## 완료된 기능 (추가 — 2026-04-04)
-- Drag Reorder in Layers Panel: 레이어 행 드래그로 노드 순서/계층 변경, 파란색 삽입 인디케이터, 멀티셀렉트 드래그, Frame/Group/Section 안으로 reparent, 순환 참조 방지, Undo 통합
-
 ## 완료된 기능 (추가 4)
 - Alignment tools: align left/center_h/right/top/center_v/bottom + distribute horizontal/vertical
 - Scene 메서드 + WASM align_selection/distribute_selection 바인딩
@@ -379,14 +376,22 @@
   - Keyboard: Cmd/Ctrl+Shift+R
 
 ## 완료된 기능 (추가 41)
-- Slice tool (export regions):
+- Slice tool (export regions — full Figma-style):
   - NodeKind::Slice: 비렌더링 노드, 사각형 export 영역 정의
   - Canvas overlay: 초록(#36b37e) 대시 아웃라인 + 이름 라벨
   - 툴바: Slice 버튼 (K 단축키), crosshair cursor
-  - Properties panel: Export 섹션 (scale 1-4x 선택 + Export PNG 버튼)
-  - WASM: add_slice(name, x, y, w, h), get_slices() → JSON
+  - Properties panel: "Slice Export" 섹션 — 멀티 export item 리스트
+    - 각 item: scale (0.5x-4x), format (PNG/JPG/SVG), suffix 설정
+    - Add/Remove items, Quick "iOS set" (@1x/@2x/@3x PNG)
+    - 배치 export 버튼 (staggered download)
+  - WASM: add_slice, get_slices, export_region_svg(x, y, w, h)
   - Layers panel: Slice 아이콘
-  - exportSlice(): 캔버스 영역 크롭 → 지정 스케일 PNG 다운로드
+  - Export formats:
+    - PNG: Canvas crop → scale → PNG blob download
+    - JPG: Canvas crop + white bg → JPEG (quality 0.92) download
+    - SVG: Rust export_region_svg → intersecting nodes만 포함 → SVG download
+  - exportSliceBatch(): 여러 scale/format 일괄 다운로드 (200ms stagger)
+  - Per-slice export settings: localStorage 저장
   - Render/SVG export에서 Slice 노드 제외
   - Backward-compatible serde
 
@@ -463,8 +468,6 @@
   - Right pane "A11y" 탭: 카테고리별 이슈 그룹핑, severity 배지 (error/warning/info)
   - 이슈 클릭 시 해당 노드 선택 + zoom to selection
   - Re-check 버튼으로 수동 재검사
-  - Rust accessibility.rs: WCAG 2.1 전용 모듈 (check_accessibility → Vec<A11yIssue>, LowContrast/MissingAltText/SmallText/TouchTargetTooSmall)
-  - WASM: check_accessibility() → JSON (serde)
   - 순수 TypeScript 구현 (ui/accessibility-panel.ts)
 
 ## 완료된 기능 (추가 49)
@@ -542,8 +545,8 @@
   - Node.breakpoints: Vec<Breakpoint> — Frame별 브레이크포인트 규칙 (max_width 오름차순 정렬)
   - Layout 엔진: resolve_layout_with_breakpoints() — 레이아웃 계산 시 브레이크포인트 오버라이드 적용 (원본 layout 비변경)
   - Hidden children: 브레이크포인트별 자식 숨기기 (레이아웃 중만 임시 적용)
-  - WASM: add_breakpoint, remove_breakpoint, update_breakpoint, get_breakpoints, get_breakpoint_count, get_active_breakpoint, set_breakpoints_preset
-  - Properties panel: Auto Layout 하위 Breakpoints 섹션 — 추가/제거/편집, label/max_width/direction/gap/wrap 오버라이드, Preset 버튼 (Mobile/Tablet/Desktop 한번에 추가)
+  - WASM: add_breakpoint, remove_breakpoint, update_breakpoint, get_breakpoints, get_breakpoint_count, get_active_breakpoint
+  - Properties panel: Auto Layout 하위 Breakpoints 섹션 — 추가/제거/편집, label/max_width/direction/gap/wrap 오버라이드
   - Active 브레이크포인트 배지 표시
   - Backward-compatible serde (기본 빈 벡터)
 
@@ -1505,390 +1508,709 @@
   - Alt+Arrow: 0.1px, Arrow: 1px, Shift+Arrow: 10px 모두 지원
   - 순수 TypeScript 구현 (ui/nudge-hint.ts)
   - 기존 nudge 로직에 비침습적 통합
-- Canvas Performance Profiler: Right-pane Profiler 탭, 실시간 FPS/프레임타임 그래프, 노드별 렌더 비용 리스트, 히트맵 오버레이, LOD threshold 슬라이더, 최적화 제안 (profiler-panel.ts)
 
-## 완료된 기능 (추가 — Canvas Object Search & Filter Enhanced)
-- Rust engine: Scene.filter_nodes(criteria_json) — 노드 속성 기반 고급 필터링
-- 필터 조건: NodeKind, fill color (±2 tolerance), stroke color (±2 tolerance), opacity min/max, visible, locked, has_text, name pattern
-- WASM: filter_nodes(criteria_json) → JSON array of matching node IDs
-- TS UI 강화 (search-filter.ts): stroke color 필터 추가, opacity range 필터, "Text nodes only" 체크박스
-- 결과 노드 주황색(#ff8c00) solid 테두리 하이라이트, 비매칭 노드 45% 딤 오버레이
-- "Select All" 버튼: 매칭 노드 일괄 선택 (주황 액센트)
-- 결과 리스트 클릭 → 노드 선택 + pan-to-center
-- Hybrid Rust+TypeScript 구현 (엔진 필터 + UI 후처리)
+## 완료된 기능 (추가 — Find & Replace on Canvas)
+- 텍스트 검색/치환 (case sensitive 옵션), 노드 이름 검색, Cmd+F 단축키
+- Fill/Stroke 색상 검색 + 일괄 치환 (color picker 연동)
+- 폰트 검색/치환, 결과 리스트 + 네비게이션 (◀▶), 클릭 시 노드 선택 + 뷰 이동
+- 4-tab UI (Text/Fill/Stroke/Font), 고급 속성 검색 (PropertySearchCriteria — 12개 조건 AND 검색)
+- Rust find_replace.rs + WASM 바인딩 + find-replace-panel.ts UI
 
-## 완료된 기능 (추가 — Connector Arrow Head Styles)
-- ArrowStyle enum: None, Arrow, Diamond, Circle, Square, OpenArrow
-- 기존 end_arrow/start_arrow bool → ArrowStyle로 확장, arrow_size 배율 필드 추가
-- Backward-compatible serde: 기존 bool JSON → ArrowStyle 자동 변환 (custom deserializer)
-- Canvas 렌더링: 6가지 화살촉 스타일 (filled triangle, open V, diamond, circle, square)
-- SVG export: 스타일별 marker defs 생성 (arrow/open_arrow → path, diamond → path, circle → circle, square → rect)
-- WASM: set_connector_start_arrow_style, set_connector_end_arrow_style, set_connector_arrow_size (기존 set_connector_arrows bool API 유지)
-- get_connector_info: end_arrow/start_arrow를 string으로 반환, arrow_size 포함
-- Properties panel: Start/End arrow style 드롭다운 (6옵션), Arrow size 숫자 입력
+## 완료된 기능 (추가 — Responsive Preview Mode)
+- 디바이스 프레임 미리보기 (iPhone SE/14/iPad Mini/iPad Pro/Desktop 1440/1920)
+- 풀스크린 오버레이, 프레임 리사이즈 + Constraints 실시간 반영
+- responsive-preview.ts 302 lines
 
-## 완료된 기능 (추가 — Interactive Components)
-- Interactive Components (hover/press/focus/disabled variant auto-switch):
-  - Rust: InteractiveState enum (Default/Hover/Press/Focus/Disabled), InstanceData.interactive_variants HashMap
-  - WASM: set_interactive_variant, get_interactive_variants, clear_interactive_variant, apply_interactive_state
-  - Properties panel: "INTERACTIVE VARIANTS" 섹션 (핑크 카드) — state별 variant 드롭다운 매핑
-  - Prototype viewer: hover/press/release 시 자동 variant 전환, original 저장/복원
-  - Fallback: state 매핑 없으면 Default → 현재 variant 유지
-  - Backward-compatible serde (#[serde(default)])
-  - specs/COMPONENTS.md 업데이트
-
-## 완료된 기능 (추가 — Multi-canvas Artboard View)
-- Multi-canvas artboard view: 여러 페이지를 하나의 무한 캔버스에 동시 표시
-  - Rust: Page에 canvas_x, canvas_y 필드 추가 (serde(default) backward-compatible)
-  - Rust: get_all_pages_layout(), set_page_canvas_position() Scene 메서드
-  - Rust: 새 페이지 추가 시 자동 배치 (기존 페이지 오른쪽 100px 간격)
-  - WASM: get_all_pages_layout(), set_page_canvas_position() 바인딩
-  - TypeScript: ArtboardView 클래스 (ui/artboard-view.ts)
-    - enabled 토글, render (페이지 배경/경계/라벨), hitTest (페이지 클릭 감지)
-    - 클릭으로 active page 전환, 줌아웃 시 전체 조감도
-  - 단축키: Cmd+Shift+A 또는 Cmd+Alt+A 토글
-  - Editor 통합: render loop, pointer events, shortcut
-
-## 완료된 기능 (추가 — WebGPU Renderer 개선, 2026-04-04)
-- WebGPU 인스턴스 수집 로직 개선: Scene graph를 루트→자식으로 재귀 순회하여 부모 오프셋/opacity를 합성한 뒤 GPU 인스턴스로 업로드
-- Fill 파싱 강화: `type.Solid.color` 및 direct `color` 형태를 모두 지원, 노드 opacity와 합성
-- 렌더러 전환 UX 추가: Zoom controls에 Renderer 토글 버튼 추가 (Canvas2D ↔ WebGPU)
-- WebGPU 미지원 환경 처리: 토글 버튼 disabled + 안내 tooltip, 강제 WebGPU 선택 시 Canvas2D로 안전 fallback
-- WebGPU 뷰포트 컬링 추가: 현재 카메라(viewport/zoom/pan) 기준 화면 밖 노드 인스턴스를 업로드 전에 제외
-- 렌더 경로 캐시 추가: `sceneJson + viewKey` 기반 캐시로 동일 프레임 재파싱/재순회 비용 절감
-- bind group 재사용 최적화: 매 프레임 생성 대신 초기화 시 1회 생성 후 재사용
-
-## 완료된 기능 (추가 — Multi-cursor Collaborative Lock Overlay MVP, 2026-04-04)
-- 원격 협업 사용자의 selection 정보를 이용해 노드 잠금 오버레이 렌더링
-- 캔버스 오버레이: 사용자 색상 dashed outline + 🔒 락 마커
-- 충돌 방지 가시성 강화: 누가 잡고 있는 노드인지 즉시 확인 가능
-- editor.ts: renderRemoteNodeLocks() 추가, 메인 렌더 파이프라인 통합
-- specs/FEATURES.md Cursor Presence 섹션 업데이트
-
-## 완료된 기능 (추가 — Node Effect Presets Library MVP, 2026-04-04)
-- Effects 패널에 프리셋 액션 추가: Save preset / Apply preset / Export / Import
-- 프리셋 저장 데이터: blur, backdrop blur, blend mode, bitmap filter, drop/inner shadows
-- localStorage(`opensketch-effect-presets`) 기반 라이브러리 관리
-- JSON import/export 지원 (프리셋 백업/복원)
-- Apply 시 기존 effects를 교체 적용 (undo + refresh 연동)
-
-## 완료된 기능 (추가 — Spreadsheet Data Binding Repeat Grid 연동, 2026-04-04)
-- Data Binding 패널 확장: "Apply to selected Repeat Grid" 액션 추가
-- CSV/JSON 데이터를 Repeat Grid 셀에 row/col 순회로 자동 주입
-- master 셀의 Text `{{field}}` 템플릿을 child_path 기반으로 탐색 후 셀별 override 생성
-- Repeat Grid rows 자동 확장 (입력 데이터 길이에 맞춰 증가)
-- Rust 렌더러: Repeat Grid override 해석 구현 (`row,col:path:field`) + `text_content/text/src` 반영
-- engine.sync_repeat_grid() 연동으로 즉시 미리보기 렌더 반영
-
-## 다음 할 것
-- ~~Multi-cursor collaborative editing~~ ✅ 완료 (원격 selection 기반 노드 잠금 오버레이 MVP)
-- ~~Canvas minimap enhanced~~ ✅ 완료 (페이지 탭 네비게이션 + 활성 페이지/배율/팬 위치 인포 라벨)
-- ~~Smart auto-naming~~ ✅ 완료 (Frame children composition 기반 추론 이름 생성 포함)
-- ~~Figma DevMode parity~~ ✅ 완료 (선택 노드 spacing/padding/margin 인라인 Dev Inspect 배지 + 코드 스니펫 원클릭 복사)
-- ~~Table auto-layout — Table 노드에 auto-layout 적용 (셀 내 텍스트 wrap, 행/열 자동 리사이즈, 헤더 고정, 정렬)~~ ✅ 완료 (Auto Layout 버튼 + row/col content-fit + wrap 렌더링 + header row 스타일)
-- ~~Freehand smoothing~~ ✅ 완료 (아래 완료된 기능 섹션 참조)
-- ~~Repeat Grid — 노드 복제 grid (Figma Repeat Grid), row/col 갯수 + gap, 개별 셀 콘텐츠 오버라이드, 드래그로 인스턴스 수 조절~~ ✅ 완료 (셀별 텍스트 오버라이드 렌더 + 데이터 바인딩 패널 연동)
-- ~~Component Sets~~ ✅ 완료
-- ~~Multi-window / detachable panels — 패널을 별도 윈도우로 분리 (Layers, Properties, Agent 등)~~ ✅ 완료 (Handoff 탭 detach 지원 추가, 패널 목록 확장), window.open + postMessage 통신
-- ~~Figma-style Variants Matrix UI~~ ✅ 완료 (Component Set 인스턴스 편집에서 2D 매트릭스 표시 + 클릭 전환 + 빈 셀 드래그 매핑)
-- ~~Smart selection filter — 선택 영역 내 특정 노드 타입만 필터링 (Figma "Select All with..." 확장), 정규식 이름 매칭, 깊이/속성 필터~~ ✅ 완료 (Smart Select 패널 Selection Filter 영역 + Filter Area 액션)
-- ~~Scroll-to animation triggers — Prototype viewer에서 스크롤 위치 기반 애니메이션 트리거 (parallax, reveal-on-scroll), 트리거 threshold 설정~~ ✅ 완료 (ScrollAnimation struct + easing/sticky/parallax + Prototype viewer 실시간 오버라이드 렌더)
-- ~~Conditional visibility — 변수/조건 기반 노드 visibility 토글 (if variable == value → show/hide), 프로토타입에서 동적 UI 시뮬레이션~~ ✅ 완료 (Properties panel 조건식 설정 + 엔진 render/hit-test 반영)
-- ~~Auto-layout absolute position child — Auto-layout Frame 내부에서 특정 자식만 flow 제외(Absolute) + pin constraints 유지 (Figma "Absolute position")~~ ✅ 완료 (Absolute position 토글 + 부모 auto-layout flow 제외)
-- ~~Variant property controls — Component Instance에서 Boolean/Text/Instance Swap property 패널 지원 (토글/라벨/아이콘 교체)~~ ✅ 완료 (Instance property 패널 편집 + override 반영)
-- ~~Interactive components (hover/pressed variants) — Prototype viewer에서 컴포넌트 상태 전환(OnHover/OnPress) + 기본 transition~~ ✅ 완료 (interactive variants + prototype state 전환)
-- ~~Export slices/presets panel — Slice 노드 다중 선택 후 @1x/@2x/@3x, WebP/JPEG 품질 프리셋 일괄 내보내기~~ ✅ 완료 (Slice 단일/다중 선택 일괄 export + WebP/JPEG 품질 프리셋)
-- ~~Constraint Set Presets — Frame/컴포넌트 단위로 constraints+auto-layout 조합을 프리셋으로 저장/적용 (responsive 작업 가속)~~ ✅ 완료 (Constraints 섹션 Save/Apply preset + sizing/min-max 포함)
-- ~~Smart Rename Tokens — 노드명 패턴에서 의미 토큰을 추출해 일괄 rename 규칙 추천 (예: btn/primary/hover)~~ ✅ 완료 (Batch Rename 패턴 모드 Smart Rename Tokens 추천 칩)
-- ~~Text Style Lint Autofix — 폰트/크기/line-height 불일치 텍스트를 감지하고 style library 기준으로 일괄 정리~~ ✅ 완료 (Design Health > Typography에서 lint 목록 + Auto-fix 일괄 적용)
-- ~~Constraints Visual Pins Overlay — 선택 노드의 constraint pin 상태를 캔버스 오버레이로 즉시 표시/클릭 편집~~ ✅ 완료 (캔버스 3×3 핀 오버레이 클릭으로 H/V constraints 즉시 변경, undo + Properties 동기화)
-- ~~Component Property Defaults — Variant별 Boolean/Text/Swap property 기본값 저장/초기화~~ ✅ 완료 (Instance Controls에서 variant별 기본값 저장/리셋 + variant 전환 시 자동 재적용)
-- ~~Instance Override Diff Inspector — 인스턴스의 override 변경점만 필터링/일괄 reset~~ ✅ 완료 (Properties panel Overrides Diff Inspector + filter/reset visible)
-- ~~Pen Pressure Width Profile — Path/Freehand 스트로크에 pressure curve 기반 width profile 적용 + taper(start/end)~~ ✅ 완료 (editor pressureWidth helper + freehand 경로별 taper 적용)
-- Dev Handoff Tokens Export — Variables/Styles를 W3C Design Tokens JSON + CSS variables + Tailwind preset으로 내보내기
-- Prototyping Scroll Triggers — 스크롤 위치 기반 interaction trigger(enter/exit/threshold) + timeline 연동
-- Vector Network Boolean Cleanup — shape-builder/boolean 결과 self-intersection 정리 + simplify tolerance
-
-## 완료된 기능 (추가 — Instance Override Diff Inspector, 2026-04-07)
-- Properties panel `INSTANCE CONTROLS > Overrides`를 Diff Inspector 형태로 확장
-- 검색 입력 + scope 필터(All/Paint/Layout/Effects/Text/Visibility)로 override 항목 즉시 필터링
-- 노드별 변경 property를 chip 형태로 표시해 변경점 가독성 개선
-- `Reset visible` 버튼으로 현재 필터 결과만 일괄 override reset 지원 (개별 reset 유지)
-- `X/Y` 카운트(필터 결과/전체)로 diff 범위를 명확히 표시
-- specs 반영: `specs/FEATURES.md`
-
-## 완료된 기능 (추가 — Component Property Defaults per Variant, 2026-04-07)
-- Component에 `variant_property_defaults` 저장소 추가 (variant key → prop name → PropValue)
-- 엔진 기본값 해석을 variant-aware로 확장: `get_instance_prop_values`, `reset_instance_prop`, instance 생성/variant 전환 시 기본값 적용
-- variant 전환 시 새 subtree에 기본값 + 기존 override를 재적용해 Boolean/Text/Swap 상태 일관성 유지
-- WASM API 추가:
-  - `set_component_variant_prop_default`, `reset_component_variant_prop_default`, `get_component_variant_prop_defaults`
-  - `save_instance_prop_as_variant_default`, `reset_instance_variant_prop_default`
-- Properties panel `INSTANCE CONTROLS > Component Props`에
-  - `★` 현재 값을 현재 variant 기본값으로 저장
-  - `⟲v` 현재 variant의 기본값 override만 리셋
-- specs 반영: `specs/FEATURES.md`
-
-## 완료된 기능 (추가 — Constraints Visual Pins Overlay click-edit, 2026-04-06)
-- 캔버스 상단 3×3 Constraint Pins 오버레이를 클릭 가능한 UI로 확장
-- 클릭한 셀(좌/중/우 × 상/중/하)에 맞춰 `set_constraints()` 즉시 적용
-- 변경 시 `push_undo()` 호출로 undo/redo 스택 일관성 유지
-- selection refresh를 통해 Properties panel의 Constraints 드롭다운 상태 즉시 동기화
-- specs/FEATURES.md Constraints 섹션에 click-to-edit 동작 명세 추가
-
-## 완료된 기능 (추가 — Variable Mode Quick Preview, 2026-04-06)
-- Frame/Section Properties > Breakpoints에 "Variable Mode Quick Preview" 카드 추가
-- Responsive preset 칩 클릭으로 해당 preset의 variable mode 매핑 즉시 활성화
-- 첫 preview 시점의 active preset + collection별 active mode를 스냅샷 저장
-- Revert 버튼으로 preview 이전 상태(활성 preset + 각 collection active mode) 원클릭 복원
-- 변경은 undo + 즉시 렌더/패널 refresh와 연동
-
-## 완료된 기능 (추가 — Text on Path 고도화, 2026-04-06)
-- Text on Path 렌더링 품질 개선: 문자별 배치 시 letter spacing 반영
-- Baseline Offset 추가: 경로 법선 방향으로 텍스트 baseline 이동
-- Flip 옵션 추가: 경로 반대 방향/뒤집힌 방향으로 텍스트 배치
-- SVG export 확장: textPath에 letter-spacing / dy / side 속성 반영
-- Properties panel: Text Path 섹션에 Baseline 입력 + Flip 토글 추가
-- WASM API: set_text_path_baseline_offset, set_text_path_flip 추가
-
-## 완료된 기능 (추가 — Text Style Lint Autofix, 2026-04-05)
-- Design Health > Typography 탭에 `Text Style Lint Autofix` 섹션 추가
-- 엔진: `get_text_style_lint_issues()`로 텍스트 노드별 drift/미연결 상태 분석(JSON)
-  - linked style drift: font_family/font_size/line_height가 style과 어긋난 노드 감지
-  - unlinked text: 가장 근접한 text style 후보(동일 family 우선) 제안
-- 엔진: `apply_text_style_lint_autofix()` 추가
-  - linked drift는 해당 linked style로 재동기화
-  - unlinked text는 제안 style을 기준으로 임계값(size/lh) 내 자동 연결
-- UI: 이슈 리스트(노드명/사유/추천 스타일/Δsize/Δlh) + `Auto-fix` 버튼
-- 적용 후 알림/refresh 및 기존 undo 흐름 유지
-
-## 완료된 기능 (추가 — Prototype Condition Builder v1, 2026-04-05)
-- Interactions 섹션 Condition UI를 빌더 형태로 개선: prototype variable datalist + operator + value 조합
-- Condition 입력 중 실시간 Branch preview 추가 (TRUE/FALSE + 현재 변수값 표시)
-- 조건식 apply 시 기존 set_interaction_condition 흐름/undo/render 동작 유지
-- 변수 미정의/비어있는 경우 preview에 상태 안내 표시
-
-## 완료된 기능 (추가 — Constraint Set Presets, 2026-04-05)
-- Properties panel > Constraints 섹션에 Save Preset / Apply Preset 버튼 추가
-- 프리셋 저장 항목: constraints(H/V) + sizing(H/V) + min/max width/height
-- localStorage 키 `opensketch-constraint-set-presets-v1` 기반으로 프리셋 라이브러리 유지
-- 단일/멀티 선택 노드에 프리셋 일괄 적용 (Frame/Group 자식 노드만 적용)
-
-## 완료된 기능 (추가 — Smart Rename Tokens, 2026-04-05)
-- Batch Rename 다이얼로그 `Sequence`(pattern) 모드에 `Smart Rename Tokens` 추천 칩 추가
-- 현재 selection 노드명에서 `/` 토큰 빈도를 분석해 공통 패턴(예: `btn/primary/{n}`) 우선 제안
-- 추천 칩 클릭 시 pattern 입력값을 즉시 채우고 preview를 갱신
-- 기본 semantic starter 패턴(`btn/primary/{n}`, `btn/secondary/{n}`, `icon/{name}/{n}`) 제공
-
-## 완료된 기능 (추가 — Smart Paste to Frame selection 확장, 2026-04-05)
-- Smart Paste 우선순위 1단계에서 단일 선택뿐 아니라 혼합 멀티 셀렉션의 auto-layout 컨테이너도 타겟으로 인식
-- Cmd+V / Cmd+Shift+V 모두 동일하게 컨테이너 append 동작 적용
-- pasted node와 동일 ID 컨테이너는 제외해 self-parenting 가능성 차단
-
-## 완료된 기능 (추가 — Smart Paste to Frame keyboard fallback 보강, 2026-04-05)
-- 키보드 paste 시 포인터 이동 이력이 없는 세션 초기 상태에서도 Smart Paste 타겟 탐색이 안정적으로 동작하도록 보강
-- `_lastPointerScreenX/Y`가 유효하지 않으면 뷰포트 중심점을 fallback 좌표로 사용
-- auto-layout 타겟이 없을 때는 기존 paste offset 동작 유지
-
-## 완료된 기능 (추가 — Smart Paste to Frame 타겟 안정화, 2026-04-05)
-- 혼합 멀티 셀렉션에서 중첩 auto-layout 컨테이너가 함께 선택된 경우, shallow(top-most) 컨테이너를 우선 타겟으로 선택
-- paste 시점마다 포인터 좌표로 hover frame을 live 재해석해 stale hover id로 인한 오삽입 가능성 완화
-- Cmd+V / Cmd+Shift+V 모두 동일한 Smart Paste 타겟 결정 로직 유지
-
-## 완료된 기능 (추가 — Smart Paste viewport center fallback precision, 2026-04-05)
-- Smart Paste 포인터 이력 유무를 `_hasPointerScreenPosition`으로 명시적으로 추적해 (0,0) 유효 좌표 오판 가능성 제거
-- 포인터 이력이 없을 때 fallback 좌표를 캔버스 CSS 픽셀 기준 `getBoundingClientRect()` 중심점으로 계산해 dpr 환경에서도 정확도 보강
-- Cmd+V / Cmd+Shift+V 공통 타겟 탐색 경로에 동일 적용
-
-## 완료된 기능 (추가 — Export slices/presets panel, 2026-04-05)
-- Slice Export 포맷에 WebP 추가 + JPG/WebP별 quality(0.1~1.0) 설정 지원
-- Slice 개별 export preset에 품질값 저장/복원(localStorage)
-- Slice Export에 Web set 프리셋 버튼 추가 (PNG 1x + WebP/JPG 2x 품질 프리셋)
-- Editor: exportSlice/exportSliceBatch가 quality 인자를 처리하고 WebP mime 지원
-- 다중 선택(모두 Slice) 시 Properties 패널에 `Slices Export` 섹션 노출
-- 선택된 여러 Slice에 동일 preset 일괄 적용 후 한 번에 batch export
-
-## 완료된 기능 (추가 — Smart Selection Filter, 2026-04-05)
-- Smart Select 패널에 `Selection Filter (Current Area)` 섹션 추가
-- Filter 조건: Node Type, Name regex, Max depth, Attr(visible/locked/text/image)
-- `Filter Area` 버튼으로 현재 selection bounds 범위 내 노드만 추출 후 조건 필터 적용
-- 조건 적용 결과를 즉시 selection으로 반영 + 결과 카운트 표시
-- invalid regex 안내 및 기존 Select Similar/Smart Group 플로우와 공존
-
-## 완료된 기능 (추가 — Figma-style Variants Matrix UI, 2026-04-05)
-- Component Set 인스턴스 선택 시 Properties 패널에 `Variants Matrix (AxisX × AxisY)` 섹션 추가
-- 첫 2개 axis 기준으로 모든 조합을 2D 그리드로 시각화 (행/열 라벨 + 셀 매핑 상태)
-- 매핑된 셀 클릭 시 즉시 해당 variant로 switch
-- 빈 셀 클릭/드래그 시 현재 variant를 해당 조합으로 매핑(`set_component_set_variant_mapping`) 후 전환
-- 기존 axis 드롭다운 스위처와 공존, Undo + render/refresh 연동
-
-## 완료된 기능 (추가 — Multi-window / Detachable Panels 확장, 2026-04-05)
-- 우측 탭 detach 대상에 Handoff 패널 추가 (기존 Properties/Agent/Comments/Variables/Assets/Bookmarks + Handoff)
-- `panel-detach.ts`의 DetachablePanelId/PANEL_SIZES/PANEL_LABELS에 `handoff` 확장
-- detached window에서 `setupHandoffPanel()` 동적 로딩으로 독립 패널 렌더
-- 백로그 `Multi-window / detachable panels` 항목 완료 처리
-
-## 완료된 기능 (추가 — Smart selection grouping one-click, 2026-04-05)
-- Smart Select 패널에 `Smart Group` 버튼 추가
-- suggest_groups()의 최상위 추천 세트를 즉시 그룹화 (`group_selected`)하고 선택 전환
-- 그룹 생성 직후 auto-layout(Flex) + 기본 gap 8을 자동 적용해 후속 정렬 작업 최소화
-- 기존 `Suggest Groups` 미리보기 흐름은 유지 (선택만 변경)
-
-## 완료된 기능 (추가 — Freehand smoothing, 2026-04-05)
-- Freehand 도구 포인터 업 시 생성된 Path에 Catmull-Rom 기반 스무딩 후처리 적용
-- Ink Recognition 섹션에 `Stroke smoothing` 토글 + `Smoothing strength` 슬라이더(0.0~0.8) 추가
-- 기존 shape recognition/simplify tolerance와 함께 동작, shape로 인식된 경우 기존 결과 유지
-
-## 완료된 기능 (추가 — Table auto-layout, 2026-04-05)
-- Table Properties에 `Auto Layout` / `Auto (No Wrap)` 버튼 추가
-- Rust/WASM: `table_auto_layout(id, wrap_text, header_rows)` 추가
-  - 셀 콘텐츠 기반 col_widths/row_heights 자동 산출
-  - wrap 모드일 때 컬럼 폭 상한 유지 + 행 높이 증가
-  - header_rows(기본 1) 영역에 헤더 fill 자동 적용(빈 fill 셀만)
-- Canvas 렌더링: Table cell 텍스트 word-wrap 렌더링(셀 너비 기준)
-
-## 완료된 기능 (추가 — Auto layout padding 4-value shorthand, 2026-04-05)
-- Auto Layout Padding에 CSS 스타일 shorthand 입력 추가 (`8`, `8 12`, `8 12 16`, `8 12 16 20`)
-- Enter/Apply로 즉시 top/right/bottom/left에 매핑 적용 + Undo 통합
-- 기존 개별 4방향 입력(top/right/bottom/left)과 동기화되어 Figma-style 편집 흐름 강화
-
-## 완료된 기능 (추가 — Canvas Grid/Guide Templates, 2026-04-05)
-- Zoom controls에 Templates 드롭다운 추가 (8pt Grid, 4pt Grid, 12 Columns, Safe Area)
-- 8pt/4pt 선택 시 grid snap size 자동 적용 + 가이드 초기화
-- 12 Columns 선택 시 현재 뷰포트 기준 좌우 4% margin + 12등분 세로 guide 생성
-- Safe Area 선택 시 현재 뷰포트 기준 상하/좌우 5% inset guide 생성
-- rulers.clearGuides() + editor.requestRender() 연동으로 즉시 반영
-
-## 완료된 기능 (추가 — Figma DevMode parity, 2026-04-05)
-- Dev Mode 선택 노드 인라인 Inspect 배지 추가 (Spacing / Padding / Margin 4값 표시)
-- 배지 내 `Copy` 버튼으로 선택 노드 CSS 스니펫 원클릭 복사
-- 선택 변경/줌·팬 렌더 루프에서 배지 위치와 값 자동 동기화
-- hover tooltip 기반 기존 DevMode overlay와 공존
-
-## 완료된 기능 (추가 — Spreadsheet Data Binding 확장, 2026-04-05)
-- Spreadsheet Data Binding 패널에서 Text + Image 노드 템플릿(`{{field}}`) 바인딩 지원
-- Repeat Grid 바인딩에서 `text_content`와 `image_src` 오버라이드를 동시에 처리
-- Row 변경/데이터 편집 시 실시간 미리보기 옵션 추가
-- 로컬 데이터 소스(localStorage) 유지 및 기존 undo/render 흐름과 호환
-
-## 완료된 기능 (추가 — Canvas Minimap Enhanced, 2026-04-04)
-- Minimap 헤더 하단에 상태 인포 라벨 추가: `활성 페이지명 · 줌% · pan(x/y)`
-- 활성 페이지 전환 시 인포 라벨이 즉시 동기화되도록 page tabs 업데이트 로직 보강
-- 접기/펼치기 상태에서 info/canvas/page-tabs 동시 토글 처리
-- 스타일 추가: compact 정보 바(`.minimap-info`) + tabular 숫자 표시
-
-## 완료된 기능 (추가 — Smart Auto-naming Frame Heuristics, 2026-04-04)
-- Frame auto-name 규칙 강화: children 구성 기반 추론 추가
-- 규칙: Image+Text → `Card`, all Text → `Text Group`, all Shape → `Shape Group`
-- 단일 child frame → `<Child Name> Container`
-- fallback: `Frame N items`로 레이어 스캔 가독성 향상
-- 기존 Text/Image/Star/Polygon 등 naming 규칙 유지 + sibling dedup 규칙 그대로 적용
-
-## 완료된 기능 (추가 — Design System Documentation Site Export, 2026-04-04)
-- Properties panel (빈 선택 상태) Styles Library 섹션에 `Docs HTML` 버튼 추가
-- shared styles(`export_styles`) + design tokens(`export_design_tokens` W3C)를 단일 정적 HTML 문서로 빌드
-- 문서 구성: Color Styles 갤러리, Text Styles 샘플 프리뷰, 토큰 JSON 코드 블록
-- 산출물: `design-system-docs.html` 다운로드 (오프라인 공유 가능)
-- 구현: `packages/app/src/ui/design-system-docs.ts`
-
-## 완료된 기능 (추가 — Spreadsheet Data Binding MVP, 2026-04-04)
-- Toolbar에 "Spreadsheet Data Binding" 버튼 추가
-- CSV(header+rows) 또는 JSON array 데이터 소스를 패널에 붙여넣어 사용
-- Text 노드의 `{{field}}` 템플릿을 선택한 row index 값으로 치환 적용
-- 선택된 Text 노드만 변경되며, 데이터 소스는 localStorage에 저장
-- 범위: 텍스트 바인딩 MVP만 포함 (이미지 바인딩/Repeat Grid 자동 연동은 후속)
-
-## 완료된 기능 (추가 — WebGPU Renderer Stage 2: Texture Atlas, 2026-04-04)
-- WebGPU 인스턴스 데이터 확장: UV rect + textureMix 필드 추가, 단일 instanced 파이프라인에서 solid/textured quad 혼합 렌더
-- 2048x2048 타일 atlas(canvas 기반) 추가, Image/Video(poster/src) 비동기 로딩 후 atlas dirty 플래그 기반 업로드
-- node.kind 파싱으로 Image/Video 소스 감지, atlas 슬롯 UV 자동 계산 및 인스턴스별 텍스처 샘플링 적용
-- atlas 업로드 최적화: 변경 시에만 `copyExternalImageToTexture` 실행
-
-## 완료된 기능 (추가 — WebGPU Renderer Stage 5, 2026-04-04)
-- Scene JSON 색상 파서 확장: CSS rgb/rgba/hex + Rust 직렬화 `{r,g,b,a}` 포맷 공통 처리
-- WebGPU 경로에서 visible outer shadow를 별도 인스턴스로 프리패스 렌더 (offset/spread/blur 기반 패딩 근사)
-- fill/shadow 색상 fidelity 개선 + 대형 씬에서 Canvas2D 대비 효과 일관성 보강
-
-## 완료된 기능 (백로그 정리 25 — 이미 구현 확인, 2026-04-04)
-- ~~Lottie animation export~~ ✅ 이미 구현 (animation-timeline export, toolbar dialog, Rust/WASM `export_lottie*`, lottie-export.ts)
-- Multi-player cursors with tool state — 협업 커서에 현재 도구/액션 상태 표시 (✎ editing, ↔ resizing, ✋ panning), 실시간 selection 충돌 경고
-- Design Token Theming — 라이트/다크 모드 자동 전환, 시맨틱 토큰 매핑 (primary/secondary/surface), 테마 프리뷰 split-view
-- Auto Layout Spacing Override (per-child) — 개별 자식 노드마다 gap override 설정 (Figma "absolute spacing"), Node에 spacing_before/spacing_after 필드 추가, Flex 계산 시 개별 간격 적용, Properties panel UI (소규모, 고 임팩트)
-- Shared Prototype Variables Sync — 프로토타입 변수를 design token/variable collection과 양방향 동기화, 변수 변경 시 프로토타입 상태 자동 반영, 디자인↔프로토타입 간 일관성 유지 (중규모, 고 임팩트)
-- Component Playground Panel — 컴포넌트 선택 시 모든 variant 조합을 인터랙티브 미리보기, prop 슬라이더/토글로 실시간 변경, 스냅샷 비교, 문서와 통합 (중규모, 고 임팩트)
-
-## 완료된 기능 (추가 — WebGPU Renderer MVP, 2026-04-04)
-- Experimental WebGPU 렌더러 추가: `packages/app/src/ui/webgpu-renderer.ts`
-- Instanced rectangle pipeline 구현 (node bounds + fill color 기반)
-- Uniform(zoom/pan/viewport) + instance buffer 동적 확장 처리
-- Editor 렌더 백엔드 스위치 추가: `canvas2d | webgpu`
-- localStorage 키 `opensketch-renderer-backend`로 WebGPU opt-in
-- WebGPU unavailable 시 자동 Canvas2D fallback
-
-## 완료된 기능 (추가 — Responsive Breakpoints Preview)
-- SceneBreakpoint 구조체 (types.rs): name, width, height + default_presets()
-- Scene-level breakpoints (scene.rs): add/remove/update/get_scene_breakpoints_json
-- WASM API (lib.rs): add_scene_breakpoint, remove_scene_breakpoint, update_scene_breakpoint, get_scene_breakpoints, get_default_breakpoints
-- breakpoints-preview.ts: 풀스크린 오버레이, 가로 나란히 뷰포트 카드, SVG 렌더, 스크롤 동기화, 추가/편집/삭제 UI
-- editor.ts: Cmd+Shift+B 단축키, openBreakpointsPreview() 메서드
-- toolbar.ts: 멀티컬럼 아이콘 버튼 추가
-- properties-panel.ts: Frame/Section 선택 시 "Breakpoints Preview" 버튼
-- 기본 프리셋: Mobile (375×812), Tablet (768×1024), Desktop (1440×900)
-
-## 백로그 정리 (2026-04-01)
-- "Canvas presentation mode" 제거 — 이미 완료 (추가 81)
-- "Annotation sticker pack" — 이미 완료 (stamp.rs + stamp-tool.ts, 추가로 강화 버전도 완료)
-- "Scroll & overflow (scrollable frames)" — 이미 완료 (추가 51, Overflow enum + WASM + Properties panel + prototype viewer)
-## 완료된 기능 (추가 — Multi-page Prototype Flow)
-- PrototypeFlow struct: id, name, start_frame_id (Option), start_page_id
-- Scene에 flows: Vec<PrototypeFlow> + next_flow_id (backward-compatible serde)
-- Flow CRUD: add_flow, remove_flow, rename_flow, set_flow_start_frame
-- get_flow_connections(flow_id): BFS로 start frame부터 reachable 연결 수집
-- get_all_cross_page_interactions(): 페이지 넘나드는 인터랙션만 수집
-- WASM 바인딩: 위 메서드 모두 노출
-- Flow Diagram View (flow-diagram.ts): 풀스크린 오버레이, 페이지 썸네일 카드, 인터랙션 화살표, 시작 프레임 녹색 마커, pan/zoom
-- Properties Panel: "Prototype Flows" 섹션 (flow 목록, add/remove/rename, start frame 지정)
-- Toolbar: Flow Diagram 버튼 (프로토타입 버튼 옆)
+## 완료된 기능 (추가 — Measure Tool / Redline)
+- 두 노드 사이 거리/간격 표시, Alt+hover 자동 측정
+- measure.ts + measure-tool.ts, 캔버스 렌더링 + target highlight
+- 툴바 Measure 버튼 (M 단축키)
 
 ## 완료된 기능 (추가 — UI Localization / i18n)
-- 다국어 지원: English (en), 한국어 (ko), 日本語 (ja)
-- i18n 시스템: `packages/app/src/ui/i18n.ts` — t() 번역 함수, locale 관리, onLocaleChange 리스너
-- 번역 파일: `packages/app/src/locales/{en,ko,ja}.json` — 100+ 키 (toolbar, layers, properties, agent, common)
-- 언어 전환 UI: 툴바에 🌐 아이콘 + select 드롭다운
-- localStorage 저장 (key: `opensketch-locale`)
-- 주요 UI 파일 적용: toolbar.ts (모든 tooltip), layers-panel.ts (헤더/검색/컨텍스트메뉴), properties-panel.ts (주요 라벨)
-- Vite 빌드 시 locale JSON 자동 코드 스플릿 (별도 chunk)
-- initI18n() → main.ts에서 UI 초기화 전 호출
+- i18n 시스템: packages/app/src/ui/i18n.ts — t() 번역 함수, getLocale/setLocale, onLocaleChange 리스너, createLanguagePicker UI
+- 3개 로케일 JSON: packages/app/src/locales/en.json, ko.json, ja.json (각 123키)
+- 카테고리: tool.*, toolbar.*, layers.*, properties.*, agent.*, common.*
+- localStorage 영속 ("opensketch-locale"), 기본값 영어
+- 핵심 UI 파일 통합: toolbar.ts (82회), properties-panel.ts (1032회), layers-panel.ts (47회)
+- initI18n() main.ts에서 UI 셋업 전 호출
+- specs/UI.md에 I18n 섹션 문서화 완료
 
-## 완료된 기능 (추가 — Responsive Variant Auto-Switch)
-- Frame 리사이즈 시 Instance 자동 variant 전환
-- ResponsiveVariantRule: label, max_width, variant_key
-- InstanceData.responsive_rules (serde default, backward-compatible)
-- WASM: add/remove/get/clear_responsive_variant_rules, apply_responsive_variants
-- Properties panel: "RESPONSIVE VARIANTS" 섹션 (규칙 추가/삭제)
-- editor.ts: pointerup resize handle → apply_responsive_variants 자동 호출
+## 완료된 기능 (추가 — Batch Property Edit)
+- Batch property edit (멀티 셀렉션 일괄 속성 편집):
+  - Rust Engine: batch_set_fill, batch_set_stroke, batch_set_opacity, batch_set_corner_radius, get_batch_properties
+  - get_batch_properties: Mixed value 감지 (fill/stroke/opacity/corner_radius 각각 일치/mixed/null 판별)
+  - WASM: 5개 바인딩 (batch_set_fill/stroke/opacity/corner_radius, get_batch_properties)
+  - Properties panel: 2+ 노드 선택 시 기존 Align 섹션 아래 "Properties" 섹션 추가
+  - Fill: color swatch + hex 입력, Mixed placeholder 표시
+  - Stroke: color swatch + hex + width 입력, Mixed placeholder
+  - Opacity: % 숫자 입력 (0-100), Mixed placeholder
+  - Corner Radius: px 숫자 입력, Mixed placeholder
+  - 변경 시 push_undo 후 batch 적용, requestRender
+  - 기존 alignment/distribute/tidy up UI와 공존
 
-## 완료된 기능 (추가 — Canvas Search & Replace Cmd+F)
-- Figma 스타일 플로팅 검색 바 (캔버스 상단 중앙, Cmd+F 토글)
-- 검색: 텍스트 노드 content + 모든 노드 name 매칭
-- 결과 카운트 (N/M), ↑/↓ 화살표 순회 (선택 + zoomToSelection)
-- Replace / Replace All 버튼 (name + text 동시 치환)
-- Case sensitive 토글 (Aa)
-- 검색 결과 노드 주황색 테두리 하이라이트, 현재 결과 강조
-- Escape으로 닫기
-- Rust: Scene.search_nodes(), Scene.replace_text_in_nodes() (find_replace.rs)
-- WASM: search_nodes(), replace_in_nodes()
-- TS: search-panel.ts, editor.ts 통합
-- push_undo 통합 (replace 시 자동)
+## 완료된 기능 (추가 — Variable Collections Bulk Edit)
+- 스프레드시트 스타일 테이블 뷰: rows=변수, columns=모드, 인라인 셀 편집
+- 다중 셀 선택: click, Shift+range, Ctrl/Cmd+toggle, 화살표 키 탐색
+- Copy/Paste: Ctrl+C/V TSV 포맷, 다중 셀 범위 지원
+- Delete/Backspace: 선택 셀 기본값 리셋, Enter: 편집 모드, Tab: 다음 셀
+- CSV Export/Import: 다운로드 + 파일 피커 (기존 WASM 바인딩 활용)
+- 변수명 더블클릭 인라인 rename
+- Card view ↔ Table view 토글 (⊞ 버튼)
+- 구현: packages/app/src/ui/variables-bulk-edit.ts + variables-panel.ts 통합
 
-## 완료된 기능 (추가 — Smart Distribute)
-- 3+ 노드 선택 시 불균등 간격 감지 및 정규화
-- Rust: smart_distribute_preview() → 현재 H/V gaps, 추천 gap (mode/median), 이동량 JSON
-- Rust: smart_distribute_h/v(ids, reference_gap) → 자동 또는 커스텀 gap으로 재배치
-- WASM: smart_distribute_preview(ids_json), smart_distribute_h/v(ids_json, gap) — gap < 0 이면 자동
-- Properties panel: "Smart Distribute" 버튼 → 팝오버 (감지된 gaps, 추천값, 커스텀 입력, Apply H/V)
-- push_undo 통합
+## 완료된 기능 (백로그 정리 7 — 이미 구현 확인, 2026-04-01)
+- Table/grid node: node.rs NodeKind::Table + lib.rs add_table/table_set_cell/merge/add_row/add_col 등 WASM 바인딩
+- Cursor trail / ink annotation: annotation-brush.ts, whiteboard-mode.ts, presentation-annotations.ts
+- Node search & replace (visual): find_replace.rs + find-replace-panel.ts
+- Stacking/Tidy up: scene.rs tidy_up() + smart_distribute_grid(), WASM tidy_up_selection, Cmd+Shift+T
+- Multi-stroke / stroke gradient: node.rs strokes: Vec<Stroke>, properties-panel.ts get_strokes_info
 
+## 완료된 기능 (추가 — Focus Mode, 2026-04-01)
+- Focus Mode: Cmd/Ctrl+. 토글, 모든 패널 숨김 (layers, right pane, toolbar, page tabs, zoom, rulers, minimap)
+- 최소화된 exit 버튼 (상단 중앙, 마우스 호버 시 나타남), 진입 시 2초 플래시
+- shortcut-manager view.focusMode 등록
+- 구현: packages/app/src/ui/focus-mode.ts
+
+## 완료된 기능 (백로그 정리 8 — 이미 구현 확인, 2026-04-01)
+- Noise/texture fill: node.rs FillType::NoiseFill/DotPattern/CrosshatchFill, SVG feTurbulence export
+- Variable font axes: properties-panel.ts wdth/wght 슬라이더, WASM get/set_variable_font_axis
+- Section-based export presets: export-presets.ts
+- Smart content fill: content_fill.rs ContentFillCategory (LoremText, 아바타 등)
+- Canvas minimap: minimap.ts + styles.css .minimap-wrapper
+- Conic/angular gradient fill: FillType::ConicGradient (center_x, center_y, angle, stops), Canvas2D 360-arc segment rendering, SVG export 72-segment arc approximation, WASM bindings (set_fill_conic_gradient, set_fill_conic_gradient_at), Properties panel Conic mode, Inspect panel CSS conic-gradient output
+
+## 완료된 기능 (추가 — Path Morphing, 2026-04-02)
+- Smart animate path morphing: 서로 다른 Path 노드 간 shape morphing 애니메이션
+- Rust path_morph.rs: cubic bezier subdivision (de Casteljau split), point-count alignment, per-point lerp (anchor + handles)
+- Nearest-point start alignment: closed path 시작점 회전으로 꼬임 최소화
+- Scene: can_morph_paths(id_a, id_b), morph_paths(from_id, to_id, t) -> MorphResult
+- WASM: can_morph_paths(id_a, id_b) -> bool, morph_paths(from_id, to_id, t) -> JSON
+- Prototype viewer: smart-animate 시 matched Path pairs를 실시간 bezier 렌더링 (fill + stroke interpolation)
+- 비-Path 노드는 기존 cross-fade fallback 유지
+- AnimProperty::PathMorph: 애니메이션 타임라인에서 키프레임 기반 path morph 지원 (value = morph progress 0.0–1.0)
+- PathMorphConfig: target path node ID 저장
+- NodeSnapshot 확장: path_points, path_closed, is_path 필드 추가 (smart animate에서 path morph 감지)
+- auto_animate.rs: snapshot에 Path 데이터 포함, 포인트 매칭 알고리즘 통합
+- specs/ENGINE.md, specs/FEATURES.md 업데이트
+- Auto-layout wrap alignment (align-content): AlignContent enum (Stretch/FlexStart/FlexEnd/Center/SpaceBetween/SpaceAround), Layout 구조체에 align_content 필드 추가, layout.rs에서 wrap 시 라인별 cross-axis 배치 적용, WASM set_align_content/get_align_content 바인딩, properties-panel에 wrap 활성화 시 드롭다운 UI 추가
+
+## 완료된 기능 (Scroll Snap Points)
+- ScrollSnapType enum: None/MandatoryX/MandatoryY/MandatoryBoth/ProximityX/ProximityY/ProximityBoth
+- ScrollSnapAlign enum: None/Start/Center/End
+- Node 필드: scroll_snap_type (컨테이너), scroll_snap_align (자식) — serde(default) backward-compatible
+- WASM: set/get_scroll_snap_type, set/get_scroll_snap_align
+- Properties panel: Overflow Scroll 시 snap type 드롭다운, 자식 노드에 snap align 드롭다운
+- Prototype viewer: 스크롤 종료 후 150ms 디바운스 → 가장 가까운 snap point로 250ms ease-in-out 애니메이션
+- Mandatory: 항상 스냅, Proximity: 100px 이내일 때만 스냅
+- Inspect panel: CSS scroll-snap-type / scroll-snap-align 출력
+
+## 완료된 기능 (추가 — Selection Colors, 2026-04-02)
+- Figma-style Selection Colors: 멀티 셀렉트 시 사용된 모든 고유 색상 표시
+- Rust: get_selection_colors(ids_json) — fills/strokes에서 unique solid color 수집, JSON 반환
+- Rust: replace_color_in_nodes(ids_json, old_hex, r, g, b, a) — 일괄 색상 교체
+- WASM: 두 메서드 모두 wasm-bindgen 노출
+- Properties panel: "Selection Colors" 섹션 (2+ 노드 선택 시)
+- Color swatch + hex 라벨 + count 뱃지 (F/S/F+S) + inline color picker
+- 실시간 색상 교체 (swatch 변경 시 모든 선택 노드에 즉시 반영)
+
+## 완료된 기능 (백로그 정리 10 — 이미 구현 확인, 2026-04-02)
+- Figma-style auto layout absolute positioning: node.absolute_position 필드, layout.rs에서 제외, WASM set/get_absolute_position, Properties panel 체크박스
+- Smart animate path morphing: path_morph.rs, Scene.can_morph_paths/morph_paths, auto_animate.rs, AnimProperty::PathMorph
+
+## 완료된 기능 (백로그 정리 11 — 이미 구현 확인, 2026-04-02)
+- Clip content (Frame overflow hidden): 이미 완전 구현됨 (Node.clip_content, render clip, SVG clipPath, WASM API, Properties panel 체크박스). Handoff panel overflow:hidden CSS 생성 누락만 수정.
+
+## 완료된 기능 (백로그 정리 12 — 이미 구현 확인, 2026-04-02)
+- Scroll overflow: Overflow enum (Visible/Hidden/Scroll/ScrollH/ScrollV), scroll_x/y offset, scroll snap (type+align), Properties panel UI, Prototype viewer 스크롤, Inspect panel CSS
+- Connector arrows: NodeKind::Connector, orthogonal/curved path types, start/end arrow, node snapping, anchor points, WASM API 전체
+- Table node enhancements: merge_cells, add/remove row/col, set_col_width/row_height, CSV import, sort, cell fill/align, WASM API 전체
+- Content-aware image fill: set/get_image_focal_point, Properties panel focal point UI, crop suggestions
+
+## 완료된 기능 (백로그 정리 13 — 이미 구현 확인, 2026-04-02)
+- Multi-stroke per node: Vec<Stroke>, add/remove/update_stroke_at WASM, Properties panel 리스트 UI
+- Canvas annotations (freehand drawing): annotation-brush.ts, 5색 + 3굵기, 5초 auto-expire
+- Selection variant shortcuts: component-swap.ts
+- Shared cursor presence: cursor-presence.ts, 아바타 + 이름 태그
+- Smart distribute: distribute_selection WASM (이미 추가 4에서 구현)
+
+## 완료된 기능 (추가 — Inner Shadow, 2026-04-02)
+- Shadow.inset: bool 필드 추가 (기본 false, backward-compatible serde)
+- Canvas 렌더링: 외부 shadow → 기존 far-offset 기법, 내부 shadow → clip + 4방향 외부 rect로 inward shadow cast
+- SVG export: inset → feFlood + feComposite(out) + feOffset + feGaussianBlur + feComposite(in) + feComposite(over)
+- Inspect panel: box-shadow에 `inset` prefix 추가
+- WASM: add_inner_shadow, set_shadow_inset 바인딩
+- Properties panel: 각 shadow에 Inner 토글 버튼, "+ Add inner shadow" 버튼 추가
+- Ellipse/Rect/Frame 등 모든 shape 지원 (clip path 기반)
+
+## 완료된 기능 (백로그 정리 14 — 이미 구현 확인, 2026-04-02)
+- Variable collections: VariableCollection in variable.rs, Scene.variable_collections, modes (light/dark), variable bindings
+- Spring animation easing: Easing::Spring { tension, friction, mass }, spring_eval() damped harmonic oscillator, SpringPreset
+- 3D transform / perspective: Perspective3D struct (rotate_x/y/z, perspective, origin), WASM set/get_perspective, SVG export CSS transform
+- Noise/pattern fill: FillType::NoiseFill (Perlin), DotPattern, CrosshatchFill — 모두 구현 완료
+
+## 완료된 기능 (추가 — Wide Gamut Color, 2026-04-02)
+- ColorSpace enum (SRGB/DisplayP3/OKLab/OKLCH), Color에 color_space 필드 (#[serde(default)])
+- 변환: srgb↔p3 (XYZ D65 matrix), srgb↔oklab (Ottosson), to_css_modern() / to_srgb_fallback()
+- WASM: set/get_color_space, convert_color, get_fills에 css_modern/css_fallback 포함
+- Canvas: non-sRGB → to_css_modern(), SVG export도 동일
+- Properties panel: Solid fill 아래 ColorSpace 드롭다운
+- Inspect panel: modern color syntax + sRGB fallback 코멘트
+
+## 완료된 기능 (추가 — Detach Instance, 2026-04-02)
+- Detach instance: Instance → Frame 변환 (컴포넌트 링크 해제)
+- Rust: Scene.detach_instance() — NodeKind::Instance → NodeKind::Frame, 모든 속성/children 보존
+- WASM: detach_instance(id) -> bool, undo 통합
+- Context menu: "Detach Instance" (⌘⌥B) — Instance 노드 우클릭 시 표시
+- Properties panel: 빨간 "Detach" 버튼 (Instance 컴포넌트 카드 내)
+- 키보드 단축키: Cmd/Ctrl+Alt+B
+- Reset overrides는 이미 구현 완료 (reset_all_instance_overrides, reset_instance_overrides)
+
+## 완료된 기능 (추가 — Chart Visualization Node, 2026-04-03)
+- Chart visualization node: NodeKind::Chart (Bar/Line/Pie/Donut/Area)
+- ChartDataPoint (label, value, color), ChartConfig (title, show_legend, show_labels, color_palette)
+- Canvas 렌더링: 각 차트 타입별 그리기, 반응형 리사이즈
+- SVG export: 차트 타입별 SVG 요소 생성
+- WASM: add_chart, set_chart_type, set_chart_data, get_chart_info, set_chart_config
+- Properties panel: 타입 선택, 타이틀 입력, legend/labels 토글, 데이터 테이블 편집
+- 툴바 Chart 버튼, 기본 컬러 팔레트 자동 할당
+- Backward-compatible serde
+
+## 완료된 기능 (백로그 정리 15 — 이미 구현 확인, 2026-04-03)
+- Connector arrow head styles: ArrowStyle enum 6종 (None/Arrow/Diamond/Circle/Square/OpenArrow), Canvas draw_arrowhead_styled(), SVG marker export, WASM set_connector_start/end_arrow_style, Properties panel 드롭다운
+- Smart animate between pages: Scene.compute_auto_animate_pages(), 이름 기반 노드 매칭, position/size/opacity/rotation 보간, prototype viewer + presentation mode에서 실행, path morphing 지원
+
+## 완료된 기능 (추가 — Backdrop Blur, 2026-04-03)
+- Background/Backdrop Blur (frosted glass effect)
+- Rust: node.backdrop_blur: f64 필드, set/get_backdrop_blur WASM 바인딩
+- Canvas: clip to node shape → draw canvas with blur filter
+- SVG: style="backdrop-filter: blur(Xpx)"
+- CSS inspect: backdrop-filter + -webkit-backdrop-filter
+- SwiftUI: .background(.ultraThinMaterial)
+- Properties panel: Effects 섹션에 "BG Blur" 입력 추가
+
+## 완료된 기능 (추가 — Corner Smoothing / Squircle, 2026-04-03)
+- Corner Smoothing (Squircle): iOS 스타일 super ellipse 모서리
+- Node.corner_smoothing: f64 (0.0 = circular arc, 1.0 = full squircle)
+- Canvas 렌더링: bezier curve 기반 smoothed rounded rect (k = lerp(0.5523, 1.0, smoothing))
+- SVG export: smoothing > 0일 때 <path> bezier curves 출력 (rx/ry 대신)
+- WASM: set_corner_smoothing(id, val), get_corner_smoothing(id)
+- Properties panel: Corner Radius > 0일 때 "Smoothing" 슬라이더 (0~100%) + 숫자 입력
+- Inspect panel: CSS 코멘트로 corner-smoothing 퍼센트 표시
+- Backward-compatible serde (#[serde(default)])
+
+## 완료된 기능 (추가 — Interactive Components, 2026-04-03)
+- Interactive Components: 컴포넌트 인스턴스에 hover/press/focus/disabled variant 자동 전환
+- InteractiveState enum (Default/Hover/Press/Focus/Disabled), InteractionAction::SetVariant 추가
+- Instance에 interactive_variant_map: HashMap<InteractiveState, String> — state→variant 매핑
+- WASM: set_instance_interactive_variant, remove_instance_interactive_variant, get_instance_interactive_variants, set_instance_interactive_state
+- Properties panel: Instance 선택 시 "Interactive" 섹션 — state별 variant 드롭다운 매핑 UI
+- Prototype viewer: mouseenter→hover, mousedown→press, focus→focus, mouseleave/blur→default variant 자동 전환
+- Backward-compatible serde (#[serde(default)])
+
+## 완료된 기능 (추가 — Repeat Grid, 2026-04-03)
+- Repeat Grid: 선택 노드를 N×M 그리드로 반복 복제
+- NodeKind::RepeatGrid { columns, rows, column_gap, row_gap }
+- 마스터 셀 (children[0]) 기반 가상 반복 렌더링
+- WASM: create_repeat_grid, set_repeat_grid_params, get_repeat_grid_params, sync_repeat_grid
+- Properties panel: Columns/Rows/Gap 입력
+- Context menu: "Create Repeat Grid"
+- SVG export, hit test 지원
+
+## 완료된 기능 (추가 — Component Sets, 2026-04-03)
+- Component Sets: 여러 variant를 하나의 set으로 시각적 그룹화
+- ComponentSet struct (id, name, axes: Vec<VariantAxis>, variant_map, component_ids)
+- VariantAxis struct (name, values) — size/state/theme 등 축 정의
+- ComponentStore 확장: component_sets HashMap + 10개 CRUD 메서드
+- WASM: 12개 바인딩 (create/delete set, add/update/remove axis, variant mapping, instance switching 등)
+- Canvas: 점선 보라색(#8b5cf6) 라운드 테두리 오버레이 + 이름 라벨 pill
+- Properties panel: Instance 선택 시 "COMPONENT SET" 섹션, axis별 variant 전환 드롭다운
+- Backward-compatible serde
+
+## 완료된 기능 (백로그 정리 16 — 이미 구현 확인, 2026-04-03)
+- Plugin / Extension API: plugin-panel.ts (158줄), Figma Plugin API 에뮬레이션, 마켓플레이스 UI
+- Branching & Merge: branch-panel.ts (375줄), 디자인 파일 브랜치 생성/전환/머지, diff-overlay.ts
+- Responsive Preview Panel: responsive-preview.ts (309줄), 멀티 디바이스 프리뷰, 커스텀 breakpoint
+- Accessibility Checker: accessibility-panel.ts (349줄), WCAG contrast, touch target, alt text, design lint, auto-fix
+- Smart Layout Suggestions: smart-suggestions.ts (180줄), AI 기반 layout/alignment 제안
+
+## 완료된 기능 (백로그 정리 17 — 이미 구현 확인, 2026-04-03)
+- Conditional Logic in Prototypes: PrototypeVariable (name/var_type/default_value), Scene-level CRUD, InteractionCondition (variable/operator/value), ConditionOperator (6종 + evaluate), SetVariable action (set_variable_name/expression), WASM 바인딩 (add/remove/update_prototype_variable, set_interaction_condition, set_interaction_set_variable), Prototype viewer (변수 런타임 + 조건 평가 + SetVariable + debug panel), Properties panel (Variables 관리 + Condition 편집 + SetVariable 필드)
+- Design Tokens Export: design_tokens.rs (StyleDictionary/CSS/Tailwind 포맷), WASM export_design_tokens(), design-token-export.ts 모달, handoff-panel.ts 통합
+- Accessibility Checker: accessibility.rs (WCAG contrast, alt text, text size, touch target), design_lint.rs a11y fixes
+- Smart Layout Suggestions: layout_suggest.rs, suggest_auto_layout/apply, ai-layout-suggest.ts UI
+
+## 완료된 기능 (추가 — Resizable Minimap, 2026-04-03)
+- 미니맵 좌상단 리사이즈 핸들: 드래그로 크기 조절 (min 120×80, max 400×300)
+- 더블클릭으로 기본 크기(200×140) 복원
+- localStorage 저장/복원 (minimap_w, minimap_h)
+- CSS: nwse-resize 커서, 반투명 코너 인디케이터
+- 기존 기능 (뷰포트 팬/줌, 노드 선택/드래그, 페이지 탭) 모두 유지
+
+## 완료된 기능 (추가 — AI Image Generation, 2026-04-03)
+- Text-to-Image: OpenAI DALL-E API (또는 호환 엔드포인트) 통해 텍스트→이미지 생성
+- ai-image-gen.ts: 모달 UI (프롬프트, 사이즈 선택, 퀵 프롬프트 칩, 설정)
+- generateImage() 함수: API 호출 + base64 데이터URL 반환
+- editor.ts: openAIImageGen() — 뷰포트 중앙에 이미지 노드 배치
+- LLM agent tool: generate_image (prompt, size) — AI 어시스턴트에서 이미지 생성
+- 컨텍스트 메뉴: "🎨 AI Image Generation…" 항목
+- 단축키: Ctrl/Cmd+Shift+Alt+G
+- localStorage에 API 설정 저장
+
+## 완료된 기능 (추가 — Version History Diff, 2026-04-03)
+- Scene diff engine: Rust scene_diff.rs — 두 씬 JSON 비교, 노드별 added/removed/modified 분류
+- NodeSummary 추출: id, name, kind, x/y/width/height, rotation, opacity, visible, fill_hex, children_count, parent_id
+- PropertyChange: property name + old/new values (position, size, rotation, opacity, visibility, fill, children, kind, name)
+- WASM: diff_scenes(old_json, new_json) → JSON SceneDiff
+- History panel 확장: Δ Diff 버튼 (이전 버전과 비교), ⇔ Compare 버튼 (임의 두 버전 비교)
+- Diff modal: 색상별 통계 (green=added, red=removed, yellow=modified), property-level before→after 표시
+- Compare modal: 두 버전 선택 드롭다운 → diff 결과 인라인 표시
+- Auto-save 라벨 개선: 편집 중인 노드 이름 포함 ("Auto · editing 'Button'"), nodeCount/pageCount 메타데이터
+- Relative timestamps: "Just now", "5m ago", "2h ago" alongside absolute
+- specs/FEATURES.md 업데이트
+
+## 완료된 기능 (백로그 정리 22 — 이미 구현 확인, 2026-04-04)
+- ~~Find & Replace in Text~~ ✅ 이미 구현 (find-replace-panel.ts, 492줄)
+- ~~Conditional Auto Layout~~ ✅ 이미 구현 (Breakpoint struct, layout.rs resolve_layout_with_breakpoints, responsive-resize.ts)
+- ~~Batch Rename~~ ✅ 이미 구현 (batch-rename.ts, Cmd+Shift+R, pattern/findReplace 모드, 미리보기)
+- ~~Accessibility Checker~~ ✅ 이미 구현 (accessibility.rs 258줄, accessibility-panel.ts 349줄)
+
+## 완료된 기능 (백로그 정리 24 — 이미 구현 확인, 2026-04-04)
+- ~~Variable Binding to Node Properties~~ ✅ 이미 구현 (variable.rs 429줄, variables-panel.ts 422줄, variables-bulk-edit.ts)
+- ~~Token/Design Token System~~ ✅ 이미 구현 (design_tokens.rs 373줄, token.rs 342줄, token-panel.ts 362줄, design-token-export.ts, responsive-tokens.ts)
+- ~~Accessibility Checker~~ ✅ 이미 구현 (accessibility.rs 258줄, accessibility-panel.ts 349줄, WCAG contrast/touch target/alt text)
+- ~~Canvas Annotation Drawing~~ ✅ 이미 구현 (annotation-brush.ts 190줄, annotation-heatmap.ts, presentation-annotations.ts)
+- ~~Multi-window / Detachable Panels~~ ✅ 이미 구현 (panel-detach.ts 383줄, BroadcastChannel 동기화)
+
+## 완료된 기능 (추가 — Scroll Animation / Parallax, 2026-04-04)
+- ScrollAnimation struct: property (Opacity/X/Y/Scale/Rotation/Blur), scroll range, value range, easing, sticky, parallax_factor
+- Node.scroll_animations: Vec<ScrollAnimation> (#[serde(default)])
+- WASM: add/remove/update/toggle_scroll_animation, get_scroll_animations, get_all_scroll_animations
+- Prototype viewer: scroll offset → computeScrollAnimOverrides() → 임시 속성 적용 → 렌더 → 복원
+- Properties panel: "Scroll Animations" 섹션 (property/easing select, range inputs, parallax, sticky toggle)
+- scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
+
+## 다음 할 것
+- Grid/Stack View for Layers Panel — 대형 문서에서 계층 탐색 속도 향상을 위한 list↔grid 뷰 + 밀도 옵션 (임팩트 상, 난이도 중)
+- Symbol Detach Preview — 인스턴스 detach 전 diff 미리보기(변경될 레이어/스타일) + selective detach (임팩트 상, 난이도 상)
+- Component Usage Heatmap — 캔버스에 컴포넌트 사용 빈도 히트맵 오버레이 + unused 후보 강조 (임팩트 중상, 난이도 중)
+- Prototype Conditional Actions v2 — interaction 조건식에서 AND/OR 그룹 + 변수 비교식 빌더 (임팩트 상, 난이도 상)
+- Asset Relink Manager — 이미지/비디오 src 깨짐 일괄 탐지 및 경로 재매핑 도구 (임팩트 중, 난이도 중)
+
+## 완료된 기능 (추가 — Stroke & Fill Blend Stack, 2026-04-08)
+- Fill/Stroke에 개별 `opacity` + `blend_mode` 필드 추가 (serde default로 기존 파일 호환)
+- WASM API: `set_fill_opacity_at`, `set_fill_blend_mode_at`, `set_stroke_opacity_at`, `set_stroke_blend_mode_at`
+- Properties panel: Fill/Stroke 항목별 Opacity(%) + Blend mode 드롭다운
+- Render 엔진: node opacity 위에 fill/stroke opacity를 곱하고 per-paint blend mode 적용
+- specs 반영: `specs/FEATURES.md`
+
+## 완료된 기능 (추가 — Smart Selection by Layer/Type 필터, 2026-04-08)
+- Click selection이 활성 Selection Filter(Shape/Text/Image/Locked/Hidden)를 안정적으로 따르도록 필터 히트 테스트 보강
+  - top hit가 필터에 의해 제외되면 `deep_hit_test` + 포인터 주변 visible candidates로 fallback 탐색
+  - 일반 클릭은 z-order 상단 매칭 노드, Cmd/Ctrl deep click은 depth 우선 매칭 노드 선택
+- 기존 marquee Smart Selection Net 필터 동작과 일관성 확보 (클릭/드래그 selection parity)
+- Context menu의 기존 "Select Same" scope/additive 플로우와 결합 시 Layer/Type 필터 기반 선택 워크플로우 완성
+- specs 반영: `specs/FEATURES.md` Smart Selection 항목 보강
+
+## 완료된 기능 (추가 — Frame Overflow Behaviors 2.0, 2026-04-07)
+- Node 모델 확장: `prototype_scroll_bounce_x/y` + `prototype_scroll_overscroll_x/y` (default -1=Auto)
+- WASM API 추가: `set/get_prototype_scroll_bounce_x/y`, `set/get_prototype_scroll_overscroll_x/y`
+- Properties panel Overflow 섹션에 `Prototype overflow` UI 추가
+  - Bounce X/Y 토글
+  - Overscroll X/Y 수동 값 입력 (빈 값 = Auto)
+- Prototype viewer 스크롤 동작 개선
+  - wheel/touch/inertia 모두 frame별 bounce/overscroll 옵션 반영
+  - bounce off 축은 strict clamp, auto overscroll은 상단 Scroll Physics preset 값 사용
+- specs 반영: `specs/FEATURES.md`
+
+## 완료된 기능 (추가 — Component Properties Panel default materialization, 2026-04-07)
+- 인스턴스 생성(`create_instance`) 시 component property 기본값(Boolean/Text/Instance Swap)을 즉시 자식 노드에 적용
+- 인스턴스 마스터 스왑(`swap_instance_component`) 및 variant-set 스왑(`switch_instance_variant_in_set`) 후에도 기본 prop 값을 재적용해 초기 상태 일관성 보장
+- Rust 엔진에 `apply_all_component_prop_defaults(instance_id)` 내부 헬퍼 추가
+- specs 반영: `specs/COMPONENTS.md`, `specs/FEATURES.md`
+
+## 완료된 기능 (추가 — Constraints Pin UI Edge Toggle polish, 2026-04-07)
+- Properties panel Constraints의 Pin UI를 selection-box 형태로 개선 (중앙 프리뷰 박스 + center dot)
+- 가장자리 핀(Left/Right, Top/Bottom) 직접 토글 시 axis 상태를 직관적으로 순환
+  - single pin ↔ dual pin(stretch: LeftAndRight/TopAndBottom) ↔ center
+- Center/Scale 버튼은 축별로 상호배타 동작, 활성 상태 재클릭 시 기본값(Left/Top)으로 복귀
+- 기존 H/V dropdown, undo, canvas constraint overlay와 완전 호환
+
+## 완료된 기능 (추가 — Variables Modes Light/Dark/Themes, 2026-04-07)
+- `variable-theme-modes.ts` 추가: 컬렉션들의 mode 이름을 공통 Theme Set(예: Light/Dark/custom)으로 추론
+- Variables panel: "Theme Mode Set" 칩 UI 추가 (원클릭으로 모든 컬렉션의 matching mode 동시 전환)
+- Prototype Viewer top bar: `Theme` 드롭다운 추가, 프리뷰 중 실시간 mode 전환 반영
+- mode 전환 시 `apply_variables()` + re-render 실행으로 바인딩된 fill/stroke/opacity 등 즉시 반영
+
+## 완료된 기능 (추가 — Interactive Components v2, 2026-04-06)
+- Properties panel `INTERACTIVE VARIANTS`에 `Auto-map` 버튼 추가
+  - 컴포넌트 variant property 중 state 성격 옵션(default/hover/press(ed)/focus/disabled)을 탐지
+  - 현재 instance variant 값을 기반으로 상태별 variant key 자동 생성/매핑
+- `Sync triggers` 버튼 추가
+  - interactive state 매핑을 OnHover/OnPress 중심 `SwapVariant` interaction으로 자동 생성/업데이트
+  - interaction의 `variant_key_json`을 interactive mapping과 동기화
+- 기존 수동 dropdown 매핑 플로우와 완전 호환 (수동/자동 혼합 가능)
+
+## 완료된 기능 (추가 — Prototyping Smart Animate Timeline polish, 2026-04-06)
+- Smart Animate Timeline duration 변경 시 중간 keyframe 시간을 비율 유지로 자동 리타이밍
+- Timeline rail에 0~100% tick + ms 라벨 표시
+- 선택된 keyframe 라벨에 진행률(%) 표시
+- 구현: `packages/app/src/ui/properties-panel.ts`
+- 스펙 반영: `specs/FEATURES.md` Prototyping 섹션 Smart Animate Timeline polish bullet
+
+## 완료된 기능 (추가 — Auto Layout Absolute Child + Wrap Controls, 2026-04-06)
+- Node 모델에 `wrap_before: bool` 필드 추가 (serde default, backward-compatible)
+- Flex wrap 레이아웃 계산에서 `wrap_before=true`인 자식은 강제로 새 줄/새 컬럼 시작
+- WASM API: `set_wrap_before(id, bool)`, `get_wrap_before(id)`
+- Properties panel: 부모 auto-layout이 wrap일 때 `Wrap: Start new line` 체크박스 제공
+- 기존 `absolute_position`과 조합해 flow 제외(absolute) vs flow 개행(wrap break) 분리 제어
+
+## 완료된 기능 (추가 — Typography Styles Advanced, 2026-04-06)
+- TextStyle 데이터 모델 확장: letter_spacing, opentype_features, font_variation_settings 저장/직렬화
+- apply_text_style / sync_text_style가 letter spacing + OpenType + variable font axes까지 동기화
+- Text Style quick create(+) 시 현재 텍스트의 고급 타이포 속성까지 스타일로 캡처
+- Text Style linked 상태에서 "Replace all with…" 액션 추가 (기존 style ID → 새 style ID 문서 전체 일괄 교체)
+- WASM: `replace_text_style_all(old_style_id, new_style_id) -> u32`
+
+## 완료된 기능 (추가 — Shape Builder Tool 완료, 2026-04-06)
+- Shape Builder 툴 기본 MVP를 완료 단계로 확장
+- Shift+B 단축키 추가 (`tool.shapeBuilder`), Toolbar 진입과 동일하게 동작
+- 드래그 궤적 hit 대상 탐지 개선: 선택 2개 이상이면 선택 노드만, 아니면 전체 boolean 가능 노드에서 자동 수집
+- 사전 선택 없이도 드래그로 hit 노드를 모아 즉시 Union/Subtract 실행 (Alt=Subtract)
+- specs/FEATURES.md의 Shape Builder 항목을 MVP 표기에서 완료 스펙으로 업데이트
+
+## 완료된 기능 (추가 — Corner Pin Frame Warp polish, 2026-04-06)
+- Corner Pin 대상이 Frame일 때 프레임 영역을 캔버스 스냅샷으로 캡처해 왜곡
+- 기존 Frame baseline-only warp에서 개선되어 프레임 내부 자식 콘텐츠도 함께 warp
+- drag handle/Properties panel Corner Pin 값은 기존 API(`set/get/clear_corner_pin`) 그대로 유지
+- specs/FEATURES.md Corner Pin 항목에 Frame+children warp 동작 명시
+
+## 완료된 기능 (추가 — Text on Path UX completion, 2026-04-06)
+- Text tool 클릭만으로 point text 생성 (드래그 없이 생성 가능)
+- Text tool로 Path 위를 클릭/드래그 생성하면 새 Text가 해당 Path에 자동 attach
+- 기존 Text Path 속성(Offset/Baseline/Path Letter Spacing/Flip)과 연결되어 즉시 조절 가능
+- specs/FEATURES.md에 Text on Path UX 항목 반영
+
+## 완료된 기능 (백로그 정리 25 — 이미 구현 확인, 2026-04-06)
+- ~~Smart Paste to Frame~~ ✅ 이미 구현 확인
+- 구현 위치: `packages/app/src/editor.ts` (`findSmartPasteTarget`, `buildInsertAfterSelectionDropTarget`, `pasteNodes`, `pasteNodesInPlace`)
+- 스펙 반영 확인: `specs/FEATURES.md` Copy/Paste 섹션의 Smart Paste 항목
+
+## 완료된 기능 (추가 — Smart Selection Net, 2026-04-05)
+- 드래그 마키 셀렉션에 Crossing/Contain 모드 추가
+- Shift+X로 기본 모드 토글, Alt로 드래그 중 임시 반전
+- 드래그 중 `Net: Crossing|Contain` HUD 라벨 표시
+- Frame/Group/Section 겹침 시 자식 노드 우선 선택(컨테이너 de-prioritize, Figma 유사)
+- specs/FEATURES.md에 동작 명세 반영
+
+## 완료된 기능 (추가 — AR Quick Look Preview polish, 2026-04-05)
+- AR Preview 공유 링크에 `ar_title` 파라미터 추가 (노드명 유지)
+- AR 모달에서 Source URL과 Mobile Preview Link를 분리 표시
+- "Copy Mobile Link" / "Open Mobile Preview" 액션 추가
+- Query 진입(`ar_src`,`ar_title`) 시 자동 오픈 후 둘 다 URL에서 정리
+- Escape 키로 AR 모달 닫기 지원
+
+## 완료된 기능 (추가 — Handwriting / Ink Recognition settings polish, 2026-04-05)
+- Freehand(드로잉) 모드에서 Properties 패널에 Ink Recognition 섹션 추가
+- Shape recognition 토글 UI 추가 (on/off)
+- Path simplify tolerance 슬라이더 추가 (기본 2.0, 범위 0.2~8)
+- Freehand pointer-up 시 `ink_to_path` 호출에 고정값 대신 사용자 tolerance 반영
+- 인식 대상 힌트 표시 (line/circle/rectangle/triangle/arrow)
+
+## 완료된 기능 (추가 — Video Embed Node polish, 2026-04-05)
+- Video 노드 캔버스 썸네일 렌더링 개선: `poster` 우선, 비어있으면 `src` 자동 fallback
+- Prototype Viewer의 실제 `<video>` 재생 흐름은 기존 구현 유지
+- specs/FEATURES.md에 동작 명세 반영
+
+## 완료된 기능 (추가 — Spreadsheet Data Binding 확장, 2026-04-05)
+- Spreadsheet Data Binding 패널에서 Text뿐 아니라 Image 노드의 `{{field}}` 템플릿 바인딩 지원
+- Repeat Grid 데이터 바인딩이 text_content + image_src 오버라이드를 모두 적용
+- Row 인덱스 변경/데이터 소스 수정 시 실시간 미리보기 옵션 추가
+- 데이터 소스는 localStorage에 유지, 기존 패널 UX/undo 흐름과 호환
+
+## 완료된 기능 (추가 — Variables Inspector & Usage Graph, 2026-04-05)
+- Variables 패널에 변수별 Usage 배지 추가 (사용처 개수)
+- "Show usage"로 사용 노드/속성 리스트 확인, 클릭 시 해당 노드 선택
+- Broken bindings 검사: 노드/컬렉션/변수 누락 바인딩 감지
+- "Clean broken bindings" 버튼으로 끊어진 바인딩 일괄 정리
+- WASM: get_variable_usages, get_broken_variable_bindings, cleanup_broken_variable_bindings
+
+## 완료된 기능 (추가 — WebGPU Soft Shadow Edge, 2026-04-04)
+- WebGPU 인스턴스 데이터에 `blurPx` 필드 추가 (shadow/shape별 개별 전달)
+- WGSL fragment에서 feathered alpha mask 적용으로 그림자 쿼드 하드 엣지 완화
+- 기존 instanced pipeline 유지하면서 shadow blur 체감 품질 개선 (Stage 6)
+
+## 완료된 기능 (추가 — Node Locking Layers Enhanced, 2026-04-04)
+- Locked 노드 시각적 구분: 오렌지 선택 테두리 (#f97316), 리사이즈 핸들 숨김, 미세 오렌지 오버레이
+- Lock badge: 선택된 locked 노드 좌상단에 오렌지 자물쇠 뱃지
+- Layers panel: 레이어별 lock/unlock 아이콘 (hover 시 표시, locked 시 항상 표시)
+- Properties panel: 노드 이름 옆 lock 토글 버튼
+- 이동/리사이즈 차단: locked 노드 드래그 이동 불가, 핸들 리사이즈 불가
+- Hit test: 기존 Rust 엔진에서 locked 노드 스킵 (선택은 가능하되 조작 불가)
+
+## 완료된 기능 (백로그 정리 23 — 이미 구현 확인, 2026-04-04)
+- ~~Multiplayer Cursors~~ ✅ 이미 구현 (cursor-presence.ts, 552줄)
+- ~~Smart Animate Between Pages~~ ✅ 이미 구현 (prototype-viewer.ts performSmartAnimate)
+- ~~Canvas Performance Profiler~~ ✅ 이미 구현 (perf-profiler.ts, FPS 그래프/히트맵/제안/메모리)
+
+## 완료된 기능 (추가 — Drag-to-Reparent, 2026-04-04)
+- 드래그로 auto-layout Frame에 노드 삽입 (Figma-style insertion indicator)
+- 파란색 삽입선 (#0d99ff) + 다이아몬드 엔드포인트
+- Row/Column 방향 지원, 빈 프레임 처리, 멀티 셀렉트
+- 순환 reparent 방지 (descendant 체크)
+- Rust: Scene.reparent_at(), Engine.reparent_node_at/get_layout_drop_zones/get_auto_layout_frame_ids/get_node_parent
+- TS: tools/drag-reparent.ts, editor.ts 통합 (드래그 중 계산 + 드롭 시 실행)
+- Undo 통합, 레이어 패널 자동 갱신
+
+## 완료된 기능 (추가 — Selection History, 2026-04-04)
+- Selection History (Back/Forward): Alt+[ 이전 선택, Alt+] 다음 선택 복원
+- fireSelectionNow에서 선택 변경 추적 (max 50 entries)
+- 브라우저 히스토리 패턴: 새 선택 시 forward history 삭제
+- back/forward 탐색 중에는 히스토리 기록 스킵
+
+## 완료된 기능 (백로그 정리 21 — 이미 구현 확인, 2026-04-04)
+- ~~Canvas Background Settings~~ ✅ 이미 구현 (CanvasBackground struct, WASM set_bg_color/pattern/opacity, Properties panel 프리셋+커스텀 UI, 패턴 렌더링)
+- ~~Keyboard-driven Node Nudge with Preview~~ ✅ 이미 구현 (nudge-hint.ts, arrow key move + Shift 10px)
+- ~~Multi-window Support~~ ✅ 이미 구현 (panel-detach.ts BroadcastChannel 동기화)
+- ~~Detachable Floating Panels~~ ✅ 이미 구현 (panel-detach.ts, 탭별 popout)
+- ~~Smart Object Replace~~ ✅ 이미 구현 (smart-replace.ts)
+
+## 완료된 기능 (추가 — Scale Tool, 2026-04-04)
+- Scale Tool (K 단축키): 전용 비례 스케일링 도구
+- 핸들 드래그 시 aspect ratio 유지 + 모든 시각 속성 비례 조정 (font size, stroke width, corner radius, shadows, blur, padding, gap 등)
+- 기존 engine.scale_node_proportional() 활용, 재귀적 children 스케일링
+- 툴바 아이콘, shortcut-manager 등록, 커서 nwse-resize
+- Slice 단축키 Shift+K로 변경
+
+## 완료된 기능 (백로그 정리 20 — 이미 구현 확인, 2026-04-04)
+- ~~AI Style Transfer~~ ✅ 이미 구현 (Rust: style_transfer.rs, WASM 바인딩, TS: style-transfer.ts + properties panel)
+- ~~Responsive Breakpoints Preview~~ ✅ 이미 구현 (breakpoints-preview.ts, scene breakpoints CRUD, SVG 프리뷰)
+- ~~Variable Fonts & OpenType Features~~ ✅ 이미 구현 (font_variation_settings, WASM set/remove/get axis)
+- ~~Design Tokens System~~ ✅ 이미 구현 (design_tokens.rs, token.rs, token-panel.ts, design-token-export.ts)
+- ~~Smart Layout Suggestions~~ ✅ 이미 구현 (ai-layout-suggest.ts, llm-agent.ts 통합)
+
+## 완료된 기능 (백로그 정리 19 — 이미 구현 확인, 2026-04-03)
+- ~~Table/Grid Layout Node~~ ✅ 이미 구현 (Rust: NodeKind::Table + add_table/merge/CSV/relayout, WASM 바인딩, TS: toolbar + properties panel + editor)
+
+## 완료된 기능 (추가 — Eyedropper Tool, 2026-04-03)
+- I 키로 활성화, 캔버스 클릭 → 픽셀 컬러 읽기 (getImageData)
+- 선택된 노드 fill에 자동 적용 (undo 통합)
+- 컬러 토스트: hex 표시 + Copy 버튼, 2.5초 후 자동 사라짐
+- 툴바 eyedropper 아이콘 버튼
+- 사용 후 자동으로 select 툴로 복귀
+- 구현: editor.ts (ToolType + onPointerDown handler + _showEyedropperToast)
+
+## 완료된 기능 (추가 — React/Vue Component Export, 2026-04-03)
+- Right pane "Export" 탭: 선택 노드 트리를 React JSX / Vue SFC / HTML로 변환
+- React CSS 모드: Inline styles, styled-components, CSS modules (3가지)
+- Vue: <template> + <style scoped> SFC 포맷
+- 재귀적 노드 트리 변환: position, fill, stroke, shadows, blur, blend mode, corner radius, rotation, opacity, layout(flex)
+- Text → 텍스트 콘텐츠, Image → img/background-image, props 매핑
+- Component name: 노드 name → PascalCase 자동 변환
+- Copy to clipboard + Download (.tsx/.vue/.html + .module.css) 버튼
+- 구현: packages/app/src/ui/component-export.ts
+
+## 완료된 기능 (추가 — Live HTML/CSS Preview, 2026-04-03)
+- Right pane "Preview" 탭: 선택 노드를 HTML+CSS로 변환 → sandboxed iframe 실시간 렌더링
+- 재귀적 노드 트리 변환: position, size, fill (solid/gradient), stroke, shadows, blur, blend mode, corner radius, rotation, opacity
+- Auto layout → CSS flexbox 매핑 (direction, align-items, justify-content, gap, padding, wrap)
+- Text 노드: font-family, size, weight, style, line-height, text-align, letter-spacing, color, text-decoration
+- Image 노드: background-image + background-size (cover/contain/fill)
+- Overflow/clip content 지원
+- 컨트롤: Live/Paused 토글, 수동 새로고침, 스케일 선택 (25%-200%), 밝은/어두운 배경 전환, HTML 소스 코드 뷰, 클립보드 복사
+- 선택 변경 시 100ms 디바운스 자동 업데이트
+- 구현: packages/app/src/ui/live-preview.ts
+
+## 완료된 기능 (백로그 정리 18 — 이미 구현 확인, 2026-04-03)
+- ~~Figma ↔ OpenSketch Sync~~ ✅ 이미 구현 (figma-import.ts 876줄 + figma-export.ts 581줄)
+- ~~Collaborative Cursors (CRDT)~~ ✅ 이미 구현 (cursor-presence.ts 552줄 + cursor-chat.ts 454줄 + collab.ts 327줄)
+- ~~Plugin System~~ ✅ 이미 구현 (plugin-manager.ts + iframe-sandbox.ts + figma-compat.ts + catalog.ts + plugin-panel.ts + plugin-marketplace.ts)
+
+## 완료된 기능 (추가 — Node Grouping by Color, 2026-04-02)
+- 선택 노드를 fill 색상별로 자동 그룹핑
+- Rust: Scene.group_by_color() — BTreeMap으로 색상별 분류, Group 노드 자동 생성
+- 2개 이상 동일 색상 노드만 그룹화 (싱글톤은 미변경)
+- WASM: group_selection_by_color() — undo 통합, JSON 결과 반환, 생성된 그룹 자동 선택
+- Context menu: "Group by Color" (2+ 노드 선택 시)
+- 그룹명 "Color Group #rrggbb" 자동 생성
+
+## 완료된 기능 (백로그 정리 10 — 이미 구현 확인, 2026-04-02)
+- Smart selection (select same): select_same_fill/stroke/kind/font/name/name_and_kind 6종 WASM 바인딩 + editor.ts 메서드
+- Absolute positioning toggle: node.absolute_position 필드, layout.rs 스킵, WASM set/get, Properties panel 체크박스, Inspect panel position:absolute
+- Measure distance (red lines): tools/measure.ts (Alt+hover), tools/measure-tool.ts (M키 영구 측정선)
+- Node search / filter: search-filter.ts (486줄), Cmd+F 검색 패널
+
+## 완료된 기능 (추가 — Auto Layout Negative Spacing, 2026-04-02)
+- Auto layout gap에 음수 값 허용 (오버랩 레이아웃, 카드 스택, 아바타 파일 등)
+- Spacing drag handle: Math.max(0) 제거 → 자유롭게 음수 드래그 가능
+- 음수 gap 시각 피드백: red-orange (#ff5032) 오버레이 + 별도 pill badge 색상
+- Quick chip 프리셋: -8px, -4px 추가 (warm color 힌트)
+- Rust 엔진: f64 gap이므로 변경 불필요 (자연스럽게 지원)
+- Figma와 동일한 동작: 음수 gap → 자식 노드 겹침
+
+## 완료된 기능 (추가 — Auto-rename Layers, 2026-04-02)
+- 노드 타입과 속성 기반 자동 이름 생성:
+  - Text → 첫 줄 텍스트 (32자 이내), Image → 파일명, Star → "5-Point Star", Polygon → "6-gon"
+  - Frame + auto layout → "Auto Layout Frame", Instance → 컴포넌트 이름, Table → "Table 3×4"
+  - StickyNote → 내용 텍스트, Path → "Path (5pts, closed)"
+- 형제 노드 중복 이름 시 숫자 접미사 자동 추가 ("Rectangle 2")
+- Rust: Scene.auto_name_for_node(), auto_rename_node(), auto_rename_all(), auto_rename_selection()
+- WASM: auto_rename_node, auto_rename_selection, auto_rename_all, auto_rename_preview
+- Context menu: 노드 선택 시 "Auto-rename", 빈 캔버스 "Auto-rename All Layers"
+- Layers panel: 우클릭 메뉴 "Auto-rename"
+- Undo 통합
+
+## 완료된 기능 (추가 — Paste in Place, 2026-04-02)
+- Cmd+Shift+V: 원본 좌표에 붙여넣기 (offset 0,0)
+- pasteNodesInPlace() 메서드, edit.pasteInPlace 단축키
+- 우클릭 컨텍스트 메뉴 (노드 선택/빈 캔버스 모두)
+- i18n: en/ko/ja 번역 추가
+
+## 완료된 기능 (추가 — Design Token Aliasing, 2026-04-02)
+- TokenValue::Alias 변형 추가 — 토큰이 다른 토큰을 참조 ({colors.primary} 문법)
+- resolve_deep(): 별칭 체인 따라가기 (최대 16단계, 순환 감지)
+- get_alias_chain(): 디버깅/UI용 전체 해석 경로
+- WASM: token_set_alias, token_resolve_deep, token_get_alias_chain
+- apply_token_theme() → resolve_deep 사용으로 별칭 토큰도 노드에 정상 적용
+- UI: 🔗 아이콘 + 보라색(#a78bfa), 체인 보기, 기존 토큰→별칭 변환, 바인딩 드롭다운에 별칭 토큰 포함
+- Backward-compatible serde
+
+## 완료된 기능 (백로그 정리 9 — 이미 구현 확인, 2026-04-02)
+- Multi-page prototype flow: flow-diagram.ts (297줄), PrototypeFlow/FlowConnection structs, WASM 바인딩 (add/remove/rename_flow, set_flow_start_frame, get_flow_connections, get_all_cross_page_interactions)
+
+## 완료된 기능 (추가 — Component Prop Controls, 2026-04-02)
+- Figma-style Component Properties (Boolean/Text/InstanceSwap):
+  - Rust: ComponentProperty enum, PropValue enum, Component.component_properties, InstanceData.property_overrides
+  - BooleanProp → linked node visibility toggle, TextProp → linked text content, InstanceSwapProp → linked slot swap
+  - Name-based linking (template node name → instance child name matching)
+  - WASM: add/remove_component_property, get_component_properties, set_instance_prop_override, get_instance_prop_values, reset_instance_prop
+  - TS Properties panel: Component source → "COMPONENT PROPERTIES" editor (add/remove), Instance → "COMPONENT PROPS" controls
+  - Boolean: amber toggle switch, Text: input field, InstanceSwap: component dropdown
+  - Override indicator (blue dot) + reset button, backward-compatible serde
+
+## 완료된 기능 (추가 — Spring Animation UI, 2026-04-02)
+- Spring animation easing UI 완전 통합:
+  - Rust engine: Easing::Spring + SpringPreset (7종) + spring_eval (damped harmonic oscillator) — 이미 존재
+  - 신규 WASM: anim_set_keyframe_easing(clip_id, node_id, property, time_ms, easing_str), anim_get_spring_presets()
+  - 신규 Scene: anim_set_keyframe_easing() 메서드
+  - Timeline UI: 키프레임 우클릭 → Easing 셀렉터 (Linear/EaseIn/EaseOut/EaseInOut + Spring 프리셋 6종)
+  - Custom Spring 다이얼로그: tension/friction/mass 입력 + 실시간 스프링 커브 프리뷰 (Canvas)
+  - Purple 다이아몬드: 스프링 이징 키프레임 시각 구분 (#a78bfa / #7c3aed)
+  - Lottie export: Spring → ease-in-out 근사 (네이티브 미지원)
+  - lottie_export.rs: Easing::Spring match arm 추가 (exhaustive match 수정)
+
+## 완료된 기능 (Multi-edit Mode — Component Instance Multi-edit, 2026-04-02)
+- 같은 컴포넌트의 모든 인스턴스를 동시 편집하는 Figma-style multi-edit 모드
+- Rust Engine: find_all_instances_of_component, get_sibling_instances, multi_edit_set_property (fill/opacity/corner_radius/visible/locked/blur), multi_edit_set_variant, multi_edit_move, multi_edit_resize, multi_edit_select_all, get_multi_edit_info
+- Scene 메서드 버그 수정: multi_edit_set_fill (Fill::solid 사용), multi_edit_set_stroke (strokes 배열 사용)
+- Properties Panel UI: 인스턴스 카드에 "Multi (N)" 토글 버튼, 활성 시 amber 색상 배너 + "Select All" 버튼
+- Variant picker: multi-edit 활성 시 variant 변경이 모든 인스턴스에 전파
+- Opacity/corner_radius: multi-edit 활성 시 속성 변경이 모든 인스턴스에 전파
+
+## 완료된 기능 (백로그 정리 6 — 이미 구현 확인, 2026-04-01)
+- Figma file import (.fig parser): figma-import.ts (876줄), .fig 파일 기본 구조 파싱
+- Annotation sticker pack: stamp.rs + stamp-tool.ts, 12종 리뷰 스탬프 (approved/rejected/question/fixme 등)
+- Scroll & overflow: node.rs Overflow enum (Visible/Hidden/Scroll/ScrollH/ScrollV), 프로토타입 뷰어 스크롤
+- Smart selection: smart-select.ts (199줄), AI 기반 자동 그룹핑/컴포넌트화 제안
+- Responsive breakpoint preview: responsive-preview.ts (302줄), 여러 디바이스 폭 동시 프리뷰
+
+## 완료된 기능 (백로그 정리 5 — 이미 구현 확인, 2026-04-01)
+- Measure tool: Alt+hover 빨간 가이드라인 + 거리 라벨 (tools/measure.ts), 영구 측정선 도구 M키 (tools/measure-tool.ts), Rust WASM 바인딩 (add/remove/update/get_measures)
+
+## 완료된 기능 (추가 — Component Swap Suggestions, 2026-04-01)
+- Instance 선택 시 유사 컴포넌트 추천: 크기(40%), 슬롯(25%), 프로퍼티(20%), 변수(15%) 가중치 기반 매칭
+- Rust: suggest_component_swaps(instance_id, max_results) → JSON [{id, name, score, reason}]
+- WASM: suggest_component_swaps 바인딩
+- UI: Component Search & Swap 모달에 "✨ Suggested swaps" 섹션, 원클릭 Swap 버튼
+- Score + reason 표시 (similar size, same slots, same properties 등)
+
+## 완료된 기능 (추가 — Variable-driven Animation, 2026-04-01)
+- Keyframe에 VariableBinding(collection_id, variable_id) 옵션 필드 추가
+- Keyframe.resolve_value(): 바인딩된 변수의 active mode 값으로 해석 (Number→직접, Boolean→0/1, Color→brightness)
+- AnimationTrack.value_at_with_vars(): 변수 해석 포함 보간
+- AnimationStore: bind/unbind/get_bindings/evaluate_with_vars 메서드
+- Scene.anim_apply_with_vars(): 변수 해석된 애니메이션 적용
+- WASM: anim_bind_keyframe_variable, anim_unbind_keyframe_variable, anim_get_variable_bindings, anim_apply_with_vars, anim_get_bindable_variables
+- Timeline UI: 변수 바인딩된 키프레임 초록색 다이아몬드 + "V" 표시
+- 우클릭 컨텍스트 메뉴: Delete / Unbind Variable / Bind to Variable (Number/Boolean 변수 피커)
+- Backward-compatible serde (variable_binding: Option, skip_serializing_if None)
+
+## 완료된 기능 (백로그 정리 4 — 이미 구현 확인, 2026-04-01)
+- Batch property edit: get_batch_properties + batch_set_fill/stroke/opacity/corner_radius WASM 바인딩, Properties panel 멀티 셀렉션 시 fill/stroke/opacity/radius 편집 UI (Mixed values 표시)
+- Responsive breakpoint preview: responsive-preview.ts (302줄), 여러 해상도 프레임 동시 미리보기
+- Smart layout suggestions: layout_suggest.rs + suggest_auto_layout/apply_auto_layout_suggestion WASM, Properties panel "AI Layout" 자동 제안 UI
+
+## 완료된 기능 (추가 — Auto Layout Spacing Presets, 2026-04-01)
+- Spacing presets UI: Properties panel Auto Layout 섹션 하단
+- Combined presets: XS(4)/S(8)/M(12)/Base(16)/L(24)/XL(32)/2XL(48) — gap + uniform padding 동시 적용
+- Gap-only presets: 0/4/8/12/16/24/32/48px 원클릭
+- Padding-only presets: 0/4/8/12/16/24/32/48px 원클릭
+- Active state: 현재 값과 일치하는 프리셋 인디고 하이라이트
+- Hover feedback, undo 통합
+- Pure TypeScript (properties-panel.ts에 추가)
+
+## 완료된 기능 (백로그 정리 3 — 이미 구현 확인, 2026-04-01)
+- Canvas object search & filter: search-filter.ts (486줄), 노드 타입/색상/스타일 필터링
+- Shared cursor annotations: annotation-brush.ts, WebSocket 기반 원격 주석 공유
+- Component variant matrix view: variant-matrix.ts (341줄), variant 그리드 시각화
+- Canvas object alignment guides (smart distribute): smart_distribute_grid/h/v WASM 바인딩, properties-panel.ts 통합
+
+## 완료된 기능 (추가 — Export to Figma JSON)
+- OpenSketch → Figma REST API 호환 JSON 내보내기
+- 노드 타입 매핑: Rect→RECTANGLE, Ellipse→ELLIPSE, Text→TEXT, Frame→FRAME, Group→GROUP, Star→STAR, Polygon→REGULAR_POLYGON, Path/VectorNetwork→VECTOR
+- Fill 변환: Solid, LinearGradient, RadialGradient → Figma paint format
+- Stroke 변환: color, weight, align, cap, join, dashes
+- Effects: Drop shadow, Layer blur → Figma effect format
+- Blend mode, constraints, auto-layout 매핑
+- 선택 노드만 내보내기 옵션
+- UI: Export 다이얼로그 (JSON preview, Copy/Download 버튼)
+- 툴바: Figma Export 버튼 (다운로드 아이콘)
+- 파일: packages/app/src/ui/figma-export.ts
+
+## 완료된 기능 (추가 — Canvas Search & Replace)
+- Cmd+F: 검색 패널 (상단 중앙 플로팅), Cmd+H: replace 모드
+- 노드 이름 + Text 노드 텍스트 검색 (case-sensitive 토글)
+- 결과 네비게이션 (Enter/Shift+Enter, 위/아래 버튼)
+- Replace / Replace All 기능, undo 통합
+- 검색 결과 주황 하이라이트, 현재 결과 노드로 자동 pan + 선택
+- Rust: find_replace.rs (search_nodes, replace_text_in_nodes), WASM 바인딩
+- TS: search-panel.ts UI 컴포넌트
+
+## 완료된 기능 (추가 — AI Auto-Layout from Screenshot)
+- 이미지 드래그&드롭 시 "Add as Image" / "AI Auto-Layout" 선택 다이얼로그
+- Vision API (OpenAI-compatible) 호출: base64 이미지 → 구조화된 JSON (UI 요소 인식)
+- 재귀적 노드 생성: frame, rect, text, ellipse (위치/크기/색상/corner radius/텍스트)
+- 스케일링 (max 800px) + 드롭 위치에 배치
+- 기존 LLM config 재사용 (Agent 패널 설정)
+- 파일: packages/app/src/ui/ai-layout.ts (신규), editor.ts setupDragDrop() 수정
+
+## 완료된 기능 (추가 — Multi-window / Detachable Panels)
+- BroadcastChannel API 기반 메인↔서브 윈도우 상태 동기화
+- Layers, Properties, Agent, Comments, Variables, Assets, Bookmarks 패널 pop-out 가능
+- 패널 헤더 pop-out 버튼 (외부 링크 아이콘), window.open()으로 별도 창 생성
+- 서브 윈도우: 타이틀 + Reattach 버튼, 메인 스타일시트 복제
+- 메인 윈도우에서 패널 숨기기 ↔ reattach 시 복원
+- 윈도우 닫힘 감지 (500ms polling) → 자동 복귀
+- 순수 TypeScript 구현 (ui/panel-detach.ts)
+
+## 완료된 기능 (추가 — Anchor / Link Points on Shapes)
+- Anchor points on shapes for connector snapping:
+  - Rust anchor.rs: AnchorPosition enum (Top/Right/Bottom/Left/Center/Custom(f64,f64)), AnchorPoint struct
+  - get_anchor_world_pos(): 노드 bounds + rotation 반영 월드 좌표 계산
+  - snap_to_nearest_anchor(): 씬 전체 노드 앵커 검색 (threshold 기반)
+  - Node.anchors: Vec<AnchorPoint> 커스텀 앵커 필드 (#[serde(default)])
+  - Connector variant 확장: start_anchor/end_anchor (Option<AnchorPosition>)
+  - update_connector_bounds(): 앵커 위치 기반 endpoint 업데이트 (기존 center fallback)
+  - WASM: get_node_anchors, add_custom_anchor, remove_custom_anchor, snap_to_anchor, connect_to_anchor, disconnect_anchor
+  - Editor: 커넥터 도구 호버 시 파란 원형 앵커 포인트 표시, 드래그 시 12px threshold 자동 스냅
+  - 스냅 하이라이트: filled blue circle + white border
+  - Properties panel: Connector 선택 시 start/end 앵커 정보 표시
+
+## 완료된 기능 (추가 — Smart Distribute Tidy Up UI)
+- Properties panel Align 섹션에 "Tidy Up" 버튼 추가 (3+ 노드 선택 시)
+- 현재 간격 분석 표시: ⚠ uneven (노란색) / ✓ even (초록색) 배지
+- 클릭 시 tidy_up_selection 호출 — median gap 기반 자동 정규화 + cross-axis 정렬
+- 적용 후 결과 표시 (축 방향 + 적용된 gap), undo 통합
+- 기존 Rust tidy_up() + get_spacing_between() WASM 바인딩 활용
 ## 완료된 기능 (추가 — Canvas Performance Mode)
 - Rust LOD (Level of Detail): lod_level() 함수로 zoom/screen_area 기반 3단계 (0=full, 1=simplified, 2=box-only)
   - zoom < 0.15 또는 screen area < 16px²: 모든 노드를 단색 fill rect로 대체 (Frame/Group은 children 계속 렌더)
@@ -1979,7 +2301,6 @@
   - Context menu: 기존 2+ 노드 선택 시 "Batch Rename…" 유지
   - Keyboard: Cmd/Ctrl+Shift+R
   - Undo 통합 (push_undo before rename)
-  - **추가 (2026-04-04)**: Prefix/Suffix 모드 (batch_add_fix), # 시퀀스 단축 문법, UI 3탭 (Sequence / Find & Replace / Prefix/Suffix)
 
 ## 완료된 기능 (추가 — Cursor Annotation Brush)
 - 캔버스 위 임시 드로잉/하이라이트 (리뷰용, 자동 5초 소멸)
@@ -2008,524 +2329,170 @@
 - 선택된 Image 노드 우선 표시, 없으면 씬 내 Image 노드 최대 5개 표시
 - Pure TypeScript 구현 (k-means algorithm, canvas pixel sampling)
 
-## 완료된 기능 (추가 — Accessibility Checker Panel 강화)
-- Node에 alt_text: Option<String> 필드 추가 (serde default, backward compatible)
-- accessibility.rs: suggest_fix_color() — WCAG AA 대비율 충족하는 색상 자동 추천
-- LowContrast 이슈에 구체적 수정 색상 제안 (hex 코드 포함)
-- Image 노드 alt_text 필드 기반 MissingAltText 검사 강화 (이름 폴백 + 명시적 alt text 우선)
-- WASM: run_accessibility_audit(), set_alt_text(id, text), get_alt_text(id)
-- UI: A11y 패널 타이틀 "Accessibility (A11y)"로 변경
-- UI: alt-text 이슈에 인라인 텍스트 입력 + "Set" 버튼 추가
-- Cmd+Shift+A 단축키로 A11y 패널 탭 열기
+## 완료된 기능 (추가 — Variable Fonts & OpenType Features 완성)
+- 기존 Rust/WASM/Properties Panel 구현에 Canvas 렌더링 연동 추가
+- Canvas2D: font-feature-settings 적용 (liga, smcp, onum, tnum), fontVariantCaps=small-caps
+- Caret/measureText 경로에도 OT features 적용 (정확한 커서 위치)
+- Inspect panel: font-feature-settings + font-variant-caps CSS 출력 추가
+- 전체 파이프라인 완성: Rust struct → WASM bindings → Properties UI → Canvas rendering → SVG export → Inspect CSS
 
-## 완료된 기능 (추가 — Smart Object Replace Enhanced)
-- ReplaceOptions 구조체: keep_size, keep_position, transfer_style (all default true)
-- replace_node_content_with_options(): 옵션 기반 교체 (기존 함수 backward-compatible)
-- 컴포넌트 인스턴스로 교체: replace_selection_with_component(component_id, options)
-- WASM: replace_with_node_options, replace_selection_with_options, replace_selection_with_component 추가
-- UI: Smart Replace 모달에 Options 바 추가 (Keep Size / Keep Position / Transfer Style 체크박스)
-- 교체 시 소스 노드의 kind도 복사 (shape-to-shape 교체), name 복사
-- Undo 통합 (push_undo before all replace operations)
+## 완료된 기능 (추가 — Canvas Grid Snapping Mode)
+- 토글 가능한 그리드 스냅 (8px/16px/custom grid size)
+- 드래그 이동 + 리사이즈 시 그리드에 자동 정렬
+- ⌘+' (Ctrl+') 토글 단축키
+- 캔버스에 그리드 도트 시각화 (zoom 반영, 4px screen spacing 미만이면 자동 숨김, 밀도 기반 opacity fade)
+- Zoom controls 영역에 grid toggle 버튼 + size selector (4/8/16/32/custom)
+- 기존 smart guides와 공존: 둘 다 켜져 있으면 축별로 더 가까운 쪽에 스냅
+- Pure TypeScript: tools/grid-snap.ts (renderGrid, computeGridSnap, snapToGrid)
+- Editor: toggleGridSnap(), setGridSize(), setGridStyle(), onGridSnapChanged() API
 
 ## 완료된 기능 (추가 — Keyboard Shortcut Customization)
-- ShortcutManager 클래스 (shortcut-manager.ts): 커스텀 키 바인딩, 충돌 감지, localStorage 저장
-- 프리셋 프로필: Figma (기본), Sketch, Adobe XD — 드롭다운 선택
-- applyPreset() / detectPreset(): 프리셋 적용 및 현재 프리셋 자동 감지
-- shortcuts-panel.ts: 모달 UI (Cmd+/ or ?)
-  - 카테고리별 그룹 (Tools, Edit, View, Panels, Boolean, Misc)
-  - 클릭 ✎ → 키 녹음 모드, 충돌 시 경고 + override 옵션
-  - 프리셋 드롭다운, Reset All, Reset 개별 (↺)
-  - Export/Import JSON 버튼
-  - 검색 필터
-- editor.ts keydown: ShortcutManager.matches() 기반 (기존 동작 유지)
-- localStorage "opensketch-custom-shortcuts" 저장, 없으면 기본값
+- 이미 구현 완료 확인: shortcut-manager.ts + shortcuts-panel.ts
+- ShortcutManager: 프리셋 3개 (Figma/Sketch/Adobe), 충돌 감지, JSON import/export, localStorage
+- 키 리바인딩 UI: 카테고리별 그룹, 검색, 키 녹음 모드, 리셋, 프리셋 전환
+- editor.ts: _sm.matches() 기반 모든 단축키 연동
 
-## 완료된 기능 (추가 — Annotation Sticker Pack 강화)
-- StampKind enum 확장: Love, Warning, Info, Fixme 4종 추가 (총 12종)
-- emoji() 메서드: 각 StampKind별 이모지 반환 (✅❌❓🔧❤️⚠️ℹ️📋🚧🔄🏁⏸️)
-- 이모지 기반 캔버스 렌더링: stamp-tool.ts STAMP_KINDS 이모지 아이콘으로 변경
-- get_stamps_for_node(node_id): 특정 노드에 붙은 스탬프만 필터링 (Scene + WASM 바인딩)
-- Properties panel: "Stamps" 섹션 — 선택 노드의 스탬프 목록 (이모지+라벨+노트), 개별 삭제 버튼
-- 기존 기능 유지: 팔레트 UI, 캔버스 클릭 배치, zoom/pan aware 렌더링, hit-test, 노드 연결, 노트, 이동
-- Backward-compatible serde (기존 StampKind 호환 + 새 variant 자동 역직렬화)
+## 완료된 기능 (추가 — Canvas Object Linking / Hyperlinks)
+- Node.hyperlink: Option<String> 필드 추가 (외부 URL or "page:PAGE_ID")
+- WASM: set_hyperlink, get_hyperlink, clear_hyperlink 바인딩
+- Canvas: 초록색 배지 (top-right corner) — 하이퍼링크 있는 노드에 화살표 아이콘 표시
+- Properties panel: Hyperlink 섹션 — URL 입력, 페이지 링크 드롭다운, open/clear 버튼
+- Prototype viewer: 노드 클릭 시 하이퍼링크 URL 열기 or 페이지 전환
+- Backward-compatible serde (#[serde(default)])
 
-## 완료된 기능 (추가 — Section Node Enhancements)
-- Node 구조체에 section_collapsed, section_title_color, section_title_font_size 필드 추가 (serde default)
-- render_section(): fills 기반 배경색, 접기/펼치기 아이콘 (▶/▼), 커스텀 타이틀 색상/폰트 크기
-- collapsed 상태에서 children 렌더/히트테스트 스킵 (render_order에서 필터링)
-- WASM 바인딩: set/get/toggle_section_collapsed, set_section_title_color, set_section_title_font_size
-- Properties panel: Collapsed 체크박스, Title Color 입력, Title Font Size 입력
-- Editor: Section 더블클릭으로 collapse 토글
-- backward-compatible serde
+## 완료된 기능 (추가 — Responsive Variant Auto-Switch)
+- Frame 리사이즈 시 Instance 자식 노드의 variant 자동 전환
+- ResponsiveVariantRule struct: label, max_width, variant_key (VariantKey)
+- InstanceData.responsive_rules: Vec<ResponsiveVariantRule> (#[serde(default)], backward-compatible)
+- Scene.apply_responsive_variants(frame_id): children Instance 검색 → rules 매칭 → variant 전환
+- WASM: add_responsive_variant_rule, remove_responsive_variant_rule, get_responsive_variant_rules, clear_responsive_variant_rules, apply_responsive_variants
+- Properties panel: Instance 선택 시 "Responsive Variants" 섹션 (초록색 UI) — 규칙 리스트, Add/Remove, breakpoint label + max_width + target variant 표시
+- Editor: resize drag 완료 시 자동 apply_responsive_variants 호출
+- specs/COMPONENTS.md 업데이트 완료
 
-## 완료된 기능 (추가 — Conic/Angular Gradient Fill)
-- FillType::ConicGradient { center_x, center_y, angle, stops } 추가 (node.rs)
-- Canvas 렌더링: createConicGradient() API 활용 (render.rs)
-- SVG export: 72개 arc path segment로 conic gradient 근사 (svg_export.rs)
-- WASM 바인딩: set_fill_conic_gradient_at(), get_fill_info/get_fills에 ConicGradient 포함
-- Properties panel: Fill 타입 드롭다운에 "Conic" 옵션, gradient stops 편집
-- Gradient editor: ConicGradient center handle 드래그 지원
-- Inspect panel: CSS conic-gradient(), SwiftUI AngularGradient, Kotlin Brush.sweepGradient 코드 생성
-- color_palette.rs: ConicGradient stops 색상 수집 지원
-- backward-compatible serde
+## 완료된 기능 (백로그 정리 — 이미 구현 확인)
+- Accessibility checker: accessibility.rs + WASM 바인딩 + accessibility-panel.ts (WCAG contrast, alt text, touch target, auto-fix)
+- Canvas presentation slides: presentation-mode.ts (740줄, 전환 효과, 발표자 노트)
+- Multiplayer cursor presence: crdt.rs (425줄, WebSocket 기반)
+- Smart animate between frames: auto_animate.rs (238줄, 노드 매칭 + 트윈)
+- Code-to-design sync: code_to_design.rs (1178줄, 양방향 동기화)
 
-## 2026-04-02: Multi-cursor text editing
-- Cmd+double-click으로 여러 Text 노드에 다중 커서 배치
-- 모든 커서에 동시 타이핑/삭제
-- ESC로 multi-cursor 모드 종료 (원본 복원)
-- 각 Text 노드에 독립적인 캐럿 위치
-- Primary caret: 흰색, Multi-cursor carets: 시안(#00d4ff)
-- editor.ts: multiCursors Map, _multiCursorMode flag, addMultiCursor(), multiCursorApplyContent(), renderCaretForNode()
-- Rust 엔진 변경 없음 (순수 TypeScript 구현)
+## 완료된 기능 (추가 — Color Blindness Simulation)
+- SVG feColorMatrix 기반 캔버스 필터 오버레이
+- 4가지 시뮬레이션: Protanopia, Deuteranopia, Tritanopia, Achromatopsia
+- Machado et al. (2009) 과학적 색각이상 매트릭스
+- 플로팅 패널 UI (하단 중앙, 다크 테마, 모드 버튼 5개)
+- Cmd/Ctrl+Alt+V 단축키
+- GPU 가속 SVG 필터 (성능 오버헤드 없음)
+- Pure TypeScript: packages/app/src/ui/color-blindness.ts
 
-## 완료된 기능 (추가 — Connector Arrow Head Styles)
-- ArrowStyle enum: None, Arrow, Diamond, Circle, Square, OpenArrow — 6가지 화살표 머리 스타일
-- Connector 필드 변경: start_arrow/end_arrow bool → ArrowStyle, arrow_size: f64 (기본 1.0)
-- Backward-compatible serde: deserialize_arrow_style로 기존 bool → ArrowStyle 자동 변환
-- Canvas 렌더링: draw_arrowhead_styled() — Arrow(filled triangle), OpenArrow(V stroke), Diamond(마름모), Circle(원), Square(정사각형)
-- SVG export: 스타일별 marker defs (path/circle/rect), marker-start/marker-end
-- WASM: set_connector_start_arrow_style, set_connector_end_arrow_style, set_connector_arrow_size
-- get_connector_info: arrow style string + arrow_size + legacy bool 모두 반환
-- Properties panel: Start/End 각각 6-option 드롭다운, Arrow Size 숫자 입력 (0.1~5.0)
+## 완료된 기능 (백로그 정리 2 — 이미 구현 확인, 2026-03-31)
+- Conditional visibility rules: properties-panel.ts (get/set/clear_conditional_visibility), 변수 기반 조건부 표시
+- PDF export with artboard selection: pdf-export.ts (JPEG embedded PDF), Cmd+Shift+E
+- Design token bridge (Style Dictionary): design-token-export.ts (CSS/Tailwind/Swift/Kotlin/Style Dictionary JSON export)
+- Canvas performance profiler: perf-profiler.ts (383줄, FPS graph, node complexity ranking, heatmap overlay, Cmd+Shift+P)
+- Collaborative comments with @mentions: comments.ts (@mention autocomplete, highlight, 알림)
 
-## 완료된 기능 (추가 — Clip Content)
-- Node.clip_content: bool 필드 추가 (#[serde(default = "default_true")], 기본값 true)
-- Frame/Section 렌더링: clip_content true면 ctx.save/clip/restore로 자식 클리핑
-- corner_radius 지원 (rounded clip path)
-- SVG export: clip_content true면 <clipPath> 생성
-- Hit test: deep_hit_test에서 clip_content Frame 밖 자식 제외
-- WASM API: set_clip_content(id, bool), get_clip_content(id) → bool
-- Properties panel: Overflow 섹션에 "Clip content" 체크박스
-- Inspect panel: clip_content true → overflow: hidden CSS 출력
+## 완료된 기능 (추가 — Lottie Animation Export)
+- Lottie JSON export (bodymovin v5.7+ 호환):
+  - Rust lottie_export.rs: 기존 clip 기반 export + 신규 node/selection 기반 export
+  - LottieExportConfig: fps (24/30/60), duration_secs, looping 설정
+  - Node → Lottie layer 변환: shape layer (Rect/Ellipse/Star/Polygon/Path), precomp (Frame/Group/Section), text layer
+  - 속성 매핑: position, size, opacity, rotation, scale (animated or static)
+  - Fill: Solid → fl, LinearGradient/RadialGradient → gf, 기타 → solid fallback
+  - Stroke: color, width, dash, linecap, linejoin
+  - Animation: 기존 AnimationClip 키프레임 자동 포함 (easing: Linear/EaseIn/EaseOut/EaseInOut/CubicBezier)
+  - 재귀적 children 처리 (precomp layers)
+  - Blend mode 매핑 (16종)
+  - WASM: export_node_lottie(node_id, config_json), export_selection_lottie(config_json)
+  - TS UI: lottie-export.ts — Export 다이얼로그 (FPS 선택, duration, loop 토글, animation info, JSON preview, download/copy)
+  - 툴바: Lottie export 버튼 (▶ 아이콘)
+  - 기존 animation timeline의 📦 Lottie 버튼과 공존
 
-## 2026-04-03: Interactive Components
-- InteractiveState enum (Default/Hover/Press/Focus/Disabled) in component.rs
-- InstanceData.interactive_variants: HashMap<InteractiveState, VariantKey> (#[serde(default)])
-- WASM: set_interactive_variant, get_interactive_variants, clear_interactive_variant, apply_interactive_state
-- Properties panel: Instance "INTERACTIVE VARIANTS" section — per-state variant dropdown
-- Prototype viewer: hover enter/leave → apply/revert hover state, mousedown → press state, mouseup → revert to hover or default
-- Parent chain traversal for nested interactive instances
-- Original variant saved/restored for clean state revert
-- specs/COMPONENTS.md updated
+## 완료된 기능 (추가 — File System Access API)
+- 네이티브 파일 저장/열기 (.opensketch JSON 포맷)
+- showOpenFilePicker / showSaveFilePicker (미지원 브라우저 fallback: download/input[type=file])
+- 최근 파일 목록 localStorage 저장 (최대 10개, 파일명 + 타임스탬프)
+- Cmd+S: 기존 핸들 있으면 바로 저장, 없으면 Save As
+- Cmd+O: 파일 열기, Cmd+Shift+S: Save As (항상 새 파일)
+- 파일 메뉴 버튼 (좌상단, 드롭다운: New/Open/Save/Save As/Recent Files)
+- 문서 타이틀 파일명 반영
+- Scene 전체 직렬화 (engine.export_scene()/import_scene() 활용)
+- 기존 auto-save (localStorage)와 공존
+- shortcut-manager: edit.open, edit.saveAs 등록
+- 구현: packages/app/src/ui/file-manager.ts
 
-## 2026-04-03: Component Sets
-- ComponentSet struct: id, name, axes (VariantAxis[]), variant_map (axis-values→ComponentId), component_ids
-- ComponentStore: create/get/remove/list component sets, add/update/remove axes, variant mapping, find_set_for_component
-- WASM: create_component_set, add/update/remove_component_set_axis, set_component_set_variant_mapping, add/remove_component_to_set, delete_component_set, get_component_set_info, list_component_sets, get_instance_component_set_info, switch_instance_set_variant, get_component_set_render_info
-- Canvas rendering: dashed purple (#8b5cf6) rounded border around set member components with name label pill
-- Properties panel: "COMPONENT SET" section with per-axis dropdown for variant switching
-- Icons: componentSet (4-diamond grid) added
-- specs/COMPONENTS.md updated with Component Sets section
-- All serde fields #[serde(default)] for backward compatibility
+## 완료된 기능 (추가 — Wrap in Frame, 2026-04-01)
+- Wrap in Frame: 선택된 노드를 새 Frame으로 감싸기
+- Cmd/Ctrl+Alt+G 단축키 (Figma 동일)
+- Bounding box 자동 계산, 자식 위치 로컬 좌표 변환
+- Z-order 보존 (가장 앞 선택 노드 위치에 frame 삽입)
+- Undo 통합, 선택이 새 frame으로 전환
+- Context menu "Wrap in Frame" 항목
+- Rust: Scene.wrap_in_frame(), WASM: wrap_selection_in_frame()
 
-## 2026-04-03: Chart Visualization Node
-- Added NodeKind::Chart with 5 chart types (Bar, Line, Pie, Donut, Area)
-- ChartDataPoint { label, value, color? } + ChartConfig (title, legend, labels, palette)
-- Canvas rendering for all chart types in render.rs
-- SVG export for all chart types in svg_export.rs
-- WASM bindings: add_chart, set_chart_type, set_chart_data, get_chart_info, set_chart_config
-- Toolbar chart button + Properties panel with type selector, data table, config toggles
-- Default 10-color palette auto-assigned when data points lack explicit colors
-- All serde fields backward-compatible with defaults
+## 완료된 기능 (추가 — Comment Emoji Reactions, 2026-04-02)
+- Reaction struct: emoji (String) + users (Vec<String>), Comment.reactions 필드 (#[serde(default)])
+- Scene: toggle_reaction() — 같은 유저+이모지 토글, 빈 reaction 자동 제거, get_reactions() JSON
+- WASM: toggle_comment_reaction(comment_id, emoji, user), get_comment_reactions(comment_id)
+- Thread popup UI: 기존 reactions 버튼 (토글, 카운트, 내 것 하이라이트) + "+" 버튼 → 퀵 이모지 피커 (8종)
+- Comment card (right pane): 리액션 뱃지 (이모지 + 카운트) 표시
+- Backward-compatible serde
 
-## 2026-04-03: Conditional Logic in Prototypes
-- PrototypeVariable (name, var_type, default_value) at Scene level with CRUD
-- InteractionCondition (variable, ConditionOperator, value) on Interaction — conditional navigation
-- SetVariable action type with set_variable_name + set_variable_expression (+N/-N/toggle/literal)
-- Prototype Viewer: runtime variable state Map, condition evaluation, SetVariable execution, floating debug panel
-- Properties panel: Prototype Variables section (CRUD UI), per-interaction condition editor, SetVariable action fields
-- All serde backward-compatible
+## 완료된 기능 (추가 — Section Node Enhancements, 2026-04-02)
+- Section 배경: node.fills 사용 (비어있으면 기존 디폴트 rgba(26,26,46,0.6))
+- 접기/펼치기: section_collapsed 필드, 더블클릭 토글, ▶/▼ 아이콘 타이틀 앞 표시
+- collapsed 상태에서 children 렌더 스킵
+- 제목 스타일링: section_title_color (Option<String>), section_title_font_size (Option<f64>)
+- WASM: set/get/toggle_section_collapsed, set/get_section_title_color, set/get_section_title_font_size
+- Properties panel: Section 섹션 (Collapsed 체크박스, Title Color 입력, Title Size 입력)
 
-## 2026-04-03: Plugin System (Enhanced — Iframe Sandbox + Random Fill)
-- IframeSandbox: sandboxed iframe plugin host (`<iframe sandbox="allow-scripts">`) with postMessage protocol
-- PluginManifest interface: id, name, version, description, icon, main, permissions[]
-- PluginPermission: scene:read/write, selection:read/write, ui:panels/notifications, viewport:read/write
-- Permission-based access control — each postMessage request validated against manifest permissions
-- createSandboxedPlugin(): factory function wrapping manifest+code into standard Plugin interface
-- Sandbox runtime injected into iframe: `_os.scene.*`, `_os.ui.*`, `_os.viewport.*`, `_os.on()`
-- Random Fill sample plugin: 4 palette presets (Vivid/Pastel/Mono/Earth) + true random mode, panel UI with palette preview
-- Existing (already implemented): PluginManager, PluginAPI, 5+1 sample plugins, Plugin Marketplace, Figma compat
-- specs/PLUGINS.md updated with iframe sandbox docs + all 6 sample plugins
-- 총 6개 샘플 플러그인: Lorem Ipsum, Color Palette, Grid Generator, Auto Rename, Accessibility Checker, Random Fill
+## 완료된 기능 (추가 — Snap to Pixel Grid, 2026-04-02)
+- 이동/리사이즈 시 x, y, width, height를 정수(또는 0.5px)로 자동 스냅
+- pixelSnapEnabled (기본 ON), pixelSnapPrecision (1px or 0.5px)
+- 줌 컨트롤 바에 토글 버튼, 우클릭으로 precision 전환
+- Grid snap 활성화 시 grid snap 우선 (pixel snap 비적용), smart guides와 공존
+- editor.ts: pixelSnap()/pixelSnapSize() 헬퍼, move/resize 로직에 적용
+- zoom-controls.ts: pixel-snap-btn UI
 
-## 완료된 기능 (추가 — React/Vue Component Export)
-- Right pane "Export" 탭: 선택 노드 트리를 React JSX 또는 Vue SFC로 변환
-- React CSS 옵션: inline styles, styled-components, CSS modules
-- Vue: scoped style로 출력
-- Props 매핑: Text 노드 → children prop, Image → src prop
-- Component 이름: 노드 name을 PascalCase로 변환
-- 코드 복사 / 파일 다운로드 기능
-- 파일: packages/app/src/ui/component-export.ts
-- index.html: "Export" 탭 + component-export-panel div
-- main.ts: setupComponentExport 호출 + tabContentMap 등록
+## 완료된 기능 (추가 — Repeat Grid, 2026-04-03)
+- NodeKind::RepeatGrid { columns, rows, column_gap, row_gap, overrides } — N×M 그리드 반복 복제
+- 첫 번째 자식을 마스터 셀로 사용, 각 (row, col) 위치에 translate 렌더링
+- 오버라이드: HashMap<String, String> (key = "row,col:child_path:field", value = override)
+- WASM: create_repeat_grid(source_id), set/get_repeat_grid_params, set/get_repeat_grid_override(s), sync_repeat_grid
+- Canvas 렌더링: 마스터 셀 + children을 grid 위치에 반복 드로우
+- SVG export: 각 셀을 <g transform="translate(...)"> 독립 그룹으로 export
+- Properties panel: Repeat Grid 섹션 (Columns/Rows/Col Gap/Row Gap 입력)
+- Context menu: "Create Repeat Grid" (1개 노드 선택 시)
+- Layers panel: RepeatGrid 아이콘 + kind 인식
+- Backward-compatible serde (#[serde(default)])
 
-## 완료된 기능 (Canvas Background Settings 강화)
-- Checkerboard 패턴 추가 (투명 배경 표현용)
-- 프리셋 버튼: White, Dark (#1a1a2e), Transparent (checkerboard)
-- render.rs: checkerboard 패턴 렌더링 (zoom/pan aware, alternating opacity tiles)
-- properties-panel.ts: 프리셋 버튼 UI (active 상태 하이라이트)
-- pattern dropdown에 checkerboard 옵션 추가
-- specs/FEATURES.md 업데이트
+## 완료된 기능 (추가 — Offline PWA + Service Worker, 2026-04-03)
+- vite-plugin-pwa (generateSW mode): precache JS/CSS/HTML/WASM (10MB limit for WASM)
+- Web App Manifest: name "OpenSketch", icons 192/512px, theme_color #1a1a2e, display standalone
+- Runtime caching: Google Fonts (CacheFirst 365d), images (StaleWhileRevalidate 30d)
+- Offline/online toast: 네트워크 상태 변경 시 하단 중앙 토스트 알림
+- Install prompt: beforeinstallprompt 이벤트 → 우하단 설치 배너 UI (Install/Dismiss)
+- Auto-update SW: registerType "autoUpdate"
+- 기존 localStorage auto-save와 완전 공존
+- 기존 수동 sw.js 등록을 virtual:pwa-register로 교체
 
-## 완료된 기능 (Design Token Export — SCSS 추가)
-- SCSS Variables 포맷 추가: $color-*, $font-family-*, $font-size-*, $font-weight-*, $line-height-*
-- design_tokens.rs: TokenFormat::Scss, export_scss_variables() 함수
-- lib.rs: "scss" 포맷 매핑 추가
-- editor.ts: .scss 확장자 지원
-- properties-panel.ts: CSS Variables, SCSS 버튼 추가 (총 5개 포맷)
-- specs/FEATURES.md 업데이트
+## 완료된 기능 (추가 — Image Crop & Resize, 2026-04-03)
+- 더블클릭 Image 노드 → interactive crop mode 진입
+- 8개 리사이즈 핸들 (4 corners + 4 edges) + move로 crop 영역 팬
+- Rule of thirds 그리드 오버레이, crop 바깥 영역 딤 처리
+- Shift 키: aspect ratio lock
+- Enter: 확정, Escape: 취소, 바깥 클릭: 확정
+- Crop 퍼센티지 라벨 (하단 표시)
+- 기존 Rust ImageCrop 구조체 + WASM 바인딩 활용 (set_image_crop, clear_image_crop)
+- tools/image-crop.ts: CropState, hitTestCropHandle, applyCropDrag, renderCropOverlay
+- editor.ts: enterImageCropMode, exitImageCropMode, pointer 이벤트 통합
 
-## 완료된 기능 (추가 — Ink Recognition / Handwriting)
-- Ink recognition & freehand drawing enhancement:
-  - ink.rs: InkPoint struct, RDP simplification, Chaikin smoothing, shape recognition (circle/rect/triangle/line/arrow)
-  - WASM: ink_recognize, ink_to_path, ink_to_shape 바인딩
-  - Editor: freehand tool에서 pressure 캡처 + ink recognition 통합
-  - Shape confidence > 0.7 → 자동 도형 변환 (Ellipse/Rect/Triangle Path)
-  - Otherwise → smoothed bezier Path
-  - specs/FEATURES.md, ENGINE.md 업데이트
-
-## 완료된 기능 (추가 — Smart Paste to Frame, 2026-04-05)
-- 붙여넣기(Cmd+V) 시 Smart Paste 적용
-- 단일 auto-layout Frame/Group 선택 상태면 해당 컨테이너 flow 끝(index=children.length)에 자동 삽입
-- 선택 프레임이 없으면 포인터 아래 auto-layout frame을 drop target으로 사용
-- 기존 drag-reparent drop zone/reparent 로직 재사용 (reparent_node_at + recompute_layout)
-- Paste in Place(Cmd+Shift+V)는 기존 동작 유지
-
-
-## 완료된 기능 (추가 — Smart Selection Net, 2026-04-05)
-- 드래그 마키 셀렉션에 Crossing/Contain 모드 추가
-- Shift+X로 기본 모드 토글, Alt로 드래그 중 임시 반전
-- 드래그 중 `Net: Crossing|Contain` HUD 라벨 표시
-- Frame/Group/Section 겹침 시 자식 노드 우선 선택(컨테이너 de-prioritize, Figma 유사)
-- specs/FEATURES.md에 동작 명세 반영
-
-## 완료된 기능 (추가 — Text on Path 완성, 2026-04-06)
-- Text on Path를 end-to-end 마무리: baseline offset / letter spacing / flip 방향 제어 정합성 보강
-- Rust path_utils: glyph advance 계산에 letter spacing/flip 반영, reverse_path_points 유틸 추가
-- Rust render: text-on-path 렌더에서 baseline normal offset + flipped tangent 처리 일원화
-- Rust SVG export: flipped path defs(reverse path) + textPath letter-spacing/dy 반영
-- WASM/Engine: get_text_on_path_positions가 텍스트 노드 letter spacing/flip 설정을 함께 반영
-- Properties panel: Text Path 섹션에 path letter spacing 입력 추가(기존 baseline/flip/offset과 통합)
-- specs/FEATURES.md 업데이트
-
-
-## 완료된 기능 (추가 — Corner Pin / Perspective Distort, 2026-04-06)
-- CornerPin 구조체 추가: TL/TR/BR/BL 4점을 노드 로컬 normalized 좌표(0~1 기본)로 저장
-- Node 필드 확장: `corner_pin: Option<CornerPin>` (serde default, 기존 문서 backward-compatible)
-- WASM API 추가: `set_corner_pin`, `get_corner_pin`, `clear_corner_pin`
-- Canvas 렌더러(앱): Image 노드 corner pin 활성 시 평면 이미지를 지운 뒤, 2-triangle affine warp로 왜곡 렌더
-- Properties panel(Image): Corner Pin 섹션 추가 (8개 수치 입력 + Reset)
-- specs/FEATURES.md 반영 완료
-
-## 완료된 기능 (추가 — Constraint Pins UI, 2026-04-06)
-- 단일 선택 노드 상단에 3×3 Constraint Pins 오버레이 미니맵 렌더링
-- H/V constraints(left/right/leftAndRight/center/scale, top/bottom/topAndBottom/center/scale)를 파란 점으로 즉시 시각화
-- 기존 Constraints 드롭다운 UI와 함께 동작 (설정 변경 시 오버레이 즉시 반영)
-- specs/FEATURES.md Constraints 섹션 반영
-
-## 완료된 기능 (추가 — Shape Builder Tool MVP, 2026-04-06)
-- Shape Builder 툴 추가: toolbar에서 진입 가능한 `shapeBuilder` 모드
-- 브러시 드래그 제스처 수집: 캔버스에 점선 stroke + HUD(Union/Subtract, hit count) 표시
-- 선택된 노드 대상 hit 테스트(MVP): stroke가 선택 노드 AABB를 지나가면 대상으로 집계
-- 제스처 종료 시 boolean 실행: 기본 Union, Alt 누른 채 드래그 시 Subtract
-- 기존 boolean_operation/undo/layers refresh 파이프라인 재사용
-- specs/FEATURES.md 반영
-
-## 완료된 기능 (추가 — Prototyping Smart Animate Timeline MVP, 2026-04-06)
-- Interaction 확장: `smart_animate_timeline_json` 필드 추가 (serde default)로 기존 파일과 호환 유지
-- WASM API 추가: `set_interaction_timeline(id, index, json)`, `get_interaction_timeline(id, index)`
-- Properties panel Interactions 카드에 Smart Animate Timeline 섹션 추가
-  - Start/Mid/End keyframe time(ms) 편집
-  - segment easing 문자열 편집(예: ease_in_out, cubic_bezier:...)
-  - Mid keyframe 추가/삭제 지원(MVP)
-- 기존 trigger/action/target/transition/duration 변경 시 timeline/variant가 보존되도록 interaction 재생성 로직 정리
-- specs/FEATURES.md 반영
-
-## 완료된 기능 (추가 — Prototype Fixed Header/Footer MVP, 2026-04-06)
-- Node 필드 확장: `prototype_fixed: bool` (serde default, 기존 문서와 호환)
-- WASM API 추가: `set_prototype_fixed(id, fixed)`, `get_prototype_fixed(id)`
-- Properties panel: 스크롤 가능한 부모 프레임의 자식 노드에 `Fixed in prototype` 체크박스 추가
-- Prototype Viewer: 프레임 스크롤 시 `prototype_fixed` 노드를 스크롤 오프셋 반대로 임시 보정해 header/footer처럼 고정 유지
-- 렌더 후 노드 x/y를 원복하는 백업/복원 경로 추가
-- specs/FEATURES.md 반영
-
-## 완료된 기능 (추가 — Component Properties Panel (Instance Controls), 2026-04-06)
-- Instance 선택 시 Properties panel에 `INSTANCE CONTROLS` 통합 카드 추가
-- Variant Picker, Override Indicators, Component Props(booleans/text/instance swap)를 한 카드 내에서 연속 편집 가능
-- 기존 override reset(개별/전체), variant switch, text override 플로우를 유지하면서 정보 탐색 동선을 축소
-- specs/FEATURES.md 반영
-
-## 완료된 기능 (추가 — Typography Styles Advanced, 2026-04-06)
-- TextStyle 데이터 모델 확장: letter_spacing, opentype_features, font_variation_settings 저장/직렬화
-- apply_text_style / sync_text_style가 letter spacing + OpenType + variable font axes까지 동기화
-- Text Style quick create(+) 시 현재 텍스트의 고급 타이포 속성까지 스타일로 캡처
-- Text Style linked 상태에서 "Replace all with…" 액션 추가 (기존 style ID → 새 style ID 문서 전체 일괄 교체)
-- WASM: `replace_text_style_all(old_style_id, new_style_id) -> u32`
-
-## 완료된 기능 (추가 — Smart Select Spacing Handles Upgrade, 2026-04-06)
-- Selection spacing handle 더블클릭 또는 Enter로 px 숫자 직접 입력(prompt) 지원
-- Hover 상태 단축키 추가: `E` 균등 간격 재정렬, `A` 선택 영역 Auto Layout Frame 변환 제안/실행
-- 선택 영역 Auto Layout 전환 시 wrap-in-frame + flex direction 자동 설정 + 평균 간격을 gap으로 초기화
-- spacing overlay에 quick actions 힌트(`Enter / E / A`) 추가
-- specs/FEATURES.md 반영
-
-## 완료된 기능 (추가 — Dev Mode Spec Pins, 2026-04-06)
-- Dev Mode hover tooltip에 Resource 링크를 `📌` Spec Pin 칩으로 노출하고 클릭 시 외부 문서(GitHub/Storybook/Jira/Figma/Custom) 즉시 오픈
-- 선택 노드의 인라인 Dev Inspect 배지에 Spec Pin 개수 + Note 개수 표시
-- Inspect 패널에 `Spec Notes` 섹션 추가 (노트 제목/내용/태그 요약)
-- 기존 `Resources` 섹션과 함께 구현 문맥(링크+메모) 확인 동선을 단축
-
-## 완료된 기능 (추가 — Stroke Position on Paths Parity, 2026-04-07)
-- Path 노드 stroke align(Inside/Outside/Center)을 open/closed 모두에서 일관되게 렌더링
-- Open path의 Inside/Outside는 경로 샘플링 후 법선(normal) 오프셋 centerline으로 stroke를 그려 시각적 parity 확보
-- SVG export도 open path align을 동일한 오프셋 경로로 내보내 Canvas/SVG 결과 차이를 축소
-- specs/FEATURES.md 반영
-
-## 완료된 기능 (추가 — Constraints Pin UI in Properties Panel, 2026-04-07)
-- Constraints 섹션에 Pin UI 토글 추가 (Left/Right/Top/Bottom/Center/Scale)
-- Left+Right / Top+Bottom 조합 클릭 시 stretch(`leftAndRight`/`topAndBottom`)로 즉시 전환
-- 기존 H/V dropdown과 양방향 동기화 (dropdown 변경 ↔ pin 하이라이트)
-- 클릭 시 undo push + set_constraints + 캔버스 즉시 리렌더
-- specs/ENGINE.md, specs/FEATURES.md 동기화
-
-## 완료된 기능 (추가 — Prototype Device Frame Presets, 2026-04-07)
-- Prototype viewer top bar에 Device 드롭다운 추가 (No Device / iPhone 14 Pro / Pixel 8 / iPad)
-- 선택 디바이스별 bezel/corner radius/notch 오버레이 렌더링
-- Safe-area inset 점선 가이드 + `Safe Area` 라벨 표시
-- 프로토타입 미리보기용 우측 scrollbar indicator 오버레이 추가
-- 구현: `packages/app/src/ui/prototype-viewer.ts`
-- specs/FEATURES.md Prototyping 섹션 동기화
-
-## 완료된 기능 (추가 — Prototype Hotspot Authoring Tool, 2026-04-07)
-- Toolbar에 Hotspot 툴 추가, 캔버스 드래그로 투명 hotspot(rect) 생성
-- 생성된 hotspot에 `OnClick → NavigateTo` interaction 자동 연결
-- 타겟 자동 결정 규칙: 현재 selection의 Frame 우선, 없으면 문서 내 Frame fallback
-- 생성 시 편집 가시성을 위해 옅은 fill/outline을 기본 적용
-- 후속 보강: Frame 위에서 생성 시 hotspot을 Frame 자식으로 자동 reparent, 생성 후 타겟 프레임명 기반 자동 네이밍(`Hotspot → <Frame>`), `Shift+H` 단축키 및 i18n(`tool.hotspot`) 연결
-- 구현: `packages/app/src/editor.ts`, `packages/app/src/ui/toolbar.ts`, `packages/app/src/ui/shortcut-manager.ts`, `packages/app/src/locales/{en,ko,ja}.json`
-- specs/FEATURES.md Prototyping 섹션 동기화
-
-## 완료된 기능 (추가 — Dev Inspect Distance/Baseline Overlay, 2026-04-07)
-- Dev Mode 단일 선택 시 캔버스 오버레이에 텍스트 baseline + line-height 가이드 라인 표시
-- 인라인 Dev Inspect 배지에 Baseline Y / Line Height(px, ratio) 정보 추가
-- 가장 가까운 이웃 노드와의 간격(Nearest spacing) 계산 및 배지/오버레이 표시
-- 구현: `packages/app/src/ui/dev-mode-overlay.ts`, `packages/app/src/editor.ts`
-- specs/FEATURES.md Dev Mode Enhancement 섹션 동기화
-
-## 완료된 기능 (추가 — Prototype Scroll Physics Presets, 2026-04-07)
-- Prototype viewer top bar에 `Scroll` 프리셋 드롭다운 추가 (iOS / Android / Web)
-- 프리셋별 wheel/touch gain, overscroll 허용 범위, inertia decay를 적용해 스크롤 감각 미리보기 지원
-- touch scroll 종료 시 관성 애니메이션 후 경계 복귀 + 기존 scroll snap 연동
-- 구현: `packages/app/src/ui/prototype-viewer.ts`
-- specs/FEATURES.md Prototyping 섹션 동기화
-
-## 완료된 기능 (추가 — Variable Fallback Chain + Broken Binding Auto-Recover, 2026-04-07)
-- 변수 적용 시 `mode → collection → literal` fallback 체인 도입
-- Mode fallback: active mode 값이 비어 있으면 같은 변수의 첫 사용 가능 mode 값으로 자동 해석
-- Collection fallback: 기존 collection/variable 해석 실패 시 스코프 내 대체 collection/variable 후보를 제안하고 apply 시 자동 복구
-- Literal fallback: 최종 해석 실패 시 노드 기존 literal 속성값 유지 (강제 덮어쓰기 없음)
-- Variables Inspector에서 recoverable broken binding 표시 + `Auto-recover` 버튼 제공
-- WASM: `recover_broken_variable_bindings` 추가, `get_broken_variable_bindings`에 suggestion 정보 포함
-- 구현: `crates/engine/src/{variable.rs,scene.rs,lib.rs}`, `packages/app/src/ui/variables-panel.ts`
-- specs/FEATURES.md Variable Collections 섹션 동기화
-
-## 완료된 기능 (추가 — Auto Layout Min/Max Constraints for Fill Distribution, 2026-04-07)
-- Flex auto-layout에서 Fill child 크기 배분 시 min/max width/height 제약을 우선 반영하는 bounded distribution 알고리즘 적용
-- 배분 순서: minimum 선할당 → 남는 공간 균등 분배 → 각 child의 max 도달 시 재분배(워터필)
-- Wrap line 계산/정렬 시 child의 clamp된 크기를 사용해 줄바꿈과 line cross-size 안정성 개선
-- Grid auto-layout row 높이 계산도 child min/max height를 반영하도록 보정
-- 구현: `crates/engine/src/layout.rs`
-- 검증: `wasm-pack build --target web`, `pnpm build`
-
-## 다음 할 것 (2026-04-08 업데이트)
-- Prototype Interactive Components (Variant State Machine) — 컴포넌트 인스턴스 내부에서 hover/press/toggle 상태 전이 및 variant property 연동 (고난이도 / 고임팩트)
-- Motion Path Animation (Path-follow) — 선택 노드가 Path/VectorNetwork를 따라 이동하도록 키프레임+오리엔트 옵션 제공 (고난이도 / 고임팩트)
-- Constraint Presets (Pin/Hug/Fill Quick Apply) — Figma/AutoLayout 자주 쓰는 제약 조합을 원클릭 프리셋으로 적용 (저~중난이도 / 중임팩트)
-- Prototype Gesture Triggers (Drag/Swipe Directional) — OnDrag를 방향 인식 스와이프 트리거로 확장해 모바일 프로토타이핑 정확도 향상 (중난이도 / 중~고임팩트)
-- Frame States (Variants-lite) — 일반 Frame에도 상태(State) 세트를 부여해 hover/pressed/disabled 미리보기와 토글 전환 지원 (중난이도 / 중임팩트)
-
-## 완료된 기능 (추가 — Text Styles Tokens Sync, 2026-04-08)
-- TextStyle 모델 확장: `typography_token: Option<{collection_id, variable_id}>` (serde default, backward-compatible)
-- WASM API 추가:
-  - `link_text_style_token(style_id, collection_id, variable_id)`
-  - `relink_text_style_token(style_id, collection_id, variable_id)`
-  - `detach_text_style_token(style_id)`
-  - `sync_text_style_to_token(style_id)`
-  - `sync_text_style_from_token(style_id)`
-- 동기화 규칙:
-  - Text Style 변경(`update_text_style`) 시 linked token(String variable, active mode)에 JSON payload 자동 push
-  - 필요 시 token → style pull 후 `sync_text_style`로 연결 노드 일괄 반영 가능
-- Properties panel Text Style UI 확장:
-  - Typography token 상태 라벨
-  - Link/Relink, Detach, Pull←token, Push→token 버튼
-- specs 반영: `specs/FEATURES.md`
-- 검증: `wasm-pack build --target web --out-dir ../../packages/app/src/wasm`, `pnpm -C packages/app build`
-
-## 완료된 기능 (추가 — Smart Selection by Layer/Type filter 고도화, 2026-04-08)
-- 선택 노드 기반 Layer Type 추론(`shape/text/image/locked/hidden`) 헬퍼 추가
-- Context menu의 Select Same 계열에 Layer Type용 고급 옵션 추가
-  - Select Same <Type>
-  - Select Same <Type> in Parent
-  - Select Same <Type> in Page
-  - Add Same <Type> to Selection
-- 기존 전역 Selection Filter(Shape/Text/Image/Locked/Hidden)와 click/marquee 필터링 흐름은 유지
-- 구현: `packages/app/src/editor.ts`
-- specs 반영: `specs/FEATURES.md`
-- 검증: `wasm-pack build --target web`, `pnpm -C packages/app build`
-
-## 완료된 기능 (추가 — Pen Pressure Width Profile + Taper, 2026-04-08)
-- Pen/Freehand pressure width 계산을 공통 `pressureWidth()`로 통합 (curve + taper factor)
-- freehand 종료 후 생성된 Path의 각 포인트에 pressure 기반 stroke width를 재적용
-- 시작/끝 taper가 기본 반영되어 서예형 스트로크 형태 개선
-- 구현: `packages/app/src/editor.ts`
-
-## 완료된 기능 (추가 — Auto Layout Baseline Alignment, 2026-04-08)
-- Align enum에 `Baseline` 추가, `set_align_items(..., "baseline")` 파싱/적용 지원
-- Flex row에서 `align-items: baseline` 동작 구현
-  - 텍스트 노드는 `(half-leading + ascent)` 기반 첫 줄 baseline 오프셋 추정
-  - 비텍스트 노드는 하단(edge) baseline으로 간주
-  - 같은 줄(line)에서 최대 baseline 오프셋 기준으로 cross-axis 위치 정렬
-- Properties panel Auto layout 섹션에 `Cross: Baseline (Row)` 옵션 추가
-- Agent 패널 align 명령 확장: `start|center|end|stretch|baseline`
-- Inspect/Handoff/Figma export의 align-items 매핑에 Baseline 반영
-- 구현: `crates/engine/src/{node.rs,layout.rs,lib.rs,code_to_design.rs}`, `packages/app/src/ui/{properties-panel.ts,agent-panel.ts,inspect-panel.ts,handoff-panel.ts,figma-export.ts}`
-- 검증: `wasm-pack build --target web`, `pnpm build`
-
-## 완료된 기능 (추가 — Per-corner Radius + Corner Smoothing Controls, 2026-04-08)
-- Node 모델에 `corner_radii`(top_left/top_right/bottom_right/bottom_left) 필드 추가 (`None`이면 기존 `corner_radius` 단일값 사용)
-- WASM API: `set_corner_radii`, `get_corner_radii`, `clear_corner_radii` 추가
-- Properties 패널 Size 섹션에 Corner radii 카드 추가
-  - TL/TR/BL/BR 개별 입력
-  - 링크 토글(🔗)로 단일 반지름/개별 반지름 전환
-  - 기존 Corner Smoothing 슬라이더와 함께 동작
-- 기존 `set_corner_radius` / `batch_set_corner_radius` 호출 시 per-corner override 해제해 backward compatibility 유지
-- specs 반영: `specs/FEATURES.md`
-- 검증: `wasm-pack build --target web`, `pnpm build`
-
-## 완료된 기능 (추가 — Frame Overflow Behaviors 2.0, 2026-04-07)
-- Node 모델에 `prototype_scroll_bounce_x/y`, `prototype_scroll_overscroll_x/y` 필드 추가 (serde default, backward-compatible)
-- WASM API: `set/get_prototype_scroll_bounce_x/y`, `set/get_prototype_scroll_overscroll_x/y`
-- Properties panel Overflow 섹션에 `Prototype overflow` UI 추가
-  - Bounce X/Y 토글
-  - Overscroll X/Y 수동값 입력 (빈 값 = Auto)
-- Prototype viewer 스크롤 동작 개선
-  - wheel/touch/inertia 모두 frame별 bounce/overscroll 설정 반영
-  - bounce off 축은 strict clamp, overscroll Auto는 Scroll Physics preset 값 사용
-- 구현: `crates/engine/src/node.rs`, `crates/engine/src/lib.rs`, `packages/app/src/ui/properties-panel.ts`, `packages/app/src/ui/prototype-viewer.ts`
-- specs 반영: `specs/FEATURES.md`
-- 검증: `wasm-pack build --target web`, `pnpm build`
-
-## 완료된 기능 (추가 — Prototype Fixed Header/Footer Regions, 2026-04-07)
-- Node 모델에 `prototype_fixed_region` 필드 추가 (`auto|top|bottom`, serde default=`auto`)
-- WASM API: `set_prototype_fixed_region`, `get_prototype_fixed_region`
-- Properties panel에 `Fixed in prototype` 하위 `Fixed region` UI 추가
-  - Auto: 기존 x/y 고정
-  - Header/Footer: y축만 고정(가로 스크롤 영향 제거)
-- Prototype viewer 고정 레이어 보정 로직이 region별 축 보정으로 동작
-- 구현: `crates/engine/src/node.rs`, `crates/engine/src/lib.rs`, `packages/app/src/ui/properties-panel.ts`, `packages/app/src/ui/prototype-viewer.ts`
-- 검증: `wasm-pack build --target web`, `pnpm build`
-
-## 완료된 기능 (추가 — Multi-Edit Text Cursor (Cross-node), 2026-04-07)
-- 텍스트 편집 중 변경 diff 계산을 `prefix/suffix` 기반으로 보정해 삽입/삭제/치환 입력이 보조 커서(Text 노드들)에 안정적으로 전파
-- 다중 선택 상태에서 Text 노드를 더블클릭해 편집 진입하면 나머지 선택 Text 노드를 자동으로 multi-cursor에 materialize
-- 보조 커서 초기 caret 위치를 primary caret 기준으로 정렬해 서로 다른 길이 텍스트에서도 공통 입력 위치를 최대한 일치
-- 기존 Cmd/Ctrl+더블클릭으로 개별 Text 노드 추가하는 플로우와 완전 호환
-- 구현: `packages/app/src/editor.ts`
-- 검증: `wasm-pack build --target web`, `pnpm build`
-
-## 완료된 기능 (추가 — Smart Selection by Layer/Type Filter 확장, 2026-04-07)
-- Smart Select 패널 Selection Filter의 Attr 옵션 확장: Hidden only + Shape only 추가
-- Selection Filter에서 Shape 판별 로직 추가 (Rect/Ellipse/Path/Star/Polygon/Vector/Line)
-- Select Similar 패널 하단에 "Same Shape/Text/Image/Locked/Hidden" quick action 버튼 추가
-- quick action 클릭 시 문서 전체 노드에서 타입/속성 매칭 레이어를 즉시 selection으로 반영
-- 구현: `packages/app/src/ui/smart-select.ts`
-- specs 반영: `specs/FEATURES.md`
-
-## 완료된 기능 (추가 — Smart Selection by Layer/Type Global Filter, 2026-04-08)
-- Smart selection 필터를 패널 한정이 아니라 에디터의 기본 선택 파이프라인으로 확장
-- click/deep-hit selection, marquee selection(Crossing/Contain) 모두에 동일한 필터 적용
-  - Type: Shape / Text / Image
-  - State: Locked 포함 여부, Hidden 포함 여부
-- 우클릭 컨텍스트 메뉴에 Selection Filter 토글 5종 + 체크 상태 표시 추가
-- 구현: `packages/app/src/editor.ts`
-- specs 반영: `specs/FEATURES.md`
-- 검증: `wasm-pack build --target web`, `pnpm build`
-
-## 완료된 기능 (추가 — Prototype Device Frame + Safe Area Preview polish, 2026-04-07)
-- Prototype Viewer top bar에 Device preset selector 유지/확장 (No Device / iPhone 14 Pro / Pixel 8 / iPad)
-- Device shell 오버레이: bezel + corner radius + notch 렌더링
-- Safe Area 미리보기 강화: unsafe inset tint + dashed safe-area box + `T/R/B/L` inset 레전드 텍스트
-- Scroll preview bar를 정적 표시에서 개선: 현재 frame scroll offset/콘텐츠 높이를 기반으로 thumb 위치/길이 동적 표시
-- (추가 polish) Portrait/Landscape orientation selector + Safe overlay on/off 토글 추가
-- (추가 polish) device ref 해상도 기준으로 safe area / notch 크기를 현재 frame 크기에 비례 스케일링해 미리보기 왜곡 감소
-- 구현: `packages/app/src/ui/prototype-viewer.ts`
-- specs 반영: `specs/UI.md`, `specs/FEATURES.md`
-
-## 완료된 기능 (추가 — Prototype Device Scrollbar Overlay 2-axis + toggle, 2026-04-07)
-- Prototype Viewer Device controls에 `Bars` 체크박스 추가 (device shell 스크롤바 오버레이 on/off)
-- 기존 세로 scrollbar thumb 계산을 확장해 `Scroll/ScrollX/ScrollY/Both` overflow에서 수평/수직 thumb를 각각 계산
-- scroll offset(`get_scroll_offset`)과 콘텐츠 bbox를 기반으로 axis별 progress/size를 계산해 동적 thumb 길이/위치를 렌더
-- 양축 동시 스크롤 시 thumb 겹침을 피하도록 track 길이/여백 자동 보정
-- 구현: `packages/app/src/ui/prototype-viewer.ts`
-- specs 반영: `specs/UI.md`, `specs/FEATURES.md`
-
-## 완료된 기능 (추가 — Variable Collection Panel Search & Usage Count, 2026-04-07)
-- Variables 패널 Variables 섹션에 검색 입력 + 타입 필터(All/Color/Number/String/Boolean) 추가
-- 필터 결과 기준으로 `Showing X/Y` + `Usage N` 요약 배지 표시
-- 이름/타입으로 빠르게 변수 목록을 좁히고 사용량을 한눈에 확인 가능
-- 필터 결과가 없을 때 안내 상태(`No variables match the current filters`) 제공
-
-## 완료된 기능 (추가 — Constraints Pin UI Canvas Overlay polish, 2026-04-07)
-- 캔버스 상단 Constraint Pins 오버레이 클릭 동작 개선
-- 3×3 핀 미니맵 클릭 시 H/V를 독립 토글 규칙으로 적용 (Left↔Right 조합 시 Left&Right, Top↔Bottom 조합 시 Top&Bottom)
-- Scale H / Scale V 전용 버튼 추가로 scale constraints를 직접 지정
-- 클릭 시 undo + selection refresh로 Properties 패널 상태 즉시 동기화
-
-## 완료된 기능 (추가 — Symbol Instance Exposure in Inspect, 2026-04-07)
-- Inspect 패널에서 Instance 선택 시 `Instance Metadata` 카드 표시
-- master(component), component set, variant key, instance property 값을 표 형태로 노출
-- `Instance Snapshot` JSON 코드 블록 + copy 버튼 제공 (handoff 시 상태 공유 용이)
-- 엔진 기존 API(`get_instance_component_info`, `get_instance_component_set_info`, `get_instance_prop_values`) 기반으로 구현
-- specs/FEATURES.md Inspect Mode 섹션 동기화
-
-## 완료된 기능 (추가 — Prototyping Smart Animate Timeline, 2026-04-06)
-- Interactions > Smart Animate Timeline을 리스트 입력형에서 시각 keyframe rail editor로 확장
-- Keyframe diamond를 드래그해 시간 이동, rail 클릭 또는 버튼으로 mid keyframe 추가
-- 선택 keyframe의 easing 문자열을 인라인 편집하고 mid keyframe 삭제 가능
-- Start/End keyframe은 transition duration anchor로 고정
-- Prototype viewer Smart Animate에서 `smart_animate_timeline_json` segment easing으로 time remap 후 보간 적용
-- specs/FEATURES.md 동기화
-
-## 완료된 기능 (추가 — Variable Modes Quick Switch, 2026-04-06)
-- Toolbar에 Variable Modes Quick Switch 버튼 추가 (Desktop/Mobile, Light/Dark 등 즉시 전환)
-- 버튼 클릭 시 플로팅 패널에서 각 Variable Collection의 active mode를 드롭다운으로 빠르게 변경
-- mode 변경 즉시 `set_active_mode` + `apply_variables` 적용, 캔버스 즉시 리렌더
-- Variables 패널을 열지 않고 프로토타입 상태 토글 가능하도록 UX 단축
-- specs/FEATURES.md 반영
-
-## 완료된 기능 (추가 — Text Styles Scale Tokens, 2026-04-06)
-- Properties 빈 상태 Styles Library에 "Text Scale Tokens" 버튼 추가
-- 원클릭으로 12/14/16/20/24/32 스케일 텍스트 스타일 세트를 생성(없는 사이즈만 추가)
-- 문서 내 모든 Text 노드를 가장 가까운 스케일 스타일로 일괄 remap
-- remap 결과(생성 스타일 수/적용 노드 수) 알림 제공
-- specs/FEATURES.md에 Text Scale Tokens 항목 반영
-
-## 완료된 기능 (추가 — Vector Boolean Live Preview, 2026-04-06)
-- Boolean 툴바 버튼 hover 시 연산 결과를 실시간 preview (MVP bounding-box overlay)
-- 구현 방식: 현재 씬 snapshot(export_scene) → boolean_operation 시뮬레이션 → 결과 bounds 추출 → import_scene로 즉시 복원
-- 오버레이: 반투명 파란 박스 + 점선 경계 + `Boolean preview: <op>` 라벨 렌더링
-- 선택이 2개 미만이거나 hover 종료 시 preview 자동 해제
-- specs/FEATURES.md Boolean Operations 섹션에 Live Preview(MVP) 명세 반영
-
-## 완료된 기능 (추가 — Text on Path UX completion, 2026-04-06)
-- Text tool 클릭만으로 point text 생성 (드래그 없이 생성 가능)
-- Text tool로 Path 위를 클릭/드래그 생성하면 새 Text가 해당 Path에 자동 attach
-- 기존 Text Path 속성(Offset/Baseline/Path Letter Spacing/Flip)과 연결되어 즉시 조절 가능
-- specs/FEATURES.md Text on Path 섹션에 UX 동작 명세 반영
-
-## 완료된 기능 (백로그 정리 27 — 이미 구현 확인, 2026-04-06)
-- ~~Auto Layout Gap Handles~~ ✅ 이미 구현 확인
-- 구현 위치:
-  - Tool: `packages/app/src/tools/spacing-handles.ts` (gap/padding 핸들 hit-test/drag)
-  - Editor 통합: `packages/app/src/editor.ts` (프레임 선택 시 on-canvas spacing handles 렌더/드래그 라우팅)
-- 스펙 반영 확인: `specs/FEATURES.md`의 Spacing Handles 관련 체크리스트 항목
+## 완료된 기능 (추가 — Drag Reorder in Layers Panel, 2026-04-04)
+- 레이어 패널 드래그 앤 드롭 노드 재정렬/reparent
+- HTML5 Drag API 활용, 시각적 삽입 인디케이터 (#0d99ff 파란 라인)
+- 3-zone hit test: 상단 25% = before, 하단 25% = after, 중간 50% = inside (Frame/Group만)
+- 순환 참조 방지 (isDescendant 체크)
+- 기존 WASM reparent_node_at() API 재활용
+- 루트 레벨 이동 지원, 같은 부모 내 순서 변경 시 인덱스 보정
+- Undo 통합

@@ -2247,6 +2247,8 @@ impl Engine {
                     stops: gradient_stops,
                 },
                 visible: true,
+            opacity: 1.0,
+            blend_mode: crate::node::BlendMode::Normal,
             };
             if node.fills.is_empty() {
                 node.fills.push(new_fill);
@@ -2274,6 +2276,8 @@ impl Engine {
                     stops: gradient_stops,
                 },
                 visible: true,
+            opacity: 1.0,
+            blend_mode: crate::node::BlendMode::Normal,
             };
             if node.fills.is_empty() {
                 node.fills.push(new_fill);
@@ -2474,6 +2478,30 @@ impl Engine {
         false
     }
 
+    /// Set fill opacity (0..1) at index.
+    pub fn set_fill_opacity_at(&mut self, id: u64, index: u32, opacity: f64) -> bool {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            let idx = index as usize;
+            if idx < node.fills.len() {
+                node.fills[idx].opacity = opacity.clamp(0.0, 1.0);
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Set fill blend mode at index.
+    pub fn set_fill_blend_mode_at(&mut self, id: u64, index: u32, mode: &str) -> bool {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            let idx = index as usize;
+            if idx < node.fills.len() {
+                node.fills[idx].blend_mode = crate::node::BlendMode::from_str(mode);
+                return true;
+            }
+        }
+        false
+    }
+
     /// Get all fills as JSON array.
     pub fn get_fills(&self, id: u64) -> String {
         if let Some(node) = self.scene.get_node(id) {
@@ -2484,6 +2512,8 @@ impl Engine {
                             "index": i,
                             "type": "Solid",
                             "visible": fill.visible,
+                            "opacity": fill.opacity,
+                            "blend_mode": format!("{:?}", fill.blend_mode),
                             "color": { "r": color.r, "g": color.g, "b": color.b, "a": color.a, "color_space": color.color_space.as_str() },
                             "color_space": color.color_space.as_str(),
                             "css_modern": color.to_css_modern(),
@@ -2495,6 +2525,8 @@ impl Engine {
                             "index": i,
                             "type": "LinearGradient",
                             "visible": fill.visible,
+                            "opacity": fill.opacity,
+                            "blend_mode": format!("{:?}", fill.blend_mode),
                             "start_x": start_x, "start_y": start_y,
                             "end_x": end_x, "end_y": end_y,
                             "stops": stops.iter().map(|s| serde_json::json!({
@@ -2507,6 +2539,8 @@ impl Engine {
                             "index": i,
                             "type": "RadialGradient",
                             "visible": fill.visible,
+                            "opacity": fill.opacity,
+                            "blend_mode": format!("{:?}", fill.blend_mode),
                             "center_x": center_x, "center_y": center_y, "radius": radius,
                             "stops": stops.iter().map(|s| serde_json::json!({
                                 "offset": s.offset, "r": s.color.r, "g": s.color.g, "b": s.color.b, "a": s.color.a
@@ -2518,6 +2552,8 @@ impl Engine {
                             "index": i,
                             "type": "Pattern",
                             "visible": fill.visible,
+                            "opacity": fill.opacity,
+                            "blend_mode": format!("{:?}", fill.blend_mode),
                             "src": src,
                             "scale": scale,
                             "rotation": rotation,
@@ -2531,6 +2567,8 @@ impl Engine {
                             "index": i,
                             "type": "NoiseFill",
                             "visible": fill.visible,
+                            "opacity": fill.opacity,
+                            "blend_mode": format!("{:?}", fill.blend_mode),
                             "scale": scale,
                             "color1": { "r": color1.r, "g": color1.g, "b": color1.b, "a": color1.a },
                             "color2": { "r": color2.r, "g": color2.g, "b": color2.b, "a": color2.a },
@@ -2543,6 +2581,8 @@ impl Engine {
                             "index": i,
                             "type": "DotPattern",
                             "visible": fill.visible,
+                            "opacity": fill.opacity,
+                            "blend_mode": format!("{:?}", fill.blend_mode),
                             "dot_radius": dot_radius,
                             "spacing": spacing,
                             "color": { "r": color.r, "g": color.g, "b": color.b, "a": color.a },
@@ -2555,6 +2595,8 @@ impl Engine {
                             "index": i,
                             "type": "CrosshatchFill",
                             "visible": fill.visible,
+                            "opacity": fill.opacity,
+                            "blend_mode": format!("{:?}", fill.blend_mode),
                             "spacing": spacing,
                             "line_width": line_width,
                             "color": { "r": color.r, "g": color.g, "b": color.b, "a": color.a },
@@ -2568,6 +2610,8 @@ impl Engine {
                             "index": i,
                             "type": "GradientMesh",
                             "visible": fill.visible,
+                            "opacity": fill.opacity,
+                            "blend_mode": format!("{:?}", fill.blend_mode),
                             "rows": mesh.rows,
                             "cols": mesh.cols,
                             "points": mesh.points.iter().enumerate().map(|(pi, p)| serde_json::json!({
@@ -2582,6 +2626,8 @@ impl Engine {
                             "index": i,
                             "type": "ConicGradient",
                             "visible": fill.visible,
+                            "opacity": fill.opacity,
+                            "blend_mode": format!("{:?}", fill.blend_mode),
                             "center_x": center_x, "center_y": center_y, "angle": angle,
                             "stops": stops.iter().map(|s| serde_json::json!({
                                 "offset": s.offset, "r": s.color.r, "g": s.color.g, "b": s.color.b, "a": s.color.a
@@ -2638,6 +2684,8 @@ impl Engine {
                         stops: gradient_stops,
                     },
                     visible: node.fills[idx].visible,
+                    opacity: node.fills[idx].opacity,
+                    blend_mode: node.fills[idx].blend_mode.clone(),
                 };
             }
         }
@@ -2663,6 +2711,8 @@ impl Engine {
                         stops: gradient_stops,
                     },
                     visible: node.fills[idx].visible,
+                    opacity: node.fills[idx].opacity,
+                    blend_mode: node.fills[idx].blend_mode.clone(),
                 };
             }
         }
@@ -2686,6 +2736,8 @@ impl Engine {
                     stops: gradient_stops,
                 },
                 visible: true,
+            opacity: 1.0,
+            blend_mode: crate::node::BlendMode::Normal,
             };
             if node.fills.is_empty() {
                 node.fills.push(new_fill);
@@ -2715,6 +2767,8 @@ impl Engine {
                         stops: gradient_stops,
                     },
                     visible: node.fills[idx].visible,
+                    opacity: node.fills[idx].opacity,
+                    blend_mode: node.fills[idx].blend_mode.clone(),
                 };
             }
         }
@@ -2740,6 +2794,8 @@ impl Engine {
                         tile_height: tile_height.max(0.0),
                     },
                     visible: node.fills[idx].visible,
+                    opacity: node.fills[idx].opacity,
+                    blend_mode: node.fills[idx].blend_mode.clone(),
                 };
             }
         }
@@ -2759,6 +2815,8 @@ impl Engine {
                         seed,
                     },
                     visible: node.fills[idx].visible,
+                    opacity: node.fills[idx].opacity,
+                    blend_mode: node.fills[idx].blend_mode.clone(),
                 };
             }
         }
@@ -2778,6 +2836,8 @@ impl Engine {
                         angle,
                     },
                     visible: node.fills[idx].visible,
+                    opacity: node.fills[idx].opacity,
+                    blend_mode: node.fills[idx].blend_mode.clone(),
                 };
             }
         }
@@ -2798,6 +2858,8 @@ impl Engine {
                         density: density.max(1).min(2),
                     },
                     visible: node.fills[idx].visible,
+                    opacity: node.fills[idx].opacity,
+                    blend_mode: node.fills[idx].blend_mode.clone(),
                 };
             }
         }
@@ -2827,6 +2889,8 @@ impl Engine {
                         },
                     },
                     visible: node.fills[idx].visible,
+                    opacity: node.fills[idx].opacity,
+                    blend_mode: node.fills[idx].blend_mode.clone(),
                 };
             }
         }
@@ -2842,6 +2906,8 @@ impl Engine {
                         mesh: crate::node::MeshGradient::new_default(),
                     },
                     visible: node.fills[idx].visible,
+                    opacity: node.fills[idx].opacity,
+                    blend_mode: node.fills[idx].blend_mode.clone(),
                 };
             }
         }
@@ -2999,6 +3065,8 @@ impl Engine {
             "line_join": join,
             "align": align,
             "visible": stroke.visible,
+            "opacity": stroke.opacity,
+            "blend_mode": format!("{:?}", stroke.blend_mode),
             "individual_sides": sides,
         })
     }
@@ -3067,6 +3135,30 @@ impl Engine {
             let idx = index as usize;
             if idx < node.strokes.len() {
                 node.strokes[idx].visible = visible;
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Set stroke opacity (0..1) at index.
+    pub fn set_stroke_opacity_at(&mut self, id: u64, index: u32, opacity: f64) -> bool {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            let idx = index as usize;
+            if idx < node.strokes.len() {
+                node.strokes[idx].opacity = opacity.clamp(0.0, 1.0);
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Set stroke blend mode at index.
+    pub fn set_stroke_blend_mode_at(&mut self, id: u64, index: u32, mode: &str) -> bool {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            let idx = index as usize;
+            if idx < node.strokes.len() {
+                node.strokes[idx].blend_mode = crate::node::BlendMode::from_str(mode);
                 return true;
             }
         }

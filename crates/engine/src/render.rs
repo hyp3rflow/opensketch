@@ -883,6 +883,8 @@ impl Renderer {
         // Outside strokes: draw before fills
         for stroke in node.visible_strokes() {
             if stroke.align == crate::node::StrokeAlign::Outside {
+                ctx.save();
+                self.apply_stroke_stack_paint(ctx, stroke, node);
                 ctx.set_stroke_style_str(&stroke.color.to_css());
                 ctx.set_line_width(stroke.width * 2.0);
                 self.apply_stroke_options(ctx, stroke);
@@ -893,11 +895,14 @@ impl Renderer {
                     ctx.stroke_rect(node.x, node.y, node.width, node.height);
                 }
                 if !stroke.dash_array.is_empty() { ctx.set_line_dash(&js_sys::Array::new()).ok(); }
+                ctx.restore();
             }
         }
 
         // Render all visible fills
         for fill in node.visible_fills() {
+            ctx.save();
+            self.apply_fill_stack_paint(ctx, fill, node);
             self.apply_single_fill_style(ctx, fill, node);
             if node.corner_radius > 0.0 {
                 self.draw_rounded_rect_smooth(ctx, node.x, node.y, node.width, node.height, node.corner_radius, node.corner_smoothing);
@@ -905,10 +910,13 @@ impl Renderer {
             } else {
                 ctx.fill_rect(node.x, node.y, node.width, node.height);
             }
+            ctx.restore();
         }
         // Center/Inside strokes: draw after fills
         for stroke in node.visible_strokes() {
             if stroke.align != crate::node::StrokeAlign::Outside {
+                ctx.save();
+                self.apply_stroke_stack_paint(ctx, stroke, node);
                 ctx.set_stroke_style_str(&stroke.color.to_css());
                 self.apply_stroke_options(ctx, stroke);
                 let w = if stroke.align == crate::node::StrokeAlign::Inside { stroke.width * 2.0 } else { stroke.width };
@@ -933,6 +941,7 @@ impl Renderer {
                     ctx.restore();
                 }
                 if !stroke.dash_array.is_empty() { ctx.set_line_dash(&js_sys::Array::new()).ok(); }
+                ctx.restore();
             }
         }
         // Only show label if parent doesn't have layout (avoids clutter in nested layouts)
@@ -1860,9 +1869,12 @@ impl Renderer {
         if !node.fills.is_empty() {
             for fill in &node.fills {
                 if !fill.visible { continue; }
+                ctx.save();
+                self.apply_fill_stack_paint(ctx, fill, node);
                 self.apply_single_fill_style(ctx, fill, node);
                 self.draw_rounded_rect_smooth(ctx, node.x, node.y, node.width, node.height, r, node.corner_smoothing);
                 ctx.fill();
+                ctx.restore();
             }
         } else {
             ctx.set_fill_style_str("rgba(26, 26, 46, 0.6)");
@@ -2560,6 +2572,20 @@ impl Renderer {
             // Top-left corner
             ctx.bezier_curve_to(x, y + r - hr, x + r - hr, y, x + r, y);
             ctx.close_path();
+        }
+    }
+
+    fn apply_fill_stack_paint(&self, ctx: &CanvasRenderingContext2d, fill: &crate::node::Fill, node: &Node) {
+        ctx.set_global_alpha((node.opacity * fill.opacity).clamp(0.0, 1.0));
+        if fill.blend_mode != crate::node::BlendMode::Normal {
+            ctx.set_global_composite_operation(fill.blend_mode.to_css()).ok();
+        }
+    }
+
+    fn apply_stroke_stack_paint(&self, ctx: &CanvasRenderingContext2d, stroke: &crate::node::Stroke, node: &Node) {
+        ctx.set_global_alpha((node.opacity * stroke.opacity).clamp(0.0, 1.0));
+        if stroke.blend_mode != crate::node::BlendMode::Normal {
+            ctx.set_global_composite_operation(stroke.blend_mode.to_css()).ok();
         }
     }
 

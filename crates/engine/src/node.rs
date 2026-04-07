@@ -893,6 +893,7 @@ impl MeshGradient {
 }
 
 fn default_visible() -> bool { true }
+fn default_unit_opacity() -> f64 { 1.0 }
 
 /// Fill supports backward-compatible deserialization:
 /// Old format: `{"color": {...}}` → Solid
@@ -902,6 +903,10 @@ pub struct Fill {
     pub fill_type: FillType,
     #[serde(default = "default_visible")]
     pub visible: bool,
+    #[serde(default = "default_unit_opacity")]
+    pub opacity: f64,
+    #[serde(default)]
+    pub blend_mode: BlendMode,
 }
 
 impl<'de> serde::Deserialize<'de> for Fill {
@@ -914,13 +919,21 @@ impl<'de> serde::Deserialize<'de> for Fill {
         if let Some(ft) = value.get("fill_type") {
             let fill_type: FillType = serde_json::from_value(ft.clone())
                 .map_err(serde::de::Error::custom)?;
-            return Ok(Fill { fill_type, visible });
+            let opacity = value.get("opacity").and_then(|v| v.as_f64()).unwrap_or(1.0);
+            let blend_mode = value.get("blend_mode")
+                .and_then(|v| serde_json::from_value::<BlendMode>(v.clone()).ok())
+                .unwrap_or_default();
+            return Ok(Fill { fill_type, visible, opacity, blend_mode });
         }
         // Old format: has "color" key directly
         if let Some(color_val) = value.get("color") {
             let color: Color = serde_json::from_value(color_val.clone())
                 .map_err(serde::de::Error::custom)?;
-            return Ok(Fill { fill_type: FillType::Solid { color }, visible });
+            let opacity = value.get("opacity").and_then(|v| v.as_f64()).unwrap_or(1.0);
+            let blend_mode = value.get("blend_mode")
+                .and_then(|v| serde_json::from_value::<BlendMode>(v.clone()).ok())
+                .unwrap_or_default();
+            return Ok(Fill { fill_type: FillType::Solid { color }, visible, opacity, blend_mode });
         }
         Err(serde::de::Error::custom("expected fill_type or color"))
     }
@@ -928,7 +941,7 @@ impl<'de> serde::Deserialize<'de> for Fill {
 
 impl Fill {
     pub fn solid(color: Color) -> Self {
-        Fill { fill_type: FillType::Solid { color }, visible: true }
+        Fill { fill_type: FillType::Solid { color }, visible: true, opacity: 1.0, blend_mode: BlendMode::Normal }
     }
 
     pub fn color(&self) -> Color {
@@ -1010,6 +1023,10 @@ pub struct Stroke {
     pub align: StrokeAlign,
     #[serde(default = "default_visible")]
     pub visible: bool,
+    #[serde(default = "default_unit_opacity")]
+    pub opacity: f64,
+    #[serde(default)]
+    pub blend_mode: BlendMode,
     /// Individual stroke sides — when Some, only the specified sides are stroked.
     /// Applies only to Rect/Frame/Section nodes. None = all sides.
     #[serde(default)]
@@ -1052,6 +1069,8 @@ impl Stroke {
             line_join: LineJoin::default(),
             align: StrokeAlign::default(),
             visible: true,
+            opacity: 1.0,
+            blend_mode: BlendMode::Normal,
             individual_sides: None,
         }
     }

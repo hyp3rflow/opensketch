@@ -320,6 +320,11 @@
   - VN vertex drag: same snapping behavior as path points
   - Pure TypeScript implementation (`tools/point-snap.ts`), reuses existing smart-guides infrastructure
 - [x] **Blend modes**: 16 compositing modes (Normal, Multiply, Screen, Overlay, Darken, Lighten, Color Dodge, Color Burn, Hard Light, Soft Light, Difference, Exclusion, Hue, Saturation, Color, Luminosity)
+- [x] **Stroke & Fill Blend Stack (2026-04-08)**: 각 Fill/Stroke에 개별 opacity + blend mode를 부여해 appearance stack처럼 합성
+  - Fill/Stroke 데이터 모델 확장: `opacity`(0..1), `blend_mode`(16 modes, default Normal)
+  - WASM API: `set_fill_opacity_at`, `set_fill_blend_mode_at`, `set_stroke_opacity_at`, `set_stroke_blend_mode_at`
+  - Properties panel: Fill/Stroke 항목별 Opacity(%) + Blend mode 선택 UI
+  - Canvas 렌더: 노드 opacity 위에 fill/stroke별 opacity를 곱하고 per-paint blend를 적용 (backward-compatible defaults)
 - [x] **Multi-page support**: multiple pages per document with tab UI
   - Page management: add, remove, rename, duplicate, switch
   - Backward-compatible serialization (old single-page files auto-migrate to "Page 1")
