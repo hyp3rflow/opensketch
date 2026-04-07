@@ -148,6 +148,9 @@ export class Editor {
   /** Pressure sensitivity: auto-detect stylus and map pressure → per-point stroke width */
   private _penPressureEnabled = true;
   private _penLastPressure = 0.5;
+  private _penPressureCurve: "linear" | "soft" | "hard" = "linear";
+  private _penTaperStart = 0.12;
+  private _penTaperEnd = 0.18;
 
   // Path edit mode state
   private _pathEditMode = false;
@@ -1815,8 +1818,8 @@ export class Editor {
         const strokeInfo = this.engine.get_stroke_info(BigInt(this._penPathId));
         const baseWidth = strokeInfo ? (JSON.parse(strokeInfo).width || 2) : 2;
         const pointIdx = this.engine.path_point_count(this._penPathId) - 1;
-        // Map pressure (0–1) to width: minFactor 0.1, maxFactor 2.0
-        const width = baseWidth * (0.1 + e.pressure * 1.9);
+        const progress = pointIdx <= 0 ? 0 : pointIdx / Math.max(1, pointIdx + 1);
+        const width = this.pressureWidth(baseWidth, e.pressure, progress);
         this.engine.path_set_point_stroke_width(BigInt(this._penPathId), pointIdx, width);
       }
 
@@ -2241,7 +2244,8 @@ export class Editor {
           this._penLastPressure = e.pressure;
           const strokeInfo = this.engine.get_stroke_info(BigInt(this._penPathId));
           const baseWidth = strokeInfo ? (JSON.parse(strokeInfo).width || 2) : 2;
-          const width = baseWidth * (0.1 + e.pressure * 1.9);
+          const progress = pointCount <= 1 ? 0 : (pointCount - 1) / Math.max(1, pointCount - 1);
+          const width = this.pressureWidth(baseWidth, e.pressure, progress);
           this.engine.path_set_point_stroke_width(BigInt(this._penPathId), pointCount - 1, width);
         }
       }
@@ -2718,6 +2722,23 @@ export class Editor {
               // keep raw recognized path on parse failures
             }
           }
+
+          if (this._penPressureEnabled) {
+            try {
+              const pointCount = this.engine.path_point_count(newId);
+              const strokeInfo = this.engine.get_stroke_info(BigInt(newId));
+              const baseWidth = strokeInfo ? (JSON.parse(strokeInfo).width || 2) : 2;
+              for (let i = 0; i < pointCount; i++) {
+                const t = pointCount <= 1 ? 0 : i / (pointCount - 1);
+                const srcIdx = Math.round(t * Math.max(0, pts.length - 1));
+                const pressure = pts[Math.max(0, Math.min(pts.length - 1, srcIdx))]?.pressure ?? 0.5;
+                this.engine.path_set_point_stroke_width(BigInt(newId), i, this.pressureWidth(baseWidth, pressure, t));
+              }
+            } catch {
+              // ignore pressure profile failures
+            }
+          }
+
           this.engine.select(newId);
           this.fireSelectionNow([newId]);
           this.onLayersChanges.forEach(fn => fn());
@@ -5244,6 +5265,29 @@ export class Editor {
   /** Enable/disable pressure sensitivity for pen tool (stylus input) */
   get penPressureEnabled() { return this._penPressureEnabled; }
   set penPressureEnabled(v: boolean) { this._penPressureEnabled = v; }
+
+  private mapPressureCurve(pressure: number): number {
+    const p = Math.max(0, Math.min(1, Number.isFinite(pressure) ? pressure : 0.5));
+    if (this._penPressureCurve === "soft") return Math.sqrt(p);
+    if (this._penPressureCurve === "hard") return p * p;
+    return p;
+  }
+
+  private taperFactor(progress: number): number {
+    const t = Math.max(0, Math.min(1, Number.isFinite(progress) ? progress : 0));
+    const start = Math.max(0, Math.min(0.95, this._penTaperStart));
+    const end = Math.max(0, Math.min(0.95, this._penTaperEnd));
+    let f = 1;
+    if (start > 0) f = Math.min(f, t / start);
+    if (end > 0) f = Math.min(f, (1 - t) / end);
+    return Math.max(0.15, Math.min(1, f));
+  }
+
+  private pressureWidth(baseWidth: number, pressure: number, progress: number): number {
+    const mapped = this.mapPressureCurve(pressure);
+    const factor = 0.1 + mapped * 1.9;
+    return Math.max(0.1, baseWidth * factor * this.taperFactor(progress));
+  }
 
   private getNodeKindById(id: number): string {
     if (!id) return "";
@@ -8589,6 +8633,9 @@ export class Editor {
       items.push({ label: "Select All with Same Stroke", enabled: selAfter.length === 1, action: () => this.selectSameStroke(selAfter[0]!) });
       items.push({ label: "Select All with Same Font", enabled: selAfter.length === 1, action: () => this.selectSameFont(selAfter[0]!) });
       items.push({ label: "Select All with Same Kind", enabled: selAfter.length === 1, action: () => this.selectSameKind(selAfter[0]!) });
+      items.push({ label: "Select Same Kind in Parent", enabled: selAfter.length === 1, action: () => this.selectSameKind(selAfter[0]!, "parent") });
+      items.push({ label: "Select Same Kind in Page", enabled: selAfter.length === 1, action: () => this.selectSameKind(selAfter[0]!, "page") });
+      items.push({ label: "Add Same Kind to Selection", enabled: selAfter.length === 1, action: () => this.selectSameKind(selAfter[0]!, "document", true) });
       items.push({ label: "Select Similar…", shortcut: `${mod}⇧A`, enabled: selAfter.length === 1, action: () => this.openSmartSelect(selAfter[0]!) });
       items.push({ label: "Smart Replace…", shortcut: `${mod}⇧H`, enabled: selAfter.length === 1, action: () => this.openSmartReplacePanel(selAfter[0]!) });
     } else {
@@ -8764,40 +8811,64 @@ export class Editor {
     this.needsRender = true;
   }
 
-  selectSameName(refId: number) {
+  private applySelectSameScope(ids: number[], refId: number, scope: "document" | "page" | "parent" = "document", additive = false) {
+    let scoped = ids;
+    if (scope !== "document") {
+      let refNode: any = null;
+      try {
+        const raw = this.engine.get_node_json(BigInt(refId));
+        if (raw) refNode = JSON.parse(raw);
+      } catch {
+        refNode = null;
+      }
+      const refParent = Number(refNode?.parent ?? 0);
+      const refPage = Number(refNode?.page_id ?? this.engine.get_active_page_id?.() ?? 0);
+      scoped = ids.filter((id) => {
+        try {
+          const raw = this.engine.get_node_json(BigInt(id));
+          if (!raw) return false;
+          const node = JSON.parse(raw);
+          if (scope === "parent") return Number(node?.parent ?? 0) === refParent;
+          return Number(node?.page_id ?? refPage) === refPage;
+        } catch {
+          return false;
+        }
+      });
+    }
+
+    const next = additive ? Array.from(new Set([...Array.from(this.engine.get_selection()).map(Number), ...scoped])) : scoped;
+    this.fireSelectionNow(next);
+    this.needsRender = true;
+  }
+
+  selectSameName(refId: number, scope: "document" | "page" | "parent" = "document", additive = false) {
     const ids = Array.from(this.engine.select_same_name(BigInt(refId))).map(Number);
-    this.fireSelectionNow(ids);
-    this.needsRender = true;
+    this.applySelectSameScope(ids, refId, scope, additive);
   }
 
-  selectSameNameAndKind(refId: number) {
+  selectSameNameAndKind(refId: number, scope: "document" | "page" | "parent" = "document", additive = false) {
     const ids = Array.from(this.engine.select_same_name_and_kind(BigInt(refId))).map(Number);
-    this.fireSelectionNow(ids);
-    this.needsRender = true;
+    this.applySelectSameScope(ids, refId, scope, additive);
   }
 
-  private selectSameFill(refId: number) {
+  private selectSameFill(refId: number, scope: "document" | "page" | "parent" = "document", additive = false) {
     const ids = Array.from(this.engine.select_same_fill(refId)).map(Number);
-    this.fireSelectionNow(ids);
-    this.needsRender = true;
+    this.applySelectSameScope(ids, refId, scope, additive);
   }
 
-  private selectSameStroke(refId: number) {
+  private selectSameStroke(refId: number, scope: "document" | "page" | "parent" = "document", additive = false) {
     const ids = Array.from(this.engine.select_same_stroke(refId)).map(Number);
-    this.fireSelectionNow(ids);
-    this.needsRender = true;
+    this.applySelectSameScope(ids, refId, scope, additive);
   }
 
-  private selectSameKind(refId: number) {
+  private selectSameKind(refId: number, scope: "document" | "page" | "parent" = "document", additive = false) {
     const ids = Array.from(this.engine.select_same_kind(refId)).map(Number);
-    this.fireSelectionNow(ids);
-    this.needsRender = true;
+    this.applySelectSameScope(ids, refId, scope, additive);
   }
 
-  private selectSameFont(refId: number) {
+  private selectSameFont(refId: number, scope: "document" | "page" | "parent" = "document", additive = false) {
     const ids = Array.from(this.engine.select_same_font(refId)).map(Number);
-    this.fireSelectionNow(ids);
-    this.needsRender = true;
+    this.applySelectSameScope(ids, refId, scope, additive);
   }
 
   openSmartSelect(refId: number) {

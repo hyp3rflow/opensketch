@@ -1604,7 +1604,7 @@
 - ~~Constraints Visual Pins Overlay — 선택 노드의 constraint pin 상태를 캔버스 오버레이로 즉시 표시/클릭 편집~~ ✅ 완료 (캔버스 3×3 핀 오버레이 클릭으로 H/V constraints 즉시 변경, undo + Properties 동기화)
 - ~~Component Property Defaults — Variant별 Boolean/Text/Swap property 기본값 저장/초기화~~ ✅ 완료 (Instance Controls에서 variant별 기본값 저장/리셋 + variant 전환 시 자동 재적용)
 - ~~Instance Override Diff Inspector — 인스턴스의 override 변경점만 필터링/일괄 reset~~ ✅ 완료 (Properties panel Overrides Diff Inspector + filter/reset visible)
-- Pen Pressure Width Profile — Path/Freehand 스트로크에 pressure curve 기반 width profile 적용 + taper(start/end)
+- ~~Pen Pressure Width Profile — Path/Freehand 스트로크에 pressure curve 기반 width profile 적용 + taper(start/end)~~ ✅ 완료 (editor pressureWidth helper + freehand 경로별 taper 적용)
 - Dev Handoff Tokens Export — Variables/Styles를 W3C Design Tokens JSON + CSS variables + Tailwind preset으로 내보내기
 - Prototyping Scroll Triggers — 스크롤 위치 기반 interaction trigger(enter/exit/threshold) + timeline 연동
 - Vector Network Boolean Cleanup — shape-builder/boolean 결과 self-intersection 정리 + simplify tolerance
@@ -2343,6 +2343,12 @@
 - Constraint Presets (Pin/Hug/Fill Quick Apply) — Figma/AutoLayout 자주 쓰는 제약 조합을 원클릭 프리셋으로 적용 (저~중난이도 / 중임팩트)
 - Prototype Gesture Triggers (Drag/Swipe Directional) — OnDrag를 방향 인식 스와이프 트리거로 확장해 모바일 프로토타이핑 정확도 향상 (중난이도 / 중~고임팩트)
 - Frame States (Variants-lite) — 일반 Frame에도 상태(State) 세트를 부여해 hover/pressed/disabled 미리보기와 토글 전환 지원 (중난이도 / 중임팩트)
+
+## 완료된 기능 (추가 — Pen Pressure Width Profile + Taper, 2026-04-08)
+- Pen/Freehand pressure width 계산을 공통 `pressureWidth()`로 통합 (curve + taper factor)
+- freehand 종료 후 생성된 Path의 각 포인트에 pressure 기반 stroke width를 재적용
+- 시작/끝 taper가 기본 반영되어 서예형 스트로크 형태 개선
+- 구현: `packages/app/src/editor.ts`
 
 ## 완료된 기능 (추가 — Auto Layout Baseline Alignment, 2026-04-08)
 - Align enum에 `Baseline` 추가, `set_align_items(..., "baseline")` 파싱/적용 지원
