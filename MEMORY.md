@@ -2309,10 +2309,20 @@
 - 구현: `crates/engine/src/{variable.rs,scene.rs,lib.rs}`, `packages/app/src/ui/variables-panel.ts`
 - specs/FEATURES.md Variable Collections 섹션 동기화
 
+## 완료된 기능 (추가 — Auto Layout Min/Max Constraints for Fill Distribution, 2026-04-07)
+- Flex auto-layout에서 Fill child 크기 배분 시 min/max width/height 제약을 우선 반영하는 bounded distribution 알고리즘 적용
+- 배분 순서: minimum 선할당 → 남는 공간 균등 분배 → 각 child의 max 도달 시 재분배(워터필)
+- Wrap line 계산/정렬 시 child의 clamp된 크기를 사용해 줄바꿈과 line cross-size 안정성 개선
+- Grid auto-layout row 높이 계산도 child min/max height를 반영하도록 보정
+- 구현: `crates/engine/src/layout.rs`
+- 검증: `wasm-pack build --target web`, `pnpm build`
+
 ## 다음 할 것 (2026-04-07 업데이트)
-- Auto Layout Min/Max Constraints — Hug/Fill와 함께 min/max width/height 제약을 지원해 반응형 레이아웃 안정성 강화 (중난이도 / 고임팩트)
 - Multi-Edit Text Cursor (Cross-node) — 여러 Text 노드 동시 선택 후 공통 입력/스타일 적용 (고난이도 / 고임팩트)
 - Prototype Fixed Header/Footer Regions — 스크롤 컨테이너 내 고정 영역 지정(top/bottom) 및 오버레이 클리핑 규칙 제공 (중난이도 / 중~고임팩트)
+- Per-corner Radius + Corner Smoothing Handles — 각 코너 독립 반지름/스무딩 편집(캔버스 핸들 + Properties 4-link 토글)로 고급 shape 디테일 제어 (중난이도 / 고임팩트)
+- Auto Layout Baseline Alignment — 텍스트/아이콘 혼합 행에서 baseline 정렬 옵션 추가 (중난이도 / 중~고임팩트)
+- Prototype Interactive Components (Variant State Machine) — 컴포넌트 인스턴스 내부에서 hover/press/toggle 상태 전이 및 variant property 연동 (고난이도 / 고임팩트)
 
 ## 완료된 기능 (추가 — Variable Collection Panel Search & Usage Count, 2026-04-07)
 - Variables 패널 Variables 섹션에 검색 입력 + 타입 필터(All/Color/Number/String/Boolean) 추가

@@ -654,7 +654,7 @@
 ### Responsive Auto-Layout Preview
 - [x] **Real-time layout recomputation**: During resize handle drag, auto-layout children (Flex/Grid) are repositioned every frame
 - [x] **Hug/Fill sizing**: Children with Fill sizing expand/shrink with parent; Hug parents auto-shrink to fit
-- [x] **Min/Max content sizing**: Hug mode respects min_width/max_width/min_height/max_height constraints via clamp_size()
+- [x] **Min/Max content sizing**: Hug mode clamp + Flex Fill bounded distribution(min 선할당 → 잔여 균등 배분 → max 도달 시 재분배)으로 min_width/max_width/min_height/max_height 제약을 안정적으로 반영
 - [x] **Text overflow (Clip/Ellipsis)**: TextOverflow enum (Visible/Clip/Ellipsis), word-wrapping in Fixed text sizing, single-line and multi-line ellipsis truncation, clip region for overflow hidden, text-align support in rendering, Properties panel overflow mode toggle
 - [x] **Breakpoint indicator**: Shows active breakpoint label + current width as floating pill above the resized frame
 - [x] **resize_node_with_layout**: Combined WASM method for resize + immediate layout recomputation

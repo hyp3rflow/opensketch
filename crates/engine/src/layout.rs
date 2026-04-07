@@ -175,6 +175,10 @@ fn compute_flex(scene: &mut Scene, layout: &Layout, px: f64, py: f64, pw: f64, p
         id: NodeId,
         w: f64,
         h: f64,
+        min_w: Option<f64>,
+        max_w: Option<f64>,
+        min_h: Option<f64>,
+        max_h: Option<f64>,
         fill_main: bool,
         fill_cross: bool,
         wrap_before: bool,
@@ -193,10 +197,20 @@ fn compute_flex(scene: &mut Scene, layout: &Layout, px: f64, py: f64, pw: f64, p
             } else {
                 child.sizing_h == SizingMode::Fill
             };
+            let mut w = child.width;
+            let mut h = child.height;
+            if let Some(min) = child.min_width { w = w.max(min); }
+            if let Some(max) = child.max_width { w = w.min(max); }
+            if let Some(min) = child.min_height { h = h.max(min); }
+            if let Some(max) = child.max_height { h = h.min(max); }
             child_infos.push(ChildInfo {
                 id: cid,
-                w: child.width,
-                h: child.height,
+                w,
+                h,
+                min_w: child.min_width,
+                max_w: child.max_width,
+                min_h: child.min_height,
+                max_h: child.max_height,
                 fill_main,
                 fill_cross,
                 wrap_before: child.wrap_before,
@@ -326,23 +340,55 @@ fn compute_flex(scene: &mut Scene, layout: &Layout, px: f64, py: f64, pw: f64, p
         let n = line.len() as f64;
         let line_cross = line_cross_sizes[line_idx];
 
-        // Calculate fill sizes for this line
-        let fill_count = line.iter().filter(|&&i| child_infos[i].fill_main).count() as f64;
+        // Calculate fill sizes for this line (respect min/max constraints via bounded distribution)
         let fixed_total: f64 = line.iter()
             .filter(|&&i| !child_infos[i].fill_main)
             .map(|&i| if is_row { child_infos[i].w } else { child_infos[i].h })
             .sum();
         let total_gaps = gap * (n - 1.0).max(0.0);
-        let fill_each = if fill_count > 0.0 {
-            ((avail_main - fixed_total - total_gaps) / fill_count).max(0.0)
-        } else {
-            0.0
-        };
+        let available_for_fill = (avail_main - fixed_total - total_gaps).max(0.0);
 
-        // Update fill children sizes for this line
-        for &i in line {
-            if child_infos[i].fill_main {
-                if is_row { child_infos[i].w = fill_each; } else { child_infos[i].h = fill_each; }
+        let fill_indices: Vec<usize> = line.iter().copied().filter(|&i| child_infos[i].fill_main).collect();
+        if !fill_indices.is_empty() {
+            let mut remaining = available_for_fill;
+            let mut flexing: Vec<usize> = Vec::with_capacity(fill_indices.len());
+
+            // 1) Assign minimums first
+            for &i in &fill_indices {
+                let min_main = if is_row { child_infos[i].min_w.unwrap_or(0.0) } else { child_infos[i].min_h.unwrap_or(0.0) };
+                if is_row { child_infos[i].w = min_main; } else { child_infos[i].h = min_main; }
+                remaining -= min_main;
+                flexing.push(i);
+            }
+
+            // 2) Distribute remaining equally, capping at each child's max
+            if remaining > 0.0 {
+                while !flexing.is_empty() {
+                    let share = remaining / flexing.len() as f64;
+                    let mut consumed = 0.0;
+                    let mut next_flexing: Vec<usize> = Vec::with_capacity(flexing.len());
+
+                    for &i in &flexing {
+                        let current = if is_row { child_infos[i].w } else { child_infos[i].h };
+                        let max_main = if is_row { child_infos[i].max_w.unwrap_or(f64::INFINITY) } else { child_infos[i].max_h.unwrap_or(f64::INFINITY) };
+                        let target = (current + share).min(max_main);
+                        let delta = (target - current).max(0.0);
+                        consumed += delta;
+                        if is_row { child_infos[i].w = target; } else { child_infos[i].h = target; }
+                        if target + 1e-6 < max_main {
+                            next_flexing.push(i);
+                        }
+                    }
+
+                    if consumed <= 1e-9 {
+                        break;
+                    }
+                    remaining = (remaining - consumed).max(0.0);
+                    flexing = next_flexing;
+                    if remaining <= 1e-9 {
+                        break;
+                    }
+                }
             }
         }
 
@@ -456,7 +502,10 @@ fn compute_grid(scene: &mut Scene, layout: &Layout, px: f64, py: f64, pw: f64, p
     for &cid in children {
         if let Some(child) = scene.get_node(cid) {
             if !child.visible || child.absolute_position { continue; }
-            visible_children.push((cid, child.height));
+            let mut h = child.height;
+            if let Some(min_h) = child.min_height { h = h.max(min_h); }
+            if let Some(max_h) = child.max_height { h = h.min(max_h); }
+            visible_children.push((cid, h));
         }
     }
 
