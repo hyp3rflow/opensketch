@@ -27,7 +27,7 @@ interface SelectionFilterState {
   nodeKind: string;
   nameRegex: string;
   maxDepth: string;
-  attrFilter: 'any' | 'visible' | 'locked' | 'text' | 'image';
+  attrFilter: 'any' | 'visible' | 'hidden' | 'locked' | 'text' | 'image' | 'shape';
 }
 
 const DEFAULT_CRITERIA: SmartSelectCriteria = {
@@ -140,9 +140,11 @@ export class SmartSelectPanel {
             <select data-filter="attrFilter" style="width:120px;background:#111;color:#fff;border:1px solid #333;border-radius:6px;padding:4px;">
               <option value="any" ${this.filter.attrFilter === 'any' ? 'selected' : ''}>Any</option>
               <option value="visible" ${this.filter.attrFilter === 'visible' ? 'selected' : ''}>Visible only</option>
+              <option value="hidden" ${this.filter.attrFilter === 'hidden' ? 'selected' : ''}>Hidden only</option>
               <option value="locked" ${this.filter.attrFilter === 'locked' ? 'selected' : ''}>Locked only</option>
               <option value="text" ${this.filter.attrFilter === 'text' ? 'selected' : ''}>Text only</option>
               <option value="image" ${this.filter.attrFilter === 'image' ? 'selected' : ''}>Image only</option>
+              <option value="shape" ${this.filter.attrFilter === 'shape' ? 'selected' : ''}>Shape only</option>
             </select>
           </div>
         </div>
@@ -152,6 +154,11 @@ export class SmartSelectPanel {
         <button class="ssp-btn ssp-btn-filter" title="Filter nodes inside current selection area">Filter Area</button>
         <button class="ssp-btn ssp-btn-suggest" title="AI suggests groups of similar nodes">Suggest Groups</button>
         <button class="ssp-btn ssp-btn-group" title="Group best similar set and auto-apply layout">Smart Group</button>
+        <button class="ssp-btn ssp-btn-same" data-same="shape" title="Select same shape-type layers">Same Shape</button>
+        <button class="ssp-btn ssp-btn-same" data-same="text" title="Select all text layers">Same Text</button>
+        <button class="ssp-btn ssp-btn-same" data-same="image" title="Select all image layers">Same Image</button>
+        <button class="ssp-btn ssp-btn-same" data-same="locked" title="Select all locked layers">Same Locked</button>
+        <button class="ssp-btn ssp-btn-same" data-same="hidden" title="Select all hidden layers">Same Hidden</button>
         <button class="ssp-btn ssp-btn-apply">Apply</button>
       </div>
     `;
@@ -222,6 +229,13 @@ export class SmartSelectPanel {
 
     this.el.querySelector('.ssp-btn-group')?.addEventListener('click', () => {
       this.smartGroupBestMatch();
+    });
+
+    this.el.querySelectorAll('.ssp-btn-same').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const key = (btn as HTMLElement).getAttribute('data-same') || 'shape';
+        this.selectSameByFilter(key);
+      });
     });
 
     // Draggable header
@@ -298,9 +312,11 @@ export class SmartSelectPanel {
       }
 
       if (this.filter.attrFilter === 'visible' && node.visible === false) return false;
+      if (this.filter.attrFilter === 'hidden' && node.visible !== false) return false;
       if (this.filter.attrFilter === 'locked' && node.locked !== true) return false;
       if (this.filter.attrFilter === 'text' && node.kind !== 'Text') return false;
       if (this.filter.attrFilter === 'image' && node.kind !== 'Image') return false;
+      if (this.filter.attrFilter === 'shape' && !this.isShapeNodeKind(String(node.kind || ''))) return false;
 
       return true;
     });
@@ -308,6 +324,44 @@ export class SmartSelectPanel {
     (engine as any).set_selection?.(filtered.map(id => BigInt(id)));
     const resultEl = this.el?.querySelector('#ssp-result');
     if (resultEl) resultEl.textContent = `${filtered.length} node${filtered.length !== 1 ? 's' : ''} in filtered area`;
+    this.editor.onSelectionChanged?.();
+    this.editor.render();
+  }
+
+  private isShapeNodeKind(kind: string): boolean {
+    return ["Rect", "Ellipse", "Path", "Star", "Polygon", "Vector", "Line"].includes(kind);
+  }
+
+  private selectSameByFilter(key: string) {
+    const engine = this.editor.engine;
+    if (!engine) return;
+    const selected = Array.from(engine.get_selection()).map(Number);
+    if (selected.length === 0) return;
+
+    const ids = Array.from(engine.get_all_node_ids()).map(Number);
+    const filtered = ids.filter((id) => {
+      const json = engine.get_node_json(BigInt(id));
+      if (!json) return false;
+      try {
+        const node = JSON.parse(json);
+        switch (key) {
+          case 'text': return node.kind === 'Text';
+          case 'image': return node.kind === 'Image';
+          case 'locked': return node.locked === true;
+          case 'hidden': return node.visible === false;
+          case 'shape':
+          default:
+            return this.isShapeNodeKind(String(node.kind || ''));
+        }
+      } catch {
+        return false;
+      }
+    });
+
+    (engine as any).set_selection?.(filtered.map(id => BigInt(id)));
+    const label = key[0] ? key[0].toUpperCase() + key.slice(1) : key;
+    const resultEl = this.el?.querySelector('#ssp-result');
+    if (resultEl) resultEl.textContent = `${filtered.length} ${label} layer${filtered.length !== 1 ? 's' : ''} selected`;
     this.editor.onSelectionChanged?.();
     this.editor.render();
   }

@@ -2332,6 +2332,14 @@
 - Auto Layout Baseline Alignment — 텍스트/아이콘 혼합 행에서 baseline 정렬 옵션 추가 (중난이도 / 중~고임팩트)
 - Prototype Interactive Components (Variant State Machine) — 컴포넌트 인스턴스 내부에서 hover/press/toggle 상태 전이 및 variant property 연동 (고난이도 / 고임팩트)
 
+## 완료된 기능 (추가 — Smart Selection by Layer/Type Filter 확장, 2026-04-07)
+- Smart Select 패널 Selection Filter의 Attr 옵션 확장: Hidden only + Shape only 추가
+- Selection Filter에서 Shape 판별 로직 추가 (Rect/Ellipse/Path/Star/Polygon/Vector/Line)
+- Select Similar 패널 하단에 "Same Shape/Text/Image/Locked/Hidden" quick action 버튼 추가
+- quick action 클릭 시 문서 전체 노드에서 타입/속성 매칭 레이어를 즉시 selection으로 반영
+- 구현: `packages/app/src/ui/smart-select.ts`
+- specs 반영: `specs/FEATURES.md`
+
 ## 완료된 기능 (추가 — Prototype Device Frame + Safe Area Preview polish, 2026-04-07)
 - Prototype Viewer top bar에 Device preset selector 유지/확장 (No Device / iPhone 14 Pro / Pixel 8 / iPad)
 - Device shell 오버레이: bezel + corner radius + notch 렌더링
