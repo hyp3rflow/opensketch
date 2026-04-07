@@ -2292,6 +2292,17 @@ pub struct Node {
     /// Fixed region in prototype when `prototype_fixed` is true: "auto" | "top" | "bottom"
     #[serde(default = "default_prototype_fixed_region")]
     pub prototype_fixed_region: String,
+    /// Per-axis bounce enable for prototype scroll containers (Frame/Section)
+    #[serde(default = "default_true")]
+    pub prototype_scroll_bounce_x: bool,
+    #[serde(default = "default_true")]
+    pub prototype_scroll_bounce_y: bool,
+    /// Per-axis overscroll amount in px for prototype viewer.
+    /// -1 means "auto" (use selected physics preset default)
+    #[serde(default = "default_proto_overscroll")]
+    pub prototype_scroll_overscroll_x: f64,
+    #[serde(default = "default_proto_overscroll")]
+    pub prototype_scroll_overscroll_y: f64,
     /// Alt text for Image nodes (accessibility / screen readers)
     #[serde(default)]
     pub alt_text: Option<String>,
@@ -2345,6 +2356,7 @@ fn default_frame_bg_spacing() -> f64 { 20.0 }
 fn default_frame_bg_opacity() -> f64 { 0.15 }
 fn default_frame_bg_size() -> f64 { 1.5 }
 fn default_prototype_fixed_region() -> String { "auto".to_string() }
+fn default_proto_overscroll() -> f64 { -1.0 }
 
 impl Node {
     pub fn kind_name(&self) -> &str {
@@ -2437,6 +2449,10 @@ impl Node {
             scroll_animations: vec![],
             prototype_fixed: false,
             prototype_fixed_region: default_prototype_fixed_region(),
+            prototype_scroll_bounce_x: true,
+            prototype_scroll_bounce_y: true,
+            prototype_scroll_overscroll_x: default_proto_overscroll(),
+            prototype_scroll_overscroll_y: default_proto_overscroll(),
             alt_text: None,
             anchors: vec![],
             hyperlink: None,

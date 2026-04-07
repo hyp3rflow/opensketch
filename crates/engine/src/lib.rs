@@ -7915,6 +7915,46 @@ impl Engine {
             .unwrap_or_else(|| "auto".to_string())
     }
 
+    pub fn set_prototype_scroll_bounce_x(&mut self, id: u64, enabled: bool) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            node.prototype_scroll_bounce_x = enabled;
+        }
+    }
+
+    pub fn get_prototype_scroll_bounce_x(&self, id: u64) -> bool {
+        self.scene.get_node(id).map(|n| n.prototype_scroll_bounce_x).unwrap_or(true)
+    }
+
+    pub fn set_prototype_scroll_bounce_y(&mut self, id: u64, enabled: bool) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            node.prototype_scroll_bounce_y = enabled;
+        }
+    }
+
+    pub fn get_prototype_scroll_bounce_y(&self, id: u64) -> bool {
+        self.scene.get_node(id).map(|n| n.prototype_scroll_bounce_y).unwrap_or(true)
+    }
+
+    pub fn set_prototype_scroll_overscroll_x(&mut self, id: u64, px: f64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            node.prototype_scroll_overscroll_x = if px.is_finite() { px.max(-1.0) } else { -1.0 };
+        }
+    }
+
+    pub fn get_prototype_scroll_overscroll_x(&self, id: u64) -> f64 {
+        self.scene.get_node(id).map(|n| n.prototype_scroll_overscroll_x).unwrap_or(-1.0)
+    }
+
+    pub fn set_prototype_scroll_overscroll_y(&mut self, id: u64, px: f64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            node.prototype_scroll_overscroll_y = if px.is_finite() { px.max(-1.0) } else { -1.0 };
+        }
+    }
+
+    pub fn get_prototype_scroll_overscroll_y(&self, id: u64) -> f64 {
+        self.scene.get_node(id).map(|n| n.prototype_scroll_overscroll_y).unwrap_or(-1.0)
+    }
+
     // =============================================
     // Constraints
     // =============================================

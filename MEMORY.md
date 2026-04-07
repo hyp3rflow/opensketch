@@ -2342,6 +2342,19 @@
 - Auto Layout Baseline Alignment — 텍스트/아이콘 혼합 행에서 baseline 정렬 옵션 추가 (중난이도 / 중~고임팩트)
 - Prototype Interactive Components (Variant State Machine) — 컴포넌트 인스턴스 내부에서 hover/press/toggle 상태 전이 및 variant property 연동 (고난이도 / 고임팩트)
 
+## 완료된 기능 (추가 — Frame Overflow Behaviors 2.0, 2026-04-07)
+- Node 모델에 `prototype_scroll_bounce_x/y`, `prototype_scroll_overscroll_x/y` 필드 추가 (serde default, backward-compatible)
+- WASM API: `set/get_prototype_scroll_bounce_x/y`, `set/get_prototype_scroll_overscroll_x/y`
+- Properties panel Overflow 섹션에 `Prototype overflow` UI 추가
+  - Bounce X/Y 토글
+  - Overscroll X/Y 수동값 입력 (빈 값 = Auto)
+- Prototype viewer 스크롤 동작 개선
+  - wheel/touch/inertia 모두 frame별 bounce/overscroll 설정 반영
+  - bounce off 축은 strict clamp, overscroll Auto는 Scroll Physics preset 값 사용
+- 구현: `crates/engine/src/node.rs`, `crates/engine/src/lib.rs`, `packages/app/src/ui/properties-panel.ts`, `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
+- 검증: `wasm-pack build --target web`, `pnpm build`
+
 ## 완료된 기능 (추가 — Prototype Fixed Header/Footer Regions, 2026-04-07)
 - Node 모델에 `prototype_fixed_region` 필드 추가 (`auto|top|bottom`, serde default=`auto`)
 - WASM API: `set_prototype_fixed_region`, `get_prototype_fixed_region`

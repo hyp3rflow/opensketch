@@ -441,6 +441,20 @@ export function createPrototypeViewer(editor: Editor): {
     return SCROLL_PHYSICS_PRESETS.find((p) => p.id === selectedScrollPhysicsId) || SCROLL_PHYSICS_PRESETS[0];
   }
 
+  function getFrameScrollBehavior(frameId: number): { bounceX: boolean; bounceY: boolean; overscrollX: number; overscrollY: number } {
+    const physics = getSelectedScrollPhysicsPreset();
+    const bounceX = (editor.engine as any).get_prototype_scroll_bounce_x?.(BigInt(frameId));
+    const bounceY = (editor.engine as any).get_prototype_scroll_bounce_y?.(BigInt(frameId));
+    const rawOverX = Number((editor.engine as any).get_prototype_scroll_overscroll_x?.(BigInt(frameId)) ?? -1);
+    const rawOverY = Number((editor.engine as any).get_prototype_scroll_overscroll_y?.(BigInt(frameId)) ?? -1);
+    return {
+      bounceX: typeof bounceX === "boolean" ? bounceX : true,
+      bounceY: typeof bounceY === "boolean" ? bounceY : true,
+      overscrollX: rawOverX >= 0 ? rawOverX : physics.overscroll,
+      overscrollY: rawOverY >= 0 ? rawOverY : physics.overscroll,
+    };
+  }
+
   /** Get viewport scale + display dimensions for a frame */
   function getViewportParams(bounds: { width: number; height: number }) {
     const device = getSelectedDevicePreset();
@@ -1817,6 +1831,7 @@ export function createPrototypeViewer(editor: Editor): {
     const scrollsY = overflow === "scroll-both" || overflow === "scroll-vertical";
 
     const physics = getSelectedScrollPhysicsPreset();
+    const behavior = getFrameScrollBehavior(scrollFrameId);
     const scrollOffset = JSON.parse(editor.engine.get_scroll_offset(BigInt(scrollFrameId)));
     const bounds = getScrollableFrameBounds(scrollFrameId);
     if (!bounds) return;
@@ -1824,8 +1839,16 @@ export function createPrototypeViewer(editor: Editor): {
     let newScrollX = scrollsX ? scrollOffset.x - (e.deltaX * physics.wheelGain) : scrollOffset.x;
     let newScrollY = scrollsY ? scrollOffset.y - (e.deltaY * physics.wheelGain) : scrollOffset.y;
 
-    if (scrollsX) newScrollX = clampWithPhysics(newScrollX, bounds.minX, bounds.maxX, physics.overscroll);
-    if (scrollsY) newScrollY = clampWithPhysics(newScrollY, bounds.minY, bounds.maxY, physics.overscroll);
+    if (scrollsX) {
+      newScrollX = behavior.bounceX
+        ? clampWithPhysics(newScrollX, bounds.minX, bounds.maxX, behavior.overscrollX)
+        : clampStrict(newScrollX, bounds.minX, bounds.maxX);
+    }
+    if (scrollsY) {
+      newScrollY = behavior.bounceY
+        ? clampWithPhysics(newScrollY, bounds.minY, bounds.maxY, behavior.overscrollY)
+        : clampStrict(newScrollY, bounds.minY, bounds.maxY);
+    }
 
     editor.engine.set_scroll_offset(BigInt(scrollFrameId), newScrollX, newScrollY);
     renderCurrentView();
@@ -1928,11 +1951,20 @@ export function createPrototypeViewer(editor: Editor): {
       const scrollOffset = JSON.parse(editor.engine.get_scroll_offset(BigInt(touchScrollFrameId)));
       const scrollBounds = getScrollableFrameBounds(touchScrollFrameId);
       const physics = getSelectedScrollPhysicsPreset();
+      const behavior = getFrameScrollBehavior(touchScrollFrameId);
       if (scrollBounds) {
         let newScrollX = scrollsX ? scrollOffset.x - (sdx * physics.touchGain) : scrollOffset.x;
         let newScrollY = scrollsY ? scrollOffset.y - (sdy * physics.touchGain) : scrollOffset.y;
-        if (scrollsX) newScrollX = clampWithPhysics(newScrollX, scrollBounds.minX, scrollBounds.maxX, physics.overscroll);
-        if (scrollsY) newScrollY = clampWithPhysics(newScrollY, scrollBounds.minY, scrollBounds.maxY, physics.overscroll);
+        if (scrollsX) {
+          newScrollX = behavior.bounceX
+            ? clampWithPhysics(newScrollX, scrollBounds.minX, scrollBounds.maxX, behavior.overscrollX)
+            : clampStrict(newScrollX, scrollBounds.minX, scrollBounds.maxX);
+        }
+        if (scrollsY) {
+          newScrollY = behavior.bounceY
+            ? clampWithPhysics(newScrollY, scrollBounds.minY, scrollBounds.maxY, behavior.overscrollY)
+            : clampStrict(newScrollY, scrollBounds.minY, scrollBounds.maxY);
+        }
         editor.engine.set_scroll_offset(BigInt(touchScrollFrameId), newScrollX, newScrollY);
 
         const now = performance.now();
@@ -1956,6 +1988,7 @@ export function createPrototypeViewer(editor: Editor): {
     if (touchScrollFrameId !== null) {
       const frameId = touchScrollFrameId;
       const physics = getSelectedScrollPhysicsPreset();
+      const behavior = getFrameScrollBehavior(frameId);
       const overflow = editor.engine.get_overflow(BigInt(frameId));
       const scrollsX = overflow === "scroll-both" || overflow === "scroll-horizontal";
       const scrollsY = overflow === "scroll-both" || overflow === "scroll-vertical";
@@ -1977,8 +2010,12 @@ export function createPrototypeViewer(editor: Editor): {
         const scrollOffset = JSON.parse(editor.engine.get_scroll_offset(BigInt(frameId)));
         let nx = scrollOffset.x + (vx * 16);
         let ny = scrollOffset.y + (vy * 16);
-        nx = clampWithPhysics(nx, bounds.minX, bounds.maxX, physics.overscroll);
-        ny = clampWithPhysics(ny, bounds.minY, bounds.maxY, physics.overscroll);
+        nx = behavior.bounceX
+          ? clampWithPhysics(nx, bounds.minX, bounds.maxX, behavior.overscrollX)
+          : clampStrict(nx, bounds.minX, bounds.maxX);
+        ny = behavior.bounceY
+          ? clampWithPhysics(ny, bounds.minY, bounds.maxY, behavior.overscrollY)
+          : clampStrict(ny, bounds.minY, bounds.maxY);
         editor.engine.set_scroll_offset(BigInt(frameId), nx, ny);
         renderCurrentView();
 

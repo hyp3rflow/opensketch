@@ -2397,6 +2397,16 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
   - `Header/Footer (Y only)`: 가로 스크롤 영향 없이 세로 고정만 적용
 - [x] Prototype viewer: fixed 보정 시 region별 축 보정 로직 적용
 
+### Frame Overflow Behaviors 2.0 (2026-04-07)
+- [x] Node 모델 확장: `prototype_scroll_bounce_x/y: bool` + `prototype_scroll_overscroll_x/y: f64` (default -1 = preset auto)
+- [x] WASM API: `set/get_prototype_scroll_bounce_x/y`, `set/get_prototype_scroll_overscroll_x/y`
+- [x] Properties panel (scroll frame): `Prototype overflow` 섹션 추가
+  - Bounce X/Y 토글
+  - Overscroll X/Y 숫자 입력 (`Auto` 비움 상태 지원)
+- [x] Prototype viewer: wheel/touch/inertia 스크롤에서 frame별 overflow behavior 반영
+  - bounce OFF 축은 strict clamp
+  - bounce ON 축은 frame별 overscroll(px) 사용, Auto면 상단 Scroll Physics preset 값 사용
+
 ### Auto Layout Absolute Child + Wrap Controls (2026-04-06)
 - [x] Auto-layout wrap child line break 지원: Node에 `wrap_before: bool` 필드 추가 (serde default, backward-compatible)
 - [x] Flex wrap 계산에서 `wrap_before=true`인 자식은 부모 `wrap=Wrap`일 때 강제로 새 줄/새 컬럼 시작

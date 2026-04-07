@@ -8941,6 +8941,72 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           fixedRegionRow.append(fixedRegionLabel, fixedRegionSelect);
           snapAlignSection.appendChild(fixedRegionRow);
 
+          const protoScrollTitle = document.createElement("div");
+          protoScrollTitle.style.cssText = "font-size:10px;color:#888;margin-top:8px;margin-bottom:4px;";
+          protoScrollTitle.textContent = "Prototype overflow";
+          snapAlignSection.appendChild(protoScrollTitle);
+
+          const bounceXRow = document.createElement("label");
+          bounceXRow.style.cssText = "display:flex;align-items:center;gap:6px;cursor:pointer;";
+          const bounceXCb = document.createElement("input");
+          bounceXCb.type = "checkbox";
+          bounceXCb.checked = !!(editor.engine as any).get_prototype_scroll_bounce_x?.(BigInt(id));
+          bounceXCb.style.cssText = "accent-color:#4f46e5;";
+          const bounceXLabel = document.createElement("span");
+          bounceXLabel.style.cssText = "font-size:10px;color:#aaa;";
+          bounceXLabel.textContent = "Bounce X";
+          bounceXRow.append(bounceXCb, bounceXLabel);
+          snapAlignSection.appendChild(bounceXRow);
+
+          const bounceYRow = document.createElement("label");
+          bounceYRow.style.cssText = "display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:4px;";
+          const bounceYCb = document.createElement("input");
+          bounceYCb.type = "checkbox";
+          bounceYCb.checked = !!(editor.engine as any).get_prototype_scroll_bounce_y?.(BigInt(id));
+          bounceYCb.style.cssText = "accent-color:#4f46e5;";
+          const bounceYLabel = document.createElement("span");
+          bounceYLabel.style.cssText = "font-size:10px;color:#aaa;";
+          bounceYLabel.textContent = "Bounce Y";
+          bounceYRow.append(bounceYCb, bounceYLabel);
+          snapAlignSection.appendChild(bounceYRow);
+
+          const overRow = document.createElement("div");
+          overRow.style.cssText = "display:flex;gap:6px;align-items:center;margin-top:6px;";
+          const overX = document.createElement("input");
+          overX.type = "number";
+          overX.step = "1";
+          overX.min = "0";
+          overX.placeholder = "Auto X";
+          overX.style.cssText = "flex:1;padding:3px 6px;background:#2a2a2a;border:1px solid #444;border-radius:4px;color:#ccc;font-size:10px;";
+          const currentOverX = Number((editor.engine as any).get_prototype_scroll_overscroll_x?.(BigInt(id)) ?? -1);
+          overX.value = currentOverX >= 0 ? String(Math.round(currentOverX)) : "";
+          const overY = document.createElement("input");
+          overY.type = "number";
+          overY.step = "1";
+          overY.min = "0";
+          overY.placeholder = "Auto Y";
+          overY.style.cssText = "flex:1;padding:3px 6px;background:#2a2a2a;border:1px solid #444;border-radius:4px;color:#ccc;font-size:10px;";
+          const currentOverY = Number((editor.engine as any).get_prototype_scroll_overscroll_y?.(BigInt(id)) ?? -1);
+          overY.value = currentOverY >= 0 ? String(Math.round(currentOverY)) : "";
+          overRow.append(overX, overY);
+          snapAlignSection.appendChild(overRow);
+
+          const applyProtoOverflow = () => {
+            editor.engine.push_undo();
+            (editor.engine as any).set_prototype_scroll_bounce_x?.(BigInt(id), bounceXCb.checked);
+            (editor.engine as any).set_prototype_scroll_bounce_y?.(BigInt(id), bounceYCb.checked);
+            const ox = overX.value.trim() === "" ? -1 : (parseFloat(overX.value) || 0);
+            const oy = overY.value.trim() === "" ? -1 : (parseFloat(overY.value) || 0);
+            (editor.engine as any).set_prototype_scroll_overscroll_x?.(BigInt(id), ox);
+            (editor.engine as any).set_prototype_scroll_overscroll_y?.(BigInt(id), oy);
+            editor.requestRender();
+            refresh(ids);
+          };
+          bounceXCb.addEventListener("change", applyProtoOverflow);
+          bounceYCb.addEventListener("change", applyProtoOverflow);
+          overX.addEventListener("change", applyProtoOverflow);
+          overY.addEventListener("change", applyProtoOverflow);
+
           panel.appendChild(snapAlignSection);
         }
       }
