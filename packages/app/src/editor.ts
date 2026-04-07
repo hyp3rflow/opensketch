@@ -8636,6 +8636,29 @@ export class Editor {
       items.push({ label: "Select Same Kind in Parent", enabled: selAfter.length === 1, action: () => this.selectSameKind(selAfter[0]!, "parent") });
       items.push({ label: "Select Same Kind in Page", enabled: selAfter.length === 1, action: () => this.selectSameKind(selAfter[0]!, "page") });
       items.push({ label: "Add Same Kind to Selection", enabled: selAfter.length === 1, action: () => this.selectSameKind(selAfter[0]!, "document", true) });
+      if (selAfter.length === 1) {
+        try {
+          const raw = this.engine.get_node_json(BigInt(selAfter[0]!));
+          if (raw) {
+            const refNode = JSON.parse(raw);
+            const layerKey = this.inferLayerFilterKeyFromNode(refNode);
+            const layerLabelMap: Record<SmartSelectionFilterKey, string> = {
+              shape: "Shape",
+              text: "Text",
+              image: "Image",
+              locked: "Locked",
+              hidden: "Hidden",
+            };
+            const layerLabel = layerLabelMap[layerKey];
+            items.push({ label: `Select Same ${layerLabel}`, action: () => this.selectSameLayerFilter(selAfter[0]!, layerKey, "document") });
+            items.push({ label: `Select Same ${layerLabel} in Parent`, action: () => this.selectSameLayerFilter(selAfter[0]!, layerKey, "parent") });
+            items.push({ label: `Select Same ${layerLabel} in Page`, action: () => this.selectSameLayerFilter(selAfter[0]!, layerKey, "page") });
+            items.push({ label: `Add Same ${layerLabel} to Selection`, action: () => this.selectSameLayerFilter(selAfter[0]!, layerKey, "document", true) });
+          }
+        } catch {
+          // ignore parse errors
+        }
+      }
       items.push({ label: "Select Similar…", shortcut: `${mod}⇧A`, enabled: selAfter.length === 1, action: () => this.openSmartSelect(selAfter[0]!) });
       items.push({ label: "Smart Replace…", shortcut: `${mod}⇧H`, enabled: selAfter.length === 1, action: () => this.openSmartReplacePanel(selAfter[0]!) });
     } else {
@@ -8868,6 +8891,37 @@ export class Editor {
 
   private selectSameFont(refId: number, scope: "document" | "page" | "parent" = "document", additive = false) {
     const ids = Array.from(this.engine.select_same_font(refId)).map(Number);
+    this.applySelectSameScope(ids, refId, scope, additive);
+  }
+
+  private inferLayerFilterKeyFromNode(node: any): SmartSelectionFilterKey {
+    const kind = String(node?.kind || "");
+    if (kind === "Text") return "text";
+    if (kind === "Image") return "image";
+    if (node?.locked === true) return "locked";
+    if (node?.visible === false) return "hidden";
+    return "shape";
+  }
+
+  private selectSameLayerFilter(refId: number, key: SmartSelectionFilterKey, scope: "document" | "page" | "parent" = "document", additive = false) {
+    const ids = Array.from(this.engine.get_all_node_ids())
+      .map(Number)
+      .filter((id) => {
+        try {
+          const raw = this.engine.get_node_json(BigInt(id));
+          if (!raw) return false;
+          const node = JSON.parse(raw);
+          const kind = String(node?.kind || "");
+          if (key === "text") return kind === "Text";
+          if (key === "image") return kind === "Image";
+          if (key === "locked") return node?.locked === true;
+          if (key === "hidden") return node?.visible === false;
+          return this.isShapeNodeKind(kind);
+        } catch {
+          return false;
+        }
+      });
+
     this.applySelectSameScope(ids, refId, scope, additive);
   }
 

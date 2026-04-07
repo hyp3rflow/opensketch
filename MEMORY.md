@@ -2344,6 +2344,18 @@
 - Prototype Gesture Triggers (Drag/Swipe Directional) — OnDrag를 방향 인식 스와이프 트리거로 확장해 모바일 프로토타이핑 정확도 향상 (중난이도 / 중~고임팩트)
 - Frame States (Variants-lite) — 일반 Frame에도 상태(State) 세트를 부여해 hover/pressed/disabled 미리보기와 토글 전환 지원 (중난이도 / 중임팩트)
 
+## 완료된 기능 (추가 — Smart Selection by Layer/Type filter 고도화, 2026-04-08)
+- 선택 노드 기반 Layer Type 추론(`shape/text/image/locked/hidden`) 헬퍼 추가
+- Context menu의 Select Same 계열에 Layer Type용 고급 옵션 추가
+  - Select Same <Type>
+  - Select Same <Type> in Parent
+  - Select Same <Type> in Page
+  - Add Same <Type> to Selection
+- 기존 전역 Selection Filter(Shape/Text/Image/Locked/Hidden)와 click/marquee 필터링 흐름은 유지
+- 구현: `packages/app/src/editor.ts`
+- specs 반영: `specs/FEATURES.md`
+- 검증: `wasm-pack build --target web`, `pnpm -C packages/app build`
+
 ## 완료된 기능 (추가 — Pen Pressure Width Profile + Taper, 2026-04-08)
 - Pen/Freehand pressure width 계산을 공통 `pressureWidth()`로 통합 (curve + taper factor)
 - freehand 종료 후 생성된 Path의 각 포인트에 pressure 기반 stroke width를 재적용
