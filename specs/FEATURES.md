@@ -99,6 +99,7 @@
 - [x] **Component search & swap**: search components by name, view all instances, swap selected/all instances to different master component (Cmd+Shift+K)
 - [x] **Figma-style Variants Matrix UI (MVP)**: Component Set 인스턴스 편집 시 첫 2개 axis 조합을 2D 매트릭스로 시각화, 셀 클릭으로 variant 전환, 빈 셀 클릭/드래그로 현재 variant를 조합에 매핑
 - [x] **Instance Controls unified card**: Instance 선택 시 Properties panel에서 Variant/Overrides/Component Props(텍스트 override 포함)를 단일 `INSTANCE CONTROLS` 카드로 묶어 편집
+- [x] **Component Props Figma-style override polish**: Instance의 Boolean/Text/Instance Swap prop을 타입 배지 + override dot + `Reset all` 액션으로 노출, Text default placeholder/tooltip 제공, Component source의 속성 목록에 default/linked target 메타 표시
 
 ### Alignment & Distribution
 - [x] **Align**: left, center-H, right, top, center-V, bottom (multi-select, 2+ nodes)
@@ -343,6 +344,7 @@
   - Easing curve editor: SVG-based 120×120 cubic-bezier editor with draggable control points, preset buttons (Linear/EaseIn/EaseOut/EaseInOut/Custom), inline in interaction section
   - Prototype viewer: full-screen overlay, click navigation, back stack, Esc to close
   - Prototype viewer Device Preview: top-bar device preset selector (No Device/iPhone/Pixel/iPad), frame bezel+corner radius+notch overlay, safe-area inset guide, preview scrollbar indicator
+  - Prototype viewer Scroll Physics Presets: top-bar Scroll preset selector (iOS/Android/Web), wheel/touch gain + overscroll clamp + inertia decay 프리뷰
   - Animated transitions: Dissolve (cross-fade), SlideIn (from right), SlideOut (old exits right), Push (both move), SmartAnimate (name-matched node interpolation with position/size cross-fade)
   - SmartAnimate: Rust engine `compute_auto_animate(from, to)` matches descendants by name, returns paired snapshots with full property diffs (position, size, rotation, opacity, corner_radius, blur, fill color, stroke width)
   - SmartAnimate rendering: matched nodes interpolate all properties with cubic ease-in-out, rotation via canvas transform, rounded clip for corner_radius, removed nodes fade out, added nodes fade in

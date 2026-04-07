@@ -1936,10 +1936,36 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             background:rgba(251,191,36,0.06); border:1px solid rgba(251,191,36,0.15);
             border-radius:8px;
           `;
+          const cpHeader = document.createElement("div");
+          cpHeader.style.cssText = "display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;";
+
           const cpTitle = document.createElement("div");
-          cpTitle.style.cssText = "font-size:10px;color:#fbbf24;letter-spacing:0.3px;margin-bottom:6px;font-weight:600;";
+          cpTitle.style.cssText = "font-size:10px;color:#fbbf24;letter-spacing:0.3px;font-weight:600;";
           cpTitle.textContent = "COMPONENT PROPS";
-          cpSection.appendChild(cpTitle);
+          cpHeader.appendChild(cpTitle);
+
+          const resetPropsBtn = document.createElement("button");
+          resetPropsBtn.style.cssText = `
+            background:rgba(251,191,36,0.15); border:1px solid rgba(251,191,36,0.3);
+            border-radius:4px; padding:2px 8px; color:#fbbf24;
+            cursor:pointer; font-size:10px; font-weight:500;
+          `;
+          resetPropsBtn.textContent = "Reset all";
+          const hasOverriddenProps = propVals.some((p) => p.overridden);
+          resetPropsBtn.disabled = !hasOverriddenProps;
+          if (!hasOverriddenProps) resetPropsBtn.style.opacity = "0.4";
+          resetPropsBtn.addEventListener("click", () => {
+            editor.engine.push_undo();
+            for (const p of propVals) {
+              if (p.overridden) {
+                editor.engine.reset_instance_prop(BigInt(id), p.name);
+              }
+            }
+            editor.requestRender();
+            refresh([id]);
+          });
+          cpHeader.appendChild(resetPropsBtn);
+          cpSection.appendChild(cpHeader);
 
           for (const pv of propVals) {
             const propRow = document.createElement("div");
@@ -1953,9 +1979,19 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
               propRow.appendChild(dot);
             }
 
+            const typeBadge = document.createElement("span");
+            typeBadge.style.cssText = `
+              font-size:9px; padding:1px 4px; border-radius:3px; flex-shrink:0;
+              background:${pv.prop_type === "boolean" ? "rgba(16,185,129,0.2);color:#10b981" : pv.prop_type === "text" ? "rgba(59,130,246,0.2);color:#3b82f6" : "rgba(139,92,246,0.2);color:#8b5cf6"};
+              ${pv.overridden ? "" : "margin-left:12px;"}
+            `;
+            typeBadge.textContent = pv.prop_type === "instance_swap" ? "swap" : pv.prop_type;
+            propRow.appendChild(typeBadge);
+
             const propLabel = document.createElement("span");
-            propLabel.style.cssText = `font-size:11px;color:#999;min-width:60px;${pv.overridden ? "" : "margin-left:12px;"}`;
+            propLabel.style.cssText = "font-size:11px;color:#bbb;min-width:78px;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
             propLabel.textContent = pv.name;
+            propLabel.title = pv.name;
             propRow.appendChild(propLabel);
 
             if (pv.prop_type === "boolean") {
@@ -1988,6 +2024,10 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
                 color:#ccc; font-size:11px; padding:3px 6px; outline:none;
               `;
               input.value = pv.value.value || "";
+              if (pv.definition?.default) {
+                input.placeholder = String(pv.definition.default);
+                input.title = `Default: ${pv.definition.default}`;
+              }
               input.addEventListener("change", () => {
                 editor.engine.push_undo();
                 editor.engine.set_instance_prop_override(
@@ -1995,6 +2035,12 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
                   JSON.stringify({ type: "text", value: input.value })
                 );
                 editor.requestRender();
+                refresh([id]);
+              });
+              input.addEventListener("keydown", (e) => {
+                if (e.key === "Enter") {
+                  input.blur();
+                }
               });
               propRow.appendChild(input);
             } else if (pv.prop_type === "instance_swap") {
@@ -2142,10 +2188,26 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
               typeBadge.textContent = prop.type === "instance_swap" ? "swap" : prop.type;
               propRow.appendChild(typeBadge);
 
+              const nameWrap = document.createElement("div");
+              nameWrap.style.cssText = "flex:1;min-width:0;display:flex;flex-direction:column;gap:1px;";
+
               const nameSpan = document.createElement("span");
-              nameSpan.style.cssText = "flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
+              nameSpan.style.cssText = "overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
               nameSpan.textContent = prop.name;
-              propRow.appendChild(nameSpan);
+              nameWrap.appendChild(nameSpan);
+
+              const metaSpan = document.createElement("span");
+              metaSpan.style.cssText = "font-size:10px;color:#888;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
+              if (prop.type === "boolean") {
+                metaSpan.textContent = `default: ${prop.default ? "on" : "off"} · linked node #${prop.linked_node_id ?? 0}`;
+              } else if (prop.type === "text") {
+                metaSpan.textContent = `default: \"${prop.default ?? ""}\" · linked text #${prop.linked_node_id ?? 0}`;
+              } else {
+                metaSpan.textContent = `default component #${prop.default_component_id ?? 0} · linked slot #${prop.linked_slot_id ?? 0}`;
+              }
+              nameWrap.appendChild(metaSpan);
+
+              propRow.appendChild(nameWrap);
 
               const removeBtn = document.createElement("button");
               removeBtn.style.cssText = "background:none;border:none;color:#f87171;cursor:pointer;font-size:10px;padding:0 2px;opacity:0.7;flex-shrink:0;";

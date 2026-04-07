@@ -44,6 +44,21 @@ export function createPrototypeViewer(editor: Editor): {
   ];
   let selectedDeviceId = "none";
 
+  type ScrollPhysicsPreset = {
+    id: string;
+    label: string;
+    wheelGain: number;
+    touchGain: number;
+    inertiaDecay: number;
+    overscroll: number;
+  };
+  const SCROLL_PHYSICS_PRESETS: ScrollPhysicsPreset[] = [
+    { id: "ios", label: "iOS", wheelGain: 1.0, touchGain: 1.0, inertiaDecay: 0.93, overscroll: 48 },
+    { id: "android", label: "Android", wheelGain: 0.95, touchGain: 0.95, inertiaDecay: 0.9, overscroll: 20 },
+    { id: "web", label: "Web", wheelGain: 1.0, touchGain: 1.0, inertiaDecay: 0.87, overscroll: 0 },
+  ];
+  let selectedScrollPhysicsId = "ios";
+
   type SmartTimelineKeyframe = { time: number; label?: string; easing?: string };
 
   /** Initialize prototype variables from engine definitions */
@@ -218,6 +233,27 @@ export function createPrototypeViewer(editor: Editor): {
     deviceWrap.appendChild(deviceSel);
     topBar.appendChild(deviceWrap);
 
+    const physicsWrap = document.createElement("div");
+    physicsWrap.style.cssText = "display:flex;align-items:center;gap:6px;";
+    const physicsLabel = document.createElement("span");
+    physicsLabel.style.cssText = "font-size:11px;color:#94a3b8;";
+    physicsLabel.textContent = "Scroll";
+    const physicsSel = document.createElement("select");
+    physicsSel.style.cssText = "background:#0f3460;color:#e2e8f0;border:1px solid #334155;border-radius:6px;padding:5px 8px;font-size:12px;";
+    for (const preset of SCROLL_PHYSICS_PRESETS) {
+      const opt = document.createElement("option");
+      opt.value = preset.id;
+      opt.textContent = preset.label;
+      if (preset.id === selectedScrollPhysicsId) opt.selected = true;
+      physicsSel.appendChild(opt);
+    }
+    physicsSel.addEventListener("change", () => {
+      selectedScrollPhysicsId = physicsSel.value;
+    });
+    physicsWrap.appendChild(physicsLabel);
+    physicsWrap.appendChild(physicsSel);
+    topBar.appendChild(physicsWrap);
+
     const closeBtn = document.createElement("button");
     closeBtn.style.cssText = "background:#e94560;color:white;border:none;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:12px;";
     closeBtn.textContent = "Close (Esc)";
@@ -307,6 +343,7 @@ export function createPrototypeViewer(editor: Editor): {
     transitioning = false;
     clearVideoOverlays();
     stopMotionPathPlayback();
+    stopInertia();
     document.removeEventListener("keydown", onKeyDown);
     overlay.remove();
     overlay = null;
@@ -352,6 +389,10 @@ export function createPrototypeViewer(editor: Editor): {
 
   function getSelectedDevicePreset(): PrototypeDevicePreset {
     return DEVICE_PRESETS.find((d) => d.id === selectedDeviceId) || DEVICE_PRESETS[0];
+  }
+
+  function getSelectedScrollPhysicsPreset(): ScrollPhysicsPreset {
+    return SCROLL_PHYSICS_PRESETS.find((p) => p.id === selectedScrollPhysicsId) || SCROLL_PHYSICS_PRESETS[0];
   }
 
   /** Get viewport scale + display dimensions for a frame */
@@ -1515,6 +1556,47 @@ export function createPrototypeViewer(editor: Editor): {
     }
   }
 
+  function getScrollableFrameBounds(frameId: number): { minX: number; minY: number; maxX: number; maxY: number } | null {
+    const nj = editor.engine.get_node_json(frameId);
+    if (!nj) return null;
+    const node = JSON.parse(nj);
+
+    let contentW = node.width;
+    let contentH = node.height;
+    const nodeChildren: number[] = node.children || [];
+    for (const cid of nodeChildren) {
+      const cj = editor.engine.get_node_json(cid);
+      if (!cj) continue;
+      const c = JSON.parse(cj);
+      contentW = Math.max(contentW, (c.x - node.x) + c.width);
+      contentH = Math.max(contentH, (c.y - node.y) + c.height);
+    }
+
+    return {
+      minX: -(contentW - node.width),
+      minY: -(contentH - node.height),
+      maxX: 0,
+      maxY: 0,
+    };
+  }
+
+  function clampWithPhysics(value: number, min: number, max: number, overscroll: number): number {
+    if (value < min) return Math.max(min - overscroll, value);
+    if (value > max) return Math.min(max + overscroll, value);
+    return value;
+  }
+
+  function clampStrict(value: number, min: number, max: number): number {
+    return Math.max(min, Math.min(max, value));
+  }
+
+  function stopInertia() {
+    if (inertiaAnimId !== null) {
+      cancelAnimationFrame(inertiaAnimId);
+      inertiaAnimId = null;
+    }
+  }
+
   /** Handle wheel events for scrolling frames in prototype viewer */
   function onWheel(e: WheelEvent) {
     if (!viewCanvas || transitioning || !currentFrameId) return;
@@ -1528,29 +1610,16 @@ export function createPrototypeViewer(editor: Editor): {
     const scrollsX = overflow === "scroll-both" || overflow === "scroll-horizontal";
     const scrollsY = overflow === "scroll-both" || overflow === "scroll-vertical";
 
+    const physics = getSelectedScrollPhysicsPreset();
     const scrollOffset = JSON.parse(editor.engine.get_scroll_offset(BigInt(scrollFrameId)));
-    const nj = editor.engine.get_node_json(scrollFrameId);
-    if (!nj) return;
-    const node = JSON.parse(nj);
+    const bounds = getScrollableFrameBounds(scrollFrameId);
+    if (!bounds) return;
 
-    // Calculate content bounds from children
-    let contentW = node.width, contentH = node.height;
-    const nodeChildren: number[] = node.children || [];
-    for (const cid of nodeChildren) {
-      const cj = editor.engine.get_node_json(cid);
-      if (!cj) continue;
-      const c = JSON.parse(cj);
-      contentW = Math.max(contentW, (c.x - node.x) + c.width);
-      contentH = Math.max(contentH, (c.y - node.y) + c.height);
-    }
+    let newScrollX = scrollsX ? scrollOffset.x - (e.deltaX * physics.wheelGain) : scrollOffset.x;
+    let newScrollY = scrollsY ? scrollOffset.y - (e.deltaY * physics.wheelGain) : scrollOffset.y;
 
-    let newScrollX = scrollsX ? scrollOffset.x - e.deltaX : scrollOffset.x;
-    let newScrollY = scrollsY ? scrollOffset.y - e.deltaY : scrollOffset.y;
-
-    const maxScrollX = -(contentW - node.width);
-    const maxScrollY = -(contentH - node.height);
-    if (scrollsX) newScrollX = Math.max(maxScrollX, Math.min(0, newScrollX));
-    if (scrollsY) newScrollY = Math.max(maxScrollY, Math.min(0, newScrollY));
+    if (scrollsX) newScrollX = clampWithPhysics(newScrollX, bounds.minX, bounds.maxX, physics.overscroll);
+    if (scrollsY) newScrollY = clampWithPhysics(newScrollY, bounds.minY, bounds.maxY, physics.overscroll);
 
     editor.engine.set_scroll_offset(BigInt(scrollFrameId), newScrollX, newScrollY);
     renderCurrentView();
@@ -1569,6 +1638,10 @@ export function createPrototypeViewer(editor: Editor): {
   let touchScrollFrameId: number | null = null;
   let lastTouchX = 0;
   let lastTouchY = 0;
+  let touchVelocityX = 0;
+  let touchVelocityY = 0;
+  let lastTouchMoveTs = 0;
+  let inertiaAnimId: number | null = null;
 
   function onTouchStart(e: TouchEvent) {
     if (!viewCanvas || transitioning) return;
@@ -1576,6 +1649,10 @@ export function createPrototypeViewer(editor: Editor): {
     longPressFired = false;
     pinchActive = false;
     touchScrollFrameId = null;
+    touchVelocityX = 0;
+    touchVelocityY = 0;
+    lastTouchMoveTs = performance.now();
+    stopInertia();
 
     if (e.touches.length === 2) {
       // Pinch start
@@ -1643,23 +1720,21 @@ export function createPrototypeViewer(editor: Editor): {
       const scrollsX = overflow === "scroll-both" || overflow === "scroll-horizontal";
       const scrollsY = overflow === "scroll-both" || overflow === "scroll-vertical";
       const scrollOffset = JSON.parse(editor.engine.get_scroll_offset(BigInt(touchScrollFrameId)));
-      const nj = editor.engine.get_node_json(touchScrollFrameId);
-      if (nj) {
-        const node = JSON.parse(nj);
-        let contentW = node.width, contentH = node.height;
-        const nodeChildren: number[] = node.children || [];
-        for (const cid of nodeChildren) {
-          const cj = editor.engine.get_node_json(cid);
-          if (!cj) continue;
-          const c = JSON.parse(cj);
-          contentW = Math.max(contentW, (c.x - node.x) + c.width);
-          contentH = Math.max(contentH, (c.y - node.y) + c.height);
-        }
-        let newScrollX = scrollsX ? scrollOffset.x - sdx : scrollOffset.x;
-        let newScrollY = scrollsY ? scrollOffset.y - sdy : scrollOffset.y;
-        if (scrollsX) newScrollX = Math.max(-(contentW - node.width), Math.min(0, newScrollX));
-        if (scrollsY) newScrollY = Math.max(-(contentH - node.height), Math.min(0, newScrollY));
+      const scrollBounds = getScrollableFrameBounds(touchScrollFrameId);
+      const physics = getSelectedScrollPhysicsPreset();
+      if (scrollBounds) {
+        let newScrollX = scrollsX ? scrollOffset.x - (sdx * physics.touchGain) : scrollOffset.x;
+        let newScrollY = scrollsY ? scrollOffset.y - (sdy * physics.touchGain) : scrollOffset.y;
+        if (scrollsX) newScrollX = clampWithPhysics(newScrollX, scrollBounds.minX, scrollBounds.maxX, physics.overscroll);
+        if (scrollsY) newScrollY = clampWithPhysics(newScrollY, scrollBounds.minY, scrollBounds.maxY, physics.overscroll);
         editor.engine.set_scroll_offset(BigInt(touchScrollFrameId), newScrollX, newScrollY);
+
+        const now = performance.now();
+        const dt = Math.max(1, now - lastTouchMoveTs);
+        touchVelocityX = (newScrollX - scrollOffset.x) / dt;
+        touchVelocityY = (newScrollY - scrollOffset.y) / dt;
+        lastTouchMoveTs = now;
+
         renderCurrentView();
       }
     }
@@ -1671,9 +1746,55 @@ export function createPrototypeViewer(editor: Editor): {
 
     if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
 
-    // Trigger snap on touch end for scrollable frame
+    // Trigger inertia + snap on touch end for scrollable frame
     if (touchScrollFrameId !== null) {
-      scheduleSnap(touchScrollFrameId);
+      const frameId = touchScrollFrameId;
+      const physics = getSelectedScrollPhysicsPreset();
+      const overflow = editor.engine.get_overflow(BigInt(frameId));
+      const scrollsX = overflow === "scroll-both" || overflow === "scroll-horizontal";
+      const scrollsY = overflow === "scroll-both" || overflow === "scroll-vertical";
+
+      const animateInertia = () => {
+        const bounds = getScrollableFrameBounds(frameId);
+        if (!bounds) {
+          inertiaAnimId = null;
+          scheduleSnap(frameId);
+          return;
+        }
+        let vx = touchVelocityX * physics.inertiaDecay;
+        let vy = touchVelocityY * physics.inertiaDecay;
+        if (!scrollsX) vx = 0;
+        if (!scrollsY) vy = 0;
+        touchVelocityX = vx;
+        touchVelocityY = vy;
+
+        const scrollOffset = JSON.parse(editor.engine.get_scroll_offset(BigInt(frameId)));
+        let nx = scrollOffset.x + (vx * 16);
+        let ny = scrollOffset.y + (vy * 16);
+        nx = clampWithPhysics(nx, bounds.minX, bounds.maxX, physics.overscroll);
+        ny = clampWithPhysics(ny, bounds.minY, bounds.maxY, physics.overscroll);
+        editor.engine.set_scroll_offset(BigInt(frameId), nx, ny);
+        renderCurrentView();
+
+        const speed = Math.hypot(vx, vy);
+        if (speed < 0.02) {
+          const sx = clampStrict(nx, bounds.minX, bounds.maxX);
+          const sy = clampStrict(ny, bounds.minY, bounds.maxY);
+          editor.engine.set_scroll_offset(BigInt(frameId), sx, sy);
+          renderCurrentView();
+          inertiaAnimId = null;
+          scheduleSnap(frameId);
+          return;
+        }
+        inertiaAnimId = requestAnimationFrame(animateInertia);
+      };
+
+      if (Math.hypot(touchVelocityX, touchVelocityY) > 0.05) {
+        stopInertia();
+        inertiaAnimId = requestAnimationFrame(animateInertia);
+      } else {
+        scheduleSnap(frameId);
+      }
       touchScrollFrameId = null;
     }
 

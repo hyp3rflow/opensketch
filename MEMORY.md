@@ -2292,8 +2292,14 @@
 - 구현: `packages/app/src/ui/dev-mode-overlay.ts`, `packages/app/src/editor.ts`
 - specs/FEATURES.md Dev Mode Enhancement 섹션 동기화
 
+## 완료된 기능 (추가 — Prototype Scroll Physics Presets, 2026-04-07)
+- Prototype viewer top bar에 `Scroll` 프리셋 드롭다운 추가 (iOS / Android / Web)
+- 프리셋별 wheel/touch gain, overscroll 허용 범위, inertia decay를 적용해 스크롤 감각 미리보기 지원
+- touch scroll 종료 시 관성 애니메이션 후 경계 복귀 + 기존 scroll snap 연동
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs/FEATURES.md Prototyping 섹션 동기화
+
 ## 다음 할 것 (2026-04-07 업데이트)
-- Prototype Scroll Physics Presets — iOS/Android/Web 관성 스크롤 프리셋(감쇠/탄성) 전환 및 미리보기 (중난이도 / 중임팩트)
 - Variable Fallback Chain — 변수 바인딩 실패 시 mode→collection→literal fallback 체인 및 Broken binding 자동 복구 제안 (중난이도 / 고임팩트)
 - Auto Layout Min/Max Constraints — Hug/Fill와 함께 min/max width/height 제약을 지원해 반응형 레이아웃 안정성 강화 (중난이도 / 고임팩트)
 - Multi-Edit Text Cursor (Cross-node) — 여러 Text 노드 동시 선택 후 공통 입력/스타일 적용 (고난이도 / 고임팩트)
