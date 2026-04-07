@@ -1866,11 +1866,23 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             border-radius:8px;
           `;
           const overrideHeader = document.createElement("div");
-          overrideHeader.style.cssText = "display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;";
+          overrideHeader.style.cssText = "display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;";
           const overrideTitle = document.createElement("div");
           overrideTitle.style.cssText = "font-size:10px;color:#3b82f6;letter-spacing:0.3px;font-weight:600;display:flex;align-items:center;gap:4px;";
           overrideTitle.innerHTML = `<span style="width:6px;height:6px;border-radius:50%;background:#3b82f6;display:inline-block;"></span> ${overrideInfo.overrides.length} OVERRIDE${overrideInfo.overrides.length > 1 ? 'S' : ''}`;
           overrideHeader.appendChild(overrideTitle);
+
+          const actionsWrap = document.createElement("div");
+          actionsWrap.style.cssText = "display:flex;align-items:center;gap:6px;";
+
+          const resetVisibleBtn = document.createElement("button");
+          resetVisibleBtn.style.cssText = `
+            background:rgba(59,130,246,0.1); border:1px solid rgba(59,130,246,0.25);
+            border-radius:4px; padding:2px 6px; color:#93c5fd;
+            cursor:pointer; font-size:10px; font-weight:500;
+          `;
+          resetVisibleBtn.textContent = "Reset visible";
+          actionsWrap.appendChild(resetVisibleBtn);
 
           const resetAllBtn = document.createElement("button");
           resetAllBtn.style.cssText = `
@@ -1889,30 +1901,133 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
               refresh([id]);
             }
           });
-          overrideHeader.appendChild(resetAllBtn);
+          actionsWrap.appendChild(resetAllBtn);
+          overrideHeader.appendChild(actionsWrap);
           overrideCard.appendChild(overrideHeader);
 
-          for (const ov of overrideInfo.overrides) {
-            const ovRow = document.createElement("div");
-            ovRow.style.cssText = "display:flex;align-items:center;gap:6px;padding:3px 0;font-size:11px;color:#94a3b8;";
-            ovRow.innerHTML = `<span style="width:5px;height:5px;border-radius:50%;background:#3b82f6;flex-shrink:0;"></span>`;
-            const ovName = document.createElement("span");
-            ovName.style.cssText = "flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
-            ovName.textContent = `${ov.node_name}: ${ov.properties.join(", ")}`;
-            ovRow.appendChild(ovName);
+          const toolsRow = document.createElement("div");
+          toolsRow.style.cssText = "display:flex;align-items:center;gap:6px;margin-bottom:6px;";
+          const queryInput = document.createElement("input");
+          queryInput.type = "text";
+          queryInput.placeholder = "Filter node/property";
+          queryInput.style.cssText = "flex:1;min-width:0;background:#0f172a;color:#cbd5e1;border:1px solid #334155;border-radius:6px;padding:4px 7px;font-size:10px;";
 
-            const resetBtn = document.createElement("button");
-            resetBtn.style.cssText = "background:none;border:none;color:#60a5fa;cursor:pointer;font-size:10px;padding:0 2px;opacity:0.7;";
-            resetBtn.textContent = "↺";
-            resetBtn.title = "Reset this node's overrides";
-            resetBtn.addEventListener("click", () => {
-              editor.engine.reset_instance_overrides(BigInt(id), BigInt(ov.node_id));
-              editor.requestRender();
-              refresh([id]);
-            });
-            ovRow.appendChild(resetBtn);
-            overrideCard.appendChild(ovRow);
+          const scopeSel = document.createElement("select");
+          scopeSel.style.cssText = "background:#0f3460;color:#dbeafe;border:1px solid #334155;border-radius:6px;padding:4px 6px;font-size:10px;";
+          const scopes = ["all", "paint", "layout", "effects", "text", "visibility"];
+          for (const s of scopes) {
+            const opt = document.createElement("option");
+            opt.value = s;
+            opt.textContent = s === "all" ? "All" : s;
+            scopeSel.appendChild(opt);
           }
+          toolsRow.appendChild(queryInput);
+          toolsRow.appendChild(scopeSel);
+          overrideCard.appendChild(toolsRow);
+
+          const listWrap = document.createElement("div");
+          overrideCard.appendChild(listWrap);
+
+          const classifyProp = (prop: string): string => {
+            const p = String(prop || "").toLowerCase();
+            if (p.includes("fill") || p.includes("stroke") || p.includes("color")) return "paint";
+            if (p.includes("opacity") || p.includes("blur") || p.includes("shadow") || p.includes("blend")) return "effects";
+            if (p.includes("text") || p.includes("font") || p.includes("letter") || p.includes("line") || p.includes("align")) return "text";
+            if (p.includes("visible")) return "visibility";
+            if (p.includes("x") || p.includes("y") || p.includes("width") || p.includes("height") || p.includes("layout") || p.includes("radius")) return "layout";
+            return "all";
+          };
+
+          const renderOverrideRows = () => {
+            const query = queryInput.value.trim().toLowerCase();
+            const scope = scopeSel.value;
+            listWrap.innerHTML = "";
+            let visibleCount = 0;
+
+            for (const ov of overrideInfo.overrides) {
+              const matchedProps = (ov.properties || []).filter((p: string) => {
+                if (scope !== "all") {
+                  const kind = classifyProp(p);
+                  if (!(kind === scope || (scope === "layout" && kind === "all"))) return false;
+                }
+                if (!query) return true;
+                return String(p).toLowerCase().includes(query) || String(ov.node_name || "").toLowerCase().includes(query);
+              });
+              if (matchedProps.length === 0) continue;
+              visibleCount++;
+
+              const ovRow = document.createElement("div");
+              ovRow.style.cssText = "display:flex;align-items:flex-start;gap:6px;padding:4px 0;font-size:11px;color:#94a3b8;";
+              ovRow.innerHTML = `<span style="width:5px;height:5px;border-radius:50%;background:#3b82f6;flex-shrink:0;margin-top:6px;"></span>`;
+              const content = document.createElement("div");
+              content.style.cssText = "flex:1;min-width:0;";
+              const name = document.createElement("div");
+              name.style.cssText = "color:#cbd5e1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:3px;";
+              name.textContent = ov.node_name;
+              content.appendChild(name);
+
+              const chips = document.createElement("div");
+              chips.style.cssText = "display:flex;flex-wrap:wrap;gap:4px;";
+              for (const p of matchedProps) {
+                const chip = document.createElement("span");
+                chip.style.cssText = "font-size:10px;padding:1px 6px;border-radius:999px;background:rgba(59,130,246,0.18);color:#bfdbfe;border:1px solid rgba(59,130,246,0.35);";
+                chip.textContent = p;
+                chips.appendChild(chip);
+              }
+              content.appendChild(chips);
+              ovRow.appendChild(content);
+
+              const resetBtn = document.createElement("button");
+              resetBtn.style.cssText = "background:none;border:none;color:#60a5fa;cursor:pointer;font-size:10px;padding:0 2px;opacity:0.7;";
+              resetBtn.textContent = "↺";
+              resetBtn.title = "Reset this node's overrides";
+              resetBtn.addEventListener("click", () => {
+                editor.engine.reset_instance_overrides(BigInt(id), BigInt(ov.node_id));
+                editor.requestRender();
+                refresh([id]);
+              });
+              ovRow.appendChild(resetBtn);
+              listWrap.appendChild(ovRow);
+            }
+
+            resetVisibleBtn.disabled = visibleCount === 0;
+            resetVisibleBtn.style.opacity = visibleCount === 0 ? "0.45" : "1";
+            overrideTitle.innerHTML = `<span style=\"width:6px;height:6px;border-radius:50%;background:#3b82f6;display:inline-block;\"></span> ${visibleCount}/${overrideInfo.overrides.length} OVERRIDES`;
+
+            if (visibleCount === 0) {
+              const empty = document.createElement("div");
+              empty.style.cssText = "font-size:10px;color:#64748b;font-style:italic;padding:4px 2px;";
+              empty.textContent = "No overrides match this filter";
+              listWrap.appendChild(empty);
+            }
+          };
+
+          resetVisibleBtn.addEventListener("click", () => {
+            const query = queryInput.value.trim().toLowerCase();
+            const scope = scopeSel.value;
+            const targetIds: number[] = [];
+            for (const ov of overrideInfo.overrides) {
+              const matchedProps = (ov.properties || []).filter((p: string) => {
+                if (scope !== "all") {
+                  const kind = classifyProp(p);
+                  if (!(kind === scope || (scope === "layout" && kind === "all"))) return false;
+                }
+                if (!query) return true;
+                return String(p).toLowerCase().includes(query) || String(ov.node_name || "").toLowerCase().includes(query);
+              });
+              if (matchedProps.length > 0) targetIds.push(Number(ov.node_id));
+            }
+            if (targetIds.length === 0) return;
+            if (!confirm(`Reset ${targetIds.length} filtered override node(s)?`)) return;
+            editor.engine.push_undo();
+            for (const nid of targetIds) editor.engine.reset_instance_overrides(BigInt(id), BigInt(nid));
+            editor.requestRender();
+            refresh([id]);
+          });
+
+          queryInput.addEventListener("input", renderOverrideRows);
+          scopeSel.addEventListener("change", renderOverrideRows);
+          renderOverrideRows();
 
           instanceControlsCard.appendChild(overrideCard);
         }
