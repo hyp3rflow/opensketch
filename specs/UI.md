@@ -223,9 +223,9 @@ Available: select, hand, rect, ellipse, text, frame, eye, eyeOff, rotation, corn
 - Prototype top bar includes **Device preset** selector (No Device, iPhone 14 Pro, Pixel 8, iPad)
 - Device overlay preview: bezel + corner radius + notch shape (when preset has notch)
 - Safe Area preview: unsafe inset tint + dashed safe-area rect + inset legend (`T/R/B/L`)
-- Device controls: Portrait/Landscape orientation selector + Safe overlay on/off checkbox
+- Device controls: Portrait/Landscape orientation selector + Safe overlay on/off checkbox + Bars on/off checkbox
 - Safe-area/notch metrics normalize from device reference resolution to current frame size for responsive preview
-- Scrollbar preview inside device shell tracks current frame scroll position (when frame overflow scroll-y/both)
+- Scrollbar preview inside device shell tracks current frame scroll position (vertical/horizontal when frame overflow supports it)
 
 ## Responsive Preview & Breakpoints
 

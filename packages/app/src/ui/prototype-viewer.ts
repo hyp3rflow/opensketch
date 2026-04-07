@@ -47,6 +47,7 @@ export function createPrototypeViewer(editor: Editor): {
   let selectedDeviceId = "none";
   let deviceOrientation: "portrait" | "landscape" = "portrait";
   let showSafeAreaOverlay = true;
+  let showScrollbarOverlay = true;
 
   type ScrollPhysicsPreset = {
     id: string;
@@ -259,6 +260,19 @@ export function createPrototypeViewer(editor: Editor): {
     safeAreaLabel.appendChild(document.createTextNode("Safe"));
     deviceWrap.appendChild(safeAreaLabel);
 
+    const barsLabel = document.createElement("label");
+    barsLabel.style.cssText = "display:flex;align-items:center;gap:4px;color:#94a3b8;font-size:11px;";
+    const barsCheck = document.createElement("input");
+    barsCheck.type = "checkbox";
+    barsCheck.checked = showScrollbarOverlay;
+    barsCheck.addEventListener("change", () => {
+      showScrollbarOverlay = barsCheck.checked;
+      renderCurrentView();
+    });
+    barsLabel.appendChild(barsCheck);
+    barsLabel.appendChild(document.createTextNode("Bars"));
+    deviceWrap.appendChild(barsLabel);
+
     topBar.appendChild(deviceWrap);
 
     const physicsWrap = document.createElement("div");
@@ -467,15 +481,19 @@ export function createPrototypeViewer(editor: Editor): {
     };
   }
 
-  function estimateScrollIndicator(frameId: number): { y: number; h: number } | null {
+  function estimateScrollIndicator(frameId: number): { v?: { p: number; s: number }; h?: { p: number; s: number } } | null {
     try {
       const frameJson = editor.engine.get_node_json(frameId);
       if (!frameJson) return null;
       const frame = JSON.parse(frameJson);
       const overflow = String(frame.overflow || "").toLowerCase();
-      if (!(overflow.includes("scroll") && (overflow.includes("y") || overflow.includes("both")))) return null;
+      const scrollsY = overflow.includes("scroll") && (overflow.includes("y") || overflow.includes("both") || overflow === "scroll");
+      const scrollsX = overflow.includes("scroll") && (overflow.includes("x") || overflow.includes("horizontal") || overflow.includes("both") || overflow === "scroll");
+      if (!scrollsX && !scrollsY) return null;
       if (!Array.isArray(frame.children) || frame.children.length === 0) return null;
 
+      let minX = Number.POSITIVE_INFINITY;
+      let maxX = Number.NEGATIVE_INFINITY;
       let minY = Number.POSITIVE_INFINITY;
       let maxY = Number.NEGATIVE_INFINITY;
       for (const childId of frame.children) {
@@ -483,24 +501,40 @@ export function createPrototypeViewer(editor: Editor): {
         if (!cj) continue;
         const child = JSON.parse(cj);
         if (child.visible === false) continue;
+        const cx = Number(child.x) - Number(frame.x);
         const cy = Number(child.y) - Number(frame.y);
+        const cw = Number(child.width) || 0;
         const ch = Number(child.height) || 0;
+        minX = Math.min(minX, cx);
+        maxX = Math.max(maxX, cx + cw);
         minY = Math.min(minY, cy);
         maxY = Math.max(maxY, cy + ch);
       }
-      if (!Number.isFinite(minY) || !Number.isFinite(maxY)) return null;
+      if (!Number.isFinite(minX) || !Number.isFinite(maxX) || !Number.isFinite(minY) || !Number.isFinite(maxY)) return null;
 
-      const contentH = Math.max(Number(frame.height), maxY - minY);
+      const viewportW = Math.max(1, Number(frame.width));
       const viewportH = Math.max(1, Number(frame.height));
-      if (contentH <= viewportH + 0.5) return null;
+      const contentW = Math.max(viewportW, maxX - minX);
+      const contentH = Math.max(viewportH, maxY - minY);
 
       const scroll = JSON.parse(editor.engine.get_scroll_offset(BigInt(frameId)) || '{"x":0,"y":0}');
+      const scrollX = Number(scroll.x) || 0;
       const scrollY = Number(scroll.y) || 0;
-      const trackH = 1;
-      const thumbH = Math.max(0.12, Math.min(1, viewportH / contentH));
-      const maxScroll = Math.max(1, contentH - viewportH);
-      const progress = Math.max(0, Math.min(1, (-scrollY) / maxScroll));
-      return { y: progress * (trackH - thumbH), h: thumbH };
+
+      const indicator: { v?: { p: number; s: number }; h?: { p: number; s: number } } = {};
+      if (scrollsY && contentH > viewportH + 0.5) {
+        const size = Math.max(0.12, Math.min(1, viewportH / contentH));
+        const maxScroll = Math.max(1, contentH - viewportH);
+        const progress = Math.max(0, Math.min(1, (-scrollY) / maxScroll));
+        indicator.v = { p: progress, s: size };
+      }
+      if (scrollsX && contentW > viewportW + 0.5) {
+        const size = Math.max(0.12, Math.min(1, viewportW / contentW));
+        const maxScroll = Math.max(1, contentW - viewportW);
+        const progress = Math.max(0, Math.min(1, (-scrollX) / maxScroll));
+        indicator.h = { p: progress, s: size };
+      }
+      return indicator.v || indicator.h ? indicator : null;
     } catch {
       return null;
     }
@@ -571,18 +605,32 @@ export function createPrototypeViewer(editor: Editor): {
     }
 
     // Scrollbar preview: follow current frame scroll position when possible.
-    const indicator = currentFrameId !== null ? estimateScrollIndicator(currentFrameId) : null;
+    const indicator = showScrollbarOverlay && currentFrameId !== null ? estimateScrollIndicator(currentFrameId) : null;
     if (indicator) {
-      const barW = Math.max(2 * dpr, 3);
-      const trackInset = Math.max(7 * dpr, bezel * 0.7);
-      const trackH = Math.max(1, totalH - 16 * dpr);
-      const barH = Math.max(24 * dpr, trackH * indicator.h);
-      const barX = totalW - trackInset;
-      const barY = 8 * dpr + indicator.y * (trackH - barH);
       ctx.fillStyle = "rgba(255,255,255,0.55)";
-      ctx.beginPath();
-      ctx.roundRect(barX, barY, barW, barH, 2 * dpr);
-      ctx.fill();
+      const edgeInset = Math.max(8 * dpr, bezel * 0.65);
+      const trackPadding = 8 * dpr;
+      const barThickness = Math.max(2 * dpr, 3);
+
+      if (indicator.v) {
+        const trackH = Math.max(1, totalH - trackPadding * 2 - (indicator.h ? barThickness + 4 * dpr : 0));
+        const barH = Math.max(24 * dpr, trackH * indicator.v.s);
+        const barX = totalW - edgeInset;
+        const barY = trackPadding + indicator.v.p * (trackH - barH);
+        ctx.beginPath();
+        ctx.roundRect(barX, barY, barThickness, barH, 2 * dpr);
+        ctx.fill();
+      }
+
+      if (indicator.h) {
+        const trackW = Math.max(1, totalW - trackPadding * 2 - (indicator.v ? barThickness + 4 * dpr : 0));
+        const barW = Math.max(24 * dpr, trackW * indicator.h.s);
+        const barX = trackPadding + indicator.h.p * (trackW - barW);
+        const barY = totalH - edgeInset;
+        ctx.beginPath();
+        ctx.roundRect(barX, barY, barW, barThickness, 2 * dpr);
+        ctx.fill();
+      }
     }
 
     ctx.restore();

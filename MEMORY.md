@@ -2369,6 +2369,14 @@
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
 - specs 반영: `specs/UI.md`, `specs/FEATURES.md`
 
+## 완료된 기능 (추가 — Prototype Device Scrollbar Overlay 2-axis + toggle, 2026-04-07)
+- Prototype Viewer Device controls에 `Bars` 체크박스 추가 (device shell 스크롤바 오버레이 on/off)
+- 기존 세로 scrollbar thumb 계산을 확장해 `Scroll/ScrollX/ScrollY/Both` overflow에서 수평/수직 thumb를 각각 계산
+- scroll offset(`get_scroll_offset`)과 콘텐츠 bbox를 기반으로 axis별 progress/size를 계산해 동적 thumb 길이/위치를 렌더
+- 양축 동시 스크롤 시 thumb 겹침을 피하도록 track 길이/여백 자동 보정
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/UI.md`, `specs/FEATURES.md`
+
 ## 완료된 기능 (추가 — Variable Collection Panel Search & Usage Count, 2026-04-07)
 - Variables 패널 Variables 섹션에 검색 입력 + 타입 필터(All/Color/Number/String/Boolean) 추가
 - 필터 결과 기준으로 `Showing X/Y` + `Usage N` 요약 배지 표시
