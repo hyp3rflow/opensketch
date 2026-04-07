@@ -2381,6 +2381,16 @@
 - 구현: `packages/app/src/ui/smart-select.ts`
 - specs 반영: `specs/FEATURES.md`
 
+## 완료된 기능 (추가 — Smart Selection by Layer/Type Global Filter, 2026-04-08)
+- Smart selection 필터를 패널 한정이 아니라 에디터의 기본 선택 파이프라인으로 확장
+- click/deep-hit selection, marquee selection(Crossing/Contain) 모두에 동일한 필터 적용
+  - Type: Shape / Text / Image
+  - State: Locked 포함 여부, Hidden 포함 여부
+- 우클릭 컨텍스트 메뉴에 Selection Filter 토글 5종 + 체크 상태 표시 추가
+- 구현: `packages/app/src/editor.ts`
+- specs 반영: `specs/FEATURES.md`
+- 검증: `wasm-pack build --target web`, `pnpm build`
+
 ## 완료된 기능 (추가 — Prototype Device Frame + Safe Area Preview polish, 2026-04-07)
 - Prototype Viewer top bar에 Device preset selector 유지/확장 (No Device / iPhone 14 Pro / Pixel 8 / iPad)
 - Device shell 오버레이: bezel + corner radius + notch 렌더링

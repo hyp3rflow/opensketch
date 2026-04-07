@@ -64,6 +64,16 @@ export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame"
 /** Snap threshold in screen pixels */
 const SNAP_THRESHOLD_PX = 5;
 
+type SmartSelectionFilterKey = "shape" | "text" | "image" | "locked" | "hidden";
+
+interface SmartSelectionFilterState {
+  shape: boolean;
+  text: boolean;
+  image: boolean;
+  locked: boolean;
+  hidden: boolean;
+}
+
 interface DragState {
   startX: number;
   startY: number;
@@ -85,6 +95,7 @@ export class Editor {
   private drag: DragState | null = null;
   private marquee: { startX: number; startY: number; currentX: number; currentY: number } | null = null;
   private _marqueeBaseMode: "crossing" | "contain" = "crossing";
+  private _smartSelectionFilters: SmartSelectionFilterState = { shape: true, text: true, image: true, locked: true, hidden: true };
   private _shapeBuilderStroke: { x: number; y: number }[] | null = null;
   private _shapeBuilderTouchedIds: number[] = [];
   private isPanning = false;
@@ -1700,7 +1711,8 @@ export class Editor {
 
       // Cmd+click (Meta on Mac, Ctrl on others) → deep select into groups/frames
       const isMeta = e.metaKey || (e.ctrlKey && !navigator.platform.includes("Mac"));
-      const hit = isMeta ? (this.engine.deep_hit_test(x, y) ?? this.engine.hit_test(x, y)) : this.engine.hit_test(x, y);
+      const hitRaw = isMeta ? (this.engine.deep_hit_test(x, y) ?? this.engine.hit_test(x, y)) : this.engine.hit_test(x, y);
+      const hit = hitRaw != null && this.matchesSmartSelectionFilters(Number(hitRaw)) ? hitRaw : null;
       if (hit != null) {
         const currentSel = Array.from(this.engine.get_selection()).map(Number);
         const alreadySelected = currentSel.includes(Number(hit));
@@ -4540,7 +4552,7 @@ export class Editor {
         const nw = Number(node.width ?? 0);
         const nh = Number(node.height ?? 0);
         const inside = nx >= rx && ny >= ry && nx + nw <= rx2 && ny + nh <= ry2;
-        if (!containOnly || inside) selected.add(id);
+        if ((!containOnly || inside) && this.matchesSmartSelectionFilters(id, node)) selected.add(id);
       } catch {
         // ignore malformed node
       }
@@ -4575,6 +4587,41 @@ export class Editor {
     }
 
     return Array.from(selected);
+  }
+
+  private isShapeNodeKind(kind: string): boolean {
+    return ["Rect", "Ellipse", "Path", "Star", "Polygon", "Vector", "Line", "Frame", "Group", "Section", "Slice", "Connector"].includes(kind);
+  }
+
+  private matchesSmartSelectionFilters(id: number, preloadedNode?: any): boolean {
+    let node: any = preloadedNode;
+    if (!node) {
+      try {
+        const json = this.engine.get_node_json(BigInt(id));
+        if (!json) return false;
+        node = JSON.parse(json);
+      } catch {
+        return false;
+      }
+    }
+
+    const kind = String(node?.kind || "");
+    const byType = (this._smartSelectionFilters.text && kind === "Text")
+      || (this._smartSelectionFilters.image && kind === "Image")
+      || (this._smartSelectionFilters.shape && this.isShapeNodeKind(kind));
+    if (!byType) return false;
+    if (!this._smartSelectionFilters.locked && node?.locked === true) return false;
+    if (!this._smartSelectionFilters.hidden && node?.visible === false) return false;
+    return true;
+  }
+
+  private setSmartSelectionFilter(key: SmartSelectionFilterKey, enabled: boolean) {
+    this._smartSelectionFilters[key] = enabled;
+    this.needsRender = true;
+  }
+
+  private toggleSmartSelectionFilter(key: SmartSelectionFilterKey) {
+    this.setSmartSelectionFilter(key, !this._smartSelectionFilters[key]);
   }
 
   private computeShapeBuilderTouchedIds(stroke: { x: number; y: number }[]): number[] {
@@ -8555,6 +8602,13 @@ export class Editor {
       items.push({ separator: true, label: "" });
       items.push({ label: "Auto-rename All Layers", action: () => this.autoRenameAll() });
     }
+
+    items.push({ separator: true, label: "" });
+    items.push({ label: "Selection Filter — Shape" + (this._smartSelectionFilters.shape ? " ✓" : ""), action: () => this.toggleSmartSelectionFilter("shape") });
+    items.push({ label: "Selection Filter — Text" + (this._smartSelectionFilters.text ? " ✓" : ""), action: () => this.toggleSmartSelectionFilter("text") });
+    items.push({ label: "Selection Filter — Image" + (this._smartSelectionFilters.image ? " ✓" : ""), action: () => this.toggleSmartSelectionFilter("image") });
+    items.push({ label: "Selection Filter — Locked" + (this._smartSelectionFilters.locked ? " ✓" : ""), action: () => this.toggleSmartSelectionFilter("locked") });
+    items.push({ label: "Selection Filter — Hidden" + (this._smartSelectionFilters.hidden ? " ✓" : ""), action: () => this.toggleSmartSelectionFilter("hidden") });
 
     showContextMenu(e.clientX, e.clientY, items);
   }
