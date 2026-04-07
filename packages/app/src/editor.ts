@@ -1714,8 +1714,7 @@ export class Editor {
 
       // Cmd+click (Meta on Mac, Ctrl on others) → deep select into groups/frames
       const isMeta = e.metaKey || (e.ctrlKey && !navigator.platform.includes("Mac"));
-      const hitRaw = isMeta ? (this.engine.deep_hit_test(x, y) ?? this.engine.hit_test(x, y)) : this.engine.hit_test(x, y);
-      const hit = hitRaw != null && this.matchesSmartSelectionFilters(Number(hitRaw)) ? hitRaw : null;
+      const hit = this.getFilteredHitAtScreenPoint(x, y, isMeta);
       if (hit != null) {
         const currentSel = Array.from(this.engine.get_selection()).map(Number);
         const alreadySelected = currentSel.includes(Number(hit));
@@ -4608,6 +4607,70 @@ export class Editor {
     }
 
     return Array.from(selected);
+  }
+
+  private getFilteredHitAtScreenPoint(screenX: number, screenY: number, deepPreferred: boolean): number | null {
+    const direct = this.engine.hit_test(screenX, screenY);
+    if (direct != null && this.matchesSmartSelectionFilters(Number(direct))) return Number(direct);
+
+    const deep = this.engine.deep_hit_test(screenX, screenY);
+    if (deep != null && this.matchesSmartSelectionFilters(Number(deep))) return Number(deep);
+
+    const sx = this.engine.screen_to_scene_x(screenX, screenY);
+    const sy = this.engine.screen_to_scene_y(screenX, screenY);
+    const eps = 0.5 / Math.max(0.1, this.engine.get_zoom());
+    const nearby = Array.from(this.engine.get_visible_node_ids(sx - eps, sy - eps, eps * 2, eps * 2)).map(Number);
+    if (nearby.length === 0) return null;
+
+    const allIds = Array.from(this.engine.get_all_node_ids()).map(Number);
+    const zOrder = new Map<number, number>();
+    for (let i = 0; i < allIds.length; i++) zOrder.set(allIds[i]!, i);
+
+    const parsed = nearby
+      .map((id) => {
+        try {
+          const raw = this.engine.get_node_json(BigInt(id));
+          if (!raw) return null;
+          const node = JSON.parse(raw);
+          if (!this.matchesSmartSelectionFilters(id, node)) return null;
+          const nx = Number(node?.x ?? 0);
+          const ny = Number(node?.y ?? 0);
+          const nw = Number(node?.width ?? 0);
+          const nh = Number(node?.height ?? 0);
+          if (sx < nx || sx > nx + nw || sy < ny || sy > ny + nh) return null;
+          return { id, node, z: zOrder.get(id) ?? -1 };
+        } catch {
+          return null;
+        }
+      })
+      .filter((v): v is { id: number; node: any; z: number } => !!v);
+
+    if (parsed.length === 0) return null;
+
+    if (deepPreferred) {
+      let best: { id: number; depth: number; z: number } | null = null;
+      for (const item of parsed) {
+        let depth = 0;
+        let cur = item.node;
+        while (cur?.parent != null) {
+          depth += 1;
+          try {
+            const parentRaw = this.engine.get_node_json(BigInt(Number(cur.parent)));
+            if (!parentRaw) break;
+            cur = JSON.parse(parentRaw);
+          } catch {
+            break;
+          }
+        }
+        if (!best || depth > best.depth || (depth === best.depth && item.z > best.z)) {
+          best = { id: item.id, depth, z: item.z };
+        }
+      }
+      return best?.id ?? null;
+    }
+
+    parsed.sort((a, b) => a.z - b.z);
+    return parsed[parsed.length - 1]?.id ?? null;
   }
 
   private isShapeNodeKind(kind: string): boolean {
