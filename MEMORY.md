@@ -1790,11 +1790,17 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Grid/Stack View for Layers Panel — 대형 문서에서 계층 탐색 속도 향상을 위한 list↔grid 뷰 + 밀도 옵션 (임팩트 상, 난이도 중)
 - Symbol Detach Preview — 인스턴스 detach 전 diff 미리보기(변경될 레이어/스타일) + selective detach (임팩트 상, 난이도 상)
 - Component Usage Heatmap — 캔버스에 컴포넌트 사용 빈도 히트맵 오버레이 + unused 후보 강조 (임팩트 중상, 난이도 중)
 - Prototype Conditional Actions v2 — interaction 조건식에서 AND/OR 그룹 + 변수 비교식 빌더 (임팩트 상, 난이도 상)
 - Asset Relink Manager — 이미지/비디오 src 깨짐 일괄 탐지 및 경로 재매핑 도구 (임팩트 중, 난이도 중)
+
+## 완료된 기능 (추가 — Layers Panel Grid/Stack View + Density, 2026-04-08)
+- Layers panel 헤더에 Stack/Grid 토글 추가 (기본 Stack, localStorage로 모드 유지)
+- Density 옵션 Compact/Cozy 추가 (Stack/Grid 공통 행 밀도 조절)
+- Grid 모드: 대형 문서 스캔용 flat card 리스트 + layer kind 배지
+- Stack 모드: 기존 트리 구조/접기/드래그 재정렬 워크플로우 유지
+- i18n 키(en/ko/ja) + specs/FEATURES.md 반영
 
 ## 완료된 기능 (추가 — Stroke & Fill Blend Stack, 2026-04-08)
 - Fill/Stroke에 개별 `opacity` + `blend_mode` 필드 추가 (serde default로 기존 파일 호환)

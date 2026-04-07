@@ -27,6 +27,12 @@ function iconSized(svg: string, size = 14) {
 // Collapse state persisted per session
 const collapsed = new Set<number>();
 
+type LayersViewMode = "stack" | "grid";
+type LayersDensity = "compact" | "cozy";
+
+const VIEW_MODE_KEY = "opensketch.layers.viewMode";
+const DENSITY_KEY = "opensketch.layers.density";
+
 interface LayerNode {
   id: number;
   name: string;
@@ -103,6 +109,29 @@ export function setupLayersPanel(container: HTMLElement, editor: Editor) {
   searchToggle.addEventListener("mouseleave", () => { if (!searchActive) searchToggle.style.opacity = "0.5"; });
   header.appendChild(searchToggle);
 
+  const viewToggleWrap = document.createElement("div");
+  viewToggleWrap.className = "layers-view-toggle";
+  viewToggleWrap.style.cssText = "display:flex;align-items:center;gap:4px;margin-left:6px;";
+
+  const stackBtn = document.createElement("button");
+  stackBtn.className = "layers-view-btn";
+  stackBtn.title = t("layers.viewStack");
+  stackBtn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>`;
+
+  const gridBtn = document.createElement("button");
+  gridBtn.className = "layers-view-btn";
+  gridBtn.title = t("layers.viewGrid");
+  gridBtn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="7" height="7"/><rect x="13" y="4" width="7" height="7"/><rect x="4" y="13" width="7" height="7"/><rect x="13" y="13" width="7" height="7"/></svg>`;
+
+  const densitySelect = document.createElement("select");
+  densitySelect.className = "layers-density-select";
+  densitySelect.style.cssText = "height:22px;background:#2a2a2a;border:1px solid #444;border-radius:6px;color:#ccc;font-size:10px;padding:0 4px;";
+
+  viewToggleWrap.appendChild(stackBtn);
+  viewToggleWrap.appendChild(gridBtn);
+  viewToggleWrap.appendChild(densitySelect);
+  header.appendChild(viewToggleWrap);
+
   // Pop-out button
   addPopOutButton(header, "layers", editor);
 
@@ -110,6 +139,10 @@ export function setupLayersPanel(container: HTMLElement, editor: Editor) {
 
   let searchActive = false;
   let searchQuery = "";
+  let viewMode = (localStorage.getItem(VIEW_MODE_KEY) as LayersViewMode) || "stack";
+  if (viewMode !== "stack" && viewMode !== "grid") viewMode = "stack";
+  let density = (localStorage.getItem(DENSITY_KEY) as LayersDensity) || "cozy";
+  if (density !== "compact" && density !== "cozy") density = "cozy";
 
   const searchBar = document.createElement("div");
   searchBar.className = "layers-search-bar";
@@ -140,6 +173,44 @@ export function setupLayersPanel(container: HTMLElement, editor: Editor) {
       refresh();
     }
   }
+
+  function syncViewControls() {
+    stackBtn.style.cssText = `background:${viewMode === "stack" ? "#3a3a3a" : "#2a2a2a"};border:1px solid #444;color:${viewMode === "stack" ? "#fff" : "#aaa"};border-radius:6px;cursor:pointer;padding:3px;display:flex;align-items:center;`;
+    gridBtn.style.cssText = `background:${viewMode === "grid" ? "#3a3a3a" : "#2a2a2a"};border:1px solid #444;color:${viewMode === "grid" ? "#fff" : "#aaa"};border-radius:6px;cursor:pointer;padding:3px;display:flex;align-items:center;`;
+    densitySelect.value = density;
+  }
+
+  function applyViewMode(mode: LayersViewMode) {
+    viewMode = mode;
+    localStorage.setItem(VIEW_MODE_KEY, mode);
+    syncViewControls();
+    refresh();
+  }
+
+  function applyDensity(next: LayersDensity) {
+    density = next;
+    localStorage.setItem(DENSITY_KEY, next);
+    syncViewControls();
+    refresh();
+  }
+
+  const densityOptions: Array<{ value: LayersDensity; label: string }> = [
+    { value: "compact", label: t("layers.densityCompact") },
+    { value: "cozy", label: t("layers.densityCozy") },
+  ];
+  densitySelect.innerHTML = "";
+  for (const opt of densityOptions) {
+    const el = document.createElement("option");
+    el.value = opt.value;
+    el.textContent = opt.label;
+    densitySelect.appendChild(el);
+  }
+
+  stackBtn.addEventListener("click", () => applyViewMode("stack"));
+  gridBtn.addEventListener("click", () => applyViewMode("grid"));
+  densitySelect.addEventListener("change", () => applyDensity((densitySelect.value as LayersDensity) || "cozy"));
+
+  syncViewControls();
 
   searchToggle.addEventListener("click", () => toggleSearch());
 
@@ -237,6 +308,9 @@ export function setupLayersPanel(container: HTMLElement, editor: Editor) {
     const rootIds = new Set(roots.map((r) => r.id));
 
     list.innerHTML = "";
+    list.classList.toggle("layers-list-grid", viewMode === "grid");
+    list.classList.toggle("layers-density-compact", density === "compact");
+    list.classList.toggle("layers-density-cozy", density === "cozy");
 
     // Show match count when searching
     if (searchQuery && matchSet) {
@@ -257,7 +331,8 @@ export function setupLayersPanel(container: HTMLElement, editor: Editor) {
 
       const item = document.createElement("div");
       item.className = "layer-item" + (selection.has(node.id) ? " selected" : "");
-      item.style.paddingLeft = `${8 + depth * 16}px`;
+      if (viewMode === "stack") item.style.paddingLeft = `${8 + depth * 16}px`;
+      else item.style.paddingLeft = "8px";
 
       // Expand/collapse arrow
       const arrow = document.createElement("span");
@@ -276,6 +351,9 @@ export function setupLayersPanel(container: HTMLElement, editor: Editor) {
       } else {
         arrow.style.width = "10px";
         arrow.style.display = "inline-block";
+      }
+      if (viewMode === "grid") {
+        arrow.style.display = "none";
       }
 
       const icon = document.createElement("span");
@@ -307,6 +385,10 @@ export function setupLayersPanel(container: HTMLElement, editor: Editor) {
       }
       if (isFrame) name.style.fontWeight = "600";
 
+      const kindLabel = document.createElement("span");
+      kindLabel.className = "layer-kind-label";
+      kindLabel.textContent = node.kind;
+
       const vis = document.createElement("span");
       vis.className = "layer-visibility";
       vis.innerHTML = iconSized(node.visible ? icons.eye : icons.eyeOff, 14);
@@ -320,6 +402,7 @@ export function setupLayersPanel(container: HTMLElement, editor: Editor) {
       item.appendChild(arrow);
       item.appendChild(icon);
       item.appendChild(name);
+      item.appendChild(kindLabel);
       // Bookmark toggle
       const bookmarked = editor.engine.is_bookmarked(BigInt(node.id));
       const bm = document.createElement("span");
@@ -406,7 +489,7 @@ export function setupLayersPanel(container: HTMLElement, editor: Editor) {
       item.appendChild(vis);
 
       // --- Drag reorder ---
-      item.setAttribute("draggable", "true");
+      item.setAttribute("draggable", viewMode === "stack" ? "true" : "false");
       item.dataset.nodeId = String(node.id);
       item.dataset.depth = String(depth);
       item.dataset.hasChildren = hasChildren ? "1" : "0";
@@ -511,7 +594,7 @@ export function setupLayersPanel(container: HTMLElement, editor: Editor) {
       list.appendChild(item);
 
       // Render children if expanded
-      if (hasChildren && !isCollapsed) {
+      if (viewMode === "stack" && hasChildren && !isCollapsed) {
         const childNodes = node.children
           .map((cid) => nodeMap.get(cid))
           .filter(Boolean) as LayerNode[];
@@ -520,8 +603,13 @@ export function setupLayersPanel(container: HTMLElement, editor: Editor) {
       }
     }
 
-    // Render root nodes in reverse (front on top)
-    [...roots].reverse().forEach((root) => renderNode(root, 0));
+    if (viewMode === "grid") {
+      // Flat visual index for faster scan in large documents
+      [...layers].reverse().forEach((node) => renderNode(node, 0));
+    } else {
+      // Render root nodes in reverse (front on top)
+      [...roots].reverse().forEach((root) => renderNode(root, 0));
+    }
   }
 
   editor.onLayers(refresh);
@@ -530,6 +618,19 @@ export function setupLayersPanel(container: HTMLElement, editor: Editor) {
     headerTitle.textContent = t("layers.title");
     searchToggle.title = t("layers.searchTooltip");
     searchInput.placeholder = t("layers.searchPlaceholder");
+    stackBtn.title = t("layers.viewStack");
+    gridBtn.title = t("layers.viewGrid");
+    densitySelect.innerHTML = "";
+    for (const opt of [
+      { value: "compact", label: t("layers.densityCompact") },
+      { value: "cozy", label: t("layers.densityCozy") },
+    ]) {
+      const el = document.createElement("option");
+      el.value = opt.value;
+      el.textContent = opt.label;
+      densitySelect.appendChild(el);
+    }
+    syncViewControls();
     refresh();
   });
   setTimeout(refresh, 100);

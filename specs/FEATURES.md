@@ -33,6 +33,7 @@
 ### UI Panels
 - [x] **Left Panel** with tab navigation (Layers / Design)
 - [x] **Layers Panel**: tree view with expand/collapse, indentation, SVG type icons, visibility toggle
+- [x] **Layers Panel View Modes**: stack↔grid toggle for faster scanning in large docs, with density options (Compact/Cozy). Grid mode shows flat layer cards with kind badges; stack mode keeps hierarchical drag reorder/workflow.
 - [x] **Properties Panel**: full node editing
   - Position (X/Y), Size (W/H), Rotation
   - Corner radius (Rect/Frame only)

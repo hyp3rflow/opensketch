@@ -31,6 +31,17 @@ body { font-family: Inter, system-ui, sans-serif; background: #1e1e1e; color: #c
 .layer-item { padding: 4px 8px; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 4px; border-left: 2px solid transparent; }
 .layer-item:hover { background: #2a2a2a; }
 .layer-item.selected { background: #2d3748; border-left-color: #4a4af5; }
+.layers-view-btn:hover { border-color: #666 !important; }
+.layer-kind-label { display: none; font-size: 10px; color: #888; background: #333; border: 1px solid #444; border-radius: 999px; padding: 1px 6px; margin-right: auto; }
+#layers-list.layers-list-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px; padding: 6px; }
+#layers-list.layers-list-grid .layer-item { border-left: none; border: 1px solid #3a3a3a; border-radius: 8px; padding: 6px 8px; min-height: 32px; }
+#layers-list.layers-list-grid .layer-name { flex: 0 1 auto; max-width: 86px; }
+#layers-list.layers-list-grid .layer-kind-label { display: inline-flex; }
+#layers-list.layers-list-grid .layer-bookmark,
+#layers-list.layers-list-grid .layer-lock,
+#layers-list.layers-list-grid .layer-visibility { opacity: 0.6 !important; }
+#layers-list.layers-density-compact .layer-item { padding-top: 2px; padding-bottom: 2px; min-height: 24px; }
+#layers-list.layers-density-compact.layers-list-grid .layer-item { padding: 4px 6px; min-height: 28px; }
 .layer-arrow { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; flex-shrink: 0; }
 .layer-item .layer-icon { opacity: 0.5; display: flex; align-items: center; }
 .layer-item .layer-icon--component { color: #a855f7; opacity: 0.9; }
