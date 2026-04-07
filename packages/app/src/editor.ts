@@ -3824,6 +3824,7 @@ export class Editor {
 
   private editingNodeId: bigint | null = null;
   private editingOrigContent: string = "";
+  private editingPrevContent: string = "";
   private caretPos: number = 0;
   private caretVisible: boolean = true;
   private caretBlinkTimer: number = 0;
@@ -3839,6 +3840,7 @@ export class Editor {
     const bid = BigInt(nodeId);
     this.editingNodeId = bid;
     this.editingOrigContent = text.content;
+    this.editingPrevContent = text.content;
 
     // Hidden contentEditable — captures keyboard input only
     // Positioned off-screen but still focusable
@@ -3856,6 +3858,21 @@ export class Editor {
       pointer-events: none;
       z-index: -1;
     `;
+
+    // If multiple text nodes are selected, enter cross-node multi-edit automatically.
+    const selectedTextNodeIds = Array.from(this.engine.get_selection())
+      .map((sid) => BigInt(sid))
+      .filter((sid) => sid !== bid)
+      .filter((sid) => {
+        try {
+          const json = this.engine.get_node_json(sid);
+          if (!json) return false;
+          const n = JSON.parse(json);
+          return typeof n.kind === "object" && !!n.kind.Text;
+        } catch {
+          return false;
+        }
+      });
 
     // Select the node and mark as editing
     this.engine.select(bid);
@@ -3881,6 +3898,7 @@ export class Editor {
       el.remove();
       this.editingOverlay = null;
       this.editingNodeId = null;
+      this.editingPrevContent = "";
       this._multiCursorMode = false;
       this.multiCursors.clear();
       this.stopCaretBlink();
@@ -3894,14 +3912,16 @@ export class Editor {
 
     el.addEventListener("input", () => {
       const newContent = el.textContent || "";
+      const prevContent = this.editingPrevContent;
       this.engine.set_text_content(bid, newContent);
+      this.editingPrevContent = newContent;
       this.needsRender = true;
       // Update caret after input
       requestAnimationFrame(() => {
         updateCaretPos();
         // Propagate to multi-cursor nodes
         if (this._multiCursorMode) {
-          this.multiCursorApplyContent(el.textContent || "");
+          this.multiCursorApplyContent(prevContent, newContent);
         }
       });
     });
@@ -3971,6 +3991,14 @@ export class Editor {
     const sel = window.getSelection()!;
     sel.removeAllRanges();
     sel.addRange(range);
+
+    // Auto-materialize cross-node multi-edit from current multi-selection.
+    for (const sid of selectedTextNodeIds) {
+      const json = this.engine.get_node_json(sid);
+      if (!json) continue;
+      const n = JSON.parse(json);
+      this.addMultiCursor(sid, n);
+    }
   }
 
   private finishTextEdit() {
@@ -4001,28 +4029,35 @@ export class Editor {
     }
 
     this.multiCursors.set(bid, {
-      caretPos: text.content.length,
+      caretPos: Math.max(0, Math.min(text.content.length, this.caretPos)),
       origContent: text.content,
     });
     this.engine.add_to_selection(bid);
     this.needsRender = true;
   }
 
-  /** Apply text input to all multi-cursor nodes */
-  private multiCursorApplyContent(newPrimaryContent: string) {
+  /** Apply text delta from primary cursor to all multi-cursor nodes */
+  private multiCursorApplyContent(prevPrimaryContent: string, newPrimaryContent: string) {
     if (!this._multiCursorMode) return;
-    const primaryNode = this.editingNodeId!;
-    // Get old primary content to compute diff
-    const oldJson = this.engine.get_node_json(primaryNode);
-    if (!oldJson) return;
-    const oldNode = JSON.parse(oldJson);
-    const oldContent = oldNode.kind?.Text?.content ?? "";
+    if (prevPrimaryContent === newPrimaryContent) return;
 
-    // Determine what changed: compare old content with new content using caret position
-    // Simple approach: use caret position to figure out insertion/deletion
-    const oldLen = oldContent.length;
-    const newLen = newPrimaryContent.length;
-    const diff = newLen - oldLen;
+    // Diff by common prefix/suffix to support insert/replace/delete
+    let prefix = 0;
+    while (
+      prefix < prevPrimaryContent.length &&
+      prefix < newPrimaryContent.length &&
+      prevPrimaryContent[prefix] === newPrimaryContent[prefix]
+    ) prefix++;
+
+    let suffix = 0;
+    while (
+      suffix < prevPrimaryContent.length - prefix &&
+      suffix < newPrimaryContent.length - prefix &&
+      prevPrimaryContent[prevPrimaryContent.length - 1 - suffix] === newPrimaryContent[newPrimaryContent.length - 1 - suffix]
+    ) suffix++;
+
+    const removedCount = prevPrimaryContent.length - prefix - suffix;
+    const inserted = newPrimaryContent.slice(prefix, newPrimaryContent.length - suffix);
 
     for (const [nid, cursor] of this.multiCursors) {
       const nJson = this.engine.get_node_json(nid);
@@ -4031,23 +4066,12 @@ export class Editor {
       const nText = nNode.kind?.Text;
       if (!nText) continue;
 
-      let content = nText.content as string;
-      const pos = cursor.caretPos;
-
-      if (diff > 0) {
-        // Insertion: extract inserted chars from primary
-        const inserted = newPrimaryContent.slice(this.caretPos - diff, this.caretPos);
-        content = content.slice(0, pos) + inserted + content.slice(pos);
-        cursor.caretPos = pos + diff;
-      } else if (diff < 0) {
-        // Deletion
-        const delCount = -diff;
-        const delStart = Math.max(0, pos - delCount);
-        content = content.slice(0, delStart) + content.slice(pos);
-        cursor.caretPos = delStart;
-      }
-
-      this.engine.set_text_content(nid, content);
+      const content = String(nText.content ?? "");
+      const start = Math.max(0, Math.min(content.length, prefix));
+      const end = Math.max(start, Math.min(content.length, start + removedCount));
+      const next = content.slice(0, start) + inserted + content.slice(end);
+      this.engine.set_text_content(nid, next);
+      cursor.caretPos = start + inserted.length;
     }
     this.needsRender = true;
   }

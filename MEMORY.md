@@ -2338,11 +2338,18 @@
 - 검증: `wasm-pack build --target web`, `pnpm build`
 
 ## 다음 할 것 (2026-04-07 업데이트)
-- Multi-Edit Text Cursor (Cross-node) — 여러 Text 노드 동시 선택 후 공통 입력/스타일 적용 (고난이도 / 고임팩트)
 - Prototype Fixed Header/Footer Regions — 스크롤 컨테이너 내 고정 영역 지정(top/bottom) 및 오버레이 클리핑 규칙 제공 (중난이도 / 중~고임팩트)
 - Per-corner Radius + Corner Smoothing Handles — 각 코너 독립 반지름/스무딩 편집(캔버스 핸들 + Properties 4-link 토글)로 고급 shape 디테일 제어 (중난이도 / 고임팩트)
 - Auto Layout Baseline Alignment — 텍스트/아이콘 혼합 행에서 baseline 정렬 옵션 추가 (중난이도 / 중~고임팩트)
 - Prototype Interactive Components (Variant State Machine) — 컴포넌트 인스턴스 내부에서 hover/press/toggle 상태 전이 및 variant property 연동 (고난이도 / 고임팩트)
+
+## 완료된 기능 (추가 — Multi-Edit Text Cursor (Cross-node), 2026-04-07)
+- 텍스트 편집 중 변경 diff 계산을 `prefix/suffix` 기반으로 보정해 삽입/삭제/치환 입력이 보조 커서(Text 노드들)에 안정적으로 전파
+- 다중 선택 상태에서 Text 노드를 더블클릭해 편집 진입하면 나머지 선택 Text 노드를 자동으로 multi-cursor에 materialize
+- 보조 커서 초기 caret 위치를 primary caret 기준으로 정렬해 서로 다른 길이 텍스트에서도 공통 입력 위치를 최대한 일치
+- 기존 Cmd/Ctrl+더블클릭으로 개별 Text 노드 추가하는 플로우와 완전 호환
+- 구현: `packages/app/src/editor.ts`
+- 검증: `wasm-pack build --target web`, `pnpm build`
 
 ## 완료된 기능 (추가 — Smart Selection by Layer/Type Filter 확장, 2026-04-07)
 - Smart Select 패널 Selection Filter의 Attr 옵션 확장: Hidden only + Shape only 추가

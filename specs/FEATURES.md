@@ -24,6 +24,7 @@
 - [x] Selection handles (cyan, 8-point)
 - [x] Text editing indicator (dashed blue border)
 - [x] Multi-cursor text editing (Cmd+double-click to add Text nodes, simultaneous typing/deletion, ESC to exit)
+- [x] Multi-Edit Text Cursor (Cross-node): 다중 선택된 Text 노드에서 편집 시작 시 나머지 Text를 자동 커서로 묶고, primary 입력의 insert/delete/replace diff를 모든 보조 커서에 동기 전파
 - [x] Rotation support (node-level)
 - [x] Drop shadow rendering (multi-pass Canvas shadow API, per-node multiple shadows)
 - [x] Layer blur (CSS filter blur via Canvas API)
