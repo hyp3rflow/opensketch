@@ -2324,6 +2324,14 @@
 - Auto Layout Baseline Alignment — 텍스트/아이콘 혼합 행에서 baseline 정렬 옵션 추가 (중난이도 / 중~고임팩트)
 - Prototype Interactive Components (Variant State Machine) — 컴포넌트 인스턴스 내부에서 hover/press/toggle 상태 전이 및 variant property 연동 (고난이도 / 고임팩트)
 
+## 완료된 기능 (추가 — Prototype Device Frame + Safe Area Preview polish, 2026-04-07)
+- Prototype Viewer top bar에 Device preset selector 유지/확장 (No Device / iPhone 14 Pro / Pixel 8 / iPad)
+- Device shell 오버레이: bezel + corner radius + notch 렌더링
+- Safe Area 미리보기 강화: unsafe inset tint + dashed safe-area box + `T/R/B/L` inset 레전드 텍스트
+- Scroll preview bar를 정적 표시에서 개선: 현재 frame scroll offset/콘텐츠 높이를 기반으로 thumb 위치/길이 동적 표시
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/UI.md`, `specs/FEATURES.md`
+
 ## 완료된 기능 (추가 — Variable Collection Panel Search & Usage Count, 2026-04-07)
 - Variables 패널 Variables 섹션에 검색 입력 + 타입 필터(All/Color/Number/String/Boolean) 추가
 - 필터 결과 기준으로 `Showing X/Y` + `Usage N` 요약 배지 표시

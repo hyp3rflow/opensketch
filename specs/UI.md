@@ -220,6 +220,10 @@ Available: select, hand, rect, ellipse, text, frame, eye, eyeOff, rotation, corn
 - Content bounds calculated from children bounding box
 - Scroll clamped to prevent over-scrolling (0 to -(content - frame) range)
 - Scrollbar indicators rendered in Rust engine (thin white semi-transparent bars)
+- Prototype top bar includes **Device preset** selector (No Device, iPhone 14 Pro, Pixel 8, iPad)
+- Device overlay preview: bezel + corner radius + notch shape (when preset has notch)
+- Safe Area preview: unsafe inset tint + dashed safe-area rect + inset legend (`T/R/B/L`)
+- Scrollbar preview inside device shell tracks current frame scroll position (when frame overflow scroll-y/both)
 
 ## Responsive Preview & Breakpoints
 

@@ -412,6 +412,45 @@ export function createPrototypeViewer(editor: Editor): {
     };
   }
 
+  function estimateScrollIndicator(frameId: number): { y: number; h: number } | null {
+    try {
+      const frameJson = editor.engine.get_node_json(frameId);
+      if (!frameJson) return null;
+      const frame = JSON.parse(frameJson);
+      const overflow = String(frame.overflow || "").toLowerCase();
+      if (!(overflow.includes("scroll") && (overflow.includes("y") || overflow.includes("both")))) return null;
+      if (!Array.isArray(frame.children) || frame.children.length === 0) return null;
+
+      let minY = Number.POSITIVE_INFINITY;
+      let maxY = Number.NEGATIVE_INFINITY;
+      for (const childId of frame.children) {
+        const cj = editor.engine.get_node_json(Number(childId));
+        if (!cj) continue;
+        const child = JSON.parse(cj);
+        if (child.visible === false) continue;
+        const cy = Number(child.y) - Number(frame.y);
+        const ch = Number(child.height) || 0;
+        minY = Math.min(minY, cy);
+        maxY = Math.max(maxY, cy + ch);
+      }
+      if (!Number.isFinite(minY) || !Number.isFinite(maxY)) return null;
+
+      const contentH = Math.max(Number(frame.height), maxY - minY);
+      const viewportH = Math.max(1, Number(frame.height));
+      if (contentH <= viewportH + 0.5) return null;
+
+      const scroll = JSON.parse(editor.engine.get_scroll_offset(BigInt(frameId)) || '{"x":0,"y":0}');
+      const scrollY = Number(scroll.y) || 0;
+      const trackH = 1;
+      const thumbH = Math.max(0.12, Math.min(1, viewportH / contentH));
+      const maxScroll = Math.max(1, contentH - viewportH);
+      const progress = Math.max(0, Math.min(1, (-scrollY) / maxScroll));
+      return { y: progress * (trackH - thumbH), h: thumbH };
+    } catch {
+      return null;
+    }
+  }
+
   function drawDeviceOverlay(
     ctx: CanvasRenderingContext2D,
     displayW: number,
@@ -430,12 +469,12 @@ export function createPrototypeViewer(editor: Editor): {
     ctx.strokeStyle = "rgba(15,23,42,0.95)";
     ctx.fillStyle = "rgba(2,6,23,0.82)";
     ctx.lineWidth = Math.max(2, Math.round(2 * dpr));
-    const x = bezel / 2;
-    const y = bezel / 2;
-    const w = totalW - bezel;
-    const h = totalH - bezel;
+    const shellX = bezel / 2;
+    const shellY = bezel / 2;
+    const shellW = totalW - bezel;
+    const shellH = totalH - bezel;
     ctx.beginPath();
-    ctx.roundRect(x, y, w, h, radius);
+    ctx.roundRect(shellX, shellY, shellW, shellH, radius);
     ctx.fill();
     ctx.stroke();
 
@@ -455,25 +494,39 @@ export function createPrototypeViewer(editor: Editor): {
     const safeW = totalW - (device.safeLeft + device.safeRight) * dpr;
     const safeH = totalH - (device.safeTop + device.safeBottom) * dpr;
     if (safeW > 0 && safeH > 0) {
-      ctx.strokeStyle = "rgba(56,189,248,0.85)";
+      // Tint unsafe insets for clearer preview
+      ctx.fillStyle = "rgba(56,189,248,0.09)";
+      if (safeY > 0) ctx.fillRect(0, 0, totalW, safeY);
+      const bottomInset = device.safeBottom * dpr;
+      if (bottomInset > 0) ctx.fillRect(0, totalH - bottomInset, totalW, bottomInset);
+      if (safeX > 0) ctx.fillRect(0, safeY, safeX, safeH);
+      const rightInset = device.safeRight * dpr;
+      if (rightInset > 0) ctx.fillRect(totalW - rightInset, safeY, rightInset, safeH);
+
+      ctx.strokeStyle = "rgba(56,189,248,0.9)";
       ctx.setLineDash([6 * dpr, 6 * dpr]);
       ctx.lineWidth = Math.max(1, Math.round(1 * dpr));
       ctx.strokeRect(safeX, safeY, safeW, safeH);
       ctx.setLineDash([]);
-      ctx.fillStyle = "rgba(56,189,248,0.9)";
+      ctx.fillStyle = "rgba(125,211,252,0.95)";
       ctx.font = `${11 * dpr}px sans-serif`;
-      ctx.fillText("Safe Area", safeX + 6 * dpr, safeY + 14 * dpr);
+      ctx.fillText(`Safe Area  T${device.safeTop} R${device.safeRight} B${device.safeBottom} L${device.safeLeft}`, safeX + 6 * dpr, safeY + 14 * dpr);
     }
 
-    // Minimal iOS/Android style scrollbar indicator (preview only)
-    ctx.fillStyle = "rgba(255,255,255,0.45)";
-    const barW = Math.max(2 * dpr, 3);
-    const barH = Math.max(32 * dpr, totalH * 0.14);
-    const barX = totalW - Math.max(6 * dpr, bezel * 0.7);
-    const barY = totalH * 0.42;
-    ctx.beginPath();
-    ctx.roundRect(barX, barY, barW, barH, 2 * dpr);
-    ctx.fill();
+    // Scrollbar preview: follow current frame scroll position when possible.
+    const indicator = currentFrameId !== null ? estimateScrollIndicator(currentFrameId) : null;
+    if (indicator) {
+      const barW = Math.max(2 * dpr, 3);
+      const trackInset = Math.max(7 * dpr, bezel * 0.7);
+      const trackH = Math.max(1, totalH - 16 * dpr);
+      const barH = Math.max(24 * dpr, trackH * indicator.h);
+      const barX = totalW - trackInset;
+      const barY = 8 * dpr + indicator.y * (trackH - barH);
+      ctx.fillStyle = "rgba(255,255,255,0.55)";
+      ctx.beginPath();
+      ctx.roundRect(barX, barY, barW, barH, 2 * dpr);
+      ctx.fill();
+    }
 
     ctx.restore();
   }
