@@ -5,7 +5,7 @@
 ### Core Engine
 - [x] Scene graph (flat HashMap + tree via parent/children)
 - [x] Node types: Rectangle, Ellipse, Text, Frame, Group
-- [x] Properties: position, size, rotation, opacity, fill, stroke (color, width, dash, cap, join, align, visible), corner radius, shadows, blur
+- [x] Properties: position, size, rotation, opacity, fill, stroke (color, width, dash, cap, join, align, visible), corner radius, per-corner radius (TL/TR/BR/BL + link toggle), corner smoothing, shadows, blur
 - [x] Multi-stroke: multiple strokes per node (Vec<Stroke>), each with visible toggle, add/remove/update
 - [x] Layout grid overlay (Columns, Rows, Grid) on Frame nodes with Ctrl/Cmd+G toggle
 - [x] Viewport: pan, zoom (scroll wheel with rAF batching)

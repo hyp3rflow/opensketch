@@ -2337,10 +2337,24 @@
 - 구현: `crates/engine/src/layout.rs`
 - 검증: `wasm-pack build --target web`, `pnpm build`
 
-## 다음 할 것 (2026-04-07 업데이트)
-- Per-corner Radius + Corner Smoothing Handles — 각 코너 독립 반지름/스무딩 편집(캔버스 핸들 + Properties 4-link 토글)로 고급 shape 디테일 제어 (중난이도 / 고임팩트)
+## 다음 할 것 (2026-04-08 업데이트)
 - Auto Layout Baseline Alignment — 텍스트/아이콘 혼합 행에서 baseline 정렬 옵션 추가 (중난이도 / 중~고임팩트)
 - Prototype Interactive Components (Variant State Machine) — 컴포넌트 인스턴스 내부에서 hover/press/toggle 상태 전이 및 variant property 연동 (고난이도 / 고임팩트)
+- Motion Path Animation (Path-follow) — 선택 노드가 Path/VectorNetwork를 따라 이동하도록 키프레임+오리엔트 옵션 제공 (고난이도 / 고임팩트)
+- Constraint Presets (Pin/Hug/Fill Quick Apply) — Figma/AutoLayout 자주 쓰는 제약 조합을 원클릭 프리셋으로 적용 (저~중난이도 / 중임팩트)
+- Prototype Gesture Triggers (Drag/Swipe Directional) — OnDrag를 방향 인식 스와이프 트리거로 확장해 모바일 프로토타이핑 정확도 향상 (중난이도 / 중~고임팩트)
+- Frame States (Variants-lite) — 일반 Frame에도 상태(State) 세트를 부여해 hover/pressed/disabled 미리보기와 토글 전환 지원 (중난이도 / 중임팩트)
+
+## 완료된 기능 (추가 — Per-corner Radius + Corner Smoothing Controls, 2026-04-08)
+- Node 모델에 `corner_radii`(top_left/top_right/bottom_right/bottom_left) 필드 추가 (`None`이면 기존 `corner_radius` 단일값 사용)
+- WASM API: `set_corner_radii`, `get_corner_radii`, `clear_corner_radii` 추가
+- Properties 패널 Size 섹션에 Corner radii 카드 추가
+  - TL/TR/BL/BR 개별 입력
+  - 링크 토글(🔗)로 단일 반지름/개별 반지름 전환
+  - 기존 Corner Smoothing 슬라이더와 함께 동작
+- 기존 `set_corner_radius` / `batch_set_corner_radius` 호출 시 per-corner override 해제해 backward compatibility 유지
+- specs 반영: `specs/FEATURES.md`
+- 검증: `wasm-pack build --target web`, `pnpm build`
 
 ## 완료된 기능 (추가 — Frame Overflow Behaviors 2.0, 2026-04-07)
 - Node 모델에 `prototype_scroll_bounce_x/y`, `prototype_scroll_overscroll_x/y` 필드 추가 (serde default, backward-compatible)

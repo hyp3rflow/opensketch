@@ -2431,19 +2431,96 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
     rotRow.appendChild(createLabeledInput(icons.rotation, node.rotation?.toFixed(1) ?? "0", (_v) => {
       // rotation setter not yet exposed
     }));
+    let cornerLinked = true;
+    let cornerRadii = {
+      top_left: node.corner_radius ?? 0,
+      top_right: node.corner_radius ?? 0,
+      bottom_right: node.corner_radius ?? 0,
+      bottom_left: node.corner_radius ?? 0,
+    };
+    if (hasCorner && (editor.engine as any).get_corner_radii) {
+      try {
+        const radiiJson = (editor.engine as any).get_corner_radii(id);
+        if (radiiJson) {
+          const parsed = JSON.parse(radiiJson);
+          if (typeof parsed.top_left === "number") {
+            cornerRadii = parsed;
+            cornerLinked = Math.abs(parsed.top_left - parsed.top_right) < 0.001 && Math.abs(parsed.top_left - parsed.bottom_right) < 0.001 && Math.abs(parsed.top_left - parsed.bottom_left) < 0.001;
+          }
+        }
+      } catch {}
+    }
     if (hasCorner) {
-      rotRow.appendChild(createLabeledInput(icons.cornerRadius, node.corner_radius.toFixed(0), (v) => {
-        editor.engine.set_corner_radius(id, parseFloat(v));
+      const baseRadius = cornerLinked ? cornerRadii.top_left : node.corner_radius;
+      rotRow.appendChild(createLabeledInput(icons.cornerRadius, baseRadius.toFixed(0), (v) => {
+        const val = Math.max(0, parseFloat(v) || 0);
+        cornerRadii = { top_left: val, top_right: val, bottom_right: val, bottom_left: val };
+        cornerLinked = true;
+        editor.engine.set_corner_radius(id, val);
         if ((editor as any)._multiEditMode) {
-          editor.engine.multi_edit_set_property(BigInt(id), "corner_radius", v);
+          editor.engine.multi_edit_set_property(BigInt(id), "corner_radius", String(val));
         }
         editor.requestRender();
       }));
     }
     sizeSection.appendChild(rotRow);
 
-    // Corner Smoothing slider (squircle) — only when corner radius > 0
-    if (hasCorner && node.corner_radius > 0) {
+    if (hasCorner) {
+      const cornersWrap = document.createElement("div");
+      cornersWrap.style.cssText = "margin-top:6px;border:1px solid #2b2f3a;border-radius:8px;padding:6px;background:#1a1c23;";
+      const header = document.createElement("div");
+      header.style.cssText = "display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;";
+      const label = document.createElement("span");
+      label.style.cssText = "font-size:11px;color:#aaa;";
+      label.textContent = "Corner radii";
+      const linkBtn = document.createElement("button");
+      linkBtn.className = "icon-button";
+      linkBtn.textContent = cornerLinked ? "🔗" : "⛓";
+      linkBtn.title = "Link corners";
+      linkBtn.style.cssText = "width:24px;height:22px;";
+      header.appendChild(label);
+      header.appendChild(linkBtn);
+      cornersWrap.appendChild(header);
+
+      const grid = document.createElement("div");
+      grid.style.cssText = "display:grid;grid-template-columns:1fr 1fr;gap:6px;";
+      const keyOrder: Array<keyof typeof cornerRadii> = ["top_left", "top_right", "bottom_left", "bottom_right"];
+      const keyLabel: Record<string, string> = { top_left: "TL", top_right: "TR", bottom_left: "BL", bottom_right: "BR" };
+      const applyCorner = (key: keyof typeof cornerRadii, val: number) => {
+        const safe = Math.max(0, val || 0);
+        if (cornerLinked) {
+          cornerRadii = { top_left: safe, top_right: safe, bottom_right: safe, bottom_left: safe };
+          editor.engine.set_corner_radius(id, safe);
+          const inputs = Array.from(grid.querySelectorAll("input")) as HTMLInputElement[];
+          for (const input of inputs) input.value = String(Math.round(safe));
+        } else {
+          cornerRadii[key] = safe;
+          (editor.engine as any).set_corner_radii?.(id, cornerRadii.top_left, cornerRadii.top_right, cornerRadii.bottom_right, cornerRadii.bottom_left);
+        }
+        editor.requestRender();
+      };
+      for (const key of keyOrder) {
+        const input = createLabeledInput(keyLabel[key], String(Math.round(cornerRadii[key])), (v) => applyCorner(key, parseFloat(v)));
+        grid.appendChild(input);
+      }
+      linkBtn.addEventListener("click", () => {
+        cornerLinked = !cornerLinked;
+        linkBtn.textContent = cornerLinked ? "🔗" : "⛓";
+        if (cornerLinked) {
+          const unified = cornerRadii.top_left;
+          cornerRadii = { top_left: unified, top_right: unified, bottom_right: unified, bottom_left: unified };
+          editor.engine.set_corner_radius(id, unified);
+          const inputs = Array.from(grid.querySelectorAll("input")) as HTMLInputElement[];
+          for (const input of inputs) input.value = String(Math.round(unified));
+          editor.requestRender();
+        }
+      });
+      cornersWrap.appendChild(grid);
+      sizeSection.appendChild(cornersWrap);
+    }
+
+    // Corner Smoothing slider (squircle)
+    if (hasCorner && Math.max(cornerRadii.top_left, cornerRadii.top_right, cornerRadii.bottom_right, cornerRadii.bottom_left) > 0) {
       const smoothVal = (editor.engine as any).get_corner_smoothing ? (editor.engine as any).get_corner_smoothing(id) : 0;
       const smRow = document.createElement("div");
       smRow.style.cssText = "display:flex;align-items:center;gap:6px;margin-top:4px;";

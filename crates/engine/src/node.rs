@@ -2130,6 +2130,20 @@ pub struct Note {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CornerRadii {
+    pub top_left: f64,
+    pub top_right: f64,
+    pub bottom_right: f64,
+    pub bottom_left: f64,
+}
+
+impl CornerRadii {
+    pub fn uniform(v: f64) -> Self {
+        Self { top_left: v, top_right: v, bottom_right: v, bottom_left: v }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Node {
     pub id: NodeId,
     pub name: String,
@@ -2155,6 +2169,9 @@ pub struct Node {
     #[serde(default)]
     pub strokes: Vec<Stroke>,
     pub corner_radius: f64,
+    /// Per-corner radii override. None = use uniform `corner_radius`.
+    #[serde(default)]
+    pub corner_radii: Option<CornerRadii>,
     /// Corner smoothing (0.0 = circular arc, 1.0 = full squircle / iOS style)
     #[serde(default)]
     pub corner_smoothing: f64,
@@ -2401,6 +2418,7 @@ impl Node {
             stroke: None,
             strokes: vec![],
             corner_radius: 0.0,
+            corner_radii: None,
             corner_smoothing: 0.0,
             children: vec![],
             parent: None,

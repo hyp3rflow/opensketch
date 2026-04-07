@@ -3171,8 +3171,37 @@ impl Engine {
 
     pub fn set_corner_radius(&mut self, id: u64, radius: f64) {
         if let Some(node) = self.scene.get_node_mut(id) {
-            node.corner_radius = radius;
+            node.corner_radius = radius.max(0.0);
+            node.corner_radii = None;
         }
+    }
+
+    pub fn set_corner_radii(&mut self, id: u64, top_left: f64, top_right: f64, bottom_right: f64, bottom_left: f64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            let tl = top_left.max(0.0);
+            let tr = top_right.max(0.0);
+            let br = bottom_right.max(0.0);
+            let bl = bottom_left.max(0.0);
+            node.corner_radii = Some(crate::node::CornerRadii { top_left: tl, top_right: tr, bottom_right: br, bottom_left: bl });
+            node.corner_radius = tl;
+        }
+    }
+
+    pub fn clear_corner_radii(&mut self, id: u64) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            node.corner_radii = None;
+        }
+    }
+
+    pub fn get_corner_radii(&self, id: u64) -> String {
+        if let Some(node) = self.scene.get_node(id) {
+            if let Some(r) = &node.corner_radii {
+                return format!("{{\"top_left\":{},\"top_right\":{},\"bottom_right\":{},\"bottom_left\":{}}}", r.top_left, r.top_right, r.bottom_right, r.bottom_left);
+            }
+            let v = node.corner_radius.max(0.0);
+            return format!("{{\"top_left\":{},\"top_right\":{},\"bottom_right\":{},\"bottom_left\":{}}}", v, v, v, v);
+        }
+        "{}".to_string()
     }
 
     pub fn set_corner_smoothing(&mut self, id: u64, smoothing: f64) {
@@ -3223,7 +3252,8 @@ impl Engine {
     pub fn batch_set_corner_radius(&mut self, ids: Vec<u64>, radius: f64) {
         for id in ids {
             if let Some(node) = self.scene.get_node_mut(id) {
-                node.corner_radius = radius;
+                node.corner_radius = radius.max(0.0);
+                node.corner_radii = None;
             }
         }
     }
