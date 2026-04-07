@@ -2345,6 +2345,8 @@
 - Device shell 오버레이: bezel + corner radius + notch 렌더링
 - Safe Area 미리보기 강화: unsafe inset tint + dashed safe-area box + `T/R/B/L` inset 레전드 텍스트
 - Scroll preview bar를 정적 표시에서 개선: 현재 frame scroll offset/콘텐츠 높이를 기반으로 thumb 위치/길이 동적 표시
+- (추가 polish) Portrait/Landscape orientation selector + Safe overlay on/off 토글 추가
+- (추가 polish) device ref 해상도 기준으로 safe area / notch 크기를 현재 frame 크기에 비례 스케일링해 미리보기 왜곡 감소
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
 - specs 반영: `specs/UI.md`, `specs/FEATURES.md`
 

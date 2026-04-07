@@ -34,15 +34,19 @@ export function createPrototypeViewer(editor: Editor): {
     safeRight: number;
     safeBottom: number;
     safeLeft: number;
+    refWidth?: number;
+    refHeight?: number;
   };
 
   const DEVICE_PRESETS: PrototypeDevicePreset[] = [
     { id: "none", label: "No Device", bezel: 0, cornerRadius: 0, safeTop: 0, safeRight: 0, safeBottom: 0, safeLeft: 0 },
-    { id: "iphone14", label: "iPhone 14 Pro", bezel: 18, cornerRadius: 34, notchWidth: 126, notchHeight: 34, safeTop: 59, safeRight: 0, safeBottom: 34, safeLeft: 0 },
-    { id: "pixel8", label: "Pixel 8", bezel: 14, cornerRadius: 28, notchWidth: 40, notchHeight: 24, safeTop: 30, safeRight: 0, safeBottom: 24, safeLeft: 0 },
-    { id: "ipad", label: "iPad", bezel: 22, cornerRadius: 24, safeTop: 24, safeRight: 0, safeBottom: 20, safeLeft: 0 },
+    { id: "iphone14", label: "iPhone 14 Pro", bezel: 18, cornerRadius: 34, notchWidth: 126, notchHeight: 34, safeTop: 59, safeRight: 0, safeBottom: 34, safeLeft: 0, refWidth: 393, refHeight: 852 },
+    { id: "pixel8", label: "Pixel 8", bezel: 14, cornerRadius: 28, notchWidth: 40, notchHeight: 24, safeTop: 30, safeRight: 0, safeBottom: 24, safeLeft: 0, refWidth: 412, refHeight: 915 },
+    { id: "ipad", label: "iPad", bezel: 22, cornerRadius: 24, safeTop: 24, safeRight: 0, safeBottom: 20, safeLeft: 0, refWidth: 834, refHeight: 1194 },
   ];
   let selectedDeviceId = "none";
+  let deviceOrientation: "portrait" | "landscape" = "portrait";
+  let showSafeAreaOverlay = true;
 
   type ScrollPhysicsPreset = {
     id: string;
@@ -231,6 +235,30 @@ export function createPrototypeViewer(editor: Editor): {
     });
     deviceWrap.appendChild(deviceLabel);
     deviceWrap.appendChild(deviceSel);
+
+    const orientationSel = document.createElement("select");
+    orientationSel.style.cssText = "background:#0f3460;color:#e2e8f0;border:1px solid #334155;border-radius:6px;padding:5px 8px;font-size:12px;";
+    orientationSel.innerHTML = `<option value="portrait">Portrait</option><option value="landscape">Landscape</option>`;
+    orientationSel.value = deviceOrientation;
+    orientationSel.addEventListener("change", () => {
+      deviceOrientation = orientationSel.value === "landscape" ? "landscape" : "portrait";
+      renderCurrentView();
+    });
+    deviceWrap.appendChild(orientationSel);
+
+    const safeAreaLabel = document.createElement("label");
+    safeAreaLabel.style.cssText = "display:flex;align-items:center;gap:4px;color:#94a3b8;font-size:11px;";
+    const safeAreaCheck = document.createElement("input");
+    safeAreaCheck.type = "checkbox";
+    safeAreaCheck.checked = showSafeAreaOverlay;
+    safeAreaCheck.addEventListener("change", () => {
+      showSafeAreaOverlay = safeAreaCheck.checked;
+      renderCurrentView();
+    });
+    safeAreaLabel.appendChild(safeAreaCheck);
+    safeAreaLabel.appendChild(document.createTextNode("Safe"));
+    deviceWrap.appendChild(safeAreaLabel);
+
     topBar.appendChild(deviceWrap);
 
     const physicsWrap = document.createElement("div");
@@ -412,6 +440,33 @@ export function createPrototypeViewer(editor: Editor): {
     };
   }
 
+  function getResolvedDeviceMetrics(displayW: number, displayH: number, dpr: number) {
+    const device = getSelectedDevicePreset();
+    const refW = Math.max(1, device.refWidth || displayW);
+    const refH = Math.max(1, device.refHeight || displayH);
+    const isLandscape = deviceOrientation === "landscape";
+    const sx = (displayW / refW) * dpr;
+    const sy = (displayH / refH) * dpr;
+
+    const safeTop = Math.round((isLandscape ? device.safeLeft : device.safeTop) * sy);
+    const safeRight = Math.round((isLandscape ? device.safeTop : device.safeRight) * sx);
+    const safeBottom = Math.round((isLandscape ? device.safeRight : device.safeBottom) * sy);
+    const safeLeft = Math.round((isLandscape ? device.safeBottom : device.safeLeft) * sx);
+
+    const notchWRaw = (device.notchWidth || 0) * (isLandscape ? sy : sx);
+    const notchHRaw = (device.notchHeight || 0) * (isLandscape ? sx : sy);
+
+    return {
+      safeTop,
+      safeRight,
+      safeBottom,
+      safeLeft,
+      notchW: Math.round(notchWRaw),
+      notchH: Math.round(notchHRaw),
+      isLandscape,
+    };
+  }
+
   function estimateScrollIndicator(frameId: number): { y: number; h: number } | null {
     try {
       const frameJson = editor.engine.get_node_json(frameId);
@@ -478,30 +533,32 @@ export function createPrototypeViewer(editor: Editor): {
     ctx.fill();
     ctx.stroke();
 
-    if (device.notchWidth && device.notchHeight) {
-      const nw = device.notchWidth * dpr;
-      const nh = device.notchHeight * dpr;
-      const nx = totalW / 2 - nw / 2;
-      const ny = bezel / 2;
+    const metrics = getResolvedDeviceMetrics(displayW, displayH, dpr);
+
+    if (metrics.notchW > 0 && metrics.notchH > 0) {
+      let nx = totalW / 2 - metrics.notchW / 2;
+      let ny = bezel / 2;
+      if (metrics.isLandscape) {
+        nx = totalW - metrics.notchW - bezel / 2;
+        ny = totalH / 2 - metrics.notchH / 2;
+      }
       ctx.fillStyle = "rgba(0,0,0,0.9)";
       ctx.beginPath();
-      ctx.roundRect(nx, ny, nw, nh, Math.max(8, 10 * dpr));
+      ctx.roundRect(nx, ny, metrics.notchW, metrics.notchH, Math.max(8, 10 * dpr));
       ctx.fill();
     }
 
-    const safeX = device.safeLeft * dpr;
-    const safeY = device.safeTop * dpr;
-    const safeW = totalW - (device.safeLeft + device.safeRight) * dpr;
-    const safeH = totalH - (device.safeTop + device.safeBottom) * dpr;
-    if (safeW > 0 && safeH > 0) {
+    const safeX = metrics.safeLeft;
+    const safeY = metrics.safeTop;
+    const safeW = totalW - metrics.safeLeft - metrics.safeRight;
+    const safeH = totalH - metrics.safeTop - metrics.safeBottom;
+    if (showSafeAreaOverlay && safeW > 0 && safeH > 0) {
       // Tint unsafe insets for clearer preview
       ctx.fillStyle = "rgba(56,189,248,0.09)";
       if (safeY > 0) ctx.fillRect(0, 0, totalW, safeY);
-      const bottomInset = device.safeBottom * dpr;
-      if (bottomInset > 0) ctx.fillRect(0, totalH - bottomInset, totalW, bottomInset);
+      if (metrics.safeBottom > 0) ctx.fillRect(0, totalH - metrics.safeBottom, totalW, metrics.safeBottom);
       if (safeX > 0) ctx.fillRect(0, safeY, safeX, safeH);
-      const rightInset = device.safeRight * dpr;
-      if (rightInset > 0) ctx.fillRect(totalW - rightInset, safeY, rightInset, safeH);
+      if (metrics.safeRight > 0) ctx.fillRect(totalW - metrics.safeRight, safeY, metrics.safeRight, safeH);
 
       ctx.strokeStyle = "rgba(56,189,248,0.9)";
       ctx.setLineDash([6 * dpr, 6 * dpr]);
@@ -510,7 +567,7 @@ export function createPrototypeViewer(editor: Editor): {
       ctx.setLineDash([]);
       ctx.fillStyle = "rgba(125,211,252,0.95)";
       ctx.font = `${11 * dpr}px sans-serif`;
-      ctx.fillText(`Safe Area  T${device.safeTop} R${device.safeRight} B${device.safeBottom} L${device.safeLeft}`, safeX + 6 * dpr, safeY + 14 * dpr);
+      ctx.fillText(`Safe Area  T${metrics.safeTop} R${metrics.safeRight} B${metrics.safeBottom} L${metrics.safeLeft}`, safeX + 6 * dpr, safeY + 14 * dpr);
     }
 
     // Scrollbar preview: follow current frame scroll position when possible.

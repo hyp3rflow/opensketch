@@ -346,6 +346,7 @@
   - Easing curve editor: SVG-based 120×120 cubic-bezier editor with draggable control points, preset buttons (Linear/EaseIn/EaseOut/EaseInOut/Custom), inline in interaction section
   - Prototype viewer: full-screen overlay, click navigation, back stack, Esc to close
   - Prototype viewer Device Preview: top-bar device preset selector (No Device/iPhone/Pixel/iPad), frame bezel+corner radius+notch overlay, safe-area inset guide, preview scrollbar indicator
+  - Device preview polish: Portrait/Landscape orientation switch + Safe Area overlay toggle, and safe-area/notch metrics are normalized from device reference size to current frame size for responsive preview
   - Prototype viewer Scroll Physics Presets: top-bar Scroll preset selector (iOS/Android/Web), wheel/touch gain + overscroll clamp + inertia decay 프리뷰
   - Animated transitions: Dissolve (cross-fade), SlideIn (from right), SlideOut (old exits right), Push (both move), SmartAnimate (name-matched node interpolation with position/size cross-fade)
   - SmartAnimate: Rust engine `compute_auto_animate(from, to)` matches descendants by name, returns paired snapshots with full property diffs (position, size, rotation, opacity, corner_radius, blur, fill color, stroke width)
