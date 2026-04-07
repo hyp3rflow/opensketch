@@ -2562,6 +2562,14 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           const pinBox = document.createElement("div");
           pinBox.style.cssText = "position:relative;width:112px;height:84px;border:1px dashed #565656;border-radius:8px;background:#1f1f1f;";
 
+          const nodePreview = document.createElement("div");
+          nodePreview.style.cssText = "position:absolute;left:50%;top:50%;width:48px;height:34px;transform:translate(-50%,-50%);border:1px solid #6a6a6a;border-radius:6px;background:rgba(255,255,255,0.02);";
+          pinBox.appendChild(nodePreview);
+
+          const centerDot = document.createElement("div");
+          centerDot.style.cssText = "position:absolute;left:50%;top:50%;width:6px;height:6px;transform:translate(-50%,-50%);border-radius:999px;background:#5a5a5a;";
+          pinBox.appendChild(centerDot);
+
           const placeEdgeBtn = (btn: HTMLButtonElement, css: string) => {
             btn.style.position = "absolute";
             btn.style.cssText += css;
@@ -2630,45 +2638,69 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             setActive(scaleVBtn, v === "scale");
           };
 
-          leftBtn.addEventListener("click", () => {
+          const toggleHorizontalEdge = (edge: "left" | "right") => {
             const current = hSelect.value;
-            const nextH = current === "right" ? "leftAndRight" : "left";
-            applyConstraints(nextH, vSelect.value);
+            if (edge === "left") {
+              if (current === "leftAndRight") return "right";
+              if (current === "left") return "center";
+              if (current === "right") return "leftAndRight";
+              return "left";
+            }
+            if (current === "leftAndRight") return "left";
+            if (current === "right") return "center";
+            if (current === "left") return "leftAndRight";
+            return "right";
+          };
+
+          const toggleVerticalEdge = (edge: "top" | "bottom") => {
+            const current = vSelect.value;
+            if (edge === "top") {
+              if (current === "topAndBottom") return "bottom";
+              if (current === "top") return "center";
+              if (current === "bottom") return "topAndBottom";
+              return "top";
+            }
+            if (current === "topAndBottom") return "top";
+            if (current === "bottom") return "center";
+            if (current === "top") return "topAndBottom";
+            return "bottom";
+          };
+
+          leftBtn.addEventListener("click", () => {
+            applyConstraints(toggleHorizontalEdge("left"), vSelect.value);
             updatePinUiFromSelects();
           });
           rightBtn.addEventListener("click", () => {
-            const current = hSelect.value;
-            const nextH = current === "left" ? "leftAndRight" : "right";
-            applyConstraints(nextH, vSelect.value);
+            applyConstraints(toggleHorizontalEdge("right"), vSelect.value);
             updatePinUiFromSelects();
           });
           centerHBtn.addEventListener("click", () => {
-            applyConstraints("center", vSelect.value);
+            const nextH = hSelect.value === "center" ? "left" : "center";
+            applyConstraints(nextH, vSelect.value);
             updatePinUiFromSelects();
           });
           scaleHBtn.addEventListener("click", () => {
-            applyConstraints("scale", vSelect.value);
+            const nextH = hSelect.value === "scale" ? "left" : "scale";
+            applyConstraints(nextH, vSelect.value);
             updatePinUiFromSelects();
           });
 
           topBtn.addEventListener("click", () => {
-            const current = vSelect.value;
-            const nextV = current === "bottom" ? "topAndBottom" : "top";
-            applyConstraints(hSelect.value, nextV);
+            applyConstraints(hSelect.value, toggleVerticalEdge("top"));
             updatePinUiFromSelects();
           });
           bottomBtn.addEventListener("click", () => {
-            const current = vSelect.value;
-            const nextV = current === "top" ? "topAndBottom" : "bottom";
-            applyConstraints(hSelect.value, nextV);
+            applyConstraints(hSelect.value, toggleVerticalEdge("bottom"));
             updatePinUiFromSelects();
           });
           centerVBtn.addEventListener("click", () => {
-            applyConstraints(hSelect.value, "center");
+            const nextV = vSelect.value === "center" ? "top" : "center";
+            applyConstraints(hSelect.value, nextV);
             updatePinUiFromSelects();
           });
           scaleVBtn.addEventListener("click", () => {
-            applyConstraints(hSelect.value, "scale");
+            const nextV = vSelect.value === "scale" ? "top" : "scale";
+            applyConstraints(hSelect.value, nextV);
             updatePinUiFromSelects();
           });
 
