@@ -4776,6 +4776,24 @@ impl Engine {
             self.clone_template_children(template_root, &variant.nodes, instance_id, dx, dy);
         }
 
+        // Re-apply defaults for this variant + existing explicit overrides.
+        self.apply_all_component_prop_defaults(instance_id);
+        let overrides: Vec<(String, component::PropValue)> = match self.scene.get_node(instance_id) {
+            Some(node) => match &node.kind {
+                NodeKind::Instance(data) => data.property_overrides.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
+                _ => vec![],
+            },
+            None => vec![],
+        };
+        let comp_props = self.components.get(comp_id)
+            .map(|c| c.component_properties.clone())
+            .unwrap_or_default();
+        for (name, value) in overrides {
+            if let Some(prop) = comp_props.iter().find(|p| p.name() == name) {
+                self.apply_component_prop_effect(instance_id, prop, &value);
+            }
+        }
+
         // Trigger parent auto-layout reflow after variant size change
         self.reflow_ancestors(instance_id);
 
@@ -6367,6 +6385,148 @@ impl Engine {
         }
     }
 
+    /// Set per-variant default for a component property.
+    pub fn set_component_variant_prop_default(&mut self, component_id: u64, variant_key_json: &str, prop_name: &str, value_json: &str) -> bool {
+        let key: VariantKey = match serde_json::from_str(variant_key_json) {
+            Ok(k) => k,
+            Err(_) => return false,
+        };
+        let value_v: serde_json::Value = match serde_json::from_str(value_json) {
+            Ok(v) => v,
+            Err(_) => return false,
+        };
+        let prop_value = match value_v.get("type").and_then(|t| t.as_str()).unwrap_or("") {
+            "boolean" => component::PropValue::Boolean(value_v.get("value").and_then(|v| v.as_bool()).unwrap_or(false)),
+            "text" => component::PropValue::Text(value_v.get("value").and_then(|v| v.as_str()).unwrap_or("").to_string()),
+            "instance_swap" => component::PropValue::InstanceSwap(value_v.get("value").and_then(|v| v.as_u64()).unwrap_or(0)),
+            _ => return false,
+        };
+
+        if let Some(comp) = self.components.get_mut(component_id) {
+            if !comp.component_properties.iter().any(|p| p.name() == prop_name) { return false; }
+            let key_str = Self::variant_key_string(&key);
+            let by_prop = comp.variant_property_defaults.entry(key_str).or_default();
+            by_prop.insert(prop_name.to_string(), prop_value);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Reset per-variant default back to component-level default.
+    pub fn reset_component_variant_prop_default(&mut self, component_id: u64, variant_key_json: &str, prop_name: &str) -> bool {
+        let key: VariantKey = match serde_json::from_str(variant_key_json) {
+            Ok(k) => k,
+            Err(_) => return false,
+        };
+        let key_str = Self::variant_key_string(&key);
+        if let Some(comp) = self.components.get_mut(component_id) {
+            if let Some(by_prop) = comp.variant_property_defaults.get_mut(&key_str) {
+                let removed = by_prop.remove(prop_name).is_some();
+                if by_prop.is_empty() {
+                    comp.variant_property_defaults.remove(&key_str);
+                }
+                return removed;
+            }
+        }
+        false
+    }
+
+    /// Get variant-specific defaults for a key. Returns [{name,value}] JSON.
+    pub fn get_component_variant_prop_defaults(&self, component_id: u64, variant_key_json: &str) -> String {
+        let key: VariantKey = match serde_json::from_str(variant_key_json) {
+            Ok(k) => k,
+            Err(_) => return "[]".into(),
+        };
+        let key_str = Self::variant_key_string(&key);
+        if let Some(comp) = self.components.get(component_id) {
+            if let Some(by_prop) = comp.variant_property_defaults.get(&key_str) {
+                let rows: Vec<_> = by_prop.iter().map(|(name, v)| {
+                    let value = match v {
+                        component::PropValue::Boolean(b) => serde_json::json!({"type":"boolean","value":*b}),
+                        component::PropValue::Text(t) => serde_json::json!({"type":"text","value":t}),
+                        component::PropValue::InstanceSwap(id) => serde_json::json!({"type":"instance_swap","value":*id}),
+                    };
+                    serde_json::json!({"name":name,"value":value})
+                }).collect();
+                return serde_json::to_string(&rows).unwrap_or_else(|_| "[]".into());
+            }
+        }
+        "[]".into()
+    }
+
+    fn variant_key_string(key: &VariantKey) -> String {
+        let mut parts: Vec<_> = key.iter().map(|(k, v)| format!("{}={}", k, v.to_display())).collect();
+        parts.sort();
+        parts.join(",")
+    }
+
+    fn prop_default_for_variant(
+        comp: &component::Component,
+        variant_values: &VariantKey,
+        prop: &component::ComponentProperty,
+    ) -> component::PropValue {
+        let key_str = Self::variant_key_string(variant_values);
+        if let Some(by_prop) = comp.variant_property_defaults.get(&key_str) {
+            if let Some(v) = by_prop.get(prop.name()) {
+                return v.clone();
+            }
+        }
+        match prop {
+            component::ComponentProperty::BooleanProp { default, .. } => component::PropValue::Boolean(*default),
+            component::ComponentProperty::TextProp { default, .. } => component::PropValue::Text(default.clone()),
+            component::ComponentProperty::InstanceSwapProp { default_component_id, .. } => component::PropValue::InstanceSwap(*default_component_id),
+        }
+    }
+
+    /// Save the instance's current effective value as the default for its current variant.
+    pub fn save_instance_prop_as_variant_default(&mut self, instance_id: u64, prop_name: &str) -> bool {
+        let (comp_id, variant_values, current_value) = match self.scene.get_node(instance_id) {
+            Some(n) => match &n.kind {
+                NodeKind::Instance(data) => {
+                    let comp_id = data.component_id;
+                    let variant_values = data.variant_values.clone();
+                    let comp = match self.components.get(comp_id) { Some(c) => c, None => return false };
+                    let prop = match comp.component_properties.iter().find(|p| p.name() == prop_name) { Some(p) => p, None => return false };
+                    let value = data.property_overrides.get(prop_name).cloned()
+                        .unwrap_or_else(|| Self::prop_default_for_variant(comp, &variant_values, prop));
+                    (comp_id, variant_values, value)
+                }
+                _ => return false,
+            },
+            None => return false,
+        };
+
+        if let Some(comp) = self.components.get_mut(comp_id) {
+            let key_str = Self::variant_key_string(&variant_values);
+            comp.variant_property_defaults.entry(key_str).or_default().insert(prop_name.to_string(), current_value);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Reset variant default for this prop on the instance's current variant.
+    pub fn reset_instance_variant_prop_default(&mut self, instance_id: u64, prop_name: &str) -> bool {
+        let (comp_id, key_str) = match self.scene.get_node(instance_id) {
+            Some(n) => match &n.kind {
+                NodeKind::Instance(data) => (data.component_id, Self::variant_key_string(&data.variant_values)),
+                _ => return false,
+            },
+            None => return false,
+        };
+        if let Some(comp) = self.components.get_mut(comp_id) {
+            if let Some(by_prop) = comp.variant_property_defaults.get_mut(&key_str) {
+                let removed = by_prop.remove(prop_name).is_some();
+                if by_prop.is_empty() {
+                    comp.variant_property_defaults.remove(&key_str);
+                }
+                return removed;
+            }
+        }
+        false
+    }
+
     /// Set an instance property override. value_json:
     /// {"type":"boolean","value":false}
     /// {"type":"text","value":"Hello"}
@@ -6427,9 +6587,9 @@ impl Engine {
 
     /// Get all property override values for an instance (merged with defaults)
     pub fn get_instance_prop_values(&self, instance_id: u64) -> String {
-        let (comp_id, overrides) = match self.scene.get_node(instance_id) {
+        let (comp_id, variant_values, overrides) = match self.scene.get_node(instance_id) {
             Some(n) => match &n.kind {
-                NodeKind::Instance(data) => (data.component_id, data.property_overrides.clone()),
+                NodeKind::Instance(data) => (data.component_id, data.variant_values.clone(), data.property_overrides.clone()),
                 _ => return "{}".into(),
             },
             None => return "{}".into(),
@@ -6451,10 +6611,22 @@ impl Engine {
                     component::PropValue::InstanceSwap(id) => serde_json::json!({"type":"instance_swap","value":*id}),
                 }
             } else {
-                match prop {
-                    component::ComponentProperty::BooleanProp { default, .. } => serde_json::json!({"type":"boolean","value":*default}),
-                    component::ComponentProperty::TextProp { default, .. } => serde_json::json!({"type":"text","value":default}),
-                    component::ComponentProperty::InstanceSwapProp { default_component_id, .. } => serde_json::json!({"type":"instance_swap","value":*default_component_id}),
+                match Self::prop_default_for_variant(comp, &variant_values, prop) {
+                    component::PropValue::Boolean(b) => serde_json::json!({"type":"boolean","value":b}),
+                    component::PropValue::Text(t) => serde_json::json!({"type":"text","value":t}),
+                    component::PropValue::InstanceSwap(id) => serde_json::json!({"type":"instance_swap","value":id}),
+                }
+            };
+            let definition_json = {
+                let variant_default = Self::prop_default_for_variant(comp, &variant_values, prop);
+                match (prop, variant_default) {
+                    (component::ComponentProperty::BooleanProp { linked_node_id, .. }, component::PropValue::Boolean(default)) =>
+                        serde_json::json!({"type":"boolean","default":default,"linked_node_id":*linked_node_id}),
+                    (component::ComponentProperty::TextProp { linked_node_id, .. }, component::PropValue::Text(default)) =>
+                        serde_json::json!({"type":"text","default":default,"linked_node_id":*linked_node_id}),
+                    (component::ComponentProperty::InstanceSwapProp { linked_slot_id, .. }, component::PropValue::InstanceSwap(default_component_id)) =>
+                        serde_json::json!({"type":"instance_swap","default_component_id":default_component_id,"linked_slot_id":*linked_slot_id}),
+                    _ => serde_json::json!({}),
                 }
             };
             result.push(serde_json::json!({
@@ -6462,14 +6634,7 @@ impl Engine {
                 "prop_type": prop.prop_type_str(),
                 "value": value_json,
                 "overridden": is_overridden,
-                "definition": match prop {
-                    component::ComponentProperty::BooleanProp { default, linked_node_id, .. } =>
-                        serde_json::json!({"type":"boolean","default":*default,"linked_node_id":*linked_node_id}),
-                    component::ComponentProperty::TextProp { default, linked_node_id, .. } =>
-                        serde_json::json!({"type":"text","default":default,"linked_node_id":*linked_node_id}),
-                    component::ComponentProperty::InstanceSwapProp { default_component_id, linked_slot_id, .. } =>
-                        serde_json::json!({"type":"instance_swap","default_component_id":*default_component_id,"linked_slot_id":*linked_slot_id}),
-                }
+                "definition": definition_json
             }));
         }
         serde_json::to_string(&result).unwrap_or_else(|_| "[]".into())
@@ -6494,17 +6659,28 @@ impl Engine {
 
         if !removed { return false; }
 
-        // Re-apply default value
-        let comp_prop = match self.components.get(comp_id) {
-            Some(comp) => comp.component_properties.iter().find(|p| p.name() == prop_name).cloned(),
-            None => return true,
+        // Re-apply default value (variant-aware)
+        let (comp_prop, default_value) = match self.scene.get_node(instance_id) {
+            Some(n) => match &n.kind {
+                NodeKind::Instance(data) => {
+                    let vv = data.variant_values.clone();
+                    match self.components.get(comp_id) {
+                        Some(comp) => {
+                            if let Some(prop) = comp.component_properties.iter().find(|p| p.name() == prop_name).cloned() {
+                                let dv = Self::prop_default_for_variant(comp, &vv, &prop);
+                                (Some(prop), Some(dv))
+                            } else {
+                                (None, None)
+                            }
+                        }
+                        None => (None, None),
+                    }
+                }
+                _ => (None, None),
+            },
+            None => (None, None),
         };
-        if let Some(prop) = comp_prop {
-            let default_value = match &prop {
-                component::ComponentProperty::BooleanProp { default, .. } => component::PropValue::Boolean(*default),
-                component::ComponentProperty::TextProp { default, .. } => component::PropValue::Text(default.clone()),
-                component::ComponentProperty::InstanceSwapProp { default_component_id, .. } => component::PropValue::InstanceSwap(*default_component_id),
-            };
+        if let (Some(prop), Some(default_value)) = (comp_prop, default_value) {
             self.apply_component_prop_effect(instance_id, &prop, &default_value);
         }
 
@@ -6515,28 +6691,25 @@ impl Engine {
     /// This is used when creating/swapping instances so default Boolean/Text/InstanceSwap
     /// values are materialized on cloned children even before explicit overrides exist.
     fn apply_all_component_prop_defaults(&mut self, instance_id: u64) {
-        let comp_id = match self.scene.get_node(instance_id) {
+        let (comp_id, variant_values) = match self.scene.get_node(instance_id) {
             Some(n) => match &n.kind {
-                NodeKind::Instance(data) => data.component_id,
+                NodeKind::Instance(data) => (data.component_id, data.variant_values.clone()),
                 _ => return,
             },
             None => return,
         };
 
-        let props = match self.components.get(comp_id) {
-            Some(comp) => comp.component_properties.clone(),
+        let (props, defaults): (Vec<component::ComponentProperty>, Vec<component::PropValue>) = match self.components.get(comp_id) {
+            Some(comp) => {
+                let props = comp.component_properties.clone();
+                let defaults = props.iter().map(|p| Self::prop_default_for_variant(comp, &variant_values, p)).collect();
+                (props, defaults)
+            }
             None => return,
         };
 
-        for prop in props {
-            let default_value = match &prop {
-                component::ComponentProperty::BooleanProp { default, .. } => component::PropValue::Boolean(*default),
-                component::ComponentProperty::TextProp { default, .. } => component::PropValue::Text(default.clone()),
-                component::ComponentProperty::InstanceSwapProp { default_component_id, .. } => {
-                    component::PropValue::InstanceSwap(*default_component_id)
-                }
-            };
-            self.apply_component_prop_effect(instance_id, &prop, &default_value);
+        for (prop, default_value) in props.iter().zip(defaults.iter()) {
+            self.apply_component_prop_effect(instance_id, prop, default_value);
         }
     }
 

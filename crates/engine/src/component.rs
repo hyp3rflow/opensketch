@@ -218,6 +218,11 @@ pub struct Component {
     /// Component properties (Boolean/Text/InstanceSwap) — Figma-style
     #[serde(default)]
     pub component_properties: Vec<ComponentProperty>,
+    /// Variant-specific default values for component properties.
+    /// key: canonical variant key string (e.g. "Size=Large,State=Default")
+    /// value: prop name -> default value
+    #[serde(default)]
+    pub variant_property_defaults: HashMap<String, HashMap<String, PropValue>>,
 }
 
 impl Component {
@@ -232,6 +237,7 @@ impl Component {
             default_variant_key: String::new(),
             doc: ComponentDoc::default(),
             component_properties: vec![],
+            variant_property_defaults: HashMap::new(),
         }
     }
 

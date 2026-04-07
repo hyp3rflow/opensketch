@@ -2188,6 +2188,31 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
               propRow.appendChild(select);
             }
 
+            // Save current value as current-variant default
+            const saveVariantDefaultBtn = document.createElement("button");
+            saveVariantDefaultBtn.style.cssText = "background:none;border:none;color:#fbbf24;cursor:pointer;font-size:10px;padding:0 2px;opacity:0.75;flex-shrink:0;";
+            saveVariantDefaultBtn.textContent = "★";
+            saveVariantDefaultBtn.title = "Save current value as default for this variant";
+            saveVariantDefaultBtn.addEventListener("click", () => {
+              editor.engine.push_undo();
+              (editor.engine as any).save_instance_prop_as_variant_default(BigInt(id), pv.name);
+              editor.requestRender();
+              refresh([id]);
+            });
+            propRow.appendChild(saveVariantDefaultBtn);
+
+            const resetVariantDefaultBtn = document.createElement("button");
+            resetVariantDefaultBtn.style.cssText = "background:none;border:none;color:#f59e0b;cursor:pointer;font-size:10px;padding:0 2px;opacity:0.65;flex-shrink:0;";
+            resetVariantDefaultBtn.textContent = "⟲v";
+            resetVariantDefaultBtn.title = "Reset this variant-specific default";
+            resetVariantDefaultBtn.addEventListener("click", () => {
+              editor.engine.push_undo();
+              (editor.engine as any).reset_instance_variant_prop_default(BigInt(id), pv.name);
+              editor.requestRender();
+              refresh([id]);
+            });
+            propRow.appendChild(resetVariantDefaultBtn);
+
             // Reset button (if overridden)
             if (pv.overridden) {
               const resetBtn = document.createElement("button");

@@ -1602,7 +1602,7 @@
 - ~~Smart Rename Tokens — 노드명 패턴에서 의미 토큰을 추출해 일괄 rename 규칙 추천 (예: btn/primary/hover)~~ ✅ 완료 (Batch Rename 패턴 모드 Smart Rename Tokens 추천 칩)
 - ~~Text Style Lint Autofix — 폰트/크기/line-height 불일치 텍스트를 감지하고 style library 기준으로 일괄 정리~~ ✅ 완료 (Design Health > Typography에서 lint 목록 + Auto-fix 일괄 적용)
 - ~~Constraints Visual Pins Overlay — 선택 노드의 constraint pin 상태를 캔버스 오버레이로 즉시 표시/클릭 편집~~ ✅ 완료 (캔버스 3×3 핀 오버레이 클릭으로 H/V constraints 즉시 변경, undo + Properties 동기화)
-- Component Property Defaults — Variant별 Boolean/Text/Swap property 기본값 저장/초기화
+- ~~Component Property Defaults — Variant별 Boolean/Text/Swap property 기본값 저장/초기화~~ ✅ 완료 (Instance Controls에서 variant별 기본값 저장/리셋 + variant 전환 시 자동 재적용)
 - ~~Instance Override Diff Inspector — 인스턴스의 override 변경점만 필터링/일괄 reset~~ ✅ 완료 (Properties panel Overrides Diff Inspector + filter/reset visible)
 - Pen Pressure Width Profile — Path/Freehand 스트로크에 pressure curve 기반 width profile 적용 + taper(start/end)
 - Dev Handoff Tokens Export — Variables/Styles를 W3C Design Tokens JSON + CSS variables + Tailwind preset으로 내보내기
@@ -1615,6 +1615,18 @@
 - 노드별 변경 property를 chip 형태로 표시해 변경점 가독성 개선
 - `Reset visible` 버튼으로 현재 필터 결과만 일괄 override reset 지원 (개별 reset 유지)
 - `X/Y` 카운트(필터 결과/전체)로 diff 범위를 명확히 표시
+- specs 반영: `specs/FEATURES.md`
+
+## 완료된 기능 (추가 — Component Property Defaults per Variant, 2026-04-07)
+- Component에 `variant_property_defaults` 저장소 추가 (variant key → prop name → PropValue)
+- 엔진 기본값 해석을 variant-aware로 확장: `get_instance_prop_values`, `reset_instance_prop`, instance 생성/variant 전환 시 기본값 적용
+- variant 전환 시 새 subtree에 기본값 + 기존 override를 재적용해 Boolean/Text/Swap 상태 일관성 유지
+- WASM API 추가:
+  - `set_component_variant_prop_default`, `reset_component_variant_prop_default`, `get_component_variant_prop_defaults`
+  - `save_instance_prop_as_variant_default`, `reset_instance_variant_prop_default`
+- Properties panel `INSTANCE CONTROLS > Component Props`에
+  - `★` 현재 값을 현재 variant 기본값으로 저장
+  - `⟲v` 현재 variant의 기본값 override만 리셋
 - specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Constraints Visual Pins Overlay click-edit, 2026-04-06)
