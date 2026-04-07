@@ -1085,6 +1085,7 @@ pub enum Align {
     Center,
     End,
     Stretch,
+    Baseline,
 }
 
 impl Default for Align {

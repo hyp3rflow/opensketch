@@ -958,7 +958,7 @@ function downloadBlob(blob: Blob, filename: string) {
 // ─── Utility ──────────────────────────────────────────
 
 function cssAlignValue(v: string): string {
-  const map: Record<string, string> = { Start: "flex-start", Center: "center", End: "flex-end", Stretch: "stretch" };
+  const map: Record<string, string> = { Start: "flex-start", Center: "center", End: "flex-end", Stretch: "stretch", Baseline: "baseline" };
   return map[v] || v.toLowerCase();
 }
 

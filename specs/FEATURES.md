@@ -2413,3 +2413,11 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] WASM API: `set_wrap_before(id, bool)`, `get_wrap_before(id)`
 - [x] Properties panel: auto-layout 자식 + 부모 wrap 활성 시 `Wrap: Start new line` 체크박스 노출
 - [x] 기존 Absolute Position 토글과 함께 flow 제외/flow 개행을 분리 제어 (Figma 유사)
+
+### Auto Layout Baseline Alignment (2026-04-08)
+- [x] Align enum 확장: `Baseline` 추가 (`set_align_items(..., "baseline")` 지원)
+- [x] Flex row에서 `align-items: baseline` cross-axis 배치 구현
+  - 텍스트: 첫 줄 baseline 오프셋(half-leading + ascent) 기반
+  - 비텍스트: 하단 edge를 baseline으로 간주
+- [x] Properties panel Auto Layout에 `Cross: Baseline (Row)` 옵션 추가
+- [x] Inspect/Handoff/Figma export의 align-items/counter-axis 매핑에 Baseline 반영

@@ -9310,6 +9310,30 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           }
           matrixWrap.appendChild(distCol);
           layoutSection.appendChild(matrixWrap);
+
+          const alignSel = document.createElement("select");
+          alignSel.style.cssText = "width:100%;padding:4px 6px;background:#2a2a2a;border:1px solid #3a3a3a;border-radius:6px;color:#aaa;font-size:10px;margin-bottom:8px;";
+          const alignOptions = [
+            { value: "start", label: "Cross: Start" },
+            { value: "center", label: "Cross: Center" },
+            { value: "end", label: "Cross: End" },
+            { value: "stretch", label: "Cross: Stretch" },
+            { value: "baseline", label: "Cross: Baseline (Row)" },
+          ];
+          alignOptions.forEach((o) => {
+            const opt = document.createElement("option");
+            opt.value = o.value;
+            opt.textContent = o.label;
+            opt.selected = curAlign === o.value;
+            alignSel.appendChild(opt);
+          });
+          alignSel.addEventListener("change", () => {
+            editor.engine.push_undo();
+            editor.engine.set_align_items(BigInt(id), alignSel.value);
+            editor.requestRender();
+            refresh(ids);
+          });
+          layoutSection.appendChild(alignSel);
         }
 
         // --- Gap & Padding compact row ---

@@ -237,7 +237,7 @@ function mapAxisAlign(v: string | undefined): string {
 
 function mapCounterAlign(v: string | undefined): string {
   const map: Record<string, string> = {
-    Start: "MIN", End: "MAX", Center: "CENTER", Stretch: "STRETCH",
+    Start: "MIN", End: "MAX", Center: "CENTER", Stretch: "STRETCH", Baseline: "BASELINE",
   };
   return map[v ?? "Start"] || "MIN";
 }

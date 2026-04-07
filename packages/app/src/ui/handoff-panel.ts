@@ -453,7 +453,7 @@ function generateTailwind(ctx: CodeCtx): string {
       classes.push("flex");
       if (layout.direction === "Column") classes.push("flex-col");
       if (layout.align_items) {
-        const m: Record<string, string> = { Start: "items-start", Center: "items-center", End: "items-end", Stretch: "items-stretch" };
+        const m: Record<string, string> = { Start: "items-start", Center: "items-center", End: "items-end", Stretch: "items-stretch", Baseline: "items-baseline" };
         classes.push(m[layout.align_items] || "");
       }
       if (layout.justify_content) {
@@ -832,7 +832,7 @@ function downloadBlob(blob: Blob, filename: string) {
 // ─── Utility ──────────────────────────────────────────
 
 function cssAlignValue(v: string): string {
-  const map: Record<string, string> = { Start: "flex-start", Center: "center", End: "flex-end", Stretch: "stretch" };
+  const map: Record<string, string> = { Start: "flex-start", Center: "center", End: "flex-end", Stretch: "stretch", Baseline: "baseline" };
   return map[v] || v.toLowerCase();
 }
 

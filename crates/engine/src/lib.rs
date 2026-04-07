@@ -64,6 +64,7 @@ fn parse_align(s: &str) -> Align {
         "center" => Align::Center,
         "end" => Align::End,
         "stretch" => Align::Stretch,
+        "baseline" => Align::Baseline,
         _ => Align::Start,
     }
 }

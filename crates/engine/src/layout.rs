@@ -182,6 +182,7 @@ fn compute_flex(scene: &mut Scene, layout: &Layout, px: f64, py: f64, pw: f64, p
         fill_main: bool,
         fill_cross: bool,
         wrap_before: bool,
+        baseline_offset: f64,
     }
     let mut child_infos: Vec<ChildInfo> = vec![];
     for &cid in children {
@@ -203,6 +204,16 @@ fn compute_flex(scene: &mut Scene, layout: &Layout, px: f64, py: f64, pw: f64, p
             if let Some(max) = child.max_width { w = w.min(max); }
             if let Some(min) = child.min_height { h = h.max(min); }
             if let Some(max) = child.max_height { h = h.min(max); }
+            let baseline_offset = match &child.kind {
+                NodeKind::Text { font_size, line_height, .. } => {
+                    // Approximate first baseline from top: half-leading + ascent.
+                    // Renderer uses alphabetic baseline with measured ascent; 0.8*font_size is a stable fallback.
+                    let lh_px = (*line_height).max(0.1) * *font_size;
+                    let ascent = *font_size * 0.8;
+                    ((lh_px - *font_size).max(0.0) / 2.0 + ascent).min(h)
+                }
+                _ => h,
+            };
             child_infos.push(ChildInfo {
                 id: cid,
                 w,
@@ -214,6 +225,7 @@ fn compute_flex(scene: &mut Scene, layout: &Layout, px: f64, py: f64, pw: f64, p
                 fill_main,
                 fill_cross,
                 wrap_before: child.wrap_before,
+                baseline_offset,
             });
         }
     }
@@ -442,6 +454,12 @@ fn compute_flex(scene: &mut Scene, layout: &Layout, px: f64, py: f64, pw: f64, p
         // Cross axis for this line (when wrapping, each line gets its own cross region)
         let line_avail_cross = if do_wrap { line_cross + stretch_extra_per_line } else { avail_cross };
 
+        let line_baseline = if is_row && layout.align_items == Align::Baseline {
+            line.iter().map(|&i| child_infos[i].baseline_offset).fold(0.0_f64, f64::max)
+        } else {
+            0.0
+        };
+
         for (j, &i) in line.iter().enumerate() {
             let ci = &child_infos[i];
             let child_main = if is_row { ci.w } else { ci.h };
@@ -456,6 +474,13 @@ fn compute_flex(scene: &mut Scene, layout: &Layout, px: f64, py: f64, pw: f64, p
                     Align::Center => (line_avail_cross - child_cross) / 2.0,
                     Align::End => line_avail_cross - child_cross,
                     Align::Stretch => 0.0,
+                    Align::Baseline => {
+                        if is_row {
+                            (line_baseline - ci.baseline_offset).max(0.0)
+                        } else {
+                            0.0
+                        }
+                    }
                 }
             };
 

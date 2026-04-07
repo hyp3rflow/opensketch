@@ -2338,12 +2338,23 @@
 - 검증: `wasm-pack build --target web`, `pnpm build`
 
 ## 다음 할 것 (2026-04-08 업데이트)
-- Auto Layout Baseline Alignment — 텍스트/아이콘 혼합 행에서 baseline 정렬 옵션 추가 (중난이도 / 중~고임팩트)
 - Prototype Interactive Components (Variant State Machine) — 컴포넌트 인스턴스 내부에서 hover/press/toggle 상태 전이 및 variant property 연동 (고난이도 / 고임팩트)
 - Motion Path Animation (Path-follow) — 선택 노드가 Path/VectorNetwork를 따라 이동하도록 키프레임+오리엔트 옵션 제공 (고난이도 / 고임팩트)
 - Constraint Presets (Pin/Hug/Fill Quick Apply) — Figma/AutoLayout 자주 쓰는 제약 조합을 원클릭 프리셋으로 적용 (저~중난이도 / 중임팩트)
 - Prototype Gesture Triggers (Drag/Swipe Directional) — OnDrag를 방향 인식 스와이프 트리거로 확장해 모바일 프로토타이핑 정확도 향상 (중난이도 / 중~고임팩트)
 - Frame States (Variants-lite) — 일반 Frame에도 상태(State) 세트를 부여해 hover/pressed/disabled 미리보기와 토글 전환 지원 (중난이도 / 중임팩트)
+
+## 완료된 기능 (추가 — Auto Layout Baseline Alignment, 2026-04-08)
+- Align enum에 `Baseline` 추가, `set_align_items(..., "baseline")` 파싱/적용 지원
+- Flex row에서 `align-items: baseline` 동작 구현
+  - 텍스트 노드는 `(half-leading + ascent)` 기반 첫 줄 baseline 오프셋 추정
+  - 비텍스트 노드는 하단(edge) baseline으로 간주
+  - 같은 줄(line)에서 최대 baseline 오프셋 기준으로 cross-axis 위치 정렬
+- Properties panel Auto layout 섹션에 `Cross: Baseline (Row)` 옵션 추가
+- Agent 패널 align 명령 확장: `start|center|end|stretch|baseline`
+- Inspect/Handoff/Figma export의 align-items 매핑에 Baseline 반영
+- 구현: `crates/engine/src/{node.rs,layout.rs,lib.rs,code_to_design.rs}`, `packages/app/src/ui/{properties-panel.ts,agent-panel.ts,inspect-panel.ts,handoff-panel.ts,figma-export.ts}`
+- 검증: `wasm-pack build --target web`, `pnpm build`
 
 ## 완료된 기능 (추가 — Per-corner Radius + Corner Smoothing Controls, 2026-04-08)
 - Node 모델에 `corner_radii`(top_left/top_right/bottom_right/bottom_left) 필드 추가 (`None`이면 기존 `corner_radius` 단일값 사용)
