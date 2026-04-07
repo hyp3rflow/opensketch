@@ -2299,8 +2299,17 @@
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
 - specs/FEATURES.md Prototyping 섹션 동기화
 
+## 완료된 기능 (추가 — Variable Fallback Chain + Broken Binding Auto-Recover, 2026-04-07)
+- 변수 적용 시 `mode → collection → literal` fallback 체인 도입
+- Mode fallback: active mode 값이 비어 있으면 같은 변수의 첫 사용 가능 mode 값으로 자동 해석
+- Collection fallback: 기존 collection/variable 해석 실패 시 스코프 내 대체 collection/variable 후보를 제안하고 apply 시 자동 복구
+- Literal fallback: 최종 해석 실패 시 노드 기존 literal 속성값 유지 (강제 덮어쓰기 없음)
+- Variables Inspector에서 recoverable broken binding 표시 + `Auto-recover` 버튼 제공
+- WASM: `recover_broken_variable_bindings` 추가, `get_broken_variable_bindings`에 suggestion 정보 포함
+- 구현: `crates/engine/src/{variable.rs,scene.rs,lib.rs}`, `packages/app/src/ui/variables-panel.ts`
+- specs/FEATURES.md Variable Collections 섹션 동기화
+
 ## 다음 할 것 (2026-04-07 업데이트)
-- Variable Fallback Chain — 변수 바인딩 실패 시 mode→collection→literal fallback 체인 및 Broken binding 자동 복구 제안 (중난이도 / 고임팩트)
 - Auto Layout Min/Max Constraints — Hug/Fill와 함께 min/max width/height 제약을 지원해 반응형 레이아웃 안정성 강화 (중난이도 / 고임팩트)
 - Multi-Edit Text Cursor (Cross-node) — 여러 Text 노드 동시 선택 후 공통 입력/스타일 적용 (고난이도 / 고임팩트)
 - Prototype Fixed Header/Footer Regions — 스크롤 컨테이너 내 고정 영역 지정(top/bottom) 및 오버레이 클리핑 규칙 제공 (중난이도 / 중~고임팩트)

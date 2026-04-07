@@ -281,10 +281,24 @@ impl VariableCollection {
         count
     }
 
-    /// Resolve a variable to its current mode value
+    /// Resolve a variable to its current mode value.
+    ///
+    /// Fallback chain:
+    /// 1) active mode value
+    /// 2) first defined value in this collection (mode fallback)
     pub fn resolve(&self, variable_id: VariableId) -> Option<VariableValue> {
         let var = self.variables.iter().find(|v| v.id == variable_id)?;
-        var.values.get(&self.active_mode_id).cloned()
+        if let Some(v) = var.values.get(&self.active_mode_id) {
+            return Some(v.clone());
+        }
+        // Mode fallback: first available mode value in collection order.
+        for mode in &self.modes {
+            if let Some(v) = var.values.get(&mode.id) {
+                return Some(v.clone());
+            }
+        }
+        // Last resort: any stored value.
+        var.values.values().next().cloned()
     }
 }
 

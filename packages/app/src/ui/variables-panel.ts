@@ -127,7 +127,7 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
 
     const col = collections.find(c => c.id === selectedCollectionId)!;
 
-    const brokenBindings: Array<{ node_id: number; property: string; reason: string }> = (() => {
+    const brokenBindings: Array<{ node_id: number; property: string; reason: string; suggestion?: { collection_id: number; variable_id: number } }> = (() => {
       try { return JSON.parse((editor.engine as any).get_broken_variable_bindings?.() || "[]"); }
       catch { return []; }
     })();
@@ -254,10 +254,29 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
       for (const b of brokenBindings.slice(0, 20)) {
         const row = document.createElement("div");
         row.style.cssText = "font-size:10px;color:#fca5a5;background:#2a1f1f;border:1px solid #3f2a2a;border-radius:4px;padding:4px 6px;";
-        row.textContent = `Node ${b.node_id || "?"} · ${b.property} · ${b.reason}`;
+        const hasSuggestion = !!b.suggestion;
+        row.textContent = `Node ${b.node_id || "?"} · ${b.property} · ${b.reason}${hasSuggestion ? " · recoverable" : ""}`;
         list.appendChild(row);
       }
       inspector.appendChild(list);
+
+      const actions = document.createElement("div");
+      actions.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;";
+
+      const recoverableCount = brokenBindings.filter(b => !!b.suggestion).length;
+      if (recoverableCount > 0) {
+        const recoverBtn = document.createElement("button");
+        recoverBtn.style.cssText = "background:#1f3b2a;border:1px solid #166534;border-radius:4px;color:#86efac;cursor:pointer;font-size:10px;padding:4px 8px;";
+        recoverBtn.textContent = `Auto-recover ${recoverableCount}`;
+        recoverBtn.addEventListener("click", () => {
+          editor.engine.push_undo();
+          const recovered = Number((editor.engine as any).recover_broken_variable_bindings?.() || 0);
+          if (recovered > 0) editor.engine.apply_variables();
+          editor.requestRender();
+          refresh();
+        });
+        actions.appendChild(recoverBtn);
+      }
 
       const cleanBtn = document.createElement("button");
       cleanBtn.style.cssText = "background:#3b1f1f;border:1px solid #7f1d1d;border-radius:4px;color:#fca5a5;cursor:pointer;font-size:10px;padding:4px 8px;";
@@ -268,7 +287,8 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
         if (removed > 0) editor.engine.apply_variables();
         refresh();
       });
-      inspector.appendChild(cleanBtn);
+      actions.appendChild(cleanBtn);
+      inspector.appendChild(actions);
     } else {
       const ok = document.createElement("div");
       ok.style.cssText = "font-size:11px;color:#6ee7b7;";

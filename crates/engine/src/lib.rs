@@ -10211,13 +10211,20 @@ impl Engine {
         serde_json::to_string(&usages).unwrap_or_else(|_| "[]".to_string())
     }
 
-    /// Get invalid variable bindings (missing node/collection/variable).
+    /// Get invalid variable bindings (missing node/collection/variable/scope/unresolved).
     pub fn get_broken_variable_bindings(&self) -> String {
         let mut broken: Vec<serde_json::Value> = Vec::new();
         for (key, binding) in &self.scene.variable_bindings {
             let mut parts = key.splitn(2, ':');
             let node_id = parts.next().and_then(|s| s.parse::<u64>().ok()).unwrap_or(0);
             let property = parts.next().unwrap_or("").to_string();
+
+            let suggestion = self.scene.suggest_binding_recovery(key, binding).map(|s| {
+                serde_json::json!({
+                    "collection_id": s.collection_id,
+                    "variable_id": s.variable_id,
+                })
+            });
 
             let node_exists = node_id != 0 && self.scene.get_node(node_id).is_some();
             if !node_exists {
@@ -10226,6 +10233,7 @@ impl Engine {
                     "node_id": node_id,
                     "property": property,
                     "reason": "node_missing",
+                    "suggestion": suggestion,
                 }));
                 continue;
             }
@@ -10239,6 +10247,7 @@ impl Engine {
                     "reason": "collection_missing",
                     "collection_id": binding.collection_id,
                     "variable_id": binding.variable_id,
+                    "suggestion": suggestion,
                 }));
                 continue;
             }
@@ -10254,6 +10263,20 @@ impl Engine {
                     "reason": "variable_missing",
                     "collection_id": binding.collection_id,
                     "variable_id": binding.variable_id,
+                    "suggestion": suggestion,
+                }));
+                continue;
+            }
+
+            if self.scene.resolve_binding(node_id, &property).is_none() {
+                broken.push(serde_json::json!({
+                    "key": key,
+                    "node_id": node_id,
+                    "property": property,
+                    "reason": "value_unresolved",
+                    "collection_id": binding.collection_id,
+                    "variable_id": binding.variable_id,
+                    "suggestion": suggestion,
                 }));
             }
         }
@@ -10280,6 +10303,15 @@ impl Engine {
             self.scene.variable_bindings.remove(&key);
         }
         removed
+    }
+
+    /// Try to auto-recover broken variable bindings using fallback suggestions.
+    pub fn recover_broken_variable_bindings(&mut self) -> u32 {
+        let recovered = self.scene.recover_broken_variable_bindings();
+        if recovered > 0 {
+            self.scene.apply_variables();
+        }
+        recovered
     }
 
     pub fn apply_variables(&mut self) {

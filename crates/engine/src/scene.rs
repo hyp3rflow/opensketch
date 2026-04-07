@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use serde::{Serialize, Deserialize};
 use crate::node::{Node, NodeId, NodeKind, ConstraintH, ConstraintV, Comment, CommentReply, PrototypeVariable};
 use crate::types::Point;
-use crate::variable::{VariableCollection, VariableBinding, VariableScope, CollectionId, ModeId, VariableId, VariableValue};
+use crate::variable::{VariableCollection, VariableBinding, VariableScope, CollectionId, ModeId, VariableId, VariableType, VariableValue};
 use crate::token::TokenStore;
 
 /// A responsive breakpoint preset with variable-mode mappings.
@@ -2826,6 +2826,38 @@ impl Scene {
         }
     }
 
+    fn expected_variable_type_for_property(property: &str) -> Option<VariableType> {
+        match property {
+            "fill.0.color" | "stroke.color" => Some(VariableType::Color),
+            "opacity" | "corner_radius" | "width" | "height" => Some(VariableType::Number),
+            "visible" => Some(VariableType::Boolean),
+            _ => None,
+        }
+    }
+
+    fn suggest_fallback_binding(&self, node_id: u64, property: &str, current: &VariableBinding) -> Option<VariableBinding> {
+        let expected = Self::expected_variable_type_for_property(property)?;
+
+        // 1) Keep variable id, switch collection (collection fallback)
+        for col in &self.variable_collections {
+            if col.id == current.collection_id { continue; }
+            if !self.is_binding_in_scope(col.id, node_id) { continue; }
+            if let Some(var) = col.variables.iter().find(|v| v.id == current.variable_id && v.var_type == expected) {
+                return Some(VariableBinding { collection_id: col.id, variable_id: var.id });
+            }
+        }
+
+        // 2) Same expected type, first variable in scoped collections
+        for col in &self.variable_collections {
+            if !self.is_binding_in_scope(col.id, node_id) { continue; }
+            if let Some(var) = col.variables.iter().find(|v| v.var_type == expected) {
+                return Some(VariableBinding { collection_id: col.id, variable_id: var.id });
+            }
+        }
+
+        None
+    }
+
     pub fn bind_variable(&mut self, node_id: u64, property: String, collection_id: CollectionId, variable_id: VariableId) {
         let key = format!("{}:{}", node_id, property);
         self.variable_bindings.insert(key, VariableBinding { collection_id, variable_id });
@@ -2851,6 +2883,42 @@ impl Scene {
             .collect()
     }
 
+    pub fn suggest_binding_recovery(&self, key: &str, binding: &VariableBinding) -> Option<VariableBinding> {
+        let parts: Vec<&str> = key.splitn(2, ':').collect();
+        if parts.len() != 2 { return None; }
+        let node_id: u64 = parts[0].parse().ok()?;
+        let property = parts[1];
+        self.suggest_fallback_binding(node_id, property, binding)
+    }
+
+    /// Apply fallback-based recovery to broken bindings. Returns recovered count.
+    pub fn recover_broken_variable_bindings(&mut self) -> u32 {
+        let bindings: Vec<(String, VariableBinding)> = self.variable_bindings.iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+        let mut recovered = 0u32;
+        for (key, binding) in bindings {
+            let has_value = {
+                let parts: Vec<&str> = key.splitn(2, ':').collect();
+                if parts.len() != 2 { false }
+                else {
+                    let node_id = parts[0].parse::<u64>().ok().unwrap_or(0);
+                    self.is_binding_in_scope(binding.collection_id, node_id)
+                        && self.get_collection(binding.collection_id)
+                            .and_then(|c| c.resolve(binding.variable_id))
+                            .is_some()
+                }
+            };
+            if has_value { continue; }
+
+            if let Some(suggested) = self.suggest_binding_recovery(&key, &binding) {
+                self.variable_bindings.insert(key, suggested);
+                recovered += 1;
+            }
+        }
+        recovered
+    }
+
     /// Apply all variable bindings with current active modes
     pub fn apply_variables(&mut self) {
         let bindings: Vec<(String, VariableBinding)> = self.variable_bindings.iter()
@@ -2866,23 +2934,37 @@ impl Scene {
                 Err(_) => continue,
             };
 
-            // Check scope before resolving
-            if !self.is_binding_in_scope(binding.collection_id, node_id) {
-                continue;
+            let property = parts[1];
+
+            // Try direct resolve first (mode fallback is handled by VariableCollection::resolve).
+            let mut effective_binding = binding.clone();
+            let mut value = None;
+            if self.is_binding_in_scope(effective_binding.collection_id, node_id) {
+                value = self
+                    .get_collection(effective_binding.collection_id)
+                    .and_then(|c| c.resolve(effective_binding.variable_id));
             }
 
-            let value = {
-                let collection = match self.get_collection(binding.collection_id) {
-                    Some(c) => c,
-                    None => continue,
-                };
-                match collection.resolve(binding.variable_id) {
-                    Some(v) => v,
-                    None => continue,
-                }
-            };
+            // Collection fallback: recover by switching to another matching collection/variable.
+            if value.is_none() {
+                if let Some(suggested) = self.suggest_fallback_binding(node_id, property, &effective_binding) {
+                    effective_binding = suggested.clone();
+                    value = self
+                        .get_collection(effective_binding.collection_id)
+                        .and_then(|c| c.resolve(effective_binding.variable_id));
 
-            let property = parts[1];
+                    // Auto-heal broken binding for future applies.
+                    if value.is_some() {
+                        self.variable_bindings.insert(key.clone(), suggested);
+                    }
+                }
+            }
+
+            // Literal fallback: unresolved binding leaves existing node property untouched.
+            let value = match value {
+                Some(v) => v,
+                None => continue,
+            };
 
             match (property, &value) {
                 ("fill.0.color", VariableValue::Color(hex)) => {
