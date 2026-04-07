@@ -2289,6 +2289,9 @@ pub struct Node {
     /// Keep node fixed in Prototype viewer when parent scrolls (header/footer style)
     #[serde(default)]
     pub prototype_fixed: bool,
+    /// Fixed region in prototype when `prototype_fixed` is true: "auto" | "top" | "bottom"
+    #[serde(default = "default_prototype_fixed_region")]
+    pub prototype_fixed_region: String,
     /// Alt text for Image nodes (accessibility / screen readers)
     #[serde(default)]
     pub alt_text: Option<String>,
@@ -2341,6 +2344,7 @@ fn default_frame_bg_color() -> String { "ffffff".to_string() }
 fn default_frame_bg_spacing() -> f64 { 20.0 }
 fn default_frame_bg_opacity() -> f64 { 0.15 }
 fn default_frame_bg_size() -> f64 { 1.5 }
+fn default_prototype_fixed_region() -> String { "auto".to_string() }
 
 impl Node {
     pub fn kind_name(&self) -> &str {
@@ -2432,6 +2436,7 @@ impl Node {
             resource_links: vec![],
             scroll_animations: vec![],
             prototype_fixed: false,
+            prototype_fixed_region: default_prototype_fixed_region(),
             alt_text: None,
             anchors: vec![],
             hyperlink: None,

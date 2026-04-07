@@ -7895,6 +7895,26 @@ impl Engine {
         self.scene.get_node(id).map(|n| n.prototype_fixed).unwrap_or(false)
     }
 
+    pub fn set_prototype_fixed_region(&mut self, id: u64, region: &str) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            node.prototype_fixed_region = match region {
+                "top" => "top".to_string(),
+                "bottom" => "bottom".to_string(),
+                _ => "auto".to_string(),
+            };
+        }
+    }
+
+    pub fn get_prototype_fixed_region(&self, id: u64) -> String {
+        self.scene
+            .get_node(id)
+            .map(|n| {
+                let v = n.prototype_fixed_region.as_str();
+                if v == "top" || v == "bottom" { v.to_string() } else { "auto".to_string() }
+            })
+            .unwrap_or_else(|| "auto".to_string())
+    }
+
     // =============================================
     // Constraints
     // =============================================

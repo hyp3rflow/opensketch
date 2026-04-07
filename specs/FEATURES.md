@@ -2291,6 +2291,7 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] **WASM bindings**: add/remove/update_prototype_variable, get_prototype_variables, set_interaction_condition, set_interaction_set_variable
 - [x] **Prototype Viewer**: Runtime variable state (Map), condition evaluation, SetVariable execution (+N/-N/toggle/literal), debug panel showing current variable values
 - [x] **Prototype Device Frame + Safe Area Preview**: Device preset selector with bezel/notch overlays, safe-area inset tint+guide, and scroll position-aware scrollbar indicators (vertical/horizontal) in preview with top-bar `Bars` toggle
+- [x] **Prototype Device Chrome Details**: Added status-bar tint + home-indicator rendering (portrait/landscape aware) and expanded presets (`iPhone SE`) for more realistic safe-area/device-chrome validation in preview
 - [x] **Prototype theme mode switch**: Top bar `Theme` selector mirrors variable mode names (Light/Dark/custom) and switches collection active modes live during preview.
 - [x] **Properties panel — Variables section**: Scene-level variable CRUD UI (name, type select, default value, add/delete)
 - [x] **Properties panel — Interaction condition UI**: Per-interaction optional condition builder (prototype variable datalist, operator select, compare value), live branch preview (TRUE/FALSE with current variable value), clear button
@@ -2387,6 +2388,14 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Properties panel: 부모가 scroll frame인 자식 노드에서 `Fixed in prototype` 토글 제공
 - [x] Prototype viewer: 현재 프레임 scroll offset을 기준으로 fixed 노드 x/y를 렌더 직전 반대 방향 보정해 고정 레이어처럼 표시
 - [x] 렌더 후 원본 x/y 백업 복원으로 편집 상태 오염 방지
+
+### Prototype Fixed Header/Footer Regions (2026-04-07)
+- [x] Node 모델 확장: `prototype_fixed_region: "auto" | "top" | "bottom"` (serde default=`auto`, backward-compatible)
+- [x] WASM API: `set_prototype_fixed_region(id, region)`, `get_prototype_fixed_region(id)`
+- [x] Properties panel: `Fixed in prototype` 하위에 `Fixed region` 선택 UI 추가
+  - `Auto (X+Y)`: 기존 동작 유지 (x/y 모두 scroll 반대 보정)
+  - `Header/Footer (Y only)`: 가로 스크롤 영향 없이 세로 고정만 적용
+- [x] Prototype viewer: fixed 보정 시 region별 축 보정 로직 적용
 
 ### Auto Layout Absolute Child + Wrap Controls (2026-04-06)
 - [x] Auto-layout wrap child line break 지원: Node에 `wrap_before: bool` 필드 추가 (serde default, backward-compatible)

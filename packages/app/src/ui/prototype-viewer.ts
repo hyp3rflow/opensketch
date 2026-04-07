@@ -34,15 +34,19 @@ export function createPrototypeViewer(editor: Editor): {
     safeRight: number;
     safeBottom: number;
     safeLeft: number;
+    homeIndicatorWidth?: number;
+    homeIndicatorHeight?: number;
+    statusBarHeight?: number;
     refWidth?: number;
     refHeight?: number;
   };
 
   const DEVICE_PRESETS: PrototypeDevicePreset[] = [
     { id: "none", label: "No Device", bezel: 0, cornerRadius: 0, safeTop: 0, safeRight: 0, safeBottom: 0, safeLeft: 0 },
-    { id: "iphone14", label: "iPhone 14 Pro", bezel: 18, cornerRadius: 34, notchWidth: 126, notchHeight: 34, safeTop: 59, safeRight: 0, safeBottom: 34, safeLeft: 0, refWidth: 393, refHeight: 852 },
-    { id: "pixel8", label: "Pixel 8", bezel: 14, cornerRadius: 28, notchWidth: 40, notchHeight: 24, safeTop: 30, safeRight: 0, safeBottom: 24, safeLeft: 0, refWidth: 412, refHeight: 915 },
-    { id: "ipad", label: "iPad", bezel: 22, cornerRadius: 24, safeTop: 24, safeRight: 0, safeBottom: 20, safeLeft: 0, refWidth: 834, refHeight: 1194 },
+    { id: "iphone14", label: "iPhone 14 Pro", bezel: 18, cornerRadius: 34, notchWidth: 126, notchHeight: 34, safeTop: 59, safeRight: 0, safeBottom: 34, safeLeft: 0, homeIndicatorWidth: 134, homeIndicatorHeight: 5, statusBarHeight: 24, refWidth: 393, refHeight: 852 },
+    { id: "pixel8", label: "Pixel 8", bezel: 14, cornerRadius: 28, notchWidth: 40, notchHeight: 24, safeTop: 30, safeRight: 0, safeBottom: 24, safeLeft: 0, homeIndicatorWidth: 96, homeIndicatorHeight: 4, statusBarHeight: 24, refWidth: 412, refHeight: 915 },
+    { id: "ipad", label: "iPad", bezel: 22, cornerRadius: 24, safeTop: 24, safeRight: 0, safeBottom: 20, safeLeft: 0, homeIndicatorWidth: 126, homeIndicatorHeight: 5, statusBarHeight: 24, refWidth: 834, refHeight: 1194 },
+    { id: "iphone-se", label: "iPhone SE", bezel: 16, cornerRadius: 26, safeTop: 20, safeRight: 0, safeBottom: 0, safeLeft: 0, statusBarHeight: 20, refWidth: 375, refHeight: 667 },
   ];
   let selectedDeviceId = "none";
   let deviceOrientation: "portrait" | "landscape" = "portrait";
@@ -469,6 +473,9 @@ export function createPrototypeViewer(editor: Editor): {
 
     const notchWRaw = (device.notchWidth || 0) * (isLandscape ? sy : sx);
     const notchHRaw = (device.notchHeight || 0) * (isLandscape ? sx : sy);
+    const homeIndicatorWRaw = (device.homeIndicatorWidth || 0) * (isLandscape ? sy : sx);
+    const homeIndicatorHRaw = (device.homeIndicatorHeight || 0) * (isLandscape ? sx : sy);
+    const statusBarHRaw = (device.statusBarHeight || 0) * sy;
 
     return {
       safeTop,
@@ -477,6 +484,9 @@ export function createPrototypeViewer(editor: Editor): {
       safeLeft,
       notchW: Math.round(notchWRaw),
       notchH: Math.round(notchHRaw),
+      homeIndicatorW: Math.round(homeIndicatorWRaw),
+      homeIndicatorH: Math.round(homeIndicatorHRaw),
+      statusBarH: Math.round(statusBarHRaw),
       isLandscape,
     };
   }
@@ -582,6 +592,16 @@ export function createPrototypeViewer(editor: Editor): {
       ctx.fill();
     }
 
+    if (metrics.statusBarH > 0) {
+      ctx.fillStyle = "rgba(255,255,255,0.06)";
+      if (metrics.isLandscape) {
+        const sx = totalW - Math.max(metrics.safeRight, metrics.notchW + Math.round(4 * dpr));
+        ctx.fillRect(sx, 0, Math.max(metrics.safeRight, metrics.notchW + Math.round(4 * dpr)), totalH);
+      } else {
+        ctx.fillRect(0, 0, totalW, Math.min(metrics.safeTop, metrics.statusBarH));
+      }
+    }
+
     const safeX = metrics.safeLeft;
     const safeY = metrics.safeTop;
     const safeW = totalW - metrics.safeLeft - metrics.safeRight;
@@ -629,6 +649,23 @@ export function createPrototypeViewer(editor: Editor): {
         const barY = totalH - edgeInset;
         ctx.beginPath();
         ctx.roundRect(barX, barY, barW, barThickness, 2 * dpr);
+        ctx.fill();
+      }
+    }
+
+    if (metrics.homeIndicatorW > 0 && metrics.homeIndicatorH > 0) {
+      ctx.fillStyle = "rgba(255,255,255,0.62)";
+      if (metrics.isLandscape) {
+        const hx = totalW - Math.max(metrics.safeRight * 0.5, 6 * dpr) - metrics.homeIndicatorH;
+        const hy = totalH / 2 - metrics.homeIndicatorW / 2;
+        ctx.beginPath();
+        ctx.roundRect(hx, hy, metrics.homeIndicatorH, metrics.homeIndicatorW, Math.max(3 * dpr, metrics.homeIndicatorH / 2));
+        ctx.fill();
+      } else {
+        const hx = totalW / 2 - metrics.homeIndicatorW / 2;
+        const hy = totalH - Math.max(metrics.safeBottom * 0.5, 6 * dpr) - metrics.homeIndicatorH;
+        ctx.beginPath();
+        ctx.roundRect(hx, hy, metrics.homeIndicatorW, metrics.homeIndicatorH, Math.max(3 * dpr, metrics.homeIndicatorH / 2));
         ctx.fill();
       }
     }
@@ -1688,10 +1725,21 @@ export function createPrototypeViewer(editor: Editor): {
             const isFixed = !!(ed.engine as any).get_prototype_fixed?.(BigInt(nodeId));
             if (!isFixed) continue;
 
+            const regionRaw = String((ed.engine as any).get_prototype_fixed_region?.(BigInt(nodeId)) || "auto").toLowerCase();
+            const region = regionRaw === "top" || regionRaw === "bottom" ? regionRaw : "auto";
+
             const backup = getBackup(nodeId);
-            if (backup.x === undefined) backup.x = nd.x ?? 0;
-            if (backup.y === undefined) backup.y = nd.y ?? 0;
-            ed.engine.set_node_position(BigInt(nodeId), (nd.x ?? 0) - frameScrollX, (nd.y ?? 0) - frameScrollY);
+            const curX = nd.x ?? 0;
+            const curY = nd.y ?? 0;
+            if (backup.x === undefined) backup.x = curX;
+            if (backup.y === undefined) backup.y = curY;
+
+            // top/bottom region pins only vertical movement; auto keeps legacy full pin (x+y)
+            if (region === "top" || region === "bottom") {
+              ed.engine.set_node_position(BigInt(nodeId), curX, curY - frameScrollY);
+            } else {
+              ed.engine.set_node_position(BigInt(nodeId), curX - frameScrollX, curY - frameScrollY);
+            }
           }
         }
       }

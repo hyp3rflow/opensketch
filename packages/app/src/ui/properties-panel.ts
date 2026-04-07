@@ -8915,6 +8915,32 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           fixedRow.append(fixedCb, fixedLabel);
           snapAlignSection.appendChild(fixedRow);
 
+          const fixedRegionRow = document.createElement("div");
+          fixedRegionRow.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:6px;";
+          const fixedRegionLabel = document.createElement("span");
+          fixedRegionLabel.style.cssText = "font-size:10px;color:#888;";
+          fixedRegionLabel.textContent = "Fixed region";
+          const fixedRegionSelect = document.createElement("select");
+          fixedRegionSelect.style.cssText = "flex:1;max-width:140px;padding:3px 6px;background:#2a2a2a;border:1px solid #444;border-radius:4px;color:#ccc;font-size:10px;";
+          fixedRegionSelect.innerHTML = `
+            <option value="auto">Auto (X+Y)</option>
+            <option value="top">Header (Y only)</option>
+            <option value="bottom">Footer (Y only)</option>
+          `;
+          fixedRegionSelect.value = String((editor.engine as any).get_prototype_fixed_region?.(BigInt(id)) || "auto");
+          fixedRegionSelect.disabled = !fixedCb.checked;
+          fixedCb.addEventListener("change", () => {
+            fixedRegionSelect.disabled = !fixedCb.checked;
+          });
+          fixedRegionSelect.addEventListener("change", () => {
+            editor.engine.push_undo();
+            (editor.engine as any).set_prototype_fixed_region?.(BigInt(id), fixedRegionSelect.value);
+            editor.requestRender();
+            refresh(ids);
+          });
+          fixedRegionRow.append(fixedRegionLabel, fixedRegionSelect);
+          snapAlignSection.appendChild(fixedRegionRow);
+
           panel.appendChild(snapAlignSection);
         }
       }
