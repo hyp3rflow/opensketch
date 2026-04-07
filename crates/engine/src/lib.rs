@@ -8435,7 +8435,80 @@ impl Engine {
 
     /// Update a text style by ID (JSON partial update).
     pub fn update_text_style(&mut self, id: u64, json: &str) -> bool {
-        self.styles.update_text_style(id, json)
+        let ok = self.styles.update_text_style(id, json);
+        if ok {
+            let _ = self.sync_text_style_to_token(id);
+        }
+        ok
+    }
+
+    fn text_style_token_payload(style: &crate::styles::TextStyle) -> serde_json::Value {
+        serde_json::json!({
+            "name": style.name,
+            "font_family": style.font_family,
+            "font_size": style.font_size,
+            "font_weight": style.font_weight,
+            "font_style": format!("{:?}", style.font_style),
+            "line_height": style.line_height,
+            "letter_spacing": style.letter_spacing,
+            "text_align": format!("{:?}", style.text_align),
+            "color_r": style.color_r,
+            "color_g": style.color_g,
+            "color_b": style.color_b,
+            "color_a": style.color_a,
+            "opentype_features": style.opentype_features,
+            "font_variation_settings": style.font_variation_settings,
+        })
+    }
+
+    /// Link a text style to a typography token variable (String type JSON payload).
+    pub fn link_text_style_token(&mut self, style_id: u64, collection_id: u64, variable_id: u64) -> bool {
+        let payload = match self.styles.get_text_style(style_id) {
+            Some(style) => Self::text_style_token_payload(style),
+            None => return false,
+        };
+        let Some(collection) = self.scene.variable_collections.iter_mut().find(|c| c.id == collection_id) else { return false; };
+        let Some(var) = collection.variables.iter_mut().find(|v| v.id == variable_id) else { return false; };
+        if var.var_type != crate::variable::VariableType::String { return false; }
+
+        let serialized = serde_json::to_string(&payload).unwrap_or_else(|_| "{}".to_string());
+        let mode_id = collection.active_mode_id;
+        var.values.insert(mode_id, crate::variable::VariableValue::String(serialized));
+        if let Some(style) = self.styles.text_styles.get_mut(&style_id) {
+            style.typography_token = Some(crate::styles::TypographyTokenLink { collection_id, variable_id });
+        }
+        true
+    }
+
+    /// Detach a typography token link from a text style.
+    pub fn detach_text_style_token(&mut self, style_id: u64) -> bool {
+        if let Some(style) = self.styles.text_styles.get_mut(&style_id) {
+            let had = style.typography_token.is_some();
+            style.typography_token = None;
+            return had;
+        }
+        false
+    }
+
+    /// Relink text style to another typography token variable.
+    pub fn relink_text_style_token(&mut self, style_id: u64, collection_id: u64, variable_id: u64) -> bool {
+        self.link_text_style_token(style_id, collection_id, variable_id)
+    }
+
+    /// Push current linked text style value into its typography token variable.
+    pub fn sync_text_style_to_token(&mut self, style_id: u64) -> bool {
+        let Some(link) = self.styles.get_text_style(style_id).and_then(|s| s.typography_token.clone()) else { return false; };
+        self.link_text_style_token(style_id, link.collection_id, link.variable_id)
+    }
+
+    /// Pull typography token value into text style. Returns false on parse/type errors.
+    pub fn sync_text_style_from_token(&mut self, style_id: u64) -> bool {
+        let Some(link) = self.styles.get_text_style(style_id).and_then(|s| s.typography_token.clone()) else { return false; };
+        let Some(collection) = self.scene.variable_collections.iter().find(|c| c.id == link.collection_id) else { return false; };
+        let Some(var) = collection.variables.iter().find(|v| v.id == link.variable_id) else { return false; };
+        let Some(crate::variable::VariableValue::String(raw)) = var.values.get(&collection.active_mode_id) else { return false; };
+        let Ok(updates) = serde_json::from_str::<serde_json::Value>(raw) else { return false; };
+        self.styles.update_text_style(style_id, &updates.to_string())
     }
 
     /// Remove a text style.
@@ -8462,6 +8535,7 @@ impl Engine {
                 "text_align": format!("{:?}", s.text_align),
                 "opentype_features": s.opentype_features,
                 "font_variation_settings": s.font_variation_settings,
+                "typography_token": s.typography_token,
                 "r": s.color_r, "g": s.color_g, "b": s.color_b, "a": s.color_a,
             })
         }).collect();

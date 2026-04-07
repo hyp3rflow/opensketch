@@ -6350,6 +6350,82 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           linkedLabel.textContent = `🔗 ${styleInfo.text_style_name}`;
           tsSection.appendChild(linkedLabel);
 
+          const activeStyle = textStyles.find((s) => Number(s.id) === Number(styleInfo?.text_style_id));
+          const tokenLink = activeStyle?.typography_token || null;
+          const tokenMeta = document.createElement("div");
+          tokenMeta.style.cssText = "font-size:10px;color:#8b8b8b;margin-top:2px;";
+          tokenMeta.textContent = tokenLink
+            ? `Typography token: C${tokenLink.collection_id} / V${tokenLink.variable_id}`
+            : "Typography token: (not linked)";
+          tsSection.appendChild(tokenMeta);
+
+          const tokenRow = document.createElement("div");
+          tokenRow.style.cssText = "display:flex;gap:4px;margin-top:6px;";
+
+          const linkBtn = document.createElement("button");
+          linkBtn.className = "prop-add-btn";
+          linkBtn.style.marginTop = "0";
+          linkBtn.textContent = tokenLink ? "Relink token" : "Link token";
+          linkBtn.addEventListener("click", () => {
+            const collections: any[] = JSON.parse(editor.engine.get_collections() || "[]");
+            const lines: string[] = [];
+            for (const col of collections) {
+              const vars = (col.variables || []).filter((v: any) => (v.value_type || v.var_type) === "String");
+              if (vars.length === 0) continue;
+              lines.push(`[${col.id}] ${col.name}`);
+              for (const v of vars) lines.push(`  - ${col.id}:${v.id} ${v.name}`);
+            }
+            const picked = prompt(`Link typography token (collection:variable)\n\n${lines.join("\n")}`);
+            if (!picked) return;
+            const [cid, vid] = picked.split(":").map((n) => Number(n.trim()));
+            if (!cid || !vid) return;
+            ensureUndo();
+            (editor.engine as any).relink_text_style_token(BigInt(styleInfo.text_style_id), BigInt(cid), BigInt(vid));
+            refresh(ids);
+          });
+          tokenRow.appendChild(linkBtn);
+
+          const detachTokenBtn = document.createElement("button");
+          detachTokenBtn.className = "prop-add-btn";
+          detachTokenBtn.style.marginTop = "0";
+          detachTokenBtn.textContent = "Detach token";
+          detachTokenBtn.disabled = !tokenLink;
+          detachTokenBtn.addEventListener("click", () => {
+            ensureUndo();
+            (editor.engine as any).detach_text_style_token(BigInt(styleInfo.text_style_id));
+            refresh(ids);
+          });
+          tokenRow.appendChild(detachTokenBtn);
+
+          const pullBtn = document.createElement("button");
+          pullBtn.className = "prop-add-btn";
+          pullBtn.style.marginTop = "0";
+          pullBtn.textContent = "Pull ← token";
+          pullBtn.disabled = !tokenLink;
+          pullBtn.addEventListener("click", () => {
+            ensureUndo();
+            const ok = (editor.engine as any).sync_text_style_from_token(BigInt(styleInfo.text_style_id));
+            if (ok) {
+              editor.engine.sync_text_style(BigInt(styleInfo.text_style_id));
+              editor.requestRender();
+            }
+            refresh(ids);
+          });
+          tokenRow.appendChild(pullBtn);
+
+          const pushBtn = document.createElement("button");
+          pushBtn.className = "prop-add-btn";
+          pushBtn.style.marginTop = "0";
+          pushBtn.textContent = "Push → token";
+          pushBtn.disabled = !tokenLink;
+          pushBtn.addEventListener("click", () => {
+            ensureUndo();
+            (editor.engine as any).sync_text_style_to_token(BigInt(styleInfo.text_style_id));
+            refresh(ids);
+          });
+          tokenRow.appendChild(pushBtn);
+          tsSection.appendChild(tokenRow);
+
           const replaceAllBtn = document.createElement("button");
           replaceAllBtn.className = "prop-add-btn";
           replaceAllBtn.style.marginTop = "6px";

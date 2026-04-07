@@ -39,6 +39,12 @@ pub struct ColorStyle {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TypographyTokenLink {
+    pub collection_id: u64,
+    pub variable_id: u64,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TextStyle {
     pub id: StyleId,
     pub name: String,
@@ -58,6 +64,8 @@ pub struct TextStyle {
     pub opentype_features: crate::node::OpenTypeFeatures,
     #[serde(default)]
     pub font_variation_settings: std::collections::BTreeMap<String, f64>,
+    #[serde(default)]
+    pub typography_token: Option<TypographyTokenLink>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
@@ -133,6 +141,7 @@ impl StyleStore {
             letter_spacing: 0.0,
             opentype_features: crate::node::OpenTypeFeatures::default(),
             font_variation_settings: std::collections::BTreeMap::new(),
+            typography_token: None,
         });
         id
     }
@@ -232,6 +241,7 @@ impl StyleStore {
                 style.letter_spacing = ts.letter_spacing;
                 style.opentype_features = ts.opentype_features;
                 style.font_variation_settings = ts.font_variation_settings;
+                style.typography_token = ts.typography_token;
             }
         }
         (cc, tc)

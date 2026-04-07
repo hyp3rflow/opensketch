@@ -2344,6 +2344,23 @@
 - Prototype Gesture Triggers (Drag/Swipe Directional) — OnDrag를 방향 인식 스와이프 트리거로 확장해 모바일 프로토타이핑 정확도 향상 (중난이도 / 중~고임팩트)
 - Frame States (Variants-lite) — 일반 Frame에도 상태(State) 세트를 부여해 hover/pressed/disabled 미리보기와 토글 전환 지원 (중난이도 / 중임팩트)
 
+## 완료된 기능 (추가 — Text Styles Tokens Sync, 2026-04-08)
+- TextStyle 모델 확장: `typography_token: Option<{collection_id, variable_id}>` (serde default, backward-compatible)
+- WASM API 추가:
+  - `link_text_style_token(style_id, collection_id, variable_id)`
+  - `relink_text_style_token(style_id, collection_id, variable_id)`
+  - `detach_text_style_token(style_id)`
+  - `sync_text_style_to_token(style_id)`
+  - `sync_text_style_from_token(style_id)`
+- 동기화 규칙:
+  - Text Style 변경(`update_text_style`) 시 linked token(String variable, active mode)에 JSON payload 자동 push
+  - 필요 시 token → style pull 후 `sync_text_style`로 연결 노드 일괄 반영 가능
+- Properties panel Text Style UI 확장:
+  - Typography token 상태 라벨
+  - Link/Relink, Detach, Pull←token, Push→token 버튼
+- specs 반영: `specs/FEATURES.md`
+- 검증: `wasm-pack build --target web --out-dir ../../packages/app/src/wasm`, `pnpm -C packages/app build`
+
 ## 완료된 기능 (추가 — Smart Selection by Layer/Type filter 고도화, 2026-04-08)
 - 선택 노드 기반 Layer Type 추론(`shape/text/image/locked/hidden`) 헬퍼 추가
 - Context menu의 Select Same 계열에 Layer Type용 고급 옵션 추가

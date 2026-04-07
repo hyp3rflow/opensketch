@@ -379,6 +379,7 @@
 - [x] **Typography Styles Advanced (2026-04-06)**: TextStyle includes `letter_spacing`, `opentype_features`, `font_variation_settings` for advanced typography parity
 - [x] **Advanced sync/apply**: `apply_text_style` / `sync_text_style` propagate OpenType + variable axes + letter spacing to linked text nodes
 - [x] **Replace-all workflow**: `replace_text_style_all(old, new)` relinks all matching text-style nodes document-wide
+- [x] **Text Styles ↔ Typography Token Sync (2026-04-08)**: TextStyle에 optional `typography_token { collection_id, variable_id }` 링크 추가. WASM API `link_text_style_token`, `relink_text_style_token`, `detach_text_style_token`, `sync_text_style_to_token`, `sync_text_style_from_token` 제공. String 변수(JSON payload)로 스타일 값을 Push/Pull하며, Properties panel Text Style 섹션에 Link/Relink/Detach + Pull/Push 버튼 UI 추가.
 
 
 ### Boolean Operations
