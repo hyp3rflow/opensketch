@@ -334,6 +334,7 @@ enum PropValue {
 - **InstanceSwapProp**: Swap linked Slot's component in the instance
 - Linked nodes are matched by name (template name → instance child name)
 - Overrides are stored per-instance; reset reverts to component default
+- Instance creation/component swap/variant-set swap 시에도 property default를 즉시 materialize하여 기본 상태가 실제 자식 노드에 반영됨
 - All fields use `#[serde(default)]` for backward compatibility
 
 ### WASM API

@@ -100,6 +100,7 @@
 - [x] **Figma-style Variants Matrix UI (MVP)**: Component Set 인스턴스 편집 시 첫 2개 axis 조합을 2D 매트릭스로 시각화, 셀 클릭으로 variant 전환, 빈 셀 클릭/드래그로 현재 variant를 조합에 매핑
 - [x] **Instance Controls unified card**: Instance 선택 시 Properties panel에서 Variant/Overrides/Component Props(텍스트 override 포함)를 단일 `INSTANCE CONTROLS` 카드로 묶어 편집
 - [x] **Component Props Figma-style override polish**: Instance의 Boolean/Text/Instance Swap prop을 타입 배지 + override dot + `Reset all` 액션으로 노출, Text default placeholder/tooltip 제공, Component source의 속성 목록에 default/linked target 메타 표시
+- [x] **Component Props default materialization**: 새 Instance 생성/컴포넌트 swap/variant-set swap 시 component property의 기본값(Boolean/Text/Instance Swap)을 즉시 자식 노드에 적용해 Figma처럼 기본 상태가 일관되게 반영
 
 ### Alignment & Distribution
 - [x] **Align**: left, center-H, right, top, center-V, bottom (multi-select, 2+ nodes)

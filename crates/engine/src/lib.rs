@@ -4651,6 +4651,9 @@ impl Engine {
             self.clone_template_children(template_root, &variant.nodes, root_id, offset_x, offset_y);
         }
 
+        // Apply component property defaults to newly cloned instance children.
+        self.apply_all_component_prop_defaults(root_id);
+
         root_id
     }
 
@@ -5564,6 +5567,9 @@ impl Engine {
             self.clone_template_children(template_root, &variant.nodes, instance_id, dx, dy);
         }
 
+        // Re-apply defaults for component properties so instance children match prop definitions.
+        self.apply_all_component_prop_defaults(instance_id);
+
         true
     }
 
@@ -6084,6 +6090,9 @@ impl Engine {
             self.clone_template_children(template_root, &variant.nodes, instance_id, dx, dy);
         }
 
+        // Ensure component property defaults are reflected after variant-set swap.
+        self.apply_all_component_prop_defaults(instance_id);
+
         true
     }
 
@@ -6500,6 +6509,35 @@ impl Engine {
         }
 
         true
+    }
+
+    /// Apply all component property defaults for an instance.
+    /// This is used when creating/swapping instances so default Boolean/Text/InstanceSwap
+    /// values are materialized on cloned children even before explicit overrides exist.
+    fn apply_all_component_prop_defaults(&mut self, instance_id: u64) {
+        let comp_id = match self.scene.get_node(instance_id) {
+            Some(n) => match &n.kind {
+                NodeKind::Instance(data) => data.component_id,
+                _ => return,
+            },
+            None => return,
+        };
+
+        let props = match self.components.get(comp_id) {
+            Some(comp) => comp.component_properties.clone(),
+            None => return,
+        };
+
+        for prop in props {
+            let default_value = match &prop {
+                component::ComponentProperty::BooleanProp { default, .. } => component::PropValue::Boolean(*default),
+                component::ComponentProperty::TextProp { default, .. } => component::PropValue::Text(default.clone()),
+                component::ComponentProperty::InstanceSwapProp { default_component_id, .. } => {
+                    component::PropValue::InstanceSwap(*default_component_id)
+                }
+            };
+            self.apply_component_prop_effect(instance_id, &prop, &default_value);
+        }
     }
 
     /// Internal: apply the side effect of a component property value on the instance's children
