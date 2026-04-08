@@ -1790,11 +1790,18 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Auto Layout Gap Tokens — gap/padding을 variable token과 직접 바인딩해 테마/브레이크포인트별 spacing 시스템 동기화 (임팩트 중상, 난이도 중)
-- Prototype Event Timeline Recorder — prototype 실행 중 interaction/event/variable 변화를 타임라인으로 기록·재생·내보내기 (임팩트 중상, 난이도 상)
-- Motion Path Editor (Figma-style) — Smart Animate 이동 경로를 베지어 경로로 직접 편집 + 핸들 UI (임팩트 상, 난이도 상)
-- Interactive Component State Matrix — variant state(hover/press/focus/disabled) 전이 테이블 시각화/일괄 생성 (임팩트 중상, 난이도 중)
-- Prototype Conditional Routing — 조건식(variable/viewport/device) 기반 분기 네비게이션 액션 (임팩트 상, 난이도 상)
+- Component Dependency Impact Analyzer — 변경 예정 컴포넌트 선택 시 영향받는 instance/variant/page 범위와 위험도(override 충돌, deep nesting) 프리뷰 (임팩트 상, 난이도 중상)
+- Advanced Stroke Profiles — variable width stroke(pressure profile), arrowhead presets, dashed corner compensation (임팩트 중상, 난이도 상)
+- Smart Animate Timeline Editor v2 — 키프레임 곡선/스태거/그룹 타임라인을 한 화면에서 편집하는 전용 패널 (임팩트 상, 난이도 상)
+- Design Tokens Sync Bridge — 컬러/타이포 토큰을 외부 JSON/Style Dictionary와 양방향 동기화 + diff apply (임팩트 상, 난이도 중상)
+- Constraint Debug Overlay — 리사이즈 시 각 자식의 constraint 계산 근거(앵커/스케일/stretch) 실시간 시각화 (임팩트 중, 난이도 중)
+
+## 완료된 기능 (추가 — Prototype Scroll Snap Points: Section Pagination, 2026-04-08)
+- Prototype viewer 스냅 로직 확장: child `scroll_snap_align`가 없는 경우에도 `Section` 노드를 세로 스냅 시작점으로 자동 인식
+- 명시적 snap target이 전혀 없을 때 viewport 높이 기준 page-like snap points 자동 생성 (컨테이너 높이 단위)
+- 중복 스냅 포인트 정규화/정렬 후 nearest 계산 안정화 (mandatory/proximity 기존 정책 유지)
+- Prototype overlay에 snap pagination dots 추가: 현재 스냅 인덱스 실시간 표시
+- `packages/app/src/ui/prototype-viewer.ts` 구현
 
 ## 완료된 기능 (추가 — Smart Animate Diff Inspector, 2026-04-08)
 - Interaction > Smart Animate Timeline 영역에 `Diff Inspector` 카드 추가

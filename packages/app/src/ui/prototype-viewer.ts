@@ -22,6 +22,8 @@ export function createPrototypeViewer(editor: Editor): {
   /** Prototype variable runtime state */
   let protoVars: Map<string, string> = new Map();
   let varsPanel: HTMLDivElement | null = null;
+  let snapPaginationEl: HTMLDivElement | null = null;
+  let snapPaginationState: { frameId: number; axis: "x" | "y"; points: number[]; activeIndex: number } | null = null;
 
   type PrototypeDevicePreset = {
     id: string;
@@ -417,6 +419,10 @@ export function createPrototypeViewer(editor: Editor): {
     viewCanvas.style.cssText = "margin-top:40px;cursor:pointer;";
     overlay.appendChild(viewCanvas);
 
+    snapPaginationEl = document.createElement("div");
+    snapPaginationEl.style.cssText = "position:absolute;right:14px;top:52px;display:none;flex-direction:column;gap:6px;z-index:3;pointer-events:none;";
+    overlay.appendChild(snapPaginationEl);
+
     document.body.appendChild(overlay);
     document.addEventListener("keydown", onKeyDown);
 
@@ -499,6 +505,8 @@ export function createPrototypeViewer(editor: Editor): {
     overlay.remove();
     overlay = null;
     viewCanvas = null;
+    snapPaginationEl = null;
+    snapPaginationState = null;
     currentFrameId = null;
     navigationStack = [];
   }
@@ -1646,6 +1654,46 @@ export function createPrototypeViewer(editor: Editor): {
     }
   }
 
+  function renderSnapPagination() {
+    if (!snapPaginationEl) return;
+    const state = snapPaginationState;
+    if (!state || state.points.length <= 1) {
+      snapPaginationEl.style.display = "none";
+      snapPaginationEl.innerHTML = "";
+      return;
+    }
+    snapPaginationEl.style.display = "flex";
+    snapPaginationEl.innerHTML = "";
+    const vertical = state.axis === "y";
+    snapPaginationEl.style.flexDirection = vertical ? "column" : "row";
+    for (let i = 0; i < state.points.length; i++) {
+      const dot = document.createElement("span");
+      const activeDot = i === state.activeIndex;
+      dot.style.cssText = `display:block;width:${activeDot ? 8 : 6}px;height:${activeDot ? 8 : 6}px;border-radius:999px;background:${activeDot ? "#4a90d9" : "rgba(255,255,255,0.45)"};box-shadow:${activeDot ? "0 0 0 2px rgba(74,144,217,0.22)" : "none"};transition:all .15s;`;
+      snapPaginationEl!.appendChild(dot);
+    }
+  }
+
+  function updateSnapPagination(frameId: number, axis: "x" | "y", points: number[], currentOffset: { x: number; y: number }) {
+    if (points.length <= 1) {
+      snapPaginationState = null;
+      renderSnapPagination();
+      return;
+    }
+    const current = axis === "y" ? currentOffset.y : currentOffset.x;
+    let activeIndex = 0;
+    let bestDist = Number.POSITIVE_INFINITY;
+    points.forEach((p, idx) => {
+      const d = Math.abs(p - current);
+      if (d < bestDist) {
+        bestDist = d;
+        activeIndex = idx;
+      }
+    });
+    snapPaginationState = { frameId, axis, points, activeIndex };
+    renderSnapPagination();
+  }
+
   // ─── Scroll snap helper ──────────────────────────────
   let snapTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -1674,12 +1722,19 @@ export function createPrototypeViewer(editor: Editor): {
       const childIds: number[] = node.children || [];
       const snapPointsX: number[] = [];
       const snapPointsY: number[] = [];
+      let hasExplicitSnapAlign = false;
 
       for (const cid of childIds) {
         const cj = editor.engine.get_node_json(cid);
         if (!cj) continue;
         const c = JSON.parse(cj);
-        const align = editor.engine.get_scroll_snap_align(BigInt(cid));
+        const kind = typeof c.kind === "string" ? c.kind : Object.keys(c.kind || {})[0];
+        let align = editor.engine.get_scroll_snap_align(BigInt(cid));
+
+        // Section-based pagination fallback: when no explicit child snap is set,
+        // treat Section blocks as page starts for vertical scroll containers.
+        if (align === "none" && kind === "Section" && snapsY) align = "start";
+        if (align !== "none") hasExplicitSnapAlign = true;
         if (align === "none") continue;
 
         const relX = c.x - node.x;
@@ -1697,20 +1752,31 @@ export function createPrototypeViewer(editor: Editor): {
         }
       }
 
+      // Page-like fallback: if snap is enabled but no explicit targets, derive by viewport size.
+      if (!hasExplicitSnapAlign && snapsY && snapPointsY.length === 0 && node.height > 0) {
+        const pages = Math.max(1, Math.ceil((node.content_height || node.height) / node.height));
+        for (let i = 0; i < pages; i++) snapPointsY.push(-(i * node.height));
+      }
+
+      const uniqueSort = (arr: number[]) => Array.from(new Set(arr.map((v) => Math.round(v * 1000) / 1000))).sort((a, b) => a - b);
+      const sortedX = uniqueSort(snapPointsX);
+      const sortedY = uniqueSort(snapPointsY);
+
       let targetX = scrollOffset.x;
       let targetY = scrollOffset.y;
 
-      if (snapsX && snapPointsX.length > 0) {
-        const nearest = snapPointsX.reduce((a, b) => Math.abs(a - scrollOffset.x) < Math.abs(b - scrollOffset.x) ? a : b);
+      if (snapsX && sortedX.length > 0) {
+        const nearest = sortedX.reduce((a, b) => Math.abs(a - scrollOffset.x) < Math.abs(b - scrollOffset.x) ? a : b);
         const dist = Math.abs(nearest - scrollOffset.x);
         if (isMandatory || dist < proximityThreshold) targetX = nearest;
       }
-      if (snapsY && snapPointsY.length > 0) {
-        const nearest = snapPointsY.reduce((a, b) => Math.abs(a - scrollOffset.y) < Math.abs(b - scrollOffset.y) ? a : b);
+      if (snapsY && sortedY.length > 0) {
+        const nearest = sortedY.reduce((a, b) => Math.abs(a - scrollOffset.y) < Math.abs(b - scrollOffset.y) ? a : b);
         const dist = Math.abs(nearest - scrollOffset.y);
         if (isMandatory || dist < proximityThreshold) targetY = nearest;
       }
 
+      updateSnapPagination(frameId, snapsY ? "y" : "x", snapsY ? sortedY : sortedX, scrollOffset);
       if (targetX === scrollOffset.x && targetY === scrollOffset.y) return;
 
       // Animate to snap point
@@ -1723,6 +1789,7 @@ export function createPrototypeViewer(editor: Editor): {
         const cx = startX + (targetX - startX) * ease;
         const cy = startY + (targetY - startY) * ease;
         editor.engine.set_scroll_offset(BigInt(frameId), cx, cy);
+        updateSnapPagination(frameId, snapsY ? "y" : "x", snapsY ? sortedY : sortedX, { x: cx, y: cy });
         renderCurrentView();
         if (t < 1) requestAnimationFrame(animateSnap);
       }

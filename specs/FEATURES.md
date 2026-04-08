@@ -1010,6 +1010,9 @@ Right pane "A11y" tab — automated accessibility audit for design nodes.
 - [x] WASM bindings: set/get_scroll_snap_type, set/get_scroll_snap_align
 - [x] Properties panel: snap type dropdown on scroll containers, snap align dropdown on children of scroll containers
 - [x] Prototype viewer: animated snap to nearest point after scroll (mandatory always, proximity within 100px)
+- [x] Prototype viewer: Section-based fallback snap targets (child snap-align 미설정 시 Section 시작점을 page anchor로 사용)
+- [x] Prototype viewer: explicit target이 없으면 viewport-height 기준 page snap points 자동 생성
+- [x] Prototype overlay: snap pagination dots (현재 snap index 시각화)
 - [x] Inspect panel: CSS scroll-snap-type / scroll-snap-align output
 
 ## Scrollable Frames
