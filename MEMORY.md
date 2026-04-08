@@ -1790,11 +1790,20 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Advanced Stroke Profiles — variable width stroke(pressure profile), arrowhead presets, dashed corner compensation (임팩트 중상, 난이도 상)
-- Smart Animate Timeline Editor v2 — 키프레임 곡선/스태거/그룹 타임라인을 한 화면에서 편집하는 전용 패널 (임팩트 상, 난이도 상)
 - Design Tokens Sync Bridge — 컬러/타이포 토큰을 외부 JSON/Style Dictionary와 양방향 동기화 + diff apply (임팩트 상, 난이도 중상)
 - Constraint Debug Overlay — 리사이즈 시 각 자식의 constraint 계산 근거(앵커/스케일/stretch) 실시간 시각화 (임팩트 중, 난이도 중)
+- Text on Path — Path/Vector 위에 텍스트를 곡선 따라 배치하고 offset/reverse/align(start|center|end) 제어 (임팩트 상, 난이도 상)
+- Prototype Conditional Logic Builder — Interaction에 if/else 조건식(변수 비교/다중 분기) 시각 편집기 추가 (임팩트 상, 난이도 중상)
+- Asset Relink Manager — 누락 이미지/비디오/폰트 에셋 일괄 재연결 + 경로 매핑 규칙 저장 (임팩트 중상, 난이도 중)
 
+
+## 완료된 기능 (추가 — Smart Animate Timeline Editor v2, 2026-04-09)
+- Properties panel Interaction의 Smart Animate Timeline에 `Open Timeline Editor v2` 버튼 추가
+- 전용 패널에서 keyframe별 label/time/easing curve preset(linear/ease/spring 등) 일괄 편집 지원
+- Stagger 도구 추가: forward/reverse 방향으로 중간 keyframe 시간 오프셋 일괄 적용
+- Group Timeline Offset 도구 추가: label prefix(`group:...`) 기반 그룹 선택 후 time shift 적용
+- 기존 `smart_animate_timeline_json` 포맷 유지로 backward-compatible 저장/로드
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Component Dependency Impact Analyzer quick access polish, 2026-04-09)
 - Properties panel Instance > Main Component 카드에 `Impact` 버튼 추가

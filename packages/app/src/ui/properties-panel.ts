@@ -6543,7 +6543,210 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             persistTimeline();
           });
 
+          const openTimelineV2Btn = document.createElement("button");
+          openTimelineV2Btn.className = "prop-add-btn";
+          openTimelineV2Btn.style.marginTop = "6px";
+          openTimelineV2Btn.textContent = "Open Timeline Editor v2";
+          openTimelineV2Btn.disabled = !isSmartAnimate;
+          openTimelineV2Btn.addEventListener("click", () => {
+            const modal = document.createElement("div");
+            modal.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:3000;display:flex;align-items:center;justify-content:center;";
+
+            const panel = document.createElement("div");
+            panel.style.cssText = "width:min(920px,92vw);max-height:82vh;overflow:auto;background:#171717;border:1px solid #3a3a3a;border-radius:10px;padding:12px;box-shadow:0 18px 50px rgba(0,0,0,0.45);";
+
+            const head = document.createElement("div");
+            head.style.cssText = "display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;";
+            const title = document.createElement("div");
+            title.style.cssText = "font-size:12px;color:#c4b5fd;font-weight:600;";
+            title.textContent = "Smart Animate Timeline Editor v2";
+            const closeBtn = document.createElement("button");
+            closeBtn.className = "prop-add-btn";
+            closeBtn.textContent = "Close";
+            closeBtn.style.padding = "4px 8px";
+            closeBtn.addEventListener("click", () => modal.remove());
+            head.append(title, closeBtn);
+            panel.appendChild(head);
+
+            const hint2 = document.createElement("div");
+            hint2.style.cssText = "font-size:10px;color:#8b8b8b;margin-bottom:8px;";
+            hint2.textContent = "곡선(Easing), 스태거, 그룹 타임라인 오프셋을 한 곳에서 편집합니다.";
+            panel.appendChild(hint2);
+
+            const easings = ["linear", "ease_in", "ease_out", "ease_in_out", "spring", "overshoot", "anticipate"];
+            const table = document.createElement("div");
+            table.style.cssText = "display:grid;grid-template-columns:32px 1fr 90px 170px 90px;gap:6px;align-items:center;font-size:11px;";
+
+            const mkHeader = (text: string) => {
+              const h = document.createElement("div");
+              h.style.cssText = "color:#8b8b8b;font-size:10px;border-bottom:1px solid #2e2e2e;padding-bottom:4px;";
+              h.textContent = text;
+              return h;
+            };
+            table.append(mkHeader("#"), mkHeader("Label"), mkHeader("Time(ms)"), mkHeader("Easing Curve"), mkHeader("Group"));
+
+            const groupOf = (label: string) => {
+              const trimmed = (label || "").trim();
+              const parts = trimmed.split(":");
+              return parts.length > 1 ? (parts[0] || "default") : "default";
+            };
+
+            const editableIndices = () => timeline.map((_, i) => i).filter(i => i !== 0 && i !== timeline.length - 1);
+
+            const renderTable = () => {
+              while (table.children.length > 5) table.lastChild?.remove();
+              timeline.forEach((kf, i) => {
+                const idx = document.createElement("div");
+                idx.style.cssText = "color:#707070;";
+                idx.textContent = String(i);
+
+                const labelInput = document.createElement("input");
+                labelInput.className = "prop-input";
+                labelInput.value = kf.label || "";
+                labelInput.addEventListener("change", () => {
+                  timeline[i].label = labelInput.value || `Key ${i}`;
+                  persistTimeline();
+                  renderTable();
+                });
+
+                const timeInput = document.createElement("input");
+                timeInput.className = "prop-input";
+                timeInput.type = "number";
+                timeInput.value = String(kf.time || 0);
+                timeInput.disabled = i === 0 || i === timeline.length - 1;
+                timeInput.addEventListener("change", () => {
+                  timeline[i].time = Math.max(0, parseInt(timeInput.value) || 0);
+                  sortAndClamp();
+                  persistTimeline();
+                  renderTable();
+                });
+
+                const easingSel = document.createElement("select");
+                easingSel.className = "prop-input";
+                easings.forEach((v) => {
+                  const o = document.createElement("option");
+                  o.value = v;
+                  o.textContent = v;
+                  easingSel.appendChild(o);
+                });
+                if (kf.easing && !easings.includes(kf.easing)) {
+                  const custom = document.createElement("option");
+                  custom.value = kf.easing;
+                  custom.textContent = kf.easing;
+                  easingSel.appendChild(custom);
+                }
+                easingSel.value = kf.easing || "ease_in_out";
+                easingSel.addEventListener("change", () => {
+                  timeline[i].easing = easingSel.value || "ease_in_out";
+                  persistTimeline();
+                });
+
+                const grp = document.createElement("div");
+                grp.style.cssText = "color:#818cf8;font-size:10px;";
+                grp.textContent = groupOf(kf.label || "");
+
+                table.append(idx, labelInput, timeInput, easingSel, grp);
+              });
+            };
+            panel.appendChild(table);
+
+            const ops = document.createElement("div");
+            ops.style.cssText = "margin-top:12px;padding-top:10px;border-top:1px solid #2e2e2e;display:grid;grid-template-columns:1fr 1fr;gap:10px;";
+
+            const staggerCard = document.createElement("div");
+            staggerCard.style.cssText = "padding:8px;border:1px solid #2e2e2e;border-radius:8px;";
+            staggerCard.innerHTML = '<div style="font-size:10px;color:#a3a3a3;margin-bottom:6px;">Stagger</div>';
+            const staggerRow = document.createElement("div");
+            staggerRow.style.cssText = "display:flex;gap:6px;align-items:center;";
+            const staggerMs = document.createElement("input");
+            staggerMs.className = "prop-input";
+            staggerMs.type = "number";
+            staggerMs.value = "30";
+            staggerMs.style.width = "90px";
+            const staggerMode = document.createElement("select");
+            staggerMode.className = "prop-input";
+            ["forward", "reverse"].forEach((m) => {
+              const o = document.createElement("option"); o.value = m; o.textContent = m; staggerMode.appendChild(o);
+            });
+            const applyStagger = document.createElement("button");
+            applyStagger.className = "prop-add-btn";
+            applyStagger.textContent = "Apply";
+            applyStagger.addEventListener("click", () => {
+              const ids = editableIndices();
+              const delta = Math.max(0, parseInt(staggerMs.value) || 0);
+              const ordered = staggerMode.value === "reverse" ? [...ids].reverse() : ids;
+              ordered.forEach((idx, order) => {
+                timeline[idx].time += delta * order;
+              });
+              sortAndClamp();
+              persistTimeline();
+              renderTable();
+            });
+            staggerRow.append(staggerMs, staggerMode, applyStagger);
+            staggerCard.appendChild(staggerRow);
+
+            const groupCard = document.createElement("div");
+            groupCard.style.cssText = "padding:8px;border:1px solid #2e2e2e;border-radius:8px;";
+            groupCard.innerHTML = '<div style="font-size:10px;color:#a3a3a3;margin-bottom:6px;">Group Timeline Offset</div>';
+            const groupRow = document.createElement("div");
+            groupRow.style.cssText = "display:flex;gap:6px;align-items:center;";
+            const groupSelect = document.createElement("select");
+            groupSelect.className = "prop-input";
+            const refreshGroups = () => {
+              const groups = Array.from(new Set(timeline.map(k => groupOf(k.label || ""))));
+              groupSelect.innerHTML = "";
+              groups.forEach((g) => {
+                const o = document.createElement("option"); o.value = g; o.textContent = g; groupSelect.appendChild(o);
+              });
+            };
+            refreshGroups();
+            const groupDelta = document.createElement("input");
+            groupDelta.className = "prop-input";
+            groupDelta.type = "number";
+            groupDelta.value = "40";
+            groupDelta.style.width = "90px";
+            const applyGroup = document.createElement("button");
+            applyGroup.className = "prop-add-btn";
+            applyGroup.textContent = "Shift";
+            applyGroup.addEventListener("click", () => {
+              const g = groupSelect.value || "default";
+              const delta = parseInt(groupDelta.value) || 0;
+              timeline.forEach((kf, idx) => {
+                if (idx === 0 || idx === timeline.length - 1) return;
+                if (groupOf(kf.label || "") === g) kf.time += delta;
+              });
+              sortAndClamp();
+              persistTimeline();
+              renderTable();
+            });
+            groupRow.append(groupSelect, groupDelta, applyGroup);
+            groupCard.appendChild(groupRow);
+
+            ops.append(staggerCard, groupCard);
+            panel.appendChild(ops);
+
+            const footer = document.createElement("div");
+            footer.style.cssText = "display:flex;justify-content:flex-end;margin-top:10px;";
+            const doneBtn = document.createElement("button");
+            doneBtn.className = "prop-add-btn";
+            doneBtn.textContent = "Done";
+            doneBtn.addEventListener("click", () => {
+              renderTimeline();
+              modal.remove();
+            });
+            footer.appendChild(doneBtn);
+            panel.appendChild(footer);
+
+            modal.addEventListener("click", (ev) => {
+              if (ev.target === modal) modal.remove();
+            });
+            modal.appendChild(panel);
+            document.body.appendChild(modal);
+            renderTable();
+          });
+
           timelineWrap.appendChild(addMidBtn);
+          timelineWrap.appendChild(openTimelineV2Btn);
           renderTimeline();
           interEl.appendChild(timelineWrap);
         }
