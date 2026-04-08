@@ -543,6 +543,7 @@
 - [x] **CSS Variables format**: :root { --color-*, --font-family-*, --font-size-*, --font-weight-*, --line-height-* } + variable collections
 - [x] **SCSS Variables format**: $color-*, $font-family-*, $font-size-*, $font-weight-*, $line-height-* + variable collections
 - [x] **Design Token Export modal**: Format selection cards (W3C/Style Dictionary/Tailwind/CSS Variables/SCSS), live preview, copy to clipboard, download
+- [x] **Design Tokens Sync Bridge**: 동일 모달에서 JSON import → diff preview(add/update for color/text/variables) → one-click apply 지원 (Style Dictionary/W3C leaf token 파싱)
 
 ### Design Token Aliasing
 - [x] **Token aliases**: TokenValue::Alias variant — tokens can reference other tokens via `{token.name}` syntax

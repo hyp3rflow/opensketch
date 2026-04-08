@@ -1790,12 +1790,19 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Design Tokens Sync Bridge — 컬러/타이포 토큰을 외부 JSON/Style Dictionary와 양방향 동기화 + diff apply (임팩트 상, 난이도 중상)
 - Constraint Debug Overlay — 리사이즈 시 각 자식의 constraint 계산 근거(앵커/스케일/stretch) 실시간 시각화 (임팩트 중, 난이도 중)
 - Text on Path — Path/Vector 위에 텍스트를 곡선 따라 배치하고 offset/reverse/align(start|center|end) 제어 (임팩트 상, 난이도 상)
 - Prototype Conditional Logic Builder — Interaction에 if/else 조건식(변수 비교/다중 분기) 시각 편집기 추가 (임팩트 상, 난이도 중상)
 - Asset Relink Manager — 누락 이미지/비디오/폰트 에셋 일괄 재연결 + 경로 매핑 규칙 저장 (임팩트 중상, 난이도 중)
 
+## 완료된 기능 (추가 — Design Tokens Sync Bridge, 2026-04-09)
+- Design Token Export 모달을 `Export / Sync Bridge`로 확장
+- 외부 JSON(Style Dictionary/W3C leaf token) import 후 문서 토큰과 diff preview 제공
+  - Color styles: add/update
+  - Text styles: add/update
+  - Variables(Tokens 컬렉션): add/update
+- `Apply Diff`로 변경사항 일괄 반영 (undo + apply_variables + render 통합)
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Smart Animate Timeline Editor v2, 2026-04-09)
 - Properties panel Interaction의 Smart Animate Timeline에 `Open Timeline Editor v2` 버튼 추가

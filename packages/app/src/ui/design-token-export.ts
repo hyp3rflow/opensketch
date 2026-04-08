@@ -1,8 +1,5 @@
 /**
- * Design Token Export Panel
- *
- * Modal panel for exporting design tokens (color styles, text styles, variables)
- * in multiple formats: W3C DTCG, Style Dictionary, Tailwind CSS, CSS Variables, SCSS.
+ * Design Token Export + Sync Bridge Panel
  */
 
 import type { Editor } from '../editor';
@@ -15,15 +12,20 @@ const FORMATS = [
   { id: 'scss', label: 'SCSS Variables', ext: 'scss', desc: 'SCSS $variables for Sass projects' },
 ] as const;
 
+type TokenLeaf = { path: string; value: any };
+type DiffResult = {
+  addColor: TokenLeaf[]; updateColor: TokenLeaf[];
+  addText: TokenLeaf[]; updateText: TokenLeaf[];
+  addVar: TokenLeaf[]; updateVar: TokenLeaf[];
+};
+
 let panel: HTMLDivElement | null = null;
 let selectedFormat = 'w3c';
 let previewContent = '';
+let pendingDiff: DiffResult | null = null;
 
 export function toggleDesignTokenExport(editor: Editor) {
-  if (panel) {
-    closePanel();
-    return;
-  }
+  if (panel) { closePanel(); return; }
   openPanel(editor);
 }
 
@@ -33,7 +35,7 @@ function openPanel(editor: Editor) {
   panel.innerHTML = `
     <div class="design-token-export-modal">
       <div class="dte-header">
-        <span class="dte-title">Export Design Tokens</span>
+        <span class="dte-title">Design Tokens — Export / Sync Bridge</span>
         <button class="dte-close" title="Close">✕</button>
       </div>
       <div class="dte-body">
@@ -50,11 +52,16 @@ function openPanel(editor: Editor) {
           `).join('')}
         </div>
         <div class="dte-preview-section">
-          <div class="dte-preview-header">
-            <span>Preview</span>
-            <button class="dte-copy-btn" title="Copy to clipboard">📋 Copy</button>
-          </div>
+          <div class="dte-preview-header"><span>Export Preview</span><button class="dte-copy-btn">📋 Copy</button></div>
           <pre class="dte-preview-code"></pre>
+        </div>
+        <div class="dte-sync-section">
+          <div class="dte-preview-header"><span>Sync Bridge (JSON → diff/apply)</span></div>
+          <div class="dte-sync-actions">
+            <button class="dte-import-btn">Import JSON…</button>
+            <button class="dte-apply-btn" disabled>Apply Diff</button>
+          </div>
+          <pre class="dte-diff-code">No diff yet.</pre>
         </div>
       </div>
       <div class="dte-footer">
@@ -64,73 +71,40 @@ function openPanel(editor: Editor) {
     </div>
   `;
 
-  // Style
   const style = document.createElement('style');
   style.textContent = `
-    .design-token-export-overlay {
-      position: fixed; inset: 0; z-index: 10000;
-      background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center;
-    }
-    .design-token-export-modal {
-      background: #2a2a2a; border-radius: 12px; width: 600px; max-height: 80vh;
-      display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,0.5);
-      color: #e0e0e0; font-family: -apple-system, BlinkMacSystemFont, sans-serif; font-size: 13px;
-    }
-    .dte-header {
-      display: flex; justify-content: space-between; align-items: center;
-      padding: 16px 20px; border-bottom: 1px solid #3a3a3a;
-    }
-    .dte-title { font-size: 15px; font-weight: 600; }
-    .dte-close { background: none; border: none; color: #888; cursor: pointer; font-size: 16px; padding: 4px 8px; border-radius: 4px; }
-    .dte-close:hover { background: #3a3a3a; color: #fff; }
-    .dte-body { padding: 16px 20px; overflow-y: auto; flex: 1; }
-    .dte-formats { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
-    .dte-format-card {
-      display: flex; align-items: center; gap: 12px; padding: 10px 14px;
-      background: #333; border: 2px solid transparent; border-radius: 8px; cursor: pointer;
-      transition: border-color 0.15s;
-    }
-    .dte-format-card:hover { border-color: #555; }
-    .dte-format-card.selected { border-color: #4a90d9; background: #2d3a4a; }
-    .dte-format-card input { display: none; }
-    .dte-format-info { flex: 1; display: flex; flex-direction: column; gap: 2px; }
-    .dte-format-label { font-weight: 600; font-size: 13px; }
-    .dte-format-desc { font-size: 11px; color: #888; }
-    .dte-format-ext { font-size: 11px; color: #666; background: #222; padding: 2px 6px; border-radius: 4px; font-family: monospace; }
-    .dte-preview-section { border-top: 1px solid #3a3a3a; padding-top: 12px; }
-    .dte-preview-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-weight: 600; }
-    .dte-copy-btn { background: #3a3a3a; border: none; color: #ccc; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; }
-    .dte-copy-btn:hover { background: #4a4a4a; }
-    .dte-preview-code {
-      background: #1a1a1a; border-radius: 8px; padding: 12px; font-family: 'SF Mono', Menlo, monospace;
-      font-size: 11px; line-height: 1.5; max-height: 250px; overflow: auto; white-space: pre-wrap;
-      color: #a8d8a8; margin: 0;
-    }
-    .dte-footer {
-      display: flex; justify-content: flex-end; gap: 8px; padding: 12px 20px; border-top: 1px solid #3a3a3a;
-    }
-    .dte-cancel-btn { background: #3a3a3a; border: none; color: #ccc; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; }
-    .dte-cancel-btn:hover { background: #4a4a4a; }
-    .dte-download-btn { background: #4a90d9; border: none; color: #fff; padding: 8px 20px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; }
-    .dte-download-btn:hover { background: #5aa0e9; }
+    .design-token-export-overlay { position:fixed; inset:0; z-index:10000; background:rgba(0,0,0,.5); display:flex; align-items:center; justify-content:center; }
+    .design-token-export-modal { background:#2a2a2a; border-radius:12px; width:700px; max-height:84vh; display:flex; flex-direction:column; box-shadow:0 20px 60px rgba(0,0,0,.5); color:#e0e0e0; font:13px -apple-system,BlinkMacSystemFont,sans-serif; }
+    .dte-header{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid #3a3a3a}.dte-title{font-size:15px;font-weight:600}
+    .dte-close{background:none;border:none;color:#888;cursor:pointer;font-size:16px;padding:4px 8px;border-radius:4px}.dte-close:hover{background:#3a3a3a;color:#fff}
+    .dte-body{padding:16px 20px;overflow-y:auto;flex:1}.dte-formats{display:flex;flex-direction:column;gap:8px;margin-bottom:16px}
+    .dte-format-card{display:flex;align-items:center;gap:12px;padding:10px 14px;background:#333;border:2px solid transparent;border-radius:8px;cursor:pointer}
+    .dte-format-card.selected{border-color:#4a90d9;background:#2d3a4a}.dte-format-card input{display:none}.dte-format-info{flex:1;display:flex;flex-direction:column;gap:2px}
+    .dte-format-label{font-weight:600}.dte-format-desc{font-size:11px;color:#888}.dte-format-ext{font-size:11px;color:#666;background:#222;padding:2px 6px;border-radius:4px;font-family:monospace}
+    .dte-preview-section,.dte-sync-section{border-top:1px solid #3a3a3a;padding-top:12px;margin-top:8px}
+    .dte-preview-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-weight:600}
+    .dte-copy-btn,.dte-import-btn,.dte-apply-btn{background:#3a3a3a;border:none;color:#ccc;padding:5px 10px;border-radius:4px;cursor:pointer;font-size:12px}
+    .dte-copy-btn:hover,.dte-import-btn:hover,.dte-apply-btn:hover{background:#4a4a4a}.dte-apply-btn:disabled{opacity:.5;cursor:not-allowed}
+    .dte-preview-code,.dte-diff-code{background:#1a1a1a;border-radius:8px;padding:12px;font-family:SFMono-Regular,Menlo,monospace;font-size:11px;line-height:1.5;max-height:220px;overflow:auto;white-space:pre-wrap;color:#a8d8a8;margin:0}
+    .dte-diff-code{color:#c8d5ff}.dte-sync-actions{display:flex;gap:8px;margin-bottom:8px}
+    .dte-footer{display:flex;justify-content:flex-end;gap:8px;padding:12px 20px;border-top:1px solid #3a3a3a}
+    .dte-cancel-btn{background:#3a3a3a;border:none;color:#ccc;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:13px}
+    .dte-download-btn{background:#4a90d9;border:none;color:#fff;padding:8px 20px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600}
   `;
   panel.appendChild(style);
   document.body.appendChild(panel);
 
-  // Update preview
+  const codeEl = panel.querySelector('.dte-preview-code') as HTMLPreElement;
+  const diffEl = panel.querySelector('.dte-diff-code') as HTMLPreElement;
+  const applyBtn = panel.querySelector('.dte-apply-btn') as HTMLButtonElement;
+
   const updatePreview = () => {
     previewContent = editor.exportDesignTokens(selectedFormat);
-    const codeEl = panel!.querySelector('.dte-preview-code') as HTMLPreElement;
-    if (codeEl) {
-      const truncated = previewContent.length > 3000
-        ? previewContent.slice(0, 3000) + '\n\n... (truncated, download for full output)'
-        : previewContent;
-      codeEl.textContent = truncated || '(no tokens to export — add color/text styles or variables first)';
-    }
+    const truncated = previewContent.length > 3000 ? previewContent.slice(0, 3000) + '\n\n... (truncated)' : previewContent;
+    codeEl.textContent = truncated || '(no tokens to export)';
   };
   updatePreview();
 
-  // Event listeners
   panel.querySelector('.dte-close')!.addEventListener('click', closePanel);
   panel.querySelector('.dte-cancel-btn')!.addEventListener('click', closePanel);
   panel.addEventListener('click', (e) => {
@@ -151,19 +125,47 @@ function openPanel(editor: Editor) {
     navigator.clipboard.writeText(previewContent).then(() => {
       const btn = panel!.querySelector('.dte-copy-btn') as HTMLButtonElement;
       btn.textContent = '✓ Copied!';
-      setTimeout(() => { btn.textContent = '📋 Copy'; }, 1500);
+      setTimeout(() => { btn.textContent = '📋 Copy'; }, 1200);
     });
   });
 
-  panel.querySelector('.dte-download-btn')!.addEventListener('click', () => {
-    editor.downloadDesignTokens(selectedFormat);
-    closePanel();
+  panel.querySelector('.dte-import-btn')!.addEventListener('click', () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json,application/json';
+    input.onchange = () => {
+      const file = input.files?.[0]; if (!file) return;
+      const fr = new FileReader();
+      fr.onload = () => {
+        try {
+          const parsed = JSON.parse(String(fr.result || '{}'));
+          const leaves = flattenTokens(parsed);
+          pendingDiff = computeDiff(editor, leaves);
+          diffEl.textContent = summarizeDiff(pendingDiff);
+          applyBtn.disabled = totalDiff(pendingDiff) === 0;
+        } catch (e: any) {
+          diffEl.textContent = `Invalid JSON: ${e?.message || e}`;
+          applyBtn.disabled = true;
+          pendingDiff = null;
+        }
+      };
+      fr.readAsText(file);
+    };
+    input.click();
   });
 
-  // Escape key
-  const onKey = (e: KeyboardEvent) => {
-    if (e.key === 'Escape') { closePanel(); e.stopPropagation(); }
-  };
+  applyBtn.addEventListener('click', () => {
+    if (!pendingDiff) return;
+    const applied = applyDiff(editor, pendingDiff);
+    editor.requestRender();
+    diffEl.textContent = `${summarizeDiff(pendingDiff)}\n\nApplied: ${applied} changes.`;
+    applyBtn.disabled = true;
+    pendingDiff = null;
+  });
+
+  panel.querySelector('.dte-download-btn')!.addEventListener('click', () => { editor.downloadDesignTokens(selectedFormat); closePanel(); });
+
+  const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { closePanel(); e.stopPropagation(); } };
   document.addEventListener('keydown', onKey, true);
   (panel as any)._keyHandler = onKey;
 }
@@ -174,4 +176,151 @@ function closePanel() {
   if (handler) document.removeEventListener('keydown', handler, true);
   panel.remove();
   panel = null;
+}
+
+function flattenTokens(input: any, path: string[] = [], out: TokenLeaf[] = []): TokenLeaf[] {
+  if (!input || typeof input !== 'object') return out;
+  const hasVal = Object.prototype.hasOwnProperty.call(input, '$value') || Object.prototype.hasOwnProperty.call(input, 'value');
+  if (hasVal) {
+    out.push({ path: path.join('.'), value: (input.$value ?? input.value) });
+    return out;
+  }
+  for (const [k, v] of Object.entries(input)) flattenTokens(v, [...path, k], out);
+  return out;
+}
+
+function looksLikeTypography(v: any) {
+  return v && typeof v === 'object' && (v.fontFamily || v.fontSize || v.fontWeight || v.lineHeight || v.textAlign);
+}
+
+function parseColor(value: any): { r:number; g:number; b:number; a:number } | null {
+  if (typeof value !== 'string') return null;
+  const s = value.trim();
+  const hex = s.match(/^#([0-9a-f]{3,8})$/i);
+  if (hex) {
+    const h = hex[1];
+    if (h.length === 3) return { r: parseInt(h[0]+h[0],16), g: parseInt(h[1]+h[1],16), b: parseInt(h[2]+h[2],16), a: 1 };
+    if (h.length === 6) return { r: parseInt(h.slice(0,2),16), g: parseInt(h.slice(2,4),16), b: parseInt(h.slice(4,6),16), a: 1 };
+    if (h.length === 8) return { r: parseInt(h.slice(0,2),16), g: parseInt(h.slice(2,4),16), b: parseInt(h.slice(4,6),16), a: +(parseInt(h.slice(6,8),16)/255).toFixed(3) };
+  }
+  const rgb = s.match(/^rgba?\(([^)]+)\)$/i);
+  if (rgb) {
+    const p = rgb[1].split(',').map(x=>x.trim());
+    if (p.length >= 3) return { r:+p[0], g:+p[1], b:+p[2], a: p[3] != null ? +p[3] : 1 };
+  }
+  return null;
+}
+
+function getCollection(editor: Editor, name: string) {
+  const cols: any[] = JSON.parse(editor.engine.get_collections() || '[]');
+  let c = cols.find(x => x.name === name);
+  if (!c) {
+    const id = Number(editor.engine.create_collection(name));
+    c = JSON.parse(editor.engine.get_collections() || '[]').find((x:any)=>x.id===id);
+  }
+  return c;
+}
+
+function computeDiff(editor: Editor, leaves: TokenLeaf[]): DiffResult {
+  const colors: any[] = JSON.parse(editor.engine.list_color_styles() || '[]');
+  const texts: any[] = JSON.parse(editor.engine.list_text_styles() || '[]');
+  const cols: any[] = JSON.parse(editor.engine.get_collections() || '[]');
+  const tokenCol = cols.find(c => c.name === 'Tokens');
+  const vars = tokenCol?.variables || [];
+
+  const cMap = new Map(colors.map(s => [s.name, s]));
+  const tMap = new Map(texts.map(s => [s.name, s]));
+  const vMap = new Map(vars.map((v:any) => [v.name, v]));
+
+  const d: DiffResult = { addColor: [], updateColor: [], addText: [], updateText: [], addVar: [], updateVar: [] };
+  for (const leaf of leaves) {
+    const name = leaf.path || 'token';
+    const color = parseColor(leaf.value);
+    if (color) {
+      const ex = cMap.get(name);
+      if (!ex) d.addColor.push(leaf); else if (ex.r!==color.r || ex.g!==color.g || ex.b!==color.b || Math.abs(ex.a-color.a)>0.001) d.updateColor.push(leaf);
+      continue;
+    }
+    if (looksLikeTypography(leaf.value)) {
+      const ex = tMap.get(name);
+      if (!ex) d.addText.push(leaf); else d.updateText.push(leaf);
+      continue;
+    }
+    if (['string','number','boolean'].includes(typeof leaf.value)) {
+      const ex = vMap.get(name);
+      if (!ex) d.addVar.push(leaf); else d.updateVar.push(leaf);
+    }
+  }
+  return d;
+}
+
+function summarizeDiff(d: DiffResult): string {
+  return [
+    `Color styles: +${d.addColor.length} / ~${d.updateColor.length}`,
+    `Text styles:  +${d.addText.length} / ~${d.updateText.length}`,
+    `Variables:    +${d.addVar.length} / ~${d.updateVar.length}`,
+  ].join('\n');
+}
+
+function totalDiff(d: DiffResult) {
+  return d.addColor.length + d.updateColor.length + d.addText.length + d.updateText.length + d.addVar.length + d.updateVar.length;
+}
+
+function applyDiff(editor: Editor, d: DiffResult): number {
+  editor.engine.push_undo();
+  const colors: any[] = JSON.parse(editor.engine.list_color_styles() || '[]');
+  const texts: any[] = JSON.parse(editor.engine.list_text_styles() || '[]');
+  let applied = 0;
+
+  const cMap = new Map(colors.map(s => [s.name, s]));
+  const tMap = new Map(texts.map(s => [s.name, s]));
+
+  for (const leaf of [...d.addColor, ...d.updateColor]) {
+    const c = parseColor(leaf.value); if (!c) continue;
+    const ex = cMap.get(leaf.path);
+    if (!ex) editor.engine.add_color_style(leaf.path, c.r, c.g, c.b, c.a);
+    else editor.engine.update_color_style(BigInt(ex.id), leaf.path, c.r, c.g, c.b, c.a);
+    applied += 1;
+  }
+
+  for (const leaf of [...d.addText, ...d.updateText]) {
+    const t = leaf.value || {};
+    const name = leaf.path;
+    const family = String(t.fontFamily || t.font_family || 'Inter');
+    const size = Number(t.fontSize ?? t.font_size ?? 16);
+    const weight = Number(t.fontWeight ?? t.font_weight ?? 400);
+    const style = String(t.fontStyle || t.font_style || 'Normal');
+    const lineHeight = Number(t.lineHeight ?? t.line_height ?? 1.4);
+    const align = String(t.textAlign || t.text_align || 'Left');
+    const col = parseColor(t.color || '#000000') || { r: 0, g: 0, b: 0, a: 1 };
+    const ex = tMap.get(name);
+    if (!ex) {
+      editor.engine.add_text_style(name, family, size, weight, style, lineHeight, align, col.r, col.g, col.b, col.a);
+    } else {
+      editor.engine.update_text_style(BigInt(ex.id), JSON.stringify({ ...ex, name, font_family: family, font_size: size, font_weight: weight, font_style: style, line_height: lineHeight, text_align: align, r: col.r, g: col.g, b: col.b, a: col.a }));
+    }
+    applied += 1;
+  }
+
+  const collection = getCollection(editor, 'Tokens');
+  const modeId = Number(collection?.active_mode_id || collection?.modes?.[0]?.id || 0);
+  const colId = Number(collection?.id || 0);
+  const fresh = JSON.parse(editor.engine.get_collections() || '[]').find((c:any)=>c.id===colId);
+  const vMap = new Map((fresh?.variables || []).map((v:any)=>[v.name,v]));
+
+  for (const leaf of [...d.addVar, ...d.updateVar]) {
+    const valType = typeof leaf.value;
+    if (!['string','number','boolean'].includes(valType)) continue;
+    let v = vMap.get(leaf.path);
+    if (!v) {
+      const id = Number(editor.engine.create_variable(BigInt(colId), leaf.path, valType));
+      v = { id, name: leaf.path };
+      vMap.set(leaf.path, v);
+    }
+    editor.engine.set_variable_value(BigInt(colId), BigInt(v.id), BigInt(modeId), JSON.stringify(leaf.value));
+    applied += 1;
+  }
+
+  editor.engine.apply_variables();
+  return applied;
 }
