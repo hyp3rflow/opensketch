@@ -1822,6 +1822,12 @@
   - 기본 상위 8개 + `Show all instances` 확장 토글
 - specs 반영: `specs/FEATURES.md`
 
+## 완료된 기능 (추가 — Component Dependency Impact Analyzer pre-edit preview polish, 2026-04-09)
+- Component Playground 진입 시 선택된 컴포넌트의 dependency impact를 즉시 로드해 헤더 Risk 칩(LOW/MEDIUM/HIGH + score)으로 표시
+- 우측 패널 상단 `Dependency Impact` 카드 추가: instance/page/variant 범위, override 충돌 개수, deep nesting 개수, 핵심 risk 문구 미리보기
+- 헤더 Risk 칩 클릭 시 우측 Impact 카드로 스크롤+하이라이트 포커싱
+- 기존 Analytics 모달/Properties `Impact` 액션과 결합되어 “편집 전 영향도 확인” 플로우 강화
+
 ## 완료된 기능 (추가 — Prototype Scroll Snap Points: Section Pagination, 2026-04-08)
 - Prototype viewer 스냅 로직 확장: child `scroll_snap_align`가 없는 경우에도 `Section` 노드를 세로 스냅 시작점으로 자동 인식
 - 명시적 snap target이 전혀 없을 때 viewport 높이 기준 page-like snap points 자동 생성 (컨테이너 높이 단위)

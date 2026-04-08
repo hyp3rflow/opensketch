@@ -39,6 +39,19 @@ interface BreakpointDef {
   color: string;
 }
 
+interface DependencyImpact {
+  component_id: number;
+  component_name: string;
+  total_instances: number;
+  affected_pages: Array<{ page_id: number; page_name: string; instance_count: number }>;
+  affected_variants: Array<{ variant_key: string; instance_count: number }>;
+  deep_nesting_instances: number;
+  override_conflict_instances: number;
+  risk_score: number;
+  risk_level: "low" | "medium" | "high";
+  risks: string[];
+}
+
 const BREAKPOINTS: BreakpointDef[] = [
   { label: "Mobile", width: 375, color: "#4a90d9" },
   { label: "Tablet", width: 768, color: "#7b61ff" },
@@ -52,6 +65,7 @@ let currentInfo: PlaygroundInfo | null = null;
 let selectedVariantKey: string = "";
 let activeBreakpoint: number | null = null; // null = auto (no constraint)
 let playgroundInstances: number[] = [];
+let currentImpact: DependencyImpact | null = null;
 
 export function isPlaygroundOpen(): boolean {
   return overlay !== null;
@@ -84,6 +98,7 @@ export function closePlayground() {
   currentEngine = null;
   currentCompId = 0;
   currentInfo = null;
+  currentImpact = null;
 }
 
 export function openPlayground(engine: any, compId?: number) {
@@ -114,6 +129,13 @@ export function openPlayground(engine: any, compId?: number) {
   currentInfo = JSON.parse(infoJson) as PlaygroundInfo;
   if (currentInfo.variants.length > 0) {
     selectedVariantKey = currentInfo.variants[0].key_string;
+  }
+
+  try {
+    const impactJson = engine.component_dependency_impact?.(BigInt(compId)) || "null";
+    currentImpact = impactJson && impactJson !== "null" ? JSON.parse(impactJson) as DependencyImpact : null;
+  } catch {
+    currentImpact = null;
   }
 
   buildOverlay();
@@ -164,6 +186,10 @@ function buildOverlay() {
     height: 48px; background: #252535; display: flex; align-items: center;
     padding: 0 16px; border-bottom: 1px solid #333; gap: 12px; flex-shrink: 0;
   `;
+  const riskChip = currentImpact
+    ? `<button id="pg-impact-toggle" style="background:${currentImpact.risk_level === "high" ? "rgba(239,68,68,.16)" : currentImpact.risk_level === "medium" ? "rgba(245,158,11,.16)" : "rgba(34,197,94,.16)"};border:1px solid ${currentImpact.risk_level === "high" ? "rgba(239,68,68,.4)" : currentImpact.risk_level === "medium" ? "rgba(245,158,11,.4)" : "rgba(34,197,94,.4)"};color:${currentImpact.risk_level === "high" ? "#fca5a5" : currentImpact.risk_level === "medium" ? "#fcd34d" : "#86efac"};border-radius:999px;padding:3px 8px;font-size:11px;cursor:pointer;">Impact ${currentImpact.risk_level.toUpperCase()} · ${currentImpact.risk_score}</button>`
+    : "";
+
   header.innerHTML = `
     <div style="display:flex;align-items:center;gap:8px;">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7b61ff" stroke-width="2">
@@ -171,6 +197,7 @@ function buildOverlay() {
       </svg>
       <span style="font-weight:600;font-size:14px;color:#fff;">${escHtml(currentInfo!.name)}</span>
       <span style="font-size:12px;color:#888;">${currentInfo!.variant_count} variant${currentInfo!.variant_count !== 1 ? 's' : ''}</span>
+      ${riskChip}
     </div>
     <div style="flex:1;"></div>
     <span style="font-size:12px;color:#666;">⌘⇧P to toggle</span>
@@ -210,7 +237,7 @@ function buildOverlay() {
     width: 260px; background: #252535; border-left: 1px solid #333;
     overflow-y: auto; flex-shrink: 0; padding: 12px;
   `;
-  right.innerHTML = buildPropsEditor();
+  right.innerHTML = `${buildImpactSummary()}${buildPropsEditor()}`;
   body.appendChild(right);
 
   overlay.appendChild(body);
@@ -230,6 +257,15 @@ function buildOverlay() {
 
   // Event listeners
   overlay.querySelector("#pg-close")!.addEventListener("click", closePlayground);
+  overlay.querySelector("#pg-impact-toggle")?.addEventListener("click", () => {
+    const panel = overlay?.querySelector("#pg-impact-panel") as HTMLElement | null;
+    if (!panel) return;
+    panel.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    panel.animate(
+      [{ boxShadow: "0 0 0 0 rgba(96,165,250,0.0)" }, { boxShadow: "0 0 0 2px rgba(96,165,250,0.45)" }, { boxShadow: "0 0 0 0 rgba(96,165,250,0.0)" }],
+      { duration: 850, easing: "ease-out" }
+    );
+  });
   attachVariantListeners();
   attachBreakpointListeners();
   attachPropsListeners();
@@ -306,6 +342,42 @@ function buildPreview(): string {
       <div style="font-size:16px;font-weight:600;margin-bottom:8px;">${escHtml(currentInfo!.name)}</div>
       <div style="font-size:12px;color:#888;">Variant: ${escHtml(variant.key_display || 'Default')}</div>
       <div style="font-size:12px;color:#666;margin-top:4px;">${variant.node_count} nodes</div>
+    </div>
+  `;
+}
+
+function buildImpactSummary(): string {
+  if (!currentImpact) return "";
+
+  const riskColor = currentImpact.risk_level === "high"
+    ? "#fca5a5"
+    : currentImpact.risk_level === "medium"
+      ? "#fcd34d"
+      : "#86efac";
+
+  const topPages = currentImpact.affected_pages.slice(0, 3)
+    .map(p => `${escHtml(p.page_name)} (${p.instance_count})`)
+    .join(" · ");
+  const topVariants = currentImpact.affected_variants.slice(0, 3)
+    .map(v => `${escHtml(v.variant_key)} (${v.instance_count})`)
+    .join(" · ");
+  const riskLines = currentImpact.risks.slice(0, 3)
+    .map(r => `<li style="margin:2px 0;">${escHtml(r)}</li>`)
+    .join("");
+
+  return `
+    <div id="pg-impact-panel" style="margin-bottom:10px;border:1px solid #3b4662;background:#202638;border-radius:8px;padding:10px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+        <div style="font-size:11px;color:#93c5fd;font-weight:600;">Dependency Impact</div>
+        <div style="font-size:11px;color:${riskColor};font-weight:700;">${currentImpact.risk_level.toUpperCase()} · ${currentImpact.risk_score}</div>
+      </div>
+      <div style="margin-top:6px;font-size:11px;color:#cbd5e1;line-height:1.5;">
+        <div>Instances: <b>${currentImpact.total_instances}</b> · Pages: <b>${currentImpact.affected_pages.length}</b> · Variants: <b>${currentImpact.affected_variants.length}</b></div>
+        <div>Override risk: <b>${currentImpact.override_conflict_instances}</b> · Deep nesting: <b>${currentImpact.deep_nesting_instances}</b></div>
+      </div>
+      ${topPages ? `<div style="margin-top:6px;font-size:10px;color:#94a3b8;">Pages: ${topPages}</div>` : ""}
+      ${topVariants ? `<div style="margin-top:4px;font-size:10px;color:#94a3b8;">Variants: ${topVariants}</div>` : ""}
+      <ul style="margin:6px 0 0 14px;padding:0;font-size:10px;color:#cbd5e1;">${riskLines}</ul>
     </div>
   `;
 }
@@ -468,7 +540,7 @@ function refreshUI() {
   }
   const right = overlay.querySelector("#pg-right");
   if (right) {
-    right.innerHTML = buildPropsEditor();
+    right.innerHTML = `${buildImpactSummary()}${buildPropsEditor()}`;
     attachPropsListeners();
   }
   const bottom = overlay.querySelector("#pg-bottom");

@@ -1879,6 +1879,7 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - Properties panel: "▶ Playground" button on Instance/Component nodes
 - Keyboard shortcut: Cmd+Shift+G to open, Escape to close
 - Scene save/restore for non-destructive temporary instance creation
+- Pre-edit dependency impact preview in playground header/right panel (risk score/level, affected pages/variants, override/deep-nesting counters)
 
 ### Auto Dark Mode
 - Automatic light → dark theme conversion for all node colors
