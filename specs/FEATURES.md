@@ -1439,6 +1439,8 @@ Frame overflow control and content scrolling.
 - [x] **Component Dependency Impact Analyzer**: Per-component impact preview with risk score/level, affected pages/variants, and override/deep-nesting risk signals
 - [x] **WASM binding**: `component_dependency_impact(component_id)` → JSON
 - [x] **UI action**: Analytics modal `Impact Analyzer` button on each component row
+- [x] **Quick access from instance**: Properties panel Main Component card has `Impact` action that opens analytics pre-focused on the current component
+- [x] **Auto-focus behavior**: Opening analytics with `initialComponentId` highlights target component and auto-expands impact preview
 - [x] **Impact drilldown**: Top risky instances listed with click-to-navigate
 - [x] **Change scope preview**: Impact panel now surfaces affected page/variant range chips + override-conflict/deep-nesting counters and expandable full instance list
 

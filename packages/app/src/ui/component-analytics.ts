@@ -76,7 +76,11 @@ let heatmapCanvas: HTMLCanvasElement | null = null;
 let heatmapLoop: number | null = null;
 let heatmapEnabled = false;
 
-export function openComponentAnalytics(editor: Editor, onNavigate?: (nodeId: number, pageId: number) => void) {
+export function openComponentAnalytics(
+  editor: Editor,
+  onNavigate?: (nodeId: number, pageId: number) => void,
+  options?: { initialComponentId?: number },
+) {
   if (panel) { closeComponentAnalytics(); return; }
 
   const json = editor.engine.component_analytics();
@@ -307,6 +311,18 @@ export function openComponentAnalytics(editor: Editor, onNavigate?: (nodeId: num
       }
     });
   });
+
+  const initialComponentId = Number(options?.initialComponentId || 0);
+  if (initialComponentId > 0) {
+    const targetCard = panel.querySelector(`.ca-component[data-comp-id="${initialComponentId}"]`) as HTMLElement | null;
+    const targetImpactBtn = panel.querySelector(`.ca-impact-btn[data-comp-id="${initialComponentId}"]`) as HTMLButtonElement | null;
+    if (targetCard) {
+      targetCard.style.outline = "1px solid rgba(123,156,255,0.6)";
+      targetCard.style.background = "#2f3546";
+      targetCard.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+    targetImpactBtn?.click();
+  }
 
   const heatmapToggle = panel.querySelector(".ca-heatmap-toggle") as HTMLInputElement | null;
   if (heatmapToggle) {

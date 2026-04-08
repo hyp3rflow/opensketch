@@ -1796,6 +1796,16 @@
 - Constraint Debug Overlay — 리사이즈 시 각 자식의 constraint 계산 근거(앵커/스케일/stretch) 실시간 시각화 (임팩트 중, 난이도 중)
 
 
+## 완료된 기능 (추가 — Component Dependency Impact Analyzer quick access polish, 2026-04-09)
+- Properties panel Instance > Main Component 카드에 `Impact` 버튼 추가
+- `editor.openComponentAnalytics(initialComponentId?)` 확장: 특정 컴포넌트로 analytics 모달을 바로 오픈 가능
+- Component Analytics 패널 확장:
+  - `openComponentAnalytics(..., { initialComponentId })` 옵션 추가
+  - 대상 컴포넌트 카드 하이라이트 + 자동 스크롤
+  - Impact Analyzer 자동 확장(원클릭 진입)
+- 결과: 인스턴스 편집 전 변경 영향 범위(페이지/variant/리스크)를 바로 확인하는 워크플로우 완성
+- specs 반영: `specs/FEATURES.md`
+
 ## 완료된 기능 (추가 — Component Dependency Impact Analyzer, 2026-04-08)
 - 컴포넌트 분석 패널에 `Impact Analyzer` 추가: 컴포넌트별 영향 범위를 즉시 프리뷰
 - Rust: `Scene::get_component_dependency_impact()` 구현

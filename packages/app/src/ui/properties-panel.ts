@@ -1303,6 +1303,22 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       });
       compCard.appendChild(swapBtn);
 
+      const impactBtn = document.createElement("button");
+      impactBtn.style.cssText = `
+        background:rgba(59,130,246,0.14); border:1px solid rgba(59,130,246,0.32);
+        border-radius:6px; padding:4px 10px; color:#93c5fd;
+        cursor:pointer; font-size:11px; font-weight:500;
+        transition:all 0.15s; flex-shrink:0;
+      `;
+      impactBtn.textContent = "Impact";
+      impactBtn.title = "Analyze dependency impact before editing this component";
+      impactBtn.addEventListener("mouseenter", () => { impactBtn.style.background = "rgba(59,130,246,0.24)"; });
+      impactBtn.addEventListener("mouseleave", () => { impactBtn.style.background = "rgba(59,130,246,0.14)"; });
+      impactBtn.addEventListener("click", () => {
+        (editor as any).openComponentAnalytics?.(Number(compInfo.component_id));
+      });
+      compCard.appendChild(impactBtn);
+
       const playgroundBtn = document.createElement("button");
       playgroundBtn.style.cssText = `
         background:rgba(123,97,255,0.15); border:1px solid rgba(123,97,255,0.3);

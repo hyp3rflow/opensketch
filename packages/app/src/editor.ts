@@ -8306,7 +8306,7 @@ export class Editor {
     openComponentSwapModal(this);
   }
 
-  openComponentAnalytics() {
+  openComponentAnalytics(initialComponentId?: number) {
     openComponentAnalytics(this, (nodeId, pageId) => {
       // Navigate to page and select node
       const pages = JSON.parse(this.engine.get_pages());
@@ -8318,7 +8318,7 @@ export class Editor {
       this.requestRender();
       this.fireSelectionNow([nodeId]);
       closeComponentAnalytics();
-    });
+    }, { initialComponentId });
   }
 
   // =============================================
