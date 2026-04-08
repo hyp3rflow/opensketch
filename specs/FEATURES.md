@@ -100,6 +100,7 @@
 - [x] **Detach instance**: convert Instance to Frame (sever component link), Cmd+Alt+B shortcut, context menu + properties panel button
 - [x] **Symbol Detach Preview + Selective Detach (2026-04-08)**: Properties panel Detach 클릭 시 변경 임팩트(서브트리 레이어 수, nested instances, override/style-link 카운트) 프리뷰 모달 표시. 옵션 `Also detach nested instances`로 선택 인스턴스만 분리하거나 하위 인스턴스까지 일괄 분리 가능 (`get_detach_preview`, `detach_instance_selective` WASM API)
 - [x] **Symbol Detach Preview focus assist (2026-04-08)**: 프리뷰의 changed layer row 클릭 시 해당 레이어를 즉시 selection + zoom-to-selection으로 포커싱해 detach 전 영향 범위를 시각적으로 검증 가능
+- [x] **Symbol Detach Preview style/nested diff rows (2026-04-08)**: detach 프리뷰에서 style-linked layer 목록(Color/Text style)과 nested instance 목록을 개별 row로 노출하고, row 클릭으로 캔버스 포커싱 지원 (`get_detach_preview` payload 확장)
 - [x] **9 agent commands**: create, prop, variant, slot, instance, switch, fill, list, override
 - [x] **Component search & swap**: search components by name, view all instances, swap selected/all instances to different master component (Cmd+Shift+K)
 - [x] **Figma-style Variants Matrix UI (MVP)**: Component Set 인스턴스 편집 시 첫 2개 axis 조합을 2D 매트릭스로 시각화, 셀 클릭으로 variant 전환, 빈 셀 클릭/드래그로 현재 variant를 조합에 매핑

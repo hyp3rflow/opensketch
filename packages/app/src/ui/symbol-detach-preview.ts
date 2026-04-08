@@ -1,5 +1,8 @@
 import type { Editor } from "../editor";
 
+type DetachPreviewStyleLinkRow = { node_id: number; node_name: string; style_kind: string };
+type DetachPreviewNestedInstanceRow = { node_id: number; node_name: string };
+
 type DetachPreview = {
   instance_id: number;
   instance_name: string;
@@ -11,6 +14,8 @@ type DetachPreview = {
   override_count_fill: number;
   override_count_visibility: number;
   component_property_override_count: number;
+  style_linked_layers?: DetachPreviewStyleLinkRow[];
+  nested_instances?: DetachPreviewNestedInstanceRow[];
 };
 
 type OverrideRow = {
@@ -83,43 +88,64 @@ export function openSymbolDetachPreview(editor: Editor, instanceId: number): voi
   addRow("Text style linked layers", preview.text_style_link_count);
   modal.appendChild(list);
 
-  if (overrideRows.length > 0) {
-    const ovTitle = document.createElement("div");
-    ovTitle.style.cssText = "margin-top:12px;font-size:12px;font-weight:600;color:#d1d5db;";
-    ovTitle.textContent = `Changed layers (${overrideRows.length})`;
-    modal.appendChild(ovTitle);
+  const previewRows = (titleText: string, hintText: string, rows: Array<{ node_id: number; node_name: string; detail: string }>, maxRows = 14) => {
+    if (rows.length === 0) return;
+    const secTitle = document.createElement("div");
+    secTitle.style.cssText = "margin-top:12px;font-size:12px;font-weight:600;color:#d1d5db;";
+    secTitle.textContent = `${titleText} (${rows.length})`;
+    modal.appendChild(secTitle);
 
-    const ovHint = document.createElement("div");
-    ovHint.style.cssText = "margin-top:4px;font-size:11px;color:#94a3b8;";
-    ovHint.textContent = "Tip: click a row to focus that layer before detaching.";
-    modal.appendChild(ovHint);
+    const hint = document.createElement("div");
+    hint.style.cssText = "margin-top:4px;font-size:11px;color:#94a3b8;";
+    hint.textContent = hintText;
+    modal.appendChild(hint);
 
-    const ovList = document.createElement("div");
-    ovList.style.cssText = "margin-top:6px;max-height:150px;overflow:auto;border:1px solid #34344d;border-radius:8px;background:rgba(255,255,255,0.02);";
-    overrideRows.slice(0, 14).forEach((ov) => {
+    const listEl = document.createElement("div");
+    listEl.style.cssText = "margin-top:6px;max-height:130px;overflow:auto;border:1px solid #34344d;border-radius:8px;background:rgba(255,255,255,0.02);";
+    rows.slice(0, maxRows).forEach((r) => {
       const row = document.createElement("button");
       row.type = "button";
       row.style.cssText = "width:100%;text-align:left;background:transparent;border:none;padding:7px 9px;border-bottom:1px solid rgba(255,255,255,0.05);cursor:pointer;";
-      row.innerHTML = `<div style=\"font-size:11px;color:#f3f4f6;font-weight:600;\">${escapeHtml(ov.node_name)}</div><div style=\"font-size:11px;color:#9ca3af;\">${escapeHtml(ov.properties.join(", ") || "changed")}</div>`;
+      row.innerHTML = `<div style=\"font-size:11px;color:#f3f4f6;font-weight:600;\">${escapeHtml(r.node_name)}</div><div style=\"font-size:11px;color:#9ca3af;\">${escapeHtml(r.detail)}</div>`;
       row.addEventListener("mouseenter", () => { row.style.background = "rgba(74,144,217,0.12)"; });
       row.addEventListener("mouseleave", () => { row.style.background = "transparent"; });
       row.addEventListener("click", () => {
         try {
-          (editor as any).selectNode?.(ov.node_id);
+          (editor as any).selectNode?.(r.node_id);
           (editor as any).zoomToSelection?.();
           editor.requestRender();
         } catch {}
       });
-      ovList.appendChild(row);
+      listEl.appendChild(row);
     });
-    if (overrideRows.length > 14) {
+    if (rows.length > maxRows) {
       const more = document.createElement("div");
       more.style.cssText = "padding:7px 9px;font-size:11px;color:#9ca3af;";
-      more.textContent = `+${overrideRows.length - 14} more`;
-      ovList.appendChild(more);
+      more.textContent = `+${rows.length - maxRows} more`;
+      listEl.appendChild(more);
     }
-    modal.appendChild(ovList);
-  }
+    modal.appendChild(listEl);
+  };
+
+  previewRows(
+    "Changed layers",
+    "Tip: click a row to focus that layer before detaching.",
+    overrideRows.map((ov) => ({ node_id: ov.node_id, node_name: ov.node_name, detail: ov.properties.join(", ") || "changed" })),
+  );
+
+  previewRows(
+    "Style-linked layers",
+    "These layers currently inherit shared styles.",
+    (preview.style_linked_layers || []).map((r) => ({ node_id: Number(r.node_id), node_name: String(r.node_name || `Node ${r.node_id}`), detail: String(r.style_kind || "Style link") })),
+    10,
+  );
+
+  previewRows(
+    "Nested instances",
+    "These nested instances can be detached together using the toggle below.",
+    (preview.nested_instances || []).map((r) => ({ node_id: Number(r.node_id), node_name: String(r.node_name || `Node ${r.node_id}`), detail: "Nested instance" })),
+    10,
+  );
 
   const nestedRow = document.createElement("label");
   nestedRow.style.cssText = "display:flex;align-items:center;gap:8px;margin-top:12px;font-size:12px;color:#cbd5e1;";

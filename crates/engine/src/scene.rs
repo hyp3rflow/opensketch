@@ -44,6 +44,19 @@ use crate::stamp::{Stamp, StampKind};
 
 /// Detach impact preview for a component instance.
 #[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct DetachPreviewStyleLinkRow {
+    pub node_id: NodeId,
+    pub node_name: String,
+    pub style_kind: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct DetachPreviewNestedInstanceRow {
+    pub node_id: NodeId,
+    pub node_name: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DetachPreview {
     pub instance_id: NodeId,
     pub instance_name: String,
@@ -55,6 +68,8 @@ pub struct DetachPreview {
     pub override_count_fill: usize,
     pub override_count_visibility: usize,
     pub component_property_override_count: usize,
+    pub style_linked_layers: Vec<DetachPreviewStyleLinkRow>,
+    pub nested_instances: Vec<DetachPreviewNestedInstanceRow>,
 }
 
 /// An ephemeral annotation stroke (for review, auto-expires)
@@ -2353,15 +2368,35 @@ impl Scene {
         let mut nested_instances = 0usize;
         let mut color_style_links = 0usize;
         let mut text_style_links = 0usize;
+        let mut style_linked_layers: Vec<DetachPreviewStyleLinkRow> = Vec::new();
+        let mut nested_instance_rows: Vec<DetachPreviewNestedInstanceRow> = Vec::new();
 
         for nid in &subtree {
             if *nid == id { continue; }
             if let Some(n) = self.get_node(*nid) {
                 if matches!(n.kind, crate::node::NodeKind::Instance(_)) {
                     nested_instances += 1;
+                    nested_instance_rows.push(DetachPreviewNestedInstanceRow {
+                        node_id: *nid,
+                        node_name: n.name.clone(),
+                    });
                 }
-                if n.color_style_id.is_some() { color_style_links += 1; }
-                if n.text_style_id.is_some() { text_style_links += 1; }
+                if n.color_style_id.is_some() {
+                    color_style_links += 1;
+                    style_linked_layers.push(DetachPreviewStyleLinkRow {
+                        node_id: *nid,
+                        node_name: n.name.clone(),
+                        style_kind: "Color style".to_string(),
+                    });
+                }
+                if n.text_style_id.is_some() {
+                    text_style_links += 1;
+                    style_linked_layers.push(DetachPreviewStyleLinkRow {
+                        node_id: *nid,
+                        node_name: n.name.clone(),
+                        style_kind: "Text style".to_string(),
+                    });
+                }
             }
         }
 
@@ -2385,6 +2420,8 @@ impl Scene {
             override_count_fill: fill_overrides,
             override_count_visibility: visibility_overrides,
             component_property_override_count: data.property_overrides.len(),
+            style_linked_layers,
+            nested_instances: nested_instance_rows,
         })
     }
 
