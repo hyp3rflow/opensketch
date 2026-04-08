@@ -626,6 +626,7 @@
 - [x] **Components section**: Lists all components from ComponentStore with variant count, click to create instance at (100,100)
 - [x] **Color Styles section**: Color swatch + name + hex value, click to apply to selected nodes
 - [x] **Text Styles section**: Font preview "Ag" + name + font details, click to apply text style to selected nodes
+- [x] **Asset Relink Manager (2026-04-08)**: Assets 패널에 깨진 Image/Video src 스캔 + 일괄 경로 재매핑(Find prefix → Replace) 도구 추가. 빈 src/비이식성 file path/상대경로 의심/이미지 로드 실패를 reason과 함께 탐지하여 일괄 relink 지원.
 
 ### Section Nodes
 - [x] **NodeKind::Section**: Page organization container (like Frame but with prominent title label)

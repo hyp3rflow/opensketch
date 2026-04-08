@@ -1790,10 +1790,17 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Asset Relink Manager — 이미지/비디오 src 깨짐 일괄 탐지 및 경로 재매핑 도구 (임팩트 중, 난이도 중)
 - Prototype Variables Inspector — 현재 프레임 기준 활성 변수(컬렉션/모드/최종값) 실시간 디버그 패널 (임팩트 상, 난이도 중)
 - Component Dependency Graph — 컴포넌트/인스턴스/중첩 참조를 그래프로 시각화하고 순환/과중첩 경고 (임팩트 중상, 난이도 중상)
 - Smart Animate Diff Inspector — 두 프레임 간 Smart Animate 대상 속성 매칭 결과/누락 원인 리포트 (임팩트 상, 난이도 상)
+
+## 완료된 기능 (추가 — Asset Relink Manager, 2026-04-08)
+- Assets 패널에 `Asset Relink Manager` 섹션 추가 (Scan 버튼)
+- 문서 내 Image/Video 노드를 스캔해 깨진 소스 후보를 탐지
+  - 빈 src, 비이식성 local 경로(file://, OS absolute path), 상대경로 의심, 이미지 로드 실패를 reason과 함께 표시
+- 일괄 경로 재매핑 UI 제공 (Find path prefix → Replace with → Relink all)
+  - 매칭된 Image/Video 노드의 src를 한 번에 갱신하고 undo + re-render 통합
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Prototype Conditional Actions v2, 2026-04-08)
 - InteractionCondition 확장: leaf(`variable/operator/value`) + group(`logic: AND|OR`, `conditions[]`) 트리 직렬화 지원 (기존 v1 JSON과 호환)

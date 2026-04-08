@@ -1,8 +1,12 @@
 import type { Editor } from "../editor";
 import { icons } from "./icons";
 
+type MediaItem = { id: number; name: string; kind: "Image" | "Video"; src: string; reason: string };
+
 export function setupAssetPanel(container: HTMLElement, editor: Editor) {
   let searchQuery = "";
+  let brokenMedia: MediaItem[] = [];
+  let scanning = false;
 
   function refresh() {
     container.innerHTML = "";
@@ -24,6 +28,9 @@ export function setupAssetPanel(container: HTMLElement, editor: Editor) {
 
     const scrollArea = document.createElement("div");
     scrollArea.style.cssText = "overflow-y:auto;flex:1;padding:8px 12px;";
+
+    // === Asset Relink Manager Section ===
+    renderBrokenMediaSection(scrollArea);
 
     // === Components Section ===
     renderSection(scrollArea, "Components", () => {
@@ -154,6 +161,148 @@ export function setupAssetPanel(container: HTMLElement, editor: Editor) {
     container.appendChild(scrollArea);
   }
 
+  function renderBrokenMediaSection(parent: HTMLElement) {
+    const section = document.createElement("div");
+    section.style.cssText = "margin-bottom:16px;border:1px solid #333;border-radius:8px;background:#20202b;";
+
+    const header = document.createElement("div");
+    header.style.cssText = "display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-bottom:1px solid #2f2f42;";
+    header.innerHTML = `<span style="font-size:11px;font-weight:700;color:#fca5a5;letter-spacing:.4px;text-transform:uppercase;">Asset Relink Manager</span>`;
+
+    const scanBtn = document.createElement("button");
+    scanBtn.textContent = scanning ? "Scanning…" : "Scan";
+    scanBtn.disabled = scanning;
+    scanBtn.style.cssText = "font-size:11px;padding:4px 8px;border-radius:6px;border:1px solid #4b5563;background:#1f2937;color:#dbeafe;cursor:pointer;";
+    scanBtn.addEventListener("click", async () => {
+      scanning = true;
+      refresh();
+      brokenMedia = await detectBrokenMedia();
+      scanning = false;
+      refresh();
+    });
+    header.appendChild(scanBtn);
+    section.appendChild(header);
+
+    const body = document.createElement("div");
+    body.style.cssText = "padding:8px 10px;";
+    if (scanning) {
+      body.innerHTML = `<div style="font-size:11px;color:#9ca3af;">Scanning image/video sources…</div>`;
+    } else if (brokenMedia.length === 0) {
+      body.innerHTML = `<div style="font-size:11px;color:#9ca3af;">No broken media detected (run Scan to refresh).</div>`;
+    } else {
+      const summary = document.createElement("div");
+      summary.style.cssText = "font-size:11px;color:#fca5a5;margin-bottom:8px;";
+      summary.textContent = `${brokenMedia.length} broken media node(s) detected`;
+      body.appendChild(summary);
+
+      const mapRow = document.createElement("div");
+      mapRow.style.cssText = "display:flex;gap:6px;margin-bottom:8px;";
+      const fromInput = document.createElement("input");
+      fromInput.placeholder = "Find path prefix";
+      fromInput.style.cssText = "flex:1;min-width:0;background:#111827;border:1px solid #374151;border-radius:6px;padding:6px 8px;color:#e5e7eb;font-size:11px;";
+      const toInput = document.createElement("input");
+      toInput.placeholder = "Replace with";
+      toInput.style.cssText = fromInput.style.cssText;
+      const relinkAllBtn = document.createElement("button");
+      relinkAllBtn.textContent = "Relink all";
+      relinkAllBtn.style.cssText = "font-size:11px;padding:6px 8px;border-radius:6px;border:1px solid #2563eb;background:#1d4ed8;color:#dbeafe;cursor:pointer;";
+      relinkAllBtn.addEventListener("click", () => {
+        const from = fromInput.value.trim();
+        const to = toInput.value.trim();
+        if (!from || !to) return;
+        editor.engine.push_undo();
+        for (const item of brokenMedia) {
+          if (!item.src.includes(from)) continue;
+          const next = item.src.replace(from, to);
+          if (item.kind === "Image") (editor.engine as any).set_image_src?.(BigInt(item.id), next);
+          else (editor.engine as any).set_video_src?.(BigInt(item.id), next);
+        }
+        brokenMedia = [];
+        refresh();
+        editor.requestRender();
+      });
+      mapRow.append(fromInput, toInput, relinkAllBtn);
+      body.appendChild(mapRow);
+
+      const list = document.createElement("div");
+      list.style.cssText = "max-height:160px;overflow:auto;border:1px solid #34344d;border-radius:6px;";
+      for (const item of brokenMedia.slice(0, 40)) {
+        const row = document.createElement("div");
+        row.style.cssText = "padding:6px 8px;border-bottom:1px solid rgba(255,255,255,0.05);";
+        row.innerHTML = `<div style="font-size:11px;color:#f3f4f6;">${item.name} <span style="color:#94a3b8">(${item.kind} #${item.id})</span></div><div style="font-size:10px;color:#fca5a5">${item.reason}</div><div style="font-size:10px;color:#9ca3af;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(item.src || "(empty)")}</div>`;
+        list.appendChild(row);
+      }
+      body.appendChild(list);
+    }
+    section.appendChild(body);
+    parent.appendChild(section);
+  }
+
+  async function detectBrokenMedia(): Promise<MediaItem[]> {
+    const items: MediaItem[] = [];
+    const layers = safeParse((editor.engine as any).get_layer_list?.() || "[]");
+    const ids = collectLayerIds(layers);
+    for (const id of ids) {
+      const raw = (editor.engine as any).get_node_json?.(BigInt(id));
+      if (!raw) continue;
+      const node = safeParse(raw);
+      if (!node) continue;
+      const kind = String(node.kind || "");
+      if (kind !== "Image" && kind !== "Video") continue;
+      const src = kind === "Image"
+        ? String((editor.engine as any).get_image_src?.(BigInt(id)) || "")
+        : String((editor.engine as any).get_video_src?.(BigInt(id)) || "");
+      const reason = await getBrokenReason(src, kind);
+      if (reason) items.push({ id, name: String(node.name || `${kind} ${id}`), kind: kind as "Image" | "Video", src, reason });
+    }
+    return items;
+  }
+
+  async function getBrokenReason(src: string, kind: "Image" | "Video"): Promise<string | null> {
+    const s = src.trim();
+    if (!s) return "Source is empty";
+    if (/^file:\/\//i.test(s)) return "Local file:// path is not portable";
+    if (/^[A-Za-z]:\\/.test(s)) return "Absolute OS path is not portable";
+    if (!/^https?:\/\//i.test(s) && !/^data:/i.test(s) && !/^blob:/i.test(s) && !s.startsWith("/")) {
+      return "Relative path may be broken after file move";
+    }
+    try {
+      if (kind === "Image") {
+        await testImageLoad(s);
+      }
+    } catch {
+      return "Load failed";
+    }
+    return null;
+  }
+
+  function testImageLoad(src: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const t = window.setTimeout(() => reject(new Error("timeout")), 1500);
+      img.onload = () => { window.clearTimeout(t); resolve(); };
+      img.onerror = () => { window.clearTimeout(t); reject(new Error("error")); };
+      img.src = src;
+    });
+  }
+
+  function collectLayerIds(items: any[]): number[] {
+    const out: number[] = [];
+    const walk = (arr: any[]) => {
+      for (const item of arr || []) {
+        const id = Number(item?.id || 0);
+        if (id > 0) out.push(id);
+        if (Array.isArray(item?.children)) walk(item.children);
+      }
+    };
+    walk(items);
+    return out;
+  }
+
+  function safeParse(raw: string): any {
+    try { return JSON.parse(raw); } catch { return null; }
+  }
+
   function renderSection<T>(
     parent: HTMLElement,
     title: string,
@@ -189,6 +338,13 @@ export function setupAssetPanel(container: HTMLElement, editor: Editor) {
     }
 
     parent.appendChild(section);
+  }
+
+  function escapeHtml(s: string): string {
+    return s
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
   }
 
   // Refresh when selection changes
