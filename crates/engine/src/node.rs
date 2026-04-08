@@ -1648,15 +1648,30 @@ impl ConditionOperator {
     }
 }
 
-/// Condition for conditional interactions
+/// Condition tree for prototype interactions.
+///
+/// Backward-compatible with v1 leaf shape:
+/// `{ "variable": "x", "operator": "Equal", "value": "1" }`
+///
+/// v2 group shape:
+/// `{ "logic": "AND"|"OR", "conditions": [ ... ] }`
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct InteractionCondition {
-    /// Variable name to check
+    /// v1 leaf: variable name to check
+    #[serde(default)]
     pub variable: String,
-    /// Comparison operator
+    /// v1 leaf: comparison operator
+    #[serde(default)]
     pub operator: ConditionOperator,
-    /// Value to compare against
+    /// v1 leaf: value to compare against
+    #[serde(default)]
     pub value: String,
+    /// v2 group: AND / OR
+    #[serde(default)]
+    pub logic: Option<String>,
+    /// v2 group children
+    #[serde(default)]
+    pub conditions: Vec<InteractionCondition>,
 }
 
 /// Prototype variable definition (stored at scene level)

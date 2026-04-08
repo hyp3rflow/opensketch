@@ -96,34 +96,52 @@ export function createPrototypeViewer(editor: Editor): {
     renderVarsPanel();
   }
 
-  /** Check if an interaction's condition passes */
+  /** Check if an interaction's condition passes (v1 leaf + v2 group recursion) */
   function checkCondition(inter: any): boolean {
-    if (!inter.condition) return true;
-    const { variable, operator, value } = inter.condition;
-    const current = protoVars.get(variable) ?? "";
-    // Numeric comparison
-    const l = parseFloat(current);
-    const r = parseFloat(value);
-    if (!isNaN(l) && !isNaN(r)) {
-      switch (operator) {
-        case "Equal": return Math.abs(l - r) < 1e-9;
-        case "NotEqual": return Math.abs(l - r) >= 1e-9;
-        case "GreaterThan": return l > r;
-        case "LessThan": return l < r;
-        case "GreaterThanOrEqual": return l >= r;
-        case "LessThanOrEqual": return l <= r;
+    const evalLeaf = (cond: any): boolean => {
+      const variable = String(cond?.variable || "").trim();
+      if (!variable) return true;
+      const operator = String(cond?.operator || "Equal");
+      const value = String(cond?.value ?? "");
+      const current = String(protoVars.get(variable) ?? "");
+
+      // Numeric comparison
+      const l = parseFloat(current);
+      const r = parseFloat(value);
+      if (!isNaN(l) && !isNaN(r)) {
+        switch (operator) {
+          case "Equal": return Math.abs(l - r) < 1e-9;
+          case "NotEqual": return Math.abs(l - r) >= 1e-9;
+          case "GreaterThan": return l > r;
+          case "LessThan": return l < r;
+          case "GreaterThanOrEqual": return l >= r;
+          case "LessThanOrEqual": return l <= r;
+        }
       }
-    }
-    // String/boolean
-    switch (operator) {
-      case "Equal": return current === value;
-      case "NotEqual": return current !== value;
-      case "GreaterThan": return current > value;
-      case "LessThan": return current < value;
-      case "GreaterThanOrEqual": return current >= value;
-      case "LessThanOrEqual": return current <= value;
-    }
-    return true;
+
+      // String/boolean fallback
+      switch (operator) {
+        case "Equal": return current === value;
+        case "NotEqual": return current !== value;
+        case "GreaterThan": return current > value;
+        case "LessThan": return current < value;
+        case "GreaterThanOrEqual": return current >= value;
+        case "LessThanOrEqual": return current <= value;
+      }
+      return true;
+    };
+
+    const evalCond = (cond: any): boolean => {
+      if (!cond) return true;
+      const children = Array.isArray(cond.conditions) ? cond.conditions : [];
+      const logic = String(cond.logic || "").toUpperCase();
+      if ((logic === "AND" || logic === "OR") && children.length > 0) {
+        return logic === "AND" ? children.every(evalCond) : children.some(evalCond);
+      }
+      return evalLeaf(cond);
+    };
+
+    return evalCond(inter?.condition);
   }
 
   /** Build floating variables debug panel */

@@ -2296,8 +2296,8 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 ### Conditional Logic in Prototypes
 - [x] **PrototypeVariable struct**: name, var_type (number/boolean/string), default_value — stored at Scene level
 - [x] **Scene CRUD**: add/remove/update_prototype_variable, get_prototype_variables_json
-- [x] **InteractionCondition**: variable + ConditionOperator (Eq/Ne/Gt/Lt/Gte/Lte) + compare_value — attached to Interaction
-- [x] **ConditionOperator.evaluate()**: Numeric, boolean, and string comparison
+- [x] **InteractionCondition v2**: leaf(`variable` + `operator` + `value`) and group(`logic`: AND/OR + `conditions[]`)를 모두 지원하는 조건 트리 구조
+- [x] **Prototype condition runtime**: Numeric/boolean/string 비교를 leaf에서 평가하고, group 노드는 AND/OR 재귀 평가
 - [x] **SetVariable action**: InteractionAction::SetVariable with set_variable_name + set_variable_expression
 - [x] **WASM bindings**: add/remove/update_prototype_variable, get_prototype_variables, set_interaction_condition, set_interaction_set_variable
 - [x] **Prototype Viewer**: Runtime variable state (Map), condition evaluation, SetVariable execution (+N/-N/toggle/literal), debug panel showing current variable values
@@ -2305,7 +2305,7 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] **Prototype Device Chrome Details**: Added status-bar tint + home-indicator rendering (portrait/landscape aware) and expanded presets (`iPhone SE`) for more realistic safe-area/device-chrome validation in preview
 - [x] **Prototype theme mode switch**: Top bar `Theme` selector mirrors variable mode names (Light/Dark/custom) and switches collection active modes live during preview.
 - [x] **Properties panel — Variables section**: Scene-level variable CRUD UI (name, type select, default value, add/delete)
-- [x] **Properties panel — Interaction condition UI**: Per-interaction optional condition builder (prototype variable datalist, operator select, compare value), live branch preview (TRUE/FALSE with current variable value), clear button
+- [x] **Properties panel — Interaction condition UI v2**: Single rule 또는 AND/OR 그룹(rule 다중) 빌더, prototype variable datalist + 비교 연산자 선택, live branch preview, clear button
 - [x] **Properties panel — SetVariable action UI**: Variable name + expression inputs shown when action is SetVariable
 - [x] **Backward-compatible serde**: All new Interaction fields use #[serde(default)]
 

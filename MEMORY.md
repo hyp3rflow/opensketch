@@ -1790,11 +1790,19 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Prototype Conditional Actions v2 — interaction 조건식에서 AND/OR 그룹 + 변수 비교식 빌더 (임팩트 상, 난이도 상)
 - Asset Relink Manager — 이미지/비디오 src 깨짐 일괄 탐지 및 경로 재매핑 도구 (임팩트 중, 난이도 중)
 - Prototype Variables Inspector — 현재 프레임 기준 활성 변수(컬렉션/모드/최종값) 실시간 디버그 패널 (임팩트 상, 난이도 중)
 - Component Dependency Graph — 컴포넌트/인스턴스/중첩 참조를 그래프로 시각화하고 순환/과중첩 경고 (임팩트 중상, 난이도 중상)
 - Smart Animate Diff Inspector — 두 프레임 간 Smart Animate 대상 속성 매칭 결과/누락 원인 리포트 (임팩트 상, 난이도 상)
+
+## 완료된 기능 (추가 — Prototype Conditional Actions v2, 2026-04-08)
+- InteractionCondition 확장: leaf(`variable/operator/value`) + group(`logic: AND|OR`, `conditions[]`) 트리 직렬화 지원 (기존 v1 JSON과 호환)
+- Properties panel 조건식 UI를 v2 빌더로 개선
+  - Single rule / AND group / OR group 모드 전환
+  - 그룹 내 다중 rule 추가/삭제 + 변수/연산자/값 편집
+  - prototype variable 기본값 기준 branch preview(TRUE/FALSE) 제공
+- Prototype viewer 조건 평가기 개선: leaf 비교식 + AND/OR group 재귀 평가
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Component Usage Heatmap, 2026-04-08)
 - Component Analytics 패널에 "Show usage heatmap on canvas" 토글 추가
