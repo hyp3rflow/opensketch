@@ -199,12 +199,26 @@ export function openComponentAnalytics(editor: Editor, onNavigate?: (nodeId: num
     .ca-impact-kpi { background:#262d3a; border-radius:6px; padding:6px; text-align:center; }
     .ca-impact-kpi b { display:block; color:#dbeafe; font-size:13px; }
     .ca-impact-list { margin:6px 0 0; padding-left:14px; color:#cbd5e1; }
-    .ca-impact-instances { margin-top:6px; max-height:120px; overflow:auto; border-top:1px dashed #334155; padding-top:6px; }
+    .ca-impact-signal-row { display:grid; grid-template-columns:1fr; gap:4px; margin-top:6px; }
+    .ca-impact-signal { display:inline-flex; justify-content:space-between; align-items:center; background:#202a39; border-radius:6px; padding:4px 6px; color:#cbd5e1; }
+    .ca-impact-signal b { color:#fff; }
+    .ca-impact-signal.danger { border:1px solid rgba(248,113,113,.35); }
+    .ca-impact-signal.warn { border:1px solid rgba(250,204,21,.28); }
+    .ca-impact-scope { margin-top:8px; display:grid; gap:6px; }
+    .ca-impact-subtitle { font-weight:600; color:#cfe0ff; margin:4px 0; }
+    .ca-impact-chips { display:flex; flex-wrap:wrap; gap:4px; }
+    .ca-impact-chip { background:#2a3344; border-radius:999px; padding:2px 8px; color:#c8d5ea; border:1px solid #38465f; }
+    .ca-impact-instances { margin-top:6px; max-height:140px; overflow:auto; border-top:1px dashed #334155; padding-top:6px; }
     .ca-impact-row { display:flex; align-items:center; gap:6px; padding:3px 4px; border-radius:4px; cursor:pointer; }
     .ca-impact-row:hover { background:#2b3547; }
     .ca-impact-depth { color:#93c5fd; min-width:22px; }
     .ca-impact-node { flex:1; }
     .ca-impact-meta { color:#94a3b8; }
+    .ca-row-flag { border-radius:999px; padding:1px 6px; font-size:10px; font-weight:600; }
+    .ca-row-flag.conflict { background:rgba(248,113,113,.16); color:#fca5a5; }
+    .ca-row-flag.deep { background:rgba(59,130,246,.16); color:#93c5fd; }
+    .ca-impact-more-btn { width:100%; margin-top:6px; background:#263248; color:#dbeafe; border:1px solid #3a4c69; border-radius:6px; padding:4px 8px; cursor:pointer; }
+    .ca-impact-more-btn:hover { background:#2f3e59; }
     .ca-variants { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
     .ca-variant-chip { background: #383838; border-radius: 4px; padding: 2px 6px; font-size: 11px; color: #aaa; }
     .ca-variant-chip b { color: #7b9cff; margin-left: 2px; }
@@ -278,6 +292,19 @@ export function openComponentAnalytics(editor: Editor, onNavigate?: (nodeId: num
           if (onNavigate && nodeId) onNavigate(nodeId, pageId);
         });
       });
+
+      const moreBtn = container.querySelector(".ca-impact-more-btn") as HTMLButtonElement | null;
+      if (moreBtn) {
+        moreBtn.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          const open = moreBtn.dataset.open === "1";
+          container.querySelectorAll('.ca-impact-row[data-extra="1"]').forEach(extra => {
+            (extra as HTMLElement).style.display = open ? "none" : "flex";
+          });
+          moreBtn.dataset.open = open ? "0" : "1";
+          moreBtn.textContent = open ? `Show all ${impact.instances.length} instances` : "Show fewer";
+        });
+      }
     });
   });
 
@@ -403,6 +430,8 @@ export function isComponentAnalyticsOpen(): boolean {
 function renderImpact(impact: DependencyImpact): string {
   const riskClass = impact.risk_level === "high" ? "high" : impact.risk_level === "medium" ? "medium" : "low";
   const topRows = impact.instances.slice(0, 8);
+  const pages = [...impact.affected_pages].sort((a, b) => b.instance_count - a.instance_count).slice(0, 6);
+  const variants = [...impact.affected_variants].sort((a, b) => b.instance_count - a.instance_count).slice(0, 6);
   return `
     <div class="ca-impact-header">
       <strong>Dependency Impact</strong>
@@ -413,19 +442,41 @@ function renderImpact(impact: DependencyImpact): string {
       <div class="ca-impact-kpi"><b>${impact.affected_pages.length}</b><span>Pages</span></div>
       <div class="ca-impact-kpi"><b>${impact.affected_variants.length}</b><span>Variants</span></div>
     </div>
+    <div class="ca-impact-signal-row">
+      <span class="ca-impact-signal danger">⚠ Override conflict risk: <b>${impact.override_conflict_instances}</b></span>
+      <span class="ca-impact-signal warn">↕ Deep nesting: <b>${impact.deep_nesting_instances}</b></span>
+    </div>
     <ul class="ca-impact-list">
       ${impact.risks.slice(0, 3).map(r => `<li>${escHtml(r)}</li>`).join("")}
     </ul>
-    ${topRows.length > 0 ? `
-      <div class="ca-impact-instances">
-        ${topRows.map(row => `
-          <div class="ca-impact-row" data-node-id="${row.node_id}" data-page-id="${row.page_id}">
-            <span class="ca-impact-depth">D${row.depth}</span>
-            <span class="ca-impact-node">${escHtml(row.node_name || `Node ${row.node_id}`)}</span>
-            <span class="ca-impact-meta">ovr ${row.node_override_count + row.property_override_count + row.slot_fill_count}</span>
-          </div>
-        `).join("")}
+    <div class="ca-impact-scope">
+      <div>
+        <div class="ca-impact-subtitle">Affected pages</div>
+        <div class="ca-impact-chips">${pages.map(p => `<span class="ca-impact-chip">${escHtml(p.page_name || `Page ${p.page_id}`)} · ${p.instance_count}</span>`).join("") || `<span class="ca-impact-chip">None</span>`}</div>
       </div>
+      <div>
+        <div class="ca-impact-subtitle">Variant scope</div>
+        <div class="ca-impact-chips">${variants.map(v => `<span class="ca-impact-chip">${escHtml(v.variant_key || "default")} · ${v.instance_count}</span>`).join("") || `<span class="ca-impact-chip">None</span>`}</div>
+      </div>
+    </div>
+    ${topRows.length > 0 ? `
+      <div class="ca-impact-subtitle">Top risky instances</div>
+      <div class="ca-impact-instances" data-list="collapsed">
+        ${impact.instances.map((row, idx) => {
+          const conflict = row.override_conflict_risk ? `<span class="ca-row-flag conflict">Conflict</span>` : "";
+          const deep = row.depth >= 4 ? `<span class="ca-row-flag deep">Deep</span>` : "";
+          const hidden = idx >= topRows.length ? " style=\"display:none\" data-extra=\"1\"" : "";
+          return `
+            <div class="ca-impact-row" data-node-id="${row.node_id}" data-page-id="${row.page_id}"${hidden}>
+              <span class="ca-impact-depth">D${row.depth}</span>
+              <span class="ca-impact-node">${escHtml(row.node_name || `Node ${row.node_id}`)}</span>
+              <span class="ca-impact-meta">ovr ${row.node_override_count + row.property_override_count + row.slot_fill_count}</span>
+              ${conflict}${deep}
+            </div>
+          `;
+        }).join("")}
+      </div>
+      ${impact.instances.length > topRows.length ? `<button class="ca-impact-more-btn" data-open="0">Show all ${impact.instances.length} instances</button>` : ""}
     ` : ""}
   `;
 }

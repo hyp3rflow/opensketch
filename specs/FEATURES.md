@@ -1440,6 +1440,7 @@ Frame overflow control and content scrolling.
 - [x] **WASM binding**: `component_dependency_impact(component_id)` → JSON
 - [x] **UI action**: Analytics modal `Impact Analyzer` button on each component row
 - [x] **Impact drilldown**: Top risky instances listed with click-to-navigate
+- [x] **Change scope preview**: Impact panel now surfaces affected page/variant range chips + override-conflict/deep-nesting counters and expandable full instance list
 
 ### Smart Component Suggestions
 - [x] **Structural duplicate detection**: Identical subtree fingerprinting

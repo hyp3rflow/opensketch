@@ -1805,6 +1805,11 @@
   - risk score(0~100) + risk level(low/medium/high) + risk reason 리스트 제공
 - WASM: `component_dependency_impact(component_id)` 바인딩 추가
 - UI: 상위 위험 요약(KPI + risk badge + reason) 및 top instance row 클릭 이동 지원
+- UI 확장(추가):
+  - 영향 범위 상세 프리뷰: Affected Pages / Variant Scope 칩 리스트 표시
+  - 위험 신호 카운터: Override conflict / Deep nesting instances를 별도 배지로 노출
+  - 인스턴스 리스크 row에 `Conflict`/`Deep` 플래그 추가
+  - 기본 상위 8개 + `Show all instances` 확장 토글
 - specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Prototype Scroll Snap Points: Section Pagination, 2026-04-08)
