@@ -6574,16 +6574,15 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             panel.appendChild(hint2);
 
             const easings = ["linear", "ease_in", "ease_out", "ease_in_out", "spring", "overshoot", "anticipate"];
-            const table = document.createElement("div");
-            table.style.cssText = "display:grid;grid-template-columns:32px 1fr 90px 170px 90px;gap:6px;align-items:center;font-size:11px;";
-
-            const mkHeader = (text: string) => {
-              const h = document.createElement("div");
-              h.style.cssText = "color:#8b8b8b;font-size:10px;border-bottom:1px solid #2e2e2e;padding-bottom:4px;";
-              h.textContent = text;
-              return h;
+            const easingPreviews: Record<string, string> = {
+              linear: "M2 16 L58 4",
+              ease_in: "M2 16 C18 16, 26 12, 58 4",
+              ease_out: "M2 16 C20 8, 34 4, 58 4",
+              ease_in_out: "M2 16 C18 16, 20 4, 58 4",
+              spring: "M2 16 C12 6, 24 18, 34 6 C42 0, 52 6, 58 4",
+              overshoot: "M2 16 C22 14, 32 -1, 44 2 C49 4, 54 4, 58 4",
+              anticipate: "M2 16 C10 18, 12 10, 20 11 C34 12, 44 4, 58 4",
             };
-            table.append(mkHeader("#"), mkHeader("Label"), mkHeader("Time(ms)"), mkHeader("Easing Curve"), mkHeader("Group"));
 
             const groupOf = (label: string) => {
               const trimmed = (label || "").trim();
@@ -6591,11 +6590,52 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
               return parts.length > 1 ? (parts[0] || "default") : "default";
             };
 
+            const selectedRows = new Set<number>();
             const editableIndices = () => timeline.map((_, i) => i).filter(i => i !== 0 && i !== timeline.length - 1);
+            const targetIndices = () => {
+              const picked = [...selectedRows].filter((i) => i > 0 && i < timeline.length - 1);
+              return picked.length ? picked : editableIndices();
+            };
+
+            const curveBar = document.createElement("div");
+            curveBar.style.cssText = "display:flex;flex-wrap:wrap;gap:6px;margin:8px 0;";
+            const applyCurve = (curve: string) => {
+              targetIndices().forEach((i) => { timeline[i].easing = curve; });
+              persistTimeline();
+              renderTable();
+            };
+            easings.forEach((curve) => {
+              const btn = document.createElement("button");
+              btn.className = "prop-add-btn";
+              btn.style.cssText = "padding:4px 6px;display:flex;align-items:center;gap:6px;";
+              btn.innerHTML = `<svg width="60" height="18" viewBox="0 0 60 18" style="display:block"><path d="${easingPreviews[curve] || easingPreviews.linear}" fill="none" stroke="#a5b4fc" stroke-width="1.5"/></svg><span style="font-size:10px;">${curve}</span>`;
+              btn.addEventListener("click", () => applyCurve(curve));
+              curveBar.appendChild(btn);
+            });
+            panel.appendChild(curveBar);
+
+            const table = document.createElement("div");
+            table.style.cssText = "display:grid;grid-template-columns:22px 32px 1fr 90px 170px 90px;gap:6px;align-items:center;font-size:11px;";
+            const mkHeader = (text: string) => {
+              const h = document.createElement("div");
+              h.style.cssText = "color:#8b8b8b;font-size:10px;border-bottom:1px solid #2e2e2e;padding-bottom:4px;";
+              h.textContent = text;
+              return h;
+            };
+            table.append(mkHeader(""), mkHeader("#"), mkHeader("Label"), mkHeader("Time(ms)"), mkHeader("Easing Curve"), mkHeader("Group"));
 
             const renderTable = () => {
-              while (table.children.length > 5) table.lastChild?.remove();
+              while (table.children.length > 6) table.lastChild?.remove();
               timeline.forEach((kf, i) => {
+                const pick = document.createElement("input");
+                pick.type = "checkbox";
+                pick.checked = selectedRows.has(i);
+                pick.disabled = i === 0 || i === timeline.length - 1;
+                pick.addEventListener("change", () => {
+                  if (pick.checked) selectedRows.add(i);
+                  else selectedRows.delete(i);
+                });
+
                 const idx = document.createElement("div");
                 idx.style.cssText = "color:#707070;";
                 idx.textContent = String(i);
@@ -6645,8 +6685,9 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
                 grp.style.cssText = "color:#818cf8;font-size:10px;";
                 grp.textContent = groupOf(kf.label || "");
 
-                table.append(idx, labelInput, timeInput, easingSel, grp);
+                table.append(pick, idx, labelInput, timeInput, easingSel, grp);
               });
+              refreshGroups();
             };
             panel.appendChild(table);
 
@@ -6655,7 +6696,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
 
             const staggerCard = document.createElement("div");
             staggerCard.style.cssText = "padding:8px;border:1px solid #2e2e2e;border-radius:8px;";
-            staggerCard.innerHTML = '<div style="font-size:10px;color:#a3a3a3;margin-bottom:6px;">Stagger</div>';
+            staggerCard.innerHTML = '<div style="font-size:10px;color:#a3a3a3;margin-bottom:6px;">Stagger (선택 행 우선)</div>';
             const staggerRow = document.createElement("div");
             staggerRow.style.cssText = "display:flex;gap:6px;align-items:center;";
             const staggerMs = document.createElement("input");
@@ -6665,16 +6706,21 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             staggerMs.style.width = "90px";
             const staggerMode = document.createElement("select");
             staggerMode.className = "prop-input";
-            ["forward", "reverse"].forEach((m) => {
+            ["forward", "reverse", "center-out"].forEach((m) => {
               const o = document.createElement("option"); o.value = m; o.textContent = m; staggerMode.appendChild(o);
             });
             const applyStagger = document.createElement("button");
             applyStagger.className = "prop-add-btn";
             applyStagger.textContent = "Apply";
             applyStagger.addEventListener("click", () => {
-              const ids = editableIndices();
+              const ids = targetIndices();
               const delta = Math.max(0, parseInt(staggerMs.value) || 0);
-              const ordered = staggerMode.value === "reverse" ? [...ids].reverse() : ids;
+              let ordered = [...ids];
+              if (staggerMode.value === "reverse") ordered = ordered.reverse();
+              if (staggerMode.value === "center-out") {
+                const center = Math.floor(ordered.length / 2);
+                ordered.sort((a, b) => Math.abs(a - ordered[center]) - Math.abs(b - ordered[center]));
+              }
               ordered.forEach((idx, order) => {
                 timeline[idx].time += delta * order;
               });
@@ -6726,7 +6772,11 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             panel.appendChild(ops);
 
             const footer = document.createElement("div");
-            footer.style.cssText = "display:flex;justify-content:flex-end;margin-top:10px;";
+            footer.style.cssText = "display:flex;justify-content:space-between;align-items:center;margin-top:10px;";
+            const selHint = document.createElement("div");
+            selHint.style.cssText = "font-size:10px;color:#737373;";
+            selHint.textContent = "체크된 행이 있으면 배치 편집 대상이 됩니다.";
+            footer.appendChild(selHint);
             const doneBtn = document.createElement("button");
             doneBtn.className = "prop-add-btn";
             doneBtn.textContent = "Done";
