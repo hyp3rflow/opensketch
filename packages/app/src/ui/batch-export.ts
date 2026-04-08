@@ -206,6 +206,44 @@ function showDialog(editor: Editor, items: ExportItem[]): void {
 
   dialog.appendChild(quickRow);
 
+  // Package mode row
+  const packageRow = document.createElement("div");
+  packageRow.style.cssText = "display:flex;gap:8px;margin-bottom:8px;align-items:center;";
+
+  const packageLabel = document.createElement("span");
+  packageLabel.style.cssText = "font-size:11px;color:#aaa;";
+  packageLabel.textContent = "Package:";
+
+  const packageSelect = document.createElement("select");
+  packageSelect.style.cssText = "background:#2a2a2a;color:#ccc;border:1px solid #444;border-radius:4px;padding:3px 6px;font-size:11px;";
+  const packageModes: Array<{ value: AssetPackageMode; label: string }> = [
+    { value: "flat", label: "Flat ZIP" },
+    { value: "ios", label: "iOS .imageset" },
+    { value: "android", label: "Android drawable" },
+    { value: "web", label: "Web assets" },
+  ];
+  for (const m of packageModes) {
+    const opt = document.createElement("option");
+    opt.value = m.value;
+    opt.textContent = m.label;
+    packageSelect.appendChild(opt);
+  }
+  let packageMode: AssetPackageMode = "flat";
+  packageSelect.addEventListener("change", () => {
+    packageMode = packageSelect.value as AssetPackageMode;
+    if (packageMode !== "flat") {
+      for (const item of items) item.format = "png";
+    }
+    renderList();
+  });
+
+  const packageHint = document.createElement("span");
+  packageHint.style.cssText = "font-size:10px;color:#777;";
+  packageHint.textContent = "Platform folder naming for PNG slices";
+
+  packageRow.append(packageLabel, packageSelect, packageHint);
+  dialog.appendChild(packageRow);
+
   // Pixel-perfect options row
   const pixelRow = document.createElement("div");
   pixelRow.style.cssText = "display:flex;gap:12px;margin-bottom:12px;align-items:center;";
@@ -290,6 +328,13 @@ function showDialog(editor: Editor, items: ExportItem[]): void {
       fmt.appendChild(opt);
     }
     fmt.addEventListener("change", () => { item.format = fmt.value as "png" | "svg"; });
+    if (packageMode !== "flat") {
+      item.format = "png";
+      fmt.value = "png";
+      fmt.disabled = true;
+      fmt.style.opacity = "0.5";
+      fmt.title = "Platform package mode supports PNG slices";
+    }
     row.appendChild(fmt);
 
     const scale = document.createElement("select");
@@ -338,7 +383,7 @@ function showDialog(editor: Editor, items: ExportItem[]): void {
       await doExport(editor, items.filter(i => i.enabled), {
         pixelAlign: pixelAlignCb.checked,
         nearestNeighbor: nearestCb.checked,
-      });
+      }, packageMode);
     } catch (e) {
       console.error("Batch export error:", e);
       alert("Export failed: " + (e as Error).message);
@@ -383,8 +428,15 @@ interface PixelPerfectOpts {
   nearestNeighbor?: boolean;
 }
 
+type AssetPackageMode = "flat" | "ios" | "android" | "web";
+
 /** Actually perform the export and download ZIP */
-async function doExport(editor: Editor, items: ExportItem[], pixelOpts?: PixelPerfectOpts): Promise<void> {
+async function doExport(
+  editor: Editor,
+  items: ExportItem[],
+  pixelOpts?: PixelPerfectOpts,
+  packageMode: AssetPackageMode = "flat",
+): Promise<void> {
   const currentPageId = getCurrentPageId(editor);
   const files: Record<string, Uint8Array> = {};
   const usedNames = new Set<string>();
@@ -396,8 +448,9 @@ async function doExport(editor: Editor, items: ExportItem[], pixelOpts?: PixelPe
     while (usedNames.has(`${baseName}.${item.format}`)) {
       baseName = `${sanitized}-${n++}`;
     }
-    const filename = `${baseName}.${item.format}`;
-    usedNames.add(filename);
+
+    const filename = buildPackagedFilename(baseName, item, packageMode);
+    usedNames.add(`${baseName}.${item.format}`);
 
     if (item.pageId != null && item.nodeId == null) {
       // Export full page
@@ -419,6 +472,13 @@ async function doExport(editor: Editor, items: ExportItem[], pixelOpts?: PixelPe
       } else {
         const dataUrl = editor.exportPng(item.nodeId, item.scale, 0, pixelOpts);
         if (dataUrl) files[filename] = dataUrlToUint8(dataUrl);
+      }
+    }
+
+    if (packageMode === "ios" && item.format === "png") {
+      const imageSetPath = `${sanitizeFilename(baseName)}.imageset/Contents.json`;
+      if (!files[imageSetPath]) {
+        files[imageSetPath] = strToU8(buildIosContentsJson(baseName, item.scale));
       }
     }
   }
@@ -463,4 +523,44 @@ function dataUrlToUint8(dataUrl: string): Uint8Array {
 
 function sanitizeFilename(name: string): string {
   return name.replace(/[/\\?%*:|"<>]/g, "-").replace(/\s+/g, "_").substring(0, 100) || "export";
+}
+
+function scaleToAndroidBucket(scale: number): string {
+  if (scale <= 1) return "mdpi";
+  if (scale <= 1.5) return "hdpi";
+  if (scale <= 2) return "xhdpi";
+  if (scale <= 3) return "xxhdpi";
+  return "xxxhdpi";
+}
+
+function buildPackagedFilename(baseName: string, item: ExportItem, mode: AssetPackageMode): string {
+  if (mode === "flat") return `${baseName}.${item.format}`;
+  if (item.format === "svg") return `${baseName}.${item.format}`;
+
+  const safeBase = sanitizeFilename(baseName);
+  switch (mode) {
+    case "ios":
+      return `${safeBase}.imageset/${safeBase}@${item.scale}x.png`;
+    case "android":
+      return `android/drawable-${scaleToAndroidBucket(item.scale)}/${safeBase}.png`;
+    case "web":
+      return `web/${safeBase}@${item.scale}x.png`;
+    default:
+      return `${safeBase}.png`;
+  }
+}
+
+function buildIosContentsJson(baseName: string, scale: number): string {
+  const safeBase = sanitizeFilename(baseName);
+  const scaleLabel = `${scale}x`;
+  return JSON.stringify({
+    images: [
+      {
+        idiom: "universal",
+        filename: `${safeBase}@${scaleLabel}.png`,
+        scale: scaleLabel,
+      },
+    ],
+    info: { version: 1, author: "xcode" },
+  }, null, 2);
 }

@@ -890,6 +890,7 @@ Multi-node/page bulk export with ZIP download.
 - [x] **ZIP download**: fflate compression, auto-named files, deduplication
 - [x] **Page export**: Switches active page temporarily, restores after
 - [x] **Integration**: Export preset profiles applicable to batch items
+- [x] **Asset slices package modes**: Flat ZIP 외에 iOS `.imageset` / Android `drawable-*` / Web `web/` 폴더 구조로 PNG slice 묶음 export 지원 (플랫폼 모드에서는 PNG 고정)
 
 ### Files
 - `packages/app/src/ui/batch-export.ts`

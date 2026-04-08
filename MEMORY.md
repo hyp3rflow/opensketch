@@ -1790,10 +1790,18 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Dev Handoff Asset Slices Packager — 선택 Frame의 Slice/Export preset을 플랫폼(iOS/Android/Web)별 zip으로 묶어 내보내기 (임팩트 상, 난이도 중상)
 - Variant Matrix Editor v2 — variant set을 2D matrix에서 bulk rename/reorder + axis lock 편집 (임팩트 상, 난이도 중상)
 - Prototype Session Share Link — 현재 flow/start frame/variable state를 URL에 직렬화해 공유 가능한 preview 링크 생성 (임팩트 중상, 난이도 중)
 - Font Fallback Inspector — 텍스트 노드별 실제 렌더 fallback font 감지/리포트 + 일괄 치환 제안 (임팩트 중상, 난이도 중)
+
+## 완료된 기능 (추가 — Dev Handoff Asset Slices Packager, 2026-04-09)
+- Batch Export에 패키징 모드 추가: Flat ZIP / iOS `.imageset` / Android `drawable-*` / Web `web/` 폴더 구조
+- 플랫폼 패키징 모드 선택 시 PNG slice export로 고정하고 기존 per-item scale 값을 플랫폼 경로 규칙에 반영
+  - iOS: `<name>.imageset/<name>@Nx.png` + `Contents.json`
+  - Android: `android/drawable-{mdpi|hdpi|xhdpi|xxhdpi|xxxhdpi}/<name>.png`
+  - Web: `web/<name>@Nx.png`
+- 기존 pixel-align / nearest-neighbor 옵션 및 ZIP 일괄 export 플로우와 호환
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Constraint Debug Overlay, 2026-04-09)
 - Responsive Preview 모드에 `Constraint Debug Overlay` 패널 추가 (우하단)
