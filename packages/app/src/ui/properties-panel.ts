@@ -3119,28 +3119,14 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             return btn;
           };
 
-          const savePresetBtn = makePresetBtn("Save Preset");
-          savePresetBtn.onclick = () => {
-            const name = (prompt("Preset name", `${hSelect.value}/${vSelect.value}`) || "").trim();
-            if (!name) return;
-            const presets = loadPresets();
-            presets.push({ ...readCurrentPreset(), name });
-            savePresets(presets);
-            alert(`Saved preset: ${name}`);
-          };
+          const builtInResponsivePresets: ConstraintPreset[] = [
+            { name: "Mobile · Stretch width", horizontal: "leftAndRight", vertical: "top", sizing_h: "fill", sizing_v: "hug", min_w: 320, max_w: 480 },
+            { name: "Mobile · Bottom sticky", horizontal: "leftAndRight", vertical: "bottom", sizing_h: "fill", sizing_v: "fixed", min_w: 320, max_w: 480 },
+            { name: "Tablet · Centered", horizontal: "center", vertical: "top", sizing_h: "fixed", sizing_v: "hug", min_w: 600, max_w: 1024 },
+            { name: "Desktop · Scale", horizontal: "scale", vertical: "scale", sizing_h: "fill", sizing_v: "fill", min_w: 1024, max_w: 1920 },
+          ];
 
-          const applyPresetBtn = makePresetBtn("Apply Preset");
-          applyPresetBtn.onclick = () => {
-            const presets = loadPresets();
-            if (!presets.length) {
-              alert("No constraint presets saved yet.");
-              return;
-            }
-            const list = presets.map((p, i) => `${i + 1}. ${p.name}`).join("\n");
-            const picked = parseInt(prompt(`Apply which preset?\n${list}`, "1") || "1", 10);
-            const preset = presets[Math.max(0, Math.min(presets.length - 1, (Number.isFinite(picked) ? picked : 1) - 1))];
-            if (!preset) return;
-
+          const applyPresetToSelection = (preset: ConstraintPreset) => {
             editor.engine.push_undo();
             for (const sid of ids) {
               const sidBig = BigInt(sid);
@@ -3166,8 +3152,49 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             refresh(ids);
           };
 
+          const savePresetBtn = makePresetBtn("Save Preset");
+          savePresetBtn.onclick = () => {
+            const name = (prompt("Preset name", `${hSelect.value}/${vSelect.value}`) || "").trim();
+            if (!name) return;
+            const presets = loadPresets();
+            const next = { ...readCurrentPreset(), name };
+            const deduped = [next, ...presets.filter((p) => p.name.toLowerCase() !== name.toLowerCase())].slice(0, 40);
+            savePresets(deduped);
+            alert(`Saved preset: ${name}`);
+          };
+
+          const applyPresetBtn = makePresetBtn("Apply Preset");
+          applyPresetBtn.onclick = () => {
+            const presets = loadPresets();
+            if (!presets.length) {
+              alert("No custom constraint presets saved yet.");
+              return;
+            }
+            const list = presets.map((p, i) => `${i + 1}. ${p.name}`).join("\n");
+            const picked = parseInt(prompt(`Apply which custom preset?\n${list}`, "1") || "1", 10);
+            const preset = presets[Math.max(0, Math.min(presets.length - 1, (Number.isFinite(picked) ? picked : 1) - 1))];
+            if (!preset) return;
+            applyPresetToSelection(preset);
+          };
+
+          const libraryBtn = makePresetBtn("Library");
+          libraryBtn.onclick = () => {
+            const customPresets = loadPresets();
+            const allPresets = [
+              ...builtInResponsivePresets,
+              ...customPresets.map((p) => ({ ...p, name: `Custom · ${p.name}` })),
+            ];
+            if (!allPresets.length) return;
+            const list = allPresets.map((p, i) => `${i + 1}. ${p.name}`).join("\n");
+            const picked = parseInt(prompt(`Responsive preset library\n${list}`, "1") || "1", 10);
+            const preset = allPresets[Math.max(0, Math.min(allPresets.length - 1, (Number.isFinite(picked) ? picked : 1) - 1))];
+            if (!preset) return;
+            applyPresetToSelection(preset);
+          };
+
           presetRow.appendChild(savePresetBtn);
           presetRow.appendChild(applyPresetBtn);
+          presetRow.appendChild(libraryBtn);
           constraintSection.appendChild(presetRow);
 
           container.appendChild(constraintSection);

@@ -80,10 +80,16 @@ export function setupDependencyGraphPanel(container: HTMLElement, editor: Editor
   }
   container.appendChild(filterBar);
 
-  // Cycle warning area
+  // Dependency warnings area (cycles / deep nesting)
+  const warningWrap = document.createElement("div");
+  warningWrap.style.cssText = "display:none;border-bottom:1px solid #333;";
   const cycleWarning = document.createElement("div");
-  cycleWarning.style.cssText = "padding:4px 8px;font-size:11px;color:#E74C3C;display:none;border-bottom:1px solid #333;";
-  container.appendChild(cycleWarning);
+  cycleWarning.style.cssText = "padding:4px 8px;font-size:11px;color:#E74C3C;display:none;";
+  const depthWarning = document.createElement("div");
+  depthWarning.style.cssText = "padding:4px 8px;font-size:11px;color:#f59e0b;display:none;";
+  warningWrap.appendChild(cycleWarning);
+  warningWrap.appendChild(depthWarning);
+  container.appendChild(warningWrap);
 
   // Canvas
   const canvas = document.createElement("canvas");
@@ -141,17 +147,29 @@ export function setupDependencyGraphPanel(container: HTMLElement, editor: Editor
       }
       graphNodes = newNodes;
 
-      // Show cycle warning
+      // Show dependency warnings (cycles + deep component nesting)
       if (cycles.length > 0) {
         cycleWarning.style.display = "block";
         cycleWarning.textContent = `⚠ ${cycles.length} circular dependency cycle(s) detected`;
       } else {
         cycleWarning.style.display = "none";
       }
+
+      const maxDepth = estimateMaxComponentNestingDepth(graphEdges);
+      if (maxDepth >= 5) {
+        depthWarning.style.display = "block";
+        depthWarning.textContent = `⚠ Deep component nesting detected (max depth ${maxDepth}). Consider flattening or detaching deeply nested instances.`;
+      } else {
+        depthWarning.style.display = "none";
+      }
+      warningWrap.style.display = (cycleWarning.style.display === "none" && depthWarning.style.display === "none") ? "none" : "block";
     } catch {
       graphNodes = [];
       graphEdges = [];
       cycles = [];
+      cycleWarning.style.display = "none";
+      depthWarning.style.display = "none";
+      warningWrap.style.display = "none";
     }
   }
 
@@ -164,6 +182,39 @@ export function setupDependencyGraphPanel(container: HTMLElement, editor: Editor
       }
     } catch {}
     return { name: `#${id}`, kind: "unknown" };
+  }
+
+  function estimateMaxComponentNestingDepth(edges: DepEdge[]): number {
+    const compEdges = edges.filter((e) => e.edge_type === "ComponentInstance");
+    const graph = new Map<number, number[]>();
+    const nodes = new Set<number>();
+    for (const e of compEdges) {
+      nodes.add(e.from_id);
+      nodes.add(e.to_id);
+      if (!graph.has(e.from_id)) graph.set(e.from_id, []);
+      graph.get(e.from_id)!.push(e.to_id);
+    }
+
+    const memo = new Map<number, number>();
+    const dfs = (id: number, stack: Set<number>): number => {
+      const cached = memo.get(id);
+      if (cached != null) return cached;
+      if (stack.has(id)) return 0; // cycle is handled separately; avoid infinite recursion
+      stack.add(id);
+      let best = 1;
+      for (const next of graph.get(id) || []) {
+        best = Math.max(best, 1 + dfs(next, stack));
+      }
+      stack.delete(id);
+      memo.set(id, best);
+      return best;
+    };
+
+    let maxDepth = 0;
+    for (const id of nodes) {
+      maxDepth = Math.max(maxDepth, dfs(id, new Set<number>()));
+    }
+    return maxDepth;
   }
 
   function resizeCanvas() {

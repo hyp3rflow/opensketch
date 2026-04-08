@@ -1790,11 +1790,16 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Component Dependency Graph — 컴포넌트/인스턴스/중첩 참조를 그래프로 시각화하고 순환/과중첩 경고 (임팩트 중상, 난이도 중상)
 - Smart Animate Diff Inspector — 두 프레임 간 Smart Animate 대상 속성 매칭 결과/누락 원인 리포트 (임팩트 상, 난이도 상)
 - Auto Layout Gap Tokens — gap/padding을 variable token과 직접 바인딩해 테마/브레이크포인트별 spacing 시스템 동기화 (임팩트 중상, 난이도 중)
 - Prototype Event Timeline Recorder — prototype 실행 중 interaction/event/variable 변화를 타임라인으로 기록·재생·내보내기 (임팩트 중상, 난이도 상)
 
+## 완료된 기능 (추가 — Component Dependency Graph nesting warning, 2026-04-08)
+- Dependency Graph 패널 경고 영역을 `cycles + deep nesting` 2단으로 확장
+- ComponentInstance edge만 대상으로 최대 중첩 깊이 분석(DFS) 로직 추가
+- 중첩 깊이 5 이상일 때 "Deep component nesting" 경고 배너 표시
+- cycle 경고와 동시 표시 가능, 데이터 로드 실패 시 경고 상태 자동 초기화
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Variant Bulk Rename & Matrix Edit, 2026-04-08)
 - Component Set VARIANTS MATRIX 헤더에 `Bulk rename` 액션 추가
