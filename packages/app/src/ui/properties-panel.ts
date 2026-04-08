@@ -1479,21 +1479,89 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
                   matrixSection.style.cssText = "margin-top:8px;padding-top:8px;border-top:1px dashed rgba(139,92,246,0.25);";
 
                   const matrixTitle = document.createElement("div");
-                  matrixTitle.style.cssText = "font-size:10px;color:#a78bfa;margin-bottom:6px;font-weight:600;display:flex;align-items:center;justify-content:space-between;";
-                  matrixTitle.textContent = `VARIANTS MATRIX (${xAxis.name} × ${yAxis.name})`;
+                  matrixTitle.style.cssText = "font-size:10px;color:#a78bfa;margin-bottom:6px;font-weight:600;display:flex;align-items:center;justify-content:space-between;gap:6px;";
+
+                  const matrixTitleText = document.createElement("span");
+                  matrixTitleText.textContent = `VARIANTS MATRIX (${xAxis.name} × ${yAxis.name})`;
+                  matrixTitle.appendChild(matrixTitleText);
+
+                  const matrixTools = document.createElement("div");
+                  matrixTools.style.cssText = "display:flex;align-items:center;gap:4px;";
+
+                  const editModeSelect = document.createElement("select");
+                  editModeSelect.style.cssText = "height:20px;background:#2a2a2a;border:1px solid rgba(139,92,246,0.3);border-radius:4px;color:#ddd;font-size:10px;padding:0 6px;";
+                  [
+                    ["auto", "Auto"],
+                    ["switch", "Switch"],
+                    ["map", "Map current"],
+                  ].forEach(([value, label]) => {
+                    const o = document.createElement("option");
+                    o.value = value;
+                    o.textContent = String(label);
+                    editModeSelect.appendChild(o);
+                  });
+                  matrixTools.appendChild(editModeSelect);
+
+                  const renameBtn = document.createElement("button");
+                  renameBtn.type = "button";
+                  renameBtn.textContent = "Bulk rename";
+                  renameBtn.style.cssText = "height:20px;background:rgba(139,92,246,0.12);border:1px solid rgba(139,92,246,0.35);border-radius:4px;color:#ddd;font-size:10px;padding:0 6px;cursor:pointer;";
+                  matrixTools.appendChild(renameBtn);
+
+                  matrixTitle.appendChild(matrixTools);
                   matrixSection.appendChild(matrixTitle);
 
                   const matrixHint = document.createElement("div");
                   matrixHint.style.cssText = "font-size:9px;color:#7c3aed;margin-bottom:6px;line-height:1.35;";
-                  matrixHint.textContent = "Click: switch variant · Empty cell click/drag: map current variant here";
+                  matrixHint.textContent = "Drag supports multi-cell edit. Mode: Auto/Switch/Map current component.";
                   matrixSection.appendChild(matrixHint);
 
-                  const makeKey = (values: Record<string, string>) => {
-                    return Object.keys(values)
-                      .sort()
-                      .map((k) => `${k}=${values[k] ?? ""}`)
-                      .join(",");
+                  const makeKey = (values: Record<string, string>) => Object.keys(values).sort().map((k) => `${k}=${values[k] ?? ""}`).join(",");
+                  const parseKey = (key: string): Record<string, string> => {
+                    const out: Record<string, string> = {};
+                    for (const part of String(key || "").split(",")) {
+                      const idx = part.indexOf("=");
+                      if (idx <= 0) continue;
+                      out[part.slice(0, idx)] = part.slice(idx + 1);
+                    }
+                    return out;
                   };
+
+                  renameBtn.addEventListener("click", () => {
+                    const axisName = window.prompt(`Axis name to rename values (${xAxis.name} or ${yAxis.name})`, xAxis.name)?.trim();
+                    if (!axisName) return;
+                    const targetAxis = setInfo.axes.find((a: any) => a.name === axisName);
+                    if (!targetAxis) {
+                      alert(`Axis not found: ${axisName}`);
+                      return;
+                    }
+                    const findText = window.prompt("Find text (case-sensitive)", "Default") ?? "";
+                    const replaceText = window.prompt("Replace with", "Idle") ?? "";
+                    if (!findText) return;
+
+                    const newAxisValues = (targetAxis.values || []).map((v: string) => String(v).split(findText).join(replaceText));
+                    if (JSON.stringify(newAxisValues) === JSON.stringify(targetAxis.values || [])) return;
+
+                    editor.pushUndo();
+                    const ok = (editor.engine as any).update_component_set_axis(BigInt(setInfo.set_id), axisName, JSON.stringify(newAxisValues));
+                    if (!ok) {
+                      alert("Failed to rename axis values");
+                      return;
+                    }
+
+                    for (const [oldKey, comp] of Object.entries(variantMap || {})) {
+                      const values = parseKey(oldKey);
+                      if (values[axisName] != null) values[axisName] = String(values[axisName]).split(findText).join(replaceText);
+                      (editor.engine as any).set_component_set_variant_mapping(BigInt(setInfo.set_id), JSON.stringify(values), BigInt(Number(comp || 0)));
+                    }
+
+                    const switchedValues = { ...currentValues };
+                    if (switchedValues[axisName] != null) switchedValues[axisName] = String(switchedValues[axisName]).split(findText).join(replaceText);
+                    (editor.engine as any).switch_instance_set_variant(BigInt(id), JSON.stringify(switchedValues));
+
+                    editor.requestRender();
+                    refresh([id]);
+                  });
 
                   const grid = document.createElement("div");
                   grid.style.cssText = `
@@ -1543,9 +1611,10 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
                       cell.textContent = isMapped ? `#${mappedCompId}` : "+";
                       cell.title = `${yAxis.name}=${yVal}, ${xAxis.name}=${xVal}`;
 
-                      const applyCell = () => {
+                      const applyCell = (mode: "switch" | "map") => {
+                        if (mode === "switch" && !isMapped) return;
                         editor.pushUndo();
-                        if (isMapped) {
+                        if (mode === "switch") {
                           (editor.engine as any).switch_instance_set_variant(BigInt(id), JSON.stringify(values));
                         } else {
                           (editor.engine as any).set_component_set_variant_mapping(BigInt(setInfo.set_id), JSON.stringify(values), BigInt(setInfo.current_component_id));
@@ -1555,14 +1624,20 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
                         refresh([id]);
                       };
 
+                      const resolveMode = (): "switch" | "map" => {
+                        const forced = editModeSelect.value as "auto" | "switch" | "map";
+                        if (forced === "switch" || forced === "map") return forced;
+                        return isMapped ? "switch" : "map";
+                      };
+
                       cell.addEventListener("mousedown", () => {
-                        dragMode = isMapped ? "switch" : "map";
-                        applyCell();
+                        dragMode = resolveMode();
+                        applyCell(dragMode);
                       });
                       cell.addEventListener("mouseenter", (ev) => {
                         if ((ev as MouseEvent).buttons !== 1 || !dragMode) return;
-                        if (dragMode === "switch" && isMapped) applyCell();
-                        if (dragMode === "map" && !isMapped) applyCell();
+                        if (dragMode === "switch" && !isMapped) return;
+                        applyCell(dragMode);
                       });
 
                       grid.appendChild(cell);
