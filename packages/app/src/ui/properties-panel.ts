@@ -736,6 +736,98 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
 
       wrap.appendChild(alignSection);
 
+      // Multi-object Corner Smoothing (for rounded shape nodes)
+      const smoothingCapableIds = ids.filter((nodeId) => {
+        try {
+          const nodeJson = editor.engine.get_node_json(BigInt(nodeId));
+          if (!nodeJson) return false;
+          const node = JSON.parse(nodeJson);
+          const kind = typeof node.kind === "string" ? node.kind : Object.keys(node.kind || {})[0];
+          const supportsShape = kind === "Rectangle" || kind === "Frame" || kind === "Section";
+          return supportsShape && typeof node.corner_radius === "number" && node.corner_radius > 0;
+        } catch {
+          return false;
+        }
+      });
+
+      if (smoothingCapableIds.length > 0) {
+        const smoothSection = createSection("Corner Smoothing");
+
+        const smoothValues = smoothingCapableIds.map((nodeId) => {
+          try {
+            return (editor.engine as any).get_corner_smoothing
+              ? Number((editor.engine as any).get_corner_smoothing(BigInt(nodeId)) || 0)
+              : 0;
+          } catch {
+            return 0;
+          }
+        });
+        const basePercent = Math.round((smoothValues[0] || 0) * 100);
+        const isMixed = smoothValues.some((v) => Math.abs(v - smoothValues[0]) > 0.001);
+
+        const smoothRow = document.createElement("div");
+        smoothRow.style.cssText = "display:flex;align-items:center;gap:6px;margin-top:4px;";
+
+        const smoothLabel = document.createElement("span");
+        smoothLabel.style.cssText = "font-size:11px;color:#aaa;white-space:nowrap;min-width:74px;";
+        smoothLabel.textContent = "Smoothing";
+
+        const smoothSlider = document.createElement("input");
+        smoothSlider.type = "range";
+        smoothSlider.min = "0";
+        smoothSlider.max = "100";
+        smoothSlider.value = String(basePercent);
+        smoothSlider.style.cssText = "flex:1;height:4px;accent-color:#4a90d9;cursor:pointer;";
+
+        const smoothInput = document.createElement("input");
+        smoothInput.type = "number";
+        smoothInput.min = "0";
+        smoothInput.max = "100";
+        smoothInput.value = isMixed ? "" : String(basePercent);
+        smoothInput.placeholder = isMixed ? "Mixed" : "0";
+        smoothInput.style.cssText = "width:52px;background:#2a2a2a;border:1px solid #444;border-radius:4px;color:#ddd;font-size:11px;text-align:center;padding:2px;";
+
+        const applySmoothing = (percent: number) => {
+          const clamped = Math.max(0, Math.min(100, Number.isFinite(percent) ? percent : 0));
+          const normalized = clamped / 100;
+          editor.engine.push_undo();
+          for (const nodeId of smoothingCapableIds) {
+            (editor.engine as any).set_corner_smoothing(BigInt(nodeId), normalized);
+          }
+          smoothSlider.value = String(Math.round(clamped));
+          smoothInput.value = String(Math.round(clamped));
+          editor.requestRender();
+        };
+
+        smoothSlider.addEventListener("input", () => {
+          const val = parseFloat(smoothSlider.value);
+          smoothInput.value = String(Math.round(val));
+        });
+
+        smoothSlider.addEventListener("change", () => {
+          const val = parseFloat(smoothSlider.value);
+          applySmoothing(val);
+        });
+
+        smoothInput.addEventListener("change", () => {
+          const val = parseFloat(smoothInput.value);
+          const safe = Number.isFinite(val) ? val : parseFloat(smoothSlider.value) || 0;
+          applySmoothing(safe);
+        });
+
+        const hint = document.createElement("div");
+        hint.style.cssText = "font-size:10px;color:#777;margin-top:6px;";
+        hint.textContent = `Applies to ${smoothingCapableIds.length} rounded shape${smoothingCapableIds.length > 1 ? "s" : ""}.`;
+
+        smoothRow.appendChild(smoothLabel);
+        smoothRow.appendChild(smoothSlider);
+        smoothRow.appendChild(smoothInput);
+        smoothSection.appendChild(smoothRow);
+        smoothSection.appendChild(hint);
+
+        wrap.appendChild(smoothSection);
+      }
+
       // Auto-suggest Layout section (2+ nodes)
       const suggestSection = createSection("AI Layout");
       const suggestBtn = document.createElement("button");
@@ -6125,6 +6217,61 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             ? "Drag keyframes on timeline. Click rail to add keyframe, edit selected easing."
             : "Switch transition to Smart Animate to enable timeline.";
           timelineWrap.appendChild(hint);
+
+          // Smart Animate Diff Inspector (match/missing diagnostics)
+          if (isSmartAnimate) {
+            const inspectorWrap = document.createElement("div");
+            inspectorWrap.style.cssText = "margin-bottom:8px;padding:8px;border:1px solid #2f3442;border-radius:6px;background:rgba(39,56,92,0.14);";
+
+            const topRow = document.createElement("div");
+            topRow.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:6px;";
+
+            const title = document.createElement("span");
+            title.style.cssText = "font-size:10px;color:#9fb8ff;";
+            title.textContent = "Diff Inspector";
+
+            const runBtn = document.createElement("button");
+            runBtn.style.cssText = "padding:3px 8px;border:1px solid #4f46e5;border-radius:4px;background:rgba(79,70,229,0.15);color:#a5b4fc;cursor:pointer;font-size:10px;";
+            runBtn.textContent = "Analyze";
+
+            const result = document.createElement("div");
+            result.style.cssText = "margin-top:6px;font-size:10px;color:#a3a3a3;line-height:1.5;";
+            result.textContent = "Run Analyze to inspect matched layers and missing reasons.";
+
+            runBtn.addEventListener("click", () => {
+              const fromId = Number(id);
+              const toId = parseInt(targetInput.value) || Number(inter.target_node_id || 0);
+              if (!toId) {
+                result.innerHTML = '<span style="color:#fca5a5;">Set a target frame first.</span>';
+                return;
+              }
+              try {
+                const raw = (editor.engine as any).compute_auto_animate(BigInt(fromId), BigInt(toId));
+                const parsed = JSON.parse(raw || "{}");
+                const pairs = Array.isArray(parsed.pairs) ? parsed.pairs : [];
+                const removed = Array.isArray(parsed.removed) ? parsed.removed : [];
+                const added = Array.isArray(parsed.added) ? parsed.added : [];
+
+                const removedList = removed.slice(0, 5).map((n: any) => n?.name || `#${n?.id ?? "?"}`).join(", ");
+                const addedList = added.slice(0, 5).map((n: any) => n?.name || `#${n?.id ?? "?"}`).join(", ");
+
+                result.innerHTML = `
+                  <div>Matched: <b style="color:#93c5fd;">${pairs.length}</b></div>
+                  <div>Missing in target (fade out): <b style="color:#fda4af;">${removed.length}</b>${removed.length ? ` · ${removedList}` : ""}</div>
+                  <div>New in target (fade in): <b style="color:#86efac;">${added.length}</b>${added.length ? ` · ${addedList}` : ""}</div>
+                  <div style="color:#737373;margin-top:4px;">Unmatched nodes are usually name mismatches or one-sided layer existence.</div>
+                `;
+              } catch {
+                result.innerHTML = '<span style="color:#fca5a5;">Failed to analyze Smart Animate diff.</span>';
+              }
+            });
+
+            topRow.appendChild(title);
+            topRow.appendChild(runBtn);
+            inspectorWrap.appendChild(topRow);
+            inspectorWrap.appendChild(result);
+            timelineWrap.appendChild(inspectorWrap);
+          }
 
           let timeline: Array<{ time: number; label: string; easing: string }> = [];
           try { timeline = JSON.parse(inter.smart_animate_timeline_json || "[]"); } catch {}

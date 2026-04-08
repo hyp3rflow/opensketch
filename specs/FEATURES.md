@@ -354,6 +354,7 @@
   - Properties panel: "Interactions" section with trigger/action/target/transition/duration/easing editors, add/remove
   - Smart Animate Timeline: interaction card에 시각 타임라인 레일 + keyframe diamond 편집기 추가 (드래그로 시간 이동, 레일 클릭으로 mid keyframe 추가, 선택 keyframe easing 편집/삭제), interaction에 `smart_animate_timeline_json`으로 저장
   - Smart Animate Timeline polish: duration 변경 시 keyframe 시간을 비율 유지로 자동 리타이밍, 레일 0~100% tick(ms) 표시, 선택 keyframe % 라벨 표시
+  - Smart Animate Diff Inspector: interaction 카드에서 Analyze 버튼으로 from/to frame의 auto-animate 매칭 결과를 즉시 진단 (matched/removed/added 카운트 + 샘플 레이어명), 누락 원인(이름 불일치/단측 존재) 확인 가능
   - Prototype viewer Smart Animate는 timeline segment별 easing을 반영해 시간 remap 후 보간
   - Easing curve editor: SVG-based 120×120 cubic-bezier editor with draggable control points, preset buttons (Linear/EaseIn/EaseOut/EaseInOut/Custom), inline in interaction section
   - Prototype viewer: full-screen overlay, click navigation, back stack, Esc to close

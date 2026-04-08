@@ -1790,9 +1790,18 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Smart Animate Diff Inspector — 두 프레임 간 Smart Animate 대상 속성 매칭 결과/누락 원인 리포트 (임팩트 상, 난이도 상)
 - Auto Layout Gap Tokens — gap/padding을 variable token과 직접 바인딩해 테마/브레이크포인트별 spacing 시스템 동기화 (임팩트 중상, 난이도 중)
 - Prototype Event Timeline Recorder — prototype 실행 중 interaction/event/variable 변화를 타임라인으로 기록·재생·내보내기 (임팩트 중상, 난이도 상)
+- Motion Path Editor (Figma-style) — Smart Animate 이동 경로를 베지어 경로로 직접 편집 + 핸들 UI (임팩트 상, 난이도 상)
+- Interactive Component State Matrix — variant state(hover/press/focus/disabled) 전이 테이블 시각화/일괄 생성 (임팩트 중상, 난이도 중)
+- Prototype Conditional Routing — 조건식(variable/viewport/device) 기반 분기 네비게이션 액션 (임팩트 상, 난이도 상)
+
+## 완료된 기능 (추가 — Smart Animate Diff Inspector, 2026-04-08)
+- Interaction > Smart Animate Timeline 영역에 `Diff Inspector` 카드 추가
+- Analyze 버튼으로 `compute_auto_animate(fromFrame, toFrame)` 실행하여 매칭/누락 현황 즉시 진단
+- 진단 항목: Matched pair 수, target에 없는 레이어(removed), target에서 새로 생기는 레이어(added)
+- 각 누락/추가 목록은 샘플 레이어명(최대 5개) 노출, 일반 누락 원인(name mismatch / one-sided existence) 힌트 제공
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Constraints Presets Library UX refresh, 2026-04-08)
 - Constraints 섹션의 반응형 프리셋 플로우를 prompt 기반 선택에서 인라인 Library 드롭다운 기반으로 개선
