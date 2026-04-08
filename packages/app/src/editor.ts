@@ -8307,7 +8307,7 @@ export class Editor {
   }
 
   openComponentAnalytics() {
-    openComponentAnalytics(this.engine, (nodeId, pageId) => {
+    openComponentAnalytics(this, (nodeId, pageId) => {
       // Navigate to page and select node
       const pages = JSON.parse(this.engine.get_pages());
       const pageIdx = pages.findIndex((p: any) => p.id === pageId);

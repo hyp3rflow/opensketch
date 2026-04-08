@@ -1424,6 +1424,8 @@ Frame overflow control and content scrolling.
 - [x] **WASM binding**: `component_analytics()` → JSON
 - [x] **UI**: Floating modal panel (Cmd/Ctrl+Alt+A shortcut)
 - [x] **Navigation**: Click instance location to jump to that node/page
+- [x] **Usage heatmap overlay**: Optional canvas overlay from analytics panel to visualize instance density (blue→red intensity)
+- [x] **Unused candidate emphasis**: Summary card + list styling highlights zero-instance components for cleanup
 
 ### Smart Component Suggestions
 - [x] **Structural duplicate detection**: Identical subtree fingerprinting
