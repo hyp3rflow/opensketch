@@ -1790,9 +1790,10 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Text on Path — Path/Vector 위에 텍스트를 곡선 따라 배치하고 offset/reverse/align(start|center|end) 제어 (임팩트 상, 난이도 상)
-- Prototype Conditional Logic Builder — Interaction에 if/else 조건식(변수 비교/다중 분기) 시각 편집기 추가 (임팩트 상, 난이도 중상)
-- Asset Relink Manager — 누락 이미지/비디오/폰트 에셋 일괄 재연결 + 경로 매핑 규칙 저장 (임팩트 중상, 난이도 중)
+- Dev Handoff Asset Slices Packager — 선택 Frame의 Slice/Export preset을 플랫폼(iOS/Android/Web)별 zip으로 묶어 내보내기 (임팩트 상, 난이도 중상)
+- Variant Matrix Editor v2 — variant set을 2D matrix에서 bulk rename/reorder + axis lock 편집 (임팩트 상, 난이도 중상)
+- Prototype Session Share Link — 현재 flow/start frame/variable state를 URL에 직렬화해 공유 가능한 preview 링크 생성 (임팩트 중상, 난이도 중)
+- Font Fallback Inspector — 텍스트 노드별 실제 렌더 fallback font 감지/리포트 + 일괄 치환 제안 (임팩트 중상, 난이도 중)
 
 ## 완료된 기능 (추가 — Constraint Debug Overlay, 2026-04-09)
 - Responsive Preview 모드에 `Constraint Debug Overlay` 패널 추가 (우하단)
@@ -1808,6 +1809,14 @@
   - Text styles: add/update
   - Variables(Tokens 컬렉션): add/update
 - `Apply Diff`로 변경사항 일괄 반영 (undo + apply_variables + render 통합)
+- specs 반영: `specs/FEATURES.md`
+
+## 완료된 기능 (추가 — Asset Relink Manager rules persistence, 2026-04-09)
+- Assets 패널 `Asset Relink Manager`에 경로 매핑 규칙 저장/재사용 기능 추가
+  - Find/Replace 규칙을 로컬 스토리지에 저장 (`opensketch-asset-relink-rules-v1`)
+  - Saved rules 드롭다운에서 기존 매핑 즉시 재적용
+  - 중복 규칙 dedupe + 최근 규칙 우선 정렬(최대 20개)
+- 기존 Relink all 흐름과 통합되어 반복 에셋 재연결 속도 개선
 - specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Smart Animate Timeline Editor v2, 2026-04-09)

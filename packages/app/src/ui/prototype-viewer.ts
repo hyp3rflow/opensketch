@@ -25,6 +25,22 @@ export function createPrototypeViewer(editor: Editor): {
   let snapPaginationEl: HTMLDivElement | null = null;
   let snapPaginationState: { frameId: number; axis: "x" | "y"; points: number[]; activeIndex: number } | null = null;
 
+  type RecordedProtoEvent = {
+    t: number;
+    kind: "click" | "scroll" | "navigate";
+    frameId: number | null;
+    nodeId?: number;
+    x?: number;
+    y?: number;
+    dx?: number;
+    dy?: number;
+    toFrameId?: number;
+    action?: string;
+  };
+  let recorderEnabled = false;
+  let recorderStartedAt = 0;
+  let recorderEvents: RecordedProtoEvent[] = [];
+
   type PrototypeDevicePreset = {
     id: string;
     label: string;
@@ -268,6 +284,39 @@ export function createPrototypeViewer(editor: Editor): {
     varsPanel.style.display = "";
   }
 
+  function recordEvent(partial: Omit<RecordedProtoEvent, "t">) {
+    if (!recorderEnabled) return;
+    recorderEvents.push({ t: Math.max(0, performance.now() - recorderStartedAt), ...partial });
+  }
+
+  function buildInteractionDraft() {
+    const navs = recorderEvents.filter((e) => e.kind === "navigate" && e.toFrameId && e.frameId && e.nodeId);
+    const dedup = new Map<string, { sourceFrameId: number; sourceNodeId: number; targetFrameId: number; trigger: string; action: string; count: number }>();
+    for (const n of navs) {
+      const key = `${n.frameId}:${n.nodeId}:${n.toFrameId}:${n.action || "NavigateTo"}`;
+      const prev = dedup.get(key);
+      if (prev) prev.count += 1;
+      else dedup.set(key, {
+        sourceFrameId: Number(n.frameId),
+        sourceNodeId: Number(n.nodeId),
+        targetFrameId: Number(n.toFrameId),
+        trigger: "OnClick",
+        action: String(n.action || "NavigateTo"),
+        count: 1,
+      });
+    }
+    return {
+      version: 1,
+      generatedAt: new Date().toISOString(),
+      session: {
+        totalEvents: recorderEvents.length,
+        navigateEvents: navs.length,
+      },
+      interactions: Array.from(dedup.values()),
+      timeline: recorderEvents,
+    };
+  }
+
   function show(startFrameId?: number) {
     if (active) return;
     active = true;
@@ -407,6 +456,38 @@ export function createPrototypeViewer(editor: Editor): {
     physicsWrap.appendChild(physicsSel);
     topBar.appendChild(physicsWrap);
 
+    const recBtn = document.createElement("button");
+    recBtn.style.cssText = "background:#334155;color:#e2e8f0;border:none;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:12px;";
+    recBtn.textContent = "⏺ Record";
+    recBtn.addEventListener("click", () => {
+      recorderEnabled = !recorderEnabled;
+      if (recorderEnabled) {
+        recorderEvents = [];
+        recorderStartedAt = performance.now();
+        recBtn.textContent = "⏹ Stop";
+        recBtn.style.background = "#dc2626";
+      } else {
+        recBtn.textContent = `⏺ Record (${recorderEvents.length})`;
+        recBtn.style.background = "#334155";
+      }
+    });
+    topBar.appendChild(recBtn);
+
+    const draftBtn = document.createElement("button");
+    draftBtn.style.cssText = "background:#0f766e;color:#ecfeff;border:none;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:12px;";
+    draftBtn.textContent = "Draft JSON";
+    draftBtn.addEventListener("click", async () => {
+      const payload = JSON.stringify(buildInteractionDraft(), null, 2);
+      try {
+        await navigator.clipboard.writeText(payload);
+        draftBtn.textContent = "✓ Copied";
+        setTimeout(() => { draftBtn.textContent = "Draft JSON"; }, 1200);
+      } catch {
+        alert(payload);
+      }
+    });
+    topBar.appendChild(draftBtn);
+
     const closeBtn = document.createElement("button");
     closeBtn.style.cssText = "background:#e94560;color:white;border:none;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:12px;";
     closeBtn.textContent = "Close (Esc)";
@@ -522,6 +603,7 @@ export function createPrototypeViewer(editor: Editor): {
     const prevFrameId = currentFrameId;
     if (currentFrameId !== null) navigationStack.push(currentFrameId);
     currentFrameId = frameId;
+    recordEvent({ kind: "navigate", frameId: prevFrameId, toFrameId: frameId, action: "NavigateTo" });
 
     if (transition === "Instant" || !prevFrameId) {
       renderCurrentView();
@@ -1467,6 +1549,7 @@ export function createPrototypeViewer(editor: Editor): {
     if (inter.action === "NavigateTo" && targetId > 0) {
       const targetPageId = Number(inter.target_page_id);
       if (targetPageId > 0) editor.engine.set_active_page(BigInt(targetPageId));
+      recordEvent({ kind: "navigate", frameId: currentFrameId, nodeId: sourceNodeId, toFrameId: targetId, action: "NavigateTo" });
       let timeline: SmartTimelineKeyframe[] | undefined;
       try {
         const parsed = JSON.parse(inter.smart_animate_timeline_json || "[]");
@@ -1474,6 +1557,7 @@ export function createPrototypeViewer(editor: Editor): {
       } catch {}
       navigateTo(targetId, inter.transition || "Instant", inter.transition_duration_ms || 300, inter.easing || "ease_in_out", timeline);
     } else if (inter.action === "Back") {
+      recordEvent({ kind: "navigate", frameId: currentFrameId, nodeId: sourceNodeId, action: "Back" });
       navigateBack();
     } else if (inter.action === "SwapVariant" && inter.variant_key_json) {
       // Find the instance node: use target_node_id if set, otherwise the source node itself
@@ -1620,6 +1704,8 @@ export function createPrototypeViewer(editor: Editor): {
 
   function onCanvasClick(e: MouseEvent) {
     if (!viewCanvas || transitioning) return;
+    const clickedNodeId = findNodeAtPoint(e.clientX, e.clientY);
+    recordEvent({ kind: "click", frameId: currentFrameId, nodeId: clickedNodeId ?? undefined, x: e.clientX, y: e.clientY });
     // Fire node event
     if (eventRuntime) {
       const nodeId = findNodeAtPoint(e.clientX, e.clientY);
@@ -2001,6 +2087,7 @@ export function createPrototypeViewer(editor: Editor): {
     if (scrollFrameId === null) return;
 
     e.preventDefault();
+    recordEvent({ kind: "scroll", frameId: currentFrameId, nodeId: scrollFrameId, dx: e.deltaX, dy: e.deltaY, x: e.clientX, y: e.clientY });
     const overflow = editor.engine.get_overflow(BigInt(scrollFrameId));
     const scrollsX = overflow === "scroll-both" || overflow === "scroll-horizontal";
     const scrollsY = overflow === "scroll-both" || overflow === "scroll-vertical";

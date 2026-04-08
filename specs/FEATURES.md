@@ -363,6 +363,7 @@
   - Prototype viewer Device Preview: top-bar device preset selector (No Device/iPhone/Pixel/iPad), frame bezel+corner radius+notch overlay, safe-area inset guide, preview scrollbar indicator
   - Device preview polish: Portrait/Landscape orientation switch + Safe Area overlay toggle, and safe-area/notch metrics are normalized from device reference size to current frame size for responsive preview
   - Prototype viewer Scroll Physics Presets: top-bar Scroll preset selector (iOS/Android/Web), wheel/touch gain + overscroll clamp + inertia decay 프리뷰
+  - Prototype Event Recorder (draft): top-bar `Record`로 click/scroll/navigate 이벤트 타임라인 캡처, `Draft JSON`으로 interaction draft(+timeline) JSON 생성 및 클립보드 복사
   - Animated transitions: Dissolve (cross-fade), SlideIn (from right), SlideOut (old exits right), Push (both move), SmartAnimate (name-matched node interpolation with position/size cross-fade)
   - SmartAnimate: Rust engine `compute_auto_animate(from, to)` matches descendants by name, returns paired snapshots with full property diffs (position, size, rotation, opacity, corner_radius, blur, fill color, stroke width)
   - SmartAnimate rendering: matched nodes interpolate all properties with cubic ease-in-out, rotation via canvas transform, rounded clip for corner_radius, removed nodes fade out, added nodes fade in
@@ -642,6 +643,7 @@
 - [x] **Color Styles section**: Color swatch + name + hex value, click to apply to selected nodes
 - [x] **Text Styles section**: Font preview "Ag" + name + font details, click to apply text style to selected nodes
 - [x] **Asset Relink Manager (2026-04-08)**: Assets 패널에 깨진 Image/Video src 스캔 + 일괄 경로 재매핑(Find prefix → Replace) 도구 추가. 빈 src/비이식성 file path/상대경로 의심/이미지 로드 실패를 reason과 함께 탐지하여 일괄 relink 지원.
+- [x] **Asset Relink rules persistence (2026-04-09)**: Find/Replace 매핑 규칙을 localStorage(`opensketch-asset-relink-rules-v1`)에 저장/재사용. Saved rules 드롭다운으로 빠른 재적용, 중복 제거, 최근 규칙 우선(최대 20개).
 
 ### Section Nodes
 - [x] **NodeKind::Section**: Page organization container (like Frame but with prominent title label)

@@ -7,6 +7,22 @@ export function setupAssetPanel(container: HTMLElement, editor: Editor) {
   let searchQuery = "";
   let brokenMedia: MediaItem[] = [];
   let scanning = false;
+  const RELINK_RULES_KEY = "opensketch-asset-relink-rules-v1";
+
+  const loadRelinkRules = (): Array<{ from: string; to: string }> => {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(RELINK_RULES_KEY) || "[]");
+      return Array.isArray(parsed) ? parsed.filter((r) => r?.from && r?.to) : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const saveRelinkRules = (rules: Array<{ from: string; to: string }>) => {
+    try {
+      localStorage.setItem(RELINK_RULES_KEY, JSON.stringify(rules.slice(0, 20)));
+    } catch {}
+  };
 
   function refresh() {
     container.innerHTML = "";
@@ -196,13 +212,42 @@ export function setupAssetPanel(container: HTMLElement, editor: Editor) {
       body.appendChild(summary);
 
       const mapRow = document.createElement("div");
-      mapRow.style.cssText = "display:flex;gap:6px;margin-bottom:8px;";
+      mapRow.style.cssText = "display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;";
       const fromInput = document.createElement("input");
       fromInput.placeholder = "Find path prefix";
-      fromInput.style.cssText = "flex:1;min-width:0;background:#111827;border:1px solid #374151;border-radius:6px;padding:6px 8px;color:#e5e7eb;font-size:11px;";
+      fromInput.style.cssText = "flex:1;min-width:180px;background:#111827;border:1px solid #374151;border-radius:6px;padding:6px 8px;color:#e5e7eb;font-size:11px;";
       const toInput = document.createElement("input");
       toInput.placeholder = "Replace with";
       toInput.style.cssText = fromInput.style.cssText;
+
+      const rules = loadRelinkRules();
+      const ruleSelect = document.createElement("select");
+      ruleSelect.style.cssText = "min-width:160px;background:#0f172a;border:1px solid #334155;border-radius:6px;padding:6px 8px;color:#cbd5e1;font-size:11px;";
+      ruleSelect.innerHTML = `<option value="">Saved rules…</option>${rules.map((r, i) => `<option value="${i}">${escapeHtml(r.from)} → ${escapeHtml(r.to)}</option>`).join("")}`;
+      ruleSelect.addEventListener("change", () => {
+        const idx = Number(ruleSelect.value);
+        if (!Number.isFinite(idx)) return;
+        const picked = rules[idx];
+        if (!picked) return;
+        fromInput.value = picked.from;
+        toInput.value = picked.to;
+      });
+
+      const saveRuleBtn = document.createElement("button");
+      saveRuleBtn.textContent = "Save rule";
+      saveRuleBtn.style.cssText = "font-size:11px;padding:6px 8px;border-radius:6px;border:1px solid #475569;background:#1e293b;color:#cbd5e1;cursor:pointer;";
+      saveRuleBtn.addEventListener("click", () => {
+        const from = fromInput.value.trim();
+        const to = toInput.value.trim();
+        if (!from || !to) return;
+        const next = [
+          { from, to },
+          ...rules.filter((r) => !(r.from === from && r.to === to)),
+        ];
+        saveRelinkRules(next);
+        refresh();
+      });
+
       const relinkAllBtn = document.createElement("button");
       relinkAllBtn.textContent = "Relink all";
       relinkAllBtn.style.cssText = "font-size:11px;padding:6px 8px;border-radius:6px;border:1px solid #2563eb;background:#1d4ed8;color:#dbeafe;cursor:pointer;";
@@ -221,7 +266,7 @@ export function setupAssetPanel(container: HTMLElement, editor: Editor) {
         refresh();
         editor.requestRender();
       });
-      mapRow.append(fromInput, toInput, relinkAllBtn);
+      mapRow.append(fromInput, toInput, ruleSelect, saveRuleBtn, relinkAllBtn);
       body.appendChild(mapRow);
 
       const list = document.createElement("div");
