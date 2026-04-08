@@ -38,6 +38,7 @@ export class ResponsiveResize {
   private rulerEl: HTMLDivElement | null = null;
   private dimLabel: HTMLDivElement | null = null;
   private bpLabel: HTMLDivElement | null = null;
+  private debugEl: HTMLDivElement | null = null;
 
   // Drag state
   private dragging: "left" | "right" | "bottom" | null = null;
@@ -156,6 +157,7 @@ export class ResponsiveResize {
       </div>
       <div class="rr-dim-label" id="rr-dim-label"></div>
       <div class="rr-bp-label" id="rr-bp-label"></div>
+      <div class="rr-constraint-debug" id="rr-constraint-debug"></div>
     `;
 
     document.body.appendChild(this.overlayEl);
@@ -163,6 +165,7 @@ export class ResponsiveResize {
     this.rulerEl = this.overlayEl.querySelector("#rr-ruler") as HTMLDivElement;
     this.dimLabel = this.overlayEl.querySelector("#rr-dim-label") as HTMLDivElement;
     this.bpLabel = this.overlayEl.querySelector("#rr-bp-label") as HTMLDivElement;
+    this.debugEl = this.overlayEl.querySelector("#rr-constraint-debug") as HTMLDivElement;
 
     // Events
     this.overlayEl.querySelector(".rr-reset")!.addEventListener("click", () => {
@@ -187,6 +190,7 @@ export class ResponsiveResize {
       this.rulerEl = null;
       this.dimLabel = null;
       this.bpLabel = null;
+      this.debugEl = null;
     }
   }
 
@@ -236,6 +240,62 @@ export class ResponsiveResize {
 
     // Update breakpoint ruler
     this.updateRuler(w);
+    this.renderConstraintDebug(node);
+  }
+
+
+  private renderConstraintDebug(parentNode: any) {
+    if (!this.debugEl || this.targetNodeId == null) return;
+    const parentW0 = this.originalWidth || parentNode.width;
+    const parentH0 = this.originalHeight || parentNode.height;
+    const parentW = Number(parentNode.width || 0);
+    const parentH = Number(parentNode.height || 0);
+    const dw = parentW - parentW0;
+    const dh = parentH - parentH0;
+
+    const childIds: number[] = Array.isArray(parentNode.children) ? parentNode.children.map((x: any) => Number(x)) : [];
+    if (childIds.length === 0) {
+      this.debugEl.style.display = "none";
+      return;
+    }
+
+    const rows: string[] = [];
+    for (const childId of childIds.slice(0, 8)) {
+      const childJson = this.engine.get_node_json(BigInt(childId));
+      if (!childJson) continue;
+      const child = JSON.parse(childJson);
+      let c = { horizontal: "left", vertical: "top" };
+      try {
+        c = JSON.parse(this.engine.get_constraints(BigInt(childId)) || "{}") || c;
+      } catch {}
+      const h = String(c.horizontal || "left");
+      const v = String(c.vertical || "top");
+      const hRule = this.describeConstraintAxis(h, dw, "x", "w");
+      const vRule = this.describeConstraintAxis(v, dh, "y", "h");
+      rows.push(`<div class="rr-cd-row"><span class="rr-cd-name">${this.escapeHtml(child.name || `Layer ${childId}`)}</span><span class="rr-cd-rule">H:${h} → ${hRule}</span><span class="rr-cd-rule">V:${v} → ${vRule}</span></div>`);
+    }
+
+    const more = childIds.length > 8 ? `<div class="rr-cd-more">+${childIds.length - 8} more children…</div>` : "";
+    this.debugEl.innerHTML = `<div class="rr-cd-title">Constraint Debug Overlay</div><div class="rr-cd-meta">ΔW ${dw.toFixed(1)} / ΔH ${dh.toFixed(1)}</div>${rows.join("")}${more}`;
+    this.debugEl.style.display = "block";
+  }
+
+  private describeConstraintAxis(mode: string, delta: number, posAxis: string, sizeAxis: string): string {
+    const d = delta.toFixed(1);
+    if (mode === "left" || mode === "top") return `${posAxis} fixed`;
+    if (mode === "right" || mode === "bottom") return `${posAxis} + ${d}`;
+    if (mode === "leftAndRight" || mode === "topAndBottom") return `${sizeAxis} + ${d}`;
+    if (mode === "center") return `${posAxis} + ${(delta / 2).toFixed(1)}`;
+    if (mode === "scale") return `${posAxis}/${sizeAxis} scale`;
+    return "-";
+  }
+
+  private escapeHtml(text: string): string {
+    return text
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;");
   }
 
   private updateRuler(currentWidth: number) {
@@ -661,6 +721,29 @@ export class ResponsiveResize {
         letter-spacing: 0.5px;
         text-transform: uppercase;
       }
+      .rr-constraint-debug {
+        position: fixed;
+        right: 16px;
+        bottom: 16px;
+        width: 360px;
+        max-height: 45vh;
+        overflow: auto;
+        background: rgba(20, 22, 30, 0.94);
+        border: 1px solid rgba(255,255,255,0.14);
+        border-radius: 10px;
+        padding: 10px;
+        color: #d7dde9;
+        font-size: 11px;
+        z-index: 10003;
+        display: none;
+        backdrop-filter: blur(6px);
+      }
+      .rr-cd-title { font-size: 12px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+      .rr-cd-meta { color: #8ca0bf; margin-bottom: 8px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+      .rr-cd-row { display: grid; grid-template-columns: 1fr; gap: 2px; padding: 6px 0; border-top: 1px solid rgba(255,255,255,0.06); }
+      .rr-cd-name { font-weight: 600; color: #ffffff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .rr-cd-rule { color: #b9c7dc; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+      .rr-cd-more { margin-top: 6px; color: #91a3bd; }
     `;
   }
 }

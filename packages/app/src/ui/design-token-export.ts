@@ -179,14 +179,43 @@ function closePanel() {
 }
 
 function flattenTokens(input: any, path: string[] = [], out: TokenLeaf[] = []): TokenLeaf[] {
-  if (!input || typeof input !== 'object') return out;
+  if (input == null) return out;
+
+  // Style Dictionary leafs often end as primitives at the path.
+  if (typeof input !== 'object') {
+    out.push({ path: path.join('.'), value: input });
+    return out;
+  }
+
   const hasVal = Object.prototype.hasOwnProperty.call(input, '$value') || Object.prototype.hasOwnProperty.call(input, 'value');
   if (hasVal) {
     out.push({ path: path.join('.'), value: (input.$value ?? input.value) });
     return out;
   }
-  for (const [k, v] of Object.entries(input)) flattenTokens(v, [...path, k], out);
+
+  // Allow typography bundles as direct leaves.
+  if (looksLikeTypography(input)) {
+    out.push({ path: path.join('.'), value: input });
+    return out;
+  }
+
+  for (const [k, v] of Object.entries(input)) {
+    if (k.startsWith('$')) continue;
+    flattenTokens(v, [...path, k], out);
+  }
   return out;
+}
+
+function resolveTokenReference(value: any, lookup: Map<string, any>, seen: Set<string> = new Set()): any {
+  if (typeof value !== 'string') return value;
+  const m = value.trim().match(/^\{([^}]+)\}$/);
+  if (!m) return value;
+  const key = m[1].trim();
+  if (seen.has(key)) return value;
+  const next = lookup.get(key);
+  if (next === undefined) return value;
+  seen.add(key);
+  return resolveTokenReference(next, lookup, seen);
 }
 
 function looksLikeTypography(v: any) {
@@ -232,8 +261,14 @@ function computeDiff(editor: Editor, leaves: TokenLeaf[]): DiffResult {
   const tMap = new Map(texts.map(s => [s.name, s]));
   const vMap = new Map(vars.map((v:any) => [v.name, v]));
 
+  const resolvedLookup = new Map(leaves.map(l => [l.path, l.value]));
+  const resolvedLeaves = leaves.map(leaf => ({
+    path: leaf.path,
+    value: resolveTokenReference(leaf.value, resolvedLookup),
+  }));
+
   const d: DiffResult = { addColor: [], updateColor: [], addText: [], updateText: [], addVar: [], updateVar: [] };
-  for (const leaf of leaves) {
+  for (const leaf of resolvedLeaves) {
     const name = leaf.path || 'token';
     const color = parseColor(leaf.value);
     if (color) {

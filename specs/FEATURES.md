@@ -444,6 +444,10 @@
   - Storage: localStorage (`opensketch-constraint-set-presets-v1`)
   - Custom preset은 이름 기준 덮어쓰기 저장(dedupe), 삭제 시 확인 다이얼로그 제공
   - Apply supports multi-selection (only nodes with Frame/Group parent are updated)
+- Constraint Debug Overlay (Responsive Preview):
+  - 리사이즈 중 우하단 패널에서 자식 레이어별 H/V constraint 해석 규칙을 실시간 표시
+  - 표시 형식: `x/y fixed`, `+Δ`, `size +Δ`, `scale` (mode별 계산 근거)
+  - 부모 변화량 `ΔW/ΔH`와 함께 확인하여 constraint 동작 디버깅 가능
 - Backward compatible via `#[serde(default)]`
 
 ### Mask / Clip (Figma-style)
@@ -543,7 +547,9 @@
 - [x] **CSS Variables format**: :root { --color-*, --font-family-*, --font-size-*, --font-weight-*, --line-height-* } + variable collections
 - [x] **SCSS Variables format**: $color-*, $font-family-*, $font-size-*, $font-weight-*, $line-height-* + variable collections
 - [x] **Design Token Export modal**: Format selection cards (W3C/Style Dictionary/Tailwind/CSS Variables/SCSS), live preview, copy to clipboard, download
-- [x] **Design Tokens Sync Bridge**: 동일 모달에서 JSON import → diff preview(add/update for color/text/variables) → one-click apply 지원 (Style Dictionary/W3C leaf token 파싱)
+- [x] **Design Tokens Sync Bridge**: 동일 모달에서 JSON import → diff preview(add/update for color/text/variables) → one-click apply 지원
+  - Style Dictionary primitive leaf + W3C `$value` leaf 파싱
+  - `{token.path}` alias reference resolve 후 diff/apply (cycle-safe)
 
 ### Design Token Aliasing
 - [x] **Token aliases**: TokenValue::Alias variant — tokens can reference other tokens via `{token.name}` syntax

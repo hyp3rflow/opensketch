@@ -1790,10 +1790,16 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Constraint Debug Overlay — 리사이즈 시 각 자식의 constraint 계산 근거(앵커/스케일/stretch) 실시간 시각화 (임팩트 중, 난이도 중)
 - Text on Path — Path/Vector 위에 텍스트를 곡선 따라 배치하고 offset/reverse/align(start|center|end) 제어 (임팩트 상, 난이도 상)
 - Prototype Conditional Logic Builder — Interaction에 if/else 조건식(변수 비교/다중 분기) 시각 편집기 추가 (임팩트 상, 난이도 중상)
 - Asset Relink Manager — 누락 이미지/비디오/폰트 에셋 일괄 재연결 + 경로 매핑 규칙 저장 (임팩트 중상, 난이도 중)
+
+## 완료된 기능 (추가 — Constraint Debug Overlay, 2026-04-09)
+- Responsive Preview 모드에 `Constraint Debug Overlay` 패널 추가 (우하단)
+- 프레임 리사이즈 중 자식 레이어별 constraint 규칙(H/V)과 적용 근거를 실시간 표시
+  - Left/Right/Center/Scale/Stretch(LeftAndRight, TopAndBottom) 별로 `x/y 고정`, `+Δ`, `size +Δ`, `scale` 형태로 해석 표시
+- 현재 부모 크기 변화량(ΔW/ΔH)과 함께 최대 8개 자식 레이어를 즉시 점검 가능
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Design Tokens Sync Bridge, 2026-04-09)
 - Design Token Export 모달을 `Export / Sync Bridge`로 확장
