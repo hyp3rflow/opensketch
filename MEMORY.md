@@ -1797,10 +1797,11 @@
 ## 완료된 기능 (추가 — Symbol Detach Preview + Selective Detach, 2026-04-08)
 - Engine: `get_detach_preview(instance_id)` 추가 — detach 전 영향 요약 JSON(서브트리 레이어 수, nested instance 수, text/fill/visible override 수, component property override 수, color/text style 링크 수)
 - Engine: `detach_instance_selective(instance_id, include_nested)` 추가 — 선택 인스턴스만 detach 또는 하위 인스턴스까지 일괄 detach
-- Properties panel: Detach 버튼 클릭 시 프리뷰 모달 표시
-  - 영향 요약 지표 표시
+- Symbol Detach Preview 모달 확장
+  - 영향 요약 지표 + 변경된 레이어/속성 목록(override node name + property list) 표시
   - `Also detach nested instances` 체크박스로 selective detach 제어
-- 기존 `detach_instance`와 단축키/컨텍스트 메뉴 플로우는 backward-compatible 유지
+  - Detach 진입점(속성 패널/컨텍스트 메뉴/단축키)에서 동일 모달 워크플로우 사용
+- 기존 `detach_instance`는 fallback으로 유지하면서, 실제 Detach 진입점(속성 패널 버튼 / 컨텍스트 메뉴 / Cmd/Ctrl+Alt+B)을 모두 preview 모달 경유로 통일
 - specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Layers Panel Grid/Stack View + Density, 2026-04-08)

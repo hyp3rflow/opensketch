@@ -36,6 +36,7 @@
 - [x] **Layers Panel View Modes**: stack↔grid toggle for faster scanning in large docs, with density options (Compact/Cozy) and persisted preference (localStorage). Grid mode shows flat layer cards with kind badges; stack mode keeps hierarchical drag reorder/workflow.
 - [x] **Properties Panel**: full node editing
   - Position (X/Y), Size (W/H), Rotation
+  - Instance detach preview modal (Detach button / context menu / ⌘⌥B): impact summary + changed layer/property list + selective detach toggle for nested instances before apply
   - Corner radius (Rect/Frame only)
   - Opacity (slider + percentage)
   - Fill color (picker + hex + alpha)

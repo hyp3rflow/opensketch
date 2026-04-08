@@ -13,6 +13,12 @@ type DetachPreview = {
   component_property_override_count: number;
 };
 
+type OverrideRow = {
+  node_id: number;
+  node_name: string;
+  properties: string[];
+};
+
 export function openSymbolDetachPreview(editor: Editor, instanceId: number): void {
   const previewRaw = (editor.engine as any).get_detach_preview?.(BigInt(instanceId));
   let preview: DetachPreview | null = null;
@@ -28,6 +34,20 @@ export function openSymbolDetachPreview(editor: Editor, instanceId: number): voi
       (editor as any).onLayersChanges?.forEach?.((fn: any) => fn());
     }
     return;
+  }
+
+  let overrideRows: OverrideRow[] = [];
+  try {
+    const raw = (editor.engine as any).get_instance_overridden_props?.(BigInt(instanceId));
+    const parsed = raw ? JSON.parse(raw) : null;
+    const arr = Array.isArray(parsed?.overrides) ? parsed.overrides : [];
+    overrideRows = arr.map((r: any) => ({
+      node_id: Number(r?.node_id || 0),
+      node_name: String(r?.node_name || `Node ${r?.node_id || "?"}`),
+      properties: Array.isArray(r?.properties) ? r.properties.map((p: any) => String(p)) : [],
+    })).filter((r: OverrideRow) => r.node_id > 0);
+  } catch {
+    overrideRows = [];
   }
 
   const overlay = document.createElement("div");
@@ -62,6 +82,29 @@ export function openSymbolDetachPreview(editor: Editor, instanceId: number): voi
   addRow("Color style linked layers", preview.color_style_link_count);
   addRow("Text style linked layers", preview.text_style_link_count);
   modal.appendChild(list);
+
+  if (overrideRows.length > 0) {
+    const ovTitle = document.createElement("div");
+    ovTitle.style.cssText = "margin-top:12px;font-size:12px;font-weight:600;color:#d1d5db;";
+    ovTitle.textContent = `Changed layers (${overrideRows.length})`;
+    modal.appendChild(ovTitle);
+
+    const ovList = document.createElement("div");
+    ovList.style.cssText = "margin-top:6px;max-height:150px;overflow:auto;border:1px solid #34344d;border-radius:8px;background:rgba(255,255,255,0.02);";
+    overrideRows.slice(0, 14).forEach((ov) => {
+      const row = document.createElement("div");
+      row.style.cssText = "padding:7px 9px;border-bottom:1px solid rgba(255,255,255,0.05);";
+      row.innerHTML = `<div style=\"font-size:11px;color:#f3f4f6;font-weight:600;\">${escapeHtml(ov.node_name)}</div><div style=\"font-size:11px;color:#9ca3af;\">${escapeHtml(ov.properties.join(", ") || "changed")}</div>`;
+      ovList.appendChild(row);
+    });
+    if (overrideRows.length > 14) {
+      const more = document.createElement("div");
+      more.style.cssText = "padding:7px 9px;font-size:11px;color:#9ca3af;";
+      more.textContent = `+${overrideRows.length - 14} more`;
+      ovList.appendChild(more);
+    }
+    modal.appendChild(ovList);
+  }
 
   const nestedRow = document.createElement("label");
   nestedRow.style.cssText = "display:flex;align-items:center;gap:8px;margin-top:12px;font-size:12px;color:#cbd5e1;";
@@ -98,4 +141,8 @@ export function openSymbolDetachPreview(editor: Editor, instanceId: number): voi
   overlay.appendChild(modal);
   overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
   document.body.appendChild(overlay);
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
