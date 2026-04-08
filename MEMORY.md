@@ -1802,6 +1802,7 @@
   - 그룹 내 다중 rule 추가/삭제 + 변수/연산자/값 편집
   - prototype variable 기본값 기준 branch preview(TRUE/FALSE) 제공
 - Prototype viewer 조건 평가기 개선: leaf 비교식 + AND/OR group 재귀 평가
+- Properties panel v2를 nested 트리 에디터로 확장: 루트/하위 +Condition/+Group, Remove, Reset to leaf/group, Clear 액션 지원
 - specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Component Usage Heatmap, 2026-04-08)

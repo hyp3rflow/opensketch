@@ -5559,191 +5559,301 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         }
         interEl.appendChild(setVarRow);
 
-        // --- Condition (optional, applies to any interaction) ---
+        // --- Condition (optional, v2 AND/OR group builder) ---
         const condRow = document.createElement("div");
         condRow.style.cssText = "margin-top:6px;border-top:1px solid #333;padding-top:6px;";
         {
-          type UiCondNode = { variable?: string; operator?: string; value?: string; logic?: "AND" | "OR"; conditions?: UiCondNode[] };
-          const OP_ITEMS: Array<[string, string]> = [["Equal","=="],["NotEqual","!="],["GreaterThan",">"],["LessThan","<"],["GreaterThanOrEqual",">="],["LessThanOrEqual","<="]];
-
           const condLabel = document.createElement("span");
           condLabel.style.cssText = "font-size:10px;color:#818cf8;display:block;margin-bottom:4px;";
           condLabel.textContent = "Condition (optional)";
           condRow.appendChild(condLabel);
 
-          let protoVars: Array<{ name?: string; default_value?: any; value?: any }> = [];
+          let protoVars: Array<{ name?: string; value?: any }> = [];
           try { protoVars = JSON.parse(editor.engine.get_prototype_variables() || "[]") || []; } catch {}
-          const varDefaults = new Map<string, string>();
-          for (const pv of protoVars) {
-            const n = String(pv?.name || "").trim();
-            if (!n) continue;
-            const v = pv?.value ?? pv?.default_value ?? "";
-            varDefaults.set(n, String(v));
-          }
 
-          const normalize = (raw: any): UiCondNode => {
-            if (!raw || typeof raw !== "object") return { variable: "", operator: "Equal", value: "" };
-            const logic = String(raw.logic || "").toUpperCase();
-            if ((logic === "AND" || logic === "OR") && Array.isArray(raw.conditions)) {
-              return { logic: logic as "AND" | "OR", conditions: raw.conditions.map((c: any) => normalize(c)) };
-            }
-            return { variable: String(raw.variable || ""), operator: String(raw.operator || "Equal"), value: String(raw.value ?? "") };
+          type CondNode = {
+            variable?: string;
+            operator?: string;
+            value?: string;
+            logic?: "AND" | "OR";
+            conditions?: CondNode[];
           };
 
-          let condState: UiCondNode = normalize(inter.condition || null);
-          const builderHost = document.createElement("div");
+          const normalizeCond = (raw: any): CondNode => {
+            if (!raw || typeof raw !== "object") return { variable: "", operator: "Equal", value: "" };
+            const children = Array.isArray(raw.conditions) ? raw.conditions.map(normalizeCond) : [];
+            const logic = String(raw.logic || "").toUpperCase();
+            if ((logic === "AND" || logic === "OR") && children.length > 0) {
+              return { logic: logic as "AND" | "OR", conditions: children };
+            }
+            return {
+              variable: String(raw.variable || ""),
+              operator: String(raw.operator || "Equal"),
+              value: String(raw.value ?? ""),
+            };
+          };
+
+          let condState: CondNode | null = inter.condition ? normalizeCond(inter.condition) : null;
+
+          const evalLeaf = (cond: CondNode): { result: boolean | null; current: string } => {
+            const vName = String(cond.variable || "").trim();
+            if (!vName) return { result: null, current: "" };
+            const current = protoVars.find(v => String(v?.name || "") === vName)?.value;
+            if (current == null) return { result: null, current: "(undefined)" };
+            const op = String(cond.operator || "Equal");
+            const right = String(cond.value ?? "");
+            const leftNum = Number(current);
+            const rightNum = Number(right);
+            const asNumber = Number.isFinite(leftNum) && Number.isFinite(rightNum) && right !== "";
+            let ok = false;
+            if (asNumber) {
+              if (op === "Equal") ok = Math.abs(leftNum - rightNum) < Number.EPSILON;
+              else if (op === "NotEqual") ok = Math.abs(leftNum - rightNum) >= Number.EPSILON;
+              else if (op === "GreaterThan") ok = leftNum > rightNum;
+              else if (op === "LessThan") ok = leftNum < rightNum;
+              else if (op === "GreaterThanOrEqual") ok = leftNum >= rightNum;
+              else if (op === "LessThanOrEqual") ok = leftNum <= rightNum;
+            } else {
+              const l = String(current);
+              if (op === "Equal") ok = l === right;
+              else if (op === "NotEqual") ok = l !== right;
+              else if (op === "GreaterThan") ok = l > right;
+              else if (op === "LessThan") ok = l < right;
+              else if (op === "GreaterThanOrEqual") ok = l >= right;
+              else if (op === "LessThanOrEqual") ok = l <= right;
+            }
+            return { result: ok, current: String(current) };
+          };
+
+          const evalCond = (cond: CondNode | null): boolean | null => {
+            if (!cond) return null;
+            const children = Array.isArray(cond.conditions) ? cond.conditions : [];
+            if ((cond.logic === "AND" || cond.logic === "OR") && children.length > 0) {
+              const vals = children.map(c => evalCond(c)).filter((v): v is boolean => v != null);
+              if (!vals.length) return null;
+              return cond.logic === "AND" ? vals.every(Boolean) : vals.some(Boolean);
+            }
+            return evalLeaf(cond).result;
+          };
+
           const preview = document.createElement("div");
           preview.style.cssText = "margin-top:6px;font-size:10px;color:#8b8b8b;";
-          const varListId = `proto-cond-vars-${id}-${idx}`;
-          const varList = document.createElement("datalist");
-          varList.id = varListId;
-          for (const vName of varDefaults.keys()) {
-            const opt = document.createElement("option");
-            opt.value = vName;
-            varList.appendChild(opt);
-          }
 
-          const evalLeaf = (node: UiCondNode): boolean => {
-            const name = String(node.variable || "").trim();
-            if (!name) return false;
-            const current = String(varDefaults.get(name) ?? "");
-            const right = String(node.value ?? "");
-            const op = String(node.operator || "Equal");
-            const l = Number(current); const r = Number(right);
-            const numeric = Number.isFinite(l) && Number.isFinite(r) && right !== "";
-            if (numeric) {
-              if (op === "Equal") return Math.abs(l - r) < Number.EPSILON;
-              if (op === "NotEqual") return Math.abs(l - r) >= Number.EPSILON;
-              if (op === "GreaterThan") return l > r;
-              if (op === "LessThan") return l < r;
-              if (op === "GreaterThanOrEqual") return l >= r;
-              if (op === "LessThanOrEqual") return l <= r;
-              return false;
-            }
-            if (op === "Equal") return current === right;
-            if (op === "NotEqual") return current !== right;
-            if (op === "GreaterThan") return current > right;
-            if (op === "LessThan") return current < right;
-            if (op === "GreaterThanOrEqual") return current >= right;
-            if (op === "LessThanOrEqual") return current <= right;
-            return false;
-          };
+          const builder = document.createElement("div");
+          builder.style.cssText = "display:flex;flex-direction:column;gap:4px;";
 
-          const evalNode = (node: UiCondNode): boolean => {
-            if ((node.logic === "AND" || node.logic === "OR") && Array.isArray(node.conditions)) {
-              if (node.conditions.length === 0) return false;
-              return node.logic === "AND" ? node.conditions.every(c => evalNode(c)) : node.conditions.some(c => evalNode(c));
-            }
-            return evalLeaf(node);
-          };
-
-          const serialize = (node: UiCondNode): string => {
-            if ((node.logic === "AND" || node.logic === "OR") && Array.isArray(node.conditions)) {
-              const children = node.conditions
-                .map(c => JSON.parse(serialize(c) || "null"))
-                .filter(Boolean);
-              return children.length ? JSON.stringify({ logic: node.logic, conditions: children }) : "";
-            }
-            const name = String(node.variable || "").trim();
-            if (!name) return "";
-            return JSON.stringify({ variable: name, operator: String(node.operator || "Equal"), value: String(node.value ?? "") });
-          };
-
-          const applyCond = () => {
+          const persistCond = () => {
             ensureUndo();
-            const json = serialize(condState);
-            editor.engine.set_interaction_condition(id, idx, json || "");
-            preview.textContent = json ? `Branch preview: ${evalNode(condState) ? "TRUE" : "FALSE"} (using prototype variable defaults)` : "Branch preview: condition not set";
-            preview.style.color = json ? (evalNode(condState) ? "#22c55e" : "#f59e0b") : "#8b8b8b";
+            if (condState) editor.engine.set_interaction_condition(id, idx, JSON.stringify(condState));
+            else editor.engine.set_interaction_condition(id, idx, "");
             editor.requestRender();
           };
 
-          const renderBuilder = () => {
-            builderHost.innerHTML = "";
-            const modeRow = document.createElement("div");
-            modeRow.style.cssText = "display:flex;gap:6px;align-items:center;margin-bottom:6px;";
-            const modeSel = document.createElement("select");
-            modeSel.className = "prop-input";
-            modeSel.style.cssText = "width:112px;";
-            modeSel.innerHTML = `<option value="leaf">Single rule</option><option value="AND">AND group</option><option value="OR">OR group</option>`;
-            modeSel.value = (condState.logic === "AND" || condState.logic === "OR") ? condState.logic : "leaf";
-            modeSel.addEventListener("change", () => {
-              if (modeSel.value === "leaf") condState = { variable: "", operator: "Equal", value: "" };
-              else condState = { logic: modeSel.value as "AND" | "OR", conditions: [{ variable: "", operator: "Equal", value: "" }, { variable: "", operator: "Equal", value: "" }] };
-              renderBuilder();
-              applyCond();
-            });
-            modeRow.appendChild(modeSel);
-            builderHost.appendChild(modeRow);
+          const renderPreview = () => {
+            const res = evalCond(condState);
+            if (!condState) {
+              preview.textContent = "Branch preview: condition not set";
+              preview.style.color = "#8b8b8b";
+              return;
+            }
+            if (res == null) {
+              preview.textContent = "Branch preview: incomplete condition";
+              preview.style.color = "#8b8b8b";
+              return;
+            }
+            preview.textContent = `Branch preview: ${res ? "TRUE" : "FALSE"}`;
+            preview.style.color = res ? "#22c55e" : "#f59e0b";
+          };
 
-            const appendLeafRow = (parent: UiCondNode, leaf: UiCondNode, index: number) => {
+          const makeLeaf = (): CondNode => ({ variable: "", operator: "Equal", value: "" });
+          const makeGroup = (): CondNode => ({ logic: "AND", conditions: [makeLeaf()] });
+
+          const renderNode = (parent: CondNode | null, node: CondNode, depth: number): HTMLElement => {
+            const isGroup = (node.logic === "AND" || node.logic === "OR") && Array.isArray(node.conditions);
+            const nodeEl = document.createElement("div");
+            nodeEl.style.cssText = `border:1px solid #2f3240;border-radius:6px;padding:6px;background:#171a24;margin-left:${depth * 10}px;`;
+
+            const header = document.createElement("div");
+            header.style.cssText = "display:flex;gap:4px;align-items:center;margin-bottom:4px;";
+
+            if (isGroup) {
+              const logicSel = document.createElement("select");
+              logicSel.className = "prop-input";
+              logicSel.style.cssText = "width:72px;";
+              for (const lg of ["AND", "OR"]) {
+                const o = document.createElement("option");
+                o.value = lg;
+                o.textContent = lg;
+                if (node.logic === lg) o.selected = true;
+                logicSel.appendChild(o);
+              }
+              logicSel.addEventListener("change", () => {
+                node.logic = (logicSel.value === "OR" ? "OR" : "AND");
+                persistCond();
+                renderBuilder();
+              });
+              header.appendChild(logicSel);
+
+              const addCondBtn = document.createElement("button");
+              addCondBtn.className = "prop-btn";
+              addCondBtn.style.cssText = "font-size:10px;padding:2px 6px;";
+              addCondBtn.textContent = "+ Condition";
+              addCondBtn.addEventListener("click", () => {
+                (node.conditions ||= []).push(makeLeaf());
+                persistCond();
+                renderBuilder();
+              });
+              header.appendChild(addCondBtn);
+
+              const addGroupBtn = document.createElement("button");
+              addGroupBtn.className = "prop-btn";
+              addGroupBtn.style.cssText = "font-size:10px;padding:2px 6px;";
+              addGroupBtn.textContent = "+ Group";
+              addGroupBtn.addEventListener("click", () => {
+                (node.conditions ||= []).push(makeGroup());
+                persistCond();
+                renderBuilder();
+              });
+              header.appendChild(addGroupBtn);
+            } else {
               const row = document.createElement("div");
-              row.style.cssText = "display:flex;gap:4px;align-items:center;margin-top:4px;";
+              row.style.cssText = "display:flex;gap:4px;align-items:center;width:100%;";
+
               const varInput = document.createElement("input");
               varInput.className = "prop-input";
               varInput.style.cssText = "flex:1;";
               varInput.placeholder = "variable";
-              varInput.value = String(leaf.variable || "");
+              varInput.value = String(node.variable || "");
+              const varListId = `proto-cond-vars-${id}-${idx}-${Math.random().toString(36).slice(2)}`;
+              const varList = document.createElement("datalist");
+              varList.id = varListId;
+              for (const pv of protoVars) {
+                if (!pv?.name) continue;
+                const opt = document.createElement("option");
+                opt.value = String(pv.name);
+                varList.appendChild(opt);
+              }
               varInput.setAttribute("list", varListId);
-              const opSelect = document.createElement("select");
-              opSelect.className = "prop-input";
-              opSelect.style.cssText = "width:58px;";
-              for (const [val, label] of OP_ITEMS) { const o = document.createElement("option"); o.value = val; o.textContent = label; if ((leaf.operator || "Equal") === val) o.selected = true; opSelect.appendChild(o); }
+
+              const opSel = document.createElement("select");
+              opSel.className = "prop-input";
+              opSel.style.cssText = "width:58px;";
+              for (const [val, label] of [["Equal","=="],["NotEqual","!="],["GreaterThan",">"],["LessThan","<"],["GreaterThanOrEqual",">="],["LessThanOrEqual","<="]]) {
+                const o = document.createElement("option");
+                o.value = val;
+                o.textContent = label;
+                if ((node.operator || "Equal") === val) o.selected = true;
+                opSel.appendChild(o);
+              }
+
               const valInput = document.createElement("input");
               valInput.className = "prop-input";
               valInput.style.cssText = "flex:1;";
               valInput.placeholder = "value";
-              valInput.value = String(leaf.value ?? "");
-              row.appendChild(varInput); row.appendChild(opSelect); row.appendChild(valInput);
-              if (parent.conditions && parent.conditions.length > 1) {
-                const rm = document.createElement("button");
-                rm.textContent = "−";
-                rm.className = "prop-btn";
-                rm.style.cssText = "padding:0 8px;height:24px;";
-                rm.addEventListener("click", () => { parent.conditions!.splice(index, 1); renderBuilder(); applyCond(); });
-                row.appendChild(rm);
-              }
-              varInput.addEventListener("change", () => { leaf.variable = varInput.value.trim(); applyCond(); });
-              opSelect.addEventListener("change", () => { leaf.operator = opSelect.value; applyCond(); });
-              valInput.addEventListener("change", () => { leaf.value = valInput.value; applyCond(); });
-              builderHost.appendChild(row);
-            };
+              valInput.value = String(node.value ?? "");
 
-            if (condState.logic === "AND" || condState.logic === "OR") {
-              condState.conditions = Array.isArray(condState.conditions) ? condState.conditions : [];
-              condState.conditions.forEach((leaf, i) => appendLeafRow(condState, leaf, i));
-              const addBtn = document.createElement("button");
-              addBtn.className = "prop-btn";
-              addBtn.style.cssText = "margin-top:4px;padding:2px 8px;font-size:11px;";
-              addBtn.textContent = "+ Add rule";
-              addBtn.addEventListener("click", () => { condState.conditions!.push({ variable: "", operator: "Equal", value: "" }); renderBuilder(); applyCond(); });
-              builderHost.appendChild(addBtn);
-            } else {
-              appendLeafRow({ conditions: [condState] }, condState, 0);
+              const onChange = () => {
+                node.variable = varInput.value;
+                node.operator = opSel.value;
+                node.value = valInput.value;
+                persistCond();
+                renderPreview();
+              };
+              varInput.addEventListener("change", onChange);
+              opSel.addEventListener("change", onChange);
+              valInput.addEventListener("change", onChange);
+              varInput.addEventListener("input", renderPreview);
+              valInput.addEventListener("input", renderPreview);
+
+              row.appendChild(varInput);
+              row.appendChild(opSel);
+              row.appendChild(valInput);
+              row.appendChild(varList);
+              header.appendChild(row);
             }
+
+            if (parent) {
+              const removeBtn = document.createElement("button");
+              removeBtn.style.cssText = "font-size:10px;color:#e94560;background:none;border:none;cursor:pointer;margin-left:auto;";
+              removeBtn.textContent = "Remove";
+              removeBtn.addEventListener("click", () => {
+                const list = parent.conditions || [];
+                const i = list.indexOf(node);
+                if (i >= 0) list.splice(i, 1);
+                persistCond();
+                renderBuilder();
+              });
+              header.appendChild(removeBtn);
+            }
+
+            nodeEl.appendChild(header);
+
+            if (isGroup) {
+              const children = node.conditions || [];
+              for (const child of children) nodeEl.appendChild(renderNode(node, child, depth + 1));
+              if (!children.length) {
+                const empty = document.createElement("div");
+                empty.style.cssText = "font-size:10px;color:#777;";
+                empty.textContent = "No conditions in this group";
+                nodeEl.appendChild(empty);
+              }
+            }
+            return nodeEl;
           };
 
-          renderBuilder();
-          condRow.appendChild(builderHost);
-          condRow.appendChild(varList);
-          condRow.appendChild(preview);
-          applyCond();
+          const renderBuilder = () => {
+            builder.innerHTML = "";
+            if (!condState) {
+              const empty = document.createElement("div");
+              empty.style.cssText = "font-size:10px;color:#777;";
+              empty.textContent = "No condition. Add a leaf condition or group.";
+              builder.appendChild(empty);
+            } else {
+              builder.appendChild(renderNode(null, condState, 0));
+            }
+            renderPreview();
+          };
 
-          if (inter.condition) {
-            const clearCondBtn = document.createElement("button");
-            clearCondBtn.style.cssText = "margin-top:4px;font-size:10px;color:#e94560;background:none;border:none;cursor:pointer;padding:0;";
-            clearCondBtn.textContent = "Clear condition";
-            clearCondBtn.addEventListener("click", () => {
-              ensureUndo();
-              editor.engine.set_interaction_condition(id, idx, "");
-              editor.requestRender();
-              refresh(ids);
-            });
-            condRow.appendChild(clearCondBtn);
-          }
+          const topActions = document.createElement("div");
+          topActions.style.cssText = "display:flex;gap:4px;margin-bottom:6px;";
+          const addLeafRootBtn = document.createElement("button");
+          addLeafRootBtn.className = "prop-btn";
+          addLeafRootBtn.style.cssText = "font-size:10px;padding:2px 6px;";
+          addLeafRootBtn.textContent = condState ? "Reset to leaf" : "Add condition";
+          addLeafRootBtn.addEventListener("click", () => {
+            condState = makeLeaf();
+            persistCond();
+            renderBuilder();
+          });
+          topActions.appendChild(addLeafRootBtn);
+
+          const addGroupRootBtn = document.createElement("button");
+          addGroupRootBtn.className = "prop-btn";
+          addGroupRootBtn.style.cssText = "font-size:10px;padding:2px 6px;";
+          addGroupRootBtn.textContent = condState ? "Reset to group" : "Add group";
+          addGroupRootBtn.addEventListener("click", () => {
+            condState = makeGroup();
+            persistCond();
+            renderBuilder();
+          });
+          topActions.appendChild(addGroupRootBtn);
+
+          const clearCondBtn = document.createElement("button");
+          clearCondBtn.style.cssText = "font-size:10px;color:#e94560;background:none;border:none;cursor:pointer;padding:0 4px;";
+          clearCondBtn.textContent = "Clear";
+          clearCondBtn.addEventListener("click", () => {
+            condState = null;
+            persistCond();
+            refresh(ids);
+          });
+          topActions.appendChild(clearCondBtn);
+
+          condRow.appendChild(topActions);
+          condRow.appendChild(builder);
+          condRow.appendChild(preview);
+          renderBuilder();
         }
         interEl.appendChild(condRow);
-
         // Show/hide variant row based on action
         actSelect.addEventListener("change", () => {
           variantRow.style.display = actSelect.value === "swap-variant" ? "flex" : "none";
