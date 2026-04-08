@@ -1790,10 +1790,18 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Symbol Detach Preview — 인스턴스 detach 전 diff 미리보기(변경될 레이어/스타일) + selective detach (임팩트 상, 난이도 상)
 - Component Usage Heatmap — 캔버스에 컴포넌트 사용 빈도 히트맵 오버레이 + unused 후보 강조 (임팩트 중상, 난이도 중)
 - Prototype Conditional Actions v2 — interaction 조건식에서 AND/OR 그룹 + 변수 비교식 빌더 (임팩트 상, 난이도 상)
 - Asset Relink Manager — 이미지/비디오 src 깨짐 일괄 탐지 및 경로 재매핑 도구 (임팩트 중, 난이도 중)
+
+## 완료된 기능 (추가 — Symbol Detach Preview + Selective Detach, 2026-04-08)
+- Engine: `get_detach_preview(instance_id)` 추가 — detach 전 영향 요약 JSON(서브트리 레이어 수, nested instance 수, text/fill/visible override 수, component property override 수, color/text style 링크 수)
+- Engine: `detach_instance_selective(instance_id, include_nested)` 추가 — 선택 인스턴스만 detach 또는 하위 인스턴스까지 일괄 detach
+- Properties panel: Detach 버튼 클릭 시 프리뷰 모달 표시
+  - 영향 요약 지표 표시
+  - `Also detach nested instances` 체크박스로 selective detach 제어
+- 기존 `detach_instance`와 단축키/컨텍스트 메뉴 플로우는 backward-compatible 유지
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Layers Panel Grid/Stack View + Density, 2026-04-08)
 - Layers panel 헤더에 Stack/Grid 토글 추가 (기본 Stack, localStorage로 모드 유지)

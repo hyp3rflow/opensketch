@@ -5514,6 +5514,26 @@ impl Engine {
         ok
     }
 
+    /// Returns a JSON preview object for detach impact analysis, or "null".
+    #[wasm_bindgen]
+    pub fn get_detach_preview(&self, instance_id: u64) -> String {
+        match self.scene.get_detach_preview(instance_id) {
+            Some(preview) => serde_json::to_string(&preview).unwrap_or_else(|_| "null".to_string()),
+            None => "null".to_string(),
+        }
+    }
+
+    /// Selective detach for component instances.
+    /// include_nested=true detaches nested instances in subtree as well.
+    #[wasm_bindgen]
+    pub fn detach_instance_selective(&mut self, instance_id: u64, include_nested: bool) -> bool {
+        let ok = self.scene.detach_instance_selective(instance_id, include_nested);
+        if ok {
+            self.push_undo();
+        }
+        ok
+    }
+
     // =============================================
     // Component Playground
     // =============================================

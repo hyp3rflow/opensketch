@@ -2,6 +2,7 @@ import type { Editor } from "../editor";
 import { icons } from "./icons";
 import { createExportPresetsSection } from "./export-presets";
 import { openComponentSwapDialog } from "./component-search";
+import { openSymbolDetachPreview } from "./symbol-detach-preview";
 import { renderStyleVersioningSection } from "./style-versioning";
 import { createEasingEditor } from "./easing-editor";
 import { createTokenThemeSwitcher, createTokenBindingSection } from "./token-panel";
@@ -1241,11 +1242,9 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       detachBtn.addEventListener("mouseenter", () => { detachBtn.style.background = "rgba(239,68,68,0.22)"; });
       detachBtn.addEventListener("mouseleave", () => { detachBtn.style.background = "rgba(239,68,68,0.12)"; });
       detachBtn.addEventListener("click", () => {
-        editor.engine.detach_instance(BigInt(id));
-        editor.requestRender();
+        openSymbolDetachPreview(editor, Number(id));
         refresh([id]);
         editor.fireSelectionNow([id]);
-        (editor as any).onLayersChanges?.forEach?.((fn: any) => fn());
       });
       compCard.appendChild(detachBtn);
 

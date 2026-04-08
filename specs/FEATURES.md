@@ -97,6 +97,7 @@
 - [x] **Instances**: deep-clone template at position, with ◇ prefix + green label
 - [x] **Overrides**: per-instance text/visibility overrides on children, reset individual/all overrides
 - [x] **Detach instance**: convert Instance to Frame (sever component link), Cmd+Alt+B shortcut, context menu + properties panel button
+- [x] **Symbol Detach Preview + Selective Detach (2026-04-08)**: Properties panel Detach 클릭 시 변경 임팩트(서브트리 레이어 수, nested instances, override/style-link 카운트) 프리뷰 모달 표시. 옵션 `Also detach nested instances`로 선택 인스턴스만 분리하거나 하위 인스턴스까지 일괄 분리 가능 (`get_detach_preview`, `detach_instance_selective` WASM API)
 - [x] **9 agent commands**: create, prop, variant, slot, instance, switch, fill, list, override
 - [x] **Component search & swap**: search components by name, view all instances, swap selected/all instances to different master component (Cmd+Shift+K)
 - [x] **Figma-style Variants Matrix UI (MVP)**: Component Set 인스턴스 편집 시 첫 2개 axis 조합을 2D 매트릭스로 시각화, 셀 클릭으로 variant 전환, 빈 셀 클릭/드래그로 현재 variant를 조합에 매핑

@@ -33,6 +33,7 @@ import { initSpatialAudioPanel, toggleSpatialAudioPanel, closeSpatialAudioPanel,
 import { findSpacingHandles, hitTestSpacingHandle, renderSpacingHandles, type SpacingHandle, findPaddingHandles, hitTestPaddingHandle, renderPaddingHandles, type PaddingHandle } from "./tools/spacing-handles";
 import { type CropState, type CropHandle, hitTestCropHandle, getCropCursor, applyCropDrag, renderCropOverlay } from "./tools/image-crop";
 import { showLayoutSuggestion, dismissSuggestion } from "./ui/ai-layout-suggest";
+import { openSymbolDetachPreview } from "./ui/symbol-detach-preview";
 import { ArtboardView } from "./ui/artboard-view";
 import { toggleFindReplace, closeFindReplace } from "./ui/find-replace-panel";
 import { toggleSearchPanel, closeSearchPanel, isSearchPanelOpen, getSearchHighlightIds, getSearchCurrentId } from "./ui/search-panel";
@@ -8200,12 +8201,7 @@ export class Editor {
     const sel = Array.from(this.engine.get_selection()).map(Number);
     if (sel.length !== 1) return;
     const id = sel[0]!;
-    const ok = this.engine.detach_instance(BigInt(id));
-    if (ok) {
-      this.requestRender();
-      this.fireSelectionNow(sel);
-      (this as any).onLayersChanges?.forEach?.((fn: any) => fn());
-    }
+    openSymbolDetachPreview(this, id);
   }
 
   // =============================================
@@ -8649,9 +8645,7 @@ export class Editor {
                 label: "Detach Instance",
                 shortcut: `${mod}⌥B`,
                 action: () => {
-                  this.engine.detach_instance(BigInt(selAfter[0]!));
-                  this.requestRender();
-                  this.fireSelectionNow(selAfter);
+                  openSymbolDetachPreview(this, selAfter[0]!);
                 },
               });
             }

@@ -42,6 +42,21 @@ use crate::branch::{Branch, BranchSnapshot, BranchDiff, VisualDiff, compute_diff
 use crate::component::ComponentLibrary;
 use crate::stamp::{Stamp, StampKind};
 
+/// Detach impact preview for a component instance.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct DetachPreview {
+    pub instance_id: NodeId,
+    pub instance_name: String,
+    pub total_layers_in_subtree: usize,
+    pub nested_instance_count: usize,
+    pub color_style_link_count: usize,
+    pub text_style_link_count: usize,
+    pub override_count_text: usize,
+    pub override_count_fill: usize,
+    pub override_count_visibility: usize,
+    pub component_property_override_count: usize,
+}
+
 /// An ephemeral annotation stroke (for review, auto-expires)
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AnnotationStroke {
@@ -2326,10 +2341,78 @@ impl Scene {
         Some(frame_id)
     }
 
+    /// Analyze detach impact for an instance. Returns JSON-friendly summary.
+    pub fn get_detach_preview(&self, id: NodeId) -> Option<DetachPreview> {
+        let node = self.get_node(id)?;
+        let data = match &node.kind {
+            crate::node::NodeKind::Instance(d) => d,
+            _ => return None,
+        };
+
+        let subtree = self.collect_subtree_ids(id);
+        let mut nested_instances = 0usize;
+        let mut color_style_links = 0usize;
+        let mut text_style_links = 0usize;
+
+        for nid in &subtree {
+            if *nid == id { continue; }
+            if let Some(n) = self.get_node(*nid) {
+                if matches!(n.kind, crate::node::NodeKind::Instance(_)) {
+                    nested_instances += 1;
+                }
+                if n.color_style_id.is_some() { color_style_links += 1; }
+                if n.text_style_id.is_some() { text_style_links += 1; }
+            }
+        }
+
+        let mut text_overrides = 0usize;
+        let mut fill_overrides = 0usize;
+        let mut visibility_overrides = 0usize;
+        for ov in data.overrides.values() {
+            if ov.text.is_some() { text_overrides += 1; }
+            if ov.fill_hex.is_some() { fill_overrides += 1; }
+            if ov.visible.is_some() { visibility_overrides += 1; }
+        }
+
+        Some(DetachPreview {
+            instance_id: id,
+            instance_name: node.name.clone(),
+            total_layers_in_subtree: subtree.len(),
+            nested_instance_count: nested_instances,
+            color_style_link_count: color_style_links,
+            text_style_link_count: text_style_links,
+            override_count_text: text_overrides,
+            override_count_fill: fill_overrides,
+            override_count_visibility: visibility_overrides,
+            component_property_override_count: data.property_overrides.len(),
+        })
+    }
+
     /// Detach an instance node: convert it from Instance to Frame, severing the component link.
     /// All visual properties, children, and overrides are preserved as-is.
     /// Returns true if successful.
     pub fn detach_instance(&mut self, id: NodeId) -> bool {
+        self.detach_instance_selective(id, false)
+    }
+
+    /// Selective detach:
+    /// - include_nested = false: only the selected instance is detached.
+    /// - include_nested = true: nested instance descendants are detached together.
+    pub fn detach_instance_selective(&mut self, id: NodeId, include_nested: bool) -> bool {
+        let mut any_changed = false;
+
+        if include_nested {
+            for nid in self.collect_subtree_ids(id) {
+                if let Some(node) = self.get_node_mut(nid) {
+                    if matches!(node.kind, crate::node::NodeKind::Instance(_)) {
+                        node.kind = crate::node::NodeKind::Frame;
+                        any_changed = true;
+                    }
+                }
+            }
+            return any_changed;
+        }
+
         let node = match self.get_node_mut(id) {
             Some(n) => n,
             None => return false,
