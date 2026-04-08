@@ -32,6 +32,45 @@ interface Analytics {
   total_components: number;
 }
 
+interface ImpactPageRow {
+  page_id: number;
+  page_name: string;
+  instance_count: number;
+}
+
+interface ImpactVariantRow {
+  variant_key: string;
+  instance_count: number;
+}
+
+interface ImpactRow {
+  node_id: number;
+  node_name: string;
+  page_id: number;
+  page_name: string;
+  depth: number;
+  variant_key: string;
+  node_override_count: number;
+  property_override_count: number;
+  slot_fill_count: number;
+  nested_instance_count: number;
+  override_conflict_risk: boolean;
+}
+
+interface DependencyImpact {
+  component_id: number;
+  component_name: string;
+  total_instances: number;
+  affected_pages: ImpactPageRow[];
+  affected_variants: ImpactVariantRow[];
+  deep_nesting_instances: number;
+  override_conflict_instances: number;
+  risk_score: number;
+  risk_level: "low" | "medium" | "high" | string;
+  risks: string[];
+  instances: ImpactRow[];
+}
+
 let panel: HTMLElement | null = null;
 let heatmapCanvas: HTMLCanvasElement | null = null;
 let heatmapLoop: number | null = null;
@@ -85,6 +124,9 @@ export function openComponentAnalytics(editor: Editor, onNavigate?: (nodeId: num
             <span class="ca-comp-name">${escHtml(stat.component_name)}</span>
             <span class="ca-comp-count">${stat.instance_count} instance${stat.instance_count !== 1 ? 's' : ''}</span>
           </div>
+          <div class="ca-comp-actions">
+            <button class="ca-impact-btn" data-comp-id="${stat.component_id}">Impact Analyzer</button>
+          </div>
           ${Object.keys(stat.variant_usage).length > 1 ? `
             <div class="ca-variants">
               ${Object.entries(stat.variant_usage).map(([k, v]) => `
@@ -101,6 +143,7 @@ export function openComponentAnalytics(editor: Editor, onNavigate?: (nodeId: num
               </div>
             `).join('')}
           </div>
+          <div class="ca-impact" data-comp-impact="${stat.component_id}" style="display:none"></div>
         </div>
       `).join('')}
       ${analytics.unused_components.length > 0 ? `
@@ -143,6 +186,25 @@ export function openComponentAnalytics(editor: Editor, onNavigate?: (nodeId: num
     .ca-comp-header { display: flex; justify-content: space-between; align-items: center; }
     .ca-comp-name { font-weight: 500; }
     .ca-comp-count { color: #7b9cff; font-size: 12px; font-weight: 600; }
+    .ca-comp-actions { margin-top: 6px; display: flex; justify-content: flex-end; }
+    .ca-impact-btn { background:#1f2937; color:#cbd5e1; border:1px solid #374151; border-radius:6px; font-size:11px; padding:4px 8px; cursor:pointer; }
+    .ca-impact-btn:hover { background:#273449; color:#fff; }
+    .ca-impact { margin-top: 8px; background:#1f232c; border:1px solid #2e3a4f; border-radius:8px; padding:8px; font-size:11px; }
+    .ca-impact-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
+    .ca-risk-badge { border-radius:999px; padding:2px 7px; font-weight:600; text-transform:uppercase; letter-spacing:.3px; }
+    .ca-risk-badge.low { background:rgba(52,211,153,.15); color:#34d399; }
+    .ca-risk-badge.medium { background:rgba(250,204,21,.16); color:#facc15; }
+    .ca-risk-badge.high { background:rgba(248,113,113,.16); color:#f87171; }
+    .ca-impact-kpis { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-bottom:6px; }
+    .ca-impact-kpi { background:#262d3a; border-radius:6px; padding:6px; text-align:center; }
+    .ca-impact-kpi b { display:block; color:#dbeafe; font-size:13px; }
+    .ca-impact-list { margin:6px 0 0; padding-left:14px; color:#cbd5e1; }
+    .ca-impact-instances { margin-top:6px; max-height:120px; overflow:auto; border-top:1px dashed #334155; padding-top:6px; }
+    .ca-impact-row { display:flex; align-items:center; gap:6px; padding:3px 4px; border-radius:4px; cursor:pointer; }
+    .ca-impact-row:hover { background:#2b3547; }
+    .ca-impact-depth { color:#93c5fd; min-width:22px; }
+    .ca-impact-node { flex:1; }
+    .ca-impact-meta { color:#94a3b8; }
     .ca-variants { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
     .ca-variant-chip { background: #383838; border-radius: 4px; padding: 2px 6px; font-size: 11px; color: #aaa; }
     .ca-variant-chip b { color: #7b9cff; margin-left: 2px; }
@@ -175,6 +237,47 @@ export function openComponentAnalytics(editor: Editor, onNavigate?: (nodeId: num
       const nodeId = Number((el as HTMLElement).dataset.nodeId);
       const pageId = Number((el as HTMLElement).dataset.pageId);
       if (onNavigate && nodeId) onNavigate(nodeId, pageId);
+    });
+  });
+
+  panel.querySelectorAll(".ca-impact-btn").forEach(el => {
+    el.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const btn = el as HTMLButtonElement;
+      const compId = Number(btn.dataset.compId);
+      const container = panel?.querySelector(`[data-comp-impact=\"${compId}\"]`) as HTMLElement | null;
+      if (!container || !compId) return;
+      if (container.dataset.loaded === "1") {
+        container.style.display = container.style.display === "none" ? "block" : "none";
+        return;
+      }
+
+      let impact: DependencyImpact | null = null;
+      try {
+        const json = (editor.engine as any).component_dependency_impact?.(BigInt(compId)) || "null";
+        impact = JSON.parse(json);
+      } catch {
+        impact = null;
+      }
+      if (!impact) {
+        container.innerHTML = `<div class="ca-empty">Failed to analyze impact</div>`;
+        container.style.display = "block";
+        container.dataset.loaded = "1";
+        return;
+      }
+
+      container.innerHTML = renderImpact(impact);
+      container.style.display = "block";
+      container.dataset.loaded = "1";
+
+      container.querySelectorAll(".ca-impact-row").forEach(row => {
+        row.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          const nodeId = Number((row as HTMLElement).dataset.nodeId);
+          const pageId = Number((row as HTMLElement).dataset.pageId);
+          if (onNavigate && nodeId) onNavigate(nodeId, pageId);
+        });
+      });
     });
   });
 
@@ -295,6 +398,36 @@ export function closeComponentAnalytics() {
 
 export function isComponentAnalyticsOpen(): boolean {
   return panel !== null;
+}
+
+function renderImpact(impact: DependencyImpact): string {
+  const riskClass = impact.risk_level === "high" ? "high" : impact.risk_level === "medium" ? "medium" : "low";
+  const topRows = impact.instances.slice(0, 8);
+  return `
+    <div class="ca-impact-header">
+      <strong>Dependency Impact</strong>
+      <span class="ca-risk-badge ${riskClass}">${escHtml(String(impact.risk_level))} · ${impact.risk_score}</span>
+    </div>
+    <div class="ca-impact-kpis">
+      <div class="ca-impact-kpi"><b>${impact.total_instances}</b><span>Instances</span></div>
+      <div class="ca-impact-kpi"><b>${impact.affected_pages.length}</b><span>Pages</span></div>
+      <div class="ca-impact-kpi"><b>${impact.affected_variants.length}</b><span>Variants</span></div>
+    </div>
+    <ul class="ca-impact-list">
+      ${impact.risks.slice(0, 3).map(r => `<li>${escHtml(r)}</li>`).join("")}
+    </ul>
+    ${topRows.length > 0 ? `
+      <div class="ca-impact-instances">
+        ${topRows.map(row => `
+          <div class="ca-impact-row" data-node-id="${row.node_id}" data-page-id="${row.page_id}">
+            <span class="ca-impact-depth">D${row.depth}</span>
+            <span class="ca-impact-node">${escHtml(row.node_name || `Node ${row.node_id}`)}</span>
+            <span class="ca-impact-meta">ovr ${row.node_override_count + row.property_override_count + row.slot_fill_count}</span>
+          </div>
+        `).join("")}
+      </div>
+    ` : ""}
+  `;
 }
 
 function escHtml(s: string): string {

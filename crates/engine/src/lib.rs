@@ -12006,6 +12006,13 @@ impl Engine {
         self.scene.get_component_analytics(&self.components)
     }
 
+    /// Analyze dependency impact for a component before editing it.
+    #[wasm_bindgen]
+    pub fn component_dependency_impact(&self, component_id: u64) -> String {
+        self.scene
+            .get_component_dependency_impact(&self.components, component_id)
+    }
+
     /// Smart component suggestions — detect repeating patterns and suggest extraction
     #[wasm_bindgen]
     pub fn suggest_components(&self) -> String {

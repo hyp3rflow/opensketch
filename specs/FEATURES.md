@@ -1436,6 +1436,10 @@ Frame overflow control and content scrolling.
 - [x] **Navigation**: Click instance location to jump to that node/page
 - [x] **Usage heatmap overlay**: Optional canvas overlay from analytics panel to visualize instance density (blue→red intensity)
 - [x] **Unused candidate emphasis**: Summary card + list styling highlights zero-instance components for cleanup
+- [x] **Component Dependency Impact Analyzer**: Per-component impact preview with risk score/level, affected pages/variants, and override/deep-nesting risk signals
+- [x] **WASM binding**: `component_dependency_impact(component_id)` → JSON
+- [x] **UI action**: Analytics modal `Impact Analyzer` button on each component row
+- [x] **Impact drilldown**: Top risky instances listed with click-to-navigate
 
 ### Smart Component Suggestions
 - [x] **Structural duplicate detection**: Identical subtree fingerprinting

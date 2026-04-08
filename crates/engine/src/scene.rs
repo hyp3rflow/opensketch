@@ -4075,6 +4075,247 @@ impl Scene {
         serde_json::to_string(&analytics).unwrap_or_default()
     }
 
+    /// Analyze impact when editing a specific component.
+    /// Includes affected instances/pages/variants and a heuristic risk score.
+    pub fn get_component_dependency_impact(
+        &self,
+        component_store: &crate::component::ComponentStore,
+        component_id: u64,
+    ) -> String {
+        use crate::node::NodeKind;
+        use std::collections::HashMap;
+
+        #[derive(serde::Serialize)]
+        struct ImpactInstanceRow {
+            node_id: u64,
+            node_name: String,
+            page_id: u64,
+            page_name: String,
+            depth: usize,
+            variant_key: String,
+            node_override_count: usize,
+            property_override_count: usize,
+            slot_fill_count: usize,
+            nested_instance_count: usize,
+            override_conflict_risk: bool,
+        }
+
+        #[derive(serde::Serialize)]
+        struct ImpactPageRow {
+            page_id: u64,
+            page_name: String,
+            instance_count: usize,
+        }
+
+        #[derive(serde::Serialize)]
+        struct ImpactVariantRow {
+            variant_key: String,
+            instance_count: usize,
+        }
+
+        #[derive(serde::Serialize)]
+        struct ImpactResponse {
+            component_id: u64,
+            component_name: String,
+            total_instances: usize,
+            affected_pages: Vec<ImpactPageRow>,
+            affected_variants: Vec<ImpactVariantRow>,
+            deep_nesting_instances: usize,
+            override_conflict_instances: usize,
+            risk_score: u32,
+            risk_level: String,
+            risks: Vec<String>,
+            instances: Vec<ImpactInstanceRow>,
+        }
+
+        let Some(component) = component_store.get(component_id) else {
+            return "null".to_string();
+        };
+
+        let mut page_nodes: Vec<(u64, String, Vec<&Node>)> = Vec::new();
+        for (i, page) in self.pages.iter().enumerate() {
+            if i == self.active_page_index {
+                let nodes: Vec<&Node> = self.nodes.values().collect();
+                page_nodes.push((page.id, page.name.clone(), nodes));
+            } else {
+                let nodes: Vec<&Node> = page.nodes.iter().collect();
+                page_nodes.push((page.id, page.name.clone(), nodes));
+            }
+        }
+
+        let mut instances: Vec<ImpactInstanceRow> = Vec::new();
+        let mut page_counts: HashMap<u64, (String, usize)> = HashMap::new();
+        let mut variant_counts: HashMap<String, usize> = HashMap::new();
+        let mut deep_nesting_instances = 0usize;
+        let mut override_conflict_instances = 0usize;
+
+        for (page_id, page_name, nodes) in page_nodes {
+            let node_map: HashMap<u64, &Node> = nodes.iter().map(|n| (n.id, *n)).collect();
+
+            for node in nodes {
+                let NodeKind::Instance(ref data) = node.kind else {
+                    continue;
+                };
+                if data.component_id != component_id {
+                    continue;
+                }
+
+                let mut depth = 0usize;
+                let mut cursor = node.parent;
+                while let Some(pid) = cursor {
+                    if let Some(parent) = node_map.get(&pid) {
+                        depth += 1;
+                        cursor = parent.parent;
+                    } else {
+                        break;
+                    }
+                }
+
+                let mut nested_instance_count = 0usize;
+                let mut stack: Vec<u64> = node.children.clone();
+                while let Some(child_id) = stack.pop() {
+                    if let Some(child) = node_map.get(&child_id) {
+                        if matches!(child.kind, NodeKind::Instance(_)) {
+                            nested_instance_count += 1;
+                        }
+                        stack.extend(child.children.iter().copied());
+                    }
+                }
+
+                let mut variant_parts: Vec<String> = data
+                    .variant_values
+                    .iter()
+                    .map(|(k, v)| format!("{}={}", k, v.to_display()))
+                    .collect();
+                variant_parts.sort();
+                let variant_key = if variant_parts.is_empty() {
+                    "default".to_string()
+                } else {
+                    variant_parts.join(",")
+                };
+
+                let node_override_count = data.overrides.len();
+                let property_override_count = data.property_overrides.len();
+                let slot_fill_count: usize = data.slot_fills.values().map(|v| v.len()).sum();
+                let override_conflict_risk =
+                    node_override_count + property_override_count + slot_fill_count > 0
+                        && component.variants.len() > 1;
+
+                if depth >= 4 || nested_instance_count >= 3 {
+                    deep_nesting_instances += 1;
+                }
+                if override_conflict_risk {
+                    override_conflict_instances += 1;
+                }
+
+                let page_entry = page_counts
+                    .entry(page_id)
+                    .or_insert((page_name.clone(), 0));
+                page_entry.1 += 1;
+                *variant_counts.entry(variant_key.clone()).or_insert(0) += 1;
+
+                instances.push(ImpactInstanceRow {
+                    node_id: node.id,
+                    node_name: node.name.clone(),
+                    page_id,
+                    page_name: page_name.clone(),
+                    depth,
+                    variant_key,
+                    node_override_count,
+                    property_override_count,
+                    slot_fill_count,
+                    nested_instance_count,
+                    override_conflict_risk,
+                });
+            }
+        }
+
+        let mut affected_pages: Vec<ImpactPageRow> = page_counts
+            .into_iter()
+            .map(|(pid, (name, count))| ImpactPageRow {
+                page_id: pid,
+                page_name: name,
+                instance_count: count,
+            })
+            .collect();
+        affected_pages.sort_by(|a, b| b.instance_count.cmp(&a.instance_count));
+
+        let mut affected_variants: Vec<ImpactVariantRow> = variant_counts
+            .into_iter()
+            .map(|(variant_key, instance_count)| ImpactVariantRow {
+                variant_key,
+                instance_count,
+            })
+            .collect();
+        affected_variants.sort_by(|a, b| b.instance_count.cmp(&a.instance_count));
+
+        instances.sort_by(|a, b| b.depth.cmp(&a.depth).then(b.nested_instance_count.cmp(&a.nested_instance_count)));
+
+        let total_instances = instances.len();
+        let mut score = 0u32;
+        score += (total_instances.min(30) as u32) * 2;
+        score += (affected_pages.len().min(10) as u32) * 3;
+        score += (affected_variants.len().min(10) as u32) * 3;
+        score += (override_conflict_instances.min(20) as u32) * 4;
+        score += (deep_nesting_instances.min(20) as u32) * 3;
+        score = score.min(100);
+
+        let risk_level = if score >= 70 {
+            "high"
+        } else if score >= 40 {
+            "medium"
+        } else {
+            "low"
+        }
+        .to_string();
+
+        let mut risks: Vec<String> = Vec::new();
+        if total_instances >= 12 {
+            risks.push(format!("Wide blast radius: {} instances", total_instances));
+        }
+        if affected_pages.len() >= 3 {
+            risks.push(format!("Cross-page impact: {} pages", affected_pages.len()));
+        }
+        if override_conflict_instances > 0 {
+            risks.push(format!(
+                "Override collision risk: {} instances with overrides",
+                override_conflict_instances
+            ));
+        }
+        if deep_nesting_instances > 0 {
+            risks.push(format!(
+                "Deep nesting risk: {} deeply nested instances",
+                deep_nesting_instances
+            ));
+        }
+        if affected_variants.len() >= 4 {
+            risks.push(format!(
+                "Variant spread: {} variant combinations in use",
+                affected_variants.len()
+            ));
+        }
+
+        if risks.is_empty() {
+            risks.push("Low structural risk detected".to_string());
+        }
+
+        let response = ImpactResponse {
+            component_id,
+            component_name: component.name.clone(),
+            total_instances,
+            affected_pages,
+            affected_variants,
+            deep_nesting_instances,
+            override_conflict_instances,
+            risk_score: score,
+            risk_level,
+            risks,
+            instances,
+        };
+
+        serde_json::to_string(&response).unwrap_or_else(|_| "null".to_string())
+    }
+
     // =============================================
     // Review workflow
     // =============================================

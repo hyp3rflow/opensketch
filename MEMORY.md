@@ -1790,11 +1790,22 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Component Dependency Impact Analyzer — 변경 예정 컴포넌트 선택 시 영향받는 instance/variant/page 범위와 위험도(override 충돌, deep nesting) 프리뷰 (임팩트 상, 난이도 중상)
 - Advanced Stroke Profiles — variable width stroke(pressure profile), arrowhead presets, dashed corner compensation (임팩트 중상, 난이도 상)
 - Smart Animate Timeline Editor v2 — 키프레임 곡선/스태거/그룹 타임라인을 한 화면에서 편집하는 전용 패널 (임팩트 상, 난이도 상)
 - Design Tokens Sync Bridge — 컬러/타이포 토큰을 외부 JSON/Style Dictionary와 양방향 동기화 + diff apply (임팩트 상, 난이도 중상)
 - Constraint Debug Overlay — 리사이즈 시 각 자식의 constraint 계산 근거(앵커/스케일/stretch) 실시간 시각화 (임팩트 중, 난이도 중)
+
+
+## 완료된 기능 (추가 — Component Dependency Impact Analyzer, 2026-04-08)
+- 컴포넌트 분석 패널에 `Impact Analyzer` 추가: 컴포넌트별 영향 범위를 즉시 프리뷰
+- Rust: `Scene::get_component_dependency_impact()` 구현
+  - 영향 인스턴스 목록 + 페이지/variant 분포 집계
+  - deep nesting(깊은 parent depth / 중첩 instance 다수) 탐지
+  - override 충돌 위험(override/property/slot fill + multi-variant) 탐지
+  - risk score(0~100) + risk level(low/medium/high) + risk reason 리스트 제공
+- WASM: `component_dependency_impact(component_id)` 바인딩 추가
+- UI: 상위 위험 요약(KPI + risk badge + reason) 및 top instance row 클릭 이동 지원
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Prototype Scroll Snap Points: Section Pagination, 2026-04-08)
 - Prototype viewer 스냅 로직 확장: child `scroll_snap_align`가 없는 경우에도 `Section` 노드를 세로 스냅 시작점으로 자동 인식
