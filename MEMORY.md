@@ -1794,6 +1794,13 @@
 - Auto Layout Gap Tokens — gap/padding을 variable token과 직접 바인딩해 테마/브레이크포인트별 spacing 시스템 동기화 (임팩트 중상, 난이도 중)
 - Prototype Event Timeline Recorder — prototype 실행 중 interaction/event/variable 변화를 타임라인으로 기록·재생·내보내기 (임팩트 중상, 난이도 상)
 
+## 완료된 기능 (추가 — Constraints Presets Library UX refresh, 2026-04-08)
+- Constraints 섹션의 반응형 프리셋 플로우를 prompt 기반 선택에서 인라인 Library 드롭다운 기반으로 개선
+- Preset selector: Built-in / Custom optgroup 분리, 선택 후 즉시 Apply 가능
+- Custom preset 관리: Save(덮어쓰기 dedupe 유지) + Delete(확인 다이얼로그) 지원
+- 기존 적용 범위 유지: 멀티 셀렉션 대상 중 Frame/Group 자식 노드에만 constraints/sizing/min-max 일괄 적용
+- specs 반영: `specs/FEATURES.md`
+
 ## 완료된 기능 (추가 — Component Dependency Graph nesting warning, 2026-04-08)
 - Dependency Graph 패널 경고 영역을 `cycles + deep nesting` 2단으로 확장
 - ComponentInstance edge만 대상으로 최대 중첩 깊이 분석(DFS) 로직 추가

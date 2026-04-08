@@ -435,11 +435,11 @@
 - Canvas overlay click-to-edit: 핀 미니맵 클릭으로 H/V constraints를 즉시 변경 (좌/중/우 × 상/중/하), 좌/우·상/하 조합 토글 시 LeftAndRight/TopAndBottom 자동 전환
 - Canvas overlay scale controls: `Scale H`, `Scale V` 전용 버튼으로 scale constraints를 즉시 지정, undo + properties 패널 즉시 반영
 - Constraint Presets Library:
-  - Constraints section에 Save Preset / Apply Preset / Library 버튼 제공
+  - Constraints section에 인라인 Preset selector(Built-in/Custom optgroup) + Save / Apply / Delete 버튼 제공
   - Built-in responsive presets: Mobile(Stretch width, Bottom sticky), Tablet(Centered), Desktop(Scale)
   - Saved fields: H/V constraints, sizing_h/sizing_v, min/max width/height
   - Storage: localStorage (`opensketch-constraint-set-presets-v1`)
-  - Custom preset은 이름 기준 덮어쓰기 저장(dedupe), built-in + custom 통합 목록에서 선택 적용
+  - Custom preset은 이름 기준 덮어쓰기 저장(dedupe), 삭제 시 확인 다이얼로그 제공
   - Apply supports multi-selection (only nodes with Frame/Group parent are updated)
 - Backward compatible via `#[serde(default)]`
 

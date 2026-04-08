@@ -3115,7 +3115,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           const makePresetBtn = (label: string) => {
             const btn = document.createElement("button");
             btn.textContent = label;
-            btn.style.cssText = "flex:1;padding:5px 8px;font-size:10px;border:1px solid #444;border-radius:4px;background:#2a2a2a;color:#ccc;cursor:pointer;";
+            btn.style.cssText = "padding:5px 8px;font-size:10px;border:1px solid #444;border-radius:4px;background:#2a2a2a;color:#ccc;cursor:pointer;";
             return btn;
           };
 
@@ -3125,6 +3125,20 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             { name: "Tablet · Centered", horizontal: "center", vertical: "top", sizing_h: "fixed", sizing_v: "hug", min_w: 600, max_w: 1024 },
             { name: "Desktop · Scale", horizontal: "scale", vertical: "scale", sizing_h: "fill", sizing_v: "fill", min_w: 1024, max_w: 1920 },
           ];
+
+          const presetSelect = document.createElement("select");
+          presetSelect.className = "prop-input";
+          presetSelect.style.cssText = "margin-top:6px;font-size:10px;";
+
+          const makeKey = (scope: "built-in" | "custom", idx: number) => `${scope}:${idx}`;
+          const parseKey = (value: string): { scope: "built-in" | "custom"; idx: number } | null => {
+            const [scope, idxRaw] = String(value || "").split(":");
+            const idx = Number.parseInt(idxRaw || "", 10);
+            if ((scope === "built-in" || scope === "custom") && Number.isFinite(idx)) {
+              return { scope, idx };
+            }
+            return null;
+          };
 
           const applyPresetToSelection = (preset: ConstraintPreset) => {
             editor.engine.push_undo();
@@ -3152,7 +3166,47 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             refresh(ids);
           };
 
-          const savePresetBtn = makePresetBtn("Save Preset");
+          const syncPresetSelect = () => {
+            const customPresets = loadPresets();
+            presetSelect.innerHTML = "";
+
+            const placeholder = document.createElement("option");
+            placeholder.value = "";
+            placeholder.textContent = "Select responsive preset…";
+            presetSelect.appendChild(placeholder);
+
+            const builtInGroup = document.createElement("optgroup");
+            builtInGroup.label = "Built-in";
+            builtInResponsivePresets.forEach((preset, i) => {
+              const option = document.createElement("option");
+              option.value = makeKey("built-in", i);
+              option.textContent = preset.name;
+              builtInGroup.appendChild(option);
+            });
+            presetSelect.appendChild(builtInGroup);
+
+            if (customPresets.length > 0) {
+              const customGroup = document.createElement("optgroup");
+              customGroup.label = "Custom";
+              customPresets.forEach((preset, i) => {
+                const option = document.createElement("option");
+                option.value = makeKey("custom", i);
+                option.textContent = preset.name;
+                customGroup.appendChild(option);
+              });
+              presetSelect.appendChild(customGroup);
+            }
+          };
+
+          const getSelectedPreset = (): ConstraintPreset | null => {
+            const parsed = parseKey(presetSelect.value);
+            if (!parsed) return null;
+            if (parsed.scope === "built-in") return builtInResponsivePresets[parsed.idx] ?? null;
+            return loadPresets()[parsed.idx] ?? null;
+          };
+
+          const savePresetBtn = makePresetBtn("Save");
+          savePresetBtn.style.flex = "1";
           savePresetBtn.onclick = () => {
             const name = (prompt("Preset name", `${hSelect.value}/${vSelect.value}`) || "").trim();
             if (!name) return;
@@ -3160,41 +3214,41 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             const next = { ...readCurrentPreset(), name };
             const deduped = [next, ...presets.filter((p) => p.name.toLowerCase() !== name.toLowerCase())].slice(0, 40);
             savePresets(deduped);
-            alert(`Saved preset: ${name}`);
+            syncPresetSelect();
           };
 
-          const applyPresetBtn = makePresetBtn("Apply Preset");
+          const applyPresetBtn = makePresetBtn("Apply");
+          applyPresetBtn.style.flex = "1";
           applyPresetBtn.onclick = () => {
-            const presets = loadPresets();
-            if (!presets.length) {
-              alert("No custom constraint presets saved yet.");
+            const preset = getSelectedPreset();
+            if (!preset) {
+              alert("Select a preset from the library first.");
               return;
             }
-            const list = presets.map((p, i) => `${i + 1}. ${p.name}`).join("\n");
-            const picked = parseInt(prompt(`Apply which custom preset?\n${list}`, "1") || "1", 10);
-            const preset = presets[Math.max(0, Math.min(presets.length - 1, (Number.isFinite(picked) ? picked : 1) - 1))];
-            if (!preset) return;
             applyPresetToSelection(preset);
           };
 
-          const libraryBtn = makePresetBtn("Library");
-          libraryBtn.onclick = () => {
-            const customPresets = loadPresets();
-            const allPresets = [
-              ...builtInResponsivePresets,
-              ...customPresets.map((p) => ({ ...p, name: `Custom · ${p.name}` })),
-            ];
-            if (!allPresets.length) return;
-            const list = allPresets.map((p, i) => `${i + 1}. ${p.name}`).join("\n");
-            const picked = parseInt(prompt(`Responsive preset library\n${list}`, "1") || "1", 10);
-            const preset = allPresets[Math.max(0, Math.min(allPresets.length - 1, (Number.isFinite(picked) ? picked : 1) - 1))];
-            if (!preset) return;
-            applyPresetToSelection(preset);
+          const removePresetBtn = makePresetBtn("Delete");
+          removePresetBtn.style.cssText += "color:#fca5a5;";
+          removePresetBtn.onclick = () => {
+            const parsed = parseKey(presetSelect.value);
+            if (!parsed || parsed.scope !== "custom") {
+              alert("Only custom presets can be deleted.");
+              return;
+            }
+            const presets = loadPresets();
+            const target = presets[parsed.idx];
+            if (!target) return;
+            if (!confirm(`Delete preset \"${target.name}\"?`)) return;
+            savePresets(presets.filter((_, i) => i !== parsed.idx));
+            syncPresetSelect();
           };
 
+          syncPresetSelect();
+          constraintSection.appendChild(presetSelect);
           presetRow.appendChild(savePresetBtn);
           presetRow.appendChild(applyPresetBtn);
-          presetRow.appendChild(libraryBtn);
+          presetRow.appendChild(removePresetBtn);
           constraintSection.appendChild(presetRow);
 
           container.appendChild(constraintSection);
