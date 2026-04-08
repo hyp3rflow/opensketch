@@ -89,12 +89,27 @@ export function openSymbolDetachPreview(editor: Editor, instanceId: number): voi
     ovTitle.textContent = `Changed layers (${overrideRows.length})`;
     modal.appendChild(ovTitle);
 
+    const ovHint = document.createElement("div");
+    ovHint.style.cssText = "margin-top:4px;font-size:11px;color:#94a3b8;";
+    ovHint.textContent = "Tip: click a row to focus that layer before detaching.";
+    modal.appendChild(ovHint);
+
     const ovList = document.createElement("div");
     ovList.style.cssText = "margin-top:6px;max-height:150px;overflow:auto;border:1px solid #34344d;border-radius:8px;background:rgba(255,255,255,0.02);";
     overrideRows.slice(0, 14).forEach((ov) => {
-      const row = document.createElement("div");
-      row.style.cssText = "padding:7px 9px;border-bottom:1px solid rgba(255,255,255,0.05);";
+      const row = document.createElement("button");
+      row.type = "button";
+      row.style.cssText = "width:100%;text-align:left;background:transparent;border:none;padding:7px 9px;border-bottom:1px solid rgba(255,255,255,0.05);cursor:pointer;";
       row.innerHTML = `<div style=\"font-size:11px;color:#f3f4f6;font-weight:600;\">${escapeHtml(ov.node_name)}</div><div style=\"font-size:11px;color:#9ca3af;\">${escapeHtml(ov.properties.join(", ") || "changed")}</div>`;
+      row.addEventListener("mouseenter", () => { row.style.background = "rgba(74,144,217,0.12)"; });
+      row.addEventListener("mouseleave", () => { row.style.background = "transparent"; });
+      row.addEventListener("click", () => {
+        try {
+          (editor as any).selectNode?.(ov.node_id);
+          (editor as any).zoomToSelection?.();
+          editor.requestRender();
+        } catch {}
+      });
       ovList.appendChild(row);
     });
     if (overrideRows.length > 14) {

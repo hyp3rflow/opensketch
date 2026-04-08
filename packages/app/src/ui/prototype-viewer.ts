@@ -152,31 +152,118 @@ export function createPrototypeViewer(editor: Editor): {
       position:absolute;bottom:12px;left:12px;
       background:rgba(22,33,62,0.92);border:1px solid #333;
       border-radius:8px;padding:8px 12px;z-index:2;
-      font-size:11px;color:#ccc;min-width:140px;
+      font-size:11px;color:#ccc;min-width:220px;max-width:360px;
+      max-height:42vh;overflow:auto;
       backdrop-filter:blur(8px);
     `;
-    varsPanel.innerHTML = `<div style="font-weight:600;margin-bottom:4px;color:#818cf8;">Variables</div>`;
     overlay.appendChild(varsPanel);
     renderVarsPanel();
   }
 
+  function collectSubtreeIds(rootId: number): number[] {
+    const out: number[] = [];
+    const walk = (id: number) => {
+      out.push(id);
+      try {
+        const raw = editor.engine.get_node_json(BigInt(id));
+        if (!raw) return;
+        const node = JSON.parse(raw);
+        const children: any[] = Array.isArray(node?.children) ? node.children : [];
+        for (const cid of children) {
+          const num = Number(cid || 0);
+          if (num > 0) walk(num);
+        }
+      } catch {}
+    };
+    walk(rootId);
+    return out;
+  }
+
   function renderVarsPanel() {
     if (!varsPanel) return;
-    if (protoVars.size === 0) {
+    varsPanel.innerHTML = "";
+
+    // Section 1: prototype runtime vars
+    if (protoVars.size > 0) {
+      const title = document.createElement("div");
+      title.style.cssText = "font-weight:700;margin-bottom:4px;color:#818cf8;";
+      title.textContent = "Prototype Variables";
+      varsPanel.appendChild(title);
+      for (const [name, val] of protoVars) {
+        const row = document.createElement("div");
+        row.style.cssText = "display:flex;justify-content:space-between;gap:8px;padding:2px 0;";
+        row.innerHTML = `<span style=\"color:#a5b4fc;\">${name}</span><span style=\"color:#4ade80;font-weight:600;\">${val}</span>`;
+        varsPanel.appendChild(row);
+      }
+    }
+
+    // Section 2: frame-active design variables inspector
+    if (currentFrameId !== null) {
+      const spacer = document.createElement("div");
+      spacer.style.cssText = "height:8px;";
+      varsPanel.appendChild(spacer);
+
+      const title2 = document.createElement("div");
+      title2.style.cssText = "font-weight:700;margin-bottom:4px;color:#fbbf24;";
+      title2.textContent = "Active Variables (Current Frame)";
+      varsPanel.appendChild(title2);
+
+      const byKey = new Map<string, { collectionName: string; variableName: string; modeName: string; value: string; count: number }>();
+      let collections: any[] = [];
+      try { collections = JSON.parse(editor.engine.get_variable_collections() || "[]") || []; } catch {}
+      const subtree = collectSubtreeIds(currentFrameId);
+
+      for (const nodeId of subtree) {
+        let binds: any[] = [];
+        try { binds = JSON.parse(editor.engine.get_bindings(BigInt(nodeId)) || "[]") || []; } catch {}
+        for (const b of binds) {
+          const colId = Number(b?.collection_id || 0);
+          const varId = Number(b?.variable_id || 0);
+          if (colId <= 0 || varId <= 0) continue;
+          const col = collections.find((c: any) => Number(c?.id) === colId);
+          const v = col?.variables?.find((it: any) => Number(it?.id) === varId);
+          const modeId = Number(col?.active_mode_id || 0);
+          const mode = col?.modes?.find((m: any) => Number(m?.id) === modeId);
+          const value = (v?.values && modeId > 0) ? v.values[String(modeId)] ?? v.values[modeId] : undefined;
+          const key = `${colId}:${varId}`;
+          const prev = byKey.get(key);
+          byKey.set(key, {
+            collectionName: String(col?.name || `Collection ${colId}`),
+            variableName: String(v?.name || `Variable ${varId}`),
+            modeName: String(mode?.name || "Default"),
+            value: JSON.stringify(value ?? null),
+            count: (prev?.count || 0) + 1,
+          });
+        }
+      }
+
+      const rows = Array.from(byKey.values()).sort((a, b) => b.count - a.count || a.variableName.localeCompare(b.variableName));
+      if (rows.length === 0) {
+        const empty = document.createElement("div");
+        empty.style.cssText = "font-size:11px;color:#94a3b8;";
+        empty.textContent = "No variable bindings in this frame subtree.";
+        varsPanel.appendChild(empty);
+      } else {
+        rows.slice(0, 18).forEach((r) => {
+          const row = document.createElement("div");
+          row.style.cssText = "padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.06);";
+          row.innerHTML = `<div style=\"color:#fde68a;font-weight:600;\">${r.collectionName} / ${r.variableName}</div><div style=\"display:flex;justify-content:space-between;gap:8px;color:#cbd5e1;\"><span>${r.modeName}</span><span style=\"color:#86efac;font-family:ui-monospace,Menlo,monospace;\">${r.value}</span></div><div style=\"font-size:10px;color:#94a3b8;\">used by ${r.count} binding(s)</div>`;
+          varsPanel.appendChild(row);
+        });
+        if (rows.length > 18) {
+          const more = document.createElement("div");
+          more.style.cssText = "padding-top:4px;font-size:10px;color:#94a3b8;";
+          more.textContent = `+${rows.length - 18} more`;
+          varsPanel.appendChild(more);
+        }
+      }
+    }
+
+    if (protoVars.size === 0 && currentFrameId === null) {
       varsPanel.style.display = "none";
       return;
     }
     varsPanel.style.display = "";
-    // Keep header, rebuild rows
-    const rows = varsPanel.querySelectorAll(".pv-row");
-    rows.forEach(r => r.remove());
-    for (const [name, val] of protoVars) {
-      const row = document.createElement("div");
-      row.className = "pv-row";
-      row.style.cssText = "display:flex;justify-content:space-between;gap:8px;padding:2px 0;";
-      row.innerHTML = `<span style="color:#aaa;">${name}</span><span style="color:#4ade80;font-weight:600;">${val}</span>`;
-      varsPanel.appendChild(row);
-    }
   }
 
   function show(startFrameId?: number) {
@@ -1155,6 +1242,9 @@ export function createPrototypeViewer(editor: Editor): {
 
     // Overlay HTML5 <video> elements for Video nodes
     renderVideoOverlays(bounds, scale);
+
+    // Keep debug inspector in sync with current frame + active modes
+    renderVarsPanel();
   }
 
   /** Remove old video overlays */

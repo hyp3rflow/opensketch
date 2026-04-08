@@ -99,6 +99,7 @@
 - [x] **Overrides**: per-instance text/visibility overrides on children, reset individual/all overrides
 - [x] **Detach instance**: convert Instance to Frame (sever component link), Cmd+Alt+B shortcut, context menu + properties panel button
 - [x] **Symbol Detach Preview + Selective Detach (2026-04-08)**: Properties panel Detach 클릭 시 변경 임팩트(서브트리 레이어 수, nested instances, override/style-link 카운트) 프리뷰 모달 표시. 옵션 `Also detach nested instances`로 선택 인스턴스만 분리하거나 하위 인스턴스까지 일괄 분리 가능 (`get_detach_preview`, `detach_instance_selective` WASM API)
+- [x] **Symbol Detach Preview focus assist (2026-04-08)**: 프리뷰의 changed layer row 클릭 시 해당 레이어를 즉시 selection + zoom-to-selection으로 포커싱해 detach 전 영향 범위를 시각적으로 검증 가능
 - [x] **9 agent commands**: create, prop, variant, slot, instance, switch, fill, list, override
 - [x] **Component search & swap**: search components by name, view all instances, swap selected/all instances to different master component (Cmd+Shift+K)
 - [x] **Figma-style Variants Matrix UI (MVP)**: Component Set 인스턴스 편집 시 첫 2개 axis 조합을 2D 매트릭스로 시각화, 셀 클릭으로 variant 전환, 빈 셀 클릭/드래그로 현재 variant를 조합에 매핑
@@ -2305,6 +2306,7 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] **Prototype Device Frame + Safe Area Preview**: Device preset selector with bezel/notch overlays, safe-area inset tint+guide, and scroll position-aware scrollbar indicators (vertical/horizontal) in preview with top-bar `Bars` toggle
 - [x] **Prototype Device Chrome Details**: Added status-bar tint + home-indicator rendering (portrait/landscape aware) and expanded presets (`iPhone SE`) for more realistic safe-area/device-chrome validation in preview
 - [x] **Prototype theme mode switch**: Top bar `Theme` selector mirrors variable mode names (Light/Dark/custom) and switches collection active modes live during preview.
+- [x] **Prototype Variables Inspector (2026-04-08)**: Prototype Viewer 좌하단 debug panel을 확장해 현재 프레임 subtree 기준 활성 variable binding을 실시간 표시 (Collection/Variable, active mode, resolved value, usage count). Pan/zoom/navigate 및 mode 변경 시 자동 동기화.
 - [x] **Properties panel — Variables section**: Scene-level variable CRUD UI (name, type select, default value, add/delete)
 - [x] **Properties panel — Interaction condition UI v2**: 재귀 트리 빌더(leaf rule + AND/OR nested group), 루트/하위 condition·group 추가/삭제, prototype variable datalist + 비교 연산자 선택, live branch preview, clear/reset actions
 - [x] **Properties panel — SetVariable action UI**: Variable name + expression inputs shown when action is SetVariable

@@ -1790,9 +1790,18 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Prototype Variables Inspector — 현재 프레임 기준 활성 변수(컬렉션/모드/최종값) 실시간 디버그 패널 (임팩트 상, 난이도 중)
 - Component Dependency Graph — 컴포넌트/인스턴스/중첩 참조를 그래프로 시각화하고 순환/과중첩 경고 (임팩트 중상, 난이도 중상)
 - Smart Animate Diff Inspector — 두 프레임 간 Smart Animate 대상 속성 매칭 결과/누락 원인 리포트 (임팩트 상, 난이도 상)
+- Variant Bulk Rename & Matrix Edit — variant key 일괄 rename/규칙 변환(예: State=Default→Idle) + matrix에서 다중 셀 편집 (임팩트 상, 난이도 중)
+- Auto Layout Gap Tokens — gap/padding을 variable token과 직접 바인딩해 테마/브레이크포인트별 spacing 시스템 동기화 (임팩트 중상, 난이도 중)
+- Prototype Event Timeline Recorder — prototype 실행 중 interaction/event/variable 변화를 타임라인으로 기록·재생·내보내기 (임팩트 중상, 난이도 상)
+
+## 완료된 기능 (추가 — Prototype Variables Inspector, 2026-04-08)
+- Prototype Viewer 좌하단 변수 디버그 패널 확장
+  - 기존 prototype runtime 변수 값과 함께, 현재 프레임 subtree에서 사용 중인 design variable binding을 실시간 집계
+  - 항목별 표시: Collection/Variable, active mode 이름, resolved value(JSON), usage count
+- frame 이동/네비게이션, theme(mode) 전환, 렌더 시점마다 inspector 자동 동기화
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Asset Relink Manager, 2026-04-08)
 - Assets 패널에 `Asset Relink Manager` 섹션 추가 (Scan 버튼)
