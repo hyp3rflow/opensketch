@@ -41,6 +41,7 @@
   - Opacity (slider + percentage)
   - Fill color (picker + hex + alpha)
   - Stroke color/width + "Add stroke" + dash pattern, line cap, line join
+  - Advanced stroke controls (Path 중심): start/end arrowhead presets, dash corner compensation toggle, variable width start/end profile
   - Text: content, font family (14 fonts), font size
   - Node name, type badge
   - Multi-select count, empty state

@@ -4495,6 +4495,50 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           dashRow.appendChild(dashInput);
           strokeItem.appendChild(dashRow);
 
+          const advStrokeRow = document.createElement("div");
+          advStrokeRow.className = "prop-row";
+          advStrokeRow.style.cssText = "margin-top:4px;gap:4px;";
+          const arrowOptions = ["none", "arrow", "open-arrow", "diamond", "circle", "square"];
+          const startArrowSel = document.createElement("select");
+          startArrowSel.className = "prop-input";
+          startArrowSel.style.flex = "1";
+          startArrowSel.title = "Start arrowhead";
+          for (const v of arrowOptions) {
+            const opt = document.createElement("option"); opt.value = v; opt.textContent = `S:${v}`;
+            if ((stroke.arrow_start || "none") === v) opt.selected = true;
+            startArrowSel.appendChild(opt);
+          }
+          const endArrowSel = document.createElement("select");
+          endArrowSel.className = "prop-input";
+          endArrowSel.style.flex = "1";
+          endArrowSel.title = "End arrowhead";
+          for (const v of arrowOptions) {
+            const opt = document.createElement("option"); opt.value = v; opt.textContent = `E:${v}`;
+            if ((stroke.arrow_end || "none") === v) opt.selected = true;
+            endArrowSel.appendChild(opt);
+          }
+          const dashComp = document.createElement("label");
+          dashComp.style.cssText = "display:flex;align-items:center;gap:4px;font-size:10px;color:#aaa;";
+          const dashCompCk = document.createElement("input");
+          dashCompCk.type = "checkbox";
+          dashCompCk.checked = !!stroke.dash_corner_compensation;
+          dashComp.appendChild(dashCompCk);
+          dashComp.appendChild(document.createTextNode("Corner"));
+          const applyArrows = () => {
+            (editor.engine as any).set_stroke_arrowheads_at(id, idx, startArrowSel.value, endArrowSel.value);
+            editor.requestRender();
+          };
+          startArrowSel.addEventListener("change", applyArrows);
+          endArrowSel.addEventListener("change", applyArrows);
+          dashCompCk.addEventListener("change", () => {
+            (editor.engine as any).set_stroke_dash_corner_compensation_at(id, idx, dashCompCk.checked);
+            editor.requestRender();
+          });
+          advStrokeRow.appendChild(startArrowSel);
+          advStrokeRow.appendChild(endArrowSel);
+          advStrokeRow.appendChild(dashComp);
+          strokeItem.appendChild(advStrokeRow);
+
           // Cap / Join / Align row
           const optRow = document.createElement("div");
           optRow.className = "prop-row";

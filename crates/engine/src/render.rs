@@ -1316,6 +1316,25 @@ impl Renderer {
                     ctx.stroke();
                 }
             }
+            if points.len() >= 2 && (!matches!(stroke.arrow_start, crate::node::ArrowStyle::None) || !matches!(stroke.arrow_end, crate::node::ArrowStyle::None)) {
+                let sampled = Self::sample_open_path_points(points, 16);
+                if sampled.len() >= 2 {
+                    let stroke_color = stroke.color.to_css();
+                    let arrow_size = (stroke.width * 4.0).max(8.0);
+                    let (sx, sy) = sampled[0];
+                    let (snx, sny) = sampled[1];
+                    let (px, py) = sampled[sampled.len() - 2];
+                    let (ex, ey) = sampled[sampled.len() - 1];
+                    if !matches!(stroke.arrow_end, crate::node::ArrowStyle::None) {
+                        let angle = (ey - py).atan2(ex - px);
+                        self.draw_arrowhead_styled(ctx, ex, ey, angle, arrow_size, &stroke_color, &stroke.arrow_end, stroke.width);
+                    }
+                    if !matches!(stroke.arrow_start, crate::node::ArrowStyle::None) {
+                        let angle = (sy - sny).atan2(sx - snx);
+                        self.draw_arrowhead_styled(ctx, sx, sy, angle, arrow_size, &stroke_color, &stroke.arrow_start, stroke.width);
+                    }
+                }
+            }
             if !stroke.dash_array.is_empty() {
                 ctx.set_line_dash(&js_sys::Array::new()).ok();
             }
@@ -2952,7 +2971,13 @@ impl Renderer {
         // Dash pattern
         if !stroke.dash_array.is_empty() {
             let arr = js_sys::Array::new();
-            for &v in &stroke.dash_array {
+            let dash_values: Vec<f64> = if stroke.dash_corner_compensation {
+                let comp = (stroke.width * 0.5).max(0.0);
+                stroke.dash_array.iter().map(|d| (d - comp).max(1.0)).collect()
+            } else {
+                stroke.dash_array.clone()
+            };
+            for v in dash_values {
                 arr.push(&JsValue::from(v));
             }
             ctx.set_line_dash(&arr).ok();

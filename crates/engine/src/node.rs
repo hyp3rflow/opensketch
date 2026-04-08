@@ -1031,6 +1031,13 @@ pub struct Stroke {
     /// Applies only to Rect/Frame/Section nodes. None = all sides.
     #[serde(default)]
     pub individual_sides: Option<StrokeSides>,
+    #[serde(default)]
+    pub arrow_start: ArrowStyle,
+    #[serde(default)]
+    pub arrow_end: ArrowStyle,
+    /// Compensate dash lengths on corners for more even visual rhythm.
+    #[serde(default)]
+    pub dash_corner_compensation: bool,
 }
 
 /// Which sides of a rectangle to stroke individually.
@@ -1072,6 +1079,9 @@ impl Stroke {
             opacity: 1.0,
             blend_mode: BlendMode::Normal,
             individual_sides: None,
+            arrow_start: ArrowStyle::None,
+            arrow_end: ArrowStyle::None,
+            dash_corner_compensation: false,
         }
     }
 }

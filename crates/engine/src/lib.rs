@@ -3068,6 +3068,9 @@ impl Engine {
             "opacity": stroke.opacity,
             "blend_mode": format!("{:?}", stroke.blend_mode),
             "individual_sides": sides,
+            "arrow_start": stroke.arrow_start.to_str(),
+            "arrow_end": stroke.arrow_end.to_str(),
+            "dash_corner_compensation": stroke.dash_corner_compensation,
         })
     }
 
@@ -3218,6 +3221,31 @@ impl Engine {
                 };
             }
         }
+    }
+
+    /// Set stroke arrowheads at index.
+    pub fn set_stroke_arrowheads_at(&mut self, id: u64, index: u32, start: &str, end: &str) -> bool {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            let idx = index as usize;
+            if idx < node.strokes.len() {
+                node.strokes[idx].arrow_start = crate::node::ArrowStyle::from_str(start);
+                node.strokes[idx].arrow_end = crate::node::ArrowStyle::from_str(end);
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Enable/disable dash corner compensation at index.
+    pub fn set_stroke_dash_corner_compensation_at(&mut self, id: u64, index: u32, enabled: bool) -> bool {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            let idx = index as usize;
+            if idx < node.strokes.len() {
+                node.strokes[idx].dash_corner_compensation = enabled;
+                return true;
+            }
+        }
+        false
     }
 
     /// Set individual stroke sides at index. Pass JSON: {"top":true,"right":true,"bottom":false,"left":false}
