@@ -1810,13 +1810,13 @@
 - 리사이즈 종료/일반 드래그 전환 시 오버레이 자동 정리
 - specs 반영: `specs/FEATURES.md`
 
-## 완료된 기능 (추가 — Design Tokens Sync Bridge, 2026-04-09)
+## 완료된 기능 (추가 — Design Tokens Sync Bridge (Bidirectional), 2026-04-09)
 - Design Token Export 모달을 `Export / Sync Bridge`로 확장
-- 외부 JSON(Style Dictionary/W3C leaf token) import 후 문서 토큰과 diff preview 제공
-  - Color styles: add/update
-  - Text styles: add/update
-  - Variables(Tokens 컬렉션): add/update
-- `Apply Diff`로 변경사항 일괄 반영 (undo + apply_variables + render 통합)
+- Sync direction 토글 추가
+  - External JSON → OpenSketch: 기존처럼 color/text/variable add/update diff 계산 후 Apply
+  - OpenSketch → External JSON: local 기준 add/update/remove diff 계산 후 외부 JSON에 merge 적용
+- Reverse apply 결과를 `<원본파일>.synced.json`으로 즉시 다운로드
+- `{token.path}` alias resolve + Style Dictionary/W3C leaf 파싱 흐름 유지
 - specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Asset Relink Manager rules persistence, 2026-04-09)

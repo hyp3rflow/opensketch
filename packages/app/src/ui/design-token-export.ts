@@ -13,16 +13,26 @@ const FORMATS = [
 ] as const;
 
 type TokenLeaf = { path: string; value: any };
+type SyncDirection = 'external-to-local' | 'local-to-external';
 type DiffResult = {
   addColor: TokenLeaf[]; updateColor: TokenLeaf[];
   addText: TokenLeaf[]; updateText: TokenLeaf[];
   addVar: TokenLeaf[]; updateVar: TokenLeaf[];
+};
+type ReverseDiffResult = {
+  add: TokenLeaf[];
+  update: TokenLeaf[];
+  remove: TokenLeaf[];
 };
 
 let panel: HTMLDivElement | null = null;
 let selectedFormat = 'w3c';
 let previewContent = '';
 let pendingDiff: DiffResult | null = null;
+let pendingReverseDiff: ReverseDiffResult | null = null;
+let syncDirection: SyncDirection = 'external-to-local';
+let importedJsonRoot: any = null;
+let importedFileName = 'design-tokens';
 
 export function toggleDesignTokenExport(editor: Editor) {
   if (panel) { closePanel(); return; }
@@ -56,7 +66,11 @@ function openPanel(editor: Editor) {
           <pre class="dte-preview-code"></pre>
         </div>
         <div class="dte-sync-section">
-          <div class="dte-preview-header"><span>Sync Bridge (JSON → diff/apply)</span></div>
+          <div class="dte-preview-header"><span>Sync Bridge (bidirectional)</span></div>
+          <div class="dte-sync-dir-row">
+            <label><input type="radio" name="dte-sync-dir" value="external-to-local" checked> External JSON → OpenSketch</label>
+            <label><input type="radio" name="dte-sync-dir" value="local-to-external"> OpenSketch → External JSON</label>
+          </div>
           <div class="dte-sync-actions">
             <button class="dte-import-btn">Import JSON…</button>
             <button class="dte-apply-btn" disabled>Apply Diff</button>
@@ -86,7 +100,7 @@ function openPanel(editor: Editor) {
     .dte-copy-btn,.dte-import-btn,.dte-apply-btn{background:#3a3a3a;border:none;color:#ccc;padding:5px 10px;border-radius:4px;cursor:pointer;font-size:12px}
     .dte-copy-btn:hover,.dte-import-btn:hover,.dte-apply-btn:hover{background:#4a4a4a}.dte-apply-btn:disabled{opacity:.5;cursor:not-allowed}
     .dte-preview-code,.dte-diff-code{background:#1a1a1a;border-radius:8px;padding:12px;font-family:SFMono-Regular,Menlo,monospace;font-size:11px;line-height:1.5;max-height:220px;overflow:auto;white-space:pre-wrap;color:#a8d8a8;margin:0}
-    .dte-diff-code{color:#c8d5ff}.dte-sync-actions{display:flex;gap:8px;margin-bottom:8px}
+    .dte-diff-code{color:#c8d5ff}.dte-sync-dir-row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:8px;font-size:11px;color:#b8b8b8}.dte-sync-dir-row label{display:flex;align-items:center;gap:5px;cursor:pointer}.dte-sync-actions{display:flex;gap:8px;margin-bottom:8px}
     .dte-footer{display:flex;justify-content:flex-end;gap:8px;padding:12px 20px;border-top:1px solid #3a3a3a}
     .dte-cancel-btn{background:#3a3a3a;border:none;color:#ccc;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:13px}
     .dte-download-btn{background:#4a90d9;border:none;color:#fff;padding:8px 20px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600}
@@ -129,24 +143,56 @@ function openPanel(editor: Editor) {
     });
   });
 
+  const refreshDiffPreview = () => {
+    if (!importedJsonRoot) {
+      pendingDiff = null;
+      pendingReverseDiff = null;
+      applyBtn.disabled = true;
+      diffEl.textContent = 'No diff yet. Import JSON first.';
+      return;
+    }
+    const leaves = flattenTokens(importedJsonRoot);
+    if (syncDirection === 'external-to-local') {
+      pendingReverseDiff = null;
+      pendingDiff = computeDiff(editor, leaves);
+      diffEl.textContent = summarizeDiff(pendingDiff);
+      applyBtn.disabled = totalDiff(pendingDiff) === 0;
+    } else {
+      pendingDiff = null;
+      pendingReverseDiff = computeReverseDiff(editor, leaves);
+      diffEl.textContent = summarizeReverseDiff(pendingReverseDiff);
+      applyBtn.disabled = totalReverseDiff(pendingReverseDiff) === 0;
+    }
+  };
+
+  panel.querySelectorAll('input[name="dte-sync-dir"]').forEach(el => {
+    el.addEventListener('change', () => {
+      const v = (el as HTMLInputElement).value as SyncDirection;
+      if (v !== syncDirection) {
+        syncDirection = v;
+        refreshDiffPreview();
+      }
+    });
+  });
+
   panel.querySelector('.dte-import-btn')!.addEventListener('click', () => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.json,application/json';
     input.onchange = () => {
       const file = input.files?.[0]; if (!file) return;
+      importedFileName = file.name.replace(/\.json$/i, '') || 'design-tokens';
       const fr = new FileReader();
       fr.onload = () => {
         try {
-          const parsed = JSON.parse(String(fr.result || '{}'));
-          const leaves = flattenTokens(parsed);
-          pendingDiff = computeDiff(editor, leaves);
-          diffEl.textContent = summarizeDiff(pendingDiff);
-          applyBtn.disabled = totalDiff(pendingDiff) === 0;
+          importedJsonRoot = JSON.parse(String(fr.result || '{}'));
+          refreshDiffPreview();
         } catch (e: any) {
           diffEl.textContent = `Invalid JSON: ${e?.message || e}`;
           applyBtn.disabled = true;
+          importedJsonRoot = null;
           pendingDiff = null;
+          pendingReverseDiff = null;
         }
       };
       fr.readAsText(file);
@@ -155,12 +201,30 @@ function openPanel(editor: Editor) {
   });
 
   applyBtn.addEventListener('click', () => {
-    if (!pendingDiff) return;
-    const applied = applyDiff(editor, pendingDiff);
-    editor.requestRender();
-    diffEl.textContent = `${summarizeDiff(pendingDiff)}\n\nApplied: ${applied} changes.`;
+    if (syncDirection === 'external-to-local') {
+      if (!pendingDiff) return;
+      const applied = applyDiff(editor, pendingDiff);
+      editor.requestRender();
+      diffEl.textContent = `${summarizeDiff(pendingDiff)}\n\nApplied to OpenSketch: ${applied} changes.`;
+      pendingDiff = null;
+      applyBtn.disabled = true;
+      return;
+    }
+
+    if (!pendingReverseDiff || !importedJsonRoot) return;
+    const merged = applyReverseDiff(importedJsonRoot, pendingReverseDiff);
+    const text = JSON.stringify(merged, null, 2);
+    const blob = new Blob([text], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${importedFileName}.synced.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    diffEl.textContent = `${summarizeReverseDiff(pendingReverseDiff)}\n\nApplied to external JSON and downloaded: ${a.download}`;
+    importedJsonRoot = merged;
+    pendingReverseDiff = null;
     applyBtn.disabled = true;
-    pendingDiff = null;
   });
 
   panel.querySelector('.dte-download-btn')!.addEventListener('click', () => { editor.downloadDesignTokens(selectedFormat); closePanel(); });
@@ -176,6 +240,10 @@ function closePanel() {
   if (handler) document.removeEventListener('keydown', handler, true);
   panel.remove();
   panel = null;
+  pendingDiff = null;
+  pendingReverseDiff = null;
+  importedJsonRoot = null;
+  syncDirection = 'external-to-local';
 }
 
 function flattenTokens(input: any, path: string[] = [], out: TokenLeaf[] = []): TokenLeaf[] {
@@ -287,6 +355,80 @@ function computeDiff(editor: Editor, leaves: TokenLeaf[]): DiffResult {
     }
   }
   return d;
+}
+
+
+
+function getLocalTokenLeaves(editor: Editor): TokenLeaf[] {
+  let w3c: any = {};
+  try {
+    w3c = JSON.parse(editor.exportDesignTokens('w3c') || '{}');
+  } catch {
+    w3c = {};
+  }
+  return flattenTokens(w3c);
+}
+
+function isEqualTokenValue(a: any, b: any): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
+function computeReverseDiff(editor: Editor, externalLeaves: TokenLeaf[]): ReverseDiffResult {
+  const localLeaves = getLocalTokenLeaves(editor);
+  const eMap = new Map(externalLeaves.map(l => [l.path, l.value]));
+  const lMap = new Map(localLeaves.map(l => [l.path, l.value]));
+  const d: ReverseDiffResult = { add: [], update: [], remove: [] };
+
+  for (const [path, value] of lMap.entries()) {
+    const ex = eMap.get(path);
+    if (ex === undefined) d.add.push({ path, value });
+    else if (!isEqualTokenValue(ex, value)) d.update.push({ path, value });
+  }
+  for (const [path, value] of eMap.entries()) {
+    if (!lMap.has(path)) d.remove.push({ path, value });
+  }
+  return d;
+}
+
+function summarizeReverseDiff(d: ReverseDiffResult): string {
+  return [
+    `External JSON sync: +${d.add.length} / ~${d.update.length} / -${d.remove.length}`,
+    'Direction: OpenSketch → External JSON',
+  ].join('\n');
+}
+
+function totalReverseDiff(d: ReverseDiffResult) {
+  return d.add.length + d.update.length + d.remove.length;
+}
+
+function setByPath(root: any, path: string, value: any) {
+  const parts = path.split('.').filter(Boolean);
+  if (parts.length === 0) return;
+  let cur = root;
+  for (let i = 0; i < parts.length - 1; i += 1) {
+    const key = parts[i];
+    if (cur[key] == null || typeof cur[key] !== 'object') cur[key] = {};
+    cur = cur[key];
+  }
+  cur[parts[parts.length - 1]] = value;
+}
+
+function deleteByPath(root: any, path: string) {
+  const parts = path.split('.').filter(Boolean);
+  if (parts.length === 0) return;
+  let cur = root;
+  for (let i = 0; i < parts.length - 1; i += 1) {
+    cur = cur?.[parts[i]];
+    if (!cur || typeof cur !== 'object') return;
+  }
+  if (cur && typeof cur === 'object') delete cur[parts[parts.length - 1]];
+}
+
+function applyReverseDiff(importedRoot: any, d: ReverseDiffResult): any {
+  const next = JSON.parse(JSON.stringify(importedRoot || {}));
+  for (const leaf of d.remove) deleteByPath(next, leaf.path);
+  for (const leaf of [...d.add, ...d.update]) setByPath(next, leaf.path, leaf.value);
+  return next;
 }
 
 function summarizeDiff(d: DiffResult): string {

@@ -548,7 +548,9 @@
 - [x] **CSS Variables format**: :root { --color-*, --font-family-*, --font-size-*, --font-weight-*, --line-height-* } + variable collections
 - [x] **SCSS Variables format**: $color-*, $font-family-*, $font-size-*, $font-weight-*, $line-height-* + variable collections
 - [x] **Design Token Export modal**: Format selection cards (W3C/Style Dictionary/Tailwind/CSS Variables/SCSS), live preview, copy to clipboard, download
-- [x] **Design Tokens Sync Bridge**: 동일 모달에서 JSON import → diff preview(add/update for color/text/variables) → one-click apply 지원
+- [x] **Design Tokens Sync Bridge**: 동일 모달에서 JSON import → diff preview → one-click apply 지원
+  - Direction A (External JSON → OpenSketch): color/text/variable add/update diff를 계산하고 바로 적용
+  - Direction B (OpenSketch → External JSON): local 토큰 기준 add/update/remove diff를 계산해 외부 JSON에 merge 후 `*.synced.json`으로 다운로드
   - Style Dictionary primitive leaf + W3C `$value` leaf 파싱
   - `{token.path}` alias reference resolve 후 diff/apply (cycle-safe)
 
