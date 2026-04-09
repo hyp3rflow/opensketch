@@ -6103,6 +6103,11 @@ impl Engine {
         self.components.update_set_axis(set_id, axis_name, values)
     }
 
+    /// Rename a component set axis and remap variant keys.
+    pub fn rename_component_set_axis(&mut self, set_id: u64, old_axis_name: &str, new_axis_name: &str) -> bool {
+        self.components.rename_set_axis(set_id, old_axis_name, new_axis_name)
+    }
+
     /// Remove a variant axis from a component set
     pub fn remove_component_set_axis(&mut self, set_id: u64, axis_name: &str) -> bool {
         self.components.remove_set_axis(set_id, axis_name)

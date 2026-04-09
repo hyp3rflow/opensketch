@@ -594,6 +594,42 @@ impl ComponentStore {
         false
     }
 
+    /// Rename a variant axis on a component set and remap all existing variant_map keys.
+    pub fn rename_set_axis(&mut self, set_id: ComponentSetId, old_name: &str, new_name: &str) -> bool {
+        let new_name = new_name.trim();
+        if new_name.is_empty() || old_name == new_name {
+            return false;
+        }
+
+        if let Some(set) = self.component_sets.get_mut(&set_id) {
+            if set.axes.iter().any(|a| a.name == new_name) {
+                return false;
+            }
+
+            let Some(axis) = set.axes.iter_mut().find(|a| a.name == old_name) else {
+                return false;
+            };
+            axis.name = new_name.to_string();
+
+            let mut remapped: HashMap<String, ComponentId> = HashMap::new();
+            for (key_str, comp_id) in set.variant_map.clone() {
+                let mut values: HashMap<String, String> = HashMap::new();
+                for part in key_str.split(',') {
+                    if let Some((k, v)) = part.split_once('=') {
+                        let nk = if k == old_name { new_name } else { k };
+                        values.insert(nk.to_string(), v.to_string());
+                    }
+                }
+                let new_key = ComponentSet::make_key(&values);
+                remapped.insert(new_key, comp_id);
+            }
+            set.variant_map = remapped;
+            return true;
+        }
+
+        false
+    }
+
     /// Remove a variant axis from a component set
     pub fn remove_set_axis(&mut self, set_id: ComponentSetId, axis_name: &str) -> bool {
         if let Some(set) = self.component_sets.get_mut(&set_id) {

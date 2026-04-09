@@ -1698,7 +1698,13 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
                     return out;
                   };
 
-                  const applyAxisValues = (axisName: string, rawText: string, prevValues: string[]) => {
+                  const applyAxisConfig = (axisName: string, nextAxisName: string, rawText: string, prevValues: string[]) => {
+                    const targetAxisName = String(nextAxisName || "").trim();
+                    if (!targetAxisName) {
+                      alert("Axis name cannot be empty.");
+                      return;
+                    }
+
                     const nextValues = rawText.split(",").map((v) => v.trim()).filter(Boolean);
                     if (nextValues.length === 0) {
                       alert("Axis must contain at least one value.");
@@ -1708,37 +1714,61 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
                       alert("Duplicate axis values are not allowed.");
                       return;
                     }
-                    if (JSON.stringify(nextValues) === JSON.stringify(prevValues)) return;
+
+                    const renamed = targetAxisName !== axisName;
+                    const valuesChanged = JSON.stringify(nextValues) !== JSON.stringify(prevValues);
+                    if (!renamed && !valuesChanged) return;
 
                     editor.pushUndo();
-                    const ok = (editor.engine as any).update_component_set_axis(BigInt(setInfo.set_id), axisName, JSON.stringify(nextValues));
-                    if (!ok) {
-                      alert("Failed to update axis values");
-                      return;
+
+                    if (renamed) {
+                      const renameOk = (editor.engine as any).rename_component_set_axis?.(BigInt(setInfo.set_id), axisName, targetAxisName);
+                      if (!renameOk) {
+                        alert("Failed to rename axis");
+                        return;
+                      }
+                    }
+
+                    if (valuesChanged) {
+                      const ok = (editor.engine as any).update_component_set_axis(BigInt(setInfo.set_id), targetAxisName, JSON.stringify(nextValues));
+                      if (!ok) {
+                        alert("Failed to update axis values");
+                        return;
+                      }
                     }
 
                     for (const [oldKey, comp] of Object.entries(variantMap || {})) {
                       const values = parseKey(oldKey);
-                      if (values[axisName] != null) {
-                        const oldVal = String(values[axisName]);
+                      if (renamed && values[axisName] != null) {
+                        values[targetAxisName] = values[axisName];
+                        delete values[axisName];
+                      }
+
+                      if (values[targetAxisName] != null) {
+                        const oldVal = String(values[targetAxisName]);
                         const oldIndex = prevValues.indexOf(oldVal);
                         if (oldIndex >= 0 && oldIndex < nextValues.length) {
-                          values[axisName] = nextValues[oldIndex];
+                          values[targetAxisName] = nextValues[oldIndex];
                         } else if (nextValues.includes(oldVal)) {
-                          values[axisName] = oldVal;
+                          values[targetAxisName] = oldVal;
                         } else {
                           continue;
                         }
                       }
+
                       (editor.engine as any).set_component_set_variant_mapping(BigInt(setInfo.set_id), JSON.stringify(values), BigInt(Number(comp || 0)));
                     }
 
                     const switchedValues = { ...currentValues };
-                    if (switchedValues[axisName] != null) {
-                      const oldVal = String(switchedValues[axisName]);
+                    if (renamed && switchedValues[axisName] != null) {
+                      switchedValues[targetAxisName] = switchedValues[axisName];
+                      delete switchedValues[axisName];
+                    }
+                    if (switchedValues[targetAxisName] != null) {
+                      const oldVal = String(switchedValues[targetAxisName]);
                       const oldIndex = prevValues.indexOf(oldVal);
-                      if (oldIndex >= 0 && oldIndex < nextValues.length) switchedValues[axisName] = nextValues[oldIndex];
-                      else if (!nextValues.includes(oldVal)) switchedValues[axisName] = nextValues[0] || "";
+                      if (oldIndex >= 0 && oldIndex < nextValues.length) switchedValues[targetAxisName] = nextValues[oldIndex];
+                      else if (!nextValues.includes(oldVal)) switchedValues[targetAxisName] = nextValues[0] || "";
                     }
                     (editor.engine as any).switch_instance_set_variant(BigInt(id), JSON.stringify(switchedValues));
 
@@ -1752,10 +1782,12 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
                     const row = document.createElement("div");
                     row.style.cssText = "display:flex;align-items:center;gap:6px;";
 
-                    const label = document.createElement("div");
-                    label.style.cssText = "min-width:52px;font-size:10px;color:#c4b5fd;font-weight:600;";
-                    label.textContent = axis.name;
-                    row.appendChild(label);
+                    const axisNameInput = document.createElement("input");
+                    axisNameInput.type = "text";
+                    axisNameInput.value = axis.name;
+                    axisNameInput.style.cssText = "width:74px;height:22px;background:#2a2a2a;border:1px solid rgba(139,92,246,0.3);border-radius:4px;color:#ddd;font-size:10px;padding:0 6px;font-weight:600;";
+                    axisNameInput.title = "Axis name";
+                    row.appendChild(axisNameInput);
 
                     const input = document.createElement("input");
                     input.type = "text";
@@ -1767,7 +1799,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
                     applyBtn.type = "button";
                     applyBtn.textContent = "Apply";
                     applyBtn.style.cssText = "height:22px;background:rgba(139,92,246,0.12);border:1px solid rgba(139,92,246,0.35);border-radius:4px;color:#ddd;font-size:10px;padding:0 8px;cursor:pointer;";
-                    applyBtn.addEventListener("click", () => applyAxisValues(axis.name, input.value, (axis.values || []).map((v: string) => String(v))));
+                    applyBtn.addEventListener("click", () => applyAxisConfig(axis.name, axisNameInput.value, input.value, (axis.values || []).map((v: string) => String(v))));
                     row.appendChild(applyBtn);
 
                     axisEditor.appendChild(row);

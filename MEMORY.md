@@ -1794,6 +1794,13 @@
 - Constraint Conflict Detector — 부모 resize 시 깨질 가능성이 높은 constraints 조합을 실시간 경고하고 자동 수정 제안 (임팩트 중상, 난이도 중)
 - Prototype Accessibility Audit Trail — 포커스 이동/키보드 내비게이션/aria 라벨 누락을 플레이 세션 로그로 수집 (임팩트 중상, 난이도 중상)
 
+## 완료된 기능 (추가 — Variant Matrix Editor v4 axis rename remap, 2026-04-09)
+- Component Set 2D Variants Matrix inline editor에서 axis 이름 필드를 직접 수정 가능하도록 확장 (`packages/app/src/ui/properties-panel.ts`)
+- 새 WASM API `rename_component_set_axis(set_id, old_axis_name, new_axis_name)` 추가 (`crates/engine/src/component.rs`, `crates/engine/src/lib.rs`)
+- axis rename 시 component set `axes`와 `variant_map` key를 자동 remap하고, 동시에 axis 값 reorder/add/remove 변경도 한 번에 적용
+- 현재 instance의 axis 선택값도 rename + 값 변경 규칙에 맞춰 안전하게 이전하여 편집 직후 variant 전환 흐름 유지
+- specs 반영: `specs/FEATURES.md`
+
 ## 완료된 기능 (추가 — Variant Matrix Editor v3 inline axis editor, 2026-04-09)
 - Component Set 2D Variants Matrix 상단에 axis별 inline comma-list editor 추가 (`packages/app/src/ui/properties-panel.ts`)
 - 각 axis 값을 패널 내에서 rename/reorder/add/remove 후 즉시 Apply 가능
