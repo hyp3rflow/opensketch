@@ -1790,10 +1790,16 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Prototype Variable Inspector Overlay — 프리뷰 중 현재 변수 값/바인딩 출처를 인라인으로 보는 디버그 오버레이 (임팩트 상, 난이도 중)
 - Component Set Coverage Heatmap — Variant set에서 미매핑 조합/중복 매핑을 히트맵으로 시각화하고 one-click fix 제안 (임팩트 중상, 난이도 중)
 - Dev Handoff Redline Spec Mode — 선택 노드 간 거리/간격/토큰명을 스펙 시트처럼 고정 표시하는 handoff 모드 (임팩트 중상, 난이도 중)
 - Prototype Gesture Conflict Resolver — Hover/Press/Drag/Scroll 인터랙션 충돌 우선순위를 진단하고 자동 정렬 (임팩트 중, 난이도 중상)
+
+## 완료된 기능 (추가 — Prototype Variable Inspector Overlay v2, 2026-04-10)
+- Prototype Viewer 상단에 `Vars Overlay: ON/OFF` 토글 버튼 추가 (`packages/app/src/ui/prototype-viewer.ts`)
+- 좌하단 변수 인스펙터가 프레임 subtree의 바인딩 출처를 함께 표시: `LayerName (#id) · property` 포맷
+- 변수별 source preview(최대 2개 + more 카운트)를 추가해 값이 어디서 오는지 빠르게 추적 가능
+- collection/variable/mode/value/usage count 기존 표시와 결합되어 디버그 오버레이 완성도 향상
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Prototype Conditional Visibility Rules Builder v2, 2026-04-10)
 - Properties panel `Conditional Visibility` 섹션을 생성/수정/삭제 통합형 룰 빌더로 개선 (`packages/app/src/ui/properties-panel.ts`)

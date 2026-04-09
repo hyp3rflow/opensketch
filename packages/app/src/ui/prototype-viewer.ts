@@ -22,6 +22,7 @@ export function createPrototypeViewer(editor: Editor): {
   /** Prototype variable runtime state */
   let protoVars: Map<string, string> = new Map();
   let varsPanel: HTMLDivElement | null = null;
+  let showVarsOverlay = true;
   let snapPaginationEl: HTMLDivElement | null = null;
   let snapPaginationState: { frameId: number; axis: "x" | "y"; points: number[]; activeIndex: number } | null = null;
 
@@ -284,6 +285,10 @@ export function createPrototypeViewer(editor: Editor): {
 
   function renderVarsPanel() {
     if (!varsPanel) return;
+    if (!showVarsOverlay) {
+      varsPanel.style.display = "none";
+      return;
+    }
     varsPanel.innerHTML = "";
 
     // Section 1: prototype runtime vars
@@ -311,10 +316,25 @@ export function createPrototypeViewer(editor: Editor): {
       title2.textContent = "Active Variables (Current Frame)";
       varsPanel.appendChild(title2);
 
-      const byKey = new Map<string, { collectionName: string; variableName: string; modeName: string; value: string; count: number }>();
+      const byKey = new Map<string, { collectionName: string; variableName: string; modeName: string; value: string; count: number; sources: string[] }>();
       let collections: any[] = [];
       try { collections = JSON.parse(editor.engine.get_variable_collections() || "[]") || []; } catch {}
       const subtree = collectSubtreeIds(currentFrameId);
+      const nodeNameCache = new Map<number, string>();
+      const getNodeName = (nodeId: number): string => {
+        if (nodeNameCache.has(nodeId)) return nodeNameCache.get(nodeId)!;
+        let name = `#${nodeId}`;
+        try {
+          const raw = editor.engine.get_node_json(BigInt(nodeId));
+          if (raw) {
+            const node = JSON.parse(raw);
+            const n = String(node?.name || "").trim();
+            if (n) name = n;
+          }
+        } catch {}
+        nodeNameCache.set(nodeId, name);
+        return name;
+      };
 
       for (const nodeId of subtree) {
         let binds: any[] = [];
@@ -328,14 +348,19 @@ export function createPrototypeViewer(editor: Editor): {
           const modeId = Number(col?.active_mode_id || 0);
           const mode = col?.modes?.find((m: any) => Number(m?.id) === modeId);
           const value = (v?.values && modeId > 0) ? v.values[String(modeId)] ?? v.values[modeId] : undefined;
+          const prop = String(b?.property || "?");
+          const source = `${getNodeName(nodeId)} (#${nodeId}) · ${prop}`;
           const key = `${colId}:${varId}`;
           const prev = byKey.get(key);
+          const nextSources = prev?.sources ? [...prev.sources] : [];
+          if (!nextSources.includes(source) && nextSources.length < 6) nextSources.push(source);
           byKey.set(key, {
             collectionName: String(col?.name || `Collection ${colId}`),
             variableName: String(v?.name || `Variable ${varId}`),
             modeName: String(mode?.name || "Default"),
             value: JSON.stringify(value ?? null),
             count: (prev?.count || 0) + 1,
+            sources: nextSources,
           });
         }
       }
@@ -350,7 +375,9 @@ export function createPrototypeViewer(editor: Editor): {
         rows.slice(0, 18).forEach((r) => {
           const row = document.createElement("div");
           row.style.cssText = "padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.06);";
-          row.innerHTML = `<div style=\"color:#fde68a;font-weight:600;\">${r.collectionName} / ${r.variableName}</div><div style=\"display:flex;justify-content:space-between;gap:8px;color:#cbd5e1;\"><span>${r.modeName}</span><span style=\"color:#86efac;font-family:ui-monospace,Menlo,monospace;\">${r.value}</span></div><div style=\"font-size:10px;color:#94a3b8;\">used by ${r.count} binding(s)</div>`;
+          const sourcePreview = r.sources.slice(0, 2).map((s) => `<div>• ${s}</div>`).join("");
+          const sourceMore = r.sources.length > 2 ? `<div style=\"opacity:0.7;\">+${r.sources.length - 2} more source(s)</div>` : "";
+          row.innerHTML = `<div style=\"color:#fde68a;font-weight:600;\">${r.collectionName} / ${r.variableName}</div><div style=\"display:flex;justify-content:space-between;gap:8px;color:#cbd5e1;\"><span>${r.modeName}</span><span style=\"color:#86efac;font-family:ui-monospace,Menlo,monospace;\">${r.value}</span></div><div style=\"font-size:10px;color:#94a3b8;\">used by ${r.count} binding(s)</div><div style=\"font-size:10px;color:#93c5fd;margin-top:2px;line-height:1.25;\">${sourcePreview}${sourceMore}</div>`;
           varsPanel.appendChild(row);
         });
         if (rows.length > 18) {
@@ -686,6 +713,19 @@ export function createPrototypeViewer(editor: Editor): {
       setTimeout(() => { shareBtn.textContent = "Share Link"; }, 1400);
     });
     topBar.appendChild(shareBtn);
+
+    const varsOverlayBtn = document.createElement("button");
+    varsOverlayBtn.style.cssText = "background:#22314f;color:#c7d2fe;border:1px solid #3b82f6;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:11px;";
+    const syncVarsOverlayBtn = () => {
+      varsOverlayBtn.textContent = showVarsOverlay ? "Vars Overlay: ON" : "Vars Overlay: OFF";
+    };
+    syncVarsOverlayBtn();
+    varsOverlayBtn.addEventListener("click", () => {
+      showVarsOverlay = !showVarsOverlay;
+      syncVarsOverlayBtn();
+      renderVarsPanel();
+    });
+    topBar.appendChild(varsOverlayBtn);
 
     const closeBtn = document.createElement("button");
     closeBtn.style.cssText = "background:#e94560;color:white;border:none;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:12px;";

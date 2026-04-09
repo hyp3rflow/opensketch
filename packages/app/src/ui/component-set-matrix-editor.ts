@@ -242,7 +242,7 @@ export function openComponentSetMatrixEditor(opts: MatrixEditorOptions): void {
 
   const hint = document.createElement("div");
   hint.style.cssText = "font-size:10px;color:#c4b5fd;";
-  hint.textContent = "Click/drag to paint cells. Drag row/column headers to reorder axis values. Auto: mapped cell=Switch, empty cell=Map current + Switch.";
+  hint.textContent = "Click/drag to paint cells. Drag row/column headers to reorder axis values. Drag mapped cells to relocate mapping (Alt+drop = copy). Auto: mapped cell=Switch, empty cell=Map current + Switch.";
   paintRow.appendChild(hint);
   modal.appendChild(paintRow);
 
@@ -444,6 +444,28 @@ export function openComponentSetMatrixEditor(opts: MatrixEditorOptions): void {
       return true;
     };
 
+    const remapComponentBetweenCells = (sourceKey: string, targetValues: Record<string, string>, copyOnly: boolean): boolean => {
+      const compId = Number(localVariantMap[sourceKey] || 0);
+      if (compId <= 0) return false;
+
+      const targetKey = makeKey(targetValues);
+      if (!targetKey || sourceKey === targetKey) return false;
+
+      const mapTargetOk = (opts.editor.engine as any).set_component_set_variant_mapping(BigInt(opts.setId), JSON.stringify(targetValues), BigInt(compId));
+      if (!mapTargetOk) return false;
+
+      localVariantMap[targetKey] = compId;
+
+      if (!copyOnly) {
+        const clearSourceOk = (opts.editor.engine as any).set_component_set_variant_mapping(BigInt(opts.setId), JSON.stringify(parseKey(sourceKey)), BigInt(0));
+        if (!clearSourceOk) return false;
+        delete localVariantMap[sourceKey];
+      }
+
+      (opts.editor.engine as any).switch_instance_set_variant(BigInt(opts.instanceId), JSON.stringify(targetValues));
+      return true;
+    };
+
     rowValues.forEach((rv, rowIndex) => {
       const yl = document.createElement("div");
       yl.draggable = true;
@@ -481,8 +503,12 @@ export function openComponentSetMatrixEditor(opts: MatrixEditorOptions): void {
         const isActive = mappedCompId === opts.currentComponentId;
         const btn = document.createElement("button");
         btn.type = "button";
-        btn.style.cssText = `min-height:28px;border-radius:5px;cursor:pointer;border:1px solid ${isActive ? "#8b5cf6" : isMapped ? "rgba(139,92,246,0.45)" : "#3f3f46"};background:${isActive ? "rgba(139,92,246,0.35)" : isMapped ? "rgba(139,92,246,0.16)" : "#232329"};color:${isMapped ? "#ede9fe" : "#a1a1aa"};font-size:10px;`;
+        btn.draggable = isMapped;
+        btn.style.cssText = `min-height:28px;border-radius:5px;cursor:${isMapped ? "grab" : "pointer"};border:1px solid ${isActive ? "#8b5cf6" : isMapped ? "rgba(139,92,246,0.45)" : "#3f3f46"};background:${isActive ? "rgba(139,92,246,0.35)" : isMapped ? "rgba(139,92,246,0.16)" : "#232329"};color:${isMapped ? "#ede9fe" : "#a1a1aa"};font-size:10px;`;
         btn.textContent = isMapped ? `#${mappedCompId}` : "+";
+        if (isMapped) {
+          btn.title = "Click to switch/map by mode. Drag to another cell to move mapping (Alt+drop to copy).";
+        }
 
         const run = () => {
           const action = resolveAction(isMapped);
@@ -502,6 +528,39 @@ export function openComponentSetMatrixEditor(opts: MatrixEditorOptions): void {
         btn.onmouseenter = (ev) => {
           if ((ev as MouseEvent).buttons !== 1 || !dragAction) return;
           if (!applyCellAction(values, dragAction, mappedCompId)) return;
+          opts.editor.requestRender();
+          opts.onApplied();
+          render();
+        };
+
+        btn.ondragstart = (ev) => {
+          if (!isMapped || !ev.dataTransfer) return;
+          ev.dataTransfer.setData("text/plain", `map:${key}`);
+          ev.dataTransfer.effectAllowed = "copyMove";
+        };
+
+        btn.ondragover = (ev) => {
+          const raw = ev.dataTransfer?.getData("text/plain") || "";
+          if (!raw.startsWith("map:")) return;
+          ev.preventDefault();
+          btn.style.borderColor = "#c4b5fd";
+        };
+
+        btn.ondragleave = () => {
+          btn.style.borderColor = isActive ? "#8b5cf6" : isMapped ? "rgba(139,92,246,0.45)" : "#3f3f46";
+        };
+
+        btn.ondrop = (ev) => {
+          const raw = ev.dataTransfer?.getData("text/plain") || "";
+          if (!raw.startsWith("map:")) return;
+          ev.preventDefault();
+          btn.style.borderColor = isActive ? "#8b5cf6" : isMapped ? "rgba(139,92,246,0.45)" : "#3f3f46";
+          const sourceKey = raw.slice(4);
+          if (!sourceKey || sourceKey === key) return;
+
+          opts.editor.pushUndo();
+          const copyOnly = ev.altKey;
+          if (!remapComponentBetweenCells(sourceKey, values, copyOnly)) return;
           opts.editor.requestRender();
           opts.onApplied();
           render();
