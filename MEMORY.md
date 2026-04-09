@@ -1794,6 +1794,13 @@
 - Constraint Conflict Detector — 부모 resize 시 깨질 가능성이 높은 constraints 조합을 실시간 경고하고 자동 수정 제안 (임팩트 중상, 난이도 중)
 - Prototype Accessibility Audit Trail — 포커스 이동/키보드 내비게이션/aria 라벨 누락을 플레이 세션 로그로 수집 (임팩트 중상, 난이도 중상)
 
+## 완료된 기능 (추가 — Variant Matrix Editor v5 axis pivot + extra filters, 2026-04-09)
+- Variant Matrix Panel에서 Row/Column axis를 드롭다운으로 선택해 3개 이상 variant axis도 2D 매트릭스로 피벗 편집 가능
+- 선택되지 않은 axis는 `Extra filters`로 고정값을 지정해 특정 컨텍스트(예: State=Hover) 기준 매트릭스 매핑 편집 지원
+- 기존 axis rename/reorder/add/remove Apply 시 remap 로직 유지 + UI 상태 재동기화 강화
+- 구현: `packages/app/src/ui/component-set-matrix-editor.ts`
+- specs 반영: `specs/FEATURES.md`
+
 ## 완료된 기능 (추가 — Variant Matrix Editor Panel modal workflow, 2026-04-09)
 - Component Set instance Properties의 2D Variants Matrix에 `Panel` 액션 추가
 - Full-screen `Variant Matrix Editor` 모달에서 axis rename/reorder/add/remove를 일괄 편집

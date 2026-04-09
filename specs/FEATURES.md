@@ -2492,6 +2492,8 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 ### Variant Matrix Editor Panel (2026-04-09)
 - [x] Component Set instance의 Properties > Variants Matrix에 `Panel` 버튼 추가
 - [x] Full-screen modal editor에서 axis 이름/값을 한 번에 수정 (`rename_component_set_axis`, `update_component_set_axis`)
+- [x] Row/Column axis selector 추가: 3개 이상 axis를 가진 variant set에서도 2D 매트릭스 축을 즉시 전환 가능
+- [x] 선택되지 않은 나머지 axis는 `Extra filters`로 고정값을 선택해 매트릭스 조회 기준을 제어
 - [x] Axis 값 변경 시 기존 variant mapping을 인덱스 기반으로 자동 remap
 - [x] Matrix cell 클릭으로 mapped variant switch / empty cell을 현재 컴포넌트로 map+switch
 - [x] 구현: `packages/app/src/ui/component-set-matrix-editor.ts` + `properties-panel.ts` 연동
