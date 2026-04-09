@@ -18,11 +18,18 @@ export interface MeasureLine {
   axis: "h" | "v";
 }
 
-interface Bounds {
+export interface Bounds {
   x: number;
   y: number;
   w: number;
   h: number;
+}
+
+export interface MeasureDimensionLabel {
+  axis: "w" | "h";
+  value: number;
+  x: number;
+  y: number;
 }
 
 /**
@@ -145,6 +152,61 @@ export function computeMeasureLines(
   }
 
   return lines;
+}
+
+export function computeDimensionLabels(
+  bounds: Bounds,
+  zoom: number,
+  panX: number,
+  panY: number,
+): MeasureDimensionLabel[] {
+  const sx = bounds.x * zoom + panX;
+  const sy = bounds.y * zoom + panY;
+  const sw = bounds.w * zoom;
+  const sh = bounds.h * zoom;
+  return [
+    {
+      axis: "w",
+      value: Math.round(bounds.w * 10) / 10,
+      x: sx + sw / 2,
+      y: sy - 12,
+    },
+    {
+      axis: "h",
+      value: Math.round(bounds.h * 10) / 10,
+      x: sx - 12,
+      y: sy + sh / 2,
+    },
+  ];
+}
+
+export function renderDimensionLabels(
+  ctx: CanvasRenderingContext2D,
+  labels: MeasureDimensionLabel[],
+) {
+  if (labels.length === 0) return;
+  ctx.save();
+  ctx.font = "10px -apple-system, BlinkMacSystemFont, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+
+  for (const label of labels) {
+    const text = `${label.value}`;
+    const tw = Math.max(20, ctx.measureText(text).width + 8);
+    const th = 14;
+    const lx = label.x - tw / 2;
+    const ly = label.y - th / 2;
+
+    ctx.fillStyle = "#ff3366";
+    ctx.beginPath();
+    ctx.roundRect(lx, ly, tw, th, 3);
+    ctx.fill();
+
+    ctx.fillStyle = "#fff";
+    ctx.fillText(text, label.x, label.y + 0.5);
+  }
+
+  ctx.restore();
 }
 
 /**

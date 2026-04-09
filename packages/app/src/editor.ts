@@ -6,7 +6,7 @@ import { computeSnap, renderGuides, type SnapGuide } from "./tools/smart-guides"
 import { computeDropTarget, renderDropIndicator, executeDropReparent, type DropTarget } from "./tools/drag-reparent";
 import { computePointSnap, renderPointSnapIndicators, collectPathPointTargets, addRulerTargets, constrainAngle, type PointSnapIndicator, type PointSnapTarget } from "./tools/point-snap";
 import { renderGrid, computeGridSnap } from "./tools/grid-snap";
-import { computeMeasureLines, renderMeasureLines, renderTargetHighlight, type MeasureLine } from "./tools/measure";
+import { computeMeasureLines, renderMeasureLines, renderTargetHighlight, computeDimensionLabels, renderDimensionLabels, type MeasureLine, type MeasureDimensionLabel, type Bounds } from "./tools/measure";
 import { MeasureToolState, renderPersistentMeasures, hitTestMeasureLine } from "./tools/measure-tool";
 import type { RulersAPI } from "./ui/rulers";
 import { toggleShortcutsPanel, isShortcutsPanelVisible, closeShortcutsPanel } from "./ui/shortcuts-panel";
@@ -240,6 +240,7 @@ export class Editor {
   } | null = null;
   private _measureLines: MeasureLine[] = [];
   private _measureTargetBounds: { x: number; y: number; w: number; h: number } | null = null;
+  private _measureDimensionLabels: MeasureDimensionLabel[] = [];
   public measureTool = new MeasureToolState();
   private _altHeld = false;
   private _devMode = false;
@@ -1303,6 +1304,7 @@ export class Editor {
         this._altHeld = false;
         this._measureLines = [];
         this._measureTargetBounds = null;
+        this._measureDimensionLabels = [];
         this.needsRender = true;
       }
     });
@@ -2394,9 +2396,10 @@ export class Editor {
           this._devModeOverlay.hide();
         }
       }
-    } else if (this._measureLines.length > 0) {
+    } else if (this._measureLines.length > 0 || this._measureDimensionLabels.length > 0) {
       this._measureLines = [];
       this._measureTargetBounds = null;
+      this._measureDimensionLabels = [];
       this.needsRender = true;
     }
 
@@ -4412,11 +4415,29 @@ export class Editor {
     if (sel.length === 0) {
       this._measureLines = [];
       this._measureTargetBounds = null;
+      this._measureDimensionLabels = [];
       return;
     }
 
     const selBBox = this.getSelectionBBox(sel);
-    if (!selBBox) { this._measureLines = []; this._measureTargetBounds = null; return; }
+    if (!selBBox) {
+      this._measureLines = [];
+      this._measureTargetBounds = null;
+      this._measureDimensionLabels = [];
+      return;
+    }
+
+    const zoom = this.engine.get_zoom();
+    const panX = this.engine.get_pan_x();
+    const panY = this.engine.get_pan_y();
+    this._measureDimensionLabels = computeDimensionLabels(selBBox as Bounds, zoom, panX, panY);
+
+    const getNodeBounds = (id: number): Bounds | null => {
+      const nj = this.engine.get_node_json(BigInt(id));
+      if (!nj) return null;
+      const n = JSON.parse(nj);
+      return { x: Number(n.x || 0), y: Number(n.y || 0), w: Number(n.width || 0), h: Number(n.height || 0) };
+    };
 
     // Hit test to find hovered node
     const hitBigInt = this.engine.hit_test(screenX, screenY);
@@ -4424,22 +4445,28 @@ export class Editor {
     const selSet = new Set(sel);
 
     if (hitId && !selSet.has(hitId)) {
-      // Measure to hovered node
-      const nj = this.engine.get_node_json(BigInt(hitId));
-      if (nj) {
-        const n = JSON.parse(nj);
-        const targetBounds = { x: n.x, y: n.y, w: n.width, h: n.height };
-        const zoom = this.engine.get_zoom();
-        const panX = this.engine.get_pan_x();
-        const panY = this.engine.get_pan_y();
-        this._measureLines = computeMeasureLines(selBBox, targetBounds, zoom, panX, panY);
+      const targetBounds = getNodeBounds(hitId);
+      if (targetBounds) {
+        this._measureLines = computeMeasureLines(selBBox as Bounds, targetBounds, zoom, panX, panY);
         this._measureTargetBounds = targetBounds;
         this.needsRender = true;
         return;
       }
     }
 
-    // No target — clear
+    // Alt + exactly two selected nodes: show spacing between them without hover target
+    if (sel.length === 2) {
+      const a = getNodeBounds(sel[0]!);
+      const b = getNodeBounds(sel[1]!);
+      if (a && b) {
+        this._measureLines = computeMeasureLines(a, b, zoom, panX, panY);
+        this._measureTargetBounds = b;
+        this.needsRender = true;
+        return;
+      }
+    }
+
+    // No target — clear lines, keep dimension labels
     this._measureLines = [];
     this._measureTargetBounds = null;
     this.needsRender = true;
@@ -4453,6 +4480,7 @@ export class Editor {
       renderTargetHighlight(this.ctx, this._measureTargetBounds, zoom, panX, panY);
     }
     renderMeasureLines(this.ctx, this._measureLines);
+    renderDimensionLabels(this.ctx, this._measureDimensionLabels);
   }
 
   private renderPersistentMeasures() {
@@ -5341,6 +5369,7 @@ export class Editor {
       if (this._devHoverTimer) { clearTimeout(this._devHoverTimer); this._devHoverTimer = null; }
       this._measureLines = [];
       this._measureTargetBounds = null;
+      this._measureDimensionLabels = [];
       this.needsRender = true;
     }
   }

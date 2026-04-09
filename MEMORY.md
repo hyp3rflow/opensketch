@@ -1790,12 +1790,18 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Prototype Flow Map Mini-Graph — 페이지/오버레이 간 네비게이션 링크를 미니 그래프로 시각화하고 dead-end를 탐지 (임팩트 중, 난이도 중)
 - Auto Layout Gap Suggestions — 선택 프레임의 자식 간 spacing 패턴을 분석해 추천 gap/padding 프리셋 제안 (임팩트 중, 난이도 중)
 - Variables Mode Parity Checker — 컬렉션/모드 간 누락 값(빈 mode value, fallback 의존)을 자동 탐지하고 one-click normalize 제공 (임팩트 중상, 난이도 중)
 - Prototype Start Points Manager — 페이지별 다중 start frame을 시각적으로 관리하고 flow별 진입점을 저장/전환 (임팩트 중상, 난이도 중)
 - Auto Layout Spacing Tokens — 반복 간격 패턴을 토큰으로 추출해 프레임별 추천/적용 + 변수 바인딩 연결 (임팩트 중상, 난이도 중상)
 - Component Variant Naming Lint — variant axis/value 네이밍 규칙 검사(중복/불일치/약어 혼용)와 일괄 정리 제안 (임팩트 중, 난이도 중)
+
+## 완료된 기능 (추가 — Prototype Flow Map Mini-Graph dead-end diagnostics, 2026-04-10)
+- `packages/app/src/ui/flow-diagram.ts` 개선
+- 헤더에 연결 통계 표시: Connections / Dead ends / Isolated 카운트
+- dead-end 페이지(나가는 interaction 없음)를 카드에서 red tint + red border + `DEAD END` 배지로 강조
+- 기존 pan/zoom + flow 필터 선택과 함께 dead-end 탐지 워크플로우 지원
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Variables Collection Diff Timeline, 2026-04-10)
 - Variables panel(`packages/app/src/ui/variables-panel.ts`)에 `Variable Diff Timeline` 섹션 추가

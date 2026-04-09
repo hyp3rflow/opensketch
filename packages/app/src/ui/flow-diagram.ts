@@ -73,6 +73,10 @@ function openFlowDiagram(editor: Editor) {
   });
   header.appendChild(flowSelect);
 
+  const stats = document.createElement("div");
+  stats.style.cssText = "color:#94a3b8;font-size:11px;min-width:220px;";
+  header.appendChild(stats);
+
   const closeBtn = document.createElement("button");
   closeBtn.style.cssText = "background:#333;border:1px solid #555;border-radius:6px;color:#fff;padding:6px 16px;cursor:pointer;font-size:12px;";
   closeBtn.textContent = "Close";
@@ -124,6 +128,16 @@ function openFlowDiagram(editor: Editor) {
       connections = JSON.parse(editor.engine.get_all_cross_page_interactions() || "[]");
     }
 
+    const outgoingCount = new Map<number, number>();
+    const incomingCount = new Map<number, number>();
+    for (const conn of connections) {
+      outgoingCount.set(conn.source_page_id, (outgoingCount.get(conn.source_page_id) || 0) + 1);
+      incomingCount.set(conn.target_page_id, (incomingCount.get(conn.target_page_id) || 0) + 1);
+    }
+    const deadEnds = pages.filter((p) => (outgoingCount.get(p.id) || 0) === 0);
+    const isolated = pages.filter((p) => (outgoingCount.get(p.id) || 0) === 0 && (incomingCount.get(p.id) || 0) === 0);
+    stats.innerHTML = `Connections: <b style="color:#e2e8f0;">${connections.length}</b> · Dead ends: <b style="color:${deadEnds.length ? "#fca5a5" : "#86efac"};">${deadEnds.length}</b>${isolated.length ? ` <span style="color:#64748b;">(isolated ${isolated.length})</span>` : ""}`;
+
     // Find selected flow for start frame marker
     const selectedFlow = flows.find(f => f.id === selectedFlowId);
 
@@ -157,10 +171,12 @@ function openFlowDiagram(editor: Editor) {
       const pos = pagePositions.get(page.id);
       if (!pos) return;
 
+      const isDeadEnd = (outgoingCount.get(page.id) || 0) === 0;
+
       // Page card
-      ctx.fillStyle = "#1e1e1e";
-      ctx.strokeStyle = "#444";
-      ctx.lineWidth = 1;
+      ctx.fillStyle = isDeadEnd ? "#2b1f24" : "#1e1e1e";
+      ctx.strokeStyle = isDeadEnd ? "#ef4444" : "#444";
+      ctx.lineWidth = isDeadEnd ? 1.5 : 1;
       roundRect(ctx, pos.x, pos.y, pageW, pageH, 8);
       ctx.fill();
       ctx.stroke();
@@ -181,6 +197,13 @@ function openFlowDiagram(editor: Editor) {
         ctx.font = "9px Inter, sans-serif";
         ctx.textAlign = "left";
         ctx.fillText("START", pos.x + 20, pos.y + 15);
+      }
+
+      if (isDeadEnd) {
+        ctx.fillStyle = "#fca5a5";
+        ctx.font = "9px Inter, sans-serif";
+        ctx.textAlign = "left";
+        ctx.fillText("DEAD END", pos.x + 8, pos.y + pageH - 8);
       }
     });
 

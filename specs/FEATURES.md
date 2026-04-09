@@ -387,6 +387,7 @@
   - Flow CRUD: add_flow, remove_flow, rename_flow, set_flow_start_frame
   - Flow connections: get_flow_connections (BFS from start frame), get_all_cross_page_interactions (cross-page only)
   - Flow Diagram View: full-screen overlay with page thumbnail cards, interaction arrows (bezier curves), start frame green marker, pan/zoom support
+  - Flow Diagram Mini-Graph diagnostics: header에 connection/dead-end/isolated 카운트 표시, dead-end 페이지를 red tint + `DEAD END` 배지로 강조
   - Properties panel: "Prototype Flows" section with flow list, add/remove/rename, start frame assignment
   - Toolbar: Flow Diagram button next to prototype play button (i18n tooltip: en/ko/ja)
 
