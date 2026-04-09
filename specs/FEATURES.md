@@ -2488,3 +2488,10 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Preset 공유용 JSON 복사 (`Share`, clipboard 실패 시 prompt fallback)
 - [x] `Apply to Flow`로 현재(또는 첫 번째) prototype flow 범위의 interaction condition 일괄 적용
 - [x] 로컬 저장소 키: `localStorage['opensketch-proto-condition-presets-v1']`
+
+### Variant Matrix Editor Panel (2026-04-09)
+- [x] Component Set instance의 Properties > Variants Matrix에 `Panel` 버튼 추가
+- [x] Full-screen modal editor에서 axis 이름/값을 한 번에 수정 (`rename_component_set_axis`, `update_component_set_axis`)
+- [x] Axis 값 변경 시 기존 variant mapping을 인덱스 기반으로 자동 remap
+- [x] Matrix cell 클릭으로 mapped variant switch / empty cell을 현재 컴포넌트로 map+switch
+- [x] 구현: `packages/app/src/ui/component-set-matrix-editor.ts` + `properties-panel.ts` 연동

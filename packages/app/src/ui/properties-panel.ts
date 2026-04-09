@@ -12,6 +12,7 @@ import { createStyleTransferSection } from "./style-transfer";
 import { renderScrollAnimSection } from "./scroll-animation";
 import { openARQuickLook } from "./ar-quicklook";
 import { downloadDesignSystemDocs } from "./design-system-docs";
+import { openComponentSetMatrixEditor } from "./component-set-matrix-editor";
 
 type ConstraintSetPreset = {
   id: string;
@@ -1678,6 +1679,25 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
                     axisLockSelect.appendChild(o);
                   });
                   matrixTools.appendChild(axisLockSelect);
+
+                  const openPanelBtn = document.createElement("button");
+                  openPanelBtn.type = "button";
+                  openPanelBtn.textContent = "Panel";
+                  openPanelBtn.title = "Open full Variant Matrix Editor";
+                  openPanelBtn.style.cssText = "height:20px;background:rgba(139,92,246,0.16);border:1px solid rgba(139,92,246,0.35);border-radius:4px;color:#ddd;font-size:10px;padding:0 6px;cursor:pointer;";
+                  openPanelBtn.addEventListener("click", () => {
+                    openComponentSetMatrixEditor({
+                      editor,
+                      instanceId: id,
+                      setId: Number(setInfo.set_id || 0),
+                      currentComponentId: Number(setInfo.current_component_id || 0),
+                      currentValues: { ...currentValues },
+                      axes: (setInfo.axes || []).map((a: any) => ({ name: String(a.name || ""), values: Array.isArray(a.values) ? a.values.map((v: any) => String(v)) : [] })),
+                      variantMap: variantMap,
+                      onApplied: () => refresh([id]),
+                    });
+                  });
+                  matrixTools.appendChild(openPanelBtn);
 
                   matrixTitle.appendChild(matrixTools);
                   matrixSection.appendChild(matrixTitle);
