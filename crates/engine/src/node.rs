@@ -2285,6 +2285,9 @@ pub struct Node {
     /// Conditional visibility: show/hide based on variable value
     #[serde(default)]
     pub conditional_visibility: Option<VisibilityCondition>,
+    /// Prototype-only conditional visibility rule (JSON logic tree over prototype variables)
+    #[serde(default)]
+    pub prototype_visibility_rule: Option<String>,
     /// Overflow behavior for Frame nodes (clip children)
     #[serde(default)]
     pub overflow: Overflow,
@@ -2489,6 +2492,7 @@ impl Node {
             max_height: None,
             bookmarked: false,
             conditional_visibility: None,
+            prototype_visibility_rule: None,
             overflow: Overflow::default(),
             scroll_x: 0.0,
             scroll_y: 0.0,

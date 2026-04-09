@@ -2794,3 +2794,12 @@
 - 기존 WASM reparent_node_at() API 재활용
 - 루트 레벨 이동 지원, 같은 부모 내 순서 변경 시 인덱스 보정
 - Undo 통합
+
+## 완료된 기능 (추가 — Prototype Conditional Visibility Rules, 2026-04-10)
+- Prototype Visibility Rules 추가: 노드별 AND/OR 그룹 + leaf 조건(변수/연산자/값) 룰 빌더 UI 구현
+- Rule 데이터는 node에 prototype 전용 JSON으로 저장 (`set/get/clear_prototype_visibility_rule` WASM API)
+- Prototype viewer 렌더 직전에 runtime prototype variables를 기준으로 visibility override 적용 후 즉시 복원
+- design canvas 기본 visible 상태는 유지하고, prototype preview에서만 상태 기반 visible/hidden 분기 적용
+- 구현: `packages/app/src/ui/properties-panel.ts`, `packages/app/src/ui/prototype-viewer.ts`, `crates/engine/src/lib.rs`, `crates/engine/src/node.rs`
+- specs 반영: `specs/FEATURES.md`
+

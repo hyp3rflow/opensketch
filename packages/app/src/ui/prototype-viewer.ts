@@ -248,6 +248,93 @@ export function createPrototypeViewer(editor: Editor): {
     return evalCond(inter?.condition);
   }
 
+
+
+  /** Evaluate prototype visibility rule JSON against current prototype vars */
+  function evaluatePrototypeVisibilityRule(rule: any): boolean {
+    const evalLeaf = (cond: any): boolean => {
+      const variable = String(cond?.variable || "").trim();
+      if (!variable) return true;
+      const operator = String(cond?.operator || "Equal");
+      const value = String(cond?.value ?? "");
+      const current = String(protoVars.get(variable) ?? "");
+
+      const l = parseFloat(current);
+      const r = parseFloat(value);
+      if (!isNaN(l) && !isNaN(r) && value !== "") {
+        switch (operator) {
+          case "Equal": return Math.abs(l - r) < 1e-9;
+          case "NotEqual": return Math.abs(l - r) >= 1e-9;
+          case "GreaterThan": return l > r;
+          case "LessThan": return l < r;
+          case "GreaterThanOrEqual": return l >= r;
+          case "LessThanOrEqual": return l <= r;
+          default: return true;
+        }
+      }
+
+      switch (operator) {
+        case "Equal": return current === value;
+        case "NotEqual": return current !== value;
+        case "GreaterThan": return current > value;
+        case "LessThan": return current < value;
+        case "GreaterThanOrEqual": return current >= value;
+        case "LessThanOrEqual": return current <= value;
+        default: return true;
+      }
+    };
+
+    const evalCond = (cond: any): boolean => {
+      if (!cond || typeof cond !== "object") return true;
+      const children = Array.isArray(cond.conditions) ? cond.conditions : [];
+      const logic = String(cond.logic || "").toUpperCase();
+      if ((logic === "AND" || logic === "OR") && children.length > 0) {
+        return logic === "AND" ? children.every(evalCond) : children.some(evalCond);
+      }
+      return evalLeaf(cond);
+    };
+
+    return evalCond(rule);
+  }
+
+  /** Apply prototype visibility overrides for current frame; returns restore fn */
+  function applyPrototypeVisibilityOverrides(frameId: number): () => void {
+    const prev = new Map<number, boolean>();
+    try {
+      const ids = collectSubtreeIds(frameId);
+      for (const nid of ids) {
+        const nodeJson = editor.engine.get_node_json(BigInt(nid));
+        if (!nodeJson) continue;
+        const node = JSON.parse(nodeJson);
+        const wasVisible = node?.visible !== false;
+        let shouldShow = wasVisible;
+
+        const rawRule = String((editor.engine as any).get_prototype_visibility_rule?.(BigInt(nid)) || "").trim();
+        if (rawRule) {
+          try {
+            const rule = JSON.parse(rawRule);
+            shouldShow = wasVisible && evaluatePrototypeVisibilityRule(rule);
+          } catch {
+            shouldShow = wasVisible;
+          }
+        }
+
+        if (shouldShow !== wasVisible) {
+          prev.set(nid, wasVisible);
+          editor.engine.set_visible(BigInt(nid), shouldShow);
+        }
+      }
+    } catch {}
+
+    return () => {
+      try {
+        for (const [nid, visible] of prev.entries()) {
+          editor.engine.set_visible(BigInt(nid), visible);
+        }
+      } catch {}
+    };
+  }
+
   /** Build floating variables debug panel */
   function buildVarsPanel() {
     if (!overlay) return;
@@ -1165,11 +1252,13 @@ export function createPrototypeViewer(editor: Editor): {
     const savedPanY = editor.engine.get_pan_y();
 
     editor.engine.set_viewport(scale * dpr, -fb.x * scale * dpr, -fb.y * scale * dpr);
+    const restoreVisibility = applyPrototypeVisibilityOverrides(frameId);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, offscreen.width, offscreen.height);
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, offscreen.width, offscreen.height);
     editor.engine.render(ctx as any);
+    restoreVisibility();
 
     editor.engine.set_viewport(savedZoom, savedPanX, savedPanY);
     return offscreen;

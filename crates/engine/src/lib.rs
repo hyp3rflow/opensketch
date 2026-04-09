@@ -10869,6 +10869,32 @@ impl Engine {
         }
     }
 
+    pub fn set_prototype_visibility_rule(&mut self, node_id: u64, rule_json: &str) {
+        if let Some(node) = self.scene.get_node_mut(node_id) {
+            let trimmed = rule_json.trim();
+            if trimmed.is_empty() || trimmed == "null" {
+                node.prototype_visibility_rule = None;
+            } else {
+                node.prototype_visibility_rule = Some(trimmed.to_string());
+            }
+        }
+    }
+
+    pub fn get_prototype_visibility_rule(&self, node_id: u64) -> String {
+        if let Some(node) = self.scene.get_node(node_id) {
+            if let Some(ref rule) = node.prototype_visibility_rule {
+                return rule.clone();
+            }
+        }
+        "".to_string()
+    }
+
+    pub fn clear_prototype_visibility_rule(&mut self, node_id: u64) {
+        if let Some(node) = self.scene.get_node_mut(node_id) {
+            node.prototype_visibility_rule = None;
+        }
+    }
+
     pub fn is_effectively_visible(&self, node_id: u64) -> bool {
         self.scene.is_effectively_visible(node_id)
     }

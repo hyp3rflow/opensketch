@@ -7633,6 +7633,143 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       container.appendChild(cvSection);
     }
 
+    // --- Prototype Visibility Rules ---
+    {
+      const pvSection = createSection("Prototype Visibility Rules");
+      let protoVars: Array<{ name?: string; var_type?: string; default_value?: string }> = [];
+      try { protoVars = JSON.parse(editor.engine.get_prototype_variables() || "[]") || []; } catch {}
+
+      type RuleNode = { variable?: string; operator?: string; value?: string; logic?: "AND" | "OR"; conditions?: RuleNode[] };
+      const normalizeRule = (raw: any): RuleNode => {
+        if (!raw || typeof raw !== "object") return { variable: "", operator: "Equal", value: "" };
+        const children = Array.isArray(raw.conditions) ? raw.conditions.map(normalizeRule) : [];
+        const logic = String(raw.logic || "").toUpperCase();
+        if ((logic === "AND" || logic === "OR") && children.length > 0) return { logic: logic as "AND" | "OR", conditions: children };
+        return { variable: String(raw.variable || ""), operator: String(raw.operator || "Equal"), value: String(raw.value ?? "") };
+      };
+
+      let ruleState: RuleNode | null = null;
+      try {
+        const raw = String((editor.engine as any).get_prototype_visibility_rule?.(BigInt(id)) || "").trim();
+        if (raw) ruleState = normalizeRule(JSON.parse(raw));
+      } catch {}
+
+      const hint = document.createElement("div");
+      hint.style.cssText = "font-size:10px;color:#8b8b8b;margin-bottom:6px;";
+      hint.textContent = "Prototype preview에서만 적용되는 상태 기반 visibility 룰입니다.";
+      pvSection.appendChild(hint);
+
+      const builder = document.createElement("div");
+      builder.style.cssText = "display:flex;flex-direction:column;gap:4px;";
+      pvSection.appendChild(builder);
+
+      const makeLeaf = (): RuleNode => ({ variable: "", operator: "Equal", value: "" });
+      const makeGroup = (): RuleNode => ({ logic: "AND", conditions: [makeLeaf()] });
+
+      const persistRule = () => {
+        ensureUndo();
+        if (ruleState) (editor.engine as any).set_prototype_visibility_rule?.(BigInt(id), JSON.stringify(ruleState));
+        else (editor.engine as any).clear_prototype_visibility_rule?.(BigInt(id));
+        editor.requestRender();
+      };
+
+      const renderNode = (parent: RuleNode | null, node: RuleNode, depth: number): HTMLElement => {
+        const isGroup = (node.logic === "AND" || node.logic === "OR") && Array.isArray(node.conditions);
+        const el = document.createElement("div");
+        el.style.cssText = `border:1px solid #2f3240;border-radius:6px;padding:6px;background:#171a24;margin-left:${depth * 10}px;`;
+        const row = document.createElement("div");
+        row.style.cssText = "display:flex;gap:4px;align-items:center;";
+
+        if (isGroup) {
+          const logicSel = document.createElement("select");
+          logicSel.className = "prop-input";
+          logicSel.style.cssText = "width:72px;";
+          for (const lg of ["AND", "OR"]) {
+            const o = document.createElement("option"); o.value = lg; o.textContent = lg; if (node.logic === lg) o.selected = true; logicSel.appendChild(o);
+          }
+          logicSel.addEventListener("change", () => { node.logic = logicSel.value === "OR" ? "OR" : "AND"; persistRule(); renderBuilder(); });
+          row.appendChild(logicSel);
+
+          const addCondBtn = document.createElement("button");
+          addCondBtn.className = "prop-btn"; addCondBtn.style.cssText = "font-size:10px;padding:2px 6px;"; addCondBtn.textContent = "+ Condition";
+          addCondBtn.addEventListener("click", () => { (node.conditions ||= []).push(makeLeaf()); persistRule(); renderBuilder(); });
+          row.appendChild(addCondBtn);
+
+          const addGroupBtn = document.createElement("button");
+          addGroupBtn.className = "prop-btn"; addGroupBtn.style.cssText = "font-size:10px;padding:2px 6px;"; addGroupBtn.textContent = "+ Group";
+          addGroupBtn.addEventListener("click", () => { (node.conditions ||= []).push(makeGroup()); persistRule(); renderBuilder(); });
+          row.appendChild(addGroupBtn);
+        } else {
+          const varInput = document.createElement("input");
+          varInput.className = "prop-input"; varInput.style.cssText = "flex:1;"; varInput.placeholder = "variable"; varInput.value = String(node.variable || "");
+          const listId = `proto-vis-vars-${id}-${Math.random().toString(36).slice(2)}`;
+          const datalist = document.createElement("datalist"); datalist.id = listId;
+          for (const pv of protoVars) { if (!pv?.name) continue; const opt = document.createElement("option"); opt.value = String(pv.name); datalist.appendChild(opt); }
+          varInput.setAttribute("list", listId);
+
+          const opSel = document.createElement("select");
+          opSel.className = "prop-input"; opSel.style.cssText = "width:60px;";
+          for (const [v, l] of [["Equal","=="],["NotEqual","!="],["GreaterThan",">"],["LessThan","<"],["GreaterThanOrEqual",">="],["LessThanOrEqual","<="]]) {
+            const o = document.createElement("option"); o.value = v; o.textContent = l; if ((node.operator || "Equal") === v) o.selected = true; opSel.appendChild(o);
+          }
+
+          const valInput = document.createElement("input");
+          valInput.className = "prop-input"; valInput.style.cssText = "flex:1;"; valInput.placeholder = "value"; valInput.value = String(node.value ?? "");
+
+          const onChange = () => { node.variable = varInput.value; node.operator = opSel.value; node.value = valInput.value; persistRule(); };
+          varInput.addEventListener("change", onChange); opSel.addEventListener("change", onChange); valInput.addEventListener("change", onChange);
+
+          row.appendChild(varInput); row.appendChild(opSel); row.appendChild(valInput); row.appendChild(datalist);
+        }
+
+        if (parent) {
+          const removeBtn = document.createElement("button");
+          removeBtn.style.cssText = "font-size:10px;color:#e94560;background:none;border:none;cursor:pointer;margin-left:auto;";
+          removeBtn.textContent = "Remove";
+          removeBtn.addEventListener("click", () => {
+            const list = parent.conditions || []; const i = list.indexOf(node); if (i >= 0) list.splice(i, 1);
+            persistRule(); renderBuilder();
+          });
+          row.appendChild(removeBtn);
+        }
+
+        el.appendChild(row);
+        if (isGroup) {
+          const children = node.conditions || [];
+          for (const child of children) el.appendChild(renderNode(node, child, depth + 1));
+        }
+        return el;
+      };
+
+      const renderBuilder = () => {
+        builder.innerHTML = "";
+        if (!ruleState) {
+          const empty = document.createElement("div");
+          empty.style.cssText = "font-size:10px;color:#777;";
+          empty.textContent = "룰이 없습니다. Add Rule로 시작하세요.";
+          builder.appendChild(empty);
+          return;
+        }
+        builder.appendChild(renderNode(null, ruleState, 0));
+      };
+
+      const actions = document.createElement("div");
+      actions.style.cssText = "display:flex;gap:6px;margin-top:6px;";
+      const addBtn = document.createElement("button");
+      addBtn.className = "prop-btn"; addBtn.style.cssText = "font-size:11px;padding:2px 8px;"; addBtn.textContent = ruleState ? "Reset Root" : "Add Rule";
+      addBtn.addEventListener("click", () => { ruleState = makeGroup(); persistRule(); renderBuilder(); addBtn.textContent = "Reset Root"; });
+      actions.appendChild(addBtn);
+      if (ruleState) {
+        const clearBtn = document.createElement("button");
+        clearBtn.className = "prop-btn"; clearBtn.style.cssText = "font-size:11px;padding:2px 8px;"; clearBtn.textContent = "Clear";
+        clearBtn.addEventListener("click", () => { ruleState = null; persistRule(); renderBuilder(); addBtn.textContent = "Add Rule"; refresh(ids); });
+        actions.appendChild(clearBtn);
+      }
+      pvSection.appendChild(actions);
+      renderBuilder();
+      container.appendChild(pvSection);
+    }
+
     // --- Text-specific ---
     if (typeof node.kind === "object" && node.kind.Text) {
       // Text Style dropdown

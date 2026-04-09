@@ -2356,6 +2356,7 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] **Prototype Variables Inspector (2026-04-08)**: Prototype Viewer 좌하단 debug panel을 확장해 현재 프레임 subtree 기준 활성 variable binding을 실시간 표시 (Collection/Variable, active mode, resolved value, usage count). Pan/zoom/navigate 및 mode 변경 시 자동 동기화.
 - [x] **Prototype Variables Inspector Overlay v2 (2026-04-10)**: Top bar `Vars Overlay: ON/OFF` 토글 추가, 변수별 binding source preview(`LayerName (#id) · property`) 노출. 값 변경/프레임 이동 시 source 추적 정보를 함께 갱신해 “현재 값이 어디서 왔는지”를 즉시 디버깅 가능.
 - [x] **Prototype Session Share Link (2026-04-09)**: Top bar `Share Link`로 현재 세션 상태( flow/start frame/page/runtime variable state )를 URL query(`proto`)에 base64url 직렬화해 공유. 링크로 열면 viewer가 page/frame/변수 상태를 복원해 동일 프리뷰 세션 재현.
+- [x] **Prototype Conditional Visibility Rules (2026-04-10)**: 노드별 prototype 전용 visibility rule(JSON logic tree: AND/OR + leaf 조건) 저장/편집 지원. Properties panel에 `Prototype Visibility Rules` 빌더를 추가했고, Prototype viewer 렌더 직전에 runtime prototype variable 값으로 rule을 평가해 visible override를 적용한 뒤 즉시 복원한다(디자인 캔버스 상태는 비침투).
 - [x] **Properties panel — Variables section**: Scene-level variable CRUD UI (name, type select, default value, add/delete)
 - [x] **Properties panel — Interaction condition UI v2**: 재귀 트리 빌더(leaf rule + AND/OR nested group), 루트/하위 condition·group 추가/삭제, prototype variable datalist + 비교 연산자 선택, live branch preview, clear/reset actions
 - [x] **Properties panel — SetVariable action UI**: Variable name + expression inputs shown when action is SetVariable
