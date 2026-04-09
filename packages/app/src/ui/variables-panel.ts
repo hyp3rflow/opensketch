@@ -12,6 +12,23 @@ interface VarCollection {
   active_mode_id: number; variables: VarVariable[];
 }
 
+type VarPrimitive = { Color?: string; Number?: number; String?: string; Boolean?: boolean };
+interface VariableTimelineEntry {
+  id: string;
+  ts: number;
+  collection_id: number;
+  collection_name: string;
+  variable_id: number;
+  variable_name: string;
+  value_type: string;
+  changed_mode_id: number;
+  changed_mode_name: string;
+  before: Record<string, VarPrimitive>;
+  after: Record<string, VarPrimitive>;
+}
+
+const VARIABLE_TIMELINE_STORAGE_KEY = "opensketch-variable-diff-timeline-v1";
+
 export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
   let selectedCollectionId: number | null = null;
   let bulkEditInstance: ReturnType<typeof setupVariablesBulkEdit> | null = null;
@@ -20,6 +37,69 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
   let variableTypeFilter = "All";
   let usageHeatmapEnabled = false;
   let usageHeatmapCanvas: HTMLCanvasElement | null = null;
+  let expandedTimelineEntryId: string | null = null;
+
+  const cloneModeValues = (input: Record<string, VarPrimitive> | undefined | null): Record<string, VarPrimitive> => {
+    const out: Record<string, VarPrimitive> = {};
+    if (!input) return out;
+    for (const [k, v] of Object.entries(input)) {
+      out[k] = { ...(v || {}) };
+    }
+    return out;
+  };
+
+  const formatPrimitive = (valueType: string, value: VarPrimitive | undefined): string => {
+    if (!value) return "—";
+    if (valueType === "Color") return value.Color ?? "—";
+    if (valueType === "Number") return String(value.Number ?? 0);
+    if (valueType === "String") return value.String ?? "";
+    if (valueType === "Boolean") return String(value.Boolean ?? false);
+    return JSON.stringify(value);
+  };
+
+  const readTimeline = (): VariableTimelineEntry[] => {
+    try {
+      const raw = localStorage.getItem(VARIABLE_TIMELINE_STORAGE_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      return parsed as VariableTimelineEntry[];
+    } catch {
+      return [];
+    }
+  };
+
+  const writeTimeline = (entries: VariableTimelineEntry[]) => {
+    try {
+      localStorage.setItem(VARIABLE_TIMELINE_STORAGE_KEY, JSON.stringify(entries.slice(0, 120)));
+    } catch {
+      // ignore storage quota errors
+    }
+  };
+
+  const pushTimelineEntry = (
+    collection: VarCollection,
+    variable: VarVariable,
+    changedMode: VarMode,
+    before: Record<string, VarPrimitive>,
+    after: Record<string, VarPrimitive>
+  ) => {
+    const entry: VariableTimelineEntry = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      ts: Date.now(),
+      collection_id: collection.id,
+      collection_name: collection.name,
+      variable_id: variable.id,
+      variable_name: variable.name,
+      value_type: variable.value_type,
+      changed_mode_id: changedMode.id,
+      changed_mode_name: changedMode.name,
+      before,
+      after,
+    };
+    const next = [entry, ...readTimeline()];
+    writeTimeline(next);
+  };
 
   function clearUsageHeatmap() {
     if (usageHeatmapCanvas) {
@@ -450,6 +530,127 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
     modesSection.appendChild(modesRow);
     container.appendChild(modesSection);
 
+    const timelineEntries = readTimeline().filter((entry) => entry.collection_id === col.id);
+    const timelineSection = document.createElement("div");
+    timelineSection.style.cssText = "margin-bottom:12px;background:#1e1e1e;border:1px solid #2f2f2f;border-radius:6px;padding:8px;";
+    const timelineHeader = document.createElement("div");
+    timelineHeader.style.cssText = "display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;";
+    const timelineTitle = document.createElement("span");
+    timelineTitle.style.cssText = "font-size:10px;color:#a7f3d0;text-transform:uppercase;letter-spacing:0.5px;font-weight:700;";
+    timelineTitle.textContent = "Variable Diff Timeline";
+    timelineHeader.appendChild(timelineTitle);
+
+    const timelineActions = document.createElement("div");
+    timelineActions.style.cssText = "display:flex;gap:6px;";
+
+    const clearCollectionBtn = document.createElement("button");
+    clearCollectionBtn.style.cssText = "background:#2a2a2a;border:1px solid #454545;border-radius:4px;color:#999;cursor:pointer;font-size:10px;padding:2px 6px;";
+    clearCollectionBtn.textContent = "Clear";
+    clearCollectionBtn.title = "Clear this collection's timeline";
+    clearCollectionBtn.addEventListener("click", () => {
+      if (!confirm("Clear variable diff timeline for this collection?")) return;
+      const next = readTimeline().filter((entry) => entry.collection_id !== col.id);
+      writeTimeline(next);
+      expandedTimelineEntryId = null;
+      refresh();
+    });
+    timelineActions.appendChild(clearCollectionBtn);
+
+    const rollbackLatestBtn = document.createElement("button");
+    rollbackLatestBtn.style.cssText = "background:#1f3b2a;border:1px solid #166534;border-radius:4px;color:#86efac;cursor:pointer;font-size:10px;padding:2px 6px;";
+    rollbackLatestBtn.textContent = "Rollback latest";
+    rollbackLatestBtn.disabled = timelineEntries.length === 0;
+    rollbackLatestBtn.addEventListener("click", () => {
+      const latest = timelineEntries[0];
+      if (!latest) return;
+      if (!confirm(`Rollback latest change for ${latest.variable_name}?`)) return;
+      editor.engine.push_undo();
+      for (const mode of col.modes) {
+        const val = latest.before[String(mode.id)];
+        if (!val) continue;
+        editor.engine.set_variable_value(BigInt(col.id), BigInt(latest.variable_id), BigInt(mode.id), JSON.stringify(val));
+      }
+      editor.engine.apply_variables();
+      editor.requestRender();
+      refresh();
+    });
+    timelineActions.appendChild(rollbackLatestBtn);
+
+    timelineHeader.appendChild(timelineActions);
+    timelineSection.appendChild(timelineHeader);
+
+    if (timelineEntries.length === 0) {
+      const emptyTimeline = document.createElement("div");
+      emptyTimeline.style.cssText = "font-size:10px;color:#666;";
+      emptyTimeline.textContent = "No recorded variable mode diffs yet.";
+      timelineSection.appendChild(emptyTimeline);
+    } else {
+      const list = document.createElement("div");
+      list.style.cssText = "display:flex;flex-direction:column;gap:6px;max-height:220px;overflow:auto;";
+      timelineEntries.slice(0, 20).forEach((entry) => {
+        const row = document.createElement("div");
+        row.style.cssText = "background:#232323;border:1px solid #333;border-radius:5px;padding:6px;";
+
+        const top = document.createElement("div");
+        top.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:6px;";
+        const label = document.createElement("button");
+        label.style.cssText = "flex:1;text-align:left;background:none;border:none;color:#d1fae5;font-size:10px;cursor:pointer;padding:0;";
+        const changedBefore = formatPrimitive(entry.value_type, entry.before[String(entry.changed_mode_id)]);
+        const changedAfter = formatPrimitive(entry.value_type, entry.after[String(entry.changed_mode_id)]);
+        label.textContent = `${entry.variable_name} · ${entry.changed_mode_name} · ${changedBefore} → ${changedAfter}`;
+        label.addEventListener("click", () => {
+          expandedTimelineEntryId = expandedTimelineEntryId === entry.id ? null : entry.id;
+          refresh();
+        });
+        top.appendChild(label);
+
+        const when = document.createElement("span");
+        when.style.cssText = "font-size:9px;color:#888;white-space:nowrap;";
+        when.textContent = new Date(entry.ts).toLocaleTimeString();
+        top.appendChild(when);
+        row.appendChild(top);
+
+        const rollbackBtn = document.createElement("button");
+        rollbackBtn.style.cssText = "margin-top:6px;background:#2a2033;border:1px solid #5b3a7e;border-radius:4px;color:#d8b4fe;cursor:pointer;font-size:10px;padding:2px 6px;";
+        rollbackBtn.textContent = "Rollback this";
+        rollbackBtn.addEventListener("click", () => {
+          if (!confirm(`Rollback this snapshot for ${entry.variable_name}?`)) return;
+          editor.engine.push_undo();
+          for (const mode of col.modes) {
+            const val = entry.before[String(mode.id)];
+            if (!val) continue;
+            editor.engine.set_variable_value(BigInt(col.id), BigInt(entry.variable_id), BigInt(mode.id), JSON.stringify(val));
+          }
+          editor.engine.apply_variables();
+          editor.requestRender();
+          refresh();
+        });
+        row.appendChild(rollbackBtn);
+
+        if (expandedTimelineEntryId === entry.id) {
+          const detail = document.createElement("div");
+          detail.style.cssText = "margin-top:6px;border-top:1px dashed #3f3f3f;padding-top:6px;display:flex;flex-direction:column;gap:4px;";
+          for (const mode of col.modes) {
+            const line = document.createElement("div");
+            line.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:10px;color:#a3a3a3;";
+            const modeName = document.createElement("span");
+            modeName.textContent = mode.name;
+            const valueDiff = document.createElement("span");
+            valueDiff.style.cssText = "font-family:monospace;color:#cbd5e1;";
+            valueDiff.textContent = `${formatPrimitive(entry.value_type, entry.before[String(mode.id)])} → ${formatPrimitive(entry.value_type, entry.after[String(mode.id)])}`;
+            line.appendChild(modeName);
+            line.appendChild(valueDiff);
+            detail.appendChild(line);
+          }
+          row.appendChild(detail);
+        }
+
+        list.appendChild(row);
+      });
+      timelineSection.appendChild(list);
+    }
+    container.appendChild(timelineSection);
+
     // Theme modes (Light / Dark / custom names)
     const themeOptions = listThemeModeOptions(editor);
     if (themeOptions.length > 0) {
@@ -664,10 +865,16 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
         valRow.appendChild(modeLabel);
 
         const setVal = (val: any) => {
+          const before = cloneModeValues(v.values_by_mode);
+          const after = cloneModeValues(v.values_by_mode);
+          after[String(mode.id)] = { ...(val || {}) };
+
           editor.engine.push_undo();
           editor.engine.set_variable_value(BigInt(col.id), BigInt(v.id), BigInt(mode.id), JSON.stringify(val));
           editor.engine.apply_variables();
           editor.requestRender();
+
+          pushTimelineEntry(col, v, mode, before, after);
         };
 
         if (v.value_type === "Color") {
