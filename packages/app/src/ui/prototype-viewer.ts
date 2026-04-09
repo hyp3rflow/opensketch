@@ -27,7 +27,7 @@ export function createPrototypeViewer(editor: Editor): {
 
   type RecordedProtoEvent = {
     t: number;
-    kind: "click" | "scroll" | "navigate";
+    kind: "click" | "scroll" | "navigate" | "input";
     frameId: number | null;
     nodeId?: number;
     x?: number;
@@ -36,6 +36,9 @@ export function createPrototypeViewer(editor: Editor): {
     dy?: number;
     toFrameId?: number;
     action?: string;
+    inputType?: "key" | "paste";
+    key?: string;
+    text?: string;
   };
   let recorderEnabled = false;
   let recorderStartedAt = 0;
@@ -372,31 +375,115 @@ export function createPrototypeViewer(editor: Editor): {
   }
 
   function buildInteractionDraft() {
-    const navs = recorderEvents.filter((e) => e.kind === "navigate" && e.toFrameId && e.frameId && e.nodeId);
-    const dedup = new Map<string, { sourceFrameId: number; sourceNodeId: number; targetFrameId: number; trigger: string; action: string; count: number }>();
-    for (const n of navs) {
-      const key = `${n.frameId}:${n.nodeId}:${n.toFrameId}:${n.action || "NavigateTo"}`;
+    type DraftInteraction = {
+      sourceFrameId: number;
+      sourceNodeId: number;
+      targetFrameId: number;
+      trigger: string;
+      action: string;
+      count: number;
+      inferredFrom?: "navigate" | "click+navigate";
+    };
+
+    const dedup = new Map<string, DraftInteraction>();
+    const clickHistory = recorderEvents.filter((e) => e.kind === "click");
+
+    for (let i = 0; i < recorderEvents.length; i += 1) {
+      const ev = recorderEvents[i];
+      if (ev.kind !== "navigate" || !ev.toFrameId || !ev.frameId) continue;
+      const action = String(ev.action || "NavigateTo");
+      if (action !== "NavigateTo") continue;
+
+      let sourceNodeId = Number(ev.nodeId || 0);
+      let inferredFrom: "navigate" | "click+navigate" = "navigate";
+      if (!sourceNodeId) {
+        const recentClick = [...clickHistory]
+          .reverse()
+          .find((c) => c.frameId === ev.frameId && c.nodeId && c.t <= ev.t && ev.t - c.t <= 1200);
+        if (recentClick?.nodeId) {
+          sourceNodeId = Number(recentClick.nodeId);
+          inferredFrom = "click+navigate";
+        }
+      }
+
+      if (!sourceNodeId) continue;
+
+      const key = `${ev.frameId}:${sourceNodeId}:${ev.toFrameId}:${action}`;
       const prev = dedup.get(key);
       if (prev) prev.count += 1;
       else dedup.set(key, {
-        sourceFrameId: Number(n.frameId),
-        sourceNodeId: Number(n.nodeId),
-        targetFrameId: Number(n.toFrameId),
+        sourceFrameId: Number(ev.frameId),
+        sourceNodeId,
+        targetFrameId: Number(ev.toFrameId),
         trigger: "OnClick",
-        action: String(n.action || "NavigateTo"),
+        action,
         count: 1,
+        inferredFrom,
       });
     }
+
+    const inputEvents = recorderEvents.filter((e) => e.kind === "input");
+    const scrollEvents = recorderEvents.filter((e) => e.kind === "scroll");
+    const navEvents = recorderEvents.filter((e) => e.kind === "navigate");
+
     return {
-      version: 1,
+      version: 2,
       generatedAt: new Date().toISOString(),
       session: {
         totalEvents: recorderEvents.length,
-        navigateEvents: navs.length,
+        navigateEvents: navEvents.length,
+        scrollEvents: scrollEvents.length,
+        inputEvents: inputEvents.length,
       },
       interactions: Array.from(dedup.values()),
+      scenarios: [
+        {
+          id: "recorded-session",
+          name: "Recorded session",
+          steps: recorderEvents.map((e) => ({
+            t: Number(e.t.toFixed(1)),
+            kind: e.kind,
+            frameId: e.frameId,
+            nodeId: e.nodeId,
+            toFrameId: e.toFrameId,
+            action: e.action,
+            dx: e.dx,
+            dy: e.dy,
+            key: e.key,
+            text: e.text,
+            inputType: e.inputType,
+          })),
+        },
+      ],
       timeline: recorderEvents,
     };
+  }
+
+  function applyInteractionDraftToDocument() {
+    const draft = buildInteractionDraft();
+    const interactions = Array.isArray((draft as any).interactions) ? (draft as any).interactions : [];
+    let applied = 0;
+    for (const item of interactions) {
+      const sourceNodeId = Number(item.sourceNodeId || 0);
+      const targetFrameId = Number(item.targetFrameId || 0);
+      if (sourceNodeId <= 0 || targetFrameId <= 0) continue;
+      editor.engine.add_interaction(
+        BigInt(sourceNodeId),
+        "click",
+        "navigate-to",
+        BigInt(targetFrameId),
+        BigInt(0),
+        "instant",
+        300,
+        "ease_in_out"
+      );
+      applied += 1;
+    }
+    if (applied > 0) {
+      editor.pushHistory(`Apply prototype recorder draft (${applied})`);
+      editor.requestRender();
+    }
+    return { applied, total: interactions.length };
   }
 
   function show(startFrameId?: number) {
@@ -570,6 +657,20 @@ export function createPrototypeViewer(editor: Editor): {
     });
     topBar.appendChild(draftBtn);
 
+    const applyDraftBtn = document.createElement("button");
+    applyDraftBtn.style.cssText = "background:#7c3aed;color:#f3e8ff;border:none;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:12px;";
+    applyDraftBtn.textContent = "Apply Draft";
+    applyDraftBtn.addEventListener("click", () => {
+      const result = applyInteractionDraftToDocument();
+      if (result.applied > 0) {
+        applyDraftBtn.textContent = `✓ Applied ${result.applied}`;
+      } else {
+        applyDraftBtn.textContent = "No targets";
+      }
+      setTimeout(() => { applyDraftBtn.textContent = "Apply Draft"; }, 1200);
+    });
+    topBar.appendChild(applyDraftBtn);
+
     const shareBtn = document.createElement("button");
     shareBtn.style.cssText = "background:#4338ca;color:#eef2ff;border:none;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:12px;";
     shareBtn.textContent = "Share Link";
@@ -604,6 +705,7 @@ export function createPrototypeViewer(editor: Editor): {
 
     document.body.appendChild(overlay);
     document.addEventListener("keydown", onKeyDown);
+    document.addEventListener("paste", onPaste);
 
     // Pick starting frame
     if (startFrameId) {
@@ -685,6 +787,7 @@ export function createPrototypeViewer(editor: Editor): {
     stopMotionPathPlayback();
     stopInertia();
     document.removeEventListener("keydown", onKeyDown);
+    document.removeEventListener("paste", onPaste);
     overlay.remove();
     overlay = null;
     viewCanvas = null;
@@ -696,8 +799,29 @@ export function createPrototypeViewer(editor: Editor): {
 
   function onKeyDown(e: KeyboardEvent) {
     if (transitioning) return;
-    if (e.key === "Escape") hide();
-    else if (e.key === "ArrowLeft" || e.key === "Backspace") navigateBack();
+    if (e.key === "Escape") {
+      hide();
+      return;
+    }
+    if (e.key === "ArrowLeft" || e.key === "Backspace") {
+      navigateBack();
+      if (recorderEnabled) recordEvent({ kind: "input", frameId: currentFrameId, inputType: "key", key: e.key });
+      return;
+    }
+
+    if (!recorderEnabled) return;
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key.length === 1 || e.key === "Enter" || e.key === "Tab" || e.key === "Delete") {
+      recordEvent({ kind: "input", frameId: currentFrameId, inputType: "key", key: e.key, text: e.key.length === 1 ? e.key : undefined });
+    }
+  }
+
+  function onPaste(e: ClipboardEvent) {
+    if (!recorderEnabled) return;
+    const raw = e.clipboardData?.getData("text") || "";
+    if (!raw) return;
+    const snippet = raw.length > 120 ? `${raw.slice(0, 117)}...` : raw;
+    recordEvent({ kind: "input", frameId: currentFrameId, inputType: "paste", text: snippet });
   }
 
   function navigateTo(frameId: number, transition: string = "Instant", durationMs: number = 300, easing: string = "ease_in_out", timeline?: SmartTimelineKeyframe[]) {

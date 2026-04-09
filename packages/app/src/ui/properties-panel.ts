@@ -2554,6 +2554,61 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           cpEditorTitle.style.cssText = "font-size:10px;color:#fbbf24;letter-spacing:0.3px;margin-bottom:6px;font-weight:600;display:flex;align-items:center;justify-content:space-between;";
           cpEditorTitle.innerHTML = "COMPONENT PROPERTIES";
 
+          const titleActions = document.createElement("div");
+          titleActions.style.cssText = "display:flex;align-items:center;gap:4px;";
+
+          const inspectSlotsBtn = document.createElement("button");
+          inspectSlotsBtn.style.cssText = `
+            background:rgba(59,130,246,0.15); border:1px solid rgba(59,130,246,0.3);
+            border-radius:4px; padding:1px 6px; color:#93c5fd;
+            cursor:pointer; font-size:10px; font-weight:500;
+          `;
+          inspectSlotsBtn.textContent = "Slots";
+          inspectSlotsBtn.title = "Inspect instance_swap linked slot state";
+          inspectSlotsBtn.addEventListener("click", () => {
+            const report = self_buildComponentSlotsReport(editor, id, props);
+            const lines = [
+              `Slot nodes: ${report.slotNodes.length}`,
+              `instance_swap props: ${report.instanceSwapProps.length}`,
+              `linked ok: ${report.ok.length}`,
+              `missing: ${report.missing.length}`,
+            ];
+            if (report.missing.length > 0) {
+              lines.push("", "Missing slot links:");
+              for (const miss of report.missing) {
+                lines.push(`- ${miss.name} (current #${miss.currentSlotId}) → suggest #${miss.suggestedSlotId || 0}`);
+              }
+            }
+            alert(lines.join("\n"));
+          });
+          titleActions.appendChild(inspectSlotsBtn);
+
+          const repairSlotsBtn = document.createElement("button");
+          repairSlotsBtn.style.cssText = `
+            background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.35);
+            border-radius:4px; padding:1px 6px; color:#6ee7b7;
+            cursor:pointer; font-size:10px; font-weight:500;
+          `;
+          repairSlotsBtn.textContent = "Repair";
+          repairSlotsBtn.title = "Repair missing instance_swap linked slots";
+          repairSlotsBtn.addEventListener("click", () => {
+            const report = self_buildComponentSlotsReport(editor, id, props);
+            const repairable = report.missing.filter((m) => m.suggestedSlotId > 0);
+            if (repairable.length === 0) {
+              alert("No repairable missing slot links found.");
+              return;
+            }
+            editor.engine.push_undo();
+            for (const miss of repairable) {
+              editor.engine.remove_component_property(BigInt(compId), miss.name);
+              const repaired = { ...miss.raw, linked_slot_id: miss.suggestedSlotId };
+              editor.engine.add_component_property(BigInt(compId), JSON.stringify(repaired));
+            }
+            editor.requestRender();
+            refresh([id]);
+          });
+          titleActions.appendChild(repairSlotsBtn);
+
           const addPropBtn = document.createElement("button");
           addPropBtn.style.cssText = `
             background:rgba(251,191,36,0.15); border:1px solid rgba(251,191,36,0.3);
@@ -2597,7 +2652,8 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             editor.requestRender();
             refresh([id]);
           });
-          cpEditorTitle.appendChild(addPropBtn);
+          titleActions.appendChild(addPropBtn);
+          cpEditorTitle.appendChild(titleActions);
           cpEditorSection.appendChild(cpEditorTitle);
 
           if (props.length === 0) {
@@ -11424,6 +11480,51 @@ function self_getChildrenForComponent(editor: Editor, nodeId: number): number[] 
     const node = JSON.parse(nodeJson);
     return (node.children || []).map((c: any) => Number(c));
   } catch { return []; }
+}
+
+function self_buildComponentSlotsReport(
+  editor: Editor,
+  sourceNodeId: number,
+  props: Array<{ type: string; name: string; default?: any; linked_node_id?: number; default_component_id?: number; linked_slot_id?: number }>
+): {
+  slotNodes: Array<{ id: number; name: string }>;
+  instanceSwapProps: Array<{ type: string; name: string; linked_slot_id?: number }>;
+  ok: Array<{ name: string; slotId: number }>;
+  missing: Array<{ name: string; currentSlotId: number; suggestedSlotId: number; raw: any }>;
+} {
+  const children = self_getChildrenForComponent(editor, sourceNodeId);
+  const slotNodes: Array<{ id: number; name: string }> = [];
+  for (const childId of children) {
+    try {
+      const raw = editor.engine.get_node_json(BigInt(childId));
+      const node = JSON.parse(raw);
+      if (getKindLabel(node.kind) === "Slot") {
+        slotNodes.push({ id: childId, name: String(node.name || `Slot ${childId}`) });
+      }
+    } catch {}
+  }
+  const slotIdSet = new Set(slotNodes.map((s) => s.id));
+
+  const instanceSwapProps = props.filter((p) => p.type === "instance_swap");
+  const ok: Array<{ name: string; slotId: number }> = [];
+  const missing: Array<{ name: string; currentSlotId: number; suggestedSlotId: number; raw: any }> = [];
+
+  for (const p of instanceSwapProps) {
+    const currentSlotId = Number((p as any).linked_slot_id || 0);
+    if (currentSlotId > 0 && slotIdSet.has(currentSlotId)) {
+      ok.push({ name: p.name, slotId: currentSlotId });
+      continue;
+    }
+
+    let suggestedSlotId = 0;
+    const byName = slotNodes.find((s) => s.name.toLowerCase() === String(p.name || "").toLowerCase());
+    if (byName) suggestedSlotId = byName.id;
+    else if (slotNodes.length > 0) suggestedSlotId = slotNodes[0].id;
+
+    missing.push({ name: p.name, currentSlotId, suggestedSlotId, raw: p });
+  }
+
+  return { slotNodes, instanceSwapProps, ok, missing };
 }
 
 function getKindLabel(kind: unknown): string {

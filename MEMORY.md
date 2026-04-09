@@ -1790,9 +1790,18 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Component Slots Inspector — 인스턴스별 slot 연결 상태/누락 slot을 표 형태로 점검하고 one-click 복구 (임팩트 중상, 난이도 중)
 - Prototype Conditions Preset Library — 조건부 인터랙션 룰을 preset으로 저장/공유하고 flow별 일괄 적용 (임팩트 상, 난이도 중상)
 - Variables Usage Heatmap — 캔버스에서 variable binding 밀도를 색상 오버레이로 시각화해 토큰 적용 누락 지점 탐지 (임팩트 중상, 난이도 중)
+- Smart Container Queries — Frame 크기 구간별 스타일 override를 설정해 반응형 컴포넌트 variants를 자동 전환 (임팩트 상, 난이도 상)
+- Constraint Conflict Detector — 부모 resize 시 깨질 가능성이 높은 constraints 조합을 실시간 경고하고 자동 수정 제안 (임팩트 중상, 난이도 중)
+- Prototype Accessibility Audit Trail — 포커스 이동/키보드 내비게이션/aria 라벨 누락을 플레이 세션 로그로 수집 (임팩트 중상, 난이도 중상)
+
+## 완료된 기능 (추가 — Component Slots Inspector, 2026-04-09)
+- Component source(`[C] ...`)의 `COMPONENT PROPERTIES` 헤더에 `Slots` / `Repair` 액션 추가
+- `Slots` 액션: instance_swap property의 linked_slot_id 유효성 검사(정상/누락 수 + 누락 항목 추천 slot id)
+- `Repair` 액션: 누락된 slot 링크를 one-click 복구 (동명 Slot 우선, 없으면 첫 Slot fallback)
+- 구현: `packages/app/src/ui/properties-panel.ts` (`self_buildComponentSlotsReport` 헬퍼)
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Font Fallback Inspector, 2026-04-09)
 - Properties > Text에 `Inspect Fallback` + `Replace Missing` 도구 추가 (`packages/app/src/ui/properties-panel.ts`)

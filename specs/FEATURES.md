@@ -365,7 +365,7 @@
   - Prototype viewer Device Preview: top-bar device preset selector (No Device/iPhone/Pixel/iPad), frame bezel+corner radius+notch overlay, safe-area inset guide, preview scrollbar indicator
   - Device preview polish: Portrait/Landscape orientation switch + Safe Area overlay toggle, and safe-area/notch metrics are normalized from device reference size to current frame size for responsive preview
   - Prototype viewer Scroll Physics Presets: top-bar Scroll preset selector (iOS/Android/Web), wheel/touch gain + overscroll clamp + inertia decay 프리뷰
-  - Prototype Event Recorder (draft): top-bar `Record`로 click/scroll/navigate 이벤트 타임라인 캡처, `Draft JSON`으로 interaction draft(+timeline) JSON 생성 및 클립보드 복사
+  - Prototype Event Recorder (draft v2): top-bar `Record`로 click/input/scroll/navigate 타임라인 캡처, `Draft JSON`으로 scenario+timeline 포함 draft 생성, `Apply Draft`로 추론된 `OnClick → NavigateTo` interaction을 문서에 즉시 반영
   - Animated transitions: Dissolve (cross-fade), SlideIn (from right), SlideOut (old exits right), Push (both move), SmartAnimate (name-matched node interpolation with position/size cross-fade)
   - SmartAnimate: Rust engine `compute_auto_animate(from, to)` matches descendants by name, returns paired snapshots with full property diffs (position, size, rotation, opacity, corner_radius, blur, fill color, stroke width)
   - SmartAnimate rendering: matched nodes interpolate all properties with cubic ease-in-out, rotation via canvas transform, rounded clip for corner_radius, removed nodes fade out, added nodes fade in
@@ -2472,3 +2472,9 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
   - 비텍스트: 하단 edge를 baseline으로 간주
 - [x] Properties panel Auto Layout에 `Cross: Baseline (Row)` 옵션 추가
 - [x] Inspect/Handoff/Figma export의 align-items/counter-axis 매핑에 Baseline 반영
+
+### Component Slots Inspector (2026-04-09)
+- [x] Properties > Component source (`[C] ...`) header actions에 `Slots` / `Repair` 추가
+- [x] `Slots` inspector: instance_swap property의 linked slot 유효성 점검 (slot node 수, 정상/누락 개수, 누락 항목별 추천 slot)
+- [x] `Repair`: 누락된 linked_slot_id를 one-click 복구 (동명이면 우선 매핑, 없으면 첫 Slot fallback)
+- [x] 구현: `packages/app/src/ui/properties-panel.ts` (`self_buildComponentSlotsReport` + component properties editor actions)
