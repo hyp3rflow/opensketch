@@ -219,6 +219,18 @@ export function openComponentSetMatrixEditor(opts: MatrixEditorOptions): void {
   }
   paintRow.appendChild(targetCompSelect);
 
+  const batchRenameBtn = document.createElement("button");
+  batchRenameBtn.type = "button";
+  batchRenameBtn.textContent = "Batch Rename";
+  batchRenameBtn.style.cssText = "height:26px;background:rgba(124,58,237,0.22);border:1px solid rgba(167,139,250,0.45);border-radius:6px;color:#e9d5ff;font-size:11px;cursor:pointer;padding:0 10px;";
+  paintRow.appendChild(batchRenameBtn);
+
+  const arrangeBtn = document.createElement("button");
+  arrangeBtn.type = "button";
+  arrangeBtn.textContent = "Arrange Grid";
+  arrangeBtn.style.cssText = "height:26px;background:rgba(30,64,175,0.2);border:1px solid rgba(147,197,253,0.45);border-radius:6px;color:#dbeafe;font-size:11px;cursor:pointer;padding:0 10px;";
+  paintRow.appendChild(arrangeBtn);
+
   const hint = document.createElement("div");
   hint.style.cssText = "font-size:10px;color:#c4b5fd;";
   hint.textContent = "Click/drag to paint cells. Auto: mapped cell=Switch, empty cell=Map current + Switch.";
@@ -454,6 +466,129 @@ export function openComponentSetMatrixEditor(opts: MatrixEditorOptions): void {
       rowSelect.value = String(rowAxisIndex);
     }
     render();
+  };
+
+  const getDisplayValuesForComponent = (componentId: number): Record<string, string> | null => {
+    for (const [key, mappedId] of Object.entries(localVariantMap)) {
+      if (Number(mappedId || 0) !== componentId) continue;
+      return parseKey(key);
+    }
+    return null;
+  };
+
+  batchRenameBtn.onclick = () => {
+    const rowAxis = localAxes[rowAxisIndex];
+    const colAxis = localAxes[colAxisIndex];
+    if (!rowAxis || !colAxis) return;
+
+    const renameTarget = actionModeSelect.value === "map-selected" ? Number(targetCompSelect.value || 0) : 0;
+    let renamed = 0;
+    opts.editor.pushUndo();
+
+    for (const comp of componentOptions) {
+      if (!comp.id) continue;
+      if (renameTarget > 0 && comp.id !== renameTarget) continue;
+      const values = getDisplayValuesForComponent(comp.id);
+      if (!values) continue;
+      const rowVal = values[rowAxis.name] ?? "-";
+      const colVal = values[colAxis.name] ?? "-";
+      const rest = localAxes
+        .filter((a, idx) => idx !== rowAxisIndex && idx !== colAxisIndex)
+        .map((a) => `${a.name}=${values[a.name] ?? "-"}`)
+        .join(" · ");
+      const nextName = rest
+        ? `${colVal}/${rowVal} · ${rest}`
+        : `${colVal}/${rowVal}`;
+      (opts.editor.engine as any).set_node_name(BigInt(comp.id), nextName);
+      renamed += 1;
+    }
+
+    opts.editor.requestRender();
+    opts.onApplied();
+    alert(`Renamed ${renamed} variant component(s).`);
+  };
+
+  arrangeBtn.onclick = () => {
+    const rowAxis = localAxes[rowAxisIndex];
+    const colAxis = localAxes[colAxisIndex];
+    if (!rowAxis || !colAxis) return;
+
+    const xGapRaw = prompt("Column gap (px)", "80");
+    if (xGapRaw == null) return;
+    const yGapRaw = prompt("Row gap (px)", "80");
+    if (yGapRaw == null) return;
+
+    const xGap = Number(xGapRaw);
+    const yGap = Number(yGapRaw);
+    if (!Number.isFinite(xGap) || !Number.isFinite(yGap) || xGap < 0 || yGap < 0) {
+      alert("Gap must be a non-negative number.");
+      return;
+    }
+
+    const getNode = (id: number): any | null => {
+      try {
+        const raw = (opts.editor.engine as any).get_node_json(BigInt(id));
+        return raw ? JSON.parse(raw) : null;
+      } catch {
+        return null;
+      }
+    };
+
+    let anchorX = Infinity;
+    let anchorY = Infinity;
+    for (const comp of componentOptions) {
+      const node = getNode(comp.id);
+      if (!node) continue;
+      anchorX = Math.min(anchorX, Number(node.x || 0));
+      anchorY = Math.min(anchorY, Number(node.y || 0));
+    }
+    if (!Number.isFinite(anchorX)) anchorX = 0;
+    if (!Number.isFinite(anchorY)) anchorY = 0;
+
+    const colSizes: Record<string, number> = {};
+    const rowSizes: Record<string, number> = {};
+
+    for (const comp of componentOptions) {
+      const values = getDisplayValuesForComponent(comp.id);
+      if (!values) continue;
+      const node = getNode(comp.id);
+      if (!node) continue;
+      const colVal = values[colAxis.name] ?? "";
+      const rowVal = values[rowAxis.name] ?? "";
+      colSizes[colVal] = Math.max(colSizes[colVal] || 0, Number(node.width || 0));
+      rowSizes[rowVal] = Math.max(rowSizes[rowVal] || 0, Number(node.height || 0));
+    }
+
+    const colOffsets: Record<string, number> = {};
+    const rowOffsets: Record<string, number> = {};
+    let xCursor = anchorX;
+    for (const colVal of colAxis.values) {
+      colOffsets[colVal] = xCursor;
+      xCursor += (colSizes[colVal] || 0) + xGap;
+    }
+    let yCursor = anchorY;
+    for (const rowVal of rowAxis.values) {
+      rowOffsets[rowVal] = yCursor;
+      yCursor += (rowSizes[rowVal] || 0) + yGap;
+    }
+
+    let moved = 0;
+    opts.editor.pushUndo();
+    for (const comp of componentOptions) {
+      const values = getDisplayValuesForComponent(comp.id);
+      if (!values) continue;
+      const colVal = values[colAxis.name] ?? colAxis.values[0] ?? "";
+      const rowVal = values[rowAxis.name] ?? rowAxis.values[0] ?? "";
+      const nx = colOffsets[colVal];
+      const ny = rowOffsets[rowVal];
+      if (!Number.isFinite(nx) || !Number.isFinite(ny)) continue;
+      (opts.editor.engine as any).set_node_position(BigInt(comp.id), nx, ny);
+      moved += 1;
+    }
+
+    opts.editor.requestRender();
+    opts.onApplied();
+    alert(`Arranged ${moved} variant component(s) as ${colAxis.name}×${rowAxis.name} grid.`);
   };
 
   render();

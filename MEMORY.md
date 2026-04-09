@@ -1796,6 +1796,13 @@
 - Dev Handoff Redline Spec Mode — 선택 노드 간 거리/간격/토큰명을 스펙 시트처럼 고정 표시하는 handoff 모드 (임팩트 중상, 난이도 중)
 - Prototype Gesture Conflict Resolver — Hover/Press/Drag/Scroll 인터랙션 충돌 우선순위를 진단하고 자동 정렬 (임팩트 중, 난이도 중상)
 
+## 완료된 기능 (추가 — Variant Matrix Editor v7 batch rename + canvas grid arrange, 2026-04-09)
+- `packages/app/src/ui/component-set-matrix-editor.ts` 툴바에 `Batch Rename`, `Arrange Grid` 액션 추가
+- Batch Rename: 현재 Row/Column 축 값(+ extra axis 값)을 조합해 매핑된 variant component 이름을 일괄 갱신
+- Arrange Grid: 현재 matrix 축 기준으로 component set variant 노드를 캔버스 상 그리드로 자동 재배치 (column/row gap 입력)
+- Variant mapping paint 모드 및 axis 편집 플로우와 호환
+- specs 반영: `specs/FEATURES.md`
+
 ## 완료된 기능 (추가 — Variant Matrix Editor v6 bulk remap + direct target mapping, 2026-04-09)
 - `packages/app/src/ui/component-set-matrix-editor.ts` 확장
 - Matrix cell action 모드 추가: `Auto / Switch only / Map current / Map selected / Clear mapping`

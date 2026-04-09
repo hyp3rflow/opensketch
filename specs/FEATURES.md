@@ -2498,4 +2498,6 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Matrix cell 클릭/드래그 편집: `Auto / Switch / Map current / Map selected / Clear` 모드 지원
 - [x] Component set 구성요소 목록을 target selector로 노출해 셀을 임의 컴포넌트로 직접 재매핑 가능
 - [x] 드래그 페인팅 중 여러 셀에 동일 액션을 일괄 적용 (리오더 이후 재매핑 정리 워크플로우)
+- [x] `Batch Rename`: 현재 row/column(+extra axis) 값을 조합해 mapped variant component 이름을 일괄 리네임
+- [x] `Arrange Grid`: 현재 matrix 축 기준으로 component set 구성 variants를 캔버스 2D 그리드로 자동 재배치(gap 입력)
 - [x] 구현: `packages/app/src/ui/component-set-matrix-editor.ts` + `properties-panel.ts` 연동
