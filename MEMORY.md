@@ -1790,11 +1790,23 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Prototype Conditional Visibility Rules — 변수/상태 기반으로 노드 visible/hidden 조건을 설정하는 룰 빌더 (임팩트 상, 난이도 중상)
 - Prototype Variable Inspector Overlay — 프리뷰 중 현재 변수 값/바인딩 출처를 인라인으로 보는 디버그 오버레이 (임팩트 상, 난이도 중)
 - Component Set Coverage Heatmap — Variant set에서 미매핑 조합/중복 매핑을 히트맵으로 시각화하고 one-click fix 제안 (임팩트 중상, 난이도 중)
 - Dev Handoff Redline Spec Mode — 선택 노드 간 거리/간격/토큰명을 스펙 시트처럼 고정 표시하는 handoff 모드 (임팩트 중상, 난이도 중)
 - Prototype Gesture Conflict Resolver — Hover/Press/Drag/Scroll 인터랙션 충돌 우선순위를 진단하고 자동 정렬 (임팩트 중, 난이도 중상)
+
+## 완료된 기능 (추가 — Prototype Conditional Visibility Rules Builder v2, 2026-04-10)
+- Properties panel `Conditional Visibility` 섹션을 생성/수정/삭제 통합형 룰 빌더로 개선 (`packages/app/src/ui/properties-panel.ts`)
+- 기존 조건이 있는 노드도 변수/연산자/value를 자동 prefill하여 즉시 `Update rule` 가능
+- 연산자(`is_true`/`is_false`) 선택 시 value input 자동 숨김, 변수 타입 힌트 문구 추가
+- `Set rule`/`Update rule` + `Remove rule` 액션을 한 섹션에 배치해 편집 플로우 단순화
+- specs 반영: `specs/FEATURES.md`
+
+## 완료된 기능 (추가 — Variant Matrix Editor header drag reorder, 2026-04-10)
+- Variant Matrix Panel(`packages/app/src/ui/component-set-matrix-editor.ts`)의 행/열 헤더를 드래그해 axis value 순서를 직접 재배치 가능
+- drop 시 기존 `applyAxisConfig` remap 로직을 호출해 variant_map 매핑을 인덱스 기반으로 안전하게 유지
+- 매트릭스 셀 paint/switch/map 액션과 호환되며 reorder 직후 즉시 재렌더
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Variant Matrix Editor v7 batch rename + canvas grid arrange, 2026-04-09)
 - `packages/app/src/ui/component-set-matrix-editor.ts` 툴바에 `Batch Rename`, `Arrange Grid` 액션 추가

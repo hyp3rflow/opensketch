@@ -30,6 +30,15 @@ const parseKey = (key: string): Record<string, string> => {
   return out;
 };
 
+const moveInArray = <T,>(arr: T[], fromIndex: number, toIndex: number): T[] => {
+  if (fromIndex === toIndex) return [...arr];
+  if (fromIndex < 0 || toIndex < 0 || fromIndex >= arr.length || toIndex >= arr.length) return [...arr];
+  const next = [...arr];
+  const [item] = next.splice(fromIndex, 1);
+  next.splice(toIndex, 0, item);
+  return next;
+};
+
 function applyAxisConfig(opts: MatrixEditorOptions, axis: SetAxis, nextAxisName: string, nextValues: string[]): boolean {
   const targetAxisName = String(nextAxisName || "").trim();
   if (!targetAxisName) {
@@ -233,7 +242,7 @@ export function openComponentSetMatrixEditor(opts: MatrixEditorOptions): void {
 
   const hint = document.createElement("div");
   hint.style.cssText = "font-size:10px;color:#c4b5fd;";
-  hint.textContent = "Click/drag to paint cells. Auto: mapped cell=Switch, empty cell=Map current + Switch.";
+  hint.textContent = "Click/drag to paint cells. Drag row/column headers to reorder axis values. Auto: mapped cell=Switch, empty cell=Map current + Switch.";
   paintRow.appendChild(hint);
   modal.appendChild(paintRow);
 
@@ -344,6 +353,14 @@ export function openComponentSetMatrixEditor(opts: MatrixEditorOptions): void {
     const rowValues = rowAxis.values;
     const colValues = colAxis.values;
 
+    const reorderAxisValue = (axis: SetAxis, fromIndex: number, toIndex: number) => {
+      const nextValues = moveInArray(axis.values, fromIndex, toIndex);
+      if (JSON.stringify(nextValues) === JSON.stringify(axis.values)) return;
+      if (!applyAxisConfig(opts, axis, axis.name, nextValues)) return;
+      axis.values = nextValues;
+      render();
+    };
+
     const grid = document.createElement("div");
     grid.style.cssText = `display:grid;grid-template-columns:88px repeat(${Math.max(1, colValues.length)}, minmax(82px,1fr));gap:4px;`;
 
@@ -352,12 +369,35 @@ export function openComponentSetMatrixEditor(opts: MatrixEditorOptions): void {
     corner.textContent = `${rowAxis.name} ↓ / ${colAxis.name} →`;
     grid.appendChild(corner);
 
-    for (const cv of colValues) {
+    colValues.forEach((cv, colIndex) => {
       const h = document.createElement("div");
-      h.style.cssText = "font-size:10px;text-align:center;padding:4px;border:1px solid #4c1d95;border-radius:4px;background:rgba(139,92,246,0.12);";
+      h.draggable = true;
+      h.style.cssText = "font-size:10px;text-align:center;padding:4px;border:1px solid #4c1d95;border-radius:4px;background:rgba(139,92,246,0.12);cursor:grab;user-select:none;";
       h.textContent = cv;
+      h.title = `Drag to reorder ${colAxis.name}`;
+      h.ondragstart = (ev) => {
+        if (!ev.dataTransfer) return;
+        ev.dataTransfer.setData("text/plain", `col:${colIndex}`);
+        ev.dataTransfer.effectAllowed = "move";
+      };
+      h.ondragover = (ev) => {
+        ev.preventDefault();
+        h.style.borderColor = "#a78bfa";
+      };
+      h.ondragleave = () => {
+        h.style.borderColor = "#4c1d95";
+      };
+      h.ondrop = (ev) => {
+        ev.preventDefault();
+        h.style.borderColor = "#4c1d95";
+        const raw = ev.dataTransfer?.getData("text/plain") || "";
+        if (!raw.startsWith("col:")) return;
+        const from = Number(raw.slice(4));
+        if (!Number.isFinite(from)) return;
+        reorderAxisValue(colAxis, from, colIndex);
+      };
       grid.appendChild(h);
-    }
+    });
 
     const fixedValues: Record<string, string> = { ...opts.currentValues };
     localAxes.forEach((axis, idx) => {
@@ -404,10 +444,33 @@ export function openComponentSetMatrixEditor(opts: MatrixEditorOptions): void {
       return true;
     };
 
-    for (const rv of rowValues) {
+    rowValues.forEach((rv, rowIndex) => {
       const yl = document.createElement("div");
-      yl.style.cssText = "font-size:10px;padding:4px;border:1px solid #4c1d95;border-radius:4px;background:rgba(139,92,246,0.08);";
+      yl.draggable = true;
+      yl.style.cssText = "font-size:10px;padding:4px;border:1px solid #4c1d95;border-radius:4px;background:rgba(139,92,246,0.08);cursor:grab;user-select:none;";
       yl.textContent = rv;
+      yl.title = `Drag to reorder ${rowAxis.name}`;
+      yl.ondragstart = (ev) => {
+        if (!ev.dataTransfer) return;
+        ev.dataTransfer.setData("text/plain", `row:${rowIndex}`);
+        ev.dataTransfer.effectAllowed = "move";
+      };
+      yl.ondragover = (ev) => {
+        ev.preventDefault();
+        yl.style.borderColor = "#a78bfa";
+      };
+      yl.ondragleave = () => {
+        yl.style.borderColor = "#4c1d95";
+      };
+      yl.ondrop = (ev) => {
+        ev.preventDefault();
+        yl.style.borderColor = "#4c1d95";
+        const raw = ev.dataTransfer?.getData("text/plain") || "";
+        if (!raw.startsWith("row:")) return;
+        const from = Number(raw.slice(4));
+        if (!Number.isFinite(from)) return;
+        reorderAxisValue(rowAxis, from, rowIndex);
+      };
       grid.appendChild(yl);
 
       for (const cv of colValues) {
@@ -446,7 +509,7 @@ export function openComponentSetMatrixEditor(opts: MatrixEditorOptions): void {
 
         grid.appendChild(btn);
       }
-    }
+    });
 
     gridHost.appendChild(grid);
   };

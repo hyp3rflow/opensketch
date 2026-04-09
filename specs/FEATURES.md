@@ -109,6 +109,7 @@
 - [x] **Variant Matrix Editor v2**: 매트릭스 툴바에 `Lock: Off/<Axis>` 축 잠금 편집을 추가해 드래그 적용 범위를 행/열 단위로 제한할 수 있다.
 - [x] **Variant Matrix Editor v3 (inline axis values editor, 2026-04-09)**: 매트릭스 상단에 axis별 comma-list 편집 입력을 추가해 axis 값 reorder/add/remove를 한 패널에서 처리한다. axis 값 변경 시 기존 `variant_map` key와 현재 instance의 axis 선택값을 인덱스 기반으로 자동 재매핑하여 편집 후에도 매핑 손실을 최소화한다.
 - [x] **Variant Matrix Editor v4 (axis rename remap, 2026-04-09)**: inline editor에서 axis 이름 자체를 수정할 수 있으며, `rename_component_set_axis` API로 component set axis와 `variant_map` key를 자동 리맵한다. axis rename과 값 변경을 한 번에 적용해 instance의 현재 variant 선택 상태도 안전하게 이전한다.
+- [x] **Variant Matrix Editor v5 (header drag reorder, 2026-04-10)**: matrix의 행/열 헤더를 직접 드래그해 axis 값 순서를 재정렬할 수 있다. 드롭 시 axis value 순서를 즉시 업데이트하고 기존 `variant_map` 매핑을 인덱스 기반으로 유지해 대량 재배치 중 매핑 손실 없이 편집 가능하다.
 - [x] **Instance Controls unified card**: Instance 선택 시 Properties panel에서 Variant/Overrides/Component Props(텍스트 override 포함)를 단일 `INSTANCE CONTROLS` 카드로 묶어 편집
 - [x] **Component Props Figma-style override polish**: Instance의 Boolean/Text/Instance Swap prop을 타입 배지 + override dot + `Reset all` 액션으로 노출, Text default placeholder/tooltip 제공, Component source의 속성 목록에 default/linked target 메타 표시
 - [x] **Component Props default materialization**: 새 Instance 생성/컴포넌트 swap/variant-set swap 시 component property의 기본값(Boolean/Text/Instance Swap)을 즉시 자식 노드에 적용해 Figma처럼 기본 상태가 일관되게 반영
@@ -637,6 +638,7 @@
 - [x] **Binding UI**: Properties panel "Variable Bindings" section with bind/unbind per property, variable picker popup
 - [x] **Backward-compatible serde**: Default empty collections/bindings for existing files
 - [x] **Conditional visibility**: Per-node `VisibilityCondition` (variable_id + operator + value) — evaluated at render/hit-test time. Operators: Eq/NotEq/Gt/Lt/Gte/Lte/IsTrue/IsFalse. UI in Properties panel "Conditional Visibility" section. Also supports binding Boolean variables to `visible` property via variable mode switching
+- [x] **Conditional Visibility Rules Builder v2 (2026-04-10)**: 기존 rule이 있어도 Properties panel에서 동일 UI로 즉시 수정 가능(변수/연산자/value prefill). 타입 힌트 + 연산자별 value input 자동 표시/숨김, `Update rule`/`Remove rule` 액션을 제공해 rule 생성/수정/삭제를 한 섹션에서 처리.
 - [x] **Variable scoping**: VariableScope enum (Global/Pages/Nodes) per collection — restricts variable usage to specific pages or frames. apply_variables() skips out-of-scope bindings. Scope UI in Variables panel: dropdown (Global/Pages/Nodes) + page checkboxes or frame picker. WASM: set_collection_scope, get_collection_scope. Backward-compatible serde (default Global).
 - [x] **Variables Inspector & Usage Graph**: Variables panel now shows per-variable usage count + usage list (node/property jump), detects broken bindings (missing node/collection/variable), and provides one-click cleanup. WASM: `get_variable_usages`, `get_broken_variable_bindings`, `cleanup_broken_variable_bindings`.
 - [x] **Variable fallback chain + auto recovery suggestions**: apply flow uses `mode → collection → literal` fallback. If active mode value is missing, it falls back to first available mode value; if collection/variable resolve fails, it suggests (and can auto-apply) alternate bindings from scoped collections; if unresolved, node literal value is preserved. Variables Inspector marks recoverable bindings and offers `Auto-recover`. WASM: `recover_broken_variable_bindings`.
@@ -2500,4 +2502,5 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] 드래그 페인팅 중 여러 셀에 동일 액션을 일괄 적용 (리오더 이후 재매핑 정리 워크플로우)
 - [x] `Batch Rename`: 현재 row/column(+extra axis) 값을 조합해 mapped variant component 이름을 일괄 리네임
 - [x] `Arrange Grid`: 현재 matrix 축 기준으로 component set 구성 variants를 캔버스 2D 그리드로 자동 재배치(gap 입력)
+- [x] Row/Column header drag reorder: matrix 헤더 자체를 드래그해 axis value 순서를 즉시 재정렬
 - [x] 구현: `packages/app/src/ui/component-set-matrix-editor.ts` + `properties-panel.ts` 연동
