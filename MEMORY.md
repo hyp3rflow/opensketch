@@ -1804,10 +1804,10 @@
 - specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Constraint Debug Overlay, 2026-04-09)
-- Responsive Preview 모드에 `Constraint Debug Overlay` 패널 추가 (우하단)
-- 프레임 리사이즈 중 자식 레이어별 constraint 규칙(H/V)과 적용 근거를 실시간 표시
-  - Left/Right/Center/Scale/Stretch(LeftAndRight, TopAndBottom) 별로 `x/y 고정`, `+Δ`, `size +Δ`, `scale` 형태로 해석 표시
-- 현재 부모 크기 변화량(ΔW/ΔH)과 함께 최대 8개 자식 레이어를 즉시 점검 가능
+- 부모(Frame/Group) 리사이즈 핸들 드래그 중 `Constraint Debug Overlay` 캔버스 시각화 추가
+- 부모 old/new bounds(흰색/파란색) + 자식 old/new bounds(흰색/마젠타) + 중심 이동 벡터를 실시간 렌더
+- 각 자식에 `horizontal / vertical` 모드 태그(`left`, `right`, `leftAndRight`, `center`, `scale` 등) 표시로 계산 근거 즉시 확인
+- 리사이즈 종료/일반 드래그 전환 시 오버레이 자동 정리
 - specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Design Tokens Sync Bridge, 2026-04-09)

@@ -446,9 +446,9 @@
   - Custom preset은 이름 기준 덮어쓰기 저장(dedupe), 삭제 시 확인 다이얼로그 제공
   - Apply supports multi-selection (only nodes with Frame/Group parent are updated)
 - Constraint Debug Overlay (Responsive Preview):
-  - 리사이즈 중 우하단 패널에서 자식 레이어별 H/V constraint 해석 규칙을 실시간 표시
-  - 표시 형식: `x/y fixed`, `+Δ`, `size +Δ`, `scale` (mode별 계산 근거)
-  - 부모 변화량 `ΔW/ΔH`와 함께 확인하여 constraint 동작 디버깅 가능
+  - 부모(Frame/Group) 리사이즈 핸들 드래그 중 캔버스 오버레이로 자식 constraint 계산 근거를 실시간 시각화
+  - 부모 old/new bounds(흰색/파란색) + 자식 old/new bounds(흰색/마젠타) + 중심 이동 벡터를 동시에 렌더링
+  - 각 자식 위에 `horizontal / vertical` 모드 태그(`left`, `right`, `leftAndRight`, `center`, `scale` 등)를 표시해 앵커/scale/stretch 해석을 즉시 확인 가능
 - Backward compatible via `#[serde(default)]`
 
 ### Mask / Clip (Figma-style)

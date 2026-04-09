@@ -226,6 +226,17 @@ export class Editor {
     selectedId: number;
     controls: Array<{ x: number; y: number; w: number; h: number; axis: "h" | "v"; mode: string }>;
   } | null = null;
+  private _constraintDebugOverlay: {
+    parent: { oldX: number; oldY: number; oldW: number; oldH: number; newX: number; newY: number; newW: number; newH: number };
+    items: Array<{
+      id: number;
+      label: string;
+      hMode: string;
+      vMode: string;
+      old: { x: number; y: number; w: number; h: number };
+      next: { x: number; y: number; w: number; h: number };
+    }>;
+  } | null = null;
   private _measureLines: MeasureLine[] = [];
   private _measureTargetBounds: { x: number; y: number; w: number; h: number } | null = null;
   public measureTool = new MeasureToolState();
@@ -2388,7 +2399,10 @@ export class Editor {
       this.needsRender = true;
     }
 
-    if (!this.drag) return;
+    if (!this.drag) {
+      this._constraintDebugOverlay = null;
+      return;
+    }
     const x = e.offsetX;
     const y = e.offsetY;
 
@@ -2472,9 +2486,11 @@ export class Editor {
             }
             // Show breakpoint indicator during resize
             this.updateBreakpointIndicator(Number(this.drag.nodeId), nw);
+            this.buildConstraintDebugOverlay(Number(this.drag.nodeId), ox, oy, ow, oh, nx, ny, nw, nh);
           }
         }
       } else {
+        this._constraintDebugOverlay = null;
         const zoom = this.engine.get_zoom();
         const rawDx = (x - this.drag.currentX) / zoom;
         const rawDy = (y - this.drag.currentY) / zoom;
@@ -2970,6 +2986,7 @@ export class Editor {
     this._dropTarget = null;
     this._snapGuides = [];
     this._pointSnapIndicators = [];
+    this._constraintDebugOverlay = null;
     // Clear breakpoint indicator with delay for visibility
     if (this._breakpointIndicator) {
       if (this._breakpointIndicatorTimeout) clearTimeout(this._breakpointIndicatorTimeout);
@@ -5150,6 +5167,7 @@ export class Editor {
         this.renderGradientEditor();
         this.renderSpacingHandles();
         this.renderConstraintPinsOverlay();
+        this.renderConstraintDebugOverlay();
         this.renderRemoteNodeLocks();
         this.renderCursorPresence();
         this.renderBreakpointIndicator();
@@ -6639,6 +6657,148 @@ export class Editor {
     }
 
     ctx.restore();
+  }
+
+  private renderConstraintDebugOverlay() {
+    const data = this._constraintDebugOverlay;
+    if (!data || data.items.length === 0) return;
+
+    const zoom = this.engine.get_zoom();
+    const panX = this.engine.get_pan_x();
+    const panY = this.engine.get_pan_y();
+    const toScreen = (x: number, y: number) => ({ x: (x - panX) * zoom, y: (y - panY) * zoom });
+
+    const pOld = toScreen(data.parent.oldX, data.parent.oldY);
+    const pNew = toScreen(data.parent.newX, data.parent.newY);
+    const oldW = data.parent.oldW * zoom;
+    const oldH = data.parent.oldH * zoom;
+    const newW = data.parent.newW * zoom;
+    const newH = data.parent.newH * zoom;
+
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.setLineDash([5, 4]);
+    ctx.strokeStyle = "rgba(255,255,255,0.35)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(pOld.x, pOld.y, oldW, oldH);
+    ctx.strokeStyle = "rgba(13,153,255,0.95)";
+    ctx.strokeRect(pNew.x, pNew.y, newW, newH);
+    ctx.setLineDash([]);
+
+    for (const item of data.items) {
+      const a = toScreen(item.old.x, item.old.y);
+      const b = toScreen(item.next.x, item.next.y);
+      const aw = item.old.w * zoom;
+      const ah = item.old.h * zoom;
+      const bw = item.next.w * zoom;
+      const bh = item.next.h * zoom;
+
+      ctx.strokeStyle = "rgba(255,255,255,0.35)";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(a.x, a.y, aw, ah);
+
+      ctx.strokeStyle = "rgba(255,51,102,0.95)";
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(b.x, b.y, bw, bh);
+
+      ctx.beginPath();
+      ctx.moveTo(a.x + aw / 2, a.y + ah / 2);
+      ctx.lineTo(b.x + bw / 2, b.y + bh / 2);
+      ctx.strokeStyle = "rgba(255,51,102,0.7)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      const tag = `${item.hMode} / ${item.vMode}`;
+      ctx.font = "10px Inter, sans-serif";
+      const tw = ctx.measureText(tag).width + 10;
+      const tx = b.x + bw / 2 - tw / 2;
+      const ty = b.y - 18;
+      ctx.fillStyle = "rgba(16,18,24,0.9)";
+      ctx.strokeStyle = "rgba(255,255,255,0.2)";
+      ctx.beginPath();
+      ctx.roundRect(tx, ty, tw, 14, 4);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = "#fff";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(tag, tx + tw / 2, ty + 7.5);
+    }
+
+    ctx.restore();
+  }
+
+  private buildConstraintDebugOverlay(nodeId: number, oldX: number, oldY: number, oldW: number, oldH: number, newX: number, newY: number, newW: number, newH: number) {
+    this._constraintDebugOverlay = null;
+    if (Math.abs(newW - oldW) < 0.001 && Math.abs(newH - oldH) < 0.001) return;
+
+    let parent: any;
+    try {
+      const json = this.engine.get_node_json(BigInt(nodeId));
+      if (!json) return;
+      parent = JSON.parse(json);
+    } catch {
+      return;
+    }
+
+    const childIds: number[] = Array.isArray(parent?.children) ? parent.children.map((v: any) => Number(v)).filter((v: number) => Number.isFinite(v) && v > 0) : [];
+    if (childIds.length === 0) return;
+
+    const sx = oldW > 0 ? newW / oldW : 1;
+    const sy = oldH > 0 ? newH / oldH : 1;
+    const dw = newW - oldW;
+    const dh = newH - oldH;
+
+    const items: Array<{ id: number; label: string; hMode: string; vMode: string; old: { x: number; y: number; w: number; h: number }; next: { x: number; y: number; w: number; h: number } }> = [];
+
+    for (const cid of childIds) {
+      try {
+        const childJson = this.engine.get_node_json(BigInt(cid));
+        if (!childJson) continue;
+        const child = JSON.parse(childJson);
+        const constraints = JSON.parse(this.engine.get_constraints(BigInt(cid)) || "{}");
+        const hMode = (constraints.horizontal || "left") as string;
+        const vMode = (constraints.vertical || "top") as string;
+
+        const oldRect = { x: Number(child.x) + oldX, y: Number(child.y) + oldY, w: Number(child.width), h: Number(child.height) };
+        let nx = oldRect.x;
+        let ny = oldRect.y;
+        let nwc = oldRect.w;
+        let nhc = oldRect.h;
+
+        switch (hMode) {
+          case "right": nx = oldRect.x + dw; break;
+          case "leftAndRight": nwc = Math.max(0.1, oldRect.w + dw); break;
+          case "center": nx = oldRect.x + dw * 0.5; break;
+          case "scale": nx = newX + (oldRect.x - oldX) * sx; nwc = Math.max(0.1, oldRect.w * sx); break;
+          default: break;
+        }
+        switch (vMode) {
+          case "bottom": ny = oldRect.y + dh; break;
+          case "topAndBottom": nhc = Math.max(0.1, oldRect.h + dh); break;
+          case "center": ny = oldRect.y + dh * 0.5; break;
+          case "scale": ny = newY + (oldRect.y - oldY) * sy; nhc = Math.max(0.1, oldRect.h * sy); break;
+          default: break;
+        }
+
+        items.push({
+          id: cid,
+          label: child.name || `#${cid}`,
+          hMode,
+          vMode,
+          old: oldRect,
+          next: { x: nx, y: ny, w: nwc, h: nhc },
+        });
+      } catch {
+        // ignore malformed child
+      }
+    }
+
+    if (items.length === 0) return;
+    this._constraintDebugOverlay = {
+      parent: { oldX, oldY, oldW, oldH, newX, newY, newW, newH },
+      items,
+    };
   }
 
   private renderPixelPreviewOverlay() {
