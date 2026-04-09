@@ -7498,138 +7498,155 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
     // --- Conditional Visibility ---
     {
       const cvSection = createSection("Conditional Visibility");
-      const cvJson = editor.engine.get_conditional_visibility(id);
-      const cv = JSON.parse(cvJson || "null");
+      const collections: any[] = JSON.parse(editor.engine.get_variable_collections() || "[]");
+      const allVars: { col: any; v: any }[] = [];
+      for (const col of collections) for (const v of col.variables || []) allVars.push({ col, v });
 
-      const collectionsJson = editor.engine.get_variable_collections();
-      const collections: any[] = JSON.parse(collectionsJson || "[]");
+      type CvRule = { collection_id: number; variable_id: number; operator: string; value?: any };
+      type CvRuleTree = { logic: "AND" | "OR"; conditions: CvRule[] };
 
-      if (collections.length === 0) {
-        const hint = document.createElement("div");
-        hint.style.cssText = "font-size:11px;color:#888;";
-        hint.textContent = "Create a variable collection first";
-        cvSection.appendChild(hint);
-      } else {
-        const allVars: { col: any; v: any }[] = [];
-        for (const col of collections) {
-          for (const v of col.variables || []) {
-            allVars.push({ col, v });
-          }
-        }
-        if (allVars.length === 0) {
-          const hint = document.createElement("div");
-          hint.style.cssText = "font-size:11px;color:#888;";
-          hint.textContent = "No variables defined";
-          cvSection.appendChild(hint);
-        } else {
-          const row = document.createElement("div");
-          row.style.cssText = "display:flex;flex-direction:column;gap:4px;";
+      const defaultRule = (): CvRule => {
+        const first = allVars[0];
+        return {
+          collection_id: Number(first?.col?.id || 0),
+          variable_id: Number(first?.v?.id || 0),
+          operator: "eq",
+          value: { String: "" },
+        };
+      };
 
-          const varSelect = document.createElement("select");
-          varSelect.style.cssText = "font-size:11px;background:#333;color:#fff;border:1px solid #555;border-radius:4px;padding:2px 4px;";
-          for (const { col, v } of allVars) {
-            const opt = document.createElement("option");
-            opt.value = `${col.id}:${v.id}`;
-            opt.textContent = `${col.name} / ${v.name} (${v.value_type})`;
-            if (cv && col.id === cv.collection_id && v.id === cv.variable_id) opt.selected = true;
-            varSelect.appendChild(opt);
-          }
-          row.appendChild(varSelect);
+      let state: CvRuleTree | null = null;
+      try {
+        const raw = String((editor.engine as any).get_conditional_visibility_rules?.(BigInt(id)) || "").trim();
+        if (raw) state = JSON.parse(raw);
+      } catch {}
 
-          const opSelect = document.createElement("select");
-          opSelect.style.cssText = "font-size:11px;background:#333;color:#fff;border:1px solid #555;border-radius:4px;padding:2px 4px;";
-          const opOptions = [
-            { value: "eq", label: "=" }, { value: "neq", label: "≠" },
-            { value: "gt", label: ">" }, { value: "lt", label: "<" },
-            { value: "gte", label: "≥" }, { value: "lte", label: "≤" },
-            { value: "is_true", label: "is true" }, { value: "is_false", label: "is false" },
-          ];
-          for (const op of opOptions) {
-            const opt = document.createElement("option");
-            opt.value = op.value;
-            opt.textContent = op.label;
-            opSelect.appendChild(opt);
-          }
-          if (cv) {
+      if (!state) {
+        try {
+          const legacy = JSON.parse(editor.engine.get_conditional_visibility(id) || "null");
+          if (legacy?.collection_id && legacy?.variable_id) {
             const map: Record<string, string> = { Eq: "eq", NotEq: "neq", Gt: "gt", Lt: "lt", Gte: "gte", Lte: "lte", IsTrue: "is_true", IsFalse: "is_false" };
-            opSelect.value = map[cv.operator] || "eq";
+            state = {
+              logic: "AND",
+              conditions: [{
+                collection_id: Number(legacy.collection_id),
+                variable_id: Number(legacy.variable_id),
+                operator: map[String(legacy.operator || "Eq")] || "eq",
+                value: legacy.value,
+              }],
+            };
           }
-          row.appendChild(opSelect);
-
-          const valueInput = document.createElement("input");
-          valueInput.placeholder = "Value";
-          valueInput.style.cssText = "font-size:11px;background:#333;color:#fff;border:1px solid #555;border-radius:4px;padding:2px 4px;width:100%;box-sizing:border-box;";
-          if (cv?.value) {
-            if (cv.value.Number != null) valueInput.value = String(cv.value.Number);
-            else if (cv.value.Boolean != null) valueInput.value = cv.value.Boolean ? "true" : "false";
-            else if (cv.value.Color != null) valueInput.value = String(cv.value.Color);
-            else if (cv.value.String != null) valueInput.value = String(cv.value.String);
-          }
-          row.appendChild(valueInput);
-
-          const hint = document.createElement("div");
-          hint.style.cssText = "font-size:10px;color:#999;";
-          row.appendChild(hint);
-
-          const updateHintAndValueVis = () => {
-            const [colId, varId] = varSelect.value.split(":").map(Number);
-            const selVar = allVars.find((av) => av.col.id === colId && av.v.id === varId);
-            const type = String(selVar?.v.value_type || "String");
-            valueInput.style.display = (opSelect.value === "is_true" || opSelect.value === "is_false") ? "none" : "";
-            hint.textContent = `Rule type: ${type}. This rule is evaluated in canvas + prototype render.`;
-          };
-          varSelect.addEventListener("change", updateHintAndValueVis);
-          opSelect.addEventListener("change", updateHintAndValueVis);
-          updateHintAndValueVis();
-
-          const actions = document.createElement("div");
-          actions.style.cssText = "display:flex;gap:6px;align-items:center;";
-
-          const applyBtn = document.createElement("button");
-          applyBtn.textContent = cv ? "Update rule" : "Set rule";
-          applyBtn.style.cssText = "font-size:11px;padding:2px 8px;cursor:pointer;background:#4a9eff;color:#fff;border:none;border-radius:4px;";
-          applyBtn.addEventListener("click", () => {
-            const [colId, varId] = varSelect.value.split(":").map(Number);
-            const op = opSelect.value;
-            let valueJson = "";
-            if (op !== "is_true" && op !== "is_false") {
-              const raw = valueInput.value.trim();
-              const selVar = allVars.find(av => av.col.id === colId && av.v.id === varId);
-              const vtype = selVar?.v.value_type || "String";
-              if (vtype === "Number" || vtype === "number") {
-                valueJson = JSON.stringify({ Number: parseFloat(raw) || 0 });
-              } else if (vtype === "Boolean" || vtype === "boolean") {
-                valueJson = JSON.stringify({ Boolean: raw === "true" });
-              } else if (vtype === "Color" || vtype === "color") {
-                valueJson = JSON.stringify({ Color: raw });
-              } else {
-                valueJson = JSON.stringify({ String: raw });
-              }
-            }
-            ensureUndo();
-            editor.engine.set_conditional_visibility(id, BigInt(colId), BigInt(varId), op, valueJson);
-            editor.requestRender();
-            refresh(ids);
-          });
-          actions.appendChild(applyBtn);
-
-          if (cv) {
-            const clearBtn = document.createElement("button");
-            clearBtn.textContent = "Remove rule";
-            clearBtn.style.cssText = "font-size:11px;padding:2px 8px;cursor:pointer;background:#444;color:#fff;border:1px solid #555;border-radius:4px;";
-            clearBtn.addEventListener("click", () => {
-              ensureUndo();
-              editor.engine.clear_conditional_visibility(id);
-              editor.requestRender();
-              refresh(ids);
-            });
-            actions.appendChild(clearBtn);
-          }
-
-          row.appendChild(actions);
-          cvSection.appendChild(row);
-        }
+        } catch {}
       }
+      if (!state && allVars.length > 0) state = { logic: "AND", conditions: [defaultRule()] };
+
+      const persist = () => {
+        ensureUndo();
+        if (state && state.conditions.length > 0) {
+          (editor.engine as any).set_conditional_visibility_rules?.(BigInt(id), JSON.stringify(state));
+        } else {
+          (editor.engine as any).clear_conditional_visibility_rules?.(BigInt(id));
+          editor.engine.clear_conditional_visibility(id);
+        }
+        editor.requestRender();
+      };
+
+      const hint = document.createElement("div");
+      hint.style.cssText = "font-size:10px;color:#8b8b8b;margin-bottom:6px;";
+      hint.textContent = "캔버스 + 프로토타입에서 공통으로 적용되는 visibility 룰입니다.";
+      cvSection.appendChild(hint);
+
+      if (allVars.length === 0) {
+        const empty = document.createElement("div");
+        empty.style.cssText = "font-size:11px;color:#888;";
+        empty.textContent = collections.length === 0 ? "Create a variable collection first" : "No variables defined";
+        cvSection.appendChild(empty);
+      } else if (state) {
+        const top = document.createElement("div");
+        top.style.cssText = "display:flex;gap:6px;align-items:center;margin-bottom:6px;";
+        const logicSel = document.createElement("select");
+        logicSel.className = "prop-input";
+        logicSel.style.cssText = "width:74px;";
+        for (const lg of ["AND", "OR"]) {
+          const o = document.createElement("option"); o.value = lg; o.textContent = lg; if (state.logic === lg) o.selected = true; logicSel.appendChild(o);
+        }
+        logicSel.addEventListener("change", () => { if (!state) return; state.logic = logicSel.value === "OR" ? "OR" : "AND"; persist(); });
+        top.appendChild(logicSel);
+
+        const addBtn = document.createElement("button");
+        addBtn.className = "prop-btn"; addBtn.textContent = "+ Rule"; addBtn.style.cssText = "font-size:10px;padding:2px 8px;";
+        addBtn.addEventListener("click", () => { if (!state) return; state.conditions.push(defaultRule()); persist(); refresh(ids); });
+        top.appendChild(addBtn);
+
+        const clearBtn = document.createElement("button");
+        clearBtn.className = "prop-btn"; clearBtn.textContent = "Clear"; clearBtn.style.cssText = "font-size:10px;padding:2px 8px;";
+        clearBtn.addEventListener("click", () => { state = { logic: "AND", conditions: [] }; persist(); refresh(ids); });
+        top.appendChild(clearBtn);
+        cvSection.appendChild(top);
+
+        const opOptions = [
+          { value: "eq", label: "=" }, { value: "neq", label: "≠" },
+          { value: "gt", label: ">" }, { value: "lt", label: "<" },
+          { value: "gte", label: "≥" }, { value: "lte", label: "≤" },
+          { value: "is_true", label: "is true" }, { value: "is_false", label: "is false" },
+        ];
+
+        state.conditions.forEach((rule, idx) => {
+          const row = document.createElement("div");
+          row.style.cssText = "display:grid;grid-template-columns:1fr 78px 1fr auto;gap:4px;align-items:center;margin-bottom:4px;";
+
+          const varSel = document.createElement("select"); varSel.className = "prop-input";
+          for (const { col, v } of allVars) {
+            const o = document.createElement("option");
+            o.value = `${col.id}:${v.id}`; o.textContent = `${col.name}/${v.name}`;
+            if (Number(col.id) === Number(rule.collection_id) && Number(v.id) === Number(rule.variable_id)) o.selected = true;
+            varSel.appendChild(o);
+          }
+          row.appendChild(varSel);
+
+          const opSel = document.createElement("select"); opSel.className = "prop-input";
+          for (const op of opOptions) { const o = document.createElement("option"); o.value = op.value; o.textContent = op.label; if (rule.operator === op.value) o.selected = true; opSel.appendChild(o); }
+          row.appendChild(opSel);
+
+          const val = document.createElement("input"); val.className = "prop-input"; val.placeholder = "Value";
+          const asText = (vv: any) => vv?.Number ?? (vv?.Boolean != null ? (vv.Boolean ? "true" : "false") : (vv?.Color ?? vv?.String ?? ""));
+          val.value = String(asText(rule.value));
+          row.appendChild(val);
+
+          const del = document.createElement("button"); del.className = "prop-btn"; del.textContent = "×"; del.style.cssText = "width:24px;";
+          row.appendChild(del);
+
+          const update = () => {
+            const [cid, vid] = varSel.value.split(":").map(Number);
+            const meta = allVars.find((x) => Number(x.col.id) === cid && Number(x.v.id) === vid);
+            const typ = String(meta?.v?.value_type || "String").toLowerCase();
+            rule.collection_id = cid;
+            rule.variable_id = vid;
+            rule.operator = opSel.value;
+            val.style.display = (opSel.value === "is_true" || opSel.value === "is_false") ? "none" : "";
+            if (opSel.value === "is_true" || opSel.value === "is_false") {
+              delete rule.value;
+            } else if (typ === "number") {
+              rule.value = { Number: Number.parseFloat(val.value || "0") || 0 };
+            } else if (typ === "boolean") {
+              rule.value = { Boolean: val.value.trim().toLowerCase() === "true" };
+            } else if (typ === "color") {
+              rule.value = { Color: val.value };
+            } else {
+              rule.value = { String: val.value };
+            }
+            persist();
+          };
+
+          varSel.addEventListener("change", update);
+          opSel.addEventListener("change", update);
+          val.addEventListener("change", update);
+          del.addEventListener("click", () => { if (!state) return; state.conditions.splice(idx, 1); persist(); refresh(ids); });
+          val.style.display = (opSel.value === "is_true" || opSel.value === "is_false") ? "none" : "";
+          cvSection.appendChild(row);
+        });
+      }
+
       container.appendChild(cvSection);
     }
 

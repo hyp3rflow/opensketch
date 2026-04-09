@@ -10851,6 +10851,7 @@ impl Engine {
                 operator: op,
                 value,
             });
+            node.conditional_visibility_rules = None;
         }
     }
 
@@ -10866,6 +10867,33 @@ impl Engine {
     pub fn clear_conditional_visibility(&mut self, node_id: u64) {
         if let Some(node) = self.scene.get_node_mut(node_id) {
             node.conditional_visibility = None;
+            node.conditional_visibility_rules = None;
+        }
+    }
+
+    pub fn set_conditional_visibility_rules(&mut self, node_id: u64, rules_json: &str) {
+        if let Some(node) = self.scene.get_node_mut(node_id) {
+            let trimmed = rules_json.trim();
+            if trimmed.is_empty() || trimmed == "null" {
+                node.conditional_visibility_rules = None;
+            } else {
+                node.conditional_visibility_rules = Some(trimmed.to_string());
+            }
+        }
+    }
+
+    pub fn get_conditional_visibility_rules(&self, node_id: u64) -> String {
+        if let Some(node) = self.scene.get_node(node_id) {
+            if let Some(ref rules) = node.conditional_visibility_rules {
+                return rules.clone();
+            }
+        }
+        "".to_string()
+    }
+
+    pub fn clear_conditional_visibility_rules(&mut self, node_id: u64) {
+        if let Some(node) = self.scene.get_node_mut(node_id) {
+            node.conditional_visibility_rules = None;
         }
     }
 

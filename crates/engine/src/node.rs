@@ -2282,9 +2282,12 @@ pub struct Node {
     /// Bookmarked for quick access
     #[serde(default)]
     pub bookmarked: bool,
-    /// Conditional visibility: show/hide based on variable value
+    /// Conditional visibility (legacy single-rule): show/hide based on variable value
     #[serde(default)]
     pub conditional_visibility: Option<VisibilityCondition>,
+    /// Conditional visibility rules JSON (logic tree over variable collections)
+    #[serde(default)]
+    pub conditional_visibility_rules: Option<String>,
     /// Prototype-only conditional visibility rule (JSON logic tree over prototype variables)
     #[serde(default)]
     pub prototype_visibility_rule: Option<String>,
@@ -2492,6 +2495,7 @@ impl Node {
             max_height: None,
             bookmarked: false,
             conditional_visibility: None,
+            conditional_visibility_rules: None,
             prototype_visibility_rule: None,
             overflow: Overflow::default(),
             scroll_x: 0.0,

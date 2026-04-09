@@ -3141,6 +3141,65 @@ impl Scene {
     // Conditional Visibility
     // =============================================
 
+    fn evaluate_conditional_visibility_rule_json(&self, raw: &str) -> bool {
+        fn eval_node(scene: &Scene, v: &serde_json::Value) -> bool {
+            let Some(obj) = v.as_object() else { return true; };
+
+            if let Some(logic_raw) = obj.get("logic").and_then(|x| x.as_str()) {
+                let logic = logic_raw.to_ascii_uppercase();
+                let children = obj
+                    .get("conditions")
+                    .and_then(|x| x.as_array())
+                    .cloned()
+                    .unwrap_or_default();
+                if children.is_empty() { return true; }
+                if logic == "OR" {
+                    return children.iter().any(|c| eval_node(scene, c));
+                }
+                return children.iter().all(|c| eval_node(scene, c));
+            }
+
+            let collection_id = obj.get("collection_id").and_then(|x| x.as_u64());
+            let variable_id = obj.get("variable_id").and_then(|x| x.as_u64());
+            let op = obj.get("operator").and_then(|x| x.as_str()).unwrap_or("eq");
+            let value = obj.get("value");
+
+            let (Some(collection_id), Some(variable_id)) = (collection_id, variable_id) else { return true; };
+            let Some(collection) = scene.get_collection(collection_id) else { return true; };
+            let Some(resolved) = collection.resolve(variable_id) else { return true; };
+
+            let parse_var_value = |vv: &serde_json::Value| -> Option<crate::variable::VariableValue> {
+                if let Ok(v) = serde_json::from_value::<crate::variable::VariableValue>(vv.clone()) { return Some(v); }
+                if let Some(n) = vv.as_f64() { return Some(crate::variable::VariableValue::Number(n)); }
+                if let Some(b) = vv.as_bool() { return Some(crate::variable::VariableValue::Boolean(b)); }
+                if let Some(s) = vv.as_str() { return Some(crate::variable::VariableValue::String(s.to_string())); }
+                None
+            };
+
+            match op {
+                "is_true" => matches!(resolved, crate::variable::VariableValue::Boolean(true)),
+                "is_false" => matches!(resolved, crate::variable::VariableValue::Boolean(false)),
+                _ => {
+                    let Some(cmp) = value.and_then(parse_var_value) else { return true; };
+                    match (&resolved, &cmp, op) {
+                        (a, b, "eq") => a == b,
+                        (a, b, "neq") => a != b,
+                        (crate::variable::VariableValue::Number(a), crate::variable::VariableValue::Number(b), "gt") => a > b,
+                        (crate::variable::VariableValue::Number(a), crate::variable::VariableValue::Number(b), "lt") => a < b,
+                        (crate::variable::VariableValue::Number(a), crate::variable::VariableValue::Number(b), "gte") => a >= b,
+                        (crate::variable::VariableValue::Number(a), crate::variable::VariableValue::Number(b), "lte") => a <= b,
+                        _ => true,
+                    }
+                }
+            }
+        }
+
+        match serde_json::from_str::<serde_json::Value>(raw) {
+            Ok(v) => eval_node(self, &v),
+            Err(_) => true,
+        }
+    }
+
     /// Check if a node is effectively visible (considering both `visible` flag and conditional visibility)
     pub fn is_effectively_visible(&self, node_id: NodeId) -> bool {
         let node = match self.nodes.get(&node_id) {
@@ -3148,6 +3207,11 @@ impl Scene {
             None => return false,
         };
         if !node.visible { return false; }
+
+        if let Some(ref rules_json) = node.conditional_visibility_rules {
+            return self.evaluate_conditional_visibility_rule_json(rules_json);
+        }
+
         if let Some(ref cond) = node.conditional_visibility {
             if let Some(collection) = self.get_collection(cond.collection_id) {
                 if let Some(resolved) = collection.resolve(cond.variable_id) {
