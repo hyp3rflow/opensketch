@@ -1790,10 +1790,15 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Font Fallback Inspector — 텍스트 노드별 실제 렌더 fallback font 감지/리포트 + 일괄 치환 제안 (임팩트 중상, 난이도 중)
 - Component Slots Inspector — 인스턴스별 slot 연결 상태/누락 slot을 표 형태로 점검하고 one-click 복구 (임팩트 중상, 난이도 중)
 - Prototype Conditions Preset Library — 조건부 인터랙션 룰을 preset으로 저장/공유하고 flow별 일괄 적용 (임팩트 상, 난이도 중상)
 - Variables Usage Heatmap — 캔버스에서 variable binding 밀도를 색상 오버레이로 시각화해 토큰 적용 누락 지점 탐지 (임팩트 중상, 난이도 중)
+
+## 완료된 기능 (추가 — Font Fallback Inspector, 2026-04-09)
+- Properties > Text에 `Inspect Fallback` + `Replace Missing` 도구 추가 (`packages/app/src/ui/properties-panel.ts`)
+- 선택된 Text 레이어별로 요청 폰트 로드 여부를 점검하고, 미로드 시 추정 fallback family(system-ui/sans-serif/serif/monospace) + 추천 대체 폰트를 리포트
+- `Replace Missing`으로 미로드 레이어만 선택 폰트로 일괄 치환(로딩 후 적용)
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Prototype Session Share Link, 2026-04-09)
 - Prototype viewer top bar에 `Share Link` 버튼 추가 (원클릭으로 링크 생성 + 클립보드 복사)

@@ -101,6 +101,61 @@ async function loadGoogleFont(family: string, editor: Editor) {
   }
 }
 
+const FONT_INSPECT_SAMPLE = "AaBbCcDdEe 1234567890 한글테스트";
+const FONT_FALLBACK_CANDIDATES = ["system-ui", "sans-serif", "serif", "monospace"] as const;
+
+function getMeasureContext(): CanvasRenderingContext2D | null {
+  const c = document.createElement("canvas");
+  return c.getContext("2d");
+}
+
+function measureTextWidth(ctx: CanvasRenderingContext2D, family: string, weight: number, style: string): number {
+  ctx.font = `${style} ${weight} 32px ${family}`;
+  return ctx.measureText(FONT_INSPECT_SAMPLE).width;
+}
+
+function isFontFamilyAvailable(family: string, weight = 400, style = "normal"): boolean {
+  if (!family || family.trim() === "") return false;
+  const quoted = `"${family.replaceAll('"', "")}"`;
+  if (typeof (document as any).fonts?.check === "function") {
+    try {
+      if ((document as any).fonts.check(`${style} ${weight} 16px ${quoted}`)) return true;
+    } catch {}
+  }
+  const ctx = getMeasureContext();
+  if (!ctx) return false;
+  const baseWidths = FONT_FALLBACK_CANDIDATES.map((base) => measureTextWidth(ctx, base, weight, style));
+  const testWidths = FONT_FALLBACK_CANDIDATES.map((base) => measureTextWidth(ctx, `${quoted}, ${base}`, weight, style));
+  return testWidths.some((w, i) => Math.abs(w - baseWidths[i]) > 0.2);
+}
+
+function inferFallbackFamily(family: string, weight = 400, style = "normal"): string {
+  if (isFontFamilyAvailable(family, weight, style)) return family;
+  const ctx = getMeasureContext();
+  if (!ctx) return "system-ui";
+  const quoted = `"${family.replaceAll('"', "")}"`;
+  const rendered = measureTextWidth(ctx, `${quoted}, sans-serif`, weight, style);
+  let best = "system-ui";
+  let bestDelta = Number.POSITIVE_INFINITY;
+  for (const candidate of FONT_FALLBACK_CANDIDATES) {
+    const w = measureTextWidth(ctx, candidate, weight, style);
+    const d = Math.abs(w - rendered);
+    if (d < bestDelta) {
+      bestDelta = d;
+      best = candidate;
+    }
+  }
+  return best;
+}
+
+function suggestReplacementFont(requested: string): string {
+  const norm = requested.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const byPrefix = googleFonts.find((f) => f.toLowerCase().replace(/[^a-z0-9]/g, "").startsWith(norm));
+  if (byPrefix) return byPrefix;
+  const byContain = googleFonts.find((f) => f.toLowerCase().includes(requested.toLowerCase()));
+  return byContain || "Inter";
+}
+
 export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
   // Push undo once per property edit session (debounced)
   let undoPushed = false;
@@ -8042,6 +8097,106 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       });
       familyRow.appendChild(familySelect);
       textSection.appendChild(familyRow);
+
+      // Font fallback inspector
+      const inspectorSection = document.createElement("div");
+      inspectorSection.className = "prop-row";
+      inspectorSection.style.cssText = "margin-top:6px; display:flex; flex-direction:column; gap:6px;";
+
+      const inspectorTop = document.createElement("div");
+      inspectorTop.style.cssText = "display:flex; gap:6px; align-items:center;";
+      const inspectBtn = document.createElement("button");
+      inspectBtn.className = "prop-btn";
+      inspectBtn.textContent = "Inspect Fallback";
+      inspectBtn.style.cssText = "padding:4px 8px; font-size:11px;";
+      const replaceSelect = document.createElement("select");
+      replaceSelect.className = "prop-input";
+      replaceSelect.style.cssText = "flex:1;";
+      for (const f of googleFonts) {
+        const opt = document.createElement("option");
+        opt.value = f;
+        opt.textContent = f;
+        if (f === "Inter") opt.selected = true;
+        replaceSelect.appendChild(opt);
+      }
+      const replaceBtn = document.createElement("button");
+      replaceBtn.className = "prop-btn";
+      replaceBtn.textContent = "Replace Missing";
+      replaceBtn.style.cssText = "padding:4px 8px; font-size:11px;";
+      inspectorTop.appendChild(inspectBtn);
+      inspectorTop.appendChild(replaceSelect);
+      inspectorTop.appendChild(replaceBtn);
+      inspectorSection.appendChild(inspectorTop);
+
+      const inspectReport = document.createElement("div");
+      inspectReport.style.cssText = "font-size:11px; color:#aeb4c0; line-height:1.35; max-height:120px; overflow:auto; border:1px solid rgba(255,255,255,0.08); border-radius:6px; padding:6px; background:rgba(0,0,0,0.2);";
+      inspectReport.textContent = "Run Inspect Fallback to scan selected text layers.";
+      inspectorSection.appendChild(inspectReport);
+
+      const getSelectedTextNodes = () => {
+        const selected = Array.isArray(ids) ? ids.map(Number) : [id];
+        const rows: Array<{ id: number; name: string; family: string; weight: number; style: string; available: boolean; fallback: string; suggested: string }> = [];
+        for (const nid of selected) {
+          try {
+            const json = editor.engine.get_node_json(BigInt(nid));
+            if (!json) continue;
+            const n = JSON.parse(json);
+            if (!n?.kind?.Text) continue;
+            const td = n.kind.Text;
+            const family = String(td.font_family || "Inter");
+            const weight = Number(td.font_weight ?? 400) || 400;
+            const style = String(td.font_style || "normal");
+            const available = isFontFamilyAvailable(family, weight, style);
+            rows.push({
+              id: nid,
+              name: String(n.name || `Text ${nid}`),
+              family,
+              weight,
+              style,
+              available,
+              fallback: inferFallbackFamily(family, weight, style),
+              suggested: suggestReplacementFont(family),
+            });
+          } catch {}
+        }
+        return rows;
+      };
+
+      inspectBtn.addEventListener("click", () => {
+        const rows = getSelectedTextNodes();
+        if (rows.length === 0) {
+          inspectReport.textContent = "No text layers selected.";
+          return;
+        }
+        const unavailable = rows.filter((r) => !r.available);
+        if (unavailable.length > 0) replaceSelect.value = unavailable[0].suggested;
+        inspectReport.innerHTML = rows
+          .map((r) => {
+            const status = r.available ? "✅ Loaded" : "⚠️ Missing";
+            const detail = r.available ? "using requested font" : `fallback≈${r.fallback}, suggest=${r.suggested}`;
+            return `<div style=\"margin-bottom:4px;\"><strong>${r.name}</strong> — ${r.family} (${status})<br/><span style=\"color:#8f96a3\">${detail}</span></div>`;
+          })
+          .join("");
+      });
+
+      replaceBtn.addEventListener("click", async () => {
+        const rows = getSelectedTextNodes();
+        const missing = rows.filter((r) => !r.available);
+        if (missing.length === 0) {
+          inspectReport.textContent = "No missing fonts found in selected text layers.";
+          return;
+        }
+        const targetFamily = replaceSelect.value || "Inter";
+        await loadGoogleFont(targetFamily, editor);
+        for (const row of missing) {
+          editor.engine.set_font_family(BigInt(row.id), targetFamily);
+        }
+        editor.requestRender();
+        refresh(ids);
+        inspectReport.textContent = `Replaced ${missing.length} missing font layer(s) with ${targetFamily}.`;
+      });
+
+      textSection.appendChild(inspectorSection);
 
       // Font size
       const fontRow = document.createElement("div");

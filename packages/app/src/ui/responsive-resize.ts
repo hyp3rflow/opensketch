@@ -50,6 +50,16 @@ export class ResponsiveResize {
   private originalX = 0;
   private originalY = 0;
   private savedScene: string | null = null;
+  private childConstraintBaseline = new Map<number, {
+    id: number;
+    name: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    horizontal: string;
+    vertical: string;
+  }>();
 
   // Callbacks
   private onRender: (() => void) | null = null;
@@ -109,6 +119,7 @@ export class ResponsiveResize {
 
     // Save scene for reset
     this.savedScene = this.engine.export_scene();
+    this.captureConstraintBaseline(node);
 
     this.active = true;
     this.createOverlay();
@@ -127,6 +138,7 @@ export class ResponsiveResize {
     this.active = false;
     this.targetNodeId = null;
     this.savedScene = null;
+    this.childConstraintBaseline.clear();
     this.dragging = null;
     this.removeOverlay();
     if (this.onRender) this.onRender();
@@ -244,6 +256,30 @@ export class ResponsiveResize {
   }
 
 
+  private captureConstraintBaseline(parentNode: any) {
+    this.childConstraintBaseline.clear();
+    const childIds: number[] = Array.isArray(parentNode.children) ? parentNode.children.map((x: any) => Number(x)) : [];
+    for (const childId of childIds) {
+      const childJson = this.engine.get_node_json(BigInt(childId));
+      if (!childJson) continue;
+      const child = JSON.parse(childJson);
+      let c = { horizontal: "left", vertical: "top" };
+      try {
+        c = JSON.parse(this.engine.get_constraints(BigInt(childId)) || "{}") || c;
+      } catch {}
+      this.childConstraintBaseline.set(childId, {
+        id: childId,
+        name: String(child.name || `Layer ${childId}`),
+        x: Number(child.x || 0),
+        y: Number(child.y || 0),
+        width: Number(child.width || 0),
+        height: Number(child.height || 0),
+        horizontal: String(c.horizontal || "left"),
+        vertical: String(c.vertical || "top"),
+      });
+    }
+  }
+
   private renderConstraintDebug(parentNode: any) {
     if (!this.debugEl || this.targetNodeId == null) return;
     const parentW0 = this.originalWidth || parentNode.width;
@@ -278,6 +314,150 @@ export class ResponsiveResize {
     const more = childIds.length > 8 ? `<div class="rr-cd-more">+${childIds.length - 8} more children…</div>` : "";
     this.debugEl.innerHTML = `<div class="rr-cd-title">Constraint Debug Overlay</div><div class="rr-cd-meta">ΔW ${dw.toFixed(1)} / ΔH ${dh.toFixed(1)}</div>${rows.join("")}${more}`;
     this.debugEl.style.display = "block";
+  }
+
+  private computeConstraintPreview(
+    baseline: { x: number; y: number; width: number; height: number; horizontal: string; vertical: string },
+    parentW0: number,
+    parentH0: number,
+    parentW: number,
+    parentH: number,
+  ) {
+    const dw = parentW - parentW0;
+    const dh = parentH - parentH0;
+    let x = baseline.x;
+    let y = baseline.y;
+    let width = baseline.width;
+    let height = baseline.height;
+
+    switch (baseline.horizontal) {
+      case "right":
+        x += dw;
+        break;
+      case "leftAndRight":
+        width += dw;
+        break;
+      case "center":
+        x += dw / 2;
+        break;
+      case "scale": {
+        const s = parentW0 !== 0 ? parentW / parentW0 : 1;
+        x *= s;
+        width *= s;
+        break;
+      }
+      default:
+        break;
+    }
+
+    switch (baseline.vertical) {
+      case "bottom":
+        y += dh;
+        break;
+      case "topAndBottom":
+        height += dh;
+        break;
+      case "center":
+        y += dh / 2;
+        break;
+      case "scale": {
+        const s = parentH0 !== 0 ? parentH / parentH0 : 1;
+        y *= s;
+        height *= s;
+        break;
+      }
+      default:
+        break;
+    }
+
+    return { x, y, width, height };
+  }
+
+  private renderConstraintDebugCanvas(ctx: CanvasRenderingContext2D, parentNode: any) {
+    if (this.childConstraintBaseline.size === 0) return;
+
+    const zoom = this.engine.get_zoom();
+    const panX = this.engine.get_pan_x();
+    const panY = this.engine.get_pan_y();
+
+    const parentW0 = this.originalWidth || Number(parentNode.width || 0);
+    const parentH0 = this.originalHeight || Number(parentNode.height || 0);
+    const parentW = Number(parentNode.width || 0);
+    const parentH = Number(parentNode.height || 0);
+
+    // Parent old bounds (white) and current bounds (blue)
+    ctx.save();
+    ctx.strokeStyle = "rgba(255,255,255,0.9)";
+    ctx.lineWidth = 1;
+    ctx.setLineDash([5, 4]);
+    ctx.strokeRect(this.originalX * zoom + panX, this.originalY * zoom + panY, parentW0 * zoom, parentH0 * zoom);
+    ctx.setLineDash([]);
+
+    const childIds = Array.isArray(parentNode.children) ? parentNode.children.map((x: any) => Number(x)) : [];
+    for (const childId of childIds.slice(0, 12)) {
+      const base = this.childConstraintBaseline.get(childId);
+      if (!base) continue;
+
+      const predicted = this.computeConstraintPreview(base, parentW0, parentH0, parentW, parentH);
+      const currentJson = this.engine.get_node_json(BigInt(childId));
+      let current = predicted;
+      if (currentJson) {
+        const node = JSON.parse(currentJson);
+        current = {
+          x: Number(node.x ?? predicted.x),
+          y: Number(node.y ?? predicted.y),
+          width: Number(node.width ?? predicted.width),
+          height: Number(node.height ?? predicted.height),
+        };
+      }
+
+      const oldSX = base.x * zoom + panX;
+      const oldSY = base.y * zoom + panY;
+      const oldSW = base.width * zoom;
+      const oldSH = base.height * zoom;
+      const newSX = current.x * zoom + panX;
+      const newSY = current.y * zoom + panY;
+      const newSW = current.width * zoom;
+      const newSH = current.height * zoom;
+
+      ctx.strokeStyle = "rgba(255,255,255,0.75)";
+      ctx.lineWidth = 1;
+      ctx.setLineDash([2, 2]);
+      ctx.strokeRect(oldSX, oldSY, oldSW, oldSH);
+
+      ctx.strokeStyle = "rgba(255,51,102,0.95)";
+      ctx.lineWidth = 1.2;
+      ctx.setLineDash([]);
+      ctx.strokeRect(newSX, newSY, newSW, newSH);
+
+      const ocx = oldSX + oldSW / 2;
+      const ocy = oldSY + oldSH / 2;
+      const ncx = newSX + newSW / 2;
+      const ncy = newSY + newSH / 2;
+      ctx.strokeStyle = "rgba(255,51,102,0.85)";
+      ctx.beginPath();
+      ctx.moveTo(ocx, ocy);
+      ctx.lineTo(ncx, ncy);
+      ctx.stroke();
+
+      ctx.fillStyle = "rgba(18, 18, 24, 0.88)";
+      const tag = `${base.horizontal}/${base.vertical}`;
+      ctx.font = "10px -apple-system, sans-serif";
+      const tw = ctx.measureText(tag).width + 8;
+      const tx = newSX;
+      const ty = newSY - 14;
+      ctx.fillRect(tx - 2, ty - 9, tw, 14);
+      ctx.fillStyle = "#ff6f9f";
+      ctx.fillText(tag, tx + 2, ty + 2);
+    }
+
+    if (childIds.length > 12) {
+      ctx.font = "10px -apple-system, sans-serif";
+      ctx.fillStyle = "rgba(255,255,255,0.9)";
+      ctx.fillText(`+${childIds.length - 12} children`, parentNode.x * zoom + panX + 8, parentNode.y * zoom + panY + parentNode.height * zoom + 20);
+    }
+
+    ctx.restore();
   }
 
   private describeConstraintAxis(mode: string, delta: number, posAxis: string, sizeAxis: string): string {
@@ -415,6 +595,7 @@ export class ResponsiveResize {
     ctx.textAlign = "center";
     ctx.fillText(`${Math.round(node.width)}px`, sx + sw / 2, sy + sh + 34);
 
+    this.renderConstraintDebugCanvas(ctx, node);
     ctx.restore();
   }
 

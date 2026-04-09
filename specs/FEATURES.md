@@ -77,6 +77,7 @@
 - [x] Hidden contentEditable captures keyboard input
 - [x] Real-time canvas re-render on input
 - [x] Font family support (14 fonts)
+- [x] Font Fallback Inspector: Properties > Text에서 `Inspect Fallback`으로 선택된 Text 레이어의 요청 폰트 로드 여부를 점검하고, 미로드 시 추정 fallback(`system-ui/sans-serif/serif/monospace`) 및 추천 대체 폰트를 리포트. `Replace Missing`으로 미로드 레이어 일괄 치환 가능
 - [x] Enter to commit, Escape to cancel
 - [x] Default text fill: black
 - [x] Text transform: None/Uppercase/Lowercase/Capitalize (visual + SVG export + CSS codegen)
@@ -450,6 +451,7 @@
   - 부모(Frame/Group) 리사이즈 핸들 드래그 중 캔버스 오버레이로 자식 constraint 계산 근거를 실시간 시각화
   - 부모 old/new bounds(흰색/파란색) + 자식 old/new bounds(흰색/마젠타) + 중심 이동 벡터를 동시에 렌더링
   - 각 자식 위에 `horizontal / vertical` 모드 태그(`left`, `right`, `leftAndRight`, `center`, `scale` 등)를 표시해 앵커/scale/stretch 해석을 즉시 확인 가능
+  - 상단 Debug 카드의 규칙 설명(`x fixed`, `x + ΔW`, `w + ΔW`, `scale`)과 캔버스 벡터가 동기화되어 실제 엔진 결과와 예측 계산을 교차 검증 가능
 - Backward compatible via `#[serde(default)]`
 
 ### Mask / Clip (Figma-style)
