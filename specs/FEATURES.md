@@ -105,6 +105,7 @@
 - [x] **9 agent commands**: create, prop, variant, slot, instance, switch, fill, list, override
 - [x] **Component search & swap**: search components by name, view all instances, swap selected/all instances to different master component (Cmd+Shift+K)
 - [x] **Figma-style Variants Matrix UI**: Component Set 인스턴스 편집 시 첫 2개 axis 조합을 2D 매트릭스로 시각화하고 셀 클릭/드래그로 variant를 전환·매핑한다. `Auto/Switch/Map current` 모드 기반 다중 셀 편집을 지원하며, `Bulk rename`으로 axis value를 find/replace 규칙으로 일괄 변경하고 variant mapping key를 재매핑할 수 있다.
+- [x] **Variant Matrix Editor v2**: 매트릭스 툴바에 `Lock: Off/<Axis>` 축 잠금 편집을 추가해 드래그 적용 범위를 행/열 단위로 제한할 수 있다. `Reorder` 액션으로 axis value 순서를 콤마 리스트로 일괄 재정렬하고, 기존 variant mapping key + 현재 instance 선택값을 손실 없이 재매핑한다.
 - [x] **Instance Controls unified card**: Instance 선택 시 Properties panel에서 Variant/Overrides/Component Props(텍스트 override 포함)를 단일 `INSTANCE CONTROLS` 카드로 묶어 편집
 - [x] **Component Props Figma-style override polish**: Instance의 Boolean/Text/Instance Swap prop을 타입 배지 + override dot + `Reset all` 액션으로 노출, Text default placeholder/tooltip 제공, Component source의 속성 목록에 default/linked target 메타 표시
 - [x] **Component Props default materialization**: 새 Instance 생성/컴포넌트 swap/variant-set swap 시 component property의 기본값(Boolean/Text/Instance Swap)을 즉시 자식 노드에 적용해 Figma처럼 기본 상태가 일관되게 반영

@@ -1790,9 +1790,19 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Variant Matrix Editor v2 — variant set을 2D matrix에서 bulk rename/reorder + axis lock 편집 (임팩트 상, 난이도 중상)
 - Prototype Session Share Link — 현재 flow/start frame/variable state를 URL에 직렬화해 공유 가능한 preview 링크 생성 (임팩트 중상, 난이도 중)
 - Font Fallback Inspector — 텍스트 노드별 실제 렌더 fallback font 감지/리포트 + 일괄 치환 제안 (임팩트 중상, 난이도 중)
+- Component Slots Inspector — 인스턴스별 slot 연결 상태/누락 slot을 표 형태로 점검하고 one-click 복구 (임팩트 중상, 난이도 중)
+- Prototype Conditions Preset Library — 조건부 인터랙션 룰을 preset으로 저장/공유하고 flow별 일괄 적용 (임팩트 상, 난이도 중상)
+- Variables Usage Heatmap — 캔버스에서 variable binding 밀도를 색상 오버레이로 시각화해 토큰 적용 누락 지점 탐지 (임팩트 중상, 난이도 중)
+
+## 완료된 기능 (추가 — Variant Matrix Editor v2, 2026-04-09)
+- Instance Controls의 `VARIANTS MATRIX` 툴바에 `Lock: Off / Lock: <X axis> / Lock: <Y axis>` 추가
+- 드래그 편집 시 axis lock 기준으로 동일 행/열 셀에만 apply되어 matrix 매핑 작업 정밀도 향상
+- `Reorder` 액션 추가: axis value를 comma list로 입력해 순서 일괄 재정렬
+- axis 재정렬 후 variant mapping key + 현재 instance variant 값을 보존하면서 재매핑
+- 기존 `Bulk rename`은 공통 remap 헬퍼로 정리해 rename/reorder 모두 동일한 안전 경로 사용
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Dev Handoff Asset Slices Packager, 2026-04-09)
 - Batch Export에 패키징 모드 추가: Flat ZIP / iOS `.imageset` / Android `drawable-*` / Web `web/` 폴더 구조

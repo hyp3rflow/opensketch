@@ -1610,18 +1610,38 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
                   });
                   matrixTools.appendChild(editModeSelect);
 
+                  const axisLockSelect = document.createElement("select");
+                  axisLockSelect.style.cssText = "height:20px;background:#2a2a2a;border:1px solid rgba(139,92,246,0.3);border-radius:4px;color:#ddd;font-size:10px;padding:0 6px;";
+                  [
+                    ["off", "Lock: Off"],
+                    ["x", `Lock: ${xAxis.name}`],
+                    ["y", `Lock: ${yAxis.name}`],
+                  ].forEach(([value, label]) => {
+                    const o = document.createElement("option");
+                    o.value = value;
+                    o.textContent = String(label);
+                    axisLockSelect.appendChild(o);
+                  });
+                  matrixTools.appendChild(axisLockSelect);
+
                   const renameBtn = document.createElement("button");
                   renameBtn.type = "button";
                   renameBtn.textContent = "Bulk rename";
                   renameBtn.style.cssText = "height:20px;background:rgba(139,92,246,0.12);border:1px solid rgba(139,92,246,0.35);border-radius:4px;color:#ddd;font-size:10px;padding:0 6px;cursor:pointer;";
                   matrixTools.appendChild(renameBtn);
 
+                  const reorderBtn = document.createElement("button");
+                  reorderBtn.type = "button";
+                  reorderBtn.textContent = "Reorder";
+                  reorderBtn.style.cssText = "height:20px;background:rgba(139,92,246,0.12);border:1px solid rgba(139,92,246,0.35);border-radius:4px;color:#ddd;font-size:10px;padding:0 6px;cursor:pointer;";
+                  matrixTools.appendChild(reorderBtn);
+
                   matrixTitle.appendChild(matrixTools);
                   matrixSection.appendChild(matrixTitle);
 
                   const matrixHint = document.createElement("div");
                   matrixHint.style.cssText = "font-size:9px;color:#7c3aed;margin-bottom:6px;line-height:1.35;";
-                  matrixHint.textContent = "Drag supports multi-cell edit. Mode: Auto/Switch/Map current component.";
+                  matrixHint.textContent = "Drag supports multi-cell edit with axis lock. Mode: Auto/Switch/Map current component + bulk rename/reorder.";
                   matrixSection.appendChild(matrixHint);
 
                   const makeKey = (values: Record<string, string>) => Object.keys(values).sort().map((k) => `${k}=${values[k] ?? ""}`).join(",");
@@ -1633,6 +1653,28 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
                       out[part.slice(0, idx)] = part.slice(idx + 1);
                     }
                     return out;
+                  };
+
+                  const remapAxisValues = (axisName: string, nextValues: string[], transform: (value: string) => string) => {
+                    editor.pushUndo();
+                    const ok = (editor.engine as any).update_component_set_axis(BigInt(setInfo.set_id), axisName, JSON.stringify(nextValues));
+                    if (!ok) {
+                      alert("Failed to update axis values");
+                      return;
+                    }
+
+                    for (const [oldKey, comp] of Object.entries(variantMap || {})) {
+                      const values = parseKey(oldKey);
+                      if (values[axisName] != null) values[axisName] = transform(String(values[axisName]));
+                      (editor.engine as any).set_component_set_variant_mapping(BigInt(setInfo.set_id), JSON.stringify(values), BigInt(Number(comp || 0)));
+                    }
+
+                    const switchedValues = { ...currentValues };
+                    if (switchedValues[axisName] != null) switchedValues[axisName] = transform(String(switchedValues[axisName]));
+                    (editor.engine as any).switch_instance_set_variant(BigInt(id), JSON.stringify(switchedValues));
+
+                    editor.requestRender();
+                    refresh([id]);
                   };
 
                   renameBtn.addEventListener("click", () => {
@@ -1649,26 +1691,29 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
 
                     const newAxisValues = (targetAxis.values || []).map((v: string) => String(v).split(findText).join(replaceText));
                     if (JSON.stringify(newAxisValues) === JSON.stringify(targetAxis.values || [])) return;
+                    remapAxisValues(axisName, newAxisValues, (value) => value.split(findText).join(replaceText));
+                  });
 
-                    editor.pushUndo();
-                    const ok = (editor.engine as any).update_component_set_axis(BigInt(setInfo.set_id), axisName, JSON.stringify(newAxisValues));
-                    if (!ok) {
-                      alert("Failed to rename axis values");
+                  reorderBtn.addEventListener("click", () => {
+                    const axisName = window.prompt(`Axis name to reorder (${xAxis.name} or ${yAxis.name})`, xAxis.name)?.trim();
+                    if (!axisName) return;
+                    const targetAxis = setInfo.axes.find((a: any) => a.name === axisName);
+                    if (!targetAxis) {
+                      alert(`Axis not found: ${axisName}`);
                       return;
                     }
-
-                    for (const [oldKey, comp] of Object.entries(variantMap || {})) {
-                      const values = parseKey(oldKey);
-                      if (values[axisName] != null) values[axisName] = String(values[axisName]).split(findText).join(replaceText);
-                      (editor.engine as any).set_component_set_variant_mapping(BigInt(setInfo.set_id), JSON.stringify(values), BigInt(Number(comp || 0)));
+                    const currentOrder = (targetAxis.values || []).map((v: string) => String(v));
+                    const orderText = window.prompt(
+                      `Reorder values with comma list (${axisName})`,
+                      currentOrder.join(", "),
+                    );
+                    if (orderText == null) return;
+                    const parsed = orderText.split(",").map((v) => v.trim()).filter(Boolean);
+                    if (parsed.length !== currentOrder.length || currentOrder.some((v) => !parsed.includes(v))) {
+                      alert("Invalid order: must include each existing value exactly once.");
+                      return;
                     }
-
-                    const switchedValues = { ...currentValues };
-                    if (switchedValues[axisName] != null) switchedValues[axisName] = String(switchedValues[axisName]).split(findText).join(replaceText);
-                    (editor.engine as any).switch_instance_set_variant(BigInt(id), JSON.stringify(switchedValues));
-
-                    editor.requestRender();
-                    refresh([id]);
+                    remapAxisValues(axisName, parsed, (value) => value);
                   });
 
                   const grid = document.createElement("div");
@@ -1692,7 +1737,11 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
                   }
 
                   let dragMode: "switch" | "map" | null = null;
-                  const onMouseUp = () => { dragMode = null; };
+                  let dragAnchor: { x: string; y: string } | null = null;
+                  const onMouseUp = () => {
+                    dragMode = null;
+                    dragAnchor = null;
+                  };
                   window.addEventListener("mouseup", onMouseUp, { once: true });
 
                   for (const yVal of yAxis.values) {
@@ -1740,11 +1789,15 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
 
                       cell.addEventListener("mousedown", () => {
                         dragMode = resolveMode();
+                        dragAnchor = { x: xVal, y: yVal };
                         applyCell(dragMode);
                       });
                       cell.addEventListener("mouseenter", (ev) => {
                         if ((ev as MouseEvent).buttons !== 1 || !dragMode) return;
                         if (dragMode === "switch" && !isMapped) return;
+                        const lockMode = axisLockSelect.value as "off" | "x" | "y";
+                        if (dragAnchor && lockMode === "x" && xVal !== dragAnchor.x) return;
+                        if (dragAnchor && lockMode === "y" && yVal !== dragAnchor.y) return;
                         applyCell(dragMode);
                       });
 
