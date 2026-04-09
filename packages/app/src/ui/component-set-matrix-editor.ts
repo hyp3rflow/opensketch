@@ -107,6 +107,24 @@ export function openComponentSetMatrixEditor(opts: MatrixEditorOptions): void {
   let rowAxisIndex = 0;
   let colAxisIndex = localAxes.length > 1 ? 1 : 0;
   const extraFilters: Record<string, string> = {};
+  const localVariantMap: Record<string, number> = { ...(opts.variantMap || {}) };
+
+  let componentOptions: Array<{ id: number; name: string }> = [];
+  try {
+    const setRaw = (opts.editor.engine as any).get_component_set_info?.(BigInt(opts.setId));
+    if (setRaw) {
+      const setInfo = JSON.parse(setRaw);
+      if (Array.isArray(setInfo?.components)) {
+        componentOptions = setInfo.components
+          .map((c: any) => ({ id: Number(c?.id || 0), name: String(c?.name || "") }))
+          .filter((c: any) => c.id > 0);
+      }
+    }
+  } catch {}
+
+  if (!componentOptions.some((c) => c.id === opts.currentComponentId)) {
+    componentOptions.unshift({ id: opts.currentComponentId, name: `Current #${opts.currentComponentId}` });
+  }
 
   const syncFilterDefaults = () => {
     for (const axis of localAxes) {
@@ -121,7 +139,7 @@ export function openComponentSetMatrixEditor(opts: MatrixEditorOptions): void {
   overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:12000;display:flex;align-items:center;justify-content:center;";
 
   const modal = document.createElement("div");
-  modal.style.cssText = "width:min(980px,94vw);max-height:90vh;overflow:auto;background:#1f1f23;border:1px solid #3f3f46;border-radius:12px;padding:12px;color:#ddd;font-family:Inter,system-ui,sans-serif;";
+  modal.style.cssText = "width:min(1040px,95vw);max-height:90vh;overflow:auto;background:#1f1f23;border:1px solid #3f3f46;border-radius:12px;padding:12px;color:#ddd;font-family:Inter,system-ui,sans-serif;";
 
   const titleRow = document.createElement("div");
   titleRow.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;";
@@ -169,13 +187,51 @@ export function openComponentSetMatrixEditor(opts: MatrixEditorOptions): void {
   controlsRow.appendChild(filtersWrap);
   modal.appendChild(controlsRow);
 
+  const paintRow = document.createElement("div");
+  paintRow.style.cssText = "display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:10px;padding:8px;background:#1e1b2c;border:1px solid rgba(139,92,246,0.3);border-radius:8px;";
+
+  paintRow.appendChild(Object.assign(document.createElement("span"), { textContent: "Cell action" }));
+  const actionModeSelect = document.createElement("select");
+  actionModeSelect.style.cssText = rowSelect.style.cssText;
+  [
+    ["auto", "Auto"],
+    ["switch", "Switch only"],
+    ["map-current", "Map current"],
+    ["map-selected", "Map selected"],
+    ["clear", "Clear mapping"],
+  ].forEach(([v, l]) => {
+    const o = document.createElement("option");
+    o.value = v;
+    o.textContent = l;
+    actionModeSelect.appendChild(o);
+  });
+  paintRow.appendChild(actionModeSelect);
+
+  paintRow.appendChild(Object.assign(document.createElement("span"), { textContent: "Target" }));
+  const targetCompSelect = document.createElement("select");
+  targetCompSelect.style.cssText = rowSelect.style.cssText;
+  for (const c of componentOptions) {
+    const o = document.createElement("option");
+    o.value = String(c.id);
+    o.textContent = `${c.name || "Component"} (#${c.id})`;
+    if (c.id === opts.currentComponentId) o.selected = true;
+    targetCompSelect.appendChild(o);
+  }
+  paintRow.appendChild(targetCompSelect);
+
+  const hint = document.createElement("div");
+  hint.style.cssText = "font-size:10px;color:#c4b5fd;";
+  hint.textContent = "Click/drag to paint cells. Auto: mapped cell=Switch, empty cell=Map current + Switch.";
+  paintRow.appendChild(hint);
+  modal.appendChild(paintRow);
+
   const axisWrap = document.createElement("div");
   axisWrap.style.cssText = "display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;";
   modal.appendChild(axisWrap);
 
   const info = document.createElement("div");
   info.style.cssText = "font-size:11px;color:#a1a1aa;margin-bottom:8px;";
-  info.textContent = "Cell click: mapped variant는 switch, 빈 셀은 현재 컴포넌트로 map + switch";
+  info.textContent = "행/열 축은 즉시 리네임/재정렬(값 순서 변경)/추가/삭제됩니다. 값 입력은 comma-separated.";
   modal.appendChild(info);
 
   const gridHost = document.createElement("div");
@@ -235,14 +291,36 @@ export function openComponentSetMatrixEditor(opts: MatrixEditorOptions): void {
       applyBtn.style.cssText = "height:26px;background:rgba(139,92,246,0.18);border:1px solid rgba(139,92,246,0.45);border-radius:6px;color:#ddd;font-size:11px;cursor:pointer;";
       applyBtn.onclick = () => {
         const nextAxisName = nameInput.value.trim();
-        const nextValues = valuesInput.value.split(",").map((v) => v.trim()).filter(Boolean);
+        const nextValues = valuesInput.value
+          .split(",")
+          .map((v) => v.trim())
+          .filter(Boolean);
         if (!applyAxisConfig(opts, axis, nextAxisName, nextValues)) return;
 
+        const oldAxisName = axis.name;
         axis.name = nextAxisName;
         axis.values = [...nextValues];
-        opts.currentValues = { ...opts.currentValues, [axis.name]: opts.currentValues[axis.name] ?? axis.values[0] ?? "" };
-        delete extraFilters[axis.name];
+
+        opts.currentValues = {
+          ...opts.currentValues,
+          [axis.name]: opts.currentValues[oldAxisName] ?? opts.currentValues[axis.name] ?? axis.values[0] ?? "",
+        };
+        if (oldAxisName !== axis.name) delete opts.currentValues[oldAxisName];
+
+        delete extraFilters[oldAxisName];
         syncFilterDefaults();
+
+        // refresh local map snapshot after axis updates
+        try {
+          const setRaw = (opts.editor.engine as any).get_component_set_info?.(BigInt(opts.setId));
+          if (setRaw) {
+            const setInfo = JSON.parse(setRaw);
+            const latestMap = setInfo?.variant_map || {};
+            for (const k of Object.keys(localVariantMap)) delete localVariantMap[k];
+            for (const [k, v] of Object.entries(latestMap)) localVariantMap[k] = Number(v || 0);
+          }
+        } catch {}
+
         rebuildAxisOptions();
         render();
       };
@@ -275,6 +353,45 @@ export function openComponentSetMatrixEditor(opts: MatrixEditorOptions): void {
       fixedValues[axis.name] = extraFilters[axis.name] ?? axis.values[0] ?? "";
     });
 
+    let dragAction: null | string = null;
+    const releaseDrag = () => {
+      dragAction = null;
+      window.removeEventListener("mouseup", releaseDrag);
+    };
+
+    const resolveAction = (isMapped: boolean): string => {
+      const forced = actionModeSelect.value;
+      if (forced === "auto") return isMapped ? "switch" : "map-current";
+      return forced;
+    };
+
+    const applyCellAction = (values: Record<string, string>, action: string, mappedCompId: number): boolean => {
+      const key = makeKey(values);
+      const targetCompId = Number(targetCompSelect.value || opts.currentComponentId);
+      const nextAction = action || (mappedCompId > 0 ? "switch" : "map-current");
+
+      if (nextAction === "switch") {
+        if (mappedCompId <= 0) return false;
+        const ok = (opts.editor.engine as any).switch_instance_set_variant(BigInt(opts.instanceId), JSON.stringify(values));
+        return !!ok;
+      }
+
+      if (nextAction === "clear") {
+        const ok = (opts.editor.engine as any).set_component_set_variant_mapping(BigInt(opts.setId), JSON.stringify(values), BigInt(0));
+        if (!ok) return false;
+        delete localVariantMap[key];
+        return true;
+      }
+
+      const compIdToMap = nextAction === "map-selected" ? targetCompId : opts.currentComponentId;
+      if (compIdToMap <= 0) return false;
+      const mapped = (opts.editor.engine as any).set_component_set_variant_mapping(BigInt(opts.setId), JSON.stringify(values), BigInt(compIdToMap));
+      if (!mapped) return false;
+      localVariantMap[key] = compIdToMap;
+      (opts.editor.engine as any).switch_instance_set_variant(BigInt(opts.instanceId), JSON.stringify(values));
+      return true;
+    };
+
     for (const rv of rowValues) {
       const yl = document.createElement("div");
       yl.style.cssText = "font-size:10px;padding:4px;border:1px solid #4c1d95;border-radius:4px;background:rgba(139,92,246,0.08);";
@@ -284,23 +401,37 @@ export function openComponentSetMatrixEditor(opts: MatrixEditorOptions): void {
       for (const cv of colValues) {
         const values = { ...fixedValues, [rowAxis.name]: rv, [colAxis.name]: cv };
         const key = makeKey(values);
-        const mappedCompId = Number(opts.variantMap[key] || 0);
+        const mappedCompId = Number(localVariantMap[key] || 0);
         const isMapped = mappedCompId > 0;
         const isActive = mappedCompId === opts.currentComponentId;
         const btn = document.createElement("button");
         btn.type = "button";
         btn.style.cssText = `min-height:28px;border-radius:5px;cursor:pointer;border:1px solid ${isActive ? "#8b5cf6" : isMapped ? "rgba(139,92,246,0.45)" : "#3f3f46"};background:${isActive ? "rgba(139,92,246,0.35)" : isMapped ? "rgba(139,92,246,0.16)" : "#232329"};color:${isMapped ? "#ede9fe" : "#a1a1aa"};font-size:10px;`;
         btn.textContent = isMapped ? `#${mappedCompId}` : "+";
-        btn.onclick = () => {
-          opts.editor.pushUndo();
-          if (!isMapped) {
-            (opts.editor.engine as any).set_component_set_variant_mapping(BigInt(opts.setId), JSON.stringify(values), BigInt(opts.currentComponentId));
-          }
-          (opts.editor.engine as any).switch_instance_set_variant(BigInt(opts.instanceId), JSON.stringify(values));
+
+        const run = () => {
+          const action = resolveAction(isMapped);
+          if (!applyCellAction(values, action, mappedCompId)) return;
           opts.editor.requestRender();
           opts.onApplied();
-          closeComponentSetMatrixEditor();
+          render();
         };
+
+        btn.onmousedown = () => {
+          dragAction = resolveAction(isMapped);
+          opts.editor.pushUndo();
+          run();
+          window.addEventListener("mouseup", releaseDrag);
+        };
+
+        btn.onmouseenter = (ev) => {
+          if ((ev as MouseEvent).buttons !== 1 || !dragAction) return;
+          if (!applyCellAction(values, dragAction, mappedCompId)) return;
+          opts.editor.requestRender();
+          opts.onApplied();
+          render();
+        };
+
         grid.appendChild(btn);
       }
     }

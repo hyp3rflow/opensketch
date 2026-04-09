@@ -1790,9 +1790,19 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Smart Container Queries — Frame 크기 구간별 스타일 override를 설정해 반응형 컴포넌트 variants를 자동 전환 (임팩트 상, 난이도 상)
-- Constraint Conflict Detector — 부모 resize 시 깨질 가능성이 높은 constraints 조합을 실시간 경고하고 자동 수정 제안 (임팩트 중상, 난이도 중)
-- Prototype Accessibility Audit Trail — 포커스 이동/키보드 내비게이션/aria 라벨 누락을 플레이 세션 로그로 수집 (임팩트 중상, 난이도 중상)
+- Prototype Conditional Visibility Rules — 변수/상태 기반으로 노드 visible/hidden 조건을 설정하는 룰 빌더 (임팩트 상, 난이도 중상)
+- Prototype Variable Inspector Overlay — 프리뷰 중 현재 변수 값/바인딩 출처를 인라인으로 보는 디버그 오버레이 (임팩트 상, 난이도 중)
+- Component Set Coverage Heatmap — Variant set에서 미매핑 조합/중복 매핑을 히트맵으로 시각화하고 one-click fix 제안 (임팩트 중상, 난이도 중)
+- Dev Handoff Redline Spec Mode — 선택 노드 간 거리/간격/토큰명을 스펙 시트처럼 고정 표시하는 handoff 모드 (임팩트 중상, 난이도 중)
+- Prototype Gesture Conflict Resolver — Hover/Press/Drag/Scroll 인터랙션 충돌 우선순위를 진단하고 자동 정렬 (임팩트 중, 난이도 중상)
+
+## 완료된 기능 (추가 — Variant Matrix Editor v6 bulk remap + direct target mapping, 2026-04-09)
+- `packages/app/src/ui/component-set-matrix-editor.ts` 확장
+- Matrix cell action 모드 추가: `Auto / Switch only / Map current / Map selected / Clear mapping`
+- Component set 내 variants 목록을 target selector로 노출해 임의 컴포넌트로 직접 매핑 가능
+- 클릭 + 드래그 페인팅으로 다중 셀 일괄 매핑/해제/전환 지원
+- axis rename/reorder/add/remove 적용 이후 최신 `variant_map` 재동기화로 연속 편집 안정성 향상
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Variant Matrix Editor v5 axis pivot + extra filters, 2026-04-09)
 - Variant Matrix Panel에서 Row/Column axis를 드롭다운으로 선택해 3개 이상 variant axis도 2D 매트릭스로 피벗 편집 가능

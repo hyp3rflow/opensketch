@@ -2495,5 +2495,7 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Row/Column axis selector 추가: 3개 이상 axis를 가진 variant set에서도 2D 매트릭스 축을 즉시 전환 가능
 - [x] 선택되지 않은 나머지 axis는 `Extra filters`로 고정값을 선택해 매트릭스 조회 기준을 제어
 - [x] Axis 값 변경 시 기존 variant mapping을 인덱스 기반으로 자동 remap
-- [x] Matrix cell 클릭으로 mapped variant switch / empty cell을 현재 컴포넌트로 map+switch
+- [x] Matrix cell 클릭/드래그 편집: `Auto / Switch / Map current / Map selected / Clear` 모드 지원
+- [x] Component set 구성요소 목록을 target selector로 노출해 셀을 임의 컴포넌트로 직접 재매핑 가능
+- [x] 드래그 페인팅 중 여러 셀에 동일 액션을 일괄 적용 (리오더 이후 재매핑 정리 워크플로우)
 - [x] 구현: `packages/app/src/ui/component-set-matrix-editor.ts` + `properties-panel.ts` 연동
