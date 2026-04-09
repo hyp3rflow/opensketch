@@ -241,6 +241,18 @@ export function openComponentSetMatrixEditor(opts: MatrixEditorOptions): void {
   fillEmptyBtn.style.cssText = "height:26px;background:rgba(16,185,129,0.16);border:1px solid rgba(110,231,183,0.45);border-radius:6px;color:#d1fae5;font-size:11px;cursor:pointer;padding:0 10px;";
   paintRow.appendChild(fillEmptyBtn);
 
+  const exportGridBtn = document.createElement("button");
+  exportGridBtn.type = "button";
+  exportGridBtn.textContent = "Export TSV";
+  exportGridBtn.style.cssText = "height:26px;background:rgba(59,130,246,0.18);border:1px solid rgba(147,197,253,0.45);border-radius:6px;color:#dbeafe;font-size:11px;cursor:pointer;padding:0 10px;";
+  paintRow.appendChild(exportGridBtn);
+
+  const importGridBtn = document.createElement("button");
+  importGridBtn.type = "button";
+  importGridBtn.textContent = "Import TSV";
+  importGridBtn.style.cssText = "height:26px;background:rgba(14,116,144,0.2);border:1px solid rgba(103,232,249,0.45);border-radius:6px;color:#cffafe;font-size:11px;cursor:pointer;padding:0 10px;";
+  paintRow.appendChild(importGridBtn);
+
   const arrangeBtn = document.createElement("button");
   arrangeBtn.type = "button";
   arrangeBtn.textContent = "Arrange Grid";
@@ -255,7 +267,7 @@ export function openComponentSetMatrixEditor(opts: MatrixEditorOptions): void {
 
   const hint = document.createElement("div");
   hint.style.cssText = "font-size:10px;color:#c4b5fd;";
-  hint.textContent = "Click/drag to paint cells. Drag row/column headers to reorder axis values. Drag mapped cells to relocate mapping (Alt+drop = copy). Fill Empty maps only blank cells to selected target component.";
+  hint.textContent = "Click/drag to paint cells. Drag row/column headers to reorder axis values. Drag mapped cells to relocate mapping (Alt+drop = copy). Fill Empty maps only blank cells to selected target component. Use Export/Import TSV for one-shot matrix remap.";
   paintRow.appendChild(hint);
 
   const coverageSummary = document.createElement("div");
@@ -274,6 +286,18 @@ export function openComponentSetMatrixEditor(opts: MatrixEditorOptions): void {
 
   const gridHost = document.createElement("div");
   modal.appendChild(gridHost);
+
+  const getActiveMatrixScope = () => {
+    const rowAxis = localAxes[rowAxisIndex];
+    const colAxis = localAxes[colAxisIndex];
+    if (!rowAxis || !colAxis) return null;
+    const fixedValues: Record<string, string> = { ...opts.currentValues };
+    localAxes.forEach((axis, idx) => {
+      if (idx === rowAxisIndex || idx === colAxisIndex) return;
+      fixedValues[axis.name] = extraFilters[axis.name] ?? axis.values[0] ?? "";
+    });
+    return { rowAxis, colAxis, fixedValues };
+  };
 
   const render = () => {
     const rowAxis = localAxes[rowAxisIndex];
@@ -416,11 +440,7 @@ export function openComponentSetMatrixEditor(opts: MatrixEditorOptions): void {
       grid.appendChild(h);
     });
 
-    const fixedValues: Record<string, string> = { ...opts.currentValues };
-    localAxes.forEach((axis, idx) => {
-      if (idx === rowAxisIndex || idx === colAxisIndex) return;
-      fixedValues[axis.name] = extraFilters[axis.name] ?? axis.values[0] ?? "";
-    });
+    const fixedValues = getActiveMatrixScope()?.fixedValues || { ...opts.currentValues };
 
     const coverageCounts: Record<number, number> = {};
     let totalCells = 0;
@@ -724,6 +744,117 @@ export function openComponentSetMatrixEditor(opts: MatrixEditorOptions): void {
     opts.onApplied();
     render();
     alert(`Filled ${filled} empty cell(s) with component #${targetCompId}.`);
+  };
+
+  exportGridBtn.onclick = async () => {
+    const scope = getActiveMatrixScope();
+    if (!scope) return;
+    const { rowAxis, colAxis, fixedValues } = scope;
+
+    const header = ["", ...colAxis.values].join("\t");
+    const lines: string[] = [header];
+
+    for (const rowVal of rowAxis.values) {
+      const cells: string[] = [rowVal];
+      for (const colVal of colAxis.values) {
+        const values = { ...fixedValues, [rowAxis.name]: rowVal, [colAxis.name]: colVal };
+        const key = makeKey(values);
+        const compId = Number(localVariantMap[key] || 0);
+        cells.push(compId > 0 ? `#${compId}` : "");
+      }
+      lines.push(cells.join("\t"));
+    }
+
+    const text = lines.join("\n");
+    try {
+      await navigator.clipboard.writeText(text);
+      alert(`TSV copied (${rowAxis.values.length}x${colAxis.values.length}).`);
+    } catch {
+      prompt("Copy matrix TSV", text);
+    }
+  };
+
+  importGridBtn.onclick = () => {
+    const scope = getActiveMatrixScope();
+    if (!scope) return;
+    const { rowAxis, colAxis, fixedValues } = scope;
+
+    const sampleHeader = ["", ...colAxis.values].join("\t");
+    const sampleRows = rowAxis.values.slice(0, 2).map((rv) => `${rv}\t${"\t".repeat(Math.max(0, colAxis.values.length - 1))}`);
+    const raw = prompt(
+      `Paste TSV matrix (${rowAxis.name} rows × ${colAxis.name} columns).\nUse #123/123 to map component id, 0 to clear, blank to keep current mapping.`,
+      [sampleHeader, ...sampleRows].join("\n")
+    );
+    if (raw == null) return;
+
+    const rows = raw
+      .split(/\r?\n/)
+      .map((line) => line.split("\t"))
+      .filter((cols) => cols.some((c) => String(c || "").trim().length > 0));
+    if (rows.length < 2) {
+      alert("TSV requires header + at least one data row.");
+      return;
+    }
+
+    const headerCols = rows[0].slice(1).map((s) => String(s || "").trim());
+    const colIndexByName = new Map<string, number>();
+    colAxis.values.forEach((v, i) => colIndexByName.set(v, i));
+
+    const headerTargets: number[] = headerCols.map((hv, idx) => {
+      if (hv && colIndexByName.has(hv)) return colIndexByName.get(hv)!;
+      return idx;
+    });
+
+    const rowIndexByName = new Map<string, number>();
+    rowAxis.values.forEach((v, i) => rowIndexByName.set(v, i));
+
+    let changed = 0;
+    opts.editor.pushUndo();
+
+    for (let ri = 1; ri < rows.length; ri++) {
+      const cols = rows[ri];
+      const rowLabel = String(cols[0] || "").trim();
+      const targetRowIndex = rowLabel && rowIndexByName.has(rowLabel) ? rowIndexByName.get(rowLabel)! : (ri - 1);
+      if (targetRowIndex < 0 || targetRowIndex >= rowAxis.values.length) continue;
+      const rowVal = rowAxis.values[targetRowIndex];
+
+      for (let ci = 1; ci < cols.length; ci++) {
+        const targetColIndex = headerTargets[ci - 1];
+        if (targetColIndex == null || targetColIndex < 0 || targetColIndex >= colAxis.values.length) continue;
+        const token = String(cols[ci] || "").trim();
+        if (!token) continue;
+
+        const colVal = colAxis.values[targetColIndex];
+        const values = { ...fixedValues, [rowAxis.name]: rowVal, [colAxis.name]: colVal };
+        const key = makeKey(values);
+
+        if (token === "0" || token.toLowerCase() === "clear") {
+          const ok = (opts.editor.engine as any).set_component_set_variant_mapping(BigInt(opts.setId), JSON.stringify(values), BigInt(0));
+          if (!ok) continue;
+          delete localVariantMap[key];
+          changed += 1;
+          continue;
+        }
+
+        const numeric = Number(token.replace(/^#/, ""));
+        if (!Number.isFinite(numeric) || numeric <= 0) continue;
+
+        const ok = (opts.editor.engine as any).set_component_set_variant_mapping(BigInt(opts.setId), JSON.stringify(values), BigInt(numeric));
+        if (!ok) continue;
+        localVariantMap[key] = numeric;
+        changed += 1;
+      }
+    }
+
+    if (changed <= 0) {
+      alert("No mapping changes were applied from TSV.");
+      return;
+    }
+
+    opts.editor.requestRender();
+    opts.onApplied();
+    render();
+    alert(`Applied ${changed} mapping change(s) from TSV.`);
   };
 
   arrangeBtn.onclick = () => {

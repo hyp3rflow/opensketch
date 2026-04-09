@@ -20,7 +20,7 @@ export function setupHandoffPanel(container: HTMLElement, editor: Editor) {
       return;
     }
     if (ids.length > 1) {
-      container.innerHTML = `<div style="padding:16px;color:#666;font-size:12px;">Select a single element to inspect</div>`;
+      renderRedlineSpecMode(container, editor, ids);
       return;
     }
 
@@ -294,6 +294,113 @@ export function setupHandoffPanel(container: HTMLElement, editor: Editor) {
   editor.onSelection((ids) => refresh(ids));
 
   return { refresh };
+}
+
+type RedlineNode = { id: number; name: string; x: number; y: number; width: number; height: number; };
+
+function renderRedlineSpecMode(container: HTMLElement, editor: Editor, ids: number[]) {
+  const nodes: RedlineNode[] = ids
+    .map((id) => {
+      try {
+        const raw = editor.engine.get_node_json(BigInt(id));
+        if (!raw) return null;
+        const n = JSON.parse(raw);
+        return {
+          id,
+          name: String(n.name || `Node ${id}`),
+          x: Number(n.x || 0),
+          y: Number(n.y || 0),
+          width: Number(n.width || 0),
+          height: Number(n.height || 0),
+        } as RedlineNode;
+      } catch {
+        return null;
+      }
+    })
+    .filter((n): n is RedlineNode => !!n);
+
+  if (nodes.length < 2) {
+    container.innerHTML = `<div style="padding:16px;color:#666;font-size:12px;">Select at least 2 elements</div>`;
+    return;
+  }
+
+  const anchor = nodes[0]!;
+  const items = nodes.slice(1).map((n) => {
+    const dx = n.x - anchor.x;
+    const dy = n.y - anchor.y;
+    const rightGap = n.x - (anchor.x + anchor.width);
+    const leftGap = anchor.x - (n.x + n.width);
+    const downGap = n.y - (anchor.y + anchor.height);
+    const upGap = anchor.y - (n.y + n.height);
+    const hGap = rightGap > 0 ? rightGap : leftGap > 0 ? leftGap : 0;
+    const vGap = downGap > 0 ? downGap : upGap > 0 ? upGap : 0;
+    return { node: n, dx, dy, hGap, vGap };
+  });
+
+  const suggestSpaceToken = (px: number) => {
+    if (px <= 0) return "-";
+    const rounded = Math.round(px / 4) * 4;
+    return `space-${Math.max(1, Math.round(rounded / 4))} (${rounded}px)`;
+  };
+
+  const wrap = document.createElement("div");
+  wrap.style.cssText = "padding:12px;display:flex;flex-direction:column;gap:10px;overflow-y:auto;";
+
+  const header = document.createElement("div");
+  header.style.cssText = "padding:10px;border:1px solid #3a2f1f;background:#1f1a12;border-radius:8px;";
+  header.innerHTML = `
+    <div style="font-size:12px;font-weight:700;color:#fbbf24;">📏 Redline Spec Mode</div>
+    <div style="margin-top:4px;font-size:11px;color:#a3a3a3;line-height:1.45;">Anchor: <span style="color:#fde68a;">${anchor.name}</span> (#${anchor.id}) · ${Math.round(anchor.width)}×${Math.round(anchor.height)} at (${Math.round(anchor.x)}, ${Math.round(anchor.y)})</div>
+    <div style="margin-top:4px;font-size:10px;color:#78716c;">거리 값은 px 기준이며 토큰은 4px grid 기준 추천값입니다.</div>
+  `;
+  wrap.appendChild(header);
+
+  const table = document.createElement("div");
+  table.style.cssText = "border:1px solid #2f2f35;border-radius:8px;overflow:hidden;";
+  const rows = items.map((it) => `
+    <tr>
+      <td style="padding:6px 8px;border-top:1px solid #2a2a2a;color:#ddd;font-size:11px;">${it.node.name} <span style="color:#71717a;">#${it.node.id}</span></td>
+      <td style="padding:6px 8px;border-top:1px solid #2a2a2a;color:#c4b5fd;font-size:11px;text-align:right;">${Math.round(it.dx)} / ${Math.round(it.dy)}</td>
+      <td style="padding:6px 8px;border-top:1px solid #2a2a2a;color:#a7f3d0;font-size:11px;text-align:right;">${Math.round(it.hGap)} / ${Math.round(it.vGap)}</td>
+      <td style="padding:6px 8px;border-top:1px solid #2a2a2a;color:#f5d0fe;font-size:11px;">${suggestSpaceToken(Math.max(it.hGap, it.vGap))}</td>
+    </tr>
+  `).join("");
+  table.innerHTML = `
+    <table style="width:100%;border-collapse:collapse;background:#1a1a1f;">
+      <thead>
+        <tr style="background:#232329;">
+          <th style="padding:7px 8px;color:#a1a1aa;font-size:10px;text-align:left;">Target</th>
+          <th style="padding:7px 8px;color:#a1a1aa;font-size:10px;text-align:right;">Offset (x/y)</th>
+          <th style="padding:7px 8px;color:#a1a1aa;font-size:10px;text-align:right;">Gap (h/v)</th>
+          <th style="padding:7px 8px;color:#a1a1aa;font-size:10px;text-align:left;">Token Suggestion</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+  wrap.appendChild(table);
+
+  const copy = document.createElement("button");
+  copy.textContent = "Copy Redline Sheet";
+  copy.style.cssText = "height:30px;border-radius:7px;border:1px solid #57431f;background:#2f2618;color:#fcd34d;font-size:11px;cursor:pointer;";
+  copy.onclick = async () => {
+    const lines = [
+      `Anchor: ${anchor.name} (#${anchor.id})`,
+      ...items.map((it) => `- ${it.node.name} (#${it.node.id}): offset(${Math.round(it.dx)}, ${Math.round(it.dy)}), gap(${Math.round(it.hGap)}, ${Math.round(it.vGap)}), token ${suggestSpaceToken(Math.max(it.hGap, it.vGap))}`),
+    ];
+    const text = lines.join("\n");
+    try {
+      await navigator.clipboard.writeText(text);
+      copy.textContent = "✓ Copied";
+      setTimeout(() => (copy.textContent = "Copy Redline Sheet"), 1200);
+    } catch {
+      prompt("Copy redline sheet", text);
+    }
+  };
+  wrap.appendChild(copy);
+
+  container.innerHTML = "";
+  container.appendChild(wrap);
 }
 
 // ─── Helpers ───────────────────────────────────────────

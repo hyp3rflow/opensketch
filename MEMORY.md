@@ -1790,11 +1790,19 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Dev Handoff Redline Spec Mode — 선택 노드 간 거리/간격/토큰명을 스펙 시트처럼 고정 표시하는 handoff 모드 (임팩트 중상, 난이도 중)
 - Prototype Gesture Conflict Resolver — Hover/Press/Drag/Scroll 인터랙션 충돌 우선순위를 진단하고 자동 정렬 (임팩트 중, 난이도 중상)
 - Variables Collection Diff Timeline — mode별 변수 값 변경 이력을 타임라인으로 비교/롤백 (임팩트 중상, 난이도 중상)
 - Prototype Flow Map Mini-Graph — 페이지/오버레이 간 네비게이션 링크를 미니 그래프로 시각화하고 dead-end를 탐지 (임팩트 중, 난이도 중)
 - Auto Layout Gap Suggestions — 선택 프레임의 자식 간 spacing 패턴을 분석해 추천 gap/padding 프리셋 제안 (임팩트 중, 난이도 중)
+
+## 완료된 기능 (추가 — Dev Handoff Redline Spec Mode + Variant Matrix TSV batch remap, 2026-04-10)
+- Handoff panel(`packages/app/src/ui/handoff-panel.ts`) 다중 선택 UX 개선: 기존 "single select only" 메시지 대신 `Redline Spec Mode` 표시
+- 첫 선택 노드를 anchor로 사용해 나머지 선택 노드의 offset(x/y), edge gap(h/v), 4px-grid spacing token 추천을 고정 테이블로 제공
+- `Copy Redline Sheet` 액션으로 redline 텍스트 스펙을 클립보드에 복사해 개발 전달 워크플로우 단축
+- Variant Matrix Editor(`packages/app/src/ui/component-set-matrix-editor.ts`) 툴바에 `Export TSV`/`Import TSV` 추가
+  - Export: 현재 row/column matrix 범위 mapping을 `#component_id` 표로 복사
+  - Import: TSV 붙여넣기 기반 일괄 remap (`#id/id`=맵핑, `0/clear`=해제, 빈 값=유지)
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Component Set Coverage Heatmap + Fill Empty, 2026-04-10)
 - Variant Matrix Panel(`packages/app/src/ui/component-set-matrix-editor.ts`) 툴바에 `Coverage: On/Off` 토글 추가

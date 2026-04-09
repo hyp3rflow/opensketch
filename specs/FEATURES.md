@@ -111,6 +111,7 @@
 - [x] **Variant Matrix Editor v4 (axis rename remap, 2026-04-09)**: inline editor에서 axis 이름 자체를 수정할 수 있으며, `rename_component_set_axis` API로 component set axis와 `variant_map` key를 자동 리맵한다. axis rename과 값 변경을 한 번에 적용해 instance의 현재 variant 선택 상태도 안전하게 이전한다.
 - [x] **Variant Matrix Editor v5 (header drag reorder, 2026-04-10)**: matrix의 행/열 헤더를 직접 드래그해 axis 값 순서를 재정렬할 수 있다. 드롭 시 axis value 순서를 즉시 업데이트하고 기존 `variant_map` 매핑을 인덱스 기반으로 유지해 대량 재배치 중 매핑 손실 없이 편집 가능하다.
 - [x] **Variant Matrix Editor v6 (fill-empty batch map, 2026-04-10)**: Panel 툴바에 `Fill Empty` 액션을 추가해 현재 row/column/extra filter 범위의 미매핑 셀만 선택한 target component로 일괄 매핑한다. 이미 매핑된 셀은 보존되어 대규모 variant set 초기 매핑 속도를 높인다.
+- [x] **Variant Matrix Editor v7 (TSV import/export batch remap, 2026-04-10)**: `Export TSV`로 현재 row/column matrix 범위의 component mapping(#id)을 표 형태로 복사하고, `Import TSV`로 붙여넣은 표를 기준으로 매핑을 일괄 반영한다. 셀 값은 `#id/id`=맵핑, `0/clear`=해제, 빈 값=유지 규칙을 지원해 대량 리네임·재배치를 스프레드시트처럼 빠르게 처리할 수 있다.
 - [x] **Component Set Coverage Heatmap (2026-04-10)**: Variant Matrix Panel에 `Coverage: On/Off` 토글을 추가해 Empty/Unique/Duplicate 셀 상태를 즉시 강조하고, 매핑 커버리지 요약(총 셀/빈 셀/중복 매핑)을 표시한다.
 - [x] **Instance Controls unified card**: Instance 선택 시 Properties panel에서 Variant/Overrides/Component Props(텍스트 override 포함)를 단일 `INSTANCE CONTROLS` 카드로 묶어 편집
 - [x] **Component Props Figma-style override polish**: Instance의 Boolean/Text/Instance Swap prop을 타입 배지 + override dot + `Reset all` 액션으로 노출, Text default placeholder/tooltip 제공, Component source의 속성 목록에 default/linked target 메타 표시
@@ -1097,6 +1098,7 @@ Frame overflow control and content scrolling.
 - [x] Kotlin Compose code gen: Text, Box, Image, Modifier chain (size, offset, clip, background, border, rotate, alpha, shadow, blur), layout (Column/Row), font/text properties
 - [x] **Asset export**: PNG @1x, PNG @2x, SVG — per-node one-click download
 - [x] **Spacing overlay toggle**: enables Alt+Hover measurement mode from within handoff panel
+- [x] **Dev Handoff Redline Spec Mode (2026-04-10)**: 다중 선택(2+) 시 Handoff 탭이 anchor 기준 redline 시트로 전환되어 target별 offset(x/y), edge gap(h/v), 4px-grid spacing token 제안을 고정 표로 표시한다. `Copy Redline Sheet`로 텍스트 스펙을 바로 전달할 수 있다.
 - [x] **Handoff checklist**: Auto-generated dev handoff readiness report — naming, styles, components, assets, text, layout, export checks with severity levels, progress bar, click-to-select offending nodes
 - [x] Design tokens export: W3C DTCG, Style Dictionary, Tailwind Config
 - [x] Syntax highlighting for all languages (VS Code-style colors)
