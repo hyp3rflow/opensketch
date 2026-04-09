@@ -5862,6 +5862,116 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       const interJson = editor.engine.get_interactions(id);
       const interactions: any[] = JSON.parse(interJson || "[]");
 
+      const triggerKeyMap: Record<string, string> = {
+        OnClick: "click", OnHover: "hover", OnPress: "press", OnDrag: "drag",
+        OnSwipeLeft: "swipe-left", OnSwipeRight: "swipe-right",
+        OnSwipeUp: "swipe-up", OnSwipeDown: "swipe-down",
+        OnLongPress: "long-press", OnPinchIn: "pinch-in", OnPinchOut: "pinch-out",
+      };
+      const actionKeyMap: Record<string, string> = {
+        NavigateTo: "navigate-to", Back: "back", ScrollTo: "scroll-to",
+        OpenOverlay: "open-overlay", CloseOverlay: "close-overlay",
+        SwapVariant: "swap-variant", SetVariable: "set-variable",
+      };
+      const triggerPriority: Record<string, number> = {
+        "hover": 10,
+        "press": 20,
+        "click": 30,
+        "drag": 40,
+        "swipe-left": 50,
+        "swipe-right": 50,
+        "swipe-up": 50,
+        "swipe-down": 50,
+        "long-press": 60,
+        "pinch-in": 70,
+        "pinch-out": 70,
+      };
+
+      const conflictCard = document.createElement("div");
+      conflictCard.style.cssText = "background:#1f2937;border:1px solid #374151;border-radius:8px;padding:8px;margin-bottom:8px;";
+      const conflictTitle = document.createElement("div");
+      conflictTitle.style.cssText = "font-size:10px;color:#93c5fd;margin-bottom:6px;font-weight:600;";
+      conflictTitle.textContent = "Gesture Conflict Resolver";
+      conflictCard.appendChild(conflictTitle);
+      const conflictSummary = document.createElement("div");
+      conflictSummary.style.cssText = "font-size:10px;color:#cbd5e1;line-height:1.4;margin-bottom:6px;";
+      conflictCard.appendChild(conflictSummary);
+      const conflictBtnRow = document.createElement("div");
+      conflictBtnRow.style.cssText = "display:flex;gap:6px;";
+      const diagnoseBtn = document.createElement("button");
+      diagnoseBtn.className = "prop-input";
+      diagnoseBtn.style.cssText = "flex:1;height:24px;font-size:10px;cursor:pointer;";
+      diagnoseBtn.textContent = "Diagnose";
+      const resolveBtn = document.createElement("button");
+      resolveBtn.className = "prop-input";
+      resolveBtn.style.cssText = "flex:1;height:24px;font-size:10px;cursor:pointer;";
+      resolveBtn.textContent = "Auto Resolve";
+      conflictBtnRow.appendChild(diagnoseBtn);
+      conflictBtnRow.appendChild(resolveBtn);
+      conflictCard.appendChild(conflictBtnRow);
+      interSection.appendChild(conflictCard);
+
+      const summarizeConflicts = () => {
+        const triggerBuckets = new Map<string, number>();
+        let overlap = 0;
+        for (const inter of interactions) {
+          const trig = triggerKeyMap[String(inter.trigger || "")] || String(inter.trigger || "click").toLowerCase();
+          triggerBuckets.set(trig, (triggerBuckets.get(trig) || 0) + 1);
+        }
+        triggerBuckets.forEach((count) => {
+          if (count > 1) overlap += 1;
+        });
+        const hasGestureMix = (triggerBuckets.get("drag") || 0) > 0 && (
+          (triggerBuckets.get("swipe-left") || 0) +
+          (triggerBuckets.get("swipe-right") || 0) +
+          (triggerBuckets.get("swipe-up") || 0) +
+          (triggerBuckets.get("swipe-down") || 0)
+        ) > 0;
+
+        const overlapText = overlap > 0 ? `${overlap} overlapping trigger group(s)` : "No trigger overlap";
+        const mixText = hasGestureMix ? "Drag + swipe mixed" : "No drag/swipe collision";
+        conflictSummary.textContent = `${overlapText} · ${mixText}.`;
+      };
+
+      diagnoseBtn.addEventListener("click", () => summarizeConflicts());
+      resolveBtn.addEventListener("click", () => {
+        if (interactions.length <= 1) return;
+        ensureUndo();
+        const sorted = [...interactions].sort((a, b) => {
+          const ta = triggerKeyMap[String(a.trigger || "")] || String(a.trigger || "click").toLowerCase();
+          const tb = triggerKeyMap[String(b.trigger || "")] || String(b.trigger || "click").toLowerCase();
+          const pa = triggerPriority[ta] ?? 999;
+          const pb = triggerPriority[tb] ?? 999;
+          if (pa !== pb) return pa - pb;
+          const aa = actionKeyMap[String(a.action || "")] || String(a.action || "").toLowerCase();
+          const ab = actionKeyMap[String(b.action || "")] || String(b.action || "").toLowerCase();
+          return aa.localeCompare(ab);
+        });
+
+        for (let i = interactions.length - 1; i >= 0; i--) editor.engine.remove_interaction(id, i);
+        for (const inter of sorted) {
+          const trig = triggerKeyMap[String(inter.trigger || "")] || String(inter.trigger || "click").toLowerCase();
+          const action = actionKeyMap[String(inter.action || "")] || String(inter.action || "navigate-to").toLowerCase();
+          const newIdx = editor.engine.add_interaction(
+            id,
+            trig,
+            action,
+            BigInt(Number(inter.target_node_id || 0)),
+            BigInt(Number(inter.target_page_id || 0)),
+            String(inter.transition || "instant").toLowerCase(),
+            Number(inter.transition_duration_ms || 300),
+            String(inter.easing || "ease_in_out")
+          );
+          if (newIdx >= 0) {
+            if (inter.variant_key_json) editor.engine.set_interaction_variant_key(id, newIdx, inter.variant_key_json);
+            if (inter.smart_animate_timeline_json) editor.engine.set_interaction_timeline(id, newIdx, inter.smart_animate_timeline_json);
+          }
+        }
+        editor.requestRender();
+        refresh(ids);
+      });
+      summarizeConflicts();
+
       // Get all frames across all pages for target selection
       const pagesJson = editor.engine.get_pages();
       const pages: any[] = JSON.parse(pagesJson || "[]");

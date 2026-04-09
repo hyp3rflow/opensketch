@@ -118,6 +118,7 @@ export function openComponentSetMatrixEditor(opts: MatrixEditorOptions): void {
   const extraFilters: Record<string, string> = {};
   const localVariantMap: Record<string, number> = { ...(opts.variantMap || {}) };
   let coverageMode = false;
+  let showMissingOnly = false;
 
   let componentOptions: Array<{ id: number; name: string }> = [];
   try {
@@ -265,9 +266,21 @@ export function openComponentSetMatrixEditor(opts: MatrixEditorOptions): void {
   coverageToggleBtn.style.cssText = "height:26px;background:rgba(234,88,12,0.15);border:1px solid rgba(251,191,36,0.45);border-radius:6px;color:#fed7aa;font-size:11px;cursor:pointer;padding:0 10px;";
   paintRow.appendChild(coverageToggleBtn);
 
+  const missingOnlyBtn = document.createElement("button");
+  missingOnlyBtn.type = "button";
+  missingOnlyBtn.textContent = "Missing Only: Off";
+  missingOnlyBtn.style.cssText = "height:26px;background:rgba(220,38,38,0.15);border:1px solid rgba(248,113,113,0.45);border-radius:6px;color:#fecaca;font-size:11px;cursor:pointer;padding:0 10px;";
+  paintRow.appendChild(missingOnlyBtn);
+
+  const copyMissingBtn = document.createElement("button");
+  copyMissingBtn.type = "button";
+  copyMissingBtn.textContent = "Copy Missing";
+  copyMissingBtn.style.cssText = "height:26px;background:rgba(190,24,93,0.16);border:1px solid rgba(244,114,182,0.45);border-radius:6px;color:#fbcfe8;font-size:11px;cursor:pointer;padding:0 10px;";
+  paintRow.appendChild(copyMissingBtn);
+
   const hint = document.createElement("div");
   hint.style.cssText = "font-size:10px;color:#c4b5fd;";
-  hint.textContent = "Click/drag to paint cells. Drag row/column headers to reorder axis values. Drag mapped cells to relocate mapping (Alt+drop = copy). Fill Empty maps only blank cells to selected target component. Use Export/Import TSV for one-shot matrix remap.";
+  hint.textContent = "Click/drag to paint cells. Drag row/column headers to reorder axis values. Drag mapped cells to relocate mapping (Alt+drop = copy). Fill Empty maps only blank cells to selected target component. Missing Only dims mapped cells so you can focus gap-filling. Use Export/Import TSV for one-shot matrix remap.";
   paintRow.appendChild(hint);
 
   const coverageSummary = document.createElement("div");
@@ -570,14 +583,16 @@ export function openComponentSetMatrixEditor(opts: MatrixEditorOptions): void {
           : (!isMapped ? "rgba(127,29,29,0.45)" : duplicateMapped ? "rgba(120,53,15,0.45)" : "rgba(20,83,45,0.45)");
         const btn = document.createElement("button");
         btn.type = "button";
-        btn.draggable = isMapped;
-        btn.style.cssText = `min-height:28px;border-radius:5px;cursor:${isMapped ? "grab" : "pointer"};border:1px solid ${heatBorder};background:${heatBg};color:${isMapped ? "#ede9fe" : "#a1a1aa"};font-size:10px;`;
+        const dimMapped = showMissingOnly && isMapped;
+        btn.draggable = isMapped && !dimMapped;
+        btn.style.cssText = `min-height:28px;border-radius:5px;cursor:${dimMapped ? "not-allowed" : isMapped ? "grab" : "pointer"};border:1px solid ${heatBorder};background:${heatBg};color:${isMapped ? "#ede9fe" : "#a1a1aa"};font-size:10px;opacity:${dimMapped ? "0.28" : "1"};`;
         btn.textContent = isMapped ? `#${mappedCompId}` : "+";
         if (isMapped) {
           btn.title = "Click to switch/map by mode. Drag to another cell to move mapping (Alt+drop to copy).";
         }
 
         const run = () => {
+          if (dimMapped) return;
           const action = resolveAction(isMapped);
           if (!applyCellAction(values, action, mappedCompId)) return;
           opts.editor.requestRender();
@@ -586,6 +601,7 @@ export function openComponentSetMatrixEditor(opts: MatrixEditorOptions): void {
         };
 
         btn.onmousedown = () => {
+          if (dimMapped) return;
           dragAction = resolveAction(isMapped);
           opts.editor.pushUndo();
           run();
@@ -593,6 +609,7 @@ export function openComponentSetMatrixEditor(opts: MatrixEditorOptions): void {
         };
 
         btn.onmouseenter = (ev) => {
+          if (dimMapped) return;
           if ((ev as MouseEvent).buttons !== 1 || !dragAction) return;
           if (!applyCellAction(values, dragAction, mappedCompId)) return;
           opts.editor.requestRender();
@@ -601,7 +618,7 @@ export function openComponentSetMatrixEditor(opts: MatrixEditorOptions): void {
         };
 
         btn.ondragstart = (ev) => {
-          if (!isMapped || !ev.dataTransfer) return;
+          if (dimMapped || !isMapped || !ev.dataTransfer) return;
           ev.dataTransfer.setData("text/plain", `map:${key}`);
           ev.dataTransfer.effectAllowed = "copyMove";
         };
@@ -654,6 +671,46 @@ export function openComponentSetMatrixEditor(opts: MatrixEditorOptions): void {
     coverageToggleBtn.textContent = coverageMode ? "Coverage: On" : "Coverage: Off";
     render();
   };
+
+  missingOnlyBtn.onclick = () => {
+    showMissingOnly = !showMissingOnly;
+    missingOnlyBtn.textContent = showMissingOnly ? "Missing Only: On" : "Missing Only: Off";
+    render();
+  };
+
+  copyMissingBtn.onclick = async () => {
+    const scope = getActiveMatrixScope();
+    if (!scope) return;
+    const { rowAxis, colAxis, fixedValues } = scope;
+    const missing: string[] = [];
+
+    for (const rowVal of rowAxis.values) {
+      for (const colVal of colAxis.values) {
+        const values = { ...fixedValues, [rowAxis.name]: rowVal, [colAxis.name]: colVal };
+        const key = makeKey(values);
+        if (Number(localVariantMap[key] || 0) > 0) continue;
+        const axisPairs = [
+          `${rowAxis.name}=${rowVal}`,
+          `${colAxis.name}=${colVal}`,
+          ...Object.entries(fixedValues).map(([k, v]) => `${k}=${v}`),
+        ];
+        missing.push(axisPairs.join(", "));
+      }
+    }
+
+    const text = missing.join("\n");
+    if (!text) {
+      alert("No missing cells in current matrix scope.");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      alert(`Copied ${missing.length} missing variant key(s).`);
+    } catch {
+      prompt("Copy missing variant keys", text);
+    }
+  };
+
   colSelect.onchange = () => {
     colAxisIndex = Number(colSelect.value);
     if (rowAxisIndex === colAxisIndex) {

@@ -1790,10 +1790,17 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Prototype Gesture Conflict Resolver — Hover/Press/Drag/Scroll 인터랙션 충돌 우선순위를 진단하고 자동 정렬 (임팩트 중, 난이도 중상)
 - Variables Collection Diff Timeline — mode별 변수 값 변경 이력을 타임라인으로 비교/롤백 (임팩트 중상, 난이도 중상)
 - Prototype Flow Map Mini-Graph — 페이지/오버레이 간 네비게이션 링크를 미니 그래프로 시각화하고 dead-end를 탐지 (임팩트 중, 난이도 중)
 - Auto Layout Gap Suggestions — 선택 프레임의 자식 간 spacing 패턴을 분석해 추천 gap/padding 프리셋 제안 (임팩트 중, 난이도 중)
+
+## 완료된 기능 (추가 — Prototype Gesture Conflict Resolver, 2026-04-10)
+- Properties panel `Interactions` 상단에 `Gesture Conflict Resolver` 카드 추가
+- `Diagnose` 버튼: 현재 노드 interaction 목록을 trigger 버킷으로 집계해 겹치는 trigger 그룹 수 + drag/swipe 혼합 충돌 여부를 즉시 요약
+- `Auto Resolve` 버튼: trigger 우선순위(hover→press→click→drag→swipe→long-press→pinch) 기준으로 interaction 순서를 자동 정렬하고 재적용
+- 기존 variant key / smart animate timeline 메타 보존
+- 구현: `packages/app/src/ui/properties-panel.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Dev Handoff Redline Spec Mode + Variant Matrix TSV batch remap, 2026-04-10)
 - Handoff panel(`packages/app/src/ui/handoff-panel.ts`) 다중 선택 UX 개선: 기존 "single select only" 메시지 대신 `Redline Spec Mode` 표시

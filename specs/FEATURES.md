@@ -113,6 +113,7 @@
 - [x] **Variant Matrix Editor v6 (fill-empty batch map, 2026-04-10)**: Panel 툴바에 `Fill Empty` 액션을 추가해 현재 row/column/extra filter 범위의 미매핑 셀만 선택한 target component로 일괄 매핑한다. 이미 매핑된 셀은 보존되어 대규모 variant set 초기 매핑 속도를 높인다.
 - [x] **Variant Matrix Editor v7 (TSV import/export batch remap, 2026-04-10)**: `Export TSV`로 현재 row/column matrix 범위의 component mapping(#id)을 표 형태로 복사하고, `Import TSV`로 붙여넣은 표를 기준으로 매핑을 일괄 반영한다. 셀 값은 `#id/id`=맵핑, `0/clear`=해제, 빈 값=유지 규칙을 지원해 대량 리네임·재배치를 스프레드시트처럼 빠르게 처리할 수 있다.
 - [x] **Component Set Coverage Heatmap (2026-04-10)**: Variant Matrix Panel에 `Coverage: On/Off` 토글을 추가해 Empty/Unique/Duplicate 셀 상태를 즉시 강조하고, 매핑 커버리지 요약(총 셀/빈 셀/중복 매핑)을 표시한다.
+- [x] **Variant Matrix Missing Cells Workflow (2026-04-10)**: Panel에 `Missing Only` 토글과 `Copy Missing` 액션을 추가해 미매핑 셀만 빠르게 식별하고, 현재 row/column/filter 스코프 기준 누락 variant key 목록을 클립보드로 추출할 수 있다.
 - [x] **Instance Controls unified card**: Instance 선택 시 Properties panel에서 Variant/Overrides/Component Props(텍스트 override 포함)를 단일 `INSTANCE CONTROLS` 카드로 묶어 편집
 - [x] **Component Props Figma-style override polish**: Instance의 Boolean/Text/Instance Swap prop을 타입 배지 + override dot + `Reset all` 액션으로 노출, Text default placeholder/tooltip 제공, Component source의 속성 목록에 default/linked target 메타 표시
 - [x] **Component Props default materialization**: 새 Instance 생성/컴포넌트 swap/variant-set swap 시 component property의 기본값(Boolean/Text/Instance Swap)을 즉시 자식 노드에 적용해 Figma처럼 기본 상태가 일관되게 반영
@@ -381,6 +382,7 @@
   - Gesture-based interactions: swipe (left/right/up/down), long-press (500ms), pinch in/out
   - Touch event handling in prototype viewer: swipe detection (>50px, <500ms), long-press timer, two-finger pinch distance ratio
   - Gesture trigger labels shown on hotspot hints in preview
+  - Gesture Conflict Resolver: Properties panel `Interactions` 상단에서 trigger 충돌 그룹(중복 trigger, drag+swipe 혼합)을 Diagnose하고, `Auto Resolve`로 interaction 순서를 trigger 우선순위(hover→press→click→drag→swipe→long-press→pinch) 기준 자동 정렬
   - **Prototype Flows**: PrototypeFlow struct (id, name, start_frame_id, start_page_id), Scene-level storage with backward-compatible serde
   - Flow CRUD: add_flow, remove_flow, rename_flow, set_flow_start_frame
   - Flow connections: get_flow_connections (BFS from start frame), get_all_cross_page_interactions (cross-page only)
