@@ -1790,10 +1790,16 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Variables Usage Heatmap — 캔버스에서 variable binding 밀도를 색상 오버레이로 시각화해 토큰 적용 누락 지점 탐지 (임팩트 중상, 난이도 중)
 - Smart Container Queries — Frame 크기 구간별 스타일 override를 설정해 반응형 컴포넌트 variants를 자동 전환 (임팩트 상, 난이도 상)
 - Constraint Conflict Detector — 부모 resize 시 깨질 가능성이 높은 constraints 조합을 실시간 경고하고 자동 수정 제안 (임팩트 중상, 난이도 중)
 - Prototype Accessibility Audit Trail — 포커스 이동/키보드 내비게이션/aria 라벨 누락을 플레이 세션 로그로 수집 (임팩트 중상, 난이도 중상)
+
+## 완료된 기능 (추가 — Variables Usage Heatmap, 2026-04-09)
+- Variables panel Inspector에 `Usage heatmap overlay` 토글 추가 (`packages/app/src/ui/variables-panel.ts`)
+- 컬렉션 전체 변수 사용처를 집계해 노드별 binding density를 캔버스 오버레이로 렌더
+- 저밀도(차가운 색)→고밀도(따뜻한 색) 그라데이션 + 반투명 fill/stroke로 누락/편중 지점 시각화
+- Bulk Edit/빈 컬렉션 상태에서 오버레이 자동 정리
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Prototype Conditions Preset Library, 2026-04-09)
 - Properties > Interaction > Condition builder에 `Condition Presets` 라이브러리 추가

@@ -18,9 +18,86 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
   let inBulkEditMode = false;
   let variableSearchQuery = "";
   let variableTypeFilter = "All";
+  let usageHeatmapEnabled = false;
+  let usageHeatmapCanvas: HTMLCanvasElement | null = null;
+
+  function clearUsageHeatmap() {
+    if (usageHeatmapCanvas) {
+      usageHeatmapCanvas.remove();
+      usageHeatmapCanvas = null;
+    }
+  }
+
+  function renderUsageHeatmap(collections: VarCollection[]) {
+    if (!usageHeatmapEnabled) {
+      clearUsageHeatmap();
+      return;
+    }
+    const mainCanvas = (editor as any).canvas as HTMLCanvasElement | undefined;
+    if (!mainCanvas || !mainCanvas.parentElement) return;
+
+    if (!usageHeatmapCanvas) {
+      usageHeatmapCanvas = document.createElement("canvas");
+      usageHeatmapCanvas.style.cssText = "position:absolute;top:0;left:0;pointer-events:none;z-index:55;";
+      mainCanvas.parentElement.appendChild(usageHeatmapCanvas);
+    }
+
+    usageHeatmapCanvas.width = mainCanvas.width;
+    usageHeatmapCanvas.height = mainCanvas.height;
+    usageHeatmapCanvas.style.width = `${mainCanvas.clientWidth}px`;
+    usageHeatmapCanvas.style.height = `${mainCanvas.clientHeight}px`;
+
+    const ctx = usageHeatmapCanvas.getContext("2d");
+    if (!ctx) return;
+    ctx.clearRect(0, 0, usageHeatmapCanvas.width, usageHeatmapCanvas.height);
+
+    const usageByNode = new Map<number, number>();
+    for (const col of collections) {
+      for (const v of col.variables || []) {
+        let list: Array<{ node_id?: number }> = [];
+        try {
+          list = JSON.parse((editor.engine as any).get_variable_usages?.(BigInt(col.id), BigInt(v.id)) || "[]");
+        } catch {
+          list = [];
+        }
+        for (const entry of list) {
+          const nodeId = Number(entry?.node_id || 0);
+          if (nodeId <= 0) continue;
+          usageByNode.set(nodeId, (usageByNode.get(nodeId) || 0) + 1);
+        }
+      }
+    }
+
+    if (usageByNode.size === 0) return;
+
+    const zoom = Number(editor.engine.get_zoom() || 1);
+    const panX = Number(editor.engine.get_pan_x() || 0);
+    const panY = Number(editor.engine.get_pan_y() || 0);
+    const maxCount = Math.max(1, ...Array.from(usageByNode.values()));
+
+    usageByNode.forEach((count, nodeId) => {
+      let node: any = null;
+      try { node = JSON.parse(editor.engine.get_node_json(BigInt(nodeId)) || "null"); } catch { node = null; }
+      if (!node || node.visible === false) return;
+
+      const x = Number(node.x || 0) * zoom + panX;
+      const y = Number(node.y || 0) * zoom + panY;
+      const w = Math.max(2, Number(node.width || 0) * zoom);
+      const h = Math.max(2, Number(node.height || 0) * zoom);
+      const intensity = Math.min(1, count / maxCount);
+      const hue = 220 - (220 * intensity);
+
+      ctx.fillStyle = `hsla(${hue}, 95%, 56%, ${0.12 + intensity * 0.32})`;
+      ctx.strokeStyle = `hsla(${hue}, 95%, 62%, ${0.36 + intensity * 0.5})`;
+      ctx.lineWidth = Math.max(1, Math.min(3, zoom * 0.8));
+      ctx.fillRect(x, y, w, h);
+      ctx.strokeRect(x + 0.5, y + 0.5, Math.max(1, w - 1), Math.max(1, h - 1));
+    });
+  }
 
   function enterBulkEdit(collectionId: number) {
     inBulkEditMode = true;
+    clearUsageHeatmap();
     container.innerHTML = "";
     if (bulkEditInstance) bulkEditInstance.destroy();
     bulkEditInstance = setupVariablesBulkEdit(container, editor, collectionId, () => {
@@ -32,6 +109,7 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
 
   function refresh() {
     if (inBulkEditMode && bulkEditInstance) {
+      clearUsageHeatmap();
       bulkEditInstance.refresh();
       return;
     }
@@ -61,6 +139,7 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
     container.appendChild(header);
 
     if (collections.length === 0) {
+      clearUsageHeatmap();
       const empty = document.createElement("div");
       empty.style.cssText = "color:#555;font-size:11px;text-align:center;padding:40px 0;";
       empty.textContent = "No variable collections yet";
@@ -247,6 +326,23 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
     brokenTitle.style.cssText = "display:flex;align-items:center;justify-content:space-between;font-size:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;margin-bottom:6px;";
     brokenTitle.innerHTML = `<span>Variables Inspector</span><span style=\"color:${brokenBindings.length > 0 ? "#f59e0b" : "#64748b"}\">Broken ${brokenBindings.length}</span>`;
     inspector.appendChild(brokenTitle);
+
+    const heatmapRow = document.createElement("div");
+    heatmapRow.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;";
+    const heatmapLabel = document.createElement("label");
+    heatmapLabel.style.cssText = "display:flex;align-items:center;gap:6px;font-size:10px;color:#93c5fd;cursor:pointer;";
+    const heatmapCb = document.createElement("input");
+    heatmapCb.type = "checkbox";
+    heatmapCb.checked = usageHeatmapEnabled;
+    heatmapCb.addEventListener("change", () => {
+      usageHeatmapEnabled = heatmapCb.checked;
+      renderUsageHeatmap(collections);
+      editor.requestRender();
+    });
+    heatmapLabel.appendChild(heatmapCb);
+    heatmapLabel.appendChild(document.createTextNode("Usage heatmap overlay"));
+    heatmapRow.appendChild(heatmapLabel);
+    inspector.appendChild(heatmapRow);
 
     if (brokenBindings.length > 0) {
       const list = document.createElement("div");
@@ -619,6 +715,8 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
       varsSection.appendChild(varRow);
     }
     container.appendChild(varsSection);
+
+    renderUsageHeatmap(collections);
   }
 
   // Initial render
