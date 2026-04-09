@@ -1794,6 +1794,13 @@
 - Constraint Conflict Detector — 부모 resize 시 깨질 가능성이 높은 constraints 조합을 실시간 경고하고 자동 수정 제안 (임팩트 중상, 난이도 중)
 - Prototype Accessibility Audit Trail — 포커스 이동/키보드 내비게이션/aria 라벨 누락을 플레이 세션 로그로 수집 (임팩트 중상, 난이도 중상)
 
+## 완료된 기능 (추가 — Variant Matrix Editor v3 inline axis editor, 2026-04-09)
+- Component Set 2D Variants Matrix 상단에 axis별 inline comma-list editor 추가 (`packages/app/src/ui/properties-panel.ts`)
+- 각 axis 값을 패널 내에서 rename/reorder/add/remove 후 즉시 Apply 가능
+- axis 업데이트 시 기존 `variant_map` key를 이전 인덱스 기반으로 재매핑하고, 현재 instance axis 값도 함께 보정해 매트릭스 편집 후 전환 흐름 유지
+- 기존 `Auto/Switch/Map current` + axis lock 드래그 편집 플로우와 완전 호환
+- specs 반영: `specs/FEATURES.md`
+
 ## 완료된 기능 (추가 — Variables Usage Heatmap, 2026-04-09)
 - Variables panel Inspector에 `Usage heatmap overlay` 토글 추가 (`packages/app/src/ui/variables-panel.ts`)
 - 컬렉션 전체 변수 사용처를 집계해 노드별 binding density를 캔버스 오버레이로 렌더
