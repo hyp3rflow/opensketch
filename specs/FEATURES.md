@@ -2340,6 +2340,7 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] **Prototype Device Chrome Details**: Added status-bar tint + home-indicator rendering (portrait/landscape aware) and expanded presets (`iPhone SE`) for more realistic safe-area/device-chrome validation in preview
 - [x] **Prototype theme mode switch**: Top bar `Theme` selector mirrors variable mode names (Light/Dark/custom) and switches collection active modes live during preview.
 - [x] **Prototype Variables Inspector (2026-04-08)**: Prototype Viewer 좌하단 debug panel을 확장해 현재 프레임 subtree 기준 활성 variable binding을 실시간 표시 (Collection/Variable, active mode, resolved value, usage count). Pan/zoom/navigate 및 mode 변경 시 자동 동기화.
+- [x] **Prototype Session Share Link (2026-04-09)**: Top bar `Share Link`로 현재 세션 상태( flow/start frame/page/runtime variable state )를 URL query(`proto`)에 base64url 직렬화해 공유. 링크로 열면 viewer가 page/frame/변수 상태를 복원해 동일 프리뷰 세션 재현.
 - [x] **Properties panel — Variables section**: Scene-level variable CRUD UI (name, type select, default value, add/delete)
 - [x] **Properties panel — Interaction condition UI v2**: 재귀 트리 빌더(leaf rule + AND/OR nested group), 루트/하위 condition·group 추가/삭제, prototype variable datalist + 비교 연산자 선택, live branch preview, clear/reset actions
 - [x] **Properties panel — SetVariable action UI**: Variable name + expression inputs shown when action is SetVariable

@@ -1790,11 +1790,17 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Prototype Session Share Link — 현재 flow/start frame/variable state를 URL에 직렬화해 공유 가능한 preview 링크 생성 (임팩트 중상, 난이도 중)
 - Font Fallback Inspector — 텍스트 노드별 실제 렌더 fallback font 감지/리포트 + 일괄 치환 제안 (임팩트 중상, 난이도 중)
 - Component Slots Inspector — 인스턴스별 slot 연결 상태/누락 slot을 표 형태로 점검하고 one-click 복구 (임팩트 중상, 난이도 중)
 - Prototype Conditions Preset Library — 조건부 인터랙션 룰을 preset으로 저장/공유하고 flow별 일괄 적용 (임팩트 상, 난이도 중상)
 - Variables Usage Heatmap — 캔버스에서 variable binding 밀도를 색상 오버레이로 시각화해 토큰 적용 누락 지점 탐지 (임팩트 중상, 난이도 중)
+
+## 완료된 기능 (추가 — Prototype Session Share Link, 2026-04-09)
+- Prototype viewer top bar에 `Share Link` 버튼 추가 (원클릭으로 링크 생성 + 클립보드 복사)
+- 공유 링크 payload(`proto` query): version, flowId, startFrameId, pageId, runtime variable state 직렬화
+- 링크 열기 시 viewer 시작 시점에 page/frame/변수 상태를 복원하여 동일한 프로토타입 세션 재현
+- base64url 인코딩으로 URL-safe 직렬화, 클립보드 실패 시 prompt fallback 제공
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
 
 ## 완료된 기능 (추가 — Variant Matrix Editor v2, 2026-04-09)
 - Instance Controls의 `VARIANTS MATRIX` 툴바에 `Lock: Off / Lock: <X axis> / Lock: <Y axis>` 추가

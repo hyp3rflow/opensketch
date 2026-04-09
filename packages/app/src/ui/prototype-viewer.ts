@@ -87,6 +87,88 @@ export function createPrototypeViewer(editor: Editor): {
   let selectedScrollPhysicsId = "ios";
 
   type SmartTimelineKeyframe = { time: number; label?: string; easing?: string };
+  type PrototypeShareState = {
+    version: 1;
+    flowId?: number | null;
+    startFrameId?: number | null;
+    pageId?: number | null;
+    vars?: Record<string, string>;
+  };
+
+  const PROTO_SHARE_PARAM = "proto";
+
+  function toBase64Url(raw: string): string {
+    const bytes = new TextEncoder().encode(raw);
+    let bin = "";
+    for (const b of bytes) bin += String.fromCharCode(b);
+    return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+  }
+
+  function fromBase64Url(raw: string): string {
+    const base64 = raw.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
+    const bin = atob(padded);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i += 1) bytes[i] = bin.charCodeAt(i);
+    return new TextDecoder().decode(bytes);
+  }
+
+  function detectFlowIdForFrame(frameId: number | null): number | null {
+    if (!frameId) return null;
+    try {
+      const flows: any[] = JSON.parse(editor.engine.get_prototype_flows() || "[]") || [];
+      const exact = flows.find((f: any) => Number(f?.start_frame_id || 0) === frameId);
+      return exact ? Number(exact.id || 0) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function buildShareState(): PrototypeShareState {
+    return {
+      version: 1,
+      flowId: detectFlowIdForFrame(currentFrameId),
+      startFrameId: currentFrameId,
+      pageId: Number(editor.engine.get_active_page_id() || 0),
+      vars: Object.fromEntries(protoVars.entries()),
+    };
+  }
+
+  function parseShareStateFromUrl(): PrototypeShareState | null {
+    try {
+      const url = new URL(window.location.href);
+      const encoded = url.searchParams.get(PROTO_SHARE_PARAM);
+      if (!encoded) return null;
+      const json = fromBase64Url(encoded);
+      const data = JSON.parse(json);
+      if (!data || Number(data.version) !== 1) return null;
+      return data as PrototypeShareState;
+    } catch {
+      return null;
+    }
+  }
+
+  function buildShareUrl(): string {
+    const state = buildShareState();
+    const url = new URL(window.location.href);
+    url.searchParams.set(PROTO_SHARE_PARAM, toBase64Url(JSON.stringify(state)));
+    return url.toString();
+  }
+
+  function applyShareState(state: PrototypeShareState) {
+    if (!state) return;
+    const frameId = Number(state.startFrameId || 0);
+    if (frameId > 0) currentFrameId = frameId;
+    const pageId = Number(state.pageId || 0);
+    if (pageId > 0) {
+      try { editor.engine.set_active_page(BigInt(pageId)); } catch {}
+    }
+    if (state.vars && typeof state.vars === "object") {
+      for (const [k, v] of Object.entries(state.vars)) {
+        protoVars.set(String(k), String(v));
+      }
+    }
+  }
 
   /** Initialize prototype variables from engine definitions */
   function initProtoVars() {
@@ -488,6 +570,22 @@ export function createPrototypeViewer(editor: Editor): {
     });
     topBar.appendChild(draftBtn);
 
+    const shareBtn = document.createElement("button");
+    shareBtn.style.cssText = "background:#4338ca;color:#eef2ff;border:none;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:12px;";
+    shareBtn.textContent = "Share Link";
+    shareBtn.addEventListener("click", async () => {
+      const url = buildShareUrl();
+      try {
+        await navigator.clipboard.writeText(url);
+        shareBtn.textContent = "✓ Copied";
+      } catch {
+        prompt("Copy prototype share link", url);
+        shareBtn.textContent = "Shown";
+      }
+      setTimeout(() => { shareBtn.textContent = "Share Link"; }, 1400);
+    });
+    topBar.appendChild(shareBtn);
+
     const closeBtn = document.createElement("button");
     closeBtn.style.cssText = "background:#e94560;color:white;border:none;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:12px;";
     closeBtn.textContent = "Close (Esc)";
@@ -518,6 +616,10 @@ export function createPrototypeViewer(editor: Editor): {
 
     // Initialize prototype variables
     initProtoVars();
+
+    // Restore from share link (if present)
+    const shared = parseShareStateFromUrl();
+    if (shared) applyShareState(shared);
 
     // Initialize event runtime for JS callbacks
     eventRuntime = new EventRuntime(editor);
