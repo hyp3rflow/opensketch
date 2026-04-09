@@ -2478,3 +2478,10 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] `Slots` inspector: instance_swap property의 linked slot 유효성 점검 (slot node 수, 정상/누락 개수, 누락 항목별 추천 slot)
 - [x] `Repair`: 누락된 linked_slot_id를 one-click 복구 (동명이면 우선 매핑, 없으면 첫 Slot fallback)
 - [x] 구현: `packages/app/src/ui/properties-panel.ts` (`self_buildComponentSlotsReport` + component properties editor actions)
+
+### Prototype Conditions Preset Library (2026-04-09)
+- [x] Properties > Interaction > Condition builder에 `Condition Presets` 추가
+- [x] 현재 조건 트리를 preset으로 저장/재사용 (`Save`/`Apply`/`Delete`)
+- [x] Preset 공유용 JSON 복사 (`Share`, clipboard 실패 시 prompt fallback)
+- [x] `Apply to Flow`로 현재(또는 첫 번째) prototype flow 범위의 interaction condition 일괄 적용
+- [x] 로컬 저장소 키: `localStorage['opensketch-proto-condition-presets-v1']`

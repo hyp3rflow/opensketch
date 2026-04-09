@@ -6051,6 +6051,62 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             conditions?: CondNode[];
           };
 
+          type ConditionPreset = {
+            id: string;
+            name: string;
+            condition: CondNode;
+            createdAt: number;
+          };
+
+          const PRESET_STORAGE_KEY = "opensketch-proto-condition-presets-v1";
+          const loadConditionPresets = (): ConditionPreset[] => {
+            try {
+              const raw = localStorage.getItem(PRESET_STORAGE_KEY);
+              const list = raw ? JSON.parse(raw) : [];
+              if (!Array.isArray(list)) return [];
+              return list
+                .map((item: any) => ({
+                  id: String(item?.id || `preset-${Math.random().toString(36).slice(2)}`),
+                  name: String(item?.name || "Untitled preset").trim() || "Untitled preset",
+                  condition: normalizeCond(item?.condition),
+                  createdAt: Number(item?.createdAt || Date.now()),
+                }))
+                .slice(0, 50);
+            } catch {
+              return [];
+            }
+          };
+          const saveConditionPresets = (list: ConditionPreset[]) => {
+            try {
+              localStorage.setItem(PRESET_STORAGE_KEY, JSON.stringify(list.slice(0, 50)));
+            } catch {}
+          };
+          const cloneCond = (cond: CondNode | null): CondNode | null => {
+            if (!cond) return null;
+            try { return normalizeCond(JSON.parse(JSON.stringify(cond))); }
+            catch { return normalizeCond(cond); }
+          };
+          const getFlowScopedNodeIds = (): number[] => {
+            const idsSet = new Set<number>();
+            idsSet.add(Number(id));
+            try {
+              const flows = JSON.parse(editor.engine.get_prototype_flows() || "[]") || [];
+              const selectedFlow = Number((editor as any).prototypeFlowId || 0);
+              let flowId = selectedFlow;
+              if (!(flowId > 0) && flows.length) {
+                flowId = Number(flows[0]?.id || 0);
+              }
+              if (flowId > 0) {
+                const conns = JSON.parse(editor.engine.get_flow_connections(BigInt(flowId)) || "[]") || [];
+                for (const c of conns) {
+                  const sid = Number(c?.source_node_id || 0);
+                  if (sid > 0) idsSet.add(sid);
+                }
+              }
+            } catch {}
+            return Array.from(idsSet);
+          };
+
           const normalizeCond = (raw: any): CondNode => {
             if (!raw || typeof raw !== "object") return { variable: "", operator: "Equal", value: "" };
             const children = Array.isArray(raw.conditions) ? raw.conditions.map(normalizeCond) : [];
@@ -6286,6 +6342,128 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             renderPreview();
           };
 
+          let presets = loadConditionPresets();
+          const presetRow = document.createElement("div");
+          presetRow.style.cssText = "display:flex;gap:4px;align-items:center;margin-bottom:6px;";
+          const presetSel = document.createElement("select");
+          presetSel.className = "prop-input";
+          presetSel.style.cssText = "flex:1;";
+          const renderPresetOptions = () => {
+            presetSel.innerHTML = "";
+            const baseOpt = document.createElement("option");
+            baseOpt.value = "";
+            baseOpt.textContent = "Condition Presets";
+            presetSel.appendChild(baseOpt);
+            for (const preset of presets) {
+              const opt = document.createElement("option");
+              opt.value = preset.id;
+              opt.textContent = preset.name;
+              presetSel.appendChild(opt);
+            }
+          };
+          renderPresetOptions();
+          presetRow.appendChild(presetSel);
+
+          const applyPresetBtn = document.createElement("button");
+          applyPresetBtn.className = "prop-btn";
+          applyPresetBtn.style.cssText = "font-size:10px;padding:2px 6px;";
+          applyPresetBtn.textContent = "Apply";
+          applyPresetBtn.addEventListener("click", () => {
+            const preset = presets.find(p => p.id === presetSel.value);
+            if (!preset) return;
+            condState = cloneCond(preset.condition);
+            persistCond();
+            renderBuilder();
+          });
+          presetRow.appendChild(applyPresetBtn);
+
+          const savePresetBtn = document.createElement("button");
+          savePresetBtn.className = "prop-btn";
+          savePresetBtn.style.cssText = "font-size:10px;padding:2px 6px;";
+          savePresetBtn.textContent = "Save";
+          savePresetBtn.addEventListener("click", () => {
+            if (!condState) {
+              alert("조건이 없어서 저장할 수 없습니다.");
+              return;
+            }
+            const name = (prompt("Preset 이름", `Preset ${presets.length + 1}`) || "").trim();
+            if (!name) return;
+            const existingIdx = presets.findIndex(p => p.name.toLowerCase() === name.toLowerCase());
+            const next: ConditionPreset = {
+              id: existingIdx >= 0 ? presets[existingIdx].id : `preset-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+              name,
+              condition: cloneCond(condState) || makeLeaf(),
+              createdAt: Date.now(),
+            };
+            if (existingIdx >= 0) presets.splice(existingIdx, 1, next);
+            else presets.unshift(next);
+            presets = presets.slice(0, 50);
+            saveConditionPresets(presets);
+            renderPresetOptions();
+            presetSel.value = next.id;
+          });
+          presetRow.appendChild(savePresetBtn);
+
+          const deletePresetBtn = document.createElement("button");
+          deletePresetBtn.style.cssText = "font-size:10px;color:#e94560;background:none;border:none;cursor:pointer;padding:0 4px;";
+          deletePresetBtn.textContent = "Delete";
+          deletePresetBtn.addEventListener("click", () => {
+            const before = presets.length;
+            presets = presets.filter(p => p.id !== presetSel.value);
+            if (presets.length === before) return;
+            saveConditionPresets(presets);
+            renderPresetOptions();
+            presetSel.value = "";
+          });
+          presetRow.appendChild(deletePresetBtn);
+
+          const sharePresetBtn = document.createElement("button");
+          sharePresetBtn.className = "prop-btn";
+          sharePresetBtn.style.cssText = "font-size:10px;padding:2px 6px;";
+          sharePresetBtn.textContent = "Share";
+          sharePresetBtn.addEventListener("click", async () => {
+            const preset = presets.find(p => p.id === presetSel.value);
+            if (!preset) return;
+            const payload = JSON.stringify({ name: preset.name, condition: preset.condition }, null, 2);
+            try {
+              await navigator.clipboard.writeText(payload);
+              alert("Preset JSON이 클립보드에 복사되었습니다.");
+            } catch {
+              prompt("Copy preset JSON", payload);
+            }
+          });
+          presetRow.appendChild(sharePresetBtn);
+
+          const applyFlowBtn = document.createElement("button");
+          applyFlowBtn.className = "prop-btn";
+          applyFlowBtn.style.cssText = "font-size:10px;padding:2px 6px;";
+          applyFlowBtn.textContent = "Apply to Flow";
+          applyFlowBtn.addEventListener("click", () => {
+            const preset = presets.find(p => p.id === presetSel.value);
+            if (!preset) {
+              alert("먼저 preset을 선택하세요.");
+              return;
+            }
+            const nodeIds = getFlowScopedNodeIds();
+            if (!nodeIds.length) return;
+            ensureUndo();
+            let touched = 0;
+            for (const nid of nodeIds) {
+              let interactions: any[] = [];
+              try { interactions = JSON.parse(editor.engine.get_interactions(BigInt(nid)) || "[]") || []; } catch {}
+              for (let i = 0; i < interactions.length; i++) {
+                const ok = editor.engine.set_interaction_condition(BigInt(nid), i, JSON.stringify(preset.condition));
+                if (ok) touched += 1;
+              }
+            }
+            condState = cloneCond(preset.condition);
+            editor.requestRender();
+            renderBuilder();
+            alert(`Preset 적용 완료: ${touched} interactions`);
+            refresh(ids);
+          });
+          presetRow.appendChild(applyFlowBtn);
+
           const topActions = document.createElement("div");
           topActions.style.cssText = "display:flex;gap:4px;margin-bottom:6px;";
           const addLeafRootBtn = document.createElement("button");
@@ -6320,6 +6498,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           });
           topActions.appendChild(clearCondBtn);
 
+          condRow.appendChild(presetRow);
           condRow.appendChild(topActions);
           condRow.appendChild(builder);
           condRow.appendChild(preview);
