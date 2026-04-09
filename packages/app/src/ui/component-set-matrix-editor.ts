@@ -117,6 +117,7 @@ export function openComponentSetMatrixEditor(opts: MatrixEditorOptions): void {
   let colAxisIndex = localAxes.length > 1 ? 1 : 0;
   const extraFilters: Record<string, string> = {};
   const localVariantMap: Record<string, number> = { ...(opts.variantMap || {}) };
+  let coverageMode = false;
 
   let componentOptions: Array<{ id: number; name: string }> = [];
   try {
@@ -234,16 +235,32 @@ export function openComponentSetMatrixEditor(opts: MatrixEditorOptions): void {
   batchRenameBtn.style.cssText = "height:26px;background:rgba(124,58,237,0.22);border:1px solid rgba(167,139,250,0.45);border-radius:6px;color:#e9d5ff;font-size:11px;cursor:pointer;padding:0 10px;";
   paintRow.appendChild(batchRenameBtn);
 
+  const fillEmptyBtn = document.createElement("button");
+  fillEmptyBtn.type = "button";
+  fillEmptyBtn.textContent = "Fill Empty";
+  fillEmptyBtn.style.cssText = "height:26px;background:rgba(16,185,129,0.16);border:1px solid rgba(110,231,183,0.45);border-radius:6px;color:#d1fae5;font-size:11px;cursor:pointer;padding:0 10px;";
+  paintRow.appendChild(fillEmptyBtn);
+
   const arrangeBtn = document.createElement("button");
   arrangeBtn.type = "button";
   arrangeBtn.textContent = "Arrange Grid";
   arrangeBtn.style.cssText = "height:26px;background:rgba(30,64,175,0.2);border:1px solid rgba(147,197,253,0.45);border-radius:6px;color:#dbeafe;font-size:11px;cursor:pointer;padding:0 10px;";
   paintRow.appendChild(arrangeBtn);
 
+  const coverageToggleBtn = document.createElement("button");
+  coverageToggleBtn.type = "button";
+  coverageToggleBtn.textContent = "Coverage: Off";
+  coverageToggleBtn.style.cssText = "height:26px;background:rgba(234,88,12,0.15);border:1px solid rgba(251,191,36,0.45);border-radius:6px;color:#fed7aa;font-size:11px;cursor:pointer;padding:0 10px;";
+  paintRow.appendChild(coverageToggleBtn);
+
   const hint = document.createElement("div");
   hint.style.cssText = "font-size:10px;color:#c4b5fd;";
-  hint.textContent = "Click/drag to paint cells. Drag row/column headers to reorder axis values. Drag mapped cells to relocate mapping (Alt+drop = copy). Auto: mapped cell=Switch, empty cell=Map current + Switch.";
+  hint.textContent = "Click/drag to paint cells. Drag row/column headers to reorder axis values. Drag mapped cells to relocate mapping (Alt+drop = copy). Fill Empty maps only blank cells to selected target component.";
   paintRow.appendChild(hint);
+
+  const coverageSummary = document.createElement("div");
+  coverageSummary.style.cssText = "font-size:10px;color:#f5d0fe;";
+  paintRow.appendChild(coverageSummary);
   modal.appendChild(paintRow);
 
   const axisWrap = document.createElement("div");
@@ -405,6 +422,29 @@ export function openComponentSetMatrixEditor(opts: MatrixEditorOptions): void {
       fixedValues[axis.name] = extraFilters[axis.name] ?? axis.values[0] ?? "";
     });
 
+    const coverageCounts: Record<number, number> = {};
+    let totalCells = 0;
+    let mappedCells = 0;
+    let emptyCells = 0;
+    rowValues.forEach((rv) => {
+      colValues.forEach((cv) => {
+        totalCells += 1;
+        const values = { ...fixedValues, [rowAxis.name]: rv, [colAxis.name]: cv };
+        const key = makeKey(values);
+        const mappedCompId = Number(localVariantMap[key] || 0);
+        if (mappedCompId > 0) {
+          mappedCells += 1;
+          coverageCounts[mappedCompId] = (coverageCounts[mappedCompId] || 0) + 1;
+        } else {
+          emptyCells += 1;
+        }
+      });
+    });
+    const duplicatedComponents = Object.values(coverageCounts).filter((n) => n > 1).length;
+    coverageSummary.textContent = coverageMode
+      ? `Coverage ${mappedCells}/${totalCells} · Empty ${emptyCells} · Duplicates ${duplicatedComponents}`
+      : "";
+
     let dragAction: null | string = null;
     const releaseDrag = () => {
       dragAction = null;
@@ -501,10 +541,17 @@ export function openComponentSetMatrixEditor(opts: MatrixEditorOptions): void {
         const mappedCompId = Number(localVariantMap[key] || 0);
         const isMapped = mappedCompId > 0;
         const isActive = mappedCompId === opts.currentComponentId;
+        const duplicateMapped = isMapped && (coverageCounts[mappedCompId] || 0) > 1;
+        const heatBorder = !coverageMode
+          ? (isActive ? "#8b5cf6" : isMapped ? "rgba(139,92,246,0.45)" : "#3f3f46")
+          : (!isMapped ? "rgba(248,113,113,0.75)" : duplicateMapped ? "rgba(251,191,36,0.85)" : "rgba(74,222,128,0.8)");
+        const heatBg = !coverageMode
+          ? (isActive ? "rgba(139,92,246,0.35)" : isMapped ? "rgba(139,92,246,0.16)" : "#232329")
+          : (!isMapped ? "rgba(127,29,29,0.45)" : duplicateMapped ? "rgba(120,53,15,0.45)" : "rgba(20,83,45,0.45)");
         const btn = document.createElement("button");
         btn.type = "button";
         btn.draggable = isMapped;
-        btn.style.cssText = `min-height:28px;border-radius:5px;cursor:${isMapped ? "grab" : "pointer"};border:1px solid ${isActive ? "#8b5cf6" : isMapped ? "rgba(139,92,246,0.45)" : "#3f3f46"};background:${isActive ? "rgba(139,92,246,0.35)" : isMapped ? "rgba(139,92,246,0.16)" : "#232329"};color:${isMapped ? "#ede9fe" : "#a1a1aa"};font-size:10px;`;
+        btn.style.cssText = `min-height:28px;border-radius:5px;cursor:${isMapped ? "grab" : "pointer"};border:1px solid ${heatBorder};background:${heatBg};color:${isMapped ? "#ede9fe" : "#a1a1aa"};font-size:10px;`;
         btn.textContent = isMapped ? `#${mappedCompId}` : "+";
         if (isMapped) {
           btn.title = "Click to switch/map by mode. Drag to another cell to move mapping (Alt+drop to copy).";
@@ -547,14 +594,14 @@ export function openComponentSetMatrixEditor(opts: MatrixEditorOptions): void {
         };
 
         btn.ondragleave = () => {
-          btn.style.borderColor = isActive ? "#8b5cf6" : isMapped ? "rgba(139,92,246,0.45)" : "#3f3f46";
+          btn.style.borderColor = heatBorder;
         };
 
         btn.ondrop = (ev) => {
           const raw = ev.dataTransfer?.getData("text/plain") || "";
           if (!raw.startsWith("map:")) return;
           ev.preventDefault();
-          btn.style.borderColor = isActive ? "#8b5cf6" : isMapped ? "rgba(139,92,246,0.45)" : "#3f3f46";
+          btn.style.borderColor = heatBorder;
           const sourceKey = raw.slice(4);
           if (!sourceKey || sourceKey === key) return;
 
@@ -579,6 +626,12 @@ export function openComponentSetMatrixEditor(opts: MatrixEditorOptions): void {
       colAxisIndex = (rowAxisIndex + 1) % localAxes.length;
       colSelect.value = String(colAxisIndex);
     }
+    render();
+  };
+
+  coverageToggleBtn.onclick = () => {
+    coverageMode = !coverageMode;
+    coverageToggleBtn.textContent = coverageMode ? "Coverage: On" : "Coverage: Off";
     render();
   };
   colSelect.onchange = () => {
@@ -628,6 +681,49 @@ export function openComponentSetMatrixEditor(opts: MatrixEditorOptions): void {
     opts.editor.requestRender();
     opts.onApplied();
     alert(`Renamed ${renamed} variant component(s).`);
+  };
+
+  fillEmptyBtn.onclick = () => {
+    const rowAxis = localAxes[rowAxisIndex];
+    const colAxis = localAxes[colAxisIndex];
+    if (!rowAxis || !colAxis) return;
+
+    let targetCompId = Number(targetCompSelect.value || 0);
+    if (!targetCompId) targetCompId = opts.currentComponentId;
+    if (!targetCompId) {
+      alert("No target component selected.");
+      return;
+    }
+
+    const shouldSwitch = actionModeSelect.value === "auto" || actionModeSelect.value === "switch";
+    const baseValues: Record<string, string> = { ...extraFilters };
+    let filled = 0;
+
+    opts.editor.pushUndo();
+    for (const rowVal of rowAxis.values) {
+      for (const colVal of colAxis.values) {
+        const values = { ...baseValues, [rowAxis.name]: rowVal, [colAxis.name]: colVal };
+        const key = makeKey(values);
+        if (localVariantMap[key] != null && Number(localVariantMap[key]) > 0) continue;
+        localVariantMap[key] = targetCompId;
+        (opts.editor.engine as any).set_component_set_variant_mapping(BigInt(opts.setId), JSON.stringify(values), BigInt(targetCompId));
+        filled += 1;
+      }
+    }
+
+    if (shouldSwitch) {
+      const switchedValues = {
+        ...baseValues,
+        [rowAxis.name]: opts.currentValues[rowAxis.name] ?? rowAxis.values[0] ?? "",
+        [colAxis.name]: opts.currentValues[colAxis.name] ?? colAxis.values[0] ?? "",
+      };
+      (opts.editor.engine as any).switch_instance_set_variant(BigInt(opts.instanceId), JSON.stringify(switchedValues));
+    }
+
+    opts.editor.requestRender();
+    opts.onApplied();
+    render();
+    alert(`Filled ${filled} empty cell(s) with component #${targetCompId}.`);
   };
 
   arrangeBtn.onclick = () => {

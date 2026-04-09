@@ -110,6 +110,8 @@
 - [x] **Variant Matrix Editor v3 (inline axis values editor, 2026-04-09)**: 매트릭스 상단에 axis별 comma-list 편집 입력을 추가해 axis 값 reorder/add/remove를 한 패널에서 처리한다. axis 값 변경 시 기존 `variant_map` key와 현재 instance의 axis 선택값을 인덱스 기반으로 자동 재매핑하여 편집 후에도 매핑 손실을 최소화한다.
 - [x] **Variant Matrix Editor v4 (axis rename remap, 2026-04-09)**: inline editor에서 axis 이름 자체를 수정할 수 있으며, `rename_component_set_axis` API로 component set axis와 `variant_map` key를 자동 리맵한다. axis rename과 값 변경을 한 번에 적용해 instance의 현재 variant 선택 상태도 안전하게 이전한다.
 - [x] **Variant Matrix Editor v5 (header drag reorder, 2026-04-10)**: matrix의 행/열 헤더를 직접 드래그해 axis 값 순서를 재정렬할 수 있다. 드롭 시 axis value 순서를 즉시 업데이트하고 기존 `variant_map` 매핑을 인덱스 기반으로 유지해 대량 재배치 중 매핑 손실 없이 편집 가능하다.
+- [x] **Variant Matrix Editor v6 (fill-empty batch map, 2026-04-10)**: Panel 툴바에 `Fill Empty` 액션을 추가해 현재 row/column/extra filter 범위의 미매핑 셀만 선택한 target component로 일괄 매핑한다. 이미 매핑된 셀은 보존되어 대규모 variant set 초기 매핑 속도를 높인다.
+- [x] **Component Set Coverage Heatmap (2026-04-10)**: Variant Matrix Panel에 `Coverage: On/Off` 토글을 추가해 Empty/Unique/Duplicate 셀 상태를 즉시 강조하고, 매핑 커버리지 요약(총 셀/빈 셀/중복 매핑)을 표시한다.
 - [x] **Instance Controls unified card**: Instance 선택 시 Properties panel에서 Variant/Overrides/Component Props(텍스트 override 포함)를 단일 `INSTANCE CONTROLS` 카드로 묶어 편집
 - [x] **Component Props Figma-style override polish**: Instance의 Boolean/Text/Instance Swap prop을 타입 배지 + override dot + `Reset all` 액션으로 노출, Text default placeholder/tooltip 제공, Component source의 속성 목록에 default/linked target 메타 표시
 - [x] **Component Props default materialization**: 새 Instance 생성/컴포넌트 swap/variant-set swap 시 component property의 기본값(Boolean/Text/Instance Swap)을 즉시 자식 노드에 적용해 Figma처럼 기본 상태가 일관되게 반영
@@ -2505,4 +2507,6 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] `Arrange Grid`: 현재 matrix 축 기준으로 component set 구성 variants를 캔버스 2D 그리드로 자동 재배치(gap 입력)
 - [x] Row/Column header drag reorder: matrix 헤더 자체를 드래그해 axis value 순서를 즉시 재정렬
 - [x] Cell drag remap: 매핑된 셀(`#component`)을 다른 셀로 드래그해 variant mapping을 이동 (Alt+Drop 시 복사)
+- [x] `Fill Empty`: 현재 matrix 축 + extra filters 범위에서 비어 있는 셀만 target component로 일괄 매핑
+- [x] `Coverage Heatmap`: 매트릭스 셀 상태를 Empty(적색)/Unique(녹색)/Duplicate(황색)로 시각화하고 coverage 요약(매핑 수/빈 셀/중복)을 상단에 표시
 - [x] 구현: `packages/app/src/ui/component-set-matrix-editor.ts` + `properties-panel.ts` 연동
