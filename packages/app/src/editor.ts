@@ -59,6 +59,7 @@ import { showImageDropChoice, processAILayout } from "./ui/ai-layout";
 import { toggleColorBlindnessPanel, closeCBPanel, setColorBlindnessMode } from "./ui/color-blindness";
 import { toggleFocusMode } from "./ui/focus-mode";
 import { WebGPURenderer } from "./ui/webgpu-renderer";
+import { strToU8, zipSync } from "fflate";
 
 export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "section" | "image" | "video" | "pen" | "star" | "polygon" | "slice" | "connector" | "hotspot" | "callout" | "sticky" | "table" | "chart" | "freehand" | "measure" | "annotate" | "eyedropper" | "scale" | "shapeBuilder";
 
@@ -7568,6 +7569,117 @@ export class Editor {
         offset += 220;
       });
     }
+  }
+
+  /** Package descendant slices under a frame/section into a platform-ready zip. */
+  async packageFrameSlices(frameId: number, platform: "web" | "android" | "ios"): Promise<boolean> {
+    const rootJson = this.engine.get_node_json(BigInt(frameId));
+    if (!rootJson) return false;
+    const root = JSON.parse(rootJson);
+    const kind = typeof root.kind === "string" ? root.kind : Object.keys(root.kind || {})[0];
+    if (kind !== "Frame" && kind !== "Section") return false;
+
+    const slices = this.collectDescendantSlices(frameId);
+    if (slices.length === 0) return false;
+
+    const files: Record<string, Uint8Array> = {};
+    for (const slice of slices) {
+      const presets = this.getSliceExportPresets(slice.id, platform);
+      for (const preset of presets) {
+        const output = await this.renderSliceFile(slice, preset);
+        if (!output) continue;
+        const ext = preset.format === "jpg" ? "jpg" : preset.format;
+        const folder = platform === "android"
+          ? `android/${this.getAndroidDensityFolder(preset.scale)}`
+          : platform === "ios"
+            ? `ios`
+            : `web`;
+        const nameWithSuffix = `${slice.name || "slice"}${preset.suffix || ""}.${ext}`;
+        files[`${folder}/${nameWithSuffix}`] = output;
+      }
+    }
+
+    if (Object.keys(files).length === 0) return false;
+    const zipData = zipSync(files, { level: 6 });
+    const blob = new Blob([zipData], { type: "application/zip" });
+    const safeName = String(root.name || "frame").trim().replace(/[^a-z0-9-_]+/gi, "-").replace(/^-+|-+$/g, "") || "frame";
+    const filename = `${safeName}-${platform}-assets.zip`;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    return true;
+  }
+
+  private collectDescendantSlices(rootId: number): Array<{id:number; name:string; x:number; y:number; width:number; height:number}> {
+    const out: Array<{id:number; name:string; x:number; y:number; width:number; height:number}> = [];
+    const walk = (id: number) => {
+      const json = this.engine.get_node_json(BigInt(id));
+      if (!json) return;
+      const node = JSON.parse(json);
+      const kind = typeof node.kind === "string" ? node.kind : Object.keys(node.kind || {})[0];
+      if (kind === "Slice") {
+        out.push({ id: Number(node.id), name: String(node.name || "slice"), x: Number(node.x || 0), y: Number(node.y || 0), width: Number(node.width || 0), height: Number(node.height || 0) });
+      }
+      const children: number[] = Array.isArray(node.children) ? node.children.map((c: any) => Number(c)) : [];
+      children.forEach(walk);
+    };
+    walk(rootId);
+    return out;
+  }
+
+  private getSliceExportPresets(sliceId: number, platform: "web" | "android" | "ios"): Array<{scale:number; format:"png"|"jpg"|"webp"|"svg"; suffix:string; quality?:number}> {
+    try {
+      const raw = localStorage.getItem(`opensketch-slice-exports-${sliceId}`);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    if (platform === "ios") return [{ scale: 1, format: "png", suffix: "" }, { scale: 2, format: "png", suffix: "@2x" }, { scale: 3, format: "png", suffix: "@3x" }];
+    if (platform === "android") return [{ scale: 1, format: "png", suffix: "" }, { scale: 1.5, format: "png", suffix: "" }, { scale: 2, format: "png", suffix: "" }, { scale: 3, format: "png", suffix: "" }, { scale: 4, format: "png", suffix: "" }];
+    return [{ scale: 1, format: "png", suffix: "" }, { scale: 2, format: "webp", suffix: "@2x", quality: 0.9 }];
+  }
+
+  private getAndroidDensityFolder(scale: number): string {
+    if (scale <= 1.1) return "drawable-mdpi";
+    if (scale <= 1.6) return "drawable-hdpi";
+    if (scale <= 2.1) return "drawable-xhdpi";
+    if (scale <= 3.1) return "drawable-xxhdpi";
+    return "drawable-xxxhdpi";
+  }
+
+  private async renderSliceFile(
+    slice: {id:number; name:string; x:number; y:number; width:number; height:number},
+    cfg: {scale:number; format:"png"|"jpg"|"webp"|"svg"; suffix:string; quality?:number},
+  ): Promise<Uint8Array | null> {
+    if (cfg.format === "svg") {
+      const svg = this.engine.export_region_svg(slice.x, slice.y, slice.width, slice.height) || "";
+      return strToU8(svg);
+    }
+    const scale = Math.max(0.1, Number(cfg.scale || 1));
+    const w = Math.max(1, Math.ceil(slice.width * scale));
+    const h = Math.max(1, Math.ceil(slice.height * scale));
+    const offscreen = document.createElement("canvas");
+    offscreen.width = w;
+    offscreen.height = h;
+    const ctx = offscreen.getContext("2d");
+    if (!ctx) return null;
+    if (cfg.format === "jpg") {
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, w, h);
+    }
+    ctx.scale(scale, scale);
+    ctx.translate(-slice.x, -slice.y);
+    this.engine.render(ctx as any);
+    this.renderImagesToCtx(ctx, -slice.x, -slice.y, scale);
+    const mimeType = cfg.format === "jpg" ? "image/jpeg" : cfg.format === "webp" ? "image/webp" : "image/png";
+    const quality = (cfg.format === "jpg" || cfg.format === "webp") ? (cfg.quality ?? 0.92) : undefined;
+    const blob = await new Promise<Blob | null>((resolve) => offscreen.toBlob(resolve, mimeType, quality));
+    if (!blob) return null;
+    return new Uint8Array(await blob.arrayBuffer());
   }
 
   /** Render images to an offscreen context (for slice export) */

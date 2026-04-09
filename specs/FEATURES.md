@@ -894,6 +894,7 @@ Multi-node/page bulk export with ZIP download.
 - [x] **Page export**: Switches active page temporarily, restores after
 - [x] **Integration**: Export preset profiles applicable to batch items
 - [x] **Asset slices package modes**: Flat ZIP 외에 iOS `.imageset` / Android `drawable-*` / Web `web/` 폴더 구조로 PNG slice 묶음 export 지원 (플랫폼 모드에서는 PNG 고정)
+- [x] **Dev handoff slice packager (Frame/Section)**: Properties 패널 `Asset Packager`에서 선택 컨테이너 하위 Slice를 스캔해 플랫폼별 ZIP(Web/Android/iOS)로 일괄 다운로드. 각 Slice의 저장된 export preset(포맷/배율/quality/suffix)을 우선 사용하고, 없으면 플랫폼 기본 preset을 적용.
 
 ### Files
 - `packages/app/src/ui/batch-export.ts`

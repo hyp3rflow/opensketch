@@ -9710,6 +9710,46 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       container.appendChild(sliceSection);
     }
 
+    // === Dev Handoff Asset Slices Packager (Frame/Section) ===
+    {
+      const kindForPack = typeof node.kind === "string" ? node.kind : Object.keys(node.kind)[0];
+      if (kindForPack === "Frame" || kindForPack === "Section") {
+        const packSection = createSection("Asset Packager");
+        const hint = document.createElement("div");
+        hint.style.cssText = "font-size:10px;color:#888;line-height:1.45;margin-bottom:8px;";
+        hint.textContent = "Descendant Slice nodes + each Slice export presets will be bundled into one zip.";
+        packSection.appendChild(hint);
+
+        const row = document.createElement("div");
+        row.style.cssText = "display:flex;gap:6px;";
+
+        const makeBtn = (label: string, platform: "web" | "android" | "ios", color: string) => {
+          const btn = document.createElement("button");
+          btn.style.cssText = `flex:1;padding:6px;border:none;border-radius:6px;background:${color};color:#fff;font-size:11px;font-weight:600;cursor:pointer;`;
+          btn.textContent = label;
+          btn.addEventListener("click", async () => {
+            btn.disabled = true;
+            const prev = btn.textContent;
+            btn.textContent = "Packaging...";
+            try {
+              const ok = await editor.packageFrameSlices(id, platform);
+              btn.textContent = ok ? "✓ Downloaded" : "No slices";
+            } catch {
+              btn.textContent = "Failed";
+            }
+            setTimeout(() => { btn.disabled = false; btn.textContent = prev || label; }, 1200);
+          });
+          return btn;
+        };
+
+        row.appendChild(makeBtn("Web ZIP", "web", "#2f6fed"));
+        row.appendChild(makeBtn("Android ZIP", "android", "#2ea043"));
+        row.appendChild(makeBtn("iOS ZIP", "ios", "#5b4ae6"));
+        packSection.appendChild(row);
+        container.appendChild(packSection);
+      }
+    }
+
     // === Section Enhancements (Section only) ===
     const kindStr = typeof node.kind === "string" ? node.kind : Object.keys(node.kind)[0];
     if (kindStr === "Section") {
