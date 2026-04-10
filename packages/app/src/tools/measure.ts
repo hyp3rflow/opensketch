@@ -154,6 +154,91 @@ export function computeMeasureLines(
   return lines;
 }
 
+/**
+ * Compute spacing lines between selected nodes when no explicit hover target exists.
+ * Returns the nearest horizontal and/or vertical gap line for each node.
+ */
+export function computeSelectionSpacingLines(
+  selected: Bounds[],
+  zoom: number,
+  panX: number,
+  panY: number,
+): MeasureLine[] {
+  if (selected.length < 2) return [];
+
+  const toSX = (sx: number) => sx * zoom + panX;
+  const toSY = (sy: number) => sy * zoom + panY;
+  const lines: MeasureLine[] = [];
+  const dedupe = new Set<string>();
+
+  const addLine = (line: MeasureLine) => {
+    const key = [
+      line.axis,
+      Math.round(Math.min(line.x1, line.x2)),
+      Math.round(Math.min(line.y1, line.y2)),
+      Math.round(Math.max(line.x1, line.x2)),
+      Math.round(Math.max(line.y1, line.y2)),
+      Math.round(line.distance * 10),
+    ].join(":");
+    if (dedupe.has(key)) return;
+    dedupe.add(key);
+    lines.push(line);
+  };
+
+  for (let i = 0; i < selected.length; i++) {
+    const a = selected[i]!;
+    const aL = a.x, aR = a.x + a.w, aT = a.y, aB = a.y + a.h;
+
+    let bestH: MeasureLine | null = null;
+    let bestV: MeasureLine | null = null;
+
+    for (let j = 0; j < selected.length; j++) {
+      if (i === j) continue;
+      const b = selected[j]!;
+      const bL = b.x, bR = b.x + b.w, bT = b.y, bB = b.y + b.h;
+
+      const overlapT = Math.max(aT, bT);
+      const overlapB = Math.min(aB, bB);
+      if (overlapT < overlapB) {
+        const y = (overlapT + overlapB) / 2;
+        if (bR <= aL) {
+          const d = aL - bR;
+          if (!bestH || d < bestH.distance) {
+            bestH = { x1: toSX(bR), y1: toSY(y), x2: toSX(aL), y2: toSY(y), distance: Math.round(d * 10) / 10, axis: "h" };
+          }
+        } else if (bL >= aR) {
+          const d = bL - aR;
+          if (!bestH || d < bestH.distance) {
+            bestH = { x1: toSX(aR), y1: toSY(y), x2: toSX(bL), y2: toSY(y), distance: Math.round(d * 10) / 10, axis: "h" };
+          }
+        }
+      }
+
+      const overlapL = Math.max(aL, bL);
+      const overlapR = Math.min(aR, bR);
+      if (overlapL < overlapR) {
+        const x = (overlapL + overlapR) / 2;
+        if (bB <= aT) {
+          const d = aT - bB;
+          if (!bestV || d < bestV.distance) {
+            bestV = { x1: toSX(x), y1: toSY(bB), x2: toSX(x), y2: toSY(aT), distance: Math.round(d * 10) / 10, axis: "v" };
+          }
+        } else if (bT >= aB) {
+          const d = bT - aB;
+          if (!bestV || d < bestV.distance) {
+            bestV = { x1: toSX(x), y1: toSY(aB), x2: toSX(x), y2: toSY(bT), distance: Math.round(d * 10) / 10, axis: "v" };
+          }
+        }
+      }
+    }
+
+    if (bestH && bestH.distance > 0) addLine(bestH);
+    if (bestV && bestV.distance > 0) addLine(bestV);
+  }
+
+  return lines;
+}
+
 export function computeDimensionLabels(
   bounds: Bounds,
   zoom: number,

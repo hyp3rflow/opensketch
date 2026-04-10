@@ -1635,6 +1635,7 @@ Frame overflow control and content scrolling.
 - [x] **Spec Pins in Dev tooltip**: 노드 `Resources` 링크를 Dev Mode hover 툴팁에서 `📌` 핀 칩으로 노출하고 클릭 시 외부 문서(GitHub/Storybook/Jira/Figma) 즉시 오픈
 - [x] **Spec context in inline badge**: 인라인 Dev Inspect 배지에 Spec Pin 개수 + Note 개수를 함께 표시
 - [x] **Distance/Baseline overlay**: Dev Mode 단일 선택 시 nearest spacing 가이드와 Text baseline/line-height 오버레이를 캔버스에 표시하고, 인라인 배지에 Baseline Y/Line Height 지표를 함께 노출
+- [x] **Alt multi-select spacing overlay**: hover target이 없을 때 선택 노드들 사이의 nearest horizontal/vertical gap을 자동 측정해 거리 라벨 표시(중복 라인 제거 + overlap fallback 포함)
 
 ## 95. Node-level Event System
 - [x] **EventTrigger enum**: onClick, onDoubleClick, onHover, onHoverEnd, onPress, onRelease, onDrag, onDragEnd, onFocus, onBlur

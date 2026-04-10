@@ -1796,6 +1796,14 @@
 - Prototype Trigger Regions (Hotspot shape editor) — 사각형 외 자유 폴리곤 hotspot 편집 + hover highlight + 접근성 label (임팩트 중상, 난이도 중상)
 - Constraints Presets + Batch Apply — Left/Right/Scale 등 반응형 제약 프리셋 저장/이름붙이기/다중 선택 일괄 적용 (임팩트 중상, 난이도 중)
 
+## 완료된 기능 (추가 — Dev Mode Distance/Measure Overlay (multi-select 확장), 2026-04-10)
+- Alt/Dev 측정 오버레이를 multi-select 상황까지 확장
+- hover target이 없는 경우, 선택 노드들 간 nearest horizontal/vertical gap을 자동 탐색해 측정선 + 거리 라벨 표시
+- 중복되는 pair 라인은 dedupe해 복잡한 캔버스에서도 가독성 유지
+- 모든 노드가 겹쳐 gap line이 없는 경우 closest pair 비교선을 fallback으로 유지
+- 구현: `packages/app/src/tools/measure.ts`, `packages/app/src/editor.ts`
+- specs 반영: `specs/FEATURES.md`
+
 ## 완료된 기능 (추가 — Prototype Start Points Manager, 2026-04-10)
 - Properties panel `Prototype Flows` 섹션의 start frame 설정 UI를 Start Points Manager 형태로 확장
 - flow별 연결 노드(source/target) + 현재 선택 노드를 합친 후보 목록을 드롭다운으로 제공

@@ -6,7 +6,7 @@ import { computeSnap, renderGuides, type SnapGuide } from "./tools/smart-guides"
 import { computeDropTarget, renderDropIndicator, executeDropReparent, type DropTarget } from "./tools/drag-reparent";
 import { computePointSnap, renderPointSnapIndicators, collectPathPointTargets, addRulerTargets, constrainAngle, type PointSnapIndicator, type PointSnapTarget } from "./tools/point-snap";
 import { renderGrid, computeGridSnap } from "./tools/grid-snap";
-import { computeMeasureLines, renderMeasureLines, renderTargetHighlight, computeDimensionLabels, renderDimensionLabels, type MeasureLine, type MeasureDimensionLabel, type Bounds } from "./tools/measure";
+import { computeMeasureLines, computeSelectionSpacingLines, renderMeasureLines, renderTargetHighlight, computeDimensionLabels, renderDimensionLabels, type MeasureLine, type MeasureDimensionLabel, type Bounds } from "./tools/measure";
 import { MeasureToolState, renderPersistentMeasures, hitTestMeasureLine } from "./tools/measure-tool";
 import type { RulersAPI } from "./ui/rulers";
 import { toggleShortcutsPanel, isShortcutsPanelVisible, closeShortcutsPanel } from "./ui/shortcuts-panel";
@@ -4466,17 +4466,25 @@ export class Editor {
       }
     }
 
-    // Alt/Dev multi-select: show spacing between the closest selected pair when no hover target.
+    // Alt/Dev multi-select: show nearest spacing overlays across selected nodes when no hover target.
     if (sel.length >= 2) {
       const selectedBounds = sel
         .map((id) => getNodeBounds(id))
         .filter((b): b is Bounds => !!b);
 
       if (selectedBounds.length >= 2) {
+        const spacingLines = computeSelectionSpacingLines(selectedBounds, zoom, panX, panY);
+        if (spacingLines.length > 0) {
+          this._measureLines = spacingLines;
+          this._measureTargetBounds = null;
+          this.needsRender = true;
+          return;
+        }
+
+        // Fallback: if bounds overlap in both axes and no explicit gap line exists, show closest pair compare lines.
         let bestA: Bounds | null = null;
         let bestB: Bounds | null = null;
         let bestDist = Number.POSITIVE_INFINITY;
-
         for (let i = 0; i < selectedBounds.length; i++) {
           const a = selectedBounds[i]!;
           const acx = a.x + a.w / 2;
@@ -4493,10 +4501,9 @@ export class Editor {
             }
           }
         }
-
         if (bestA && bestB) {
           this._measureLines = computeMeasureLines(bestA, bestB, zoom, panX, panY);
-          this._measureTargetBounds = bestB;
+          this._measureTargetBounds = null;
           this.needsRender = true;
           return;
         }
