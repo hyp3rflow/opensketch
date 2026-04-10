@@ -480,7 +480,7 @@ export function renderPaddingHandles(
   if (hovered) {
     const cx = hovered.sx + hovered.sw / 2;
     const cy = hovered.sy - 24;
-    const hint = "Enter: value · ↑↓/←→ nudge · Shift: ±10";
+    const hint = "Enter: value · ↑↓/←→ nudge · Shift: ±10 · Alt-drag: mirror";
     ctx.font = "10px Inter, system-ui, sans-serif";
     const tw = ctx.measureText(hint).width;
     ctx.fillStyle = "rgba(6, 78, 59, 0.9)";

@@ -1162,6 +1162,7 @@ Frame overflow control and content scrolling.
 - [x] 2026-04-10 v2: padding handles now remain draggable even when padding value is 0 (minimum edge hit-strip), so users can add padding directly from canvas without first typing values in Properties
 - [x] 2026-04-10 v3: auto-layout gap/padding badges are now always visible (idle state included), improving inline edit discoverability without hover hunting
 - [x] 2026-04-11 v4: padding handles inline edit polish — Enter opens exact-value input prompt, Arrow keys nudge hovered side by ±1px (Shift=±10), with on-canvas shortcut hint
+- [x] 2026-04-11 v5: double-click padding handle now opens direct numeric prompt; Alt-drag mirrors opposite side for quick symmetric padding edits
 
 ### Auto Layout Spacing Presets
 - [x] Spacing presets panel: XS(4) / S(8) / M(12) / Base(16) / L(24) / XL(32) / 2XL(48)

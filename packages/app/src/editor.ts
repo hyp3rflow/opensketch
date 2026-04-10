@@ -2080,6 +2080,15 @@ export class Editor {
         else if (side === "bottom") this.engine.set_layout_padding_bottom(pid, newVal);
         else if (side === "left") this.engine.set_layout_padding_left(pid, newVal);
         else this.engine.set_layout_padding_right(pid, newVal);
+
+        // Alt-drag mirrors opposite side for quick symmetric padding edits.
+        if (e.altKey) {
+          if (side === "top") this.engine.set_layout_padding_bottom(pid, newVal);
+          else if (side === "bottom") this.engine.set_layout_padding_top(pid, newVal);
+          else if (side === "left") this.engine.set_layout_padding_right(pid, newVal);
+          else this.engine.set_layout_padding_left(pid, newVal);
+        }
+
         this.engine.compute_layout();
       } catch { /* ignore */ }
       this._paddingHandles = findPaddingHandles(this.engine);
@@ -3643,6 +3652,15 @@ export class Editor {
       const spacingHit = hitTestSpacingHandle(this._spacingHandles, e.offsetX, e.offsetY);
       if (spacingHit) {
         this.promptSpacingValue(spacingHit);
+        return;
+      }
+    }
+
+    // Double-click on padding handle → direct numeric input
+    if (this._paddingHandles.length > 0) {
+      const paddingHit = hitTestPaddingHandle(this._paddingHandles, e.offsetX, e.offsetY);
+      if (paddingHit) {
+        this.promptPaddingValue(paddingHit);
         return;
       }
     }

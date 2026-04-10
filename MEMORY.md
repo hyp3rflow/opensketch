@@ -1794,6 +1794,13 @@
 - Prototype Focus Order & Keyboard Navigation — Tab 순서 지정 + Enter/Space trigger + focus ring로 접근성/키보드 테스트 강화 (임팩트 중상, 난이도 중)
 - Asset Export Presets Manager — 팀 공용 export preset(Web/iOS/Android) 저장/불러오기/문서별 preset sync (임팩트 중상, 난이도 중)
 
+## 완료된 기능 (추가 — Auto Layout Gap/Padding Handles v5 polish, 2026-04-11)
+- Padding handle 더블클릭으로 exact value prompt 즉시 열기 (spacing handle과 parity)
+- Padding drag 중 Alt 키를 누르면 반대편(side) padding을 동일 값으로 동기화
+- Canvas shortcut hint에 `Alt-drag: mirror` 반영
+- 구현: `packages/app/src/editor.ts`, `packages/app/src/tools/spacing-handles.ts`
+- specs 반영: `specs/FEATURES.md`
+
 ## 완료된 기능 (추가 — Auto Layout Gap/Padding Handles v4 polish, 2026-04-11)
 - 캔버스 Auto Layout padding 핸들 inline 편집 UX 강화
 - Enter: hovered padding side 값 직접 입력(prompt)
