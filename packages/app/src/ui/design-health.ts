@@ -12,6 +12,29 @@ interface ColorPair { color_a: string; color_b: string; distance: number; }
 interface FontUsage { family: string; count: number; }
 interface HealthIssue { severity: string; category: string; message: string; node_id: number | null; suggestion: string | null; }
 
+
+interface TextStyleDriftDiff { field: string; local: any; linked: any; }
+interface TextStyleDriftRow { node_id: number; node_name: string; diffs: TextStyleDriftDiff[]; style_id: number; style_name: string; }
+
+function collectTextStyleDrifts(engine: Engine): TextStyleDriftRow[] {
+  const rows: TextStyleDriftRow[] = [];
+  const styles: Array<{ id: number; name?: string }> = JSON.parse((engine as any).list_text_styles?.() || "[]");
+  for (const st of styles) {
+    const styleId = Number((st as any).id || 0);
+    if (!styleId) continue;
+    const raw = (engine as any).inspect_text_style_overrides?.(BigInt(styleId));
+    const driftRows: Array<{ node_id: number; node_name: string; diffs: TextStyleDriftDiff[] }> = JSON.parse(raw || "[]");
+    for (const row of driftRows) {
+      rows.push({
+        ...row,
+        style_id: styleId,
+        style_name: String((st as any).name || `Text Style ${styleId}`),
+      });
+    }
+  }
+  return rows;
+}
+
 interface HealthReport {
   score: number;
   components: {
@@ -140,12 +163,38 @@ export function openDesignHealth(engine: Engine, opts?: { onNavigate?: (nodeId: 
     } else if (activeTab === "styles") {
       const s = r.styles;
       body = `
-        <div style="display:flex;gap:10px;margin-bottom:16px">
+        ${(() => {
+          const driftRows = collectTextStyleDrifts(engine);
+          const driftStyles = new Set(driftRows.map(r => r.style_id)).size;
+          return `
+        <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
           ${pill("Color Styles", s.total_color_styles)}
           ${pill("Text Styles", s.total_text_styles)}
           ${pill("Unused", s.unused_color_styles.length + s.unused_text_styles.length, (s.unused_color_styles.length + s.unused_text_styles.length) > 0 ? "#ffab00" : undefined)}
+          ${pill("Linked Drifted Nodes", driftRows.length, driftRows.length > 0 ? "#ffab00" : undefined)}
+          ${pill("Drifted Styles", driftStyles, driftStyles > 0 ? "#4a90d9" : undefined)}
         </div>
         ${bar("Style Adoption", Math.round(s.style_adoption_rate * 100))}
+        ${section("Text Styles Inspector (Local vs Linked Diff)",
+          driftRows.length > 0
+            ? `<div style="font-size:11px;color:#aaa;margin-bottom:8px">${driftRows.length} linked text node(s) have local typography overrides against shared text styles.</div>
+              <div style="max-height:160px;overflow-y:auto;border:1px solid #333;border-radius:8px;padding:6px 8px;margin-bottom:8px">
+                ${driftRows.slice(0, 40).map(row => {
+                  const diffSummary = row.diffs.map(d => d.field).join(", ");
+                  return `<div class="dh-nav" data-nid="${row.node_id}" style="padding:5px 0;border-bottom:1px solid #2a2a3e;cursor:pointer">
+                    <span style="color:#ddd">${row.node_name}</span>
+                    <span style="color:#4a90d9"> · ${row.style_name}</span>
+                    <span style="color:#888"> · ${diffSummary}</span>
+                  </div>`;
+                }).join("")}
+              </div>
+              <div style="display:flex;gap:8px">
+                <button id="dh-clean-text-style-drifts" style="padding:8px 14px;border-radius:8px;border:none;background:#4a90d9;color:#fff;cursor:pointer;font-size:11px;font-weight:600">🧹 Clean all linked overrides</button>
+              </div>`
+            : `<div style="font-size:11px;color:#36b37e">✅ linked text styles are clean (no local drift)</div>`
+        )}
+          `;
+        })()}
         ${s.unused_color_styles.length > 0 ? section("Unused Color Styles",
           `<div style="font-size:12px">${s.unused_color_styles.map(u => `<div style="padding:3px 0;border-bottom:1px solid #333">${u.name}</div>`).join("")}</div>`
         ) : ""}
@@ -256,6 +305,19 @@ export function openDesignHealth(engine: Engine, opts?: { onNavigate?: (nodeId: 
       const fixed = (engine as any).apply_text_style_lint_autofix?.() || 0;
       if (fixed > 0) {
         alert(`Auto-fixed ${fixed} text node(s) to shared text styles.`);
+      }
+      opts?.onRefresh?.();
+      render();
+    });
+    modal.querySelector("#dh-clean-text-style-drifts")?.addEventListener("click", () => {
+      const driftRows = collectTextStyleDrifts(engine);
+      let cleaned = 0;
+      for (const row of driftRows) {
+        const ok = (engine as any).apply_text_style?.(BigInt(row.node_id), BigInt(row.style_id));
+        if (ok) cleaned += 1;
+      }
+      if (cleaned > 0) {
+        alert(`Cleaned ${cleaned} linked text node(s).`);
       }
       opts?.onRefresh?.();
       render();

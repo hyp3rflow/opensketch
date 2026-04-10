@@ -1790,9 +1790,19 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Smart Animate Graph Editor (curve handles + per-property tracks) — Figma Smart Animate처럼 속성별 타임라인 트랙과 베지어 커브 핸들 편집 (임팩트 상, 난이도 상)
 - Variants Quick Swap HUD — 선택 인스턴스에서 Option/Alt+휠 또는 단축키로 variant axis 값을 HUD에서 빠르게 순환 변경 (임팩트 중상, 난이도 중)
 - Nested Component Override Inspector — 인스턴스 내부 중첩 override를 계층 트리로 시각화하고 diff/리셋/일괄 적용 (임팩트 상, 난이도 중상)
+- Text on Path (Path-bound Typography) — Path 노드 위에 텍스트를 따라 배치, offset/reverse/align(start/center/end) 지원 (임팩트 상, 난이도 중상)
+- Prototype Focus Order & Keyboard Navigation — Tab 순서 지정 + Enter/Space trigger + focus ring로 접근성/키보드 테스트 강화 (임팩트 중상, 난이도 중)
+- Asset Export Presets Manager — 팀 공용 export preset(Web/iOS/Android) 저장/불러오기/문서별 preset sync (임팩트 중상, 난이도 중)
+
+## 완료된 기능 (추가 — Smart Animate Graph Editor v1, 2026-04-10)
+- `Open Timeline Editor v2`에 Smart Animate Graph 영역 추가
+- keyframe label prefix를 property track으로 해석해 per-property timeline 분포를 SVG 그래프로 시각화
+- track chip 클릭 시 해당 트랙 keyframe 행을 자동 선택하여 easing/stagger/group batch 편집으로 즉시 연결
+- 기존 Smart Animate Timeline Editor v2(커브 프리셋/선택 행 배치 편집)와 결합해 그래프 기반 편집 흐름 완성
+- 구현: `packages/app/src/ui/properties-panel.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Constraints Presets + Batch Apply backlog 완료, 2026-04-10)
 - Constraints 섹션에 다중 선택 전용 `Apply to N selected layers` 토글 추가 (기본 ON)

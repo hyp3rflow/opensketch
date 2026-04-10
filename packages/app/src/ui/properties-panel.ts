@@ -7149,8 +7149,34 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
 
             const hint2 = document.createElement("div");
             hint2.style.cssText = "font-size:10px;color:#8b8b8b;margin-bottom:8px;";
-            hint2.textContent = "곡선(Easing), 스태거, 그룹 타임라인 오프셋을 한 곳에서 편집합니다.";
+            hint2.textContent = "곡선(Easing), 속성별 트랙, 스태거/그룹 오프셋을 한 곳에서 편집합니다.";
             panel.appendChild(hint2);
+
+            const trackOf = (label: string) => {
+              const trimmed = String(label || "").trim();
+              if (!trimmed) return "misc";
+              const byPipe = trimmed.split("|")[0]?.trim();
+              const byColon = byPipe.split(":")[0]?.trim();
+              const byDot = byColon.split(".")[0]?.trim();
+              return byDot || "misc";
+            };
+
+            const graphWrap = document.createElement("div");
+            graphWrap.style.cssText = "margin-bottom:10px;border:1px solid #2e2e2e;border-radius:8px;padding:8px;background:rgba(99,102,241,0.06);";
+            const graphTitle = document.createElement("div");
+            graphTitle.style.cssText = "font-size:10px;color:#a5b4fc;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;";
+            graphTitle.textContent = "Smart Animate Graph (per-property tracks)";
+            graphWrap.appendChild(graphTitle);
+            const graphSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+            graphSvg.setAttribute("viewBox", "0 0 760 180");
+            graphSvg.setAttribute("width", "100%");
+            graphSvg.setAttribute("height", "180");
+            graphSvg.style.cssText = "display:block;background:#131722;border-radius:6px;border:1px solid #2d3342;";
+            graphWrap.appendChild(graphSvg);
+            const trackLegend = document.createElement("div");
+            trackLegend.style.cssText = "display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;";
+            graphWrap.appendChild(trackLegend);
+            panel.appendChild(graphWrap);
 
             const easings = ["linear", "ease_in", "ease_out", "ease_in_out", "spring", "overshoot", "anticipate"];
             const easingPreviews: Record<string, string> = {
@@ -7267,6 +7293,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
                 table.append(pick, idx, labelInput, timeInput, easingSel, grp);
               });
               refreshGroups();
+              renderGraph();
             };
             panel.appendChild(table);
 
@@ -7322,6 +7349,79 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
               groupSelect.innerHTML = "";
               groups.forEach((g) => {
                 const o = document.createElement("option"); o.value = g; o.textContent = g; groupSelect.appendChild(o);
+              });
+            };
+
+            const renderGraph = () => {
+              while (graphSvg.firstChild) graphSvg.removeChild(graphSvg.firstChild);
+              trackLegend.innerHTML = "";
+              const editable = timeline.filter((_, i) => i > 0 && i < timeline.length - 1);
+              if (!editable.length) {
+                const empty = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                empty.setAttribute("x", "12"); empty.setAttribute("y", "24");
+                empty.setAttribute("fill", "#6b7280"); empty.setAttribute("font-size", "11");
+                empty.textContent = "Add middle keyframes to visualize tracks.";
+                graphSvg.appendChild(empty);
+                return;
+              }
+              const tracks = Array.from(new Set(editable.map(k => trackOf(k.label || ""))));
+              const minT = Math.min(...editable.map(k => Number(k.time || 0)));
+              const maxT = Math.max(minT + 1, ...editable.map(k => Number(k.time || 0)));
+              const palette = ["#60a5fa", "#34d399", "#f59e0b", "#f472b6", "#a78bfa", "#22d3ee", "#fb7185"];
+              const left = 36; const top = 16; const w = 700; const h = 144;
+              const yFor = (idx: number) => top + (tracks.length <= 1 ? h / 2 : (idx * (h / Math.max(1, tracks.length - 1))));
+              const xFor = (t: number) => left + ((t - minT) / Math.max(1, maxT - minT)) * w;
+
+              for (let i = 0; i < tracks.length; i++) {
+                const y = yFor(i);
+                const guide = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                guide.setAttribute("x1", String(left)); guide.setAttribute("x2", String(left + w));
+                guide.setAttribute("y1", String(y)); guide.setAttribute("y2", String(y));
+                guide.setAttribute("stroke", "#242b3a"); guide.setAttribute("stroke-width", "1");
+                graphSvg.appendChild(guide);
+
+                const tlabel = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                tlabel.setAttribute("x", "8"); tlabel.setAttribute("y", String(y + 4));
+                tlabel.setAttribute("fill", palette[i % palette.length]); tlabel.setAttribute("font-size", "10");
+                tlabel.textContent = tracks[i];
+                graphSvg.appendChild(tlabel);
+              }
+
+              tracks.forEach((tr, i) => {
+                const color = palette[i % palette.length];
+                const points = editable.filter(k => trackOf(k.label || "") === tr).sort((a, b) => (a.time || 0) - (b.time || 0));
+                if (!points.length) return;
+                const y = yFor(i);
+                const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                const d = points.map((k, idx) => `${idx === 0 ? "M" : "L"} ${xFor(Number(k.time || 0))} ${y}`).join(" ");
+                path.setAttribute("d", d);
+                path.setAttribute("fill", "none");
+                path.setAttribute("stroke", color);
+                path.setAttribute("stroke-width", "2");
+                graphSvg.appendChild(path);
+                points.forEach((k) => {
+                  const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                  c.setAttribute("cx", String(xFor(Number(k.time || 0))));
+                  c.setAttribute("cy", String(y));
+                  c.setAttribute("r", "3.5");
+                  c.setAttribute("fill", color);
+                  c.setAttribute("stroke", "#0f172a");
+                  c.setAttribute("stroke-width", "1");
+                  graphSvg.appendChild(c);
+                });
+
+                const chip = document.createElement("button");
+                chip.className = "prop-add-btn";
+                chip.style.cssText = `padding:3px 6px;font-size:10px;border-color:${color};color:${color};`;
+                chip.textContent = `${tr} (${points.length})`;
+                chip.addEventListener("click", () => {
+                  selectedRows.clear();
+                  timeline.forEach((kf, idx) => {
+                    if (idx > 0 && idx < timeline.length - 1 && trackOf(kf.label || "") === tr) selectedRows.add(idx);
+                  });
+                  renderTable();
+                });
+                trackLegend.appendChild(chip);
               });
             };
             refreshGroups();
