@@ -3643,6 +3643,38 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       const presetSection = createSection("Constraint Set Presets");
       const presets = loadConstraintSetPresets();
 
+      const applyConstraintSetPresetToNode = (targetId: number, preset: ConstraintSetPreset) => {
+        const raw = editor.engine.get_node_json(BigInt(targetId));
+        if (!raw) return;
+        const targetNode = JSON.parse(raw);
+
+        editor.engine.set_layout_mode(BigInt(targetId), preset.layout.mode || "None");
+        if (preset.layout.direction) editor.engine.set_flex_direction(BigInt(targetId), preset.layout.direction);
+        if (preset.layout.align_items) editor.engine.set_align_items(BigInt(targetId), preset.layout.align_items);
+        if (preset.layout.justify_content) editor.engine.set_justify_content(BigInt(targetId), preset.layout.justify_content);
+        editor.engine.set_layout_gap(BigInt(targetId), Number(preset.layout.gap || 0));
+        editor.engine.set_layout_padding(
+          BigInt(targetId),
+          Number(preset.layout.padding_top || 0),
+          Number(preset.layout.padding_right || 0),
+          Number(preset.layout.padding_bottom || 0),
+          Number(preset.layout.padding_left || 0),
+        );
+        if (preset.layout.wrap) editor.engine.set_flex_wrap(BigInt(targetId), preset.layout.wrap);
+        if (preset.layout.align_content) editor.engine.set_align_content(BigInt(targetId), preset.layout.align_content);
+        if (preset.layout.grid_columns && preset.layout.grid_columns > 0) {
+          editor.engine.set_grid_columns(BigInt(targetId), Math.max(1, Math.round(preset.layout.grid_columns)));
+        }
+        editor.engine.set_constraints(BigInt(targetId), preset.selfConstraints.horizontal, preset.selfConstraints.vertical);
+
+        const childIds: number[] = Array.isArray(targetNode.children) ? targetNode.children : [];
+        for (const childPreset of preset.childConstraints) {
+          const childId = childIds[childPreset.index];
+          if (!childId) continue;
+          editor.engine.set_constraints(BigInt(childId), childPreset.horizontal, childPreset.vertical);
+        }
+      };
+
       const nameRow = document.createElement("div");
       nameRow.style.cssText = "display:flex;gap:6px;align-items:center;";
       const nameInput = document.createElement("input");
@@ -3721,36 +3753,26 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
 
           const applyBtn = document.createElement("button");
           applyBtn.className = "prop-btn";
-          applyBtn.textContent = "Apply";
+          applyBtn.textContent = ids.length > 1 ? `Apply (${ids.length})` : "Apply";
+          applyBtn.title = ids.length > 1 ? "Apply preset to all selected nodes" : "Apply preset to current node";
           applyBtn.style.cssText = "font-size:9px;padding:3px 7px;";
           applyBtn.addEventListener("click", () => {
+            const targetIds = ids.filter((sid) => {
+              const raw = editor.engine.get_node_json(BigInt(sid));
+              if (!raw) return false;
+              const candidate = JSON.parse(raw);
+              const kind = typeof candidate.kind === "string" ? candidate.kind : Object.keys(candidate.kind || {})[0];
+              return kind === "Frame" || kind === "Group";
+            });
+            if (targetIds.length === 0) {
+              alert("Constraint Set Presets can only be applied to Frame/Group selections.");
+              return;
+            }
+
             editor.engine.push_undo();
-            editor.engine.set_layout_mode(BigInt(id), preset.layout.mode || "None");
-            if (preset.layout.direction) editor.engine.set_flex_direction(BigInt(id), preset.layout.direction);
-            if (preset.layout.align_items) editor.engine.set_align_items(BigInt(id), preset.layout.align_items);
-            if (preset.layout.justify_content) editor.engine.set_justify_content(BigInt(id), preset.layout.justify_content);
-            editor.engine.set_layout_gap(BigInt(id), Number(preset.layout.gap || 0));
-            editor.engine.set_layout_padding(
-              BigInt(id),
-              Number(preset.layout.padding_top || 0),
-              Number(preset.layout.padding_right || 0),
-              Number(preset.layout.padding_bottom || 0),
-              Number(preset.layout.padding_left || 0),
-            );
-            if (preset.layout.wrap) editor.engine.set_flex_wrap(BigInt(id), preset.layout.wrap);
-            if (preset.layout.align_content) editor.engine.set_align_content(BigInt(id), preset.layout.align_content);
-            if (preset.layout.grid_columns && preset.layout.grid_columns > 0) {
-              editor.engine.set_grid_columns(BigInt(id), Math.max(1, Math.round(preset.layout.grid_columns)));
+            for (const targetId of targetIds) {
+              applyConstraintSetPresetToNode(targetId, preset);
             }
-            editor.engine.set_constraints(BigInt(id), preset.selfConstraints.horizontal, preset.selfConstraints.vertical);
-
-            const childIds: number[] = Array.isArray(node.children) ? node.children : [];
-            for (const childPreset of preset.childConstraints) {
-              const childId = childIds[childPreset.index];
-              if (!childId) continue;
-              editor.engine.set_constraints(BigInt(childId), childPreset.horizontal, childPreset.vertical);
-            }
-
             editor.requestRender();
             refresh(ids);
           });

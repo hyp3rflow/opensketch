@@ -470,6 +470,9 @@
   - Custom preset은 이름 기준 덮어쓰기 저장(dedupe), 삭제 시 확인 다이얼로그 제공
   - Apply supports multi-selection (only nodes with Frame/Group parent are updated)
   - Multi-select batch toggle (2026-04-10): Constraints H/V dropdown + Pin UI에서 `Apply to N selected layers` 체크박스로 즉시 일괄 적용 전환 지원
+- Constraint Set Presets (auto-layout bundle):
+  - `Constraint Set Presets` 섹션에서 저장한 프리셋(레이아웃+self/child constraints)을 `Frame/Group` 멀티 선택에 일괄 적용 지원
+  - Apply 버튼은 다중 선택 시 `Apply (N)`으로 대상 수를 표시하고, 선택에 적용 가능한 노드가 없으면 가드 alert 표시
 - Constraint Debug Overlay (Responsive Preview):
   - 부모(Frame/Group) 리사이즈 핸들 드래그 중 캔버스 오버레이로 자식 constraint 계산 근거를 실시간 시각화
   - 부모 old/new bounds(흰색/파란색) + 자식 old/new bounds(흰색/마젠타) + 중심 이동 벡터를 동시에 렌더링
