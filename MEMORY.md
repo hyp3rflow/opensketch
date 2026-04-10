@@ -1790,10 +1790,18 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Asset Export Presets Manager — 팀 공용 export preset(Web/iOS/Android) 저장/불러오기/문서별 preset sync (임팩트 중상, 난이도 중)
 - Smart Selection Filter Bar — 선택 상태에서 type/name/visibility/lock/style-linked 기준 즉시 필터·확장 선택 (임팩트 중상, 난이도 중)
 - Frame States (Interactive Variants-lite) — 동일 프레임 내 State 집합(기본/hover/pressed/disabled) 저장 및 프로토타입 트리거로 상태 전환 (임팩트 상, 난이도 중상)
 - Design Token Usage Map — 토큰별 사용 노드 하이라이트, 미사용/중복 토큰 탐지, 일괄 교체 액션 (임팩트 중상, 난이도 중)
+
+## 완료된 기능 (추가 — Asset Export Presets Manager, 2026-04-11)
+- Export Presets를 문서별 세트로 분리 저장 (scene hash 기반 doc key)
+- Active presets key도 문서 스코프를 포함해 문서 간 preset 구성 충돌 방지
+- Presets Manager에 `Sync to This Document` 액션 추가 (global presets → current document)
+- 팀 공유용 preset JSON Export / Import 액션 추가
+- Batch Export preset 로딩도 current document 스코프를 우선 사용하도록 연동
+- 구현: `packages/app/src/ui/export-presets.ts`, `packages/app/src/ui/batch-export.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Prototype Focus Order & Keyboard Navigation v1, 2026-04-11)
 - Prototype viewer에서 `Tab` / `Shift+Tab`으로 현재 frame 내 focusable hotspot(OnClick/OnPress)을 순환 포커스

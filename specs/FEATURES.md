@@ -897,6 +897,7 @@ Save, manage, and apply named export configurations (format, scale, suffix) for 
 
 ### Storage
 - [x] localStorage-based preset storage with default presets (iOS @1x/2x/3x, Android mdpi/xxhdpi, Web @2x, SVG)
+- [x] 문서별 preset 세트 지원: scene hash 기반 doc key로 presets/active presets를 분리 저장
 - [x] ExportPreset interface: id, name, format (png/svg), scale (0.5-4x), suffix, quality
 
 ### UI
@@ -904,6 +905,8 @@ Save, manage, and apply named export configurations (format, scale, suffix) for 
 - [x] **Per-node active presets**: Add/remove presets per node, stored in localStorage
 - [x] **Preset editor modal**: Create/edit presets with name, format, scale, suffix fields
 - [x] **Presets manager modal**: View all presets, delete individual, reset to defaults
+- [x] **Team sharing actions**: Presets manager에서 JSON Export/Import 지원
+- [x] **Document sync action**: `Sync to This Document`로 글로벌 preset을 현재 문서 세트에 복제
 - [x] **Batch export**: "Export N presets" button — downloads all active presets at once
 - [x] **Format badges**: Color-coded PNG (blue) / SVG (purple) indicators
 

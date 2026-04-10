@@ -15,6 +15,8 @@ export interface ExportPreset {
 }
 
 const STORAGE_KEY = "opensketch-export-presets";
+const DOC_STORAGE_KEY = "opensketch-export-presets-by-doc";
+const ACTIVE_EXPORTS_PREFIX = "opensketch-active-exports";
 
 const DEFAULT_PRESETS: ExportPreset[] = [
   { id: "ios-1x", name: "iOS @1x", format: "png", scale: 1, suffix: "", quality: 1.0 },
@@ -26,19 +28,83 @@ const DEFAULT_PRESETS: ExportPreset[] = [
   { id: "svg-vector", name: "SVG Vector", format: "svg", scale: 1, suffix: "", quality: 1.0 },
 ];
 
-export function loadPresets(): ExportPreset[] {
+function hashString(input: string): string {
+  let hash = 2166136261;
+  for (let i = 0; i < input.length; i++) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+function getDocumentKey(editor?: Editor): string {
+  if (!editor) return "global";
   try {
+    const scene = editor.engine.export_scene?.() || "";
+    if (!scene) return "global";
+    return `doc-${hashString(scene).slice(0, 8)}`;
+  } catch {
+    return "global";
+  }
+}
+
+function safePresetList(value: unknown): ExportPreset[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((p) => p && typeof p.id === "string" && typeof p.name === "string") as ExportPreset[];
+}
+
+function loadDocumentPresetMap(): Record<string, ExportPreset[]> {
+  try {
+    const raw = localStorage.getItem(DOC_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return {};
+    const out: Record<string, ExportPreset[]> = {};
+    for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+      out[k] = safePresetList(v);
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+function saveDocumentPresetMap(map: Record<string, ExportPreset[]>): void {
+  localStorage.setItem(DOC_STORAGE_KEY, JSON.stringify(map));
+}
+
+export function loadPresets(editor?: Editor): ExportPreset[] {
+  try {
+    if (editor) {
+      const docKey = getDocumentKey(editor);
+      if (docKey !== "global") {
+        const docMap = loadDocumentPresetMap();
+        const docPresets = docMap[docKey];
+        if (docPresets && docPresets.length > 0) return docPresets;
+      }
+    }
+
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      const presets = safePresetList(parsed);
+      if (presets.length > 0) return presets;
     }
   } catch { /* ignore */ }
   return [...DEFAULT_PRESETS];
 }
 
-export function savePresets(presets: ExportPreset[]): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(presets));
+export function savePresets(presets: ExportPreset[], editor?: Editor): void {
+  const safe = presets.length > 0 ? presets : [...DEFAULT_PRESETS];
+  if (editor) {
+    const docKey = getDocumentKey(editor);
+    if (docKey !== "global") {
+      const docMap = loadDocumentPresetMap();
+      docMap[docKey] = safe;
+      saveDocumentPresetMap(docMap);
+    }
+  }
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(safe));
 }
 
 function genId(): string {
@@ -114,10 +180,11 @@ export function createExportPresetsSection(
   titleRow.appendChild(addBtn);
   section.appendChild(titleRow);
 
-  const presets = loadPresets();
+  const presets = loadPresets(editor);
 
   // Active exports list (user picks which presets to use)
-  const activeKey = `opensketch-active-exports-${nodeId ?? "canvas"}`;
+  const docKey = getDocumentKey(editor);
+  const activeKey = `${ACTIVE_EXPORTS_PREFIX}-${docKey}-${nodeId ?? "canvas"}`;
   let activeIds: string[] = [];
   try {
     const raw = localStorage.getItem(activeKey);
@@ -308,7 +375,7 @@ function showPresetEditor(
   saveBtn.style.cssText = "padding:6px 16px;background:#4a90d9;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;";
   saveBtn.textContent = preset ? "Save" : "Create";
   saveBtn.addEventListener("click", () => {
-    const presets = loadPresets();
+    const presets = loadPresets(editor);
     const newPreset: ExportPreset = {
       id: preset?.id || genId(),
       name: (fields.name as HTMLInputElement).value || "Untitled",
@@ -324,7 +391,7 @@ function showPresetEditor(
     } else {
       presets.push(newPreset);
     }
-    savePresets(presets);
+    savePresets(presets, editor);
     overlay.remove();
     refresh();
   });
@@ -358,7 +425,7 @@ function showPresetsManager(editor: Editor, refresh: () => void): void {
     const list = document.createElement("div");
     list.className = "preset-list";
 
-    const presets = loadPresets();
+    const presets = loadPresets(editor);
     for (const p of presets) {
       const row = document.createElement("div");
       row.style.cssText = "display:flex;align-items:center;gap:8px;padding:6px 8px;background:#252535;border-radius:6px;margin-bottom:4px;";
@@ -377,8 +444,8 @@ function showPresetsManager(editor: Editor, refresh: () => void): void {
       delBtn.style.cssText = "background:none;border:none;color:#e74c3c;cursor:pointer;font-size:12px;padding:2px 4px;";
       delBtn.textContent = "✕";
       delBtn.addEventListener("click", () => {
-        const all = loadPresets().filter(pp => pp.id !== p.id);
-        savePresets(all);
+        const all = loadPresets(editor).filter(pp => pp.id !== p.id);
+        savePresets(all, editor);
         renderList();
       });
       row.appendChild(delBtn);
@@ -388,6 +455,76 @@ function showPresetsManager(editor: Editor, refresh: () => void): void {
   }
   renderList();
 
+  const utilRow = document.createElement("div");
+  utilRow.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;";
+
+  const syncDocBtn = document.createElement("button");
+  syncDocBtn.style.cssText = "padding:5px 10px;background:#2d3b4f;color:#9ecbff;border:1px solid #3d4f66;border-radius:6px;font-size:11px;cursor:pointer;";
+  syncDocBtn.textContent = "Sync to This Document";
+  syncDocBtn.title = "Copy global presets into the current document preset set";
+  syncDocBtn.addEventListener("click", () => {
+    const global = (() => {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return [...DEFAULT_PRESETS];
+        const parsed = JSON.parse(raw);
+        const list = safePresetList(parsed);
+        return list.length > 0 ? list : [...DEFAULT_PRESETS];
+      } catch {
+        return [...DEFAULT_PRESETS];
+      }
+    })();
+    savePresets(global, editor);
+    renderList();
+    refresh();
+  });
+  utilRow.appendChild(syncDocBtn);
+
+  const exportBtn = document.createElement("button");
+  exportBtn.style.cssText = "padding:5px 10px;background:#333;color:#ccc;border:1px solid #444;border-radius:6px;font-size:11px;cursor:pointer;";
+  exportBtn.textContent = "Export JSON";
+  exportBtn.addEventListener("click", () => {
+    const payload = {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      presets: loadPresets(editor),
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    downloadBlob(blob, "opensketch-export-presets.json");
+  });
+  utilRow.appendChild(exportBtn);
+
+  const importBtn = document.createElement("button");
+  importBtn.style.cssText = "padding:5px 10px;background:#333;color:#ccc;border:1px solid #444;border-radius:6px;font-size:11px;cursor:pointer;";
+  importBtn.textContent = "Import JSON";
+  importBtn.addEventListener("click", () => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "application/json,.json";
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const data = JSON.parse(text);
+        const imported = safePresetList((data?.presets ?? data) as unknown);
+        if (imported.length === 0) {
+          alert("No valid presets found in JSON.");
+          return;
+        }
+        savePresets(imported, editor);
+        renderList();
+        refresh();
+      } catch {
+        alert("Failed to import presets JSON.");
+      }
+    };
+    input.click();
+  });
+  utilRow.appendChild(importBtn);
+
+  dialog.appendChild(utilRow);
+
   const btnRow = document.createElement("div");
   btnRow.style.cssText = "display:flex;gap:8px;justify-content:space-between;margin-top:16px;";
 
@@ -396,7 +533,7 @@ function showPresetsManager(editor: Editor, refresh: () => void): void {
   resetBtn.textContent = "Reset to Defaults";
   resetBtn.addEventListener("click", () => {
     if (confirm("Reset all presets to defaults?")) {
-      savePresets([...DEFAULT_PRESETS]);
+      savePresets([...DEFAULT_PRESETS], editor);
       renderList();
     }
   });

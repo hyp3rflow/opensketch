@@ -179,7 +179,7 @@ function showDialog(editor: Editor, items: ExportItem[]): void {
   quickRow.appendChild(scaleSelect);
 
   // Apply preset button
-  const presets = loadPresets();
+  const presets = loadPresets(editor);
   if (presets.length > 0) {
     const presetSelect = document.createElement("select");
     presetSelect.style.cssText = "background:#2a2a2a;color:#ccc;border:1px solid #444;border-radius:4px;padding:3px 6px;font-size:11px;";
