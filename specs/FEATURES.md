@@ -2534,6 +2534,27 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] 적용 시 undo + render + properties refresh 연동
 
 ### Auto Layout Spacing Tokens (2026-04-10)
+- [x] `Gap suggestions` 카드에 spacing token 추천/바인딩 UX 통합
+- [x] Number 변수 중 추천 gap/padding 값(±4px)에 근접한 토큰 자동 탐지
+- [x] `Bind suggested` 액션으로 `layout.gap` / `layout.padding` 변수 바인딩
+- [x] `Create + bind` 액션으로 토큰 자동 준비
+  - `Spacing Tokens` 컬렉션 자동 생성
+  - mode 없으면 `Base` mode 자동 생성
+  - `space.{n}` Number 변수 생성/재사용 + 값 세팅
+  - 현재 선택 프레임 레이아웃 속성에 즉시 바인딩
+- [x] 구현: `packages/app/src/ui/properties-panel.ts`
+
+### Component Variant Naming Lint (2026-04-10)
+- [x] Variant Matrix Editor 상단에 `Variant Naming Lint` 카드 추가
+- [x] axis/value 네이밍 품질 점검:
+  - 축 이름 중복(정규화 기준) 탐지
+  - 축 이름 스타일 불일치(trim/공백/underscore/hyphen) 탐지
+  - 값 약어/구분자 혼용 및 정규화 후 중복 탐지
+- [x] 축별 `Normalize` 액션으로 제안 규칙(kebab-case + 약어 확장) 일괄 반영
+- [x] 기존 variant mapping을 유지한 채 axis/value 리네임 적용
+- [x] 구현: `packages/app/src/ui/component-set-matrix-editor.ts`
+
+### Auto Layout Spacing Tokens (2026-04-10)
 - [x] Gap suggestions 카드에 **Spacing tokens** 블록 추가
 - [x] Variable collections의 Number 변수에서 추천 gap/padding 값과 근접 토큰(±4px) 자동 매칭
 - [x] `Bind gap/pad` 액션으로 `layout.gap` / `layout.padding` 변수 바인딩 + 즉시 apply

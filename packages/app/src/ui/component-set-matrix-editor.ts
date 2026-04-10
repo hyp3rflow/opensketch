@@ -146,6 +146,27 @@ export function openComponentSetMatrixEditor(opts: MatrixEditorOptions): void {
   };
   syncFilterDefaults();
 
+  const abbrMap: Record<string, string> = {
+    def: "default",
+    hov: "hover",
+    prs: "pressed",
+    dis: "disabled",
+    sm: "small",
+    md: "medium",
+    lg: "large",
+  };
+  const normalizeAxisName = (name: string) =>
+    String(name || "")
+      .trim()
+      .replace(/[\s_]+/g, "-")
+      .replace(/-+/g, "-")
+      .toLowerCase();
+  const normalizeVariantValue = (value: string) => {
+    const raw = String(value || "").trim().toLowerCase();
+    const expanded = abbrMap[raw] || raw;
+    return expanded.replace(/[\s_]+/g, "-").replace(/-+/g, "-");
+  };
+
   overlay = document.createElement("div");
   overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:12000;display:flex;align-items:center;justify-content:center;";
 
@@ -161,6 +182,70 @@ export function openComponentSetMatrixEditor(opts: MatrixEditorOptions): void {
   closeBtn.onclick = () => closeComponentSetMatrixEditor();
   titleRow.appendChild(closeBtn);
   modal.appendChild(titleRow);
+
+  const lintCard = document.createElement("div");
+  lintCard.style.cssText = "margin-bottom:10px;padding:8px;border:1px solid #3f3f46;border-radius:8px;background:#1f2330;";
+  const lintTitle = document.createElement("div");
+  lintTitle.style.cssText = "font-size:11px;color:#93c5fd;font-weight:600;margin-bottom:6px;";
+  lintTitle.textContent = "Variant Naming Lint";
+  lintCard.appendChild(lintTitle);
+
+  const axisNameCounts = new Map<string, number>();
+  for (const axis of localAxes) {
+    const key = normalizeAxisName(axis.name);
+    axisNameCounts.set(key, (axisNameCounts.get(key) || 0) + 1);
+  }
+
+  let issueCount = 0;
+  for (const axis of localAxes) {
+    const normAxisName = normalizeAxisName(axis.name);
+    const normalizedValues = axis.values.map((v) => normalizeVariantValue(v));
+    const mixedValueStyle = axis.values.some((v, i) => String(v).trim() !== normalizedValues[i]);
+    const dupValues = new Set<string>();
+    const seen = new Set<string>();
+    for (const v of normalizedValues) {
+      if (seen.has(v)) dupValues.add(v);
+      seen.add(v);
+    }
+
+    const problems: string[] = [];
+    if (axisNameCounts.get(normAxisName)! > 1) problems.push("duplicate axis name");
+    if (axis.name !== normAxisName) problems.push("axis naming style");
+    if (dupValues.size > 0) problems.push("duplicate values");
+    if (mixedValueStyle) problems.push("value naming inconsistency");
+
+    if (problems.length === 0) continue;
+    issueCount += problems.length;
+
+    const row = document.createElement("div");
+    row.style.cssText = "display:flex;align-items:flex-start;justify-content:space-between;gap:8px;padding:6px;border:1px solid #334155;border-radius:6px;margin-bottom:6px;background:#11182766;";
+
+    const body = document.createElement("div");
+    body.style.cssText = "font-size:10px;color:#cbd5e1;line-height:1.4;";
+    body.innerHTML = `<div><strong>${axis.name}</strong> → <span style=\"color:#a7f3d0\">${normAxisName}</span></div><div style=\"color:#94a3b8\">${problems.join(" · ")}</div>`;
+    row.appendChild(body);
+
+    const fixBtn = document.createElement("button");
+    fixBtn.textContent = "Normalize";
+    fixBtn.style.cssText = "background:#1e293b;border:1px solid #475569;border-radius:4px;color:#cbd5e1;cursor:pointer;font-size:10px;padding:4px 7px;";
+    fixBtn.onclick = () => {
+      const nextValues = Array.from(new Set(normalizedValues));
+      if (nextValues.length === 0) return;
+      const ok = applyAxisConfig(opts, axis, normAxisName || axis.name, nextValues);
+      if (ok) closeComponentSetMatrixEditor();
+    };
+    row.appendChild(fixBtn);
+
+    lintCard.appendChild(row);
+  }
+
+  if (issueCount === 0) {
+    const ok = document.createElement("div");
+    ok.style.cssText = "font-size:10px;color:#86efac;";
+    ok.textContent = "No naming issues found for current axes.";
+    lintCard.appendChild(ok);
+  }
+  modal.appendChild(lintCard);
 
   const controlsRow = document.createElement("div");
   controlsRow.style.cssText = "display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:10px;padding:8px;background:#232329;border:1px solid #3f3f46;border-radius:8px;";
