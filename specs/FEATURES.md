@@ -411,7 +411,7 @@
 - [x] **Replace-all workflow**: `replace_text_style_all(old, new)` relinks all matching text-style nodes document-wide
 - [x] **Text Styles ↔ Typography Token Sync (2026-04-08)**: TextStyle에 optional `typography_token { collection_id, variable_id }` 링크 추가. WASM API `link_text_style_token`, `relink_text_style_token`, `detach_text_style_token`, `sync_text_style_to_token`, `sync_text_style_from_token` 제공. String 변수(JSON payload)로 스타일 값을 Push/Pull하며, Properties panel Text Style 섹션에 Link/Relink/Detach + Pull/Push 버튼 UI 추가.
 - [x] **Text Styles Inspector (Local vs Linked Diff) (2026-04-10)**: Properties panel Text Style 섹션에 Local vs Linked 비교 인스펙터 추가. font family/size/weight/style/line-height/letter-spacing/align 필드별 오버라이드 여부를 표시하고, 필드 단위 `Reset` + 전체 `Reset all overrides` 액션으로 linked style 값으로 정리 가능.
-- [x] **Text Styles Inspector Batch Cleanup pass (2026-04-10)**: WASM `inspect_text_style_overrides(style_id)` + `cleanup_text_style_overrides(style_id)` API 추가. 선택된 Text Style 기준으로 링크된 텍스트 노드들의 drift를 집계하고, Properties panel에서 현재 노드 diff(local vs linked) 표시 + `Clean linked overrides` 일괄 정리 버튼 제공.
+- [x] **Text Styles Inspector Batch Cleanup pass (2026-04-10)**: WASM `inspect_text_style_overrides(style_id)` + `cleanup_text_style_overrides(style_id)` API 추가. 선택된 Text Style 기준으로 링크된 텍스트 노드들의 drift를 집계하고, Properties panel에서 현재 노드 diff(local vs linked) + `Open diff list` 모달(노드별 diff/체크박스 선택) 제공. `Clean all linked overrides`와 `Clean selected`로 일괄/선별 정리 워크플로우 지원.
 
 
 ### Boolean Operations
@@ -463,6 +463,7 @@
   - Storage: localStorage (`opensketch-constraint-set-presets-v1`)
   - Custom preset은 이름 기준 덮어쓰기 저장(dedupe), 삭제 시 확인 다이얼로그 제공
   - Apply supports multi-selection (only nodes with Frame/Group parent are updated)
+  - Multi-select batch toggle (2026-04-10): Constraints H/V dropdown + Pin UI에서 `Apply to N selected layers` 체크박스로 즉시 일괄 적용 전환 지원
 - Constraint Debug Overlay (Responsive Preview):
   - 부모(Frame/Group) 리사이즈 핸들 드래그 중 캔버스 오버레이로 자식 constraint 계산 근거를 실시간 시각화
   - 부모 old/new bounds(흰색/파란색) + 자식 old/new bounds(흰색/마젠타) + 중심 이동 벡터를 동시에 렌더링

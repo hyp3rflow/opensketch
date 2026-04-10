@@ -1790,10 +1790,16 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Constraints Presets + Batch Apply — Left/Right/Scale 등 반응형 제약 프리셋 저장/이름붙이기/다중 선택 일괄 적용 (임팩트 중상, 난이도 중)
 - Smart Animate Graph Editor (curve handles + per-property tracks) — Figma Smart Animate처럼 속성별 타임라인 트랙과 베지어 커브 핸들 편집 (임팩트 상, 난이도 상)
 - Variants Quick Swap HUD — 선택 인스턴스에서 Option/Alt+휠 또는 단축키로 variant axis 값을 HUD에서 빠르게 순환 변경 (임팩트 중상, 난이도 중)
 - Nested Component Override Inspector — 인스턴스 내부 중첩 override를 계층 트리로 시각화하고 diff/리셋/일괄 적용 (임팩트 상, 난이도 중상)
+
+## 완료된 기능 (추가 — Constraints Presets + Batch Apply backlog 완료, 2026-04-10)
+- Constraints 섹션에 다중 선택 전용 `Apply to N selected layers` 토글 추가 (기본 ON)
+- H/V 드롭다운 변경과 Pin UI 토글(Left/Right/Top/Bottom/Center/Scale)을 현재 노드 전용/선택 일괄 적용으로 즉시 전환 가능
+- 배치 적용 시 Frame/Group parent를 가진 노드만 안전하게 필터링해 기존 constraint 적용 규칙 유지
+- 구현: `packages/app/src/ui/properties-panel.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Prototype Trigger Regions (Hotspot shape editor) v1, 2026-04-10)
 - Hotspot 툴 확장: `Shift + Drag`로 Polygon 기반 트리거 리전 생성 (기본 Drag는 Rect 유지)

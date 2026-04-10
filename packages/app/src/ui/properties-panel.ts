@@ -3173,11 +3173,6 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             if (constraints.horizontal === opt.value) o.selected = true;
             hSelect.appendChild(o);
           }
-          hSelect.addEventListener("change", () => {
-            editor.engine.push_undo();
-            editor.engine.set_constraints(BigInt(id), hSelect.value, vSelect.value);
-            editor.requestRender();
-          });
           hRow.appendChild(hLabel);
           hRow.appendChild(hSelect);
           constraintSection.appendChild(hRow);
@@ -3198,22 +3193,55 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             if (constraints.vertical === opt.value) o.selected = true;
             vSelect.appendChild(o);
           }
-          vSelect.addEventListener("change", () => {
-            editor.engine.push_undo();
-            editor.engine.set_constraints(BigInt(id), hSelect.value, vSelect.value);
-            editor.requestRender();
-          });
           vRow.appendChild(vLabel);
           vRow.appendChild(vSelect);
           constraintSection.appendChild(vRow);
+
+          const batchEnabled = ids.length > 1;
+          let applyToSelection = batchEnabled;
+          if (batchEnabled) {
+            const batchRow = document.createElement("label");
+            batchRow.style.cssText = "display:flex;align-items:center;gap:6px;font-size:10px;color:#a8a8a8;margin-top:6px;";
+            const cb = document.createElement("input");
+            cb.type = "checkbox";
+            cb.checked = true;
+            cb.addEventListener("change", () => {
+              applyToSelection = cb.checked;
+            });
+            batchRow.appendChild(cb);
+            const txt = document.createElement("span");
+            txt.textContent = `Apply to ${ids.length} selected layers`;
+            batchRow.appendChild(txt);
+            constraintSection.appendChild(batchRow);
+          }
 
           const applyConstraints = (nextH: string, nextV: string, pushUndo = true) => {
             if (pushUndo) editor.engine.push_undo();
             hSelect.value = nextH;
             vSelect.value = nextV;
-            editor.engine.set_constraints(BigInt(id), nextH, nextV);
+            const targetIds = applyToSelection ? ids : [Number(id)];
+            for (const tid of targetIds) {
+              const tidBig = BigInt(tid);
+              const nRaw = editor.engine.get_node_json(tidBig);
+              if (!nRaw) continue;
+              const n = JSON.parse(nRaw);
+              if (!n.parent) continue;
+              const pRaw = editor.engine.get_node_json(BigInt(n.parent));
+              if (!pRaw) continue;
+              const p = JSON.parse(pRaw);
+              const pk = typeof p.kind === "string" ? p.kind : Object.keys(p.kind)[0];
+              if (pk !== "Frame" && pk !== "Group") continue;
+              editor.engine.set_constraints(tidBig, nextH, nextV);
+            }
             editor.requestRender();
           };
+
+          hSelect.addEventListener("change", () => {
+            applyConstraints(hSelect.value, vSelect.value);
+          });
+          vSelect.addEventListener("change", () => {
+            applyConstraints(hSelect.value, vSelect.value);
+          });
 
           const pinSectionLabel = document.createElement("div");
           pinSectionLabel.textContent = "Pins";
@@ -8025,10 +8053,13 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             inspectorSection.appendChild(ok);
           }
 
+          const actionRow = document.createElement("div");
+          actionRow.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;";
+
           const cleanupBtn = document.createElement("button");
           cleanupBtn.className = "prop-add-btn";
-          cleanupBtn.style.marginTop = "6px";
-          cleanupBtn.textContent = "Clean linked overrides";
+          cleanupBtn.style.marginTop = "0";
+          cleanupBtn.textContent = "Clean all linked overrides";
           cleanupBtn.disabled = inspectorRows.length === 0;
           cleanupBtn.title = "Reapply linked style to all linked text nodes that drifted";
           cleanupBtn.addEventListener("click", () => {
@@ -8039,7 +8070,121 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             }
             refresh(ids);
           });
-          inspectorSection.appendChild(cleanupBtn);
+          actionRow.appendChild(cleanupBtn);
+
+          const detailsBtn = document.createElement("button");
+          detailsBtn.className = "prop-add-btn";
+          detailsBtn.style.marginTop = "0";
+          detailsBtn.textContent = "Open diff list";
+          detailsBtn.disabled = inspectorRows.length === 0;
+          detailsBtn.title = "Inspect all linked text style drifts and clean selected rows";
+          detailsBtn.addEventListener("click", () => {
+            const overlay = document.createElement("div");
+            overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.48);z-index:1400;display:flex;align-items:center;justify-content:center;padding:24px;";
+            const modal = document.createElement("div");
+            modal.style.cssText = "width:min(860px,calc(100vw - 48px));max-height:80vh;background:#202124;border:1px solid #3a3a3a;border-radius:10px;display:flex;flex-direction:column;color:#e6e6e6;";
+
+            const header = document.createElement("div");
+            header.style.cssText = "display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid #333;";
+            const title = document.createElement("div");
+            title.style.cssText = "font-size:12px;font-weight:600;";
+            title.textContent = `Text Styles Inspector · ${styleInfo.text_style_name}`;
+            header.appendChild(title);
+            const closeBtn = document.createElement("button");
+            closeBtn.className = "prop-add-btn";
+            closeBtn.style.marginTop = "0";
+            closeBtn.textContent = "Close";
+            closeBtn.addEventListener("click", () => overlay.remove());
+            header.appendChild(closeBtn);
+            modal.appendChild(header);
+
+            const body = document.createElement("div");
+            body.style.cssText = "padding:10px 12px;overflow:auto;display:flex;flex-direction:column;gap:6px;";
+
+            const selectedNodeIds = new Set<number>(inspectorRows.map((r) => Number(r.node_id)));
+            for (const rowData of inspectorRows) {
+              const rowWrap = document.createElement("div");
+              rowWrap.style.cssText = "border:1px solid #333;border-radius:8px;padding:8px;background:#171717;";
+
+              const rowHead = document.createElement("label");
+              rowHead.style.cssText = "display:flex;align-items:center;gap:8px;font-size:11px;color:#ddd;";
+              const cb = document.createElement("input");
+              cb.type = "checkbox";
+              cb.checked = true;
+              cb.addEventListener("change", () => {
+                if (cb.checked) selectedNodeIds.add(Number(rowData.node_id));
+                else selectedNodeIds.delete(Number(rowData.node_id));
+              });
+              rowHead.appendChild(cb);
+              const label = document.createElement("span");
+              label.textContent = `#${rowData.node_id} · ${rowData.node_name} (${rowData.diffs.length} diffs)`;
+              rowHead.appendChild(label);
+              rowWrap.appendChild(rowHead);
+
+              for (const d of rowData.diffs) {
+                const drow = document.createElement("div");
+                drow.style.cssText = "font-size:10px;color:#bfbfbf;line-height:1.35;padding-left:24px;margin-top:3px;";
+                drow.textContent = `${d.field}: local=${String(d.local)} / linked=${String(d.linked)}`;
+                rowWrap.appendChild(drow);
+              }
+
+              body.appendChild(rowWrap);
+            }
+
+            modal.appendChild(body);
+
+            const footer = document.createElement("div");
+            footer.style.cssText = "display:flex;justify-content:space-between;gap:8px;padding:10px 12px;border-top:1px solid #333;";
+            const helper = document.createElement("div");
+            helper.style.cssText = "font-size:10px;color:#9aa0a6;display:flex;align-items:center;";
+            helper.textContent = "선택된 row만 스타일 재적용됩니다.";
+            footer.appendChild(helper);
+
+            const actions = document.createElement("div");
+            actions.style.cssText = "display:flex;gap:6px;";
+            const selectAllBtn = document.createElement("button");
+            selectAllBtn.className = "prop-add-btn";
+            selectAllBtn.style.marginTop = "0";
+            selectAllBtn.textContent = "Select all";
+            selectAllBtn.addEventListener("click", () => {
+              selectedNodeIds.clear();
+              for (const r of inspectorRows) selectedNodeIds.add(Number(r.node_id));
+              for (const input of body.querySelectorAll('input[type="checkbox"]')) (input as HTMLInputElement).checked = true;
+            });
+            actions.appendChild(selectAllBtn);
+
+            const cleanSelectedBtn = document.createElement("button");
+            cleanSelectedBtn.className = "prop-add-btn";
+            cleanSelectedBtn.style.marginTop = "0";
+            cleanSelectedBtn.textContent = "Clean selected";
+            cleanSelectedBtn.addEventListener("click", () => {
+              if (selectedNodeIds.size === 0) return;
+              ensureUndo();
+              let cleaned = 0;
+              for (const nid of selectedNodeIds) {
+                const ok = editor.engine.apply_text_style(BigInt(nid), BigInt(styleInfo.text_style_id));
+                if (ok) cleaned += 1;
+              }
+              if (cleaned > 0) {
+                editor.requestRender();
+                alert(`Cleaned ${cleaned} linked text node(s).`);
+              }
+              overlay.remove();
+              refresh(ids);
+            });
+            actions.appendChild(cleanSelectedBtn);
+            footer.appendChild(actions);
+            modal.appendChild(footer);
+
+            overlay.appendChild(modal);
+            overlay.addEventListener("click", (ev) => {
+              if (ev.target === overlay) overlay.remove();
+            });
+            document.body.appendChild(overlay);
+          });
+          actionRow.appendChild(detailsBtn);
+
+          inspectorSection.appendChild(actionRow);
           tsSection.appendChild(inspectorSection);
 
           const tokenRow = document.createElement("div");
