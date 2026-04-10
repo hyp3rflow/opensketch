@@ -299,6 +299,7 @@ export class Editor {
   private _deepSelectIndex = -1;
   private _deepSelectAnchorX = 0;
   private _deepSelectAnchorY = 0;
+  private _deepSelectPrimedUntil = 0;
   private _deepSelectHud: { text: string; until: number } | null = null;
   private _variantQuickAxisByInstance = new Map<number, number>();
   private _smartPasteHoverFrameId: number | null = null;
@@ -1771,6 +1772,7 @@ export class Editor {
       // Cmd+click (Meta on Mac, Ctrl on others) → deep select into groups/frames
       const isMeta = e.metaKey || (e.ctrlKey && !navigator.platform.includes("Mac"));
       const hit = this.getFilteredHitAtScreenPoint(x, y, isMeta);
+      this.primeDeepSelectionAtPoint(x, y);
       if (hit != null) {
         const currentSel = Array.from(this.engine.get_selection()).map(Number);
         const alreadySelected = currentSel.includes(Number(hit));
@@ -4835,13 +4837,12 @@ export class Editor {
 
   private cycleDeepSelection(direction: 1 | -1): void {
     const stack = this.getDeepSelectionStackAtPointer();
-    if (stack.length === 0) return;
+    if (stack.length <= 1) return;
 
-    if (this._deepSelectStack.join(",") !== stack.join(",")) {
-      this._deepSelectStack = stack;
-      this._deepSelectIndex = direction > 0 ? 0 : stack.length - 1;
+    const len = stack.length;
+    if (this._deepSelectIndex < 0 || this._deepSelectIndex >= len) {
+      this._deepSelectIndex = direction > 0 ? 0 : len - 1;
     } else {
-      const len = stack.length;
       this._deepSelectIndex = (this._deepSelectIndex + direction + len) % len;
     }
 
@@ -4867,18 +4868,29 @@ export class Editor {
     const sx = this._lastPointerScreenX;
     const sy = this._lastPointerScreenY;
     const moved = Math.abs(sx - this._deepSelectAnchorX) > 6 || Math.abs(sy - this._deepSelectAnchorY) > 6;
+    const stale = performance.now() > this._deepSelectPrimedUntil;
 
-    if (moved) {
+    if (moved || stale) {
       this._deepSelectStack = [];
       this._deepSelectIndex = -1;
+      return [];
     }
 
-    if (this._deepSelectStack.length > 0 && !moved) {
-      return this._deepSelectStack;
-    }
+    return this._deepSelectStack;
+  }
 
-    const sceneX = this.engine.screen_to_scene_x(sx, sy);
-    const sceneY = this.engine.screen_to_scene_y(sx, sy);
+  private primeDeepSelectionAtPoint(screenX: number, screenY: number): void {
+    const stack = this.computeDeepSelectionStackAtPoint(screenX, screenY);
+    this._deepSelectStack = stack;
+    this._deepSelectAnchorX = screenX;
+    this._deepSelectAnchorY = screenY;
+    this._deepSelectIndex = -1;
+    this._deepSelectPrimedUntil = stack.length > 1 ? performance.now() + 5000 : 0;
+  }
+
+  private computeDeepSelectionStackAtPoint(screenX: number, screenY: number): number[] {
+    const sceneX = this.engine.screen_to_scene_x(screenX, screenY);
+    const sceneY = this.engine.screen_to_scene_y(screenX, screenY);
     const eps = 0.5 / Math.max(0.1, this.engine.get_zoom());
 
     const allIds = Array.from(this.engine.get_all_node_ids()).map(Number);
@@ -4886,7 +4898,7 @@ export class Editor {
     for (let i = 0; i < allIds.length; i++) zOrder.set(allIds[i], i);
 
     const nearby = Array.from(this.engine.get_visible_node_ids(sceneX - eps, sceneY - eps, eps * 2, eps * 2)).map(Number);
-    const parsed = nearby
+    return nearby
       .map((id) => {
         try {
           const raw = this.engine.get_node_json(BigInt(id));
@@ -4916,12 +4928,8 @@ export class Editor {
       .sort((a, b) => {
         if (a.z !== b.z) return b.z - a.z;
         return b.depth - a.depth;
-      });
-
-    this._deepSelectStack = parsed.map((v) => v.id);
-    this._deepSelectAnchorX = sx;
-    this._deepSelectAnchorY = sy;
-    return this._deepSelectStack;
+      })
+      .map((v) => v.id);
   }
 
   private renderDeepSelectHud(): void {
