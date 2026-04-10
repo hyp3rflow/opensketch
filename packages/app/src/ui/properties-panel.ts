@@ -5994,7 +5994,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         const interEl = document.createElement("div");
         interEl.style.cssText = "background:#1e1e1e;border-radius:6px;padding:8px;margin-bottom:6px;position:relative;";
 
-        const rebuildInteraction = (override: Partial<{ trigger: string; action: string; target_node_id: number; target_page_id: number; transition: string; transition_duration_ms: number; easing: string; variant_key_json: string; smart_animate_timeline_json: string; }>) => {
+        const rebuildInteraction = (override: Partial<{ trigger: string; action: string; target_node_id: number; target_page_id: number; transition: string; transition_duration_ms: number; easing: string; variant_key_json: string; smart_animate_timeline_json: string; accessibility_label: string; }>) => {
           const trigMap: Record<string, string> = {
             OnClick: "click", OnHover: "hover", OnPress: "press", OnDrag: "drag",
             OnSwipeLeft: "swipe-left", OnSwipeRight: "swipe-right",
@@ -6014,6 +6014,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             easing: override.easing ?? inter.easing ?? "ease_in_out",
             variant_key_json: override.variant_key_json ?? inter.variant_key_json ?? "",
             smart_animate_timeline_json: override.smart_animate_timeline_json ?? inter.smart_animate_timeline_json ?? "",
+            accessibility_label: override.accessibility_label ?? inter.accessibility_label ?? "",
           };
 
           editor.engine.remove_interaction(id, idx);
@@ -6026,6 +6027,9 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           if (newIdx >= 0) {
             if (next.variant_key_json) editor.engine.set_interaction_variant_key(id, newIdx, next.variant_key_json);
             if (next.smart_animate_timeline_json) editor.engine.set_interaction_timeline(id, newIdx, next.smart_animate_timeline_json);
+            if ((editor.engine as any).set_interaction_accessibility_label) {
+              (editor.engine as any).set_interaction_accessibility_label(id, newIdx, next.accessibility_label || "");
+            }
           }
         };
 
@@ -6143,6 +6147,31 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         });
         targetRow.appendChild(targetInput);
         interEl.appendChild(targetRow);
+
+        // Accessibility label (for hotspot semantics / screen reader hints)
+        const a11yRow = document.createElement("div");
+        a11yRow.style.cssText = "display:flex;gap:4px;margin-bottom:4px;align-items:center;";
+        const a11yLbl = document.createElement("span");
+        a11yLbl.style.cssText = "font-size:10px;color:#666;width:50px;flex-shrink:0;";
+        a11yLbl.textContent = "A11y";
+        a11yRow.appendChild(a11yLbl);
+        const a11yInput = document.createElement("input");
+        a11yInput.className = "prop-input";
+        a11yInput.style.flex = "1";
+        a11yInput.placeholder = "e.g. Go to Checkout";
+        a11yInput.value = inter.accessibility_label || "";
+        a11yInput.addEventListener("change", () => {
+          ensureUndo();
+          if ((editor.engine as any).set_interaction_accessibility_label) {
+            (editor.engine as any).set_interaction_accessibility_label(id, idx, a11yInput.value || "");
+          } else {
+            rebuildInteraction({ accessibility_label: a11yInput.value || "" });
+            refresh(ids);
+          }
+          editor.requestRender();
+        });
+        a11yRow.appendChild(a11yInput);
+        interEl.appendChild(a11yRow);
 
         // Variant key JSON input (shown when action is SwapVariant)
         const variantRow = document.createElement("div");

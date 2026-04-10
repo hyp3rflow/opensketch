@@ -1800,6 +1800,9 @@ pub struct NodeLink {
 pub struct Interaction {
     pub trigger: InteractionTrigger,
     pub action: InteractionAction,
+    /// Optional accessibility label (screen-reader / hotspot semantic label)
+    #[serde(default)]
+    pub accessibility_label: String,
     /// Target frame/page node ID (0 = none)
     pub target_node_id: u64,
     /// Target page ID (0 = same page)
@@ -1834,6 +1837,7 @@ impl Default for Interaction {
         Self {
             trigger: InteractionTrigger::OnClick,
             action: InteractionAction::NavigateTo,
+            accessibility_label: String::new(),
             target_node_id: 0,
             target_page_id: 0,
             transition: TransitionType::Instant,

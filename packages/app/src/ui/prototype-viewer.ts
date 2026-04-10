@@ -1884,9 +1884,28 @@ export function createPrototypeViewer(editor: Editor): {
                          hasGesture ? "rgba(16, 185, 129, 0.6)" :
                          hasHover ? "rgba(245, 158, 11, 0.5)" :
                          "rgba(59, 130, 246, 0.5)";
-      ctx.lineWidth = 2;
+      const isHot = hoveredHotspotNodeId !== null && Number(nwi.id) === hoveredHotspotNodeId;
+      ctx.lineWidth = isHot ? 3 : 2;
       ctx.setLineDash([4, 4]);
       ctx.strokeRect(x, y, w, h);
+
+      if (isHot && hoveredHotspotLabel) {
+        ctx.save();
+        ctx.setLineDash([]);
+        ctx.font = `12px sans-serif`;
+        const padX = 6;
+        const padY = 4;
+        const tw = ctx.measureText(hoveredHotspotLabel).width;
+        const lw = tw + padX * 2;
+        const lh = 18;
+        const lx = x;
+        const ly = Math.max(0, y - lh - 4);
+        ctx.fillStyle = "rgba(17,24,39,0.92)";
+        ctx.fillRect(lx, ly, lw, lh);
+        ctx.fillStyle = "#e5e7eb";
+        ctx.fillText(hoveredHotspotLabel, lx + padX, ly + lh - padY - 2);
+        ctx.restore();
+      }
 
       // Show gesture icon hint for touch triggers
       if (hasGesture) {
@@ -1915,18 +1934,29 @@ export function createPrototypeViewer(editor: Editor): {
     const sceneX = (clientX - rect.left) / scale + bounds.x;
     const sceneY = (clientY - rect.top) / scale + bounds.y;
 
+    let hitId = 0;
+    try { hitId = Number(editor.engine.hit_test(sceneX, sceneY) || 0); } catch {}
+    if (hitId <= 0) return null;
+
     const allInterJson = editor.engine.get_all_interactions();
     const nodesWithInter: any[] = JSON.parse(allInterJson || "[]");
+    const interMap = new Map<number, any[]>();
+    for (const nwi of nodesWithInter) interMap.set(Number(nwi.id), Array.isArray(nwi.interactions) ? nwi.interactions : []);
 
-    for (const nwi of nodesWithInter) {
-      const nj = editor.engine.get_node_json(Number(nwi.id));
-      if (!nj) continue;
-      const node = JSON.parse(nj);
-      if (sceneX >= node.x && sceneX <= node.x + node.width &&
-          sceneY >= node.y && sceneY <= node.y + node.height) {
-        const inter = nwi.interactions.find((i: any) => i.trigger === triggerFilter);
-        if (inter) return { interaction: inter, node };
+    let currentId = hitId;
+    let guard = 0;
+    while (currentId > 0 && guard < 64) {
+      guard += 1;
+      const interactions = interMap.get(currentId) || [];
+      const inter = interactions.find((i: any) => i.trigger === triggerFilter);
+      if (inter) {
+        const raw = editor.engine.get_node_json(BigInt(currentId));
+        if (!raw) return null;
+        return { interaction: inter, node: JSON.parse(raw) };
       }
+      const p = Number((editor.engine as any).get_node_parent?.(BigInt(currentId)) ?? 0);
+      if (!Number.isFinite(p) || p <= 0 || p === currentId) break;
+      currentId = p;
     }
     return null;
   }
@@ -2083,6 +2113,8 @@ export function createPrototypeViewer(editor: Editor): {
   }
 
   let lastHoveredNodeId: number | null = null;
+  let hoveredHotspotNodeId: number | null = null;
+  let hoveredHotspotLabel = "";
   let mousePressNodeId: number | null = null;
   let mousePressX = 0;
   let mousePressY = 0;
@@ -2091,6 +2123,16 @@ export function createPrototypeViewer(editor: Editor): {
   function onCanvasMouseMove(e: MouseEvent) {
     if (!viewCanvas || transitioning || !eventRuntime) return;
     const nodeId = findNodeAtPoint(e.clientX, e.clientY);
+
+    // Hovered hotspot region hint (for label + stronger highlight)
+    const hoverAny = findInteractionAtPoint(e.clientX, e.clientY, "OnHover") || findInteractionAtPoint(e.clientX, e.clientY, "OnClick");
+    const nextHotId = hoverAny ? Number(hoverAny.node?.id || 0) : 0;
+    const nextHotLabel = hoverAny?.interaction?.accessibility_label || hoverAny?.node?.name || "";
+    if ((nextHotId || null) !== hoveredHotspotNodeId || nextHotLabel !== hoveredHotspotLabel) {
+      hoveredHotspotNodeId = nextHotId > 0 ? nextHotId : null;
+      hoveredHotspotLabel = nextHotLabel;
+      renderCurrentView();
+    }
 
     // Hover enter/leave
     if (nodeId !== lastHoveredNodeId) {

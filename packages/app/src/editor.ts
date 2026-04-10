@@ -2915,9 +2915,12 @@ export class Editor {
           case "polygon": id = this.engine.add_polygon(x, y, w, h, 6); break;
           case "slice": id = this.engine.add_slice("", x, y, w, h); break;
           case "hotspot": {
-            id = this.engine.add_rect(x, y, w, h);
+            // Shift-drag: polygon hotspot region, default drag: rectangle hotspot region
+            id = _e.shiftKey
+              ? this.engine.add_polygon(x, y, w, h, 6)
+              : this.engine.add_rect(x, y, w, h);
             try {
-              this.engine.set_name(BigInt(id), `Hotspot ${id}`);
+              this.engine.set_name(BigInt(id), _e.shiftKey ? `Hotspot Region ${id}` : `Hotspot ${id}`);
               // transparent interactive layer with subtle outline in editor
               this.engine.set_fill_color(BigInt(id), 13, 153, 255, 0.02);
               this.engine.set_stroke(BigInt(id), 13, 153, 255, 0.7, 1);
@@ -2943,10 +2946,13 @@ export class Editor {
 
             const targetId = this._hotspotTargetNodeId ?? this.chooseHotspotTargetNodeId(id);
             if (targetId && targetId !== id) {
-              this.engine.add_interaction(BigInt(id), "click", "navigate-to", BigInt(targetId), BigInt(0), "instant", 300, "ease_in_out");
+              const interIdx = this.engine.add_interaction(BigInt(id), "click", "navigate-to", BigInt(targetId), BigInt(0), "instant", 300, "ease_in_out");
               try {
                 const targetName = (this.engine as any).get_node_name?.(BigInt(targetId)) || `#${targetId}`;
                 this.engine.set_name(BigInt(id), `Hotspot → ${targetName}`);
+                if (interIdx >= 0 && (this.engine as any).set_interaction_accessibility_label) {
+                  (this.engine as any).set_interaction_accessibility_label(BigInt(id), interIdx, `Go to ${targetName}`);
+                }
               } catch {}
             }
             break;

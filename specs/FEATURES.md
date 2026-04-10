@@ -378,6 +378,10 @@
   - SmartAnimate rendering: matched nodes interpolate all properties with cubic ease-in-out, rotation via canvas transform, rounded clip for corner_radius, removed nodes fade out, added nodes fade in
   - Toolbar: Play button (▶), keyboard shortcut Cmd+Enter
   - Prototype Hotspot Authoring Tool: toolbar `Hotspot` 툴(Shift+H)로 프레임 위를 드래그해 투명 hotspot(rect) 생성, 생성 즉시 `OnClick → NavigateTo` interaction 자동 연결(선택된 Frame 우선, 없으면 문서 내 Frame fallback); 프레임 위에서 생성하면 해당 프레임 자식으로 자동 reparent
+  - Prototype Trigger Regions v1: Hotspot 툴에서 `Shift + Drag`로 Polygon 기반 hotspot region 생성 지원 (사각형 외 형태로 trigger 영역 구성)
+  - Prototype viewer interaction hit-test는 bounding box가 아닌 `engine.hit_test + parent chain` 탐색으로 동작하여 Path/Polygon 기반 hotspot에서도 정확히 매칭
+  - Interaction 모델에 `accessibility_label` 필드 추가 + Properties panel Interactions의 `A11y` 입력으로 설정 가능
+  - Prototype viewer hover 시 활성 hotspot 강조선 + accessibility label 툴팁 표시
   - Interaction hotspot hints (color-coded: blue=click, green=gesture, orange=hover)
   - Gesture-based interactions: swipe (left/right/up/down), long-press (500ms), pinch in/out
   - Touch event handling in prototype viewer: swipe detection (>50px, <500ms), long-press timer, two-finger pinch distance ratio

@@ -1790,11 +1790,20 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Prototype Trigger Regions (Hotspot shape editor) — 사각형 외 자유 폴리곤 hotspot 편집 + hover highlight + 접근성 label (임팩트 중상, 난이도 중상)
 - Constraints Presets + Batch Apply — Left/Right/Scale 등 반응형 제약 프리셋 저장/이름붙이기/다중 선택 일괄 적용 (임팩트 중상, 난이도 중)
 - Smart Animate Graph Editor (curve handles + per-property tracks) — Figma Smart Animate처럼 속성별 타임라인 트랙과 베지어 커브 핸들 편집 (임팩트 상, 난이도 상)
 - Variants Quick Swap HUD — 선택 인스턴스에서 Option/Alt+휠 또는 단축키로 variant axis 값을 HUD에서 빠르게 순환 변경 (임팩트 중상, 난이도 중)
 - Nested Component Override Inspector — 인스턴스 내부 중첩 override를 계층 트리로 시각화하고 diff/리셋/일괄 적용 (임팩트 상, 난이도 중상)
+
+## 완료된 기능 (추가 — Prototype Trigger Regions (Hotspot shape editor) v1, 2026-04-10)
+- Hotspot 툴 확장: `Shift + Drag`로 Polygon 기반 트리거 리전 생성 (기본 Drag는 Rect 유지)
+- Prototype viewer interaction hit-test를 bounding box 기준에서 `engine.hit_test + parent chain` 기반으로 변경해 Path/Polygon 같은 비사각형 hotspot 매칭 정확도 개선
+- Interaction 모델 확장: `accessibility_label` 필드 추가 (`serde(default)`로 기존 문서 호환)
+- WASM API 추가: `set_interaction_accessibility_label(node_id, interaction_index, label)`
+- Properties panel Interactions에 `A11y` 입력 추가 (interaction별 접근성 라벨 설정)
+- Prototype viewer hover 시 활성 hotspot 강조 + accessibility label 툴팁 표시
+- 구현: `crates/engine/src/node.rs`, `crates/engine/src/lib.rs`, `packages/app/src/editor.ts`, `packages/app/src/ui/properties-panel.ts`, `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Text Styles Inspector Batch Cleanup pass, 2026-04-10)
 - Text Style 링크 노드의 local override drift를 스타일 단위로 점검하는 엔진 API 추가

@@ -3739,6 +3739,7 @@ impl Engine {
             let interaction = Interaction {
                 trigger: trig,
                 action: act,
+                accessibility_label: String::new(),
                 target_node_id,
                 target_page_id,
                 transition: trans,
@@ -8339,6 +8340,17 @@ impl Engine {
             if let Some(interaction) = node.interactions.get_mut(interaction_index as usize) {
                 interaction.set_variable_name = var_name.to_string();
                 interaction.set_variable_expression = expression.to_string();
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Set accessibility label on an interaction (empty string clears).
+    pub fn set_interaction_accessibility_label(&mut self, node_id: u64, interaction_index: u32, label: &str) -> bool {
+        if let Some(node) = self.scene.get_node_mut(node_id) {
+            if let Some(interaction) = node.interactions.get_mut(interaction_index as usize) {
+                interaction.accessibility_label = label.to_string();
                 return true;
             }
         }
