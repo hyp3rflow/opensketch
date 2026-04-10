@@ -2532,3 +2532,11 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
   - 토큰 스케일(0/2/4/8/12/16/20/24/32/40/48/64)로 quantize
 - [x] 원클릭 적용 액션 제공: `Gap N`, `Pad N`, `Apply both`
 - [x] 적용 시 undo + render + properties refresh 연동
+
+### Auto Layout Spacing Tokens (2026-04-10)
+- [x] Gap suggestions 카드에 **Spacing tokens** 블록 추가
+- [x] Variable collections의 Number 변수에서 추천 gap/padding 값과 근접 토큰(±4px) 자동 매칭
+- [x] `Bind gap/pad` 액션으로 `layout.gap` / `layout.padding` 변수 바인딩 + 즉시 apply
+- [x] `Create tokens` 액션으로 `space/gap-{n}`, `space/pad-{n}` Number 변수 자동 생성 및 active mode 값 설정
+- [x] Variable binding 대상 프로퍼티 확장: `layout.gap`, `layout.padding`, `layout.padding_top/right/bottom/left`
+- [x] Engine `apply_variables()`에 auto-layout spacing 속성 반영 로직 추가

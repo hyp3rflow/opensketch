@@ -4519,7 +4519,21 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       const collectionsJson = editor.engine.get_collections();
       const collections: any[] = JSON.parse(collectionsJson || "[]");
 
-      const bindableProps = ["fill.0.color", "stroke.color", "opacity", "corner_radius", "width", "height", "visible"];
+      const bindableProps = [
+        "fill.0.color",
+        "stroke.color",
+        "opacity",
+        "corner_radius",
+        "width",
+        "height",
+        "visible",
+        "layout.gap",
+        "layout.padding",
+        "layout.padding_top",
+        "layout.padding_right",
+        "layout.padding_bottom",
+        "layout.padding_left",
+      ];
 
       for (const prop of bindableProps) {
         const row = document.createElement("div");
@@ -11487,6 +11501,117 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
               refresh(ids);
             }));
             suggestWrap.appendChild(actions);
+
+            const collections: any[] = (() => {
+              try {
+                return JSON.parse((editor.engine as any).get_variable_collections?.() || editor.engine.get_collections?.() || "[]");
+              } catch {
+                return [];
+              }
+            })();
+            const numberVars = collections.flatMap((col: any) => {
+              const modeId = Number(col.active_mode_id || col.modes?.[0]?.id || 0);
+              return (col.variables || [])
+                .filter((v: any) => v.value_type === "Number")
+                .map((v: any) => ({ col, var: v, modeId, value: Number(v.values_by_mode?.[String(modeId)]?.Number) }));
+            }).filter((entry: any) => Number.isFinite(entry.value));
+
+            const matchToken = (target: number) => {
+              let best: any = null;
+              let bestD = Number.POSITIVE_INFINITY;
+              for (const entry of numberVars) {
+                const d = Math.abs(entry.value - target);
+                if (d < bestD) {
+                  bestD = d;
+                  best = entry;
+                }
+              }
+              return best && bestD <= 4 ? best : null;
+            };
+            const gapToken = matchToken(suggestedGap);
+            const padToken = matchToken(suggestedPad);
+
+            const tokenWrap = document.createElement("div");
+            tokenWrap.style.cssText = "margin-top:6px;padding-top:6px;border-top:1px dashed rgba(129,140,248,0.25);";
+            const tokenTitle = document.createElement("div");
+            tokenTitle.style.cssText = "font-size:10px;color:#93c5fd;margin-bottom:4px;";
+            tokenTitle.textContent = "Spacing tokens";
+            tokenWrap.appendChild(tokenTitle);
+
+            const tokenSummary = document.createElement("div");
+            tokenSummary.style.cssText = "font-size:10px;color:#94a3b8;line-height:1.35;margin-bottom:6px;";
+            tokenSummary.textContent = `추천 token · gap: ${gapToken ? `${gapToken.col.name}/${gapToken.var.name} (${Math.round(gapToken.value)}px)` : "none"} · pad: ${padToken ? `${padToken.col.name}/${padToken.var.name} (${Math.round(padToken.value)}px)` : "none"}`;
+            tokenWrap.appendChild(tokenSummary);
+
+            const tokenActions = document.createElement("div");
+            tokenActions.style.cssText = "display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;";
+
+            const createTokenBtn = mkBtn("Create + bind", () => {
+              editor.engine.push_undo();
+              const latestCollections: any[] = JSON.parse((editor.engine as any).get_variable_collections?.() || editor.engine.get_collections?.() || "[]");
+              let col = latestCollections.find((c: any) => String(c?.name || "").toLowerCase() === "spacing tokens") || latestCollections[0];
+              if (!col) {
+                const newColId = Number(editor.engine.create_collection("Spacing Tokens"));
+                const afterCreate: any[] = JSON.parse((editor.engine as any).get_variable_collections?.() || editor.engine.get_collections?.() || "[]");
+                col = afterCreate.find((c: any) => Number(c.id) === newColId);
+              }
+              if (!col) {
+                alert("Failed to create/find variable collection.");
+                return;
+              }
+
+              let modeId = Number(col.active_mode_id || col.modes?.[0]?.id || 0);
+              if (!modeId) {
+                modeId = Number(editor.engine.var_add_mode(BigInt(col.id), "Base"));
+                const afterMode: any[] = JSON.parse((editor.engine as any).get_variable_collections?.() || editor.engine.get_collections?.() || "[]");
+                col = afterMode.find((c: any) => Number(c.id) === Number(col.id)) || col;
+              }
+              if (!modeId) {
+                alert("Selected collection has no mode.");
+                return;
+              }
+
+              const gapName = `space.${Math.round(suggestedGap)}`;
+              const padName = `space.${Math.round(suggestedPad)}`;
+              let gapVar = (col.variables || []).find((v: any) => v.name === gapName && v.value_type === "Number");
+              let padVar = (col.variables || []).find((v: any) => v.name === padName && v.value_type === "Number");
+              if (!gapVar) {
+                const varId = Number(editor.engine.create_variable(BigInt(col.id), gapName, "Number"));
+                gapVar = { id: varId, name: gapName };
+              }
+              if (!padVar) {
+                const varId = Number(editor.engine.create_variable(BigInt(col.id), padName, "Number"));
+                padVar = { id: varId, name: padName };
+              }
+
+              if (gapVar?.id) editor.engine.set_variable_value(BigInt(col.id), BigInt(gapVar.id), BigInt(modeId), JSON.stringify(Math.round(suggestedGap)));
+              if (padVar?.id) editor.engine.set_variable_value(BigInt(col.id), BigInt(padVar.id), BigInt(modeId), JSON.stringify(Math.round(suggestedPad)));
+              if (gapVar?.id) editor.engine.bind_variable(BigInt(id), "layout.gap", BigInt(col.id), BigInt(gapVar.id));
+              if (padVar?.id) editor.engine.bind_variable(BigInt(id), "layout.padding", BigInt(col.id), BigInt(padVar.id));
+              editor.engine.apply_variables();
+              editor.requestRender();
+              refresh(ids);
+            });
+            tokenActions.appendChild(createTokenBtn);
+
+            const bindTokenBtn = mkBtn("Bind suggested", () => {
+              if (!gapToken && !padToken) {
+                alert("No nearby spacing tokens found (±4px).");
+                return;
+              }
+              editor.engine.push_undo();
+              if (gapToken) editor.engine.bind_variable(BigInt(id), "layout.gap", BigInt(gapToken.col.id), BigInt(gapToken.var.id));
+              if (padToken) {
+                editor.engine.bind_variable(BigInt(id), "layout.padding", BigInt(padToken.col.id), BigInt(padToken.var.id));
+              }
+              editor.engine.apply_variables();
+              editor.requestRender();
+              refresh(ids);
+            });
+            tokenActions.appendChild(bindTokenBtn);
+
+            tokenWrap.appendChild(tokenActions);
+            suggestWrap.appendChild(tokenWrap);
             layoutSection.appendChild(suggestWrap);
           }
         }

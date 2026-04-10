@@ -3132,6 +3132,40 @@ impl Scene {
                         node.visible = *val;
                     }
                 }
+                ("layout.gap", VariableValue::Number(val)) => {
+                    if let Some(node) = self.nodes.get_mut(&node_id) {
+                        node.layout.gap = val.max(0.0);
+                    }
+                }
+                ("layout.padding", VariableValue::Number(val)) => {
+                    if let Some(node) = self.nodes.get_mut(&node_id) {
+                        let p = val.max(0.0);
+                        node.layout.padding_top = p;
+                        node.layout.padding_right = p;
+                        node.layout.padding_bottom = p;
+                        node.layout.padding_left = p;
+                    }
+                }
+                ("layout.padding_top", VariableValue::Number(val)) => {
+                    if let Some(node) = self.nodes.get_mut(&node_id) {
+                        node.layout.padding_top = val.max(0.0);
+                    }
+                }
+                ("layout.padding_right", VariableValue::Number(val)) => {
+                    if let Some(node) = self.nodes.get_mut(&node_id) {
+                        node.layout.padding_right = val.max(0.0);
+                    }
+                }
+                ("layout.padding_bottom", VariableValue::Number(val)) => {
+                    if let Some(node) = self.nodes.get_mut(&node_id) {
+                        node.layout.padding_bottom = val.max(0.0);
+                    }
+                }
+                ("layout.padding_left", VariableValue::Number(val)) => {
+                    if let Some(node) = self.nodes.get_mut(&node_id) {
+                        node.layout.padding_left = val.max(0.0);
+                    }
+                }
                 _ => {}
             }
         }

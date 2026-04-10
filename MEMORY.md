@@ -1790,11 +1790,18 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Auto Layout Spacing Tokens — 반복 간격 패턴을 토큰으로 추출해 프레임별 추천/적용 + 변수 바인딩 연결 (임팩트 중상, 난이도 중상)
 - Component Variant Naming Lint — variant axis/value 네이밍 규칙 검사(중복/불일치/약어 혼용)와 일괄 정리 제안 (임팩트 중, 난이도 중)
 - Smart Selection Cycling (Deep Select Stack) — 겹친 레이어 클릭 시 Tab/Shift+Tab으로 hit stack 순환 선택 + HUD 표시 (임팩트 상, 난이도 중)
 - Prototype Trigger Regions (Hotspot shape editor) — 사각형 외 자유 폴리곤 hotspot 편집 + hover highlight + 접근성 label (임팩트 중상, 난이도 중상)
 - Constraints Presets + Batch Apply — Left/Right/Scale 등 반응형 제약 프리셋 저장/이름붙이기/다중 선택 일괄 적용 (임팩트 중상, 난이도 중)
+
+## 완료된 기능 (추가 — Auto Layout Spacing Tokens, 2026-04-10)
+- Properties panel Auto Layout `Gap suggestions` 카드에 spacing token 추천/생성/바인딩 흐름 추가
+- 현재 variable collections의 Number 변수 중 추천 gap/padding 값(±4px)과 근접한 토큰을 자동 매칭해 표시
+- `Bind gap/pad` 액션: `layout.gap`, `layout.padding`에 변수 바인딩 후 apply_variables로 즉시 반영
+- `Create tokens` 액션: 첫 번째 컬렉션에 `space/gap-{n}`, `space/pad-{n}` Number 변수 생성 + active mode 값 설정
+- Variable bindings 확장: `layout.gap`, `layout.padding`, `layout.padding_top/right/bottom/left` 프로퍼티를 바인딩 가능하도록 UI/엔진 매핑 추가
+- 구현: `packages/app/src/ui/properties-panel.ts`, `crates/engine/src/scene.rs`
 
 ## 완료된 기능 (추가 — Prototype Variables Panel Runtime Inspector v3, 2026-04-10)
 - Prototype Viewer 좌하단 `Prototype Variables` 패널을 runtime inspector 형태로 확장
