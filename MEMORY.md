@@ -1792,6 +1792,9 @@
 ## 다음 할 것
 - Prototype Trigger Regions (Hotspot shape editor) — 사각형 외 자유 폴리곤 hotspot 편집 + hover highlight + 접근성 label (임팩트 중상, 난이도 중상)
 - Constraints Presets + Batch Apply — Left/Right/Scale 등 반응형 제약 프리셋 저장/이름붙이기/다중 선택 일괄 적용 (임팩트 중상, 난이도 중)
+- Smart Animate Graph Editor (curve handles + per-property tracks) — Figma Smart Animate처럼 속성별 타임라인 트랙과 베지어 커브 핸들 편집 (임팩트 상, 난이도 상)
+- Variants Quick Swap HUD — 선택 인스턴스에서 Option/Alt+휠 또는 단축키로 variant axis 값을 HUD에서 빠르게 순환 변경 (임팩트 중상, 난이도 중)
+- Nested Component Override Inspector — 인스턴스 내부 중첩 override를 계층 트리로 시각화하고 diff/리셋/일괄 적용 (임팩트 상, 난이도 중상)
 
 ## 완료된 기능 (추가 — Smart Selection Cycling (Deep Select Stack), 2026-04-10)
 - 겹친 레이어 위에서 `Tab` / `Shift+Tab`으로 hit stack 순환 선택 추가
