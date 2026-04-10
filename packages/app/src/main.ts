@@ -42,6 +42,7 @@ import { initCollabUI, updateCollabUI } from "./ui/collab-ui";
 import { renderPermissionsPanel } from "./ui/permissions-panel";
 import { setupCanvasRecorder, toggleRecorderBar } from "./ui/canvas-recorder";
 import { setupContextualToolbar } from "./ui/contextual-toolbar";
+import { setupSelectionFilterBar } from "./ui/selection-filter-bar";
 import { setupTemplatePanel } from "./ui/template-panel";
 import { setupDependencyGraphPanel } from "./ui/dependency-graph-panel";
 import { setupArtboardPresetsPanel } from "./ui/artboard-presets";
@@ -173,6 +174,9 @@ async function main() {
 
   // Contextual toolbar (floating quick-edit bar above selection)
   setupContextualToolbar(editor);
+
+  // Selection filter bar (quick filter/expand on current selection)
+  setupSelectionFilterBar(editor);
 
   // Whiteboard mode — already setup via editor.whiteboardMode
   (window as any).__toggleWhiteboard = () => editor.whiteboardMode.toggle();

@@ -455,3 +455,55 @@ select.prop-input { appearance: none; background: #333 url("data:image/svg+xml,%
 .sv-diff-details { color: #888; font-size: 10px; }
 .sv-close-btn { background: none; border: none; color: #888; font-size: 16px; cursor: pointer; }
 .sv-close-btn:hover { color: #fff; }
+
+/* Selection Filter Bar */
+.selection-filter-bar {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 950;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(26, 26, 46, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  color: #e5e7eb;
+  font: 11px/1.2 Inter, system-ui, sans-serif;
+  backdrop-filter: blur(6px);
+}
+.selection-filter-bar .sfb-title { font-weight: 700; color: #c7d2fe; margin-right: 4px; }
+.selection-filter-bar label { display: inline-flex; align-items: center; gap: 5px; color: #a1a1aa; }
+.selection-filter-bar select,
+.selection-filter-bar input[type="text"] {
+  height: 24px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(15, 23, 42, 0.85);
+  color: #e5e7eb;
+  border-radius: 6px;
+  padding: 0 8px;
+  font-size: 11px;
+  min-width: 70px;
+}
+.selection-filter-bar .sfb-check { color: #cbd5e1; gap: 4px; }
+.selection-filter-bar button {
+  height: 24px;
+  border: none;
+  border-radius: 6px;
+  padding: 0 8px;
+  background: rgba(99, 102, 241, 0.9);
+  color: #fff;
+  font-size: 11px;
+  cursor: pointer;
+}
+.selection-filter-bar .sfb-btn-reset { background: rgba(100, 116, 139, 0.75); }
+.selection-filter-bar button:hover { filter: brightness(1.08); }
+.selection-filter-bar .sfb-count {
+  min-width: 44px;
+  text-align: right;
+  color: #93c5fd;
+  font-weight: 600;
+}

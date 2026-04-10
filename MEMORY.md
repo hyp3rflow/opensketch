@@ -1790,9 +1790,21 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Smart Selection Filter Bar — 선택 상태에서 type/name/visibility/lock/style-linked 기준 즉시 필터·확장 선택 (임팩트 중상, 난이도 중)
 - Frame States (Interactive Variants-lite) — 동일 프레임 내 State 집합(기본/hover/pressed/disabled) 저장 및 프로토타입 트리거로 상태 전환 (임팩트 상, 난이도 중상)
 - Design Token Usage Map — 토큰별 사용 노드 하이라이트, 미사용/중복 토큰 탐지, 일괄 교체 액션 (임팩트 중상, 난이도 중)
+- Auto Layout Wrap Rows/Columns Inspector — wrap 컨테이너의 row/column별 gap·align 미세 조정 + 줄바꿈 분포 시각화 (임팩트 중상, 난이도 중)
+- Constraints Preview While Resize — 부모 프레임 리사이즈 드래그 중 constraint 결과를 ghost overlay로 실시간 미리보기 (임팩트 중상, 난이도 중)
+- Prototype Transition Presets Library — transition/easing/duration 프리셋 저장·적용 및 flow별 기본값 지정 (임팩트 중, 난이도 중)
+- Variables Bulk Rename & Namespace Tools — 변수 prefix 일괄 변경, namespace 이동, 충돌 감지/자동 수정 (임팩트 중상, 난이도 중)
+
+## 완료된 기능 (추가 — Smart Selection Filter Bar, 2026-04-11)
+- Selection 존재 시 상단 플로팅 `Selection Filter` 바 표시
+- 조건: type / name contains / visibility / lock / style-linked-only
+- `Filter selection`: 현재 선택 집합을 조건에 맞게 즉시 축소
+- `Expand in page`: 동일 조건으로 active page 전체를 탐색해 확장 선택
+- `Reset` + 실시간 매칭 카운트(`matched/selected`) 표시
+- 구현: `packages/app/src/ui/selection-filter-bar.ts`, `packages/app/src/main.ts`, `packages/app/src/ui/styles.css`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Asset Export Presets Manager, 2026-04-11)
 - Export Presets를 문서별 세트로 분리 저장 (scene hash 기반 doc key)
