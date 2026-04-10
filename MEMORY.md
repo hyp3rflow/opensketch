@@ -1794,6 +1794,14 @@
 - Prototype Focus Order & Keyboard Navigation — Tab 순서 지정 + Enter/Space trigger + focus ring로 접근성/키보드 테스트 강화 (임팩트 중상, 난이도 중)
 - Asset Export Presets Manager — 팀 공용 export preset(Web/iOS/Android) 저장/불러오기/문서별 preset sync (임팩트 중상, 난이도 중)
 
+## 완료된 기능 (추가 — Auto Layout Gap/Padding Handles v4 polish, 2026-04-11)
+- 캔버스 Auto Layout padding 핸들 inline 편집 UX 강화
+- Enter: hovered padding side 값 직접 입력(prompt)
+- Arrow keys: hovered side ±1px nudge, Shift+Arrow: ±10px
+- 패딩 핸들 hover 시 on-canvas shortcut hint 배지 표시
+- 구현: `packages/app/src/editor.ts`, `packages/app/src/tools/spacing-handles.ts`
+- specs 반영: `specs/FEATURES.md`
+
 ## 완료된 기능 (추가 — Nested Component Override Inspector v1, 2026-04-10)
 - Instance Overrides 카드에서 override row를 노드명 기준 정렬해 중첩 구조 읽기 흐름 개선
 - `node_name` 경로를 파싱해 leaf 이름 + depth badge(`L1`, `L2`...) + 들여쓰기 트리 형태로 시각화

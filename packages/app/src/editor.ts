@@ -635,6 +635,22 @@ export class Editor {
           return;
         }
       }
+
+      // Auto-layout padding handles shortcuts (when hovering a padding handle)
+      if (this.currentTool === "select" && this._paddingHovered && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          this.promptPaddingValue(this._paddingHovered);
+          return;
+        }
+        if (e.key === "ArrowUp" || e.key === "ArrowRight" || e.key === "ArrowDown" || e.key === "ArrowLeft") {
+          e.preventDefault();
+          const step = e.shiftKey ? 10 : 1;
+          const inc = (e.key === "ArrowUp" || e.key === "ArrowRight") ? step : -step;
+          this.nudgePaddingValue(this._paddingHovered, inc);
+          return;
+        }
+      }
       if (e.code === "Space") {
         e.preventDefault();
         this.spaceHeld = true;
@@ -8958,6 +8974,36 @@ export class Editor {
     this._paddingHandles = findPaddingHandles(this.engine);
     this.needsRender = true;
     this.fireSelectionNow(Array.from(this.engine.get_selection()).map(Number));
+  }
+
+  private setPaddingValue(handle: PaddingHandle, value: number, announce = true) {
+    const newVal = Math.max(0, Math.round(value));
+    const pid = BigInt(handle.parentId);
+    const side = handle.side;
+    if (side === "top") this.engine.set_layout_padding_top(pid, newVal);
+    else if (side === "bottom") this.engine.set_layout_padding_bottom(pid, newVal);
+    else if (side === "left") this.engine.set_layout_padding_left(pid, newVal);
+    else this.engine.set_layout_padding_right(pid, newVal);
+    this.engine.compute_layout();
+    this._paddingHandles = findPaddingHandles(this.engine);
+    this._spacingHandles = findSpacingHandles(this.engine);
+    this.needsRender = true;
+    this.fireSelectionNow(Array.from(this.engine.get_selection()).map(Number));
+    if (announce) this.showToast(`Auto-layout padding ${side}: ${newVal}px`, 1400);
+  }
+
+  private promptPaddingValue(handle: PaddingHandle) {
+    const val = window.prompt(`Set padding (${handle.side}) in px`, String(Math.round(handle.value)));
+    if (val == null) return;
+    const parsed = Number(val.trim());
+    if (!Number.isFinite(parsed)) return;
+    this.engine.push_undo();
+    this.setPaddingValue(handle, parsed, true);
+  }
+
+  private nudgePaddingValue(handle: PaddingHandle, delta: number) {
+    this.engine.push_undo();
+    this.setPaddingValue(handle, handle.value + delta, true);
   }
 
   private applyEqualSpacingForSelection(handle: SpacingHandle) {
