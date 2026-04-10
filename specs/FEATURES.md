@@ -1623,7 +1623,7 @@ Frame overflow control and content scrolling.
 - [x] **WASM**: `distribute_selection_with_spacing(axis, spacing)`, `get_selection_spacing(axis)`
 
 ## 94. Dev Mode Enhancement
-- [x] **Auto-measurement**: In Dev mode, hover over any node → red measurement lines appear automatically (no Alt needed)
+- [x] **Alt-based measurement overlay**: In Dev mode, red distance/size measurement lines are shown with Alt+hover (or via Handoff spacing overlay toggle) to reduce always-on visual noise
 - [x] **CSS tooltip**: After 400ms hover delay, shows CSS snippet tooltip with syntax highlighting
 - [x] **Quick export**: PNG/SVG export buttons in tooltip (one-click download at 2x)
 - [x] **Copy CSS**: Click code or "Copy CSS" button → clipboard copy with toast notification

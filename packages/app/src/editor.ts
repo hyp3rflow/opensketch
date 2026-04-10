@@ -2374,33 +2374,37 @@ export class Editor {
       return;
     }
 
-    // Measure tool: Alt + hover with selection, or auto in Dev Mode
-    if (this._altHeld || e.altKey || this._devMode) {
+    // Measure overlay: Alt + hover with selection.
+    // In Dev Mode, keep measure explicit on Alt unless Handoff spacing overlay is toggled on.
+    const handoffSpacingOverlay = Boolean((this as any)._handoffSpacingOverlay);
+    const shouldMeasure = this._altHeld || e.altKey || (this._devMode && handoffSpacingOverlay);
+    if (shouldMeasure) {
       this.updateMeasure(e.offsetX, e.offsetY);
-      // Dev Mode: show CSS tooltip on hover with delay
-      if (this._devMode) {
-        const hitBigInt = this.engine.hit_test(e.offsetX, e.offsetY);
-        const hitId = hitBigInt != null ? Number(hitBigInt) : 0;
-        if (hitId && hitId !== this._devHoverNodeId) {
-          this._devHoverNodeId = hitId;
-          if (this._devHoverTimer) clearTimeout(this._devHoverTimer);
-          this._devModeOverlay.hide();
-          this._devHoverTimer = setTimeout(() => {
-            if (this._devHoverNodeId === hitId) {
-              this._devModeOverlay.show(hitId, e.offsetX, e.offsetY);
-            }
-          }, 400);
-        } else if (!hitId) {
-          this._devHoverNodeId = null;
-          if (this._devHoverTimer) { clearTimeout(this._devHoverTimer); this._devHoverTimer = null; }
-          this._devModeOverlay.hide();
-        }
-      }
     } else if (this._measureLines.length > 0 || this._measureDimensionLabels.length > 0) {
       this._measureLines = [];
       this._measureTargetBounds = null;
       this._measureDimensionLabels = [];
       this.needsRender = true;
+    }
+
+    // Dev Mode: show CSS tooltip on hover with delay (independent from measure overlay).
+    if (this._devMode) {
+      const hitBigInt = this.engine.hit_test(e.offsetX, e.offsetY);
+      const hitId = hitBigInt != null ? Number(hitBigInt) : 0;
+      if (hitId && hitId !== this._devHoverNodeId) {
+        this._devHoverNodeId = hitId;
+        if (this._devHoverTimer) clearTimeout(this._devHoverTimer);
+        this._devModeOverlay.hide();
+        this._devHoverTimer = setTimeout(() => {
+          if (this._devHoverNodeId === hitId) {
+            this._devModeOverlay.show(hitId, e.offsetX, e.offsetY);
+          }
+        }, 400);
+      } else if (!hitId) {
+        this._devHoverNodeId = null;
+        if (this._devHoverTimer) { clearTimeout(this._devHoverTimer); this._devHoverTimer = null; }
+        this._devModeOverlay.hide();
+      }
     }
 
     if (!this.drag) {
