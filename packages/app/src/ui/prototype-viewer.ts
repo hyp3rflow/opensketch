@@ -1876,7 +1876,8 @@ export function createPrototypeViewer(editor: Editor): {
 
   type HotspotShape =
     | { type: "rect"; x: number; y: number; width: number; height: number }
-    | { type: "polygon"; points: Array<[number, number]> };
+    | { type: "polygon"; points: Array<[number, number]> }
+    | { type: "freeform"; points: Array<[number, number]> };
 
   function parseHotspotShape(interaction: any): HotspotShape | null {
     const raw = String(interaction?.hotspot_shape_json || "").trim();
@@ -1892,7 +1893,7 @@ export function createPrototypeViewer(editor: Editor): {
           return { type: "rect", x, y, width, height };
         }
       }
-      if (parsed?.type === "polygon" && Array.isArray(parsed.points)) {
+      if ((parsed?.type === "polygon" || parsed?.type === "freeform") && Array.isArray(parsed.points)) {
         const pts: Array<[number, number]> = [];
         for (const p of parsed.points) {
           if (!Array.isArray(p) || p.length < 2) continue;
@@ -1901,7 +1902,7 @@ export function createPrototypeViewer(editor: Editor): {
           if (!Number.isFinite(px) || !Number.isFinite(py)) continue;
           pts.push([px, py]);
         }
-        if (pts.length >= 3) return { type: "polygon", points: pts };
+        if (pts.length >= 3) return { type: parsed.type === "freeform" ? "freeform" : "polygon", points: pts };
       }
     } catch {}
     return null;
@@ -1937,6 +1938,18 @@ export function createPrototypeViewer(editor: Editor): {
     }
     const poly = shape.points.map(([px, py]) => [nx + px * nw, ny + py * nh] as [number, number]);
     return pointInPolygon(sceneX, sceneY, poly);
+  }
+
+  function interactionSignature(interaction: any): string {
+    return [
+      String(interaction?.trigger || ""),
+      String(interaction?.action || ""),
+      String(interaction?.target_node_id || 0),
+      String(interaction?.target_page_id || 0),
+      String(interaction?.transition || ""),
+      String(interaction?.hotspot_shape_json || ""),
+      String(interaction?.accessibility_label || ""),
+    ].join("|");
   }
 
   function drawInteractionHotspotPath(ctx: CanvasRenderingContext2D, node: any, interaction: any, frameBounds: { x: number; y: number }, totalScale: number) {
@@ -1998,9 +2011,9 @@ export function createPrototypeViewer(editor: Editor): {
                          hasGesture ? "rgba(16, 185, 129, 0.6)" :
                          hasHover ? "rgba(245, 158, 11, 0.5)" :
                          "rgba(59, 130, 246, 0.5)";
-      const isHot = hoveredHotspotNodeId !== null && Number(nwi.id) === hoveredHotspotNodeId;
+      const isHotNode = hoveredHotspotNodeId !== null && Number(nwi.id) === hoveredHotspotNodeId;
       const isFocused = focusedHotspotNodeId !== null && Number(nwi.id) === focusedHotspotNodeId;
-      ctx.lineWidth = isFocused ? 4 : (isHot ? 3 : 2);
+      ctx.lineWidth = isFocused ? 4 : (isHotNode ? 3 : 2);
       ctx.setLineDash(isFocused ? [8, 3] : [4, 4]);
       if (isFocused) {
         ctx.strokeStyle = "rgba(250, 204, 21, 0.9)";
@@ -2010,13 +2023,15 @@ export function createPrototypeViewer(editor: Editor): {
         ctx.strokeRect(x, y, w, h);
       } else {
         for (const interaction of interactionList) {
+          const isHotInteraction = isHotNode && hoveredHotspotSig && interactionSignature(interaction) === hoveredHotspotSig;
+          ctx.lineWidth = isFocused ? 4 : (isHotInteraction ? 4 : (isHotNode ? 3 : 2));
           ctx.beginPath();
           drawInteractionHotspotPath(ctx, node, interaction, frameBounds, totalScale);
           ctx.stroke();
         }
       }
 
-      if (isHot && hoveredHotspotLabel) {
+      if (isHotNode && hoveredHotspotLabel) {
         ctx.save();
         ctx.setLineDash([]);
         ctx.font = `12px sans-serif`;
@@ -2242,6 +2257,7 @@ export function createPrototypeViewer(editor: Editor): {
   let lastHoveredNodeId: number | null = null;
   let hoveredHotspotNodeId: number | null = null;
   let hoveredHotspotLabel = "";
+  let hoveredHotspotSig = "";
   let focusedHotspotNodeId: number | null = null;
   let focusedHotspotInter: any | null = null;
   let mousePressNodeId: number | null = null;
@@ -2292,6 +2308,7 @@ export function createPrototypeViewer(editor: Editor): {
     focusedHotspotInter = next.interaction;
     hoveredHotspotNodeId = next.nodeId;
     hoveredHotspotLabel = next.interaction?.accessibility_label || next.node?.name || "";
+    hoveredHotspotSig = interactionSignature(next.interaction);
     renderCurrentView();
   }
 
@@ -2303,9 +2320,11 @@ export function createPrototypeViewer(editor: Editor): {
     const hoverAny = findInteractionAtPoint(e.clientX, e.clientY, "OnHover") || findInteractionAtPoint(e.clientX, e.clientY, "OnClick");
     const nextHotId = hoverAny ? Number(hoverAny.node?.id || 0) : 0;
     const nextHotLabel = hoverAny?.interaction?.accessibility_label || hoverAny?.node?.name || "";
-    if ((nextHotId || null) !== hoveredHotspotNodeId || nextHotLabel !== hoveredHotspotLabel) {
+    const nextHotSig = hoverAny ? interactionSignature(hoverAny.interaction) : "";
+    if ((nextHotId || null) !== hoveredHotspotNodeId || nextHotLabel !== hoveredHotspotLabel || nextHotSig !== hoveredHotspotSig) {
       hoveredHotspotNodeId = nextHotId > 0 ? nextHotId : null;
       hoveredHotspotLabel = nextHotLabel;
+      hoveredHotspotSig = nextHotSig;
       renderCurrentView();
     }
 

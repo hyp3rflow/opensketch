@@ -384,7 +384,8 @@
   - Prototype viewer interaction hit-test는 bounding box가 아닌 `engine.hit_test + parent chain` 탐색으로 동작하여 Path/Polygon 기반 hotspot에서도 정확히 매칭
   - Interaction 모델에 `accessibility_label` 필드 추가 + Properties panel Interactions의 `A11y` 입력으로 설정 가능
   - Prototype Trigger Regions v2 (Hotspot Shape Editor): Interaction 모델에 `hotspot_shape_json`(rect/polygon, normalized 0~1) 추가, WASM `set_interaction_hotspot_shape` 제공, Properties panel Interactions에 Hotspot shape 편집 UI(Node Bounds/Rect/Polygon + JSON payload) 추가
-  - Prototype viewer hit-test가 interaction별 hotspot shape(rect/polygon)를 우선 사용하고, hover hint도 shape path를 그대로 하이라이트
+  - Prototype Trigger Regions v3 (Hotspot Shape Editor): Properties panel에 미니 캔버스 기반 hotspot editor 추가 (Rect drag, Polygon point click, Freeform drag draw + undo/reset), JSON 수동 편집과 양방향 동기화
+  - Prototype viewer hit-test가 interaction별 hotspot shape(rect/polygon/freeform)를 우선 사용하고, hover hint도 실제 shape path를 그대로 하이라이트
   - Prototype viewer hover 시 활성 hotspot 강조선 + accessibility label 툴팁 표시
   - Prototype Focus Order & Keyboard Navigation v1: Tab/Shift+Tab으로 focusable hotspot(OnClick/OnPress) 순환, Enter/Space로 interaction 실행, focus ring(노란 dashed) 표시, 기본 정렬은 top→bottom / left→right
   - Interaction hotspot hints (color-coded: blue=click, green=gesture, orange=hover)

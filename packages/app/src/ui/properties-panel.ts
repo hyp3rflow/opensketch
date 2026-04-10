@@ -6245,67 +6245,241 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         const hsMode = document.createElement("select");
         hsMode.className = "prop-input";
         hsMode.style.flex = "1";
-        hsMode.innerHTML = `<option value="auto">Node Bounds</option><option value="rect">Rect (normalized)</option><option value="polygon">Polygon (normalized)</option>`;
+        hsMode.innerHTML = `<option value="auto">Node Bounds</option><option value="rect">Rect</option><option value="polygon">Polygon</option><option value="freeform">Freeform</option>`;
         hsModeRow.appendChild(hsMode);
+
+        const hsClearBtn = document.createElement("button");
+        hsClearBtn.className = "prop-btn";
+        hsClearBtn.textContent = "Reset";
+        hsModeRow.appendChild(hsClearBtn);
         hotspotWrap.appendChild(hsModeRow);
+
+        const hsCanvas = document.createElement("canvas");
+        hsCanvas.width = 180;
+        hsCanvas.height = 120;
+        hsCanvas.style.cssText = "width:100%;height:120px;border:1px solid #2f2f2f;border-radius:6px;background:#111;cursor:crosshair;";
+        hotspotWrap.appendChild(hsCanvas);
+
+        const hsTools = document.createElement("div");
+        hsTools.style.cssText = "display:flex;gap:4px;margin-top:4px;";
+        const hsClosePolyBtn = document.createElement("button");
+        hsClosePolyBtn.className = "prop-btn";
+        hsClosePolyBtn.textContent = "Close polygon";
+        const hsUndoBtn = document.createElement("button");
+        hsUndoBtn.className = "prop-btn";
+        hsUndoBtn.textContent = "Undo point";
+        hsTools.appendChild(hsClosePolyBtn);
+        hsTools.appendChild(hsUndoBtn);
+        hotspotWrap.appendChild(hsTools);
 
         const hsInput = document.createElement("textarea");
         hsInput.className = "prop-input";
         hsInput.rows = 3;
         hsInput.style.width = "100%";
-        hsInput.placeholder = "Rect: {\"x\":0.1,\"y\":0.1,\"width\":0.8,\"height\":0.8}\nPolygon: [[0,0],[1,0],[0.6,1]]";
+        hsInput.style.marginTop = "4px";
+        hsInput.placeholder = "Hotspot JSON (normalized 0~1)";
         hotspotWrap.appendChild(hsInput);
 
         const hsHint = document.createElement("div");
         hsHint.style.cssText = "font-size:10px;color:#666;margin-top:4px;";
-        hsHint.textContent = "0~1 normalized coordinates. Hover/click hit-test uses this region in prototype viewer.";
+        hsHint.textContent = "Click to add polygon points. Freeform draws while dragging. Prototype viewer uses this shape for hover/click hit-test + highlight.";
         hotspotWrap.appendChild(hsHint);
+
+        const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
+        const readNormPoint = (evt: MouseEvent) => {
+          const r = hsCanvas.getBoundingClientRect();
+          return {
+            x: clamp01((evt.clientX - r.left) / Math.max(1, r.width)),
+            y: clamp01((evt.clientY - r.top) / Math.max(1, r.height)),
+          };
+        };
 
         let existingHotspot: any = null;
         try { existingHotspot = inter.hotspot_shape_json ? JSON.parse(inter.hotspot_shape_json) : null; } catch {}
+        let hsRect = { x: 0.1, y: 0.1, width: 0.8, height: 0.8 };
+        let hsPoints: Array<[number, number]> = [];
         if (existingHotspot?.type === "rect") {
           hsMode.value = "rect";
-          hsInput.value = JSON.stringify({ x: existingHotspot.x ?? 0, y: existingHotspot.y ?? 0, width: existingHotspot.width ?? 1, height: existingHotspot.height ?? 1 });
-        } else if (existingHotspot?.type === "polygon") {
-          hsMode.value = "polygon";
-          hsInput.value = JSON.stringify(existingHotspot.points ?? []);
+          hsRect = {
+            x: clamp01(Number(existingHotspot.x ?? 0.1)),
+            y: clamp01(Number(existingHotspot.y ?? 0.1)),
+            width: clamp01(Number(existingHotspot.width ?? 0.8)),
+            height: clamp01(Number(existingHotspot.height ?? 0.8)),
+          };
+        } else if (existingHotspot?.type === "polygon" || existingHotspot?.type === "freeform") {
+          hsMode.value = existingHotspot.type;
+          hsPoints = Array.isArray(existingHotspot.points)
+            ? existingHotspot.points.map((p: any) => [clamp01(Number(p?.[0] ?? 0)), clamp01(Number(p?.[1] ?? 0))] as [number, number])
+            : [];
         } else {
           hsMode.value = "auto";
-          hsInput.value = "";
         }
-        hsInput.style.display = hsMode.value === "auto" ? "none" : "block";
+
+        const updateHsInput = () => {
+          if (hsMode.value === "auto") hsInput.value = "";
+          else if (hsMode.value === "rect") hsInput.value = JSON.stringify({ type: "rect", ...hsRect }, null, 0);
+          else hsInput.value = JSON.stringify({ type: hsMode.value, points: hsPoints }, null, 0);
+        };
+
+        const drawHotspotPreview = () => {
+          const ctx = hsCanvas.getContext("2d");
+          if (!ctx) return;
+          const w = hsCanvas.width;
+          const h = hsCanvas.height;
+          ctx.clearRect(0, 0, w, h);
+          ctx.fillStyle = "#0f172a";
+          ctx.fillRect(0, 0, w, h);
+          ctx.strokeStyle = "rgba(148,163,184,0.25)";
+          ctx.lineWidth = 1;
+          for (let gx = 0; gx <= 6; gx++) {
+            const x = (w * gx) / 6;
+            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+          }
+          for (let gy = 0; gy <= 4; gy++) {
+            const y = (h * gy) / 4;
+            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+          }
+
+          if (hsMode.value === "auto") return;
+          ctx.strokeStyle = "#60a5fa";
+          ctx.fillStyle = "rgba(96,165,250,0.2)";
+          ctx.lineWidth = 2;
+
+          if (hsMode.value === "rect") {
+            const rx = hsRect.x * w;
+            const ry = hsRect.y * h;
+            const rw = hsRect.width * w;
+            const rh = hsRect.height * h;
+            ctx.fillRect(rx, ry, rw, rh);
+            ctx.strokeRect(rx, ry, rw, rh);
+          } else if (hsPoints.length > 0) {
+            ctx.beginPath();
+            ctx.moveTo(hsPoints[0][0] * w, hsPoints[0][1] * h);
+            for (let i = 1; i < hsPoints.length; i++) ctx.lineTo(hsPoints[i][0] * w, hsPoints[i][1] * h);
+            if (hsPoints.length >= 3) ctx.closePath();
+            if (hsPoints.length >= 3) ctx.fill();
+            ctx.stroke();
+            for (const [px, py] of hsPoints) {
+              ctx.beginPath();
+              ctx.arc(px * w, py * h, 3, 0, Math.PI * 2);
+              ctx.fillStyle = "#93c5fd";
+              ctx.fill();
+            }
+          }
+        };
 
         const applyHotspotShape = () => {
           ensureUndo();
           let payload = "";
-          if (hsMode.value !== "auto") {
-            try {
-              const parsed = JSON.parse(hsInput.value || (hsMode.value === "rect" ? "{}" : "[]"));
-              if (hsMode.value === "rect") {
-                payload = JSON.stringify({ type: "rect", x: Number(parsed.x || 0), y: Number(parsed.y || 0), width: Number(parsed.width || 0), height: Number(parsed.height || 0) });
-              } else {
-                const points = Array.isArray(parsed) ? parsed : [];
-                payload = JSON.stringify({ type: "polygon", points });
-              }
-            } catch {
-              alert("Invalid hotspot JSON. Please check the shape payload.");
-              return;
-            }
+          if (hsMode.value === "rect") {
+            payload = JSON.stringify({ type: "rect", ...hsRect });
+          } else if (hsMode.value === "polygon" || hsMode.value === "freeform") {
+            payload = hsPoints.length >= 3 ? JSON.stringify({ type: hsMode.value, points: hsPoints }) : "";
           }
           if ((editor.engine as any).set_interaction_hotspot_shape) {
             (editor.engine as any).set_interaction_hotspot_shape(id, idx, payload);
           } else {
             rebuildInteraction({ hotspot_shape_json: payload });
           }
+          updateHsInput();
+          drawHotspotPreview();
           editor.requestRender();
           refresh(ids);
         };
 
-        hsMode.addEventListener("change", () => {
-          hsInput.style.display = hsMode.value === "auto" ? "none" : "block";
+        let drawingFreeform = false;
+        hsCanvas.addEventListener("mousedown", (evt) => {
+          if (hsMode.value === "auto") return;
+          const p = readNormPoint(evt);
+          if (hsMode.value === "rect") {
+            hsRect.x = p.x;
+            hsRect.y = p.y;
+            hsRect.width = 0.001;
+            hsRect.height = 0.001;
+          } else if (hsMode.value === "polygon") {
+            hsPoints.push([p.x, p.y]);
+          } else {
+            hsPoints = [[p.x, p.y]];
+            drawingFreeform = true;
+          }
+          drawHotspotPreview();
+        });
+
+        hsCanvas.addEventListener("mousemove", (evt) => {
+          if (hsMode.value === "rect" && (evt.buttons & 1) === 1) {
+            const p = readNormPoint(evt);
+            hsRect.width = clamp01(p.x - hsRect.x);
+            hsRect.height = clamp01(p.y - hsRect.y);
+            drawHotspotPreview();
+          } else if (hsMode.value === "freeform" && drawingFreeform) {
+            const p = readNormPoint(evt);
+            const last = hsPoints[hsPoints.length - 1];
+            if (!last || Math.hypot(last[0] - p.x, last[1] - p.y) > 0.01) {
+              hsPoints.push([p.x, p.y]);
+              drawHotspotPreview();
+            }
+          }
+        });
+
+        hsCanvas.addEventListener("mouseup", () => {
+          if (hsMode.value === "rect") applyHotspotShape();
+          if (hsMode.value === "freeform" && drawingFreeform) {
+            drawingFreeform = false;
+            if (hsPoints.length >= 3) applyHotspotShape();
+          }
+        });
+
+        hsClosePolyBtn.addEventListener("click", () => {
+          if ((hsMode.value === "polygon" || hsMode.value === "freeform") && hsPoints.length >= 3) applyHotspotShape();
+        });
+        hsUndoBtn.addEventListener("click", () => {
+          if (hsMode.value === "polygon" || hsMode.value === "freeform") {
+            hsPoints.pop();
+            updateHsInput();
+            drawHotspotPreview();
+          }
+        });
+        hsClearBtn.addEventListener("click", () => {
+          hsRect = { x: 0.1, y: 0.1, width: 0.8, height: 0.8 };
+          hsPoints = [];
+          hsMode.value = "auto";
           applyHotspotShape();
         });
-        hsInput.addEventListener("change", applyHotspotShape);
+
+        hsMode.addEventListener("change", () => {
+          updateHsInput();
+          drawHotspotPreview();
+          applyHotspotShape();
+        });
+        hsInput.addEventListener("change", () => {
+          if (hsMode.value === "auto") return;
+          try {
+            const parsed = JSON.parse(hsInput.value || "{}");
+            if (hsMode.value === "rect") {
+              hsRect = {
+                x: clamp01(Number(parsed.x ?? hsRect.x)),
+                y: clamp01(Number(parsed.y ?? hsRect.y)),
+                width: clamp01(Number(parsed.width ?? hsRect.width)),
+                height: clamp01(Number(parsed.height ?? hsRect.height)),
+              };
+            } else {
+              const src = Array.isArray(parsed.points) ? parsed.points : Array.isArray(parsed) ? parsed : [];
+              hsPoints = src.map((p: any) => [clamp01(Number(p?.[0] ?? 0)), clamp01(Number(p?.[1] ?? 0))] as [number, number]);
+            }
+            applyHotspotShape();
+          } catch {
+            alert("Invalid hotspot JSON. Please check the shape payload.");
+          }
+        });
+
+        updateHsInput();
+        drawHotspotPreview();
+        hsInput.style.display = hsMode.value === "auto" ? "none" : "block";
+        hsTools.style.display = hsMode.value === "polygon" || hsMode.value === "freeform" ? "flex" : "none";
+        hsMode.addEventListener("change", () => {
+          hsInput.style.display = hsMode.value === "auto" ? "none" : "block";
+          hsTools.style.display = hsMode.value === "polygon" || hsMode.value === "freeform" ? "flex" : "none";
+        });
 
         interEl.appendChild(hotspotWrap);
 

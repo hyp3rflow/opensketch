@@ -1797,6 +1797,17 @@
 - Prototype Transition Presets Library — transition/easing/duration 프리셋 저장·적용 및 flow별 기본값 지정 (임팩트 중, 난이도 중)
 - Variables Bulk Rename & Namespace Tools — 변수 prefix 일괄 변경, namespace 이동, 충돌 감지/자동 수정 (임팩트 중상, 난이도 중)
 
+## 완료된 기능 (추가 — Prototype Trigger Regions (Hotspot Shape Editor) v3, 2026-04-11)
+- Properties panel Interactions의 Hotspot shape UI를 미니 캔버스 에디터로 확장
+- 모드: Node Bounds / Rect drag / Polygon point-click / Freeform drag draw
+- Polygon/Freeform 보조 액션: Close polygon, Undo point, Reset 제공
+- JSON payload(textarea)와 시각 편집 상태를 양방향 동기화 (normalized 0~1)
+- Prototype viewer hotspot 파서 확장: `freeform` type 지원(폴리곤 포인트 기반)
+- Hover highlight를 node 단위가 아니라 interaction shape 단위로 강조하도록 개선
+- 접근성 label(`A11y`) 워크플로우 유지 + hotspot 툴팁 노출 유지
+- 구현: `packages/app/src/ui/properties-panel.ts`, `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
+
 ## 완료된 기능 (추가 — Smart Selection Filter Bar, 2026-04-11)
 - Selection 존재 시 상단 플로팅 `Selection Filter` 바 표시
 - 조건: type / name contains / visibility / lock / style-linked-only
