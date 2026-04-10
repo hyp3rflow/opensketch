@@ -11158,6 +11158,7 @@ impl Engine {
             node.text_path_offset = 0.0;
             node.text_path_baseline_offset = 0.0;
             node.text_path_flip = false;
+            node.text_path_align = crate::node::TextPathAlign::Start;
         }
     }
 
@@ -11180,7 +11181,13 @@ impl Engine {
         }
     }
 
-    /// Get text-on-path info as JSON: { path_id, offset, baseline_offset, flip } or null.
+    pub fn set_text_path_align(&mut self, text_id: u64, align: &str) {
+        if let Some(node) = self.scene.get_node_mut(text_id) {
+            node.text_path_align = crate::node::TextPathAlign::from_str(align);
+        }
+    }
+
+    /// Get text-on-path info as JSON: { path_id, offset, baseline_offset, flip, align } or null.
     pub fn get_text_path_info(&self, text_id: u64) -> String {
         if let Some(node) = self.scene.get_node(text_id) {
             if let Some(pid) = node.text_path_id {
@@ -11189,6 +11196,7 @@ impl Engine {
                     "offset": node.text_path_offset,
                     "baseline_offset": node.text_path_baseline_offset,
                     "flip": node.text_path_flip,
+                    "align": node.text_path_align.to_str(),
                 }).to_string();
             }
         }
@@ -11223,7 +11231,7 @@ impl Engine {
         };
         let widths: Vec<f64> = serde_json::from_str(char_widths_json).unwrap_or_default();
         let baseline_offset = node.text_path_baseline_offset;
-        let samples = path_utils::text_positions_on_path(points, closed, &widths, offset, letter_spacing, flip);
+        let samples = path_utils::text_positions_on_path(points, closed, &widths, offset, letter_spacing, flip, &node.text_path_align);
         let result: Vec<serde_json::Value> = samples.iter().map(|s| {
             let nx = -s.angle.sin();
             let ny = s.angle.cos();

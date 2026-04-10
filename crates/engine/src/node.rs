@@ -87,6 +87,36 @@ impl Default for TextDecoration {
     fn default() -> Self { TextDecoration::None }
 }
 
+/// Text-on-path alignment
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub enum TextPathAlign {
+    Start,
+    Center,
+    End,
+}
+
+impl Default for TextPathAlign {
+    fn default() -> Self { TextPathAlign::Start }
+}
+
+impl TextPathAlign {
+    pub fn from_str(s: &str) -> Self {
+        match s {
+            "center" | "Center" => TextPathAlign::Center,
+            "end" | "End" | "right" | "Right" => TextPathAlign::End,
+            _ => TextPathAlign::Start,
+        }
+    }
+
+    pub fn to_str(&self) -> &'static str {
+        match self {
+            TextPathAlign::Start => "start",
+            TextPathAlign::Center => "center",
+            TextPathAlign::End => "end",
+        }
+    }
+}
+
 /// Text transform
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub enum TextTransform {
@@ -2334,6 +2364,9 @@ pub struct Node {
     /// Text-on-path direction flip
     #[serde(default)]
     pub text_path_flip: bool,
+    /// Text-on-path alignment on the curve
+    #[serde(default)]
+    pub text_path_align: TextPathAlign,
     /// 3D perspective transform
     #[serde(default)]
     pub perspective: Option<Perspective3D>,
@@ -2514,6 +2547,7 @@ impl Node {
             text_path_offset: 0.0,
             text_path_baseline_offset: 0.0,
             text_path_flip: false,
+            text_path_align: TextPathAlign::Start,
             perspective: None,
             corner_pin: None,
             code_mapping: None,

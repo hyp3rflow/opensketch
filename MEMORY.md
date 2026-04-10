@@ -1790,9 +1790,23 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Text on Path (Path-bound Typography) — Path 노드 위에 텍스트를 따라 배치, offset/reverse/align(start/center/end) 지원 (임팩트 상, 난이도 중상)
 - Prototype Focus Order & Keyboard Navigation — Tab 순서 지정 + Enter/Space trigger + focus ring로 접근성/키보드 테스트 강화 (임팩트 중상, 난이도 중)
 - Asset Export Presets Manager — 팀 공용 export preset(Web/iOS/Android) 저장/불러오기/문서별 preset sync (임팩트 중상, 난이도 중)
+- Smart Selection Filter Bar — 선택 상태에서 type/name/visibility/lock/style-linked 기준 즉시 필터·확장 선택 (임팩트 중상, 난이도 중)
+- Frame States (Interactive Variants-lite) — 동일 프레임 내 State 집합(기본/hover/pressed/disabled) 저장 및 프로토타입 트리거로 상태 전환 (임팩트 상, 난이도 중상)
+- Design Token Usage Map — 토큰별 사용 노드 하이라이트, 미사용/중복 토큰 탐지, 일괄 교체 액션 (임팩트 중상, 난이도 중)
+
+## 완료된 기능 (추가 — Text on Path align polish, 2026-04-11)
+- Text on Path에 align(start/center/end) 옵션 추가 (path 길이 대비 텍스트 폭 기준 배치)
+- reverse 옵션 라벨을 `Flip` → `Reverse`로 명확화
+- 엔진: `TextPathAlign` enum + `Node.text_path_align` 필드 (`serde(default)`로 기존 문서 호환)
+- WASM: `set_text_path_align(text_id, align)` API 추가, `get_text_path_info()`에 `align` 포함
+- 렌더링: Canvas text-on-path 샘플링에 align 오프셋 반영
+- SVG export: textPath에 align 대응 `text-anchor` 출력(start/middle/end)
+- UI: Properties panel Text Path 섹션에 Align 드롭다운 추가
+- 구현: `crates/engine/src/node.rs`, `crates/engine/src/path_utils.rs`, `crates/engine/src/render.rs`, `crates/engine/src/lib.rs`, `crates/engine/src/svg_export.rs`, `packages/app/src/ui/properties-panel.ts`
+- 빌드 확인: `wasm-pack build --target web`, `pnpm -C packages/app build`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Auto Layout Gap/Padding Handles v5 polish, 2026-04-11)
 - Padding handle 더블클릭으로 exact value prompt 즉시 열기 (spacing handle과 parity)

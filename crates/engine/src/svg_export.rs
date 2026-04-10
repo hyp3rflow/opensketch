@@ -265,6 +265,12 @@ fn render_node_svg(scene: &Scene, node: &Node, buf: &mut String) {
                         }
                         if node.opacity < 1.0 { attrs.push_str(&format!(r#" opacity="{}""#, node.opacity)); }
                         let offset_pct = (node.text_path_offset * 100.0).round();
+                        let text_anchor = match node.text_path_align {
+                            crate::node::TextPathAlign::Start => "start",
+                            crate::node::TextPathAlign::Center => "middle",
+                            crate::node::TextPathAlign::End => "end",
+                        };
+                        attrs.push_str(&format!(r#" text-anchor=\"{}\""#, text_anchor));
                         attrs.push_str(">\n");
                         attrs.push_str("<textPath");
                         attrs.push_str(&format!(" href=\"#{}\" startOffset=\"{}%\"", def_id, offset_pct));

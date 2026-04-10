@@ -1,5 +1,5 @@
 use crate::types::ColorSpace;
-use crate::node::PathPoint;
+use crate::node::{PathPoint, TextPathAlign};
 
 /// A point and tangent angle on a path at a given distance.
 #[derive(Clone, Debug)]
@@ -48,6 +48,7 @@ pub fn text_positions_on_path(
     start_offset: f64,
     letter_spacing: f64,
     flip: bool,
+    align: &TextPathAlign,
 ) -> Vec<PathSample> {
     let total = path_length(points, closed);
     if total <= 0.0 {
@@ -55,7 +56,19 @@ pub fn text_positions_on_path(
     }
 
     let spacing = letter_spacing;
-    let mut dist = start_offset.clamp(0.0, 1.0) * total;
+    let text_total = if char_widths.is_empty() {
+        0.0
+    } else {
+        char_widths.iter().sum::<f64>() + spacing * (char_widths.len().saturating_sub(1) as f64)
+    };
+
+    let align_shift = match align {
+        TextPathAlign::Start => 0.0,
+        TextPathAlign::Center => ((total - text_total) / 2.0).max(0.0),
+        TextPathAlign::End => (total - text_total).max(0.0),
+    };
+
+    let mut dist = start_offset.clamp(0.0, 1.0) * total + align_shift;
     let mut result = Vec::with_capacity(char_widths.len());
 
     for (i, &w) in char_widths.iter().enumerate() {

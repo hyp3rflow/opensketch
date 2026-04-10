@@ -8973,11 +8973,34 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           pathLsRow.appendChild(pathLsInput);
           textSection.appendChild(pathLsRow);
 
+          const alignRow = document.createElement("div");
+          alignRow.className = "prop-row";
+          const alignLabel = document.createElement("span");
+          alignLabel.className = "prop-label";
+          alignLabel.textContent = "Align";
+          alignRow.appendChild(alignLabel);
+          const alignSelect = document.createElement("select");
+          alignSelect.className = "prop-select";
+          ["start", "center", "end"].forEach((v) => {
+            const o = document.createElement("option");
+            o.value = v;
+            o.textContent = v[0].toUpperCase() + v.slice(1);
+            alignSelect.appendChild(o);
+          });
+          alignSelect.value = String(pathInfo.align || "start");
+          alignSelect.addEventListener("change", () => {
+            ensureUndo();
+            editor.engine.set_text_path_align(BigInt(id), alignSelect.value);
+            editor.requestRender();
+          });
+          alignRow.appendChild(alignSelect);
+          textSection.appendChild(alignRow);
+
           const flipRow = document.createElement("div");
           flipRow.className = "prop-row";
           const flipLabel = document.createElement("span");
           flipLabel.className = "prop-label";
-          flipLabel.textContent = "Flip";
+          flipLabel.textContent = "Reverse";
           flipRow.appendChild(flipLabel);
           const flipInput = document.createElement("input");
           flipInput.type = "checkbox";

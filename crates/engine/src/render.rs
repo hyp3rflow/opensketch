@@ -861,6 +861,7 @@ impl Renderer {
             node.text_path_offset,
             letter_spacing,
             node.text_path_flip,
+            &node.text_path_align,
         );
         let baseline_offset = node.text_path_baseline_offset;
 

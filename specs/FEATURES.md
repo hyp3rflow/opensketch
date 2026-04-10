@@ -1187,12 +1187,13 @@ Frame overflow control and content scrolling.
 - [x] Node.text_path_offset: f64 (0.0–1.0) — start offset along the path
 - [x] Node.text_path_baseline_offset: f64 — baseline shift (px)
 - [x] Node.text_path_flip: bool — reverse reading direction/orientation
+- [x] Node.text_path_align: TextPathAlign(Start/Center/End) — path 위 텍스트 정렬 기준
 - [x] path_utils.rs: path_length, point_at_length, text_positions_on_path, path_to_svg_d
-- [x] Canvas rendering: per-character positioning along bezier path with tangent rotation + baseline normal offset + flip
+- [x] Canvas rendering: per-character positioning along bezier path with tangent rotation + baseline normal offset + flip + align(start/center/end)
 - [x] Text letter-spacing is applied in text-on-path glyph advance
 - [x] SVG export: <defs><path/></defs> + <text><textPath href startOffset letter-spacing dy side>
-- [x] WASM: set_text_path, clear_text_path, set_text_path_offset, set_text_path_baseline_offset, set_text_path_flip, get_text_path_info, get_text_on_path_positions, get_path_svg_d
-- [x] Properties panel: Text Path section — attach/detach, offset slider, baseline input, path letter-spacing input, flip toggle, path name display
+- [x] WASM: set_text_path, clear_text_path, set_text_path_offset, set_text_path_baseline_offset, set_text_path_flip, set_text_path_align, get_text_path_info, get_text_on_path_positions, get_path_svg_d
+- [x] Properties panel: Text Path section — attach/detach, offset slider, baseline input, path letter-spacing input, align(start/center/end), reverse toggle, path name display
 - [x] 2026-04-06 UX polish: Attach to Path 버튼이 선택된 Path가 없을 때 씬 내 Path 후보 목록(빠른 번호/ID 입력) 제공
 - [x] Backward-compatible serde defaults
 - [x] 2026-04-06 polish: get_text_on_path_positions now includes baseline-offset-adjusted coordinates for downstream UI overlays/tools
