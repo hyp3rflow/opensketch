@@ -300,6 +300,7 @@ export class Editor {
   private _deepSelectAnchorX = 0;
   private _deepSelectAnchorY = 0;
   private _deepSelectHud: { text: string; until: number } | null = null;
+  private _variantQuickAxisByInstance = new Map<number, number>();
   private _smartPasteHoverFrameId: number | null = null;
 
   // Responsive auto-layout preview
@@ -506,6 +507,14 @@ export class Editor {
 
     this.canvas.addEventListener("wheel", (e) => {
       e.preventDefault();
+
+      // Alt+wheel: quick-swap selected instance variant value (HUD feedback)
+      if (e.altKey && !e.metaKey && !e.ctrlKey) {
+        if (this.quickSwapVariantByWheel(e.deltaY, e.shiftKey)) {
+          return;
+        }
+      }
+
       const isZoom = e.ctrlKey || e.metaKey;
 
       // Check if hovering over a scrollable frame
@@ -582,6 +591,9 @@ export class Editor {
       if (e.altKey && !e.metaKey && !e.ctrlKey && !e.shiftKey) {
         if (e.code === "BracketLeft") { e.preventDefault(); this.selectionBack(); return; }
         if (e.code === "BracketRight") { e.preventDefault(); this.selectionForward(); return; }
+        // Variant quick swap shortcuts (instance): Alt+, prev / Alt+. next
+        if (e.code === "Comma") { e.preventDefault(); this.quickSwapVariantStep(-1); return; }
+        if (e.code === "Period") { e.preventDefault(); this.quickSwapVariantStep(1); return; }
       }
       const _sm = getShortcutManager();
       // Shortcuts panel: Cmd+/ or ?
@@ -4905,6 +4917,68 @@ export class Editor {
     this.ctx.textBaseline = "middle";
     this.ctx.fillText(text, x + padX, y + h / 2);
     this.ctx.restore();
+  }
+
+  private quickSwapVariantByWheel(deltaY: number, shiftAxisOnly: boolean): boolean {
+    const step = deltaY > 0 ? 1 : -1;
+    return this.quickSwapVariantStep(step, shiftAxisOnly);
+  }
+
+  private quickSwapVariantStep(step: number, axisOnly: boolean = false): boolean {
+    try {
+      const sel = Array.from(this.engine.get_selection()).map(Number);
+      if (sel.length !== 1) return false;
+      const nodeId = sel[0];
+      if (!nodeId) return false;
+
+      const infoJson = this.engine.get_instance_component_info(BigInt(nodeId));
+      if (!infoJson) return false;
+      const info = JSON.parse(infoJson);
+      if (!info || !Array.isArray(info.properties)) return false;
+
+      const stringProps = info.properties.filter((p: any) => p?.type?.kind === "string" && Array.isArray(p?.type?.options) && p.type.options.length > 0);
+      if (stringProps.length === 0) return false;
+
+      const currentAxis = this._variantQuickAxisByInstance.get(nodeId) ?? 0;
+      let axisIndex = ((currentAxis % stringProps.length) + stringProps.length) % stringProps.length;
+
+      if (axisOnly) {
+        axisIndex = (axisIndex + (step >= 0 ? 1 : -1) + stringProps.length) % stringProps.length;
+        this._variantQuickAxisByInstance.set(nodeId, axisIndex);
+        const axisName = String(stringProps[axisIndex]?.name || "variant");
+        this._deepSelectHud = {
+          text: `Variant Axis ${axisIndex + 1}/${stringProps.length} · ${axisName}`,
+          until: performance.now() + 1200,
+        };
+        this.requestRender();
+        return true;
+      }
+
+      const prop = stringProps[axisIndex];
+      const options: string[] = prop.type.options;
+      if (options.length === 0) return false;
+      const current = String(prop.current ?? options[0]);
+      let idx = options.indexOf(current);
+      if (idx < 0) idx = 0;
+      const nextIdx = (idx + (step >= 0 ? 1 : -1) + options.length) % options.length;
+      const nextVal = options[nextIdx];
+
+      const newKey: Record<string, any> = { ...(info.current_variant_values || {}) };
+      newKey[prop.name] = { String: nextVal };
+
+      this.pushUndo();
+      this.engine.set_instance_variant(BigInt(nodeId), JSON.stringify(newKey));
+      this._variantQuickAxisByInstance.set(nodeId, axisIndex);
+      this._deepSelectHud = {
+        text: `Variant Quick Swap · ${prop.name}: ${nextVal} (${nextIdx + 1}/${options.length})`,
+        until: performance.now() + 1300,
+      };
+      this.requestRender();
+      this.fireSelectionNow([nodeId]);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   private isShapeNodeKind(kind: string): boolean {

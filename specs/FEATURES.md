@@ -1158,6 +1158,7 @@ Frame overflow control and content scrolling.
 - [x] Auto-layout conversion suggestion flow wraps selection in frame, sets flex direction by axis, seeds gap from average spacing
 - [x] Hovered selection handle shows inline shortcut hint (`Enter / E / A`)
 - [x] 2026-04-06 backlog verification: feature is production-wired (tool + editor integration)
+- [x] 2026-04-10 v2: padding handles now remain draggable even when padding value is 0 (minimum edge hit-strip), so users can add padding directly from canvas without first typing values in Properties
 
 ### Auto Layout Spacing Presets
 - [x] Spacing presets panel: XS(4) / S(8) / M(12) / Base(16) / L(24) / XL(32) / 2XL(48)
@@ -2570,3 +2571,10 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] `Create tokens` 액션으로 `space/gap-{n}`, `space/pad-{n}` Number 변수 자동 생성 및 active mode 값 설정
 - [x] Variable binding 대상 프로퍼티 확장: `layout.gap`, `layout.padding`, `layout.padding_top/right/bottom/left`
 - [x] Engine `apply_variables()`에 auto-layout spacing 속성 반영 로직 추가
+
+### Variants Quick Swap HUD (2026-04-10)
+- [x] 선택된 Instance에서 `Alt + Mouse Wheel`로 현재 variant axis 값을 순환 변경
+- [x] `Alt + ,` / `Alt + .` 단축키로 동일 quick-swap 동작 지원
+- [x] `Alt + Shift + Wheel`로 편집 대상 variant axis를 순환 선택 (값 변경 없이 HUD에 축 이름 표시)
+- [x] 캔버스 상단 HUD에 `axis / current value / index`를 표시해 현재 변경 상태를 즉시 확인
+- [x] 엔진 기존 API(`get_instance_component_info`, `set_instance_variant`) 재사용, undo 통합

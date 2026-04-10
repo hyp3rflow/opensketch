@@ -1790,11 +1790,18 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Variants Quick Swap HUD — 선택 인스턴스에서 Option/Alt+휠 또는 단축키로 variant axis 값을 HUD에서 빠르게 순환 변경 (임팩트 중상, 난이도 중)
 - Nested Component Override Inspector — 인스턴스 내부 중첩 override를 계층 트리로 시각화하고 diff/리셋/일괄 적용 (임팩트 상, 난이도 중상)
 - Text on Path (Path-bound Typography) — Path 노드 위에 텍스트를 따라 배치, offset/reverse/align(start/center/end) 지원 (임팩트 상, 난이도 중상)
 - Prototype Focus Order & Keyboard Navigation — Tab 순서 지정 + Enter/Space trigger + focus ring로 접근성/키보드 테스트 강화 (임팩트 중상, 난이도 중)
 - Asset Export Presets Manager — 팀 공용 export preset(Web/iOS/Android) 저장/불러오기/문서별 preset sync (임팩트 중상, 난이도 중)
+
+## 완료된 기능 (추가 — Variants Quick Swap HUD, 2026-04-10)
+- 선택된 Instance에서 `Alt + Mouse Wheel`로 variant string axis 값을 순환 변경
+- `Alt + ,` / `Alt + .` 단축키로 quick swap 수행
+- `Alt + Shift + Wheel`로 편집 대상 axis를 순환 선택 (값 변경 없이 HUD 표시)
+- 캔버스 상단 HUD에 `axis / value / index` 피드백 표시
+- 구현: `packages/app/src/editor.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Smart Animate Graph Editor v1, 2026-04-10)
 - `Open Timeline Editor v2`에 Smart Animate Graph 영역 추가

@@ -367,36 +367,43 @@ export function findPaddingHandles(engine: Engine): PaddingHandle[] {
 
     const fx = node.x, fy = node.y, fw = node.width, fh = node.height;
 
+    // Show edge handles even when padding=0 so users can drag to add padding inline.
+    // Keep a minimum hit strip in screen-space for usability.
+    const minHitScene = 8 / Math.max(zoom, 0.01);
+    const topH = Math.min(fh, Math.max(pt, minHitScene));
+    const bottomH = Math.min(fh, Math.max(pb, minHitScene));
+    const sideY = fy + pt;
+    const sideH = Math.max(0, fh - pt - pb);
+    const leftW = Math.min(fw, Math.max(pl, minHitScene));
+    const rightW = Math.min(fw, Math.max(pr, minHitScene));
+
     // Top padding
-    if (pt > 0) {
-      handles.push({
-        parentId: id, side: "top", value: pt,
-        sx: fx * zoom + panX, sy: fy * zoom + panY,
-        sw: fw * zoom, sh: pt * zoom,
-      });
-    }
+    handles.push({
+      parentId: id, side: "top", value: pt,
+      sx: fx * zoom + panX, sy: fy * zoom + panY,
+      sw: fw * zoom, sh: topH * zoom,
+    });
+
     // Bottom padding
-    if (pb > 0) {
-      handles.push({
-        parentId: id, side: "bottom", value: pb,
-        sx: fx * zoom + panX, sy: (fy + fh - pb) * zoom + panY,
-        sw: fw * zoom, sh: pb * zoom,
-      });
-    }
+    handles.push({
+      parentId: id, side: "bottom", value: pb,
+      sx: fx * zoom + panX, sy: (fy + fh - bottomH) * zoom + panY,
+      sw: fw * zoom, sh: bottomH * zoom,
+    });
+
     // Left padding
-    if (pl > 0) {
+    if (sideH > 0.0001) {
       handles.push({
         parentId: id, side: "left", value: pl,
-        sx: fx * zoom + panX, sy: (fy + pt) * zoom + panY,
-        sw: pl * zoom, sh: (fh - pt - pb) * zoom,
+        sx: fx * zoom + panX, sy: sideY * zoom + panY,
+        sw: leftW * zoom, sh: sideH * zoom,
       });
-    }
-    // Right padding
-    if (pr > 0) {
+
+      // Right padding
       handles.push({
         parentId: id, side: "right", value: pr,
-        sx: (fx + fw - pr) * zoom + panX, sy: (fy + pt) * zoom + panY,
-        sw: pr * zoom, sh: (fh - pt - pb) * zoom,
+        sx: (fx + fw - rightW) * zoom + panX, sy: sideY * zoom + panY,
+        sw: rightW * zoom, sh: sideH * zoom,
       });
     }
   } catch { /* ignore */ }
