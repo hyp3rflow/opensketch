@@ -1040,6 +1040,8 @@ export function createPrototypeViewer(editor: Editor): {
     snapPaginationState = null;
     currentFrameId = null;
     navigationStack = [];
+    focusedHotspotNodeId = null;
+    focusedHotspotInter = null;
   }
 
   function onKeyDown(e: KeyboardEvent) {
@@ -1050,6 +1052,20 @@ export function createPrototypeViewer(editor: Editor): {
     }
     if (e.key === "ArrowLeft" || e.key === "Backspace") {
       navigateBack();
+      if (recorderEnabled) recordEvent({ kind: "input", frameId: currentFrameId, inputType: "key", key: e.key });
+      return;
+    }
+
+    if (e.key === "Tab") {
+      e.preventDefault();
+      cycleFocusedHotspot(!!e.shiftKey);
+      if (recorderEnabled) recordEvent({ kind: "input", frameId: currentFrameId, inputType: "key", key: e.key });
+      return;
+    }
+
+    if ((e.key === "Enter" || e.key === " ") && focusedHotspotInter) {
+      e.preventDefault();
+      executeInteraction(focusedHotspotInter, focusedHotspotNodeId || undefined);
       if (recorderEnabled) recordEvent({ kind: "input", frameId: currentFrameId, inputType: "key", key: e.key });
       return;
     }
@@ -1858,6 +1874,104 @@ export function createPrototypeViewer(editor: Editor): {
     }
   }
 
+  type HotspotShape =
+    | { type: "rect"; x: number; y: number; width: number; height: number }
+    | { type: "polygon"; points: Array<[number, number]> };
+
+  function parseHotspotShape(interaction: any): HotspotShape | null {
+    const raw = String(interaction?.hotspot_shape_json || "").trim();
+    if (!raw) return null;
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed?.type === "rect") {
+        const x = Number(parsed.x);
+        const y = Number(parsed.y);
+        const width = Number(parsed.width);
+        const height = Number(parsed.height);
+        if ([x, y, width, height].every(Number.isFinite)) {
+          return { type: "rect", x, y, width, height };
+        }
+      }
+      if (parsed?.type === "polygon" && Array.isArray(parsed.points)) {
+        const pts: Array<[number, number]> = [];
+        for (const p of parsed.points) {
+          if (!Array.isArray(p) || p.length < 2) continue;
+          const px = Number(p[0]);
+          const py = Number(p[1]);
+          if (!Number.isFinite(px) || !Number.isFinite(py)) continue;
+          pts.push([px, py]);
+        }
+        if (pts.length >= 3) return { type: "polygon", points: pts };
+      }
+    } catch {}
+    return null;
+  }
+
+  function pointInPolygon(x: number, y: number, points: Array<[number, number]>): boolean {
+    let inside = false;
+    for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+      const [xi, yi] = points[i];
+      const [xj, yj] = points[j];
+      const intersect = ((yi > y) !== (yj > y)) &&
+        (x < ((xj - xi) * (y - yi)) / ((yj - yi) || 1e-9) + xi);
+      if (intersect) inside = !inside;
+    }
+    return inside;
+  }
+
+  function pointInHotspot(sceneX: number, sceneY: number, node: any, interaction: any): boolean {
+    const nx = Number(node?.x || 0);
+    const ny = Number(node?.y || 0);
+    const nw = Math.max(1e-9, Number(node?.width || 0));
+    const nh = Math.max(1e-9, Number(node?.height || 0));
+    const shape = parseHotspotShape(interaction);
+    if (!shape) {
+      return sceneX >= nx && sceneX <= nx + nw && sceneY >= ny && sceneY <= ny + nh;
+    }
+    if (shape.type === "rect") {
+      const rx = nx + shape.x * nw;
+      const ry = ny + shape.y * nh;
+      const rw = shape.width * nw;
+      const rh = shape.height * nh;
+      return sceneX >= rx && sceneX <= rx + rw && sceneY >= ry && sceneY <= ry + rh;
+    }
+    const poly = shape.points.map(([px, py]) => [nx + px * nw, ny + py * nh] as [number, number]);
+    return pointInPolygon(sceneX, sceneY, poly);
+  }
+
+  function drawInteractionHotspotPath(ctx: CanvasRenderingContext2D, node: any, interaction: any, frameBounds: { x: number; y: number }, totalScale: number) {
+    const nx = Number(node?.x || 0);
+    const ny = Number(node?.y || 0);
+    const nw = Number(node?.width || 0);
+    const nh = Number(node?.height || 0);
+    const shape = parseHotspotShape(interaction);
+    if (!shape) {
+      const x = (nx - frameBounds.x) * totalScale;
+      const y = (ny - frameBounds.y) * totalScale;
+      const w = nw * totalScale;
+      const h = nh * totalScale;
+      ctx.rect(x, y, w, h);
+      return;
+    }
+    if (shape.type === "rect") {
+      const x = (nx + shape.x * nw - frameBounds.x) * totalScale;
+      const y = (ny + shape.y * nh - frameBounds.y) * totalScale;
+      const w = shape.width * nw * totalScale;
+      const h = shape.height * nh * totalScale;
+      ctx.rect(x, y, w, h);
+      return;
+    }
+    const pts = shape.points;
+    if (pts.length < 3) return;
+    const [sx, sy] = pts[0];
+    ctx.moveTo((nx + sx * nw - frameBounds.x) * totalScale, (ny + sy * nh - frameBounds.y) * totalScale);
+    for (let i = 1; i < pts.length; i++) {
+      const [px, py] = pts[i];
+      ctx.lineTo((nx + px * nw - frameBounds.x) * totalScale, (ny + py * nh - frameBounds.y) * totalScale);
+    }
+    ctx.closePath();
+  }
+
   function drawHotspotHints(ctx: CanvasRenderingContext2D, frameBounds: { x: number; y: number; width: number; height: number }, totalScale: number) {
     const allInterJson = editor.engine.get_all_interactions();
     const nodesWithInter: any[] = JSON.parse(allInterJson || "[]");
@@ -1885,9 +1999,22 @@ export function createPrototypeViewer(editor: Editor): {
                          hasHover ? "rgba(245, 158, 11, 0.5)" :
                          "rgba(59, 130, 246, 0.5)";
       const isHot = hoveredHotspotNodeId !== null && Number(nwi.id) === hoveredHotspotNodeId;
-      ctx.lineWidth = isHot ? 3 : 2;
-      ctx.setLineDash([4, 4]);
-      ctx.strokeRect(x, y, w, h);
+      const isFocused = focusedHotspotNodeId !== null && Number(nwi.id) === focusedHotspotNodeId;
+      ctx.lineWidth = isFocused ? 4 : (isHot ? 3 : 2);
+      ctx.setLineDash(isFocused ? [8, 3] : [4, 4]);
+      if (isFocused) {
+        ctx.strokeStyle = "rgba(250, 204, 21, 0.9)";
+      }
+      const interactionList = Array.isArray(nwi.interactions) ? nwi.interactions : [];
+      if (interactionList.length === 0) {
+        ctx.strokeRect(x, y, w, h);
+      } else {
+        for (const interaction of interactionList) {
+          ctx.beginPath();
+          drawInteractionHotspotPath(ctx, node, interaction, frameBounds, totalScale);
+          ctx.stroke();
+        }
+      }
 
       if (isHot && hoveredHotspotLabel) {
         ctx.save();
@@ -1948,11 +2075,11 @@ export function createPrototypeViewer(editor: Editor): {
     while (currentId > 0 && guard < 64) {
       guard += 1;
       const interactions = interMap.get(currentId) || [];
-      const inter = interactions.find((i: any) => i.trigger === triggerFilter);
-      if (inter) {
-        const raw = editor.engine.get_node_json(BigInt(currentId));
-        if (!raw) return null;
-        return { interaction: inter, node: JSON.parse(raw) };
+      const raw = editor.engine.get_node_json(BigInt(currentId));
+      const node = raw ? JSON.parse(raw) : null;
+      const inter = interactions.find((i: any) => i.trigger === triggerFilter && (!node || pointInHotspot(sceneX, sceneY, node, i)));
+      if (inter && node) {
+        return { interaction: inter, node };
       }
       const p = Number((editor.engine as any).get_node_parent?.(BigInt(currentId)) ?? 0);
       if (!Number.isFinite(p) || p <= 0 || p === currentId) break;
@@ -2115,10 +2242,58 @@ export function createPrototypeViewer(editor: Editor): {
   let lastHoveredNodeId: number | null = null;
   let hoveredHotspotNodeId: number | null = null;
   let hoveredHotspotLabel = "";
+  let focusedHotspotNodeId: number | null = null;
+  let focusedHotspotInter: any | null = null;
   let mousePressNodeId: number | null = null;
   let mousePressX = 0;
   let mousePressY = 0;
   let isDragging = false;
+
+  function listFocusableHotspots(): Array<{ nodeId: number; node: any; interaction: any }> {
+    const out: Array<{ nodeId: number; node: any; interaction: any }> = [];
+    if (!currentFrameId) return out;
+    const fb = getFrameBounds(currentFrameId);
+    const bounds = fb || { x: 0, y: 0, width: 800, height: 600 };
+    const allInterJson = editor.engine.get_all_interactions();
+    const nodesWithInter: any[] = JSON.parse(allInterJson || "[]");
+    for (const nwi of nodesWithInter) {
+      const raw = editor.engine.get_node_json(BigInt(Number(nwi.id)));
+      if (!raw) continue;
+      const node = JSON.parse(raw);
+      const nx = Number(node?.x || 0);
+      const ny = Number(node?.y || 0);
+      const nw = Number(node?.width || 0);
+      const nh = Number(node?.height || 0);
+      const insideFrame = nx + nw >= bounds.x && ny + nh >= bounds.y && nx <= bounds.x + bounds.width && ny <= bounds.y + bounds.height;
+      if (!insideFrame) continue;
+      const interactions = Array.isArray(nwi.interactions) ? nwi.interactions : [];
+      for (const interaction of interactions) {
+        if (interaction?.trigger === "OnClick" || interaction?.trigger === "OnPress") {
+          out.push({ nodeId: Number(nwi.id), node, interaction });
+        }
+      }
+    }
+    out.sort((a, b) => {
+      const ay = Number(a.node?.y || 0), by = Number(b.node?.y || 0);
+      if (Math.abs(ay - by) > 2) return ay - by;
+      return Number(a.node?.x || 0) - Number(b.node?.x || 0);
+    });
+    return out;
+  }
+
+  function cycleFocusedHotspot(reverse: boolean) {
+    const items = listFocusableHotspots();
+    if (items.length === 0) return;
+    let idx = items.findIndex((it) => it.nodeId === focusedHotspotNodeId);
+    if (idx < 0) idx = reverse ? 0 : -1;
+    idx = (idx + (reverse ? -1 : 1) + items.length) % items.length;
+    const next = items[idx];
+    focusedHotspotNodeId = next.nodeId;
+    focusedHotspotInter = next.interaction;
+    hoveredHotspotNodeId = next.nodeId;
+    hoveredHotspotLabel = next.interaction?.accessibility_label || next.node?.name || "";
+    renderCurrentView();
+  }
 
   function onCanvasMouseMove(e: MouseEvent) {
     if (!viewCanvas || transitioning || !eventRuntime) return;
@@ -2231,6 +2406,8 @@ export function createPrototypeViewer(editor: Editor): {
     // Then handle interaction navigation
     const match = findInteractionAtPoint(e.clientX, e.clientY, "OnClick");
     if (match) {
+      focusedHotspotNodeId = Number(match.node?.id || 0) || null;
+      focusedHotspotInter = match.interaction || null;
       executeInteraction(match.interaction, Number(match.node?.node_id || 0));
     } else {
       // Check for hyperlink on the clicked node

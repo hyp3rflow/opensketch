@@ -6049,7 +6049,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         const interEl = document.createElement("div");
         interEl.style.cssText = "background:#1e1e1e;border-radius:6px;padding:8px;margin-bottom:6px;position:relative;";
 
-        const rebuildInteraction = (override: Partial<{ trigger: string; action: string; target_node_id: number; target_page_id: number; transition: string; transition_duration_ms: number; easing: string; variant_key_json: string; smart_animate_timeline_json: string; accessibility_label: string; }>) => {
+        const rebuildInteraction = (override: Partial<{ trigger: string; action: string; target_node_id: number; target_page_id: number; transition: string; transition_duration_ms: number; easing: string; variant_key_json: string; smart_animate_timeline_json: string; accessibility_label: string; hotspot_shape_json: string; }>) => {
           const trigMap: Record<string, string> = {
             OnClick: "click", OnHover: "hover", OnPress: "press", OnDrag: "drag",
             OnSwipeLeft: "swipe-left", OnSwipeRight: "swipe-right",
@@ -6070,6 +6070,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             variant_key_json: override.variant_key_json ?? inter.variant_key_json ?? "",
             smart_animate_timeline_json: override.smart_animate_timeline_json ?? inter.smart_animate_timeline_json ?? "",
             accessibility_label: override.accessibility_label ?? inter.accessibility_label ?? "",
+            hotspot_shape_json: override.hotspot_shape_json ?? inter.hotspot_shape_json ?? "",
           };
 
           editor.engine.remove_interaction(id, idx);
@@ -6084,6 +6085,9 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             if (next.smart_animate_timeline_json) editor.engine.set_interaction_timeline(id, newIdx, next.smart_animate_timeline_json);
             if ((editor.engine as any).set_interaction_accessibility_label) {
               (editor.engine as any).set_interaction_accessibility_label(id, newIdx, next.accessibility_label || "");
+            }
+            if ((editor.engine as any).set_interaction_hotspot_shape) {
+              (editor.engine as any).set_interaction_hotspot_shape(id, newIdx, next.hotspot_shape_json || "");
             }
           }
         };
@@ -6227,6 +6231,83 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         });
         a11yRow.appendChild(a11yInput);
         interEl.appendChild(a11yRow);
+
+        // Hotspot shape editor (normalized to node bounds)
+        const hotspotWrap = document.createElement("div");
+        hotspotWrap.style.cssText = "margin-bottom:6px;padding:6px;border:1px solid #333;border-radius:6px;background:#181818;";
+        const hsTitle = document.createElement("div");
+        hsTitle.style.cssText = "font-size:10px;color:#9ca3af;margin-bottom:4px;";
+        hsTitle.textContent = "Hotspot shape";
+        hotspotWrap.appendChild(hsTitle);
+
+        const hsModeRow = document.createElement("div");
+        hsModeRow.style.cssText = "display:flex;gap:4px;align-items:center;margin-bottom:4px;";
+        const hsMode = document.createElement("select");
+        hsMode.className = "prop-input";
+        hsMode.style.flex = "1";
+        hsMode.innerHTML = `<option value="auto">Node Bounds</option><option value="rect">Rect (normalized)</option><option value="polygon">Polygon (normalized)</option>`;
+        hsModeRow.appendChild(hsMode);
+        hotspotWrap.appendChild(hsModeRow);
+
+        const hsInput = document.createElement("textarea");
+        hsInput.className = "prop-input";
+        hsInput.rows = 3;
+        hsInput.style.width = "100%";
+        hsInput.placeholder = "Rect: {\"x\":0.1,\"y\":0.1,\"width\":0.8,\"height\":0.8}\nPolygon: [[0,0],[1,0],[0.6,1]]";
+        hotspotWrap.appendChild(hsInput);
+
+        const hsHint = document.createElement("div");
+        hsHint.style.cssText = "font-size:10px;color:#666;margin-top:4px;";
+        hsHint.textContent = "0~1 normalized coordinates. Hover/click hit-test uses this region in prototype viewer.";
+        hotspotWrap.appendChild(hsHint);
+
+        let existingHotspot: any = null;
+        try { existingHotspot = inter.hotspot_shape_json ? JSON.parse(inter.hotspot_shape_json) : null; } catch {}
+        if (existingHotspot?.type === "rect") {
+          hsMode.value = "rect";
+          hsInput.value = JSON.stringify({ x: existingHotspot.x ?? 0, y: existingHotspot.y ?? 0, width: existingHotspot.width ?? 1, height: existingHotspot.height ?? 1 });
+        } else if (existingHotspot?.type === "polygon") {
+          hsMode.value = "polygon";
+          hsInput.value = JSON.stringify(existingHotspot.points ?? []);
+        } else {
+          hsMode.value = "auto";
+          hsInput.value = "";
+        }
+        hsInput.style.display = hsMode.value === "auto" ? "none" : "block";
+
+        const applyHotspotShape = () => {
+          ensureUndo();
+          let payload = "";
+          if (hsMode.value !== "auto") {
+            try {
+              const parsed = JSON.parse(hsInput.value || (hsMode.value === "rect" ? "{}" : "[]"));
+              if (hsMode.value === "rect") {
+                payload = JSON.stringify({ type: "rect", x: Number(parsed.x || 0), y: Number(parsed.y || 0), width: Number(parsed.width || 0), height: Number(parsed.height || 0) });
+              } else {
+                const points = Array.isArray(parsed) ? parsed : [];
+                payload = JSON.stringify({ type: "polygon", points });
+              }
+            } catch {
+              alert("Invalid hotspot JSON. Please check the shape payload.");
+              return;
+            }
+          }
+          if ((editor.engine as any).set_interaction_hotspot_shape) {
+            (editor.engine as any).set_interaction_hotspot_shape(id, idx, payload);
+          } else {
+            rebuildInteraction({ hotspot_shape_json: payload });
+          }
+          editor.requestRender();
+          refresh(ids);
+        };
+
+        hsMode.addEventListener("change", () => {
+          hsInput.style.display = hsMode.value === "auto" ? "none" : "block";
+          applyHotspotShape();
+        });
+        hsInput.addEventListener("change", applyHotspotShape);
+
+        interEl.appendChild(hotspotWrap);
 
         // Variant key JSON input (shown when action is SwapVariant)
         const variantRow = document.createElement("div");

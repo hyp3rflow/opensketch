@@ -1858,6 +1858,12 @@ pub struct Interaction {
     /// Smart Animate timeline keyframes JSON (MVP): [{"time":0,"label":"Start","easing":"..."}, ...]
     #[serde(default)]
     pub smart_animate_timeline_json: String,
+    /// Optional hotspot shape JSON for trigger region override.
+    /// Examples:
+    /// - Rect (normalized): {"type":"rect","x":0.1,"y":0.2,"width":0.8,"height":0.5}
+    /// - Polygon (normalized): {"type":"polygon","points":[[0,0],[1,0],[0.5,1]]}
+    #[serde(default)]
+    pub hotspot_shape_json: String,
 }
 
 fn default_easing_str() -> String { "ease_in_out".to_string() }
@@ -1878,6 +1884,7 @@ impl Default for Interaction {
             set_variable_name: String::new(),
             set_variable_expression: String::new(),
             smart_animate_timeline_json: String::new(),
+            hotspot_shape_json: String::new(),
         }
     }
 }

@@ -3750,6 +3750,7 @@ impl Engine {
                 set_variable_name: String::new(),
                 set_variable_expression: String::new(),
                 smart_animate_timeline_json: String::new(),
+                hotspot_shape_json: String::new(),
             };
             node.interactions.push(interaction);
             (node.interactions.len() - 1) as i32
@@ -8351,6 +8352,17 @@ impl Engine {
         if let Some(node) = self.scene.get_node_mut(node_id) {
             if let Some(interaction) = node.interactions.get_mut(interaction_index as usize) {
                 interaction.accessibility_label = label.to_string();
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Set hotspot shape JSON on an interaction (empty string clears).
+    pub fn set_interaction_hotspot_shape(&mut self, node_id: u64, interaction_index: u32, shape_json: &str) -> bool {
+        if let Some(node) = self.scene.get_node_mut(node_id) {
+            if let Some(interaction) = node.interactions.get_mut(interaction_index as usize) {
+                interaction.hotspot_shape_json = shape_json.to_string();
                 return true;
             }
         }
