@@ -1796,6 +1796,17 @@
 - Variants Quick Swap HUD — 선택 인스턴스에서 Option/Alt+휠 또는 단축키로 variant axis 값을 HUD에서 빠르게 순환 변경 (임팩트 중상, 난이도 중)
 - Nested Component Override Inspector — 인스턴스 내부 중첩 override를 계층 트리로 시각화하고 diff/리셋/일괄 적용 (임팩트 상, 난이도 중상)
 
+## 완료된 기능 (추가 — Text Styles Inspector Batch Cleanup pass, 2026-04-10)
+- Text Style 링크 노드의 local override drift를 스타일 단위로 점검하는 엔진 API 추가
+  - `inspect_text_style_overrides(style_id)` → diff rows JSON
+  - `cleanup_text_style_overrides(style_id)` → drift 노드에 linked style 재적용
+- Properties panel Text Style 섹션에 Inspector 박스 추가
+  - 현재 노드의 필드별 diff(local vs linked) 표시
+  - 링크된 drift 노드 개수 요약
+  - `Clean linked overrides` 일괄 정리 버튼
+- 구현: `crates/engine/src/lib.rs`, `packages/app/src/ui/properties-panel.ts`
+- specs 반영: `specs/FEATURES.md`
+
 ## 완료된 기능 (추가 — Smart Selection Cycling (Deep Select Stack), 2026-04-10)
 - 겹친 레이어 위에서 `Tab` / `Shift+Tab`으로 hit stack 순환 선택 추가
 - 포인터 위치 기준으로 후보 스택을 구성하고(pointer 이동 시 자동 리셋), 상단 z-order 우선으로 순환

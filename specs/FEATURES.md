@@ -407,6 +407,7 @@
 - [x] **Replace-all workflow**: `replace_text_style_all(old, new)` relinks all matching text-style nodes document-wide
 - [x] **Text Styles ↔ Typography Token Sync (2026-04-08)**: TextStyle에 optional `typography_token { collection_id, variable_id }` 링크 추가. WASM API `link_text_style_token`, `relink_text_style_token`, `detach_text_style_token`, `sync_text_style_to_token`, `sync_text_style_from_token` 제공. String 변수(JSON payload)로 스타일 값을 Push/Pull하며, Properties panel Text Style 섹션에 Link/Relink/Detach + Pull/Push 버튼 UI 추가.
 - [x] **Text Styles Inspector (Local vs Linked Diff) (2026-04-10)**: Properties panel Text Style 섹션에 Local vs Linked 비교 인스펙터 추가. font family/size/weight/style/line-height/letter-spacing/align 필드별 오버라이드 여부를 표시하고, 필드 단위 `Reset` + 전체 `Reset all overrides` 액션으로 linked style 값으로 정리 가능.
+- [x] **Text Styles Inspector Batch Cleanup pass (2026-04-10)**: WASM `inspect_text_style_overrides(style_id)` + `cleanup_text_style_overrides(style_id)` API 추가. 선택된 Text Style 기준으로 링크된 텍스트 노드들의 drift를 집계하고, Properties panel에서 현재 노드 diff(local vs linked) 표시 + `Clean linked overrides` 일괄 정리 버튼 제공.
 
 
 ### Boolean Operations

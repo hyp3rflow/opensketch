@@ -7964,6 +7964,55 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             : "Typography token: (not linked)";
           tsSection.appendChild(tokenMeta);
 
+          // Local vs Linked override inspector
+          const inspectorRaw = (editor.engine as any).inspect_text_style_overrides
+            ? (editor.engine as any).inspect_text_style_overrides(BigInt(styleInfo.text_style_id))
+            : "[]";
+          const inspectorRows: Array<{ node_id: number; node_name: string; diffs: Array<{ field: string; local: any; linked: any }> }> = JSON.parse(inspectorRaw || "[]");
+          const currentRow = inspectorRows.find((r) => Number(r.node_id) === Number(id));
+
+          const inspectorSection = document.createElement("div");
+          inspectorSection.style.cssText = "margin-top:6px;padding:6px;border:1px solid #353535;border-radius:6px;background:#1a1a1a;";
+
+          const inspectorHeader = document.createElement("div");
+          inspectorHeader.style.cssText = "font-size:10px;color:#aaa;display:flex;justify-content:space-between;align-items:center;gap:8px;";
+          inspectorHeader.textContent = `Inspector · ${inspectorRows.length} drifted linked node(s)`;
+          inspectorSection.appendChild(inspectorHeader);
+
+          if (currentRow?.diffs?.length) {
+            const list = document.createElement("div");
+            list.style.cssText = "display:flex;flex-direction:column;gap:4px;margin-top:6px;";
+            for (const d of currentRow.diffs) {
+              const row = document.createElement("div");
+              row.style.cssText = "font-size:10px;color:#d4d4d4;line-height:1.3;";
+              row.textContent = `${d.field}: local=${String(d.local)} / linked=${String(d.linked)}`;
+              list.appendChild(row);
+            }
+            inspectorSection.appendChild(list);
+          } else {
+            const ok = document.createElement("div");
+            ok.style.cssText = "font-size:10px;color:#8fbf8f;margin-top:6px;";
+            ok.textContent = "Current node has no local typography override.";
+            inspectorSection.appendChild(ok);
+          }
+
+          const cleanupBtn = document.createElement("button");
+          cleanupBtn.className = "prop-add-btn";
+          cleanupBtn.style.marginTop = "6px";
+          cleanupBtn.textContent = "Clean linked overrides";
+          cleanupBtn.disabled = inspectorRows.length === 0;
+          cleanupBtn.title = "Reapply linked style to all linked text nodes that drifted";
+          cleanupBtn.addEventListener("click", () => {
+            const cleaned = (editor.engine as any).cleanup_text_style_overrides(BigInt(styleInfo.text_style_id));
+            if (cleaned > 0) {
+              editor.requestRender();
+              alert(`Cleaned ${cleaned} linked text node(s).`);
+            }
+            refresh(ids);
+          });
+          inspectorSection.appendChild(cleanupBtn);
+          tsSection.appendChild(inspectorSection);
+
           const tokenRow = document.createElement("div");
           tokenRow.style.cssText = "display:flex;gap:4px;margin-top:6px;";
 

@@ -8884,6 +8884,89 @@ impl Engine {
         count
     }
 
+    /// Inspect local overrides against the linked text style.
+    /// Returns JSON: [{ node_id, node_name, diffs: [{ field, local, linked }] }]
+    pub fn inspect_text_style_overrides(&self, style_id: u64) -> String {
+        let Some(style) = self.styles.get_text_style(style_id) else {
+            return "[]".to_string();
+        };
+        let mut rows: Vec<serde_json::Value> = Vec::new();
+
+        fn eq_f64(a: f64, b: f64, eps: f64) -> bool { (a - b).abs() <= eps }
+
+        for nid in self.scene.all_node_ids() {
+            let Some(node) = self.scene.get_node(nid) else { continue; };
+            if node.text_style_id != Some(style_id) { continue; }
+            let NodeKind::Text {
+                font_family,
+                font_size,
+                font_weight,
+                font_style,
+                line_height,
+                letter_spacing,
+                text_align,
+                ..
+            } = &node.kind else {
+                continue;
+            };
+
+            let mut diffs: Vec<serde_json::Value> = Vec::new();
+            if font_family != &style.font_family {
+                diffs.push(serde_json::json!({ "field": "font_family", "local": font_family, "linked": style.font_family }));
+            }
+            if !eq_f64(*font_size, style.font_size, 0.05) {
+                diffs.push(serde_json::json!({ "field": "font_size", "local": font_size, "linked": style.font_size }));
+            }
+            if *font_weight != style.font_weight {
+                diffs.push(serde_json::json!({ "field": "font_weight", "local": font_weight, "linked": style.font_weight }));
+            }
+            if font_style != &style.font_style {
+                diffs.push(serde_json::json!({ "field": "font_style", "local": font_style, "linked": style.font_style }));
+            }
+            if !eq_f64(*line_height, style.line_height, 0.01) {
+                diffs.push(serde_json::json!({ "field": "line_height", "local": line_height, "linked": style.line_height }));
+            }
+            if !eq_f64(*letter_spacing, style.letter_spacing, 0.01) {
+                diffs.push(serde_json::json!({ "field": "letter_spacing", "local": letter_spacing, "linked": style.letter_spacing }));
+            }
+            if text_align != &style.text_align {
+                diffs.push(serde_json::json!({ "field": "text_align", "local": text_align, "linked": style.text_align }));
+            }
+
+            if !diffs.is_empty() {
+                rows.push(serde_json::json!({
+                    "node_id": nid,
+                    "node_name": node.name,
+                    "diffs": diffs,
+                }));
+            }
+        }
+
+        serde_json::to_string(&rows).unwrap_or_else(|_| "[]".to_string())
+    }
+
+    /// Batch cleanup: reset all linked text nodes with local overrides back to the style value.
+    /// Returns number of cleaned nodes.
+    pub fn cleanup_text_style_overrides(&mut self, style_id: u64) -> u32 {
+        if self.styles.get_text_style(style_id).is_none() {
+            return 0;
+        }
+        let overrides: Vec<serde_json::Value> = serde_json::from_str(&self.inspect_text_style_overrides(style_id)).unwrap_or_default();
+        if overrides.is_empty() {
+            return 0;
+        }
+        self.push_undo();
+        let mut cleaned = 0u32;
+        for row in overrides {
+            if let Some(node_id) = row.get("node_id").and_then(|v| v.as_u64()) {
+                if self.apply_text_style(node_id, style_id) {
+                    cleaned += 1;
+                }
+            }
+        }
+        cleaned
+    }
+
     /// Export all styles as JSON for file download.
     pub fn export_styles(&self) -> String {
         self.styles.export_json()
