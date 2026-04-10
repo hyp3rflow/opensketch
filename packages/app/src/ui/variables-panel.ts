@@ -57,6 +57,24 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
     return JSON.stringify(value);
   };
 
+  const hasTypedValue = (valueType: string, value: VarPrimitive | undefined): boolean => {
+    if (!value) return false;
+    if (valueType === "Color") return typeof value.Color === "string" && value.Color.length > 0;
+    if (valueType === "Number") return typeof value.Number === "number" && Number.isFinite(value.Number);
+    if (valueType === "String") return typeof value.String === "string";
+    if (valueType === "Boolean") return typeof value.Boolean === "boolean";
+    return Object.keys(value).length > 0;
+  };
+
+  const pickFallbackModeValue = (col: VarCollection, variable: VarVariable): VarPrimitive | null => {
+    const modeOrder = [col.active_mode_id, ...col.modes.map((m) => m.id).filter((id) => id !== col.active_mode_id)];
+    for (const modeId of modeOrder) {
+      const v = variable.values_by_mode?.[String(modeId)];
+      if (hasTypedValue(variable.value_type, v)) return { ...(v || {}) };
+    }
+    return null;
+  };
+
   const readTimeline = (): VariableTimelineEntry[] => {
     try {
       const raw = localStorage.getItem(VARIABLE_TIMELINE_STORAGE_KEY);
@@ -529,6 +547,88 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
     }
     modesSection.appendChild(modesRow);
     container.appendChild(modesSection);
+
+    const parityRows = col.variables
+      .map((variable) => {
+        const missingModes = col.modes.filter((mode) => !hasTypedValue(variable.value_type, variable.values_by_mode?.[String(mode.id)]));
+        return { variable, missingModes };
+      })
+      .filter((row) => row.missingModes.length > 0);
+
+    const paritySection = document.createElement("div");
+    paritySection.style.cssText = "margin-bottom:12px;background:#1b2230;border:1px solid #2f3f5d;border-radius:6px;padding:8px;";
+    const parityHeader = document.createElement("div");
+    parityHeader.style.cssText = "display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;";
+    const parityTitle = document.createElement("span");
+    parityTitle.style.cssText = "font-size:10px;color:#93c5fd;text-transform:uppercase;letter-spacing:0.5px;font-weight:700;";
+    parityTitle.textContent = "Mode Parity Checker";
+    parityHeader.appendChild(parityTitle);
+
+    const parityBadge = document.createElement("span");
+    parityBadge.style.cssText = `font-size:10px;color:${parityRows.length > 0 ? "#fca5a5" : "#86efac"};`;
+    parityBadge.textContent = parityRows.length > 0
+      ? `Missing ${parityRows.reduce((acc, row) => acc + row.missingModes.length, 0)}`
+      : "All modes covered";
+    parityHeader.appendChild(parityBadge);
+    paritySection.appendChild(parityHeader);
+
+    const parityDesc = document.createElement("div");
+    parityDesc.style.cssText = "font-size:10px;color:#94a3b8;margin-bottom:6px;";
+    parityDesc.textContent = "빈 mode value를 탐지하고, active mode(또는 첫 유효값)로 빠르게 채웁니다.";
+    paritySection.appendChild(parityDesc);
+
+    const parityActions = document.createElement("div");
+    parityActions.style.cssText = "display:flex;gap:6px;margin-bottom:6px;";
+    const normalizeBtn = document.createElement("button");
+    normalizeBtn.style.cssText = "background:#1f3b2a;border:1px solid #166534;border-radius:4px;color:#86efac;cursor:pointer;font-size:10px;padding:3px 8px;";
+    normalizeBtn.textContent = "Normalize missing";
+    normalizeBtn.disabled = parityRows.length === 0;
+    normalizeBtn.addEventListener("click", () => {
+      if (parityRows.length === 0) return;
+      if (!confirm(`Fill ${parityRows.length} variables with missing mode values?`)) return;
+      editor.engine.push_undo();
+      let filled = 0;
+      for (const row of parityRows) {
+        const fallback = pickFallbackModeValue(col, row.variable);
+        if (!fallback) continue;
+        for (const mode of row.missingModes) {
+          editor.engine.set_variable_value(BigInt(col.id), BigInt(row.variable.id), BigInt(mode.id), JSON.stringify(fallback));
+          filled += 1;
+        }
+      }
+      if (filled > 0) {
+        editor.engine.apply_variables();
+        editor.requestRender();
+      }
+      refresh();
+    });
+    parityActions.appendChild(normalizeBtn);
+    paritySection.appendChild(parityActions);
+
+    if (parityRows.length === 0) {
+      const parityOk = document.createElement("div");
+      parityOk.style.cssText = "font-size:10px;color:#6ee7b7;";
+      parityOk.textContent = "모든 변수에 mode 값이 설정되어 있습니다.";
+      paritySection.appendChild(parityOk);
+    } else {
+      const list = document.createElement("div");
+      list.style.cssText = "display:flex;flex-direction:column;gap:4px;max-height:140px;overflow:auto;";
+      for (const row of parityRows.slice(0, 12)) {
+        const item = document.createElement("div");
+        item.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:8px;background:#111827;border:1px solid #24324f;border-radius:4px;padding:5px 6px;";
+        const name = document.createElement("span");
+        name.style.cssText = "font-size:10px;color:#e2e8f0;";
+        name.textContent = row.variable.name;
+        const missing = document.createElement("span");
+        missing.style.cssText = "font-size:10px;color:#fda4af;";
+        missing.textContent = `missing: ${row.missingModes.map((m) => m.name).join(", ")}`;
+        item.appendChild(name);
+        item.appendChild(missing);
+        list.appendChild(item);
+      }
+      paritySection.appendChild(list);
+    }
+    container.appendChild(paritySection);
 
     const timelineEntries = readTimeline().filter((entry) => entry.collection_id === col.id);
     const timelineSection = document.createElement("div");

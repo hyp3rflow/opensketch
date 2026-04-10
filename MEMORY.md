@@ -1791,10 +1791,16 @@
 
 ## 다음 할 것
 - Auto Layout Gap Suggestions — 선택 프레임의 자식 간 spacing 패턴을 분석해 추천 gap/padding 프리셋 제안 (임팩트 중, 난이도 중)
-- Variables Mode Parity Checker — 컬렉션/모드 간 누락 값(빈 mode value, fallback 의존)을 자동 탐지하고 one-click normalize 제공 (임팩트 중상, 난이도 중)
 - Prototype Start Points Manager — 페이지별 다중 start frame을 시각적으로 관리하고 flow별 진입점을 저장/전환 (임팩트 중상, 난이도 중)
 - Auto Layout Spacing Tokens — 반복 간격 패턴을 토큰으로 추출해 프레임별 추천/적용 + 변수 바인딩 연결 (임팩트 중상, 난이도 중상)
 - Component Variant Naming Lint — variant axis/value 네이밍 규칙 검사(중복/불일치/약어 혼용)와 일괄 정리 제안 (임팩트 중, 난이도 중)
+
+## 완료된 기능 (추가 — Variables Mode Parity Checker, 2026-04-10)
+- Variables panel(`packages/app/src/ui/variables-panel.ts`)에 `Mode Parity Checker` 섹션 추가
+- 컬렉션 내 변수별 mode 누락 값을 자동 집계해 `Missing N` 배지 및 변수별 missing mode 목록 표시
+- `Normalize missing` 액션으로 active mode(또는 첫 유효 mode) 값을 누락 mode들에 일괄 채우기 지원
+- apply_variables + render 연동으로 normalize 직후 캔버스 반영
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Prototype Flow Map Mini-Graph dead-end diagnostics, 2026-04-10)
 - `packages/app/src/ui/flow-diagram.ts` 개선
