@@ -11315,6 +11315,106 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         presetsWrap.appendChild(padOnlyRow);
 
         layoutSection.appendChild(presetsWrap);
+
+        // --- Auto Layout Gap Suggestions (analyze children spacing pattern) ---
+        const readNodeBounds = (nodeId: number): { x: number; y: number; w: number; h: number } | null => {
+          try {
+            const raw = editor.engine.get_node_json(BigInt(nodeId));
+            if (!raw) return null;
+            const n = JSON.parse(raw);
+            return { x: Number(n.x || 0), y: Number(n.y || 0), w: Number(n.width || 0), h: Number(n.height || 0) };
+          } catch {
+            return null;
+          }
+        };
+        const quantizeSpacing = (v: number): number => {
+          const tokens = [0, 2, 4, 8, 12, 16, 20, 24, 32, 40, 48, 64];
+          let best = tokens[0]!;
+          let bestD = Number.POSITIVE_INFINITY;
+          for (const t of tokens) {
+            const d = Math.abs(v - t);
+            if (d < bestD) { bestD = d; best = t; }
+          }
+          return best;
+        };
+        const nodeRaw = editor.engine.get_node_json(BigInt(id));
+        let childIds: number[] = [];
+        if (nodeRaw) {
+          try {
+            const n = JSON.parse(nodeRaw);
+            childIds = (n.children || []).map((c: any) => Number(c)).filter((v: number) => Number.isFinite(v));
+          } catch {}
+        }
+
+        if (childIds.length >= 2) {
+          const frameBounds = readNodeBounds(id);
+          const childBounds = childIds.map((cid) => readNodeBounds(cid)).filter(Boolean) as { x: number; y: number; w: number; h: number }[];
+          if (frameBounds && childBounds.length >= 2) {
+            const isRow = (layout.direction || "Row") !== "Column";
+            const ordered = [...childBounds].sort((a, b) => isRow ? a.x - b.x : a.y - b.y);
+            const gaps: number[] = [];
+            for (let i = 0; i < ordered.length - 1; i++) {
+              const cur = ordered[i]!;
+              const next = ordered[i + 1]!;
+              gaps.push(isRow ? (next.x - (cur.x + cur.w)) : (next.y - (cur.y + cur.h)));
+            }
+            const validGaps = gaps.filter((g) => Number.isFinite(g));
+            const avgGap = validGaps.length ? (validGaps.reduce((s, v) => s + v, 0) / validGaps.length) : 0;
+            const suggestedGap = quantizeSpacing(Math.max(-32, Math.min(128, avgGap)));
+
+            const leftPad = Math.min(...childBounds.map((c) => c.x - frameBounds.x));
+            const rightPad = Math.min(...childBounds.map((c) => (frameBounds.x + frameBounds.w) - (c.x + c.w)));
+            const topPad = Math.min(...childBounds.map((c) => c.y - frameBounds.y));
+            const bottomPad = Math.min(...childBounds.map((c) => (frameBounds.y + frameBounds.h) - (c.y + c.h)));
+            const padAvg = (leftPad + rightPad + topPad + bottomPad) / 4;
+            const suggestedPad = quantizeSpacing(Math.max(0, Math.min(128, padAvg)));
+
+            const suggestWrap = document.createElement("div");
+            suggestWrap.style.cssText = "margin-top:8px;padding:8px;border:1px solid #32324a;border-radius:8px;background:rgba(79,70,229,0.08);";
+
+            const sTitle = document.createElement("div");
+            sTitle.style.cssText = "font-size:10px;color:#a5b4fc;font-weight:600;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.4px;";
+            sTitle.textContent = "Gap suggestions";
+            suggestWrap.appendChild(sTitle);
+
+            const summary = document.createElement("div");
+            summary.style.cssText = "font-size:10px;color:#9ca3af;line-height:1.35;margin-bottom:6px;";
+            summary.textContent = `Detected ${isRow ? "row" : "column"} spacing (${validGaps.map((g) => Math.round(g)).join(", ") || "-"}). 추천 gap ${suggestedGap}px / padding ${suggestedPad}px`;
+            suggestWrap.appendChild(summary);
+
+            const actions = document.createElement("div");
+            actions.style.cssText = "display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;";
+            const mkBtn = (label: string, onClick: () => void) => {
+              const b = document.createElement("button");
+              b.className = "prop-btn";
+              b.textContent = label;
+              b.style.cssText = "font-size:10px;padding:4px 6px;border:1px solid rgba(129,140,248,0.4);background:rgba(129,140,248,0.12);color:#c7d2fe;border-radius:5px;cursor:pointer;";
+              b.addEventListener("click", onClick);
+              return b;
+            };
+            actions.appendChild(mkBtn(`Gap ${suggestedGap}`, () => {
+              editor.engine.push_undo();
+              editor.engine.set_layout_gap(BigInt(id), suggestedGap);
+              editor.requestRender();
+              refresh(ids);
+            }));
+            actions.appendChild(mkBtn(`Pad ${suggestedPad}`, () => {
+              editor.engine.push_undo();
+              editor.engine.set_layout_padding(BigInt(id), suggestedPad, suggestedPad, suggestedPad, suggestedPad);
+              editor.requestRender();
+              refresh(ids);
+            }));
+            actions.appendChild(mkBtn("Apply both", () => {
+              editor.engine.push_undo();
+              editor.engine.set_layout_gap(BigInt(id), suggestedGap);
+              editor.engine.set_layout_padding(BigInt(id), suggestedPad, suggestedPad, suggestedPad, suggestedPad);
+              editor.requestRender();
+              refresh(ids);
+            }));
+            suggestWrap.appendChild(actions);
+            layoutSection.appendChild(suggestWrap);
+          }
+        }
       }
 
       container.appendChild(layoutSection);

@@ -1790,10 +1790,17 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Auto Layout Gap Suggestions — 선택 프레임의 자식 간 spacing 패턴을 분석해 추천 gap/padding 프리셋 제안 (임팩트 중, 난이도 중)
 - Prototype Start Points Manager — 페이지별 다중 start frame을 시각적으로 관리하고 flow별 진입점을 저장/전환 (임팩트 중상, 난이도 중)
 - Auto Layout Spacing Tokens — 반복 간격 패턴을 토큰으로 추출해 프레임별 추천/적용 + 변수 바인딩 연결 (임팩트 중상, 난이도 중상)
 - Component Variant Naming Lint — variant axis/value 네이밍 규칙 검사(중복/불일치/약어 혼용)와 일괄 정리 제안 (임팩트 중, 난이도 중)
+
+## 완료된 기능 (추가 — Auto Layout Gap Suggestions, 2026-04-10)
+- Properties panel Auto layout 섹션에 `Gap suggestions` 카드 추가
+- 선택된 컨테이너(Frame/Group/Instance/Slot)의 child spacing 패턴(행/열 기반 gap 시퀀스) 분석
+- frame 내부 여백(좌/우/상/하) 평균값을 기반으로 padding 추천
+- 추천값을 spacing token 스케일(0/2/4/8/12/16/20/24/32/40/48/64)로 quantize
+- one-click 적용: `Gap N`, `Pad N`, `Apply both`
+- 적용 시 undo + render + properties refresh 연동
 
 ## 완료된 기능 (추가 — Variables Mode Parity Checker, 2026-04-10)
 - Variables panel(`packages/app/src/ui/variables-panel.ts`)에 `Mode Parity Checker` 섹션 추가

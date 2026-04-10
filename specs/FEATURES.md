@@ -2519,3 +2519,12 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] `Fill Empty`: 현재 matrix 축 + extra filters 범위에서 비어 있는 셀만 target component로 일괄 매핑
 - [x] `Coverage Heatmap`: 매트릭스 셀 상태를 Empty(적색)/Unique(녹색)/Duplicate(황색)로 시각화하고 coverage 요약(매핑 수/빈 셀/중복)을 상단에 표시
 - [x] 구현: `packages/app/src/ui/component-set-matrix-editor.ts` + `properties-panel.ts` 연동
+
+### Auto Layout Gap Suggestions (2026-04-10)
+- [x] Properties panel Auto layout 섹션에 **Gap suggestions** 카드 추가
+- [x] 선택된 Frame/Group/Instance/Slot의 자식 위치 패턴을 분석해 추천 spacing 산출
+  - layout direction 기준(행/열)으로 child 간 gap 시퀀스 계산
+  - frame 여백(좌/우/상/하) 평균 기반 padding 추천
+  - 토큰 스케일(0/2/4/8/12/16/20/24/32/40/48/64)로 quantize
+- [x] 원클릭 적용 액션 제공: `Gap N`, `Pad N`, `Apply both`
+- [x] 적용 시 undo + render + properties refresh 연동
