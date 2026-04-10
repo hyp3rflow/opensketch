@@ -295,6 +295,11 @@ export class Editor {
   private _lastPointerScreenX = 0;
   private _lastPointerScreenY = 0;
   private _hasPointerScreenPosition = false;
+  private _deepSelectStack: number[] = [];
+  private _deepSelectIndex = -1;
+  private _deepSelectAnchorX = 0;
+  private _deepSelectAnchorY = 0;
+  private _deepSelectHud: { text: string; until: number } | null = null;
   private _smartPasteHoverFrameId: number | null = null;
 
   // Responsive auto-layout preview
@@ -565,6 +570,14 @@ export class Editor {
     window.addEventListener("keydown", (e) => {
       if (e.key === "Alt") this._altHeld = true;
       if (this.isInputFocused()) return;
+
+      // Deep select cycling for overlapped layers (Tab / Shift+Tab)
+      if (e.key === "Tab" && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault();
+        this.cycleDeepSelection(e.shiftKey ? -1 : 1);
+        return;
+      }
+
       // Selection history: Alt+[ back, Alt+] forward
       if (e.altKey && !e.metaKey && !e.ctrlKey && !e.shiftKey) {
         if (e.code === "BracketLeft") { e.preventDefault(); this.selectionBack(); return; }
@@ -4768,6 +4781,126 @@ export class Editor {
     return parsed[parsed.length - 1]?.id ?? null;
   }
 
+  private cycleDeepSelection(direction: 1 | -1): void {
+    const stack = this.getDeepSelectionStackAtPointer();
+    if (stack.length === 0) return;
+
+    if (this._deepSelectStack.join(",") !== stack.join(",")) {
+      this._deepSelectStack = stack;
+      this._deepSelectIndex = direction > 0 ? 0 : stack.length - 1;
+    } else {
+      const len = stack.length;
+      this._deepSelectIndex = (this._deepSelectIndex + direction + len) % len;
+    }
+
+    const targetId = stack[this._deepSelectIndex];
+    if (!targetId) return;
+
+    this.engine.select(BigInt(targetId));
+    this.fireSelectionNow([targetId]);
+
+    let name = `Layer ${targetId}`;
+    try {
+      name = this.engine.get_node_name(BigInt(targetId)) || name;
+    } catch {}
+
+    this._deepSelectHud = {
+      text: `${this._deepSelectIndex + 1}/${stack.length}  ${name}`,
+      until: performance.now() + 1400,
+    };
+    this.requestRender();
+  }
+
+  private getDeepSelectionStackAtPointer(): number[] {
+    const sx = this._lastPointerScreenX;
+    const sy = this._lastPointerScreenY;
+    const moved = Math.abs(sx - this._deepSelectAnchorX) > 6 || Math.abs(sy - this._deepSelectAnchorY) > 6;
+
+    if (moved) {
+      this._deepSelectStack = [];
+      this._deepSelectIndex = -1;
+    }
+
+    if (this._deepSelectStack.length > 0 && !moved) {
+      return this._deepSelectStack;
+    }
+
+    const sceneX = this.engine.screen_to_scene_x(sx, sy);
+    const sceneY = this.engine.screen_to_scene_y(sx, sy);
+    const eps = 0.5 / Math.max(0.1, this.engine.get_zoom());
+
+    const allIds = Array.from(this.engine.get_all_node_ids()).map(Number);
+    const zOrder = new Map<number, number>();
+    for (let i = 0; i < allIds.length; i++) zOrder.set(allIds[i], i);
+
+    const nearby = Array.from(this.engine.get_visible_node_ids(sceneX - eps, sceneY - eps, eps * 2, eps * 2)).map(Number);
+    const parsed = nearby
+      .map((id) => {
+        try {
+          const raw = this.engine.get_node_json(BigInt(id));
+          if (!raw) return null;
+          const node = JSON.parse(raw);
+          if (!this.matchesSmartSelectionFilters(id, node) || node.locked || node.visible === false) return null;
+          const nx = Number(node.x ?? 0);
+          const ny = Number(node.y ?? 0);
+          const nw = Number(node.width ?? 0);
+          const nh = Number(node.height ?? 0);
+          if (sceneX < nx || sceneX > nx + nw || sceneY < ny || sceneY > ny + nh) return null;
+
+          let depth = 0;
+          let cur = node;
+          while (cur?.parent != null) {
+            depth += 1;
+            const parentRaw = this.engine.get_node_json(BigInt(Number(cur.parent)));
+            if (!parentRaw) break;
+            cur = JSON.parse(parentRaw);
+          }
+          return { id, z: zOrder.get(id) ?? -1, depth };
+        } catch {
+          return null;
+        }
+      })
+      .filter((v): v is { id: number; z: number; depth: number } => !!v)
+      .sort((a, b) => {
+        if (a.z !== b.z) return b.z - a.z;
+        return b.depth - a.depth;
+      });
+
+    this._deepSelectStack = parsed.map((v) => v.id);
+    this._deepSelectAnchorX = sx;
+    this._deepSelectAnchorY = sy;
+    return this._deepSelectStack;
+  }
+
+  private renderDeepSelectHud(): void {
+    if (!this._deepSelectHud) return;
+    if (performance.now() > this._deepSelectHud.until) {
+      this._deepSelectHud = null;
+      return;
+    }
+    this.ctx.save();
+    this.ctx.resetTransform();
+    this.ctx.font = "12px Inter, system-ui, sans-serif";
+    const text = this._deepSelectHud.text;
+    const padX = 10;
+    const h = 26;
+    const w = Math.ceil(this.ctx.measureText(text).width) + padX * 2;
+    const x = (this.canvas.clientWidth - w) / 2;
+    const y = 20;
+    this.ctx.fillStyle = "rgba(24,24,35,0.9)";
+    this.ctx.strokeStyle = "rgba(129,140,248,0.65)";
+    this.ctx.lineWidth = 1;
+    this.ctx.beginPath();
+    this.ctx.roundRect(x, y, w, h, 8);
+    this.ctx.fill();
+    this.ctx.stroke();
+    this.ctx.fillStyle = "#e5e7eb";
+    this.ctx.textAlign = "left";
+    this.ctx.textBaseline = "middle";
+    this.ctx.fillText(text, x + padX, y + h / 2);
+    this.ctx.restore();
+  }
+
   private isShapeNodeKind(kind: string): boolean {
     return ["Rect", "Ellipse", "Path", "Star", "Polygon", "Vector", "Line", "Frame", "Group", "Section", "Slice", "Connector"].includes(kind);
   }
@@ -5258,6 +5391,7 @@ export class Editor {
         this.renderSearchFilterOverlay();
         this.renderPixelPreviewOverlay();
         this._rulers?.render();
+        this.renderDeepSelectHud();
         if (this._devMode) {
           this._devModeOverlay.renderCanvasOverlay(this.ctx);
           this._devModeOverlay.updateSelectionInspect(Array.from(this.engine.get_selection()).map(Number));

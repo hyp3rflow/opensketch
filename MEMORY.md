@@ -1790,9 +1790,15 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Smart Selection Cycling (Deep Select Stack) — 겹친 레이어 클릭 시 Tab/Shift+Tab으로 hit stack 순환 선택 + HUD 표시 (임팩트 상, 난이도 중)
 - Prototype Trigger Regions (Hotspot shape editor) — 사각형 외 자유 폴리곤 hotspot 편집 + hover highlight + 접근성 label (임팩트 중상, 난이도 중상)
 - Constraints Presets + Batch Apply — Left/Right/Scale 등 반응형 제약 프리셋 저장/이름붙이기/다중 선택 일괄 적용 (임팩트 중상, 난이도 중)
+
+## 완료된 기능 (추가 — Smart Selection Cycling (Deep Select Stack), 2026-04-10)
+- 겹친 레이어 위에서 `Tab` / `Shift+Tab`으로 hit stack 순환 선택 추가
+- 포인터 위치 기준으로 후보 스택을 구성하고(pointer 이동 시 자동 리셋), 상단 z-order 우선으로 순환
+- 선택 시 상단 HUD에 `현재 인덱스/총 개수 + 레이어명` 표시
+- 구현: `packages/app/src/editor.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Component Variant Naming Lint, 2026-04-10)
 - Variant Matrix Editor에 `Variant Naming Lint` 카드 추가
