@@ -1796,6 +1796,14 @@
 - Prototype Trigger Regions (Hotspot shape editor) — 사각형 외 자유 폴리곤 hotspot 편집 + hover highlight + 접근성 label (임팩트 중상, 난이도 중상)
 - Constraints Presets + Batch Apply — Left/Right/Scale 등 반응형 제약 프리셋 저장/이름붙이기/다중 선택 일괄 적용 (임팩트 중상, 난이도 중)
 
+## 완료된 기능 (추가 — Prototype Variables Panel Runtime Inspector v3, 2026-04-10)
+- Prototype Viewer 좌하단 `Prototype Variables` 패널을 runtime inspector 형태로 확장
+- 변수별 타입 배지(number/boolean/string), 수동 override 입력/토글, Reset(default 값 복원) 제공
+- SetVariable 액션과 수동 override를 동일 상태 업데이트 경로로 통합 (`setProtoVar`)
+- 최근 변경 이력(시간, 변수명, 이전값→다음값, source=interaction/override) 표시로 디버깅 가시성 강화
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
+
 ## 완료된 기능 (추가 — Dev Mode Distance/Measure Overlay (multi-select 확장), 2026-04-10)
 - Alt/Dev 측정 오버레이를 multi-select 상황까지 확장
 - hover target이 없는 경우, 선택 노드들 간 nearest horizontal/vertical gap을 자동 탐색해 측정선 + 거리 라벨 표시

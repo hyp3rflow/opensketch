@@ -21,6 +21,8 @@ export function createPrototypeViewer(editor: Editor): {
   let transitioning = false;
   /** Prototype variable runtime state */
   let protoVars: Map<string, string> = new Map();
+  let protoVarDefs: Map<string, { type: string; defaultValue: string }> = new Map();
+  let protoVarHistory: Array<{ at: number; name: string; prev: string; next: string; source: "interaction" | "override" | "init" }> = [];
   let varsPanel: HTMLDivElement | null = null;
   let showVarsOverlay = true;
   let snapPaginationEl: HTMLDivElement | null = null;
@@ -177,26 +179,53 @@ export function createPrototypeViewer(editor: Editor): {
   /** Initialize prototype variables from engine definitions */
   function initProtoVars() {
     protoVars.clear();
+    protoVarDefs.clear();
+    protoVarHistory = [];
     try {
       const defs: { name: string; var_type: string; default_value: string }[] =
         JSON.parse(editor.engine.get_prototype_variables());
-      for (const v of defs) protoVars.set(v.name, v.default_value);
+      for (const v of defs) {
+        const type = String(v.var_type || "string").toLowerCase();
+        const defaultValue = String(v.default_value ?? "");
+        protoVarDefs.set(v.name, { type, defaultValue });
+        protoVars.set(v.name, defaultValue);
+      }
     } catch {}
+  }
+
+  function setProtoVar(varName: string, nextValue: string, source: "interaction" | "override" | "init") {
+    const prev = String(protoVars.get(varName) ?? "");
+    const next = String(nextValue ?? "");
+    if (prev === next) return;
+    protoVars.set(varName, next);
+    protoVarHistory.unshift({ at: Date.now(), name: varName, prev, next, source });
+    if (protoVarHistory.length > 40) protoVarHistory.length = 40;
   }
 
   /** Evaluate a SetVariable expression */
   function evalSetVariable(varName: string, expression: string) {
-    const current = protoVars.get(varName) ?? "0";
+    const current = String(protoVars.get(varName) ?? "0");
+    const def = protoVarDefs.get(varName);
+    const type = String(def?.type || "string");
+    let next = String(expression ?? "");
+
     // Increment/decrement shorthand
     if (/^[+-]\d+(\.\d+)?$/.test(expression)) {
       const num = parseFloat(current) || 0;
-      protoVars.set(varName, String(num + parseFloat(expression)));
+      next = String(num + parseFloat(expression));
     } else if (expression === "toggle") {
-      protoVars.set(varName, current === "true" ? "false" : "true");
-    } else {
-      // Literal value
-      protoVars.set(varName, expression);
+      next = current === "true" ? "false" : "true";
+    } else if (type === "number") {
+      const n = Number(expression);
+      next = Number.isFinite(n) ? String(n) : current;
+    } else if (type === "boolean") {
+      const low = String(expression).trim().toLowerCase();
+      if (["true", "1", "yes", "on"].includes(low)) next = "true";
+      else if (["false", "0", "no", "off"].includes(low)) next = "false";
+      else next = current;
     }
+
+    setProtoVar(varName, next, "interaction");
     renderVarsPanel();
   }
 
@@ -378,17 +407,106 @@ export function createPrototypeViewer(editor: Editor): {
     }
     varsPanel.innerHTML = "";
 
-    // Section 1: prototype runtime vars
+    // Section 1: prototype runtime vars + override inspector
     if (protoVars.size > 0) {
       const title = document.createElement("div");
-      title.style.cssText = "font-weight:700;margin-bottom:4px;color:#818cf8;";
-      title.textContent = "Prototype Variables";
+      title.style.cssText = "font-weight:700;margin-bottom:6px;color:#818cf8;";
+      title.textContent = "Prototype Variables (Runtime)";
       varsPanel.appendChild(title);
+
       for (const [name, val] of protoVars) {
+        const def = protoVarDefs.get(name);
+        const type = String(def?.type || "string");
+
         const row = document.createElement("div");
-        row.style.cssText = "display:flex;justify-content:space-between;gap:8px;padding:2px 0;";
-        row.innerHTML = `<span style=\"color:#a5b4fc;\">${name}</span><span style=\"color:#4ade80;font-weight:600;\">${val}</span>`;
+        row.style.cssText = "padding:4px 0 6px;border-bottom:1px solid rgba(255,255,255,0.06);";
+
+        const head = document.createElement("div");
+        head.style.cssText = "display:flex;justify-content:space-between;gap:8px;align-items:center;";
+        const nameEl = document.createElement("span");
+        nameEl.style.cssText = "color:#a5b4fc;font-weight:600;";
+        nameEl.textContent = name;
+        const typeEl = document.createElement("span");
+        typeEl.style.cssText = "color:#94a3b8;font-size:10px;text-transform:uppercase;";
+        typeEl.textContent = type;
+        head.appendChild(nameEl);
+        head.appendChild(typeEl);
+        row.appendChild(head);
+
+        const controls = document.createElement("div");
+        controls.style.cssText = "display:flex;gap:6px;align-items:center;margin-top:4px;";
+        if (type === "boolean") {
+          const check = document.createElement("input");
+          check.type = "checkbox";
+          check.checked = String(val) === "true";
+          check.addEventListener("change", () => {
+            setProtoVar(name, check.checked ? "true" : "false", "override");
+            renderVarsPanel();
+          });
+          controls.appendChild(check);
+        } else {
+          const input = document.createElement("input");
+          input.className = "prop-input";
+          input.style.cssText = "flex:1;min-width:0;height:24px;font-size:11px;";
+          input.value = String(val);
+          if (type === "number") input.inputMode = "decimal";
+          const commit = () => {
+            const raw = input.value;
+            if (type === "number") {
+              const n = Number(raw);
+              if (!Number.isFinite(n)) {
+                input.value = String(protoVars.get(name) ?? "0");
+                return;
+              }
+              setProtoVar(name, String(n), "override");
+            } else {
+              setProtoVar(name, raw, "override");
+            }
+            renderVarsPanel();
+          };
+          input.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") commit();
+          });
+          input.addEventListener("blur", commit);
+          controls.appendChild(input);
+        }
+
+        const resetBtn = document.createElement("button");
+        resetBtn.style.cssText = "background:#1f2937;color:#cbd5e1;border:1px solid #334155;border-radius:6px;padding:2px 6px;cursor:pointer;font-size:10px;";
+        resetBtn.textContent = "Reset";
+        resetBtn.addEventListener("click", () => {
+          const fallback = String(def?.defaultValue ?? "");
+          setProtoVar(name, fallback, "override");
+          renderVarsPanel();
+        });
+        controls.appendChild(resetBtn);
+        row.appendChild(controls);
+
+        const valueLine = document.createElement("div");
+        valueLine.style.cssText = "font-size:10px;color:#86efac;margin-top:3px;font-family:ui-monospace,Menlo,monospace;";
+        valueLine.textContent = `value: ${String(protoVars.get(name) ?? "")}`;
+        row.appendChild(valueLine);
+
         varsPanel.appendChild(row);
+      }
+
+      const histTitle = document.createElement("div");
+      histTitle.style.cssText = "font-weight:700;margin-top:8px;margin-bottom:4px;color:#c4b5fd;font-size:11px;";
+      histTitle.textContent = "Recent Changes";
+      varsPanel.appendChild(histTitle);
+      if (protoVarHistory.length === 0) {
+        const empty = document.createElement("div");
+        empty.style.cssText = "font-size:10px;color:#94a3b8;margin-bottom:4px;";
+        empty.textContent = "No variable changes yet.";
+        varsPanel.appendChild(empty);
+      } else {
+        protoVarHistory.slice(0, 8).forEach((entry) => {
+          const row = document.createElement("div");
+          const t = new Date(entry.at).toLocaleTimeString("ko-KR", { hour12: false });
+          row.style.cssText = "font-size:10px;color:#cbd5e1;line-height:1.3;padding:2px 0;";
+          row.innerHTML = `<span style=\"color:#93c5fd;\">${t}</span> <span style=\"color:#a5b4fc;\">${entry.name}</span> <span style=\"color:#94a3b8;\">${entry.prev}</span> <span style=\"color:#fda4af;\">→</span> <span style=\"color:#86efac;\">${entry.next}</span> <span style=\"color:#94a3b8;\">(${entry.source})</span>`;
+          varsPanel.appendChild(row);
+        });
       }
     }
 
