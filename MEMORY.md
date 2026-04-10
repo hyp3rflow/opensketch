@@ -1790,9 +1790,19 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Prototype Start Points Manager — 페이지별 다중 start frame을 시각적으로 관리하고 flow별 진입점을 저장/전환 (임팩트 중상, 난이도 중)
 - Auto Layout Spacing Tokens — 반복 간격 패턴을 토큰으로 추출해 프레임별 추천/적용 + 변수 바인딩 연결 (임팩트 중상, 난이도 중상)
 - Component Variant Naming Lint — variant axis/value 네이밍 규칙 검사(중복/불일치/약어 혼용)와 일괄 정리 제안 (임팩트 중, 난이도 중)
+- Smart Selection Cycling (Deep Select Stack) — 겹친 레이어 클릭 시 Tab/Shift+Tab으로 hit stack 순환 선택 + HUD 표시 (임팩트 상, 난이도 중)
+- Prototype Trigger Regions (Hotspot shape editor) — 사각형 외 자유 폴리곤 hotspot 편집 + hover highlight + 접근성 label (임팩트 중상, 난이도 중상)
+- Constraints Presets + Batch Apply — Left/Right/Scale 등 반응형 제약 프리셋 저장/이름붙이기/다중 선택 일괄 적용 (임팩트 중상, 난이도 중)
+
+## 완료된 기능 (추가 — Prototype Start Points Manager, 2026-04-10)
+- Properties panel `Prototype Flows` 섹션의 start frame 설정 UI를 Start Points Manager 형태로 확장
+- flow별 연결 노드(source/target) + 현재 선택 노드를 합친 후보 목록을 드롭다운으로 제공
+- `Use selected`로 선택 노드를 즉시 start point로 지정, `Clear`로 start point 해제
+- `Focus` 버튼으로 현재 편집/디버그 기준 flow(`prototypeFlowId`)를 빠르게 전환
+- start point 변경 시 undo + render + 패널 refresh 연동
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Auto Layout Gap Suggestions, 2026-04-10)
 - Properties panel Auto layout 섹션에 `Gap suggestions` 카드 추가

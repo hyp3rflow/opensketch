@@ -389,6 +389,7 @@
   - Flow Diagram View: full-screen overlay with page thumbnail cards, interaction arrows (bezier curves), start frame green marker, pan/zoom support
   - Flow Diagram Mini-Graph diagnostics: header에 connection/dead-end/isolated 카운트 표시, dead-end 페이지를 red tint + `DEAD END` 배지로 강조
   - Properties panel: "Prototype Flows" section with flow list, add/remove/rename, start frame assignment
+  - Prototype Start Points Manager: flow card마다 start point select(연결 노드 기반 후보), `Use selected`/`Clear` 빠른 액션, flow focus 전환 버튼으로 flow별 진입점 관리 강화
   - Toolbar: Flow Diagram button next to prototype play button (i18n tooltip: en/ko/ja)
 
 ### Styles Library (Shared Color & Text Styles)
@@ -746,6 +747,7 @@
 - [x] **Overlap handling**: When nodes overlap, shows distances to individual edges
 - [x] **Target highlight**: Hovered node outlined with red dashed border
 - [x] **End ticks**: Perpendicular tick marks at measurement endpoints
+- [x] **Multi-select measure assist**: Alt/Dev overlay에서 다중 선택 시 각 노드의 W/H 치수 라벨을 동시에 표시하고, hover 대상이 없으면 가장 가까운 선택 노드 쌍의 간격선을 자동 표시
 - [x] **Pure TypeScript**: tools/measure.ts, no Rust changes needed
 
 ### Persistent Measure Tool

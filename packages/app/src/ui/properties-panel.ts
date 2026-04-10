@@ -7449,34 +7449,109 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         hdr.appendChild(delBtn);
         flowEl.appendChild(hdr);
 
-        // Start frame selector
+        // Start points manager
         const startLabel = document.createElement("div");
-        startLabel.style.cssText = "font-size:10px;color:#888;margin-bottom:2px;";
-        startLabel.textContent = "Start frame:";
+        startLabel.style.cssText = "font-size:10px;color:#888;margin-bottom:4px;display:flex;align-items:center;justify-content:space-between;";
+        startLabel.innerHTML = `<span>Start point</span><span style="color:#6b7280;">Page ${Number(flow.start_page_id || 0)}</span>`;
         flowEl.appendChild(startLabel);
 
-        const startInfo = document.createElement("div");
-        startInfo.style.cssText = "font-size:11px;color:#aaa;margin-bottom:4px;";
-        if (flow.start_frame_id) {
-          startInfo.textContent = `Node #${flow.start_frame_id} (Page ${flow.start_page_id})`;
-        } else {
-          startInfo.textContent = "Not set";
-        }
-        flowEl.appendChild(startInfo);
+        const connNodes = new Set<number>();
+        try {
+          const conns = JSON.parse(editor.engine.get_flow_connections(BigInt(flow.id)) || "[]") || [];
+          for (const c of conns) {
+            const sid = Number(c?.source_node_id || 0);
+            const tid = Number(c?.target_node_id || 0);
+            if (sid > 0) connNodes.add(sid);
+            if (tid > 0) connNodes.add(tid);
+          }
+        } catch {}
+        if (flow.start_frame_id) connNodes.add(Number(flow.start_frame_id));
+        if (id) connNodes.add(Number(id));
+
+        const startSelect = document.createElement("select");
+        startSelect.className = "prop-input";
+        startSelect.style.cssText = "width:100%;margin-bottom:4px;";
+        const noneOpt = document.createElement("option");
+        noneOpt.value = "0";
+        noneOpt.textContent = "No start frame (all connections)";
+        startSelect.appendChild(noneOpt);
+
+        Array.from(connNodes)
+          .sort((a, b) => a - b)
+          .forEach((nodeId) => {
+            let label = `Node #${nodeId}`;
+            try {
+              const raw = editor.engine.get_node_json(BigInt(nodeId));
+              const n = raw ? JSON.parse(raw) : null;
+              if (n) {
+                const kind = String(n.kind || "Node");
+                const name = String(n.name || "").trim();
+                label = name ? `${name} (${kind} #${nodeId})` : `${kind} #${nodeId}`;
+              }
+            } catch {}
+            const opt = document.createElement("option");
+            opt.value = String(nodeId);
+            opt.textContent = label;
+            startSelect.appendChild(opt);
+          });
+
+        startSelect.value = String(Number(flow.start_frame_id || 0));
+        startSelect.addEventListener("change", () => {
+          ensureUndo();
+          const nodeId = Number(startSelect.value || 0);
+          const pageId = editor.engine.get_active_page_id?.() || BigInt(0);
+          editor.engine.set_flow_start_frame(BigInt(flow.id), BigInt(nodeId), pageId);
+          (editor as any).prototypeFlowId = Number(flow.id);
+          editor.requestRender();
+          refresh(ids);
+        });
+        flowEl.appendChild(startSelect);
+
+        const startActions = document.createElement("div");
+        startActions.style.cssText = "display:flex;gap:4px;";
 
         const setStartBtn = document.createElement("button");
-        setStartBtn.style.cssText = "background:#2a2a2a;border:1px solid #444;border-radius:4px;color:#aaa;padding:2px 8px;font-size:10px;cursor:pointer;";
-        setStartBtn.textContent = id ? "Set selected as start" : "Select a node first";
+        setStartBtn.className = "prop-btn";
+        setStartBtn.style.cssText = "font-size:10px;padding:2px 6px;";
+        setStartBtn.textContent = id ? "Use selected" : "Select a node";
         setStartBtn.disabled = !id;
         setStartBtn.addEventListener("click", () => {
           if (!id) return;
           ensureUndo();
           const pageId = editor.engine.get_active_page_id?.() || BigInt(0);
           editor.engine.set_flow_start_frame(BigInt(flow.id), BigInt(id), pageId);
+          (editor as any).prototypeFlowId = Number(flow.id);
           editor.requestRender();
           refresh(ids);
         });
-        flowEl.appendChild(setStartBtn);
+        startActions.appendChild(setStartBtn);
+
+        const clearStartBtn = document.createElement("button");
+        clearStartBtn.className = "prop-btn";
+        clearStartBtn.style.cssText = "font-size:10px;padding:2px 6px;";
+        clearStartBtn.textContent = "Clear";
+        clearStartBtn.addEventListener("click", () => {
+          ensureUndo();
+          editor.engine.set_flow_start_frame(BigInt(flow.id), BigInt(0), BigInt(0));
+          editor.requestRender();
+          refresh(ids);
+        });
+        startActions.appendChild(clearStartBtn);
+
+        const focusFlowBtn = document.createElement("button");
+        focusFlowBtn.className = "prop-btn";
+        focusFlowBtn.style.cssText = "font-size:10px;padding:2px 6px;";
+        const activeFlowId = Number((editor as any).prototypeFlowId || 0);
+        focusFlowBtn.textContent = activeFlowId === Number(flow.id) ? "Focused" : "Focus";
+        focusFlowBtn.disabled = activeFlowId === Number(flow.id);
+        focusFlowBtn.addEventListener("click", () => {
+          (editor as any).prototypeFlowId = Number(flow.id);
+          editor.requestRender();
+          refresh(ids);
+        });
+        startActions.appendChild(focusFlowBtn);
+
+        flowEl.appendChild(startActions);
 
         flowSection.appendChild(flowEl);
       });

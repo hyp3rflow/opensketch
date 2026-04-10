@@ -4430,7 +4430,6 @@ export class Editor {
     const zoom = this.engine.get_zoom();
     const panX = this.engine.get_pan_x();
     const panY = this.engine.get_pan_y();
-    this._measureDimensionLabels = computeDimensionLabels(selBBox as Bounds, zoom, panX, panY);
 
     const getNodeBounds = (id: number): Bounds | null => {
       const nj = this.engine.get_node_json(BigInt(id));
@@ -4438,6 +4437,19 @@ export class Editor {
       const n = JSON.parse(nj);
       return { x: Number(n.x || 0), y: Number(n.y || 0), w: Number(n.width || 0), h: Number(n.height || 0) };
     };
+
+    // Show dimensions per-node when multi-select, otherwise show single selection bbox dimensions.
+    if (sel.length > 1) {
+      const labels = [] as MeasureDimensionLabel[];
+      for (const id of sel) {
+        const b = getNodeBounds(id);
+        if (!b) continue;
+        labels.push(...computeDimensionLabels(b, zoom, panX, panY));
+      }
+      this._measureDimensionLabels = labels;
+    } else {
+      this._measureDimensionLabels = computeDimensionLabels(selBBox as Bounds, zoom, panX, panY);
+    }
 
     // Hit test to find hovered node
     const hitBigInt = this.engine.hit_test(screenX, screenY);
@@ -4454,15 +4466,40 @@ export class Editor {
       }
     }
 
-    // Alt + exactly two selected nodes: show spacing between them without hover target
-    if (sel.length === 2) {
-      const a = getNodeBounds(sel[0]!);
-      const b = getNodeBounds(sel[1]!);
-      if (a && b) {
-        this._measureLines = computeMeasureLines(a, b, zoom, panX, panY);
-        this._measureTargetBounds = b;
-        this.needsRender = true;
-        return;
+    // Alt/Dev multi-select: show spacing between the closest selected pair when no hover target.
+    if (sel.length >= 2) {
+      const selectedBounds = sel
+        .map((id) => getNodeBounds(id))
+        .filter((b): b is Bounds => !!b);
+
+      if (selectedBounds.length >= 2) {
+        let bestA: Bounds | null = null;
+        let bestB: Bounds | null = null;
+        let bestDist = Number.POSITIVE_INFINITY;
+
+        for (let i = 0; i < selectedBounds.length; i++) {
+          const a = selectedBounds[i]!;
+          const acx = a.x + a.w / 2;
+          const acy = a.y + a.h / 2;
+          for (let j = i + 1; j < selectedBounds.length; j++) {
+            const b = selectedBounds[j]!;
+            const bcx = b.x + b.w / 2;
+            const bcy = b.y + b.h / 2;
+            const d2 = (acx - bcx) * (acx - bcx) + (acy - bcy) * (acy - bcy);
+            if (d2 < bestDist) {
+              bestDist = d2;
+              bestA = a;
+              bestB = b;
+            }
+          }
+        }
+
+        if (bestA && bestB) {
+          this._measureLines = computeMeasureLines(bestA, bestB, zoom, panX, panY);
+          this._measureTargetBounds = bestB;
+          this.needsRender = true;
+          return;
+        }
       }
     }
 
