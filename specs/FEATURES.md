@@ -118,6 +118,7 @@
 - [x] **Component Props Figma-style override polish**: Instance의 Boolean/Text/Instance Swap prop을 타입 배지 + override dot + `Reset all` 액션으로 노출, Text default placeholder/tooltip 제공, Component source의 속성 목록에 default/linked target 메타 표시
 - [x] **Component Props default materialization**: 새 Instance 생성/컴포넌트 swap/variant-set swap 시 component property의 기본값(Boolean/Text/Instance Swap)을 즉시 자식 노드에 적용해 Figma처럼 기본 상태가 일관되게 반영
 - [x] **Instance Override Diff Inspector**: Instance Controls의 Overrides 카드에 node/property 필터(검색 + scope), property chip 목록, `Reset visible` 일괄 리셋 액션을 추가해 변경점만 빠르게 검토/정리
+- [x] **Nested Override Tree View v1**: Overrides row를 node path 기준으로 정렬하고 leaf + depth badge(Ln) + 들여쓰기 트리로 표시해 중첩 인스턴스 override 탐색성 향상
 - [x] **Component Property Defaults per Variant**: Component property(Boolean/Text/Instance Swap)의 기본값을 variant별로 저장/복원 가능. Instance Controls에서 현재 값을 현재 variant 기본값으로 저장(★)하거나 variant 기본값만 리셋(⟲v)할 수 있고, variant 전환 시 해당 variant 기본값 + override가 자동 재적용됨
 
 ### Alignment & Distribution
@@ -1159,6 +1160,7 @@ Frame overflow control and content scrolling.
 - [x] Hovered selection handle shows inline shortcut hint (`Enter / E / A`)
 - [x] 2026-04-06 backlog verification: feature is production-wired (tool + editor integration)
 - [x] 2026-04-10 v2: padding handles now remain draggable even when padding value is 0 (minimum edge hit-strip), so users can add padding directly from canvas without first typing values in Properties
+- [x] 2026-04-10 v3: auto-layout gap/padding badges are now always visible (idle state included), improving inline edit discoverability without hover hunting
 
 ### Auto Layout Spacing Presets
 - [x] Spacing presets panel: XS(4) / S(8) / M(12) / Base(16) / L(24) / XL(32) / 2XL(48)

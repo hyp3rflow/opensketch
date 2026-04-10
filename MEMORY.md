@@ -1790,10 +1790,17 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Nested Component Override Inspector — 인스턴스 내부 중첩 override를 계층 트리로 시각화하고 diff/리셋/일괄 적용 (임팩트 상, 난이도 중상)
 - Text on Path (Path-bound Typography) — Path 노드 위에 텍스트를 따라 배치, offset/reverse/align(start/center/end) 지원 (임팩트 상, 난이도 중상)
 - Prototype Focus Order & Keyboard Navigation — Tab 순서 지정 + Enter/Space trigger + focus ring로 접근성/키보드 테스트 강화 (임팩트 중상, 난이도 중)
 - Asset Export Presets Manager — 팀 공용 export preset(Web/iOS/Android) 저장/불러오기/문서별 preset sync (임팩트 중상, 난이도 중)
+
+## 완료된 기능 (추가 — Nested Component Override Inspector v1, 2026-04-10)
+- Instance Overrides 카드에서 override row를 노드명 기준 정렬해 중첩 구조 읽기 흐름 개선
+- `node_name` 경로를 파싱해 leaf 이름 + depth badge(`L1`, `L2`...) + 들여쓰기 트리 형태로 시각화
+- 기존 필터(query/scope), 개별 reset, `Reset visible`, `Reset all` 워크플로우와 완전 호환
+- override 상세 비교 시 긴 경로는 tooltip으로 보존하고 캔버스 패널은 leaf 중심으로 압축 표시
+- 구현: `packages/app/src/ui/properties-panel.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Variants Quick Swap HUD, 2026-04-10)
 - 선택된 Instance에서 `Alt + Mouse Wheel`로 variant string axis 값을 순환 변경

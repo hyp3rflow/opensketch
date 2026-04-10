@@ -2288,8 +2288,9 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             const scope = scopeSel.value;
             listWrap.innerHTML = "";
             let visibleCount = 0;
+            const sortedOverrides = [...overrideInfo.overrides].sort((a: any, b: any) => String(a?.node_name || "").localeCompare(String(b?.node_name || "")));
 
-            for (const ov of overrideInfo.overrides) {
+            for (const ov of sortedOverrides) {
               const matchedProps = (ov.properties || []).filter((p: string) => {
                 if (scope !== "all") {
                   const kind = classifyProp(p);
@@ -2306,9 +2307,35 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
               ovRow.innerHTML = `<span style="width:5px;height:5px;border-radius:50%;background:#3b82f6;flex-shrink:0;margin-top:6px;"></span>`;
               const content = document.createElement("div");
               content.style.cssText = "flex:1;min-width:0;";
+              const rawName = String(ov.node_name || "");
+              const segs = rawName.split(/[\\/>›]+/).map((s: string) => s.trim()).filter(Boolean);
+              const depth = Math.max(0, segs.length - 1);
+              const leaf = segs[segs.length - 1] || rawName;
+
               const name = document.createElement("div");
-              name.style.cssText = "color:#cbd5e1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:3px;";
-              name.textContent = ov.node_name;
+              name.style.cssText = "display:flex;align-items:center;gap:6px;color:#cbd5e1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:3px;";
+              name.style.paddingLeft = `${Math.min(depth, 6) * 10}px`;
+
+              if (depth > 0) {
+                const depthHint = document.createElement("span");
+                depthHint.style.cssText = "font-size:9px;color:#64748b;flex-shrink:0;";
+                depthHint.textContent = "└";
+                name.appendChild(depthHint);
+              }
+
+              const leafEl = document.createElement("span");
+              leafEl.style.cssText = "overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
+              leafEl.textContent = leaf;
+              leafEl.title = rawName;
+              name.appendChild(leafEl);
+
+              if (depth > 0) {
+                const depthBadge = document.createElement("span");
+                depthBadge.style.cssText = "font-size:9px;color:#93c5fd;background:rgba(59,130,246,0.18);border:1px solid rgba(59,130,246,0.3);padding:0 5px;border-radius:999px;flex-shrink:0;";
+                depthBadge.textContent = `L${depth}`;
+                name.appendChild(depthBadge);
+              }
+
               content.appendChild(name);
 
               const chips = document.createElement("div");

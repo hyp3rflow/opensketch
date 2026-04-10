@@ -274,7 +274,8 @@ export function renderSpacingHandles(
     ctx.restore();
 
     // Gap value label
-    if (isActive || h.mode === "selection") {
+    // Auto-layout mode keeps labels visible so users can scan + drag-edit inline without probing hover first.
+    if (isActive || h.mode === "selection" || h.mode === "autolayout") {
       const gapPx = h.direction === "row" ? h.sw : h.sh;
       const label = Math.round(gapPx).toString();
       const mx = h.sx + h.sw / 2;
@@ -284,10 +285,10 @@ export function renderSpacingHandles(
 
       // Pill background
       const pillColor = isNegative
-        ? "rgba(255, 80, 50, 0.85)"
+        ? (isActive ? "rgba(255, 80, 50, 0.9)" : "rgba(255, 80, 50, 0.72)")
         : isUniform && h.mode === "selection"
           ? "rgba(236, 72, 153, 0.9)"
-          : "rgba(236, 72, 153, 0.75)";
+          : (isActive ? "rgba(236, 72, 153, 0.85)" : "rgba(236, 72, 153, 0.62)");
       ctx.fillStyle = pillColor;
       ctx.beginPath();
       ctx.roundRect(mx - tw / 2 - 4, my - 7, tw + 8, 14, 3);
@@ -456,25 +457,23 @@ export function renderPaddingHandles(
     ctx.stroke();
     ctx.restore();
 
-    // Value label (always show on hover/drag, or if actively selected)
-    if (isActive) {
-      const mx = h.sx + h.sw / 2;
-      const my = h.sy + h.sh / 2;
-      const label = Math.round(h.value).toString();
-      ctx.font = "10px Inter, system-ui, sans-serif";
-      const tw = ctx.measureText(label).width;
+    // Value label (keep visible in idle state too for inline edit discoverability)
+    const mx = h.sx + h.sw / 2;
+    const my = h.sy + h.sh / 2;
+    const label = Math.round(h.value).toString();
+    ctx.font = "10px Inter, system-ui, sans-serif";
+    const tw = ctx.measureText(label).width;
 
-      ctx.fillStyle = "rgba(16, 185, 129, 0.85)";
-      ctx.beginPath();
-      ctx.roundRect(mx - tw / 2 - 4, my - 7, tw + 8, 14, 3);
-      ctx.fill();
+    ctx.fillStyle = isActive ? "rgba(16, 185, 129, 0.88)" : "rgba(16, 185, 129, 0.62)";
+    ctx.beginPath();
+    ctx.roundRect(mx - tw / 2 - 4, my - 7, tw + 8, 14, 3);
+    ctx.fill();
 
-      ctx.fillStyle = "#fff";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(label, mx, my);
-      ctx.textAlign = "start";
-      ctx.textBaseline = "alphabetic";
-    }
+    ctx.fillStyle = "#fff";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(label, mx, my);
+    ctx.textAlign = "start";
+    ctx.textBaseline = "alphabetic";
   }
 }
