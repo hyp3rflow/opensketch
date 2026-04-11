@@ -1792,6 +1792,9 @@
 ## 다음 할 것
 - Prototype Start Point Manager — 페이지별 start frame 지정/전환, flow별 entry 분기 및 프리뷰 실행 타깃 빠른 변경 (임팩트 상, 난이도 중)
 - Variable Alias Graph Inspector — 토큰/변수 alias 의존 그래프 시각화 + 순환 참조/깊은 체인 경고 및 one-click jump (임팩트 상, 난이도 중상)
+- Interaction Timeline Scrubber — Prototype viewer에서 frame transition/overlay/open-close를 타임라인으로 재생·스크럽해 끊김/순서 문제를 시각 디버깅 (임팩트 중상, 난이도 중)
+- Auto Layout Stretch Handles — 캔버스에서 자식의 Fill/Hug/Fixed를 핸들 드래그로 전환하고 남은 공간 분배를 실시간 프리뷰 (임팩트 상, 난이도 중상)
+- Component Slot Fallback Preview — slot 미바인딩/깨진 instance swap 상태를 fallback 컴포넌트와 경고 배지로 즉시 확인·복구 (임팩트 중상, 난이도 중)
 
 ## 완료된 기능 (추가 — Smart Selection Scope Bar, 2026-04-12)
 - Smart Select 패널 상단에 Selection Scope Bar 추가 (`Document / Page / Frame / Component`)
