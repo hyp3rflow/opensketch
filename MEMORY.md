@@ -1790,11 +1790,17 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Auto Layout Stretch Handles — 캔버스에서 자식의 Fill/Hug/Fixed를 핸들 드래그로 전환하고 남은 공간 분배를 실시간 프리뷰 (임팩트 상, 난이도 중상)
 - Component Slot Fallback Preview — slot 미바인딩/깨진 instance swap 상태를 fallback 컴포넌트와 경고 배지로 즉시 확인·복구 (임팩트 중상, 난이도 중)
 - Prototype Overlay Stack Inspector — OpenOverlay/CloseOverlay 체인을 스택 타임라인으로 표시하고 z-order/닫힘 누락을 경고 (임팩트 중상, 난이도 중)
 - Component Property Controls (Instance Exposed Props) — 컴포넌트에서 텍스트/불리언/숫자 prop을 노출해 인스턴스 패널에서 직접 편집 (임팩트 상, 난이도 상)
 - Multi-user Cursor Playback (Local Session) — 코멘트/리뷰 모드에서 가상 collaborator 커서 리플레이로 사용자 플로우 설명 지원 (임팩트 중, 난이도 중상)
+
+## 완료된 기능 (추가 — Auto Layout Stretch Handles, 2026-04-12)
+- 단일 자식 선택 + auto-layout 부모일 때 캔버스에 stretch handle 오버레이 표시
+- handle 드래그 거리 기반으로 sizing 모드 전환: 좌/상향 `Hug`, 중립 `Fixed`, 우/하향 `Fill`
+- 전환 즉시 `set_sizing_h/v` + `compute_layout()` 적용으로 남은 공간 분배를 실시간 프리뷰
+- 구현: `packages/app/src/editor.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Interaction Timeline Scrubber, 2026-04-12)
 - Prototype Viewer 우측에 `Interaction Timeline` 패널 추가 (scrub slider + 최근 이벤트 목록)

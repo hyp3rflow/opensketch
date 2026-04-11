@@ -76,6 +76,16 @@ interface SmartSelectionFilterState {
   hidden: boolean;
 }
 
+interface StretchHandle {
+  nodeId: number;
+  axis: "h" | "v";
+  mode: "Fixed" | "Hug" | "Fill";
+  sx: number;
+  sy: number;
+  sw: number;
+  sh: number;
+}
+
 interface DragState {
   startX: number;
   startY: number;
@@ -314,6 +324,12 @@ export class Editor {
   private _spacingDragStartY = 0;
   private _spacingDragStartX = 0;
   private _spacingDragStartGap = 0;
+
+  // Auto-layout stretch handle (child sizing_h/v quick drag)
+  private _stretchHandle: StretchHandle | null = null;
+  private _stretchHovered: StretchHandle | null = null;
+  private _stretchDragging: StretchHandle | null = null;
+  private _stretchDragStart = 0;
 
   // Padding handles (auto-layout padding drag)
   private _paddingHandles: PaddingHandle[] = [];
@@ -1740,6 +1756,18 @@ export class Editor {
       }
     }
 
+    // Auto-layout stretch handle drag (switch Fixed/Hug/Fill)
+    if (this.currentTool === "select" && this._stretchHandle) {
+      const stretchHit = this.hitTestStretchHandle(x, y);
+      if (stretchHit) {
+        this.engine.push_undo();
+        this._stretchDragging = stretchHit;
+        this._stretchDragStart = stretchHit.axis === "h" ? x : y;
+        this.canvas.setPointerCapture(e.pointerId);
+        return;
+      }
+    }
+
     // Spacing handle drag (auto-layout gap)
     if (this.currentTool === "select" && this._spacingHandles.length > 0) {
       const hit = hitTestSpacingHandle(this._spacingHandles, x, y);
@@ -2251,6 +2279,25 @@ export class Editor {
       return;
     }
 
+    // Stretch handle dragging
+    if (this._stretchDragging) {
+      const pos = this._stretchDragging.axis === "h" ? e.offsetX : e.offsetY;
+      const delta = pos - this._stretchDragStart;
+      let nextMode: "Fixed" | "Hug" | "Fill" = "Fixed";
+      if (delta > 16) nextMode = "Fill";
+      else if (delta < -16) nextMode = "Hug";
+      if (nextMode !== this._stretchDragging.mode) {
+        this._stretchDragging.mode = nextMode;
+        const bid = BigInt(this._stretchDragging.nodeId);
+        if (this._stretchDragging.axis === "h") this.engine.set_sizing_h(bid, nextMode);
+        else this.engine.set_sizing_v(bid, nextMode);
+        this.engine.compute_layout();
+        this.fireSelectionThrottled(Array.from(this.engine.get_selection()).map(Number));
+      }
+      this.needsRender = true;
+      return;
+    }
+
     // Padding handle dragging
     if (this._paddingDragging) {
       const zoom = this.engine.get_zoom();
@@ -2280,6 +2327,18 @@ export class Editor {
       this._paddingHandles = findPaddingHandles(this.engine);
       this.needsRender = true;
       return;
+    }
+
+    // Stretch handle hover
+    if (this.currentTool === "select" && this._stretchHandle && !this.engine.is_dragging()) {
+      const prev = this._stretchHovered;
+      this._stretchHovered = this.hitTestStretchHandle(e.offsetX, e.offsetY);
+      if (this._stretchHovered) {
+        this.canvas.style.cursor = this._stretchHovered.axis === "h" ? "ew-resize" : "ns-resize";
+        if (prev !== this._stretchHovered) this.needsRender = true;
+      } else if (prev) {
+        this.needsRender = true;
+      }
     }
 
     // Spacing handle hover
@@ -2889,6 +2948,15 @@ export class Editor {
 
     // Responsive resize release
     if (this._responsiveResize?.isActive && this._responsiveResize.onPointerUp()) {
+      this.needsRender = true;
+      return;
+    }
+
+    // Stretch handle release
+    if (this._stretchDragging) {
+      this._stretchDragging = null;
+      this._stretchHovered = null;
+      this.fireSelectionNow(Array.from(this.engine.get_selection()).map(Number));
       this.needsRender = true;
       return;
     }
@@ -7347,12 +7415,77 @@ export class Editor {
     this._gradientEditor.render(this.ctx, zoom, panX, panY);
   }
 
+  private computeStretchHandle(): StretchHandle | null {
+    const sel = Array.from(this.engine.get_selection()).map(Number);
+    if (sel.length !== 1) return null;
+    const nodeId = sel[0];
+    if (!(nodeId > 0)) return null;
+    try {
+      const nodeRaw = this.engine.get_node_json(BigInt(nodeId));
+      if (!nodeRaw) return null;
+      const node = JSON.parse(nodeRaw);
+      const parentId = Number(node?.parent || 0);
+      if (!(parentId > 0) || node?.absolute_position) return null;
+      const parentRaw = this.engine.get_node_json(BigInt(parentId));
+      if (!parentRaw) return null;
+      const parent = JSON.parse(parentRaw);
+      const layout = parent?.layout;
+      if (!layout || layout.mode === "None") return null;
+      const axis: "h" | "v" = layout.direction === "Row" ? "h" : "v";
+      let mode: "Fixed" | "Hug" | "Fill" = "Fixed";
+      try {
+        const sizing = JSON.parse(this.engine.get_sizing(BigInt(nodeId)) || "{}");
+        mode = String(axis === "h" ? sizing?.horizontal : sizing?.vertical) as any;
+        if (mode !== "Fixed" && mode !== "Hug" && mode !== "Fill") mode = "Fixed";
+      } catch {}
+      const zoom = this.engine.get_zoom();
+      const panX = this.engine.get_pan_x();
+      const panY = this.engine.get_pan_y();
+      const sx = node.x * zoom + panX;
+      const sy = node.y * zoom + panY;
+      const sw = node.width * zoom;
+      const sh = node.height * zoom;
+      const hs = 18;
+      return axis === "h"
+        ? { nodeId, axis, mode, sx: sx + sw + 6, sy: sy + sh * 0.5 - hs * 0.5, sw: hs, sh: hs }
+        : { nodeId, axis, mode, sx: sx + sw * 0.5 - hs * 0.5, sy: sy + sh + 6, sw: hs, sh: hs };
+    } catch {
+      return null;
+    }
+  }
+
+  private hitTestStretchHandle(x: number, y: number): StretchHandle | null {
+    const h = this._stretchHandle;
+    if (!h) return null;
+    return x >= h.sx && x <= h.sx + h.sw && y >= h.sy && y <= h.sy + h.sh ? h : null;
+  }
+
   private renderSpacingHandles() {
     if (this._paddingHandles.length > 0) {
       renderPaddingHandles(this.ctx, this._paddingHandles, this._paddingHovered, this._paddingDragging);
     }
-    if (this._spacingHandles.length === 0) return;
-    renderSpacingHandles(this.ctx, this._spacingHandles, this._spacingHovered, this._spacingDragging);
+    if (this._spacingHandles.length > 0) {
+      renderSpacingHandles(this.ctx, this._spacingHandles, this._spacingHovered, this._spacingDragging);
+    }
+
+    this._stretchHandle = this.computeStretchHandle();
+    if (!this._stretchHandle) return;
+    const h = this._stretchHandle;
+    const isActive = !!(this._stretchDragging || this._stretchHovered);
+    this.ctx.save();
+    this.ctx.fillStyle = isActive ? "rgba(56,189,248,0.28)" : "rgba(30,41,59,0.92)";
+    this.ctx.strokeStyle = isActive ? "rgba(56,189,248,0.9)" : "rgba(148,163,184,0.6)";
+    this.ctx.lineWidth = 1;
+    this.ctx.beginPath();
+    this.ctx.roundRect(h.sx, h.sy, h.sw, h.sh, 5);
+    this.ctx.fill();
+    this.ctx.stroke();
+    this.ctx.fillStyle = "#e2e8f0";
+    this.ctx.font = "10px Inter, sans-serif";
+    this.ctx.textAlign = "center";
+    this.ctx.textBaseline = "middle";
+    this.ctx.fillText(h.mode[0], h.sx + h.sw * 0.5, h.sy + h.sh * 0.5 + 0.5);
+    this.ctx.restore();
   }
 
   private renderConstraintPinsOverlay() {

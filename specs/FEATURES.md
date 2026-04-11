@@ -2686,3 +2686,16 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] 슬라이더 또는 이벤트 row 클릭 시 해당 시점의 target frame으로 즉시 jump
 - [x] `Play` 액션으로 기록된 간격 기반 재생(transition duration fallback), `Clear`로 세션 타임라인 초기화
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
+
+### Auto Layout Stretch Handles (2026-04-12)
+- [x] 단일 자식 선택 + auto-layout 부모일 때 캔버스에 stretch handle 오버레이 표시
+- [x] handle 드래그 거리 기반 sizing mode 전환 지원 (`Hug` / `Fixed` / `Fill`)
+- [x] 전환 즉시 `set_sizing_h/v` + `compute_layout()` 적용으로 남은 공간 분배 실시간 프리뷰
+- 구현: `packages/app/src/editor.ts`
+
+### Smart Animate Property Diff Presets (2026-04-12)
+- [x] Interactions 편집 카드에 `Smart Animate Diff Presets` 섹션 추가 (Scan/Apply/Apply flow)
+- [x] source/target frame 트리를 비교해 변경 속성을 Transform/Opacity/Fill/Text로 자동 분류
+- [x] 분류 점수 기반 추천 preset(transition + duration + easing) 제안 및 원클릭 적용
+- [x] `Apply flow`로 active flow scope의 NavigateTo/OpenOverlay interaction에 일괄 적용
+- 구현: `packages/app/src/ui/properties-panel.ts`

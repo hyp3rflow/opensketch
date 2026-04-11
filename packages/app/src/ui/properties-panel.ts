@@ -198,6 +198,126 @@ function savePrototypeFlowTransitionDefaults(editor: Editor, defaults: Prototype
   localStorage.setItem(key, JSON.stringify(defaults));
 }
 
+type SmartAnimateDiffPreset = {
+  id: "transform" | "opacity" | "fill" | "text";
+  label: string;
+  transition: string;
+  durationMs: number;
+  easing: string;
+  score: number;
+  detail: string;
+};
+
+function getNodeJson(editor: Editor, id: number): any | null {
+  if (!(id > 0)) return null;
+  try {
+    const raw = editor.engine.get_node_json(BigInt(id));
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function buildFrameNodeSignatureMap(editor: Editor, frameId: number): Map<string, { transform: string; opacity: number; fill: string; text: string }> {
+  const map = new Map<string, { transform: string; opacity: number; fill: string; text: string }>();
+  const walk = (id: number, path: string) => {
+    const node = getNodeJson(editor, id);
+    if (!node) return;
+    const name = String(node?.name || node?.kind || `#${id}`);
+    const key = path ? `${path}/${name}` : name;
+    const fills = Array.isArray(node?.fills) ? node.fills : (node?.fill ? [node.fill] : []);
+    const visibleFills = fills.filter((f: any) => f && f.visible !== false).map((f: any) => ({
+      t: String(f?.fill_type || "solid"),
+      c: String(f?.color || ""),
+      o: Number(f?.opacity ?? 1),
+      sx: Number(f?.start_x ?? 0), sy: Number(f?.start_y ?? 0),
+      ex: Number(f?.end_x ?? 0), ey: Number(f?.end_y ?? 0),
+      cx: Number(f?.center_x ?? 0), cy: Number(f?.center_y ?? 0),
+      r: Number(f?.radius ?? 0),
+      stops: Array.isArray(f?.stops) ? f.stops.map((s: any) => `${Number(s?.offset ?? 0)}:${String(s?.color || "")}`) : [],
+    }));
+    map.set(key, {
+      transform: [Number(node?.x || 0), Number(node?.y || 0), Number(node?.width || 0), Number(node?.height || 0), Number(node?.rotation || 0)].map((v) => v.toFixed(2)).join(","),
+      opacity: Number(node?.opacity ?? 1),
+      fill: JSON.stringify(visibleFills),
+      text: [String(node?.text || ""), String(node?.font_family || ""), Number(node?.font_size || 0), Number(node?.font_weight || 400), String(node?.text_align || "")].join("|")
+    });
+    const children = Array.isArray(node?.children) ? node.children : [];
+    for (let i = 0; i < children.length; i++) {
+      const cid = Number(children[i] || 0);
+      if (cid > 0) walk(cid, `${key}[${i}]`);
+    }
+  };
+  walk(frameId, "");
+  return map;
+}
+
+function suggestSmartAnimateDiffPresets(editor: Editor, fromFrameId: number, toFrameId: number): SmartAnimateDiffPreset[] {
+  const source = buildFrameNodeSignatureMap(editor, fromFrameId);
+  const target = buildFrameNodeSignatureMap(editor, toFrameId);
+  if (source.size === 0 || target.size === 0) return [];
+
+  let transformChanges = 0;
+  let opacityChanges = 0;
+  let fillChanges = 0;
+  let textChanges = 0;
+
+  const keys = new Set<string>([...source.keys(), ...target.keys()]);
+  for (const key of keys) {
+    const a = source.get(key);
+    const b = target.get(key);
+    if (!a || !b) {
+      transformChanges += 1;
+      continue;
+    }
+    if (a.transform !== b.transform) transformChanges += 1;
+    if (Math.abs(a.opacity - b.opacity) > 0.001) opacityChanges += 1;
+    if (a.fill !== b.fill) fillChanges += 1;
+    if (a.text !== b.text) textChanges += 1;
+  }
+
+  const presets: SmartAnimateDiffPreset[] = [
+    {
+      id: "transform",
+      label: "Transform",
+      transition: "smart-animate",
+      durationMs: 420,
+      easing: "ease_in_out",
+      score: transformChanges,
+      detail: `${transformChanges} layer transform changes`,
+    },
+    {
+      id: "opacity",
+      label: "Opacity",
+      transition: opacityChanges > transformChanges ? "dissolve" : "smart-animate",
+      durationMs: 220,
+      easing: "ease_out",
+      score: opacityChanges,
+      detail: `${opacityChanges} opacity deltas`,
+    },
+    {
+      id: "fill",
+      label: "Fill",
+      transition: "smart-animate",
+      durationMs: 280,
+      easing: "linear",
+      score: fillChanges,
+      detail: `${fillChanges} fill/style changes`,
+    },
+    {
+      id: "text",
+      label: "Text",
+      transition: textChanges > 0 ? "dissolve" : "smart-animate",
+      durationMs: 180,
+      easing: "ease_out",
+      score: textChanges,
+      detail: `${textChanges} text/font changes`,
+    },
+  ];
+
+  return presets.filter((p) => p.score > 0).sort((a, b) => b.score - a.score);
+}
+
 // Stage 4: Google Fonts list
 const googleFonts = [
   "Inter", "Roboto", "Open Sans", "Lato", "Montserrat", "Poppins",
@@ -7864,6 +7984,130 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           });
           flowDefaultRow.append(flowDefaultLabel, flowDefaultBtn);
           interEl.appendChild(flowDefaultRow);
+
+          const smartDiffWrap = document.createElement("div");
+          smartDiffWrap.style.cssText = "margin-top:6px;padding:6px;border:1px solid #2f3340;border-radius:6px;background:#171a24;";
+          const smartDiffHead = document.createElement("div");
+          smartDiffHead.style.cssText = "display:flex;justify-content:space-between;align-items:center;gap:6px;";
+          const smartDiffTitle = document.createElement("span");
+          smartDiffTitle.style.cssText = "font-size:10px;color:#a5b4fc;font-weight:600;";
+          smartDiffTitle.textContent = "Smart Animate Diff Presets";
+          const smartDiffScanBtn = document.createElement("button");
+          smartDiffScanBtn.className = "prop-btn";
+          smartDiffScanBtn.style.fontSize = "10px";
+          smartDiffScanBtn.textContent = "Scan";
+          smartDiffHead.append(smartDiffTitle, smartDiffScanBtn);
+          smartDiffWrap.appendChild(smartDiffHead);
+
+          const smartDiffMeta = document.createElement("div");
+          smartDiffMeta.style.cssText = "font-size:9px;color:#7c8698;margin-top:4px;line-height:1.35;";
+          smartDiffMeta.textContent = "Compare source/target frame changes and apply transition presets.";
+          smartDiffWrap.appendChild(smartDiffMeta);
+
+          const smartDiffList = document.createElement("div");
+          smartDiffList.style.cssText = "display:flex;flex-direction:column;gap:4px;margin-top:6px;";
+          smartDiffWrap.appendChild(smartDiffList);
+
+          const renderSmartDiffRows = () => {
+            const fromFrameId = Number(id || 0);
+            const toFrameId = parseInt(targetInput.value) || Number(inter.target_node_id || 0);
+            const canScan = fromFrameId > 0 && toFrameId > 0 && (actSelect.value === "navigate-to" || actSelect.value === "open-overlay");
+            smartDiffList.innerHTML = "";
+            if (!canScan) {
+              const hint = document.createElement("div");
+              hint.style.cssText = "font-size:9px;color:#64748b;";
+              hint.textContent = "Set action to Navigate/OpenOverlay and choose target frame.";
+              smartDiffList.appendChild(hint);
+              return;
+            }
+
+            const presets = suggestSmartAnimateDiffPresets(editor, fromFrameId, toFrameId);
+            if (presets.length === 0) {
+              const clean = document.createElement("div");
+              clean.style.cssText = "font-size:9px;color:#86efac;";
+              clean.textContent = "No major frame diff detected.";
+              smartDiffList.appendChild(clean);
+              return;
+            }
+
+            for (const preset of presets.slice(0, 4)) {
+              const row = document.createElement("div");
+              row.style.cssText = "display:grid;grid-template-columns:1fr auto auto;gap:4px;align-items:center;background:#111827;border:1px solid #2f3340;border-radius:6px;padding:4px;";
+              const meta = document.createElement("div");
+              meta.innerHTML = `<div style=\"font-size:10px;color:#e2e8f0;font-weight:600;\">${preset.label}</div><div style=\"font-size:9px;color:#94a3b8;\">${preset.detail}</div>`;
+              const applyOne = document.createElement("button");
+              applyOne.className = "prop-btn";
+              applyOne.style.fontSize = "9px";
+              applyOne.textContent = "Apply";
+              applyOne.onclick = () => {
+                ensureUndo();
+                transSelect.value = preset.transition;
+                durInput.value = String(preset.durationMs);
+                currentEasing = preset.easing;
+                rebuildInteraction({
+                  trigger: trigSelect.value,
+                  action: actSelect.value,
+                  target_node_id: parseInt(targetInput.value) || Number(inter.target_node_id || 0),
+                  transition: preset.transition,
+                  transition_duration_ms: preset.durationMs,
+                  easing: preset.easing,
+                  variant_key_json: variantInput.value,
+                });
+                editor.requestRender();
+                refresh(ids);
+              };
+
+              const applyFlow = document.createElement("button");
+              applyFlow.className = "prop-btn";
+              applyFlow.style.fontSize = "9px";
+              applyFlow.textContent = "Apply flow";
+              applyFlow.onclick = () => {
+                const scopedNodeIds = getFlowScopedNodeIds();
+                if (!scopedNodeIds.length) return;
+                ensureUndo();
+                let touched = 0;
+                for (const scopedNodeId of scopedNodeIds) {
+                  let scopedInteractions: any[] = [];
+                  try { scopedInteractions = JSON.parse(editor.engine.get_interactions(BigInt(scopedNodeId)) || "[]") || []; } catch {}
+                  if (!Array.isArray(scopedInteractions) || scopedInteractions.length === 0) continue;
+                  for (let idxToRemove = scopedInteractions.length - 1; idxToRemove >= 0; idxToRemove--) {
+                    editor.engine.remove_interaction(BigInt(scopedNodeId), idxToRemove);
+                  }
+                  let newIndex = 0;
+                  for (const scopedInter of scopedInteractions) {
+                    const scopedAction = String(scopedInter?.action || "").toLowerCase();
+                    const isProtoNav = scopedAction === "navigateto" || scopedAction === "openoverlay";
+                    const nextTransition = isProtoNav ? preset.transition : String(scopedInter?.transition || "instant");
+                    const nextDuration = isProtoNav ? preset.durationMs : Number(scopedInter?.transition_duration_ms || 300);
+                    editor.engine.add_interaction(
+                      BigInt(scopedNodeId),
+                      String(scopedInter?.trigger || "OnClick"),
+                      String(scopedInter?.action || "NavigateTo"),
+                      BigInt(Number(scopedInter?.target_node_id || 0)),
+                      BigInt(Number(scopedInter?.target_page_id || 0)),
+                      nextTransition,
+                      nextDuration,
+                    );
+                    editor.engine.set_interaction_easing(BigInt(scopedNodeId), newIndex, isProtoNav ? preset.easing : String(scopedInter?.easing || "ease_in_out"));
+                    if (isProtoNav) touched += 1;
+                    newIndex += 1;
+                  }
+                }
+                editor.requestRender();
+                refresh(ids);
+                alert(`Applied ${preset.label} preset to ${touched} interactions`);
+              };
+
+              row.append(meta, applyOne, applyFlow);
+              smartDiffList.appendChild(row);
+            }
+          };
+
+          smartDiffScanBtn.addEventListener("click", renderSmartDiffRows);
+          actSelect.addEventListener("change", renderSmartDiffRows);
+          targetInput.addEventListener("change", renderSmartDiffRows);
+          renderSmartDiffRows();
+          interEl.appendChild(smartDiffWrap);
         }
 
         // --- Easing Curve Editor ---
