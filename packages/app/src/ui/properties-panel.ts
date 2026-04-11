@@ -45,9 +45,24 @@ type PrototypeRingPreset = {
   focus: PrototypeRingStyle;
 };
 
+type PrototypeTransitionPreset = {
+  id: string;
+  name: string;
+  transition: string;
+  durationMs: number;
+  easing: string;
+  createdAt: number;
+};
+
+type PrototypeFlowTransitionDefaults = {
+  [flowId: string]: { transition: string; durationMs: number; easing: string };
+};
+
 const CONSTRAINT_SET_PRESET_KEY = "opensketch-constraint-set-presets";
 const PROTOTYPE_RING_PRESET_KEY = "opensketch-prototype-ring-presets-v1";
 const PROTOTYPE_RING_ACTIVE_PRESET_KEY = "opensketch-prototype-ring-active-preset-id";
+const PROTOTYPE_TRANSITION_PRESET_KEY = "opensketch-prototype-transition-presets-v1";
+const PROTOTYPE_FLOW_TRANSITION_DEFAULT_KEY = "opensketch-prototype-flow-transition-defaults-v1";
 const INTERACTIVE_PREVIEW_EVENT = "opensketch:interactive-preview-state";
 
 const DEFAULT_PROTOTYPE_RING_PRESETS: PrototypeRingPreset[] = [
@@ -118,6 +133,68 @@ function loadPrototypeRingPresets(): PrototypeRingPreset[] {
 
 function savePrototypeRingPresets(presets: PrototypeRingPreset[]): void {
   localStorage.setItem(PROTOTYPE_RING_PRESET_KEY, JSON.stringify(presets));
+}
+
+function hashString(input: string): string {
+  let hash = 2166136261;
+  for (let i = 0; i < input.length; i++) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+function getPrototypeDocKey(editor: Editor): string {
+  try {
+    const scene = editor.engine.export_scene?.() || "";
+    if (!scene) return "global";
+    return `doc-${hashString(scene).slice(0, 8)}`;
+  } catch {
+    return "global";
+  }
+}
+
+function loadPrototypeTransitionPresets(editor: Editor): PrototypeTransitionPreset[] {
+  const key = `${PROTOTYPE_TRANSITION_PRESET_KEY}-${getPrototypeDocKey(editor)}`;
+  try {
+    const raw = localStorage.getItem(key);
+    const list = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(list)) return [];
+    return list
+      .map((p: any, i: number) => ({
+        id: String(p?.id || `preset-${i + 1}`),
+        name: String(p?.name || `Preset ${i + 1}`),
+        transition: String(p?.transition || "instant"),
+        durationMs: Math.max(0, Number(p?.durationMs || 300)),
+        easing: String(p?.easing || "ease_in_out"),
+        createdAt: Number(p?.createdAt || Date.now()),
+      }))
+      .slice(0, 50);
+  } catch {
+    return [];
+  }
+}
+
+function savePrototypeTransitionPresets(editor: Editor, presets: PrototypeTransitionPreset[]): void {
+  const key = `${PROTOTYPE_TRANSITION_PRESET_KEY}-${getPrototypeDocKey(editor)}`;
+  localStorage.setItem(key, JSON.stringify(presets.slice(0, 50)));
+}
+
+function loadPrototypeFlowTransitionDefaults(editor: Editor): PrototypeFlowTransitionDefaults {
+  const key = `${PROTOTYPE_FLOW_TRANSITION_DEFAULT_KEY}-${getPrototypeDocKey(editor)}`;
+  try {
+    const raw = localStorage.getItem(key);
+    const parsed = raw ? JSON.parse(raw) : {};
+    if (!parsed || typeof parsed !== "object") return {};
+    return parsed as PrototypeFlowTransitionDefaults;
+  } catch {
+    return {};
+  }
+}
+
+function savePrototypeFlowTransitionDefaults(editor: Editor, defaults: PrototypeFlowTransitionDefaults): void {
+  const key = `${PROTOTYPE_FLOW_TRANSITION_DEFAULT_KEY}-${getPrototypeDocKey(editor)}`;
+  localStorage.setItem(key, JSON.stringify(defaults));
 }
 
 // Stage 4: Google Fonts list
@@ -6404,10 +6481,22 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       // Get all frames across all pages for target selection
       const pagesJson = editor.engine.get_pages();
       const pages: any[] = JSON.parse(pagesJson || "[]");
+      const transitionPresets = loadPrototypeTransitionPresets(editor);
+      const activeFlowId = (() => {
+        const selected = Number((editor as any).prototypeFlowId || 0);
+        if (selected > 0) return selected;
+        try {
+          const flows = JSON.parse(editor.engine.get_prototype_flows() || "[]") || [];
+          return Number(flows?.[0]?.id || 0);
+        } catch {
+          return 0;
+        }
+      })();
 
       interactions.forEach((inter: any, idx: number) => {
         const interEl = document.createElement("div");
         interEl.style.cssText = "background:#1e1e1e;border-radius:6px;padding:8px;margin-bottom:6px;position:relative;";
+        let currentEasing = String(inter.easing || "ease_in_out");
 
         const rebuildInteraction = (override: Partial<{ trigger: string; action: string; target_node_id: number; target_page_id: number; transition: string; transition_duration_ms: number; easing: string; variant_key_json: string; smart_animate_timeline_json: string; accessibility_label: string; hotspot_shape_json: string; }>) => {
           const trigMap: Record<string, string> = {
@@ -6426,7 +6515,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             target_page_id: override.target_page_id ?? Number(inter.target_page_id || 0),
             transition: override.transition ?? trMap[inter.transition] ?? "instant",
             transition_duration_ms: override.transition_duration_ms ?? Number(inter.transition_duration_ms || 300),
-            easing: override.easing ?? inter.easing ?? "ease_in_out",
+            easing: override.easing ?? currentEasing ?? "ease_in_out",
             variant_key_json: override.variant_key_json ?? inter.variant_key_json ?? "",
             smart_animate_timeline_json: override.smart_animate_timeline_json ?? inter.smart_animate_timeline_json ?? "",
             accessibility_label: override.accessibility_label ?? inter.accessibility_label ?? "",
@@ -7462,6 +7551,94 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         durRow.appendChild(durMs);
         interEl.appendChild(durRow);
 
+        // Transition preset library + flow default
+        {
+          const presetWrap = document.createElement("div");
+          presetWrap.style.cssText = "display:flex;gap:4px;align-items:center;margin-top:4px;";
+
+          const presetSelect = document.createElement("select");
+          presetSelect.className = "prop-input";
+          presetSelect.style.flex = "1";
+          const baseOpt = document.createElement("option");
+          baseOpt.value = "";
+          baseOpt.textContent = "Transition preset…";
+          presetSelect.appendChild(baseOpt);
+          for (const p of transitionPresets) {
+            const opt = document.createElement("option");
+            opt.value = p.id;
+            opt.textContent = `${p.name} · ${p.transition} ${p.durationMs}ms`;
+            presetSelect.appendChild(opt);
+          }
+
+          const applyBtn = document.createElement("button");
+          applyBtn.className = "prop-btn";
+          applyBtn.textContent = "Apply";
+          applyBtn.addEventListener("click", () => {
+            const selected = transitionPresets.find((p) => p.id === presetSelect.value);
+            if (!selected) return;
+            ensureUndo();
+            rebuildInteraction({
+              trigger: trigSelect.value,
+              action: actSelect.value,
+              target_node_id: parseInt(targetInput.value) || Number(inter.target_node_id || 0),
+              transition: selected.transition,
+              transition_duration_ms: selected.durationMs,
+              easing: selected.easing,
+              variant_key_json: variantInput.value,
+            });
+            editor.requestRender();
+            refresh(ids);
+          });
+
+          const saveBtn = document.createElement("button");
+          saveBtn.className = "prop-btn";
+          saveBtn.textContent = "Save";
+          saveBtn.addEventListener("click", () => {
+            const name = prompt("Preset name", `${transSelect.value} ${parseInt(durInput.value) || 300}ms`);
+            if (!name) return;
+            const list = loadPrototypeTransitionPresets(editor);
+            const next: PrototypeTransitionPreset = {
+              id: `tp-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+              name: name.trim() || "Untitled",
+              transition: transSelect.value,
+              durationMs: parseInt(durInput.value) || 300,
+              easing: currentEasing,
+              createdAt: Date.now(),
+            };
+            savePrototypeTransitionPresets(editor, [next, ...list]);
+            refresh(ids);
+          });
+
+          presetWrap.append(presetSelect, applyBtn, saveBtn);
+          interEl.appendChild(presetWrap);
+
+          const flowDefaultRow = document.createElement("div");
+          flowDefaultRow.style.cssText = "display:flex;justify-content:space-between;align-items:center;margin-top:4px;";
+          const flowDefaultLabel = document.createElement("span");
+          flowDefaultLabel.style.cssText = "font-size:10px;color:#777;";
+          flowDefaultLabel.textContent = activeFlowId > 0
+            ? `Flow #${activeFlowId} default available`
+            : "No active flow selected";
+          const flowDefaultBtn = document.createElement("button");
+          flowDefaultBtn.className = "prop-btn";
+          flowDefaultBtn.style.fontSize = "10px";
+          flowDefaultBtn.textContent = "Set as flow default";
+          flowDefaultBtn.disabled = !(activeFlowId > 0);
+          flowDefaultBtn.addEventListener("click", () => {
+            if (!(activeFlowId > 0)) return;
+            const next = loadPrototypeFlowTransitionDefaults(editor);
+            next[String(activeFlowId)] = {
+              transition: transSelect.value,
+              durationMs: parseInt(durInput.value) || 300,
+              easing: currentEasing,
+            };
+            savePrototypeFlowTransitionDefaults(editor, next);
+            flowDefaultLabel.textContent = `Flow #${activeFlowId} default updated`;
+          });
+          flowDefaultRow.append(flowDefaultLabel, flowDefaultBtn);
+          interEl.appendChild(flowDefaultRow);
+        }
+
         // --- Easing Curve Editor ---
         {
           const easingRow = document.createElement("div");
@@ -7471,8 +7648,9 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           easingLbl.textContent = "Easing";
           easingRow.appendChild(easingLbl);
 
-          const easingEditor = createEasingEditor(inter.easing || "ease_in_out", (newEasing: string) => {
+          const easingEditor = createEasingEditor(currentEasing, (newEasing: string) => {
             ensureUndo();
+            currentEasing = newEasing;
             editor.engine.set_interaction_easing(id, idx, newEasing);
             editor.requestRender();
           });
@@ -7559,9 +7737,9 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           if (!Array.isArray(timeline) || timeline.length === 0) {
             const dur = Number(inter.transition_duration_ms || 300);
             timeline = [
-              { time: 0, label: "Start", easing: inter.easing || "ease_in_out" },
-              { time: Math.round(dur / 2), label: "Mid", easing: inter.easing || "ease_in_out" },
-              { time: dur, label: "End", easing: inter.easing || "ease_in_out" },
+              { time: 0, label: "Start", easing: currentEasing },
+              { time: Math.round(dur / 2), label: "Mid", easing: currentEasing },
+              { time: dur, label: "End", easing: currentEasing },
             ];
           }
           timeline.sort((a, b) => a.time - b.time);
@@ -7599,7 +7777,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
               target_node_id: parseInt(targetInput.value) || Number(inter.target_node_id || 0),
               transition: transSelect.value,
               transition_duration_ms: parseInt(durInput.value) || 300,
-              easing: inter.easing || "ease_in_out",
+              easing: currentEasing,
               variant_key_json: variantInput.value,
               smart_animate_timeline_json: timelineJson,
             });
@@ -7744,7 +7922,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             const rect = rail.getBoundingClientRect();
             const p = Math.max(0, Math.min(1, (ev.clientX - rect.left) / Math.max(1, rect.width)));
             const newTime = Math.round(p * getDuration());
-            timeline.push({ time: newTime, label: `Mid ${Math.max(1, timeline.length - 1)}`, easing: inter.easing || "ease_in_out" });
+            timeline.push({ time: newTime, label: `Mid ${Math.max(1, timeline.length - 1)}`, easing: currentEasing });
             sortAndClamp();
             selectedIdx = timeline.findIndex(k => k.time === newTime);
             persistTimeline();
@@ -7758,7 +7936,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           addMidBtn.addEventListener("click", () => {
             const dur = getDuration();
             const t = Math.round(dur / 2);
-            timeline.push({ time: t, label: `Mid ${Math.max(1, timeline.length - 1)}`, easing: inter.easing || "ease_in_out" });
+            timeline.push({ time: t, label: `Mid ${Math.max(1, timeline.length - 1)}`, easing: currentEasing });
             sortAndClamp();
             selectedIdx = timeline.findIndex(k => k.time === t);
             persistTimeline();
@@ -8131,7 +8309,19 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       addInterBtn.textContent = "+ Add interaction";
       addInterBtn.addEventListener("click", () => {
         ensureUndo();
-        editor.engine.add_interaction(id, "click", "navigate-to", BigInt(0), BigInt(0), "instant", 300, "ease_in_out");
+        const defaults = loadPrototypeFlowTransitionDefaults(editor);
+        const flowId = Number((editor as any).prototypeFlowId || 0);
+        const fallback = flowId > 0 ? defaults[String(flowId)] : undefined;
+        editor.engine.add_interaction(
+          id,
+          "click",
+          "navigate-to",
+          BigInt(0),
+          BigInt(0),
+          String(fallback?.transition || "instant"),
+          Number(fallback?.durationMs || 300),
+          String(fallback?.easing || "ease_in_out")
+        );
         editor.requestRender();
         refresh(ids);
       });

@@ -402,6 +402,7 @@
   - Flow Diagram Mini-Graph diagnostics: header에 connection/dead-end/isolated 카운트 표시, dead-end 페이지를 red tint + `DEAD END` 배지로 강조
   - Properties panel: "Prototype Flows" section with flow list, add/remove/rename, start frame assignment
   - Prototype Start Points Manager: flow card마다 start point select(연결 노드 기반 후보), `Use selected`/`Clear` 빠른 액션, flow focus 전환 버튼으로 flow별 진입점 관리 강화
+  - Prototype Transition Presets Library: Interactions 섹션에서 transition/easing/duration 조합을 문서 스코프 preset으로 Save/Apply, 활성 flow 기준 `Set as flow default` 지정, 새 interaction 추가 시 flow default 자동 적용
   - Toolbar: Flow Diagram button next to prototype play button (i18n tooltip: en/ko/ja)
 
 ### Styles Library (Shared Color & Text Styles)
