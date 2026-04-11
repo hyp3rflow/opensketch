@@ -73,6 +73,10 @@ export function createPrototypeViewer(editor: Editor): {
   let offThemeSync: (() => void) | null = null;
   let snapPaginationEl: HTMLDivElement | null = null;
   let snapPaginationState: { frameId: number; axis: "x" | "y"; points: number[]; activeIndex: number } | null = null;
+  let flowMinimapWrap: HTMLDivElement | null = null;
+  let flowMinimapCanvas: HTMLCanvasElement | null = null;
+  let flowMinimapInfo: HTMLDivElement | null = null;
+  let flowMinimapSnapshot: { nodes: Array<{ id: number; name: string; x: number; y: number }>; edges: Array<{ from: number; to: number; action: string }>; nodeHits: Array<{ id: number; x: number; y: number; r: number }>; edgeHits: Array<{ from: number; to: number; x: number; y: number }>; } | null = null;
   const interactiveVisualState = new Map<number, "hover" | "press" | "focus">();
 
   type RecordedProtoEvent = {
@@ -765,6 +769,151 @@ export function createPrototypeViewer(editor: Editor): {
     return { applied, total: interactions.length };
   }
 
+  function isFrameNode(node: any): boolean {
+    if (!node) return false;
+    if (typeof node.kind === "string") return node.kind.toLowerCase() === "frame";
+    if (typeof node.kind === "object" && node.kind) return !!(node.kind as any).Frame;
+    return false;
+  }
+
+  function renderFlowMinimap() {
+    if (!flowMinimapCanvas || !flowMinimapInfo) return;
+    const ctx = flowMinimapCanvas.getContext("2d");
+    if (!ctx) return;
+
+    const frames: Array<{ id: number; name: string; x: number; y: number }> = [];
+    const edges: Array<{ from: number; to: number; action: string }> = [];
+
+    try {
+      const layers: any[] = JSON.parse(editor.engine.get_layer_list() || "[]") || [];
+      for (const layer of layers) {
+        const id = Number(layer?.id || 0);
+        if (id <= 0) continue;
+        const raw = editor.engine.get_node_json(BigInt(id));
+        if (!raw) continue;
+        const node = JSON.parse(raw);
+        if (!isFrameNode(node)) continue;
+        frames.push({ id, name: String(node?.name || `Frame ${id}`), x: Number(node?.x || 0), y: Number(node?.y || 0) });
+      }
+    } catch {}
+
+    const frameIds = new Set(frames.map((f) => f.id));
+    try {
+      const allInter: any[] = JSON.parse(editor.engine.get_all_interactions() || "[]") || [];
+      for (const row of allInter) {
+        const from = Number(row?.id || 0);
+        if (!frameIds.has(from)) continue;
+        const interactions: any[] = Array.isArray(row?.interactions) ? row.interactions : [];
+        for (const inter of interactions) {
+          const action = String(inter?.action || "");
+          const target = Number(inter?.target_node_id || 0);
+          if ((action === "NavigateTo" || action === "OpenOverlay") && frameIds.has(target) && target > 0) {
+            edges.push({ from, to: target, action });
+          }
+        }
+      }
+    } catch {}
+
+    const W = flowMinimapCanvas.width;
+    const H = flowMinimapCanvas.height;
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = "#0b1220";
+    ctx.fillRect(0, 0, W, H);
+
+    if (frames.length === 0) {
+      flowMinimapInfo.textContent = "No frames on this page";
+      flowMinimapSnapshot = { nodes: [], edges: [], nodeHits: [], edgeHits: [] };
+      return;
+    }
+
+    const minX = Math.min(...frames.map((f) => f.x));
+    const maxX = Math.max(...frames.map((f) => f.x));
+    const minY = Math.min(...frames.map((f) => f.y));
+    const maxY = Math.max(...frames.map((f) => f.y));
+    const spanX = Math.max(1, maxX - minX);
+    const spanY = Math.max(1, maxY - minY);
+    const pad = 14;
+
+    const toPt = (f: { x: number; y: number }) => ({
+      x: pad + ((f.x - minX) / spanX) * Math.max(1, W - pad * 2),
+      y: pad + ((f.y - minY) / spanY) * Math.max(1, H - pad * 2),
+    });
+
+    const pos = new Map<number, { x: number; y: number }>();
+    for (const f of frames) pos.set(f.id, toPt(f));
+
+    const nodeHits: Array<{ id: number; x: number; y: number; r: number }> = [];
+    const edgeHits: Array<{ from: number; to: number; x: number; y: number }> = [];
+
+    ctx.save();
+    ctx.strokeStyle = "rgba(100,116,139,0.7)";
+    ctx.lineWidth = 1;
+    for (const e of edges) {
+      const a = pos.get(e.from);
+      const b = pos.get(e.to);
+      if (!a || !b) continue;
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+      const mx = (a.x + b.x) * 0.5;
+      const my = (a.y + b.y) * 0.5;
+      edgeHits.push({ from: e.from, to: e.to, x: mx, y: my });
+      ctx.fillStyle = "rgba(148,163,184,0.9)";
+      ctx.font = "9px sans-serif";
+      ctx.fillText("→", mx + 2, my - 2);
+    }
+    ctx.restore();
+
+    for (const f of frames) {
+      const p = pos.get(f.id);
+      if (!p) continue;
+      const isCurrent = currentFrameId === f.id;
+      const r = isCurrent ? 6 : 4.5;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+      ctx.fillStyle = isCurrent ? "#22d3ee" : "#a78bfa";
+      ctx.fill();
+      if (isCurrent) {
+        ctx.strokeStyle = "rgba(34,211,238,0.85)";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+      nodeHits.push({ id: f.id, x: p.x, y: p.y, r: r + 4 });
+    }
+
+    const edgeCount = edges.length;
+    flowMinimapInfo.textContent = `Frames ${frames.length} · Links ${edgeCount} · Current #${currentFrameId || "-"}`;
+    flowMinimapSnapshot = { nodes: frames, edges, nodeHits, edgeHits };
+  }
+
+  function onFlowMinimapClick(e: MouseEvent) {
+    if (!flowMinimapCanvas || !flowMinimapSnapshot) return;
+    const rect = flowMinimapCanvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    for (const hit of flowMinimapSnapshot.nodeHits) {
+      const dx = x - hit.x;
+      const dy = y - hit.y;
+      if (dx * dx + dy * dy <= hit.r * hit.r) {
+        navigateTo(hit.id, "Instant", 0, "linear");
+        return;
+      }
+    }
+
+    let best: { from: number; to: number; d2: number } | null = null;
+    for (const hit of flowMinimapSnapshot.edgeHits) {
+      const dx = x - hit.x;
+      const dy = y - hit.y;
+      const d2 = dx * dx + dy * dy;
+      if (!best || d2 < best.d2) best = { from: hit.from, to: hit.to, d2 };
+    }
+    if (best && best.d2 < 196) {
+      navigateTo(best.to, "Instant", 0, "linear");
+    }
+  }
+
   function show(startFrameId?: number) {
     if (active) return;
     active = true;
@@ -1001,6 +1150,24 @@ export function createPrototypeViewer(editor: Editor): {
     snapPaginationEl.style.cssText = "position:absolute;right:14px;top:52px;display:none;flex-direction:column;gap:6px;z-index:3;pointer-events:none;";
     overlay.appendChild(snapPaginationEl);
 
+    flowMinimapWrap = document.createElement("div");
+    flowMinimapWrap.style.cssText = "position:absolute;left:14px;top:52px;width:220px;background:rgba(15,23,42,0.92);border:1px solid rgba(148,163,184,0.3);border-radius:10px;padding:8px;z-index:4;";
+    const flowHead = document.createElement("div");
+    flowHead.style.cssText = "font-size:11px;font-weight:600;color:#cbd5e1;margin-bottom:6px;";
+    flowHead.textContent = "Flow Minimap";
+    flowMinimapWrap.appendChild(flowHead);
+    flowMinimapCanvas = document.createElement("canvas");
+    flowMinimapCanvas.width = 204;
+    flowMinimapCanvas.height = 132;
+    flowMinimapCanvas.style.cssText = "width:204px;height:132px;background:#0b1220;border-radius:6px;cursor:pointer;display:block;";
+    flowMinimapCanvas.addEventListener("click", onFlowMinimapClick);
+    flowMinimapWrap.appendChild(flowMinimapCanvas);
+    flowMinimapInfo = document.createElement("div");
+    flowMinimapInfo.style.cssText = "margin-top:6px;font-size:10px;color:#94a3b8;line-height:1.3;";
+    flowMinimapInfo.textContent = "Collecting flow graph…";
+    flowMinimapWrap.appendChild(flowMinimapInfo);
+    overlay.appendChild(flowMinimapWrap);
+
     document.body.appendChild(overlay);
     document.addEventListener("keydown", onKeyDown);
     document.addEventListener("paste", onPaste);
@@ -1093,6 +1260,10 @@ export function createPrototypeViewer(editor: Editor): {
     viewCanvas = null;
     snapPaginationEl = null;
     snapPaginationState = null;
+    flowMinimapSnapshot = null;
+    flowMinimapCanvas = null;
+    flowMinimapInfo = null;
+    flowMinimapWrap = null;
     if (offThemeSync) {
       offThemeSync();
       offThemeSync = null;
@@ -1885,6 +2056,7 @@ export function createPrototypeViewer(editor: Editor): {
 
     // Keep debug inspector in sync with current frame + active modes
     renderVarsPanel();
+    renderFlowMinimap();
   }
 
   /** Remove old video overlays */

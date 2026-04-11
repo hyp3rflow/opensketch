@@ -2637,3 +2637,10 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] rename 대상이 없거나 실변경이 없는 경우 가드(alert) 제공
 - [x] 일괄 rename 후 `apply_variables()` + canvas refresh 연동
 - [x] 구현: `packages/app/src/ui/variables-bulk-edit.ts`
+
+### Prototype Flow Minimap + Jump Navigator (2026-04-11)
+- [x] Prototype Viewer 좌상단에 `Flow Minimap` 패널 추가 (frame 노드 + NavigateTo/OpenOverlay 링크)
+- [x] 현재 frame 강조 + frame 노드 클릭 시 즉시 jump (`navigateTo(..., "Instant")`)
+- [x] edge midpoint 클릭 시 target frame으로 점프해 링크 검증 속도 개선
+- [x] 요약 메타 표시: `Frames N · Links N · Current #id`
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
