@@ -15,6 +15,7 @@ type PrototypeRingPreset = {
 const PROTOTYPE_RING_PRESET_KEY = "opensketch-prototype-ring-presets-v1";
 const PROTOTYPE_RING_ACTIVE_PRESET_KEY = "opensketch-prototype-ring-active-preset-id";
 const INTERACTIVE_PREVIEW_EVENT = "opensketch:interactive-preview-state";
+const PROTOTYPE_FLOW_ENTRY_PRESETS_KEY = "opensketch-proto-flow-entry-presets-v1";
 const DEFAULT_RING_PRESET: PrototypeRingPreset = {
   id: "default",
   name: "Default",
@@ -22,6 +23,23 @@ const DEFAULT_RING_PRESET: PrototypeRingPreset = {
   press: { color: "#fb7185", width: 4, radius: 10 },
   focus: { color: "#facc15", width: 4, radius: 10 },
 };
+
+function loadFlowEntryPresets(): Record<string, Array<{ frameId: number; label: string }>> {
+  try {
+    const raw = localStorage.getItem(PROTOTYPE_FLOW_ENTRY_PRESETS_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    if (!parsed || typeof parsed !== "object") return {};
+    return parsed;
+  } catch {
+    return {};
+  }
+}
+
+function saveFlowEntryPresets(presets: Record<string, Array<{ frameId: number; label: string }>>) {
+  try {
+    localStorage.setItem(PROTOTYPE_FLOW_ENTRY_PRESETS_KEY, JSON.stringify(presets));
+  } catch {}
+}
 
 function loadActivePrototypeRingPreset(): PrototypeRingPreset {
   try {
@@ -81,6 +99,10 @@ export function createPrototypeViewer(editor: Editor): {
   let flowStartFlowSel: HTMLSelectElement | null = null;
   let flowStartFrameSel: HTMLSelectElement | null = null;
   let flowStartInfo: HTMLDivElement | null = null;
+  let flowLintWrap: HTMLDivElement | null = null;
+  let flowLintInfo: HTMLDivElement | null = null;
+  let flowLintList: HTMLDivElement | null = null;
+  let flowLintSnapshot: { startFrameId: number | null; issues: Array<{ type: "unreachable" | "dead-end" | "cycle"; frameId: number; frameName: string; detail: string }>; } | null = null;
   const interactiveVisualState = new Map<number, "hover" | "press" | "focus">();
 
   type RecordedProtoEvent = {
@@ -846,6 +868,40 @@ export function createPrototypeViewer(editor: Editor): {
       const frameName = frames.find((f) => f.id === selectedFlow.start_frame_id)?.name || "None";
       flowStartInfo.textContent = `Flow #${selectedFlow.id} · Page #${pageId} · Start: ${frameName}`;
     }
+
+    const presetList = flowStartWrap.querySelector('[data-role="flow-entry-presets"]') as HTMLDivElement | null;
+    if (presetList) {
+      presetList.innerHTML = "";
+      const presets = loadFlowEntryPresets();
+      const flowPresets = Array.isArray(presets[String(selectedFlowId)]) ? presets[String(selectedFlowId)] : [];
+      if (flowPresets.length === 0) {
+        const empty = document.createElement("div");
+        empty.style.cssText = "font-size:9px;color:#64748b;";
+        empty.textContent = "No presets yet";
+        presetList.appendChild(empty);
+      } else {
+        for (const preset of flowPresets.slice(0, 6)) {
+          const btn = document.createElement("button");
+          btn.className = "prop-btn";
+          btn.style.cssText = "font-size:9px;padding:2px 6px;";
+          btn.textContent = preset.label;
+          btn.title = `Use preset frame #${preset.frameId}`;
+          btn.onclick = () => {
+            if (!flowStartFrameSel) return;
+            flowStartFrameSel.value = String(preset.frameId);
+            const flowId = Number(flowStartFlowSel?.value || 0);
+            if (flowId > 0) {
+              const pageIdNow = Number(editor.engine.get_active_page_id?.() || 0);
+              editor.engine.set_flow_start_frame(BigInt(flowId), BigInt(preset.frameId), BigInt(pageIdNow));
+            }
+            currentFrameId = preset.frameId;
+            renderFlowStartManager();
+            renderCurrentView();
+          };
+          presetList.appendChild(btn);
+        }
+      }
+    }
   }
 
   function renderFlowMinimap() {
@@ -957,6 +1013,104 @@ export function createPrototypeViewer(editor: Editor): {
     const edgeCount = edges.length;
     flowMinimapInfo.textContent = `Frames ${frames.length} · Links ${edgeCount} · Current #${currentFrameId || "-"}`;
     flowMinimapSnapshot = { nodes: frames, edges, nodeHits, edgeHits };
+    renderFlowLint();
+  }
+
+  function renderFlowLint() {
+    if (!flowLintInfo || !flowLintList) return;
+    const snapshot = flowMinimapSnapshot;
+    if (!snapshot || snapshot.nodes.length === 0) {
+      flowLintInfo.textContent = "No frames to lint";
+      flowLintList.innerHTML = "";
+      flowLintSnapshot = { startFrameId: null, issues: [] };
+      return;
+    }
+
+    const frameById = new Map(snapshot.nodes.map((n) => [n.id, n]));
+    const adjacency = new Map<number, number[]>();
+    for (const node of snapshot.nodes) adjacency.set(node.id, []);
+    for (const edge of snapshot.edges) {
+      const arr = adjacency.get(edge.from);
+      if (arr && frameById.has(edge.to)) arr.push(edge.to);
+    }
+
+    const selectedStart = Number(flowStartFrameSel?.value || 0);
+    const startFrameId = selectedStart > 0 && frameById.has(selectedStart)
+      ? selectedStart
+      : (currentFrameId && frameById.has(currentFrameId) ? currentFrameId : snapshot.nodes[0]!.id);
+
+    const visited = new Set<number>();
+    const stack = [startFrameId];
+    while (stack.length > 0) {
+      const cur = stack.pop()!;
+      if (visited.has(cur)) continue;
+      visited.add(cur);
+      const next = adjacency.get(cur) || [];
+      for (const to of next) if (!visited.has(to)) stack.push(to);
+    }
+
+    const issues: Array<{ type: "unreachable" | "dead-end" | "cycle"; frameId: number; frameName: string; detail: string }> = [];
+
+    for (const node of snapshot.nodes) {
+      const outs = adjacency.get(node.id) || [];
+      if (!visited.has(node.id)) {
+        issues.push({ type: "unreachable", frameId: node.id, frameName: node.name, detail: "Not reachable from current start frame" });
+      } else if (outs.length === 0) {
+        issues.push({ type: "dead-end", frameId: node.id, frameName: node.name, detail: "No outbound NavigateTo/OpenOverlay links" });
+      }
+    }
+
+    const cycleSeen = new Set<number>();
+    const cycleStack = new Set<number>();
+    const cycleRoots = new Set<number>();
+    const dfsCycle = (id: number) => {
+      cycleSeen.add(id);
+      cycleStack.add(id);
+      for (const to of adjacency.get(id) || []) {
+        if (!visited.has(to)) continue;
+        if (!cycleSeen.has(to)) dfsCycle(to);
+        else if (cycleStack.has(to)) cycleRoots.add(to);
+      }
+      cycleStack.delete(id);
+    };
+    if (visited.has(startFrameId)) dfsCycle(startFrameId);
+    for (const cycleId of cycleRoots) {
+      const n = frameById.get(cycleId);
+      if (!n) continue;
+      issues.push({ type: "cycle", frameId: cycleId, frameName: n.name, detail: "Cycle detected in reachable flow graph" });
+    }
+
+    flowLintSnapshot = { startFrameId, issues };
+
+    const deadEndCount = issues.filter((i) => i.type === "dead-end").length;
+    const unreachableCount = issues.filter((i) => i.type === "unreachable").length;
+    const cycleCount = issues.filter((i) => i.type === "cycle").length;
+    flowLintInfo.textContent = `Start #${startFrameId} · Dead-end ${deadEndCount} · Unreachable ${unreachableCount} · Cycles ${cycleCount}`;
+
+    flowLintList.innerHTML = "";
+    if (issues.length === 0) {
+      const ok = document.createElement("div");
+      ok.style.cssText = "font-size:10px;color:#86efac;";
+      ok.textContent = "No issues found.";
+      flowLintList.appendChild(ok);
+      return;
+    }
+
+    for (const issue of issues.slice(0, 14)) {
+      const row = document.createElement("button");
+      const color = issue.type === "dead-end" ? "#fca5a5" : issue.type === "unreachable" ? "#fbbf24" : "#c4b5fd";
+      row.style.cssText = `display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;text-align:left;background:rgba(15,23,42,0.55);border:1px solid rgba(148,163,184,0.25);border-left:3px solid ${color};border-radius:6px;color:#e2e8f0;padding:4px 6px;cursor:pointer;`;
+      row.innerHTML = `<span style="font-size:10px;font-weight:600;color:${color};text-transform:uppercase;">${issue.type}</span><span style="font-size:10px;">${issue.frameName} (#${issue.frameId})</span><span style="font-size:9px;color:#94a3b8;">${issue.detail}</span>`;
+      row.onclick = () => navigateTo(issue.frameId, "Instant", 0, "linear");
+      flowLintList.appendChild(row);
+    }
+
+    if (issues.length > 14) {
+      const more = document.createElement("div");
+      more.style.cssText = "font-size:9px;color:#94a3b8;";
+      more.textContent = `+ ${issues.length - 14} more issues`;
+      flowLintList.appendChild(more);
+    }
   }
 
   function onFlowMinimapClick(e: MouseEvent) {
@@ -1277,6 +1431,7 @@ export function createPrototypeViewer(editor: Editor): {
       const pageId = Number(editor.engine.get_active_page_id?.() || 0);
       editor.engine.set_flow_start_frame(BigInt(flowId), BigInt(frameId), BigInt(pageId));
       renderFlowStartManager();
+      renderFlowLint();
       if (frameId > 0) {
         currentFrameId = frameId;
         renderCurrentView();
@@ -1296,6 +1451,7 @@ export function createPrototypeViewer(editor: Editor): {
         currentFrameId = frameId;
         navigationStack = [];
         renderCurrentView();
+        renderFlowLint();
       }
     };
     flowStartWrap.appendChild(jumpBtn);
@@ -1304,14 +1460,60 @@ export function createPrototypeViewer(editor: Editor): {
     flowStartInfo.style.cssText = "font-size:10px;color:#94a3b8;line-height:1.35;";
     flowStartWrap.appendChild(flowStartInfo);
 
-    flowStartFlowSel.addEventListener("change", renderFlowStartManager);
+    const presetBtnRow = document.createElement("div");
+    presetBtnRow.style.cssText = "display:flex;gap:6px;";
+    const savePresetBtn = document.createElement("button");
+    savePresetBtn.className = "prop-btn";
+    savePresetBtn.textContent = "Save preset";
+    savePresetBtn.style.cssText = "flex:1;font-size:10px;padding:3px 6px;";
+    savePresetBtn.onclick = () => {
+      const flowId = Number(flowStartFlowSel?.value || 0);
+      const frameId = Number(flowStartFrameSel?.value || 0);
+      if (!flowId || !frameId) return;
+      const frameName = (flowStartFrameSel?.selectedOptions?.[0]?.textContent || `Frame #${frameId}`).trim();
+      const presets = loadFlowEntryPresets();
+      const key = String(flowId);
+      const list = Array.isArray(presets[key]) ? presets[key] : [];
+      const next = [{ frameId, label: frameName }, ...list.filter((p) => p.frameId !== frameId)].slice(0, 6);
+      presets[key] = next;
+      saveFlowEntryPresets(presets);
+      renderFlowStartManager();
+    };
+    presetBtnRow.appendChild(savePresetBtn);
+    flowStartWrap.appendChild(presetBtnRow);
+
+    const presetList = document.createElement("div");
+    presetList.dataset.role = "flow-entry-presets";
+    presetList.style.cssText = "display:flex;flex-wrap:wrap;gap:4px;";
+    flowStartWrap.appendChild(presetList);
+
+    flowStartFlowSel.addEventListener("change", () => {
+      renderFlowStartManager();
+      renderFlowLint();
+    });
     flowStartFrameSel.addEventListener("change", () => {
       if (!flowStartInfo) return;
       const frameId = Number(flowStartFrameSel?.value || 0);
       flowStartInfo.textContent = frameId > 0 ? `Pending start frame #${frameId}` : "Start frame cleared (None)";
+      renderFlowLint();
     });
 
     overlay.appendChild(flowStartWrap);
+
+    flowLintWrap = document.createElement("div");
+    flowLintWrap.style.cssText = "position:absolute;left:14px;top:388px;width:220px;max-height:240px;overflow:auto;background:rgba(15,23,42,0.92);border:1px solid rgba(148,163,184,0.3);border-radius:10px;padding:8px;z-index:4;display:flex;flex-direction:column;gap:6px;";
+    const flowLintHead = document.createElement("div");
+    flowLintHead.style.cssText = "font-size:11px;font-weight:600;color:#cbd5e1;";
+    flowLintHead.textContent = "Flow Lint";
+    flowLintWrap.appendChild(flowLintHead);
+    flowLintInfo = document.createElement("div");
+    flowLintInfo.style.cssText = "font-size:10px;color:#94a3b8;line-height:1.35;";
+    flowLintInfo.textContent = "Analyzing flow graph…";
+    flowLintWrap.appendChild(flowLintInfo);
+    flowLintList = document.createElement("div");
+    flowLintList.style.cssText = "display:flex;flex-direction:column;gap:4px;";
+    flowLintWrap.appendChild(flowLintList);
+    overlay.appendChild(flowLintWrap);
 
     document.body.appendChild(overlay);
     document.addEventListener("keydown", onKeyDown);
@@ -1414,6 +1616,10 @@ export function createPrototypeViewer(editor: Editor): {
     flowStartFlowSel = null;
     flowStartFrameSel = null;
     flowStartInfo = null;
+    flowLintWrap = null;
+    flowLintInfo = null;
+    flowLintList = null;
+    flowLintSnapshot = null;
     if (offThemeSync) {
       offThemeSync();
       offThemeSync = null;

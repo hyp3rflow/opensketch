@@ -1790,11 +1790,17 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Prototype Flow Entry Branch Presets — flow별 다중 entry 후보를 preset으로 저장하고 one-click으로 start point 교체 (임팩트 중상, 난이도 중)
 - Variable Alias Graph Inspector — 토큰/변수 alias 의존 그래프 시각화 + 순환 참조/깊은 체인 경고 및 one-click jump (임팩트 상, 난이도 중상)
 - Interaction Timeline Scrubber — Prototype viewer에서 frame transition/overlay/open-close를 타임라인으로 재생·스크럽해 끊김/순서 문제를 시각 디버깅 (임팩트 중상, 난이도 중)
 - Auto Layout Stretch Handles — 캔버스에서 자식의 Fill/Hug/Fixed를 핸들 드래그로 전환하고 남은 공간 분배를 실시간 프리뷰 (임팩트 상, 난이도 중상)
 - Component Slot Fallback Preview — slot 미바인딩/깨진 instance swap 상태를 fallback 컴포넌트와 경고 배지로 즉시 확인·복구 (임팩트 중상, 난이도 중)
+
+## 완료된 기능 (추가 — Prototype Flow Entry Branch Presets, 2026-04-12)
+- Start Point Manager에 `Save preset` + flow별 entry preset chip strip 추가 (localStorage)
+- preset 클릭 한 번으로 start frame 저장(`set_flow_start_frame`) + 즉시 실행(current frame jump)
+- flow당 최대 6개 최근 preset 유지, 중복 frame preset은 최신으로 갱신
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Prototype Start Point Manager, 2026-04-12)
 - Prototype viewer 좌측 패널에 `Start Point Manager` 카드 추가

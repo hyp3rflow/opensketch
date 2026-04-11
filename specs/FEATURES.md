@@ -391,6 +391,7 @@
   - Prototype Focus Order & Keyboard Navigation v1: Tab/Shift+Tab으로 focusable hotspot(OnClick/OnPress) 순환, Enter/Space로 interaction 실행, focus ring(노란 dashed) 표시, 기본 정렬은 top→bottom / left→right
   - Prototype Focus Ring Style Presets: Properties panel Interactive Variants에 ring preset 관리자 추가(hover/press/focus별 color/width/radius), Save As/Apply 지원, Prototype viewer가 active preset을 읽어 상태별 ring 스타일(hover/press/focus)로 렌더링
   - Prototype Start Point Manager (viewer quick switch): Prototype viewer 좌측 패널에 Flow/Start Frame selector + `Use current`/`Save`/`Run selected flow` 액션을 추가해 flow별 entry frame을 즉시 전환/저장하고 실행 타깃을 빠르게 점프
+  - Prototype Flow Entry Branch Presets: Start Point Manager에 flow별 entry preset 저장(`Save preset`) + one-click preset 칩 점프/적용 추가 (최근 6개 유지)
   - Interaction hotspot hints (color-coded: blue=click, green=gesture, orange=hover)
   - Gesture-based interactions: swipe (left/right/up/down), long-press (500ms), pinch in/out
   - Touch event handling in prototype viewer: swipe detection (>50px, <500ms), long-press timer, two-finger pinch distance ratio
@@ -2645,6 +2646,22 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] edge midpoint 클릭 시 target frame으로 점프해 링크 검증 속도 개선
 - [x] 요약 메타 표시: `Frames N · Links N · Current #id`
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
+
+### Prototype Flow Lint & Dead-end Detector (2026-04-12)
+- [x] Prototype Viewer 좌측에 `Flow Lint` 패널 추가: 현재 선택 start frame(없으면 current frame) 기준으로 flow graph lint 수행
+- [x] 진단 규칙
+  - `Unreachable`: start frame에서 도달 불가한 frame
+  - `Dead-end`: 도달 가능하지만 NavigateTo/OpenOverlay outbound link가 없는 frame
+  - `Cycle`: 도달 가능한 그래프에서 순환 루프 루트 탐지
+- [x] 이슈를 클릭 가능한 리스트로 표시하여 해당 frame으로 즉시 점프 (검증 루프 단축)
+- [x] Start Point Manager/minimap 변화에 연동해 lint 결과 자동 재계산
+
+
+### Prototype Flow Entry Branch Presets (2026-04-12)
+- [x] Start Point Manager에 `Save preset` 버튼 추가: 현재 선택 flow/frame을 flow별 entry preset으로 저장
+- [x] flow별 preset chip strip 제공: 클릭 한 번으로 start frame 적용(`set_flow_start_frame`) + 즉시 preview jump
+- [x] flow당 최근 6개 preset 유지, 같은 frame 재저장 시 최신 위치로 갱신
+
 
 ### Smart Selection Scope Bar (2026-04-12)
 - [x] Smart Select 패널에 Selection Scope Bar 추가 (`Document / Page / Frame / Component`)
