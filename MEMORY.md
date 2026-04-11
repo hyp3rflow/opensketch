@@ -1792,6 +1792,9 @@
 ## 다음 할 것
 - Prototype Transition Presets Library — transition/easing/duration 프리셋 저장·적용 및 flow별 기본값 지정 (임팩트 중, 난이도 중)
 - Variables Bulk Rename & Namespace Tools — 변수 prefix 일괄 변경, namespace 이동, 충돌 감지/자동 수정 (임팩트 중상, 난이도 중)
+- Smart Selection Scope Bar (Page/Frame/Component) — 선택 툴바에서 탐색/필터/정렬의 scope를 즉시 전환해 대형 문서에서 선택 정확도 향상 (임팩트 중상, 난이도 중)
+- Prototype Start Point Manager — 페이지별 start frame 지정/전환, flow별 entry 분기 및 프리뷰 실행 타깃 빠른 변경 (임팩트 상, 난이도 중)
+- Variable Alias Graph Inspector — 토큰/변수 alias 의존 그래프 시각화 + 순환 참조/깊은 체인 경고 및 one-click jump (임팩트 상, 난이도 중상)
 
 ## 완료된 기능 (추가 — Constraints Preview While Resize, 2026-04-11)
 - Constraint Debug Overlay를 ghost preview 중심으로 강화
