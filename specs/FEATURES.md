@@ -2609,5 +2609,7 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Properties panel `INTERACTIVE VARIANTS`에 **State Preview** 칩 스트립 추가 (`Default / Hover / Press / Focus / Disabled`)
 - [x] 상태 칩 클릭 시 해당 interactive variant key를 즉시 instance에 적용해 우측 패널에서 바로 미리보기
 - [x] `Hover/Press/Focus` 칩 적용 시 SwapVariant prototype trigger를 자동 동기화해 trigger 매핑 일관성 유지
+- [x] `opensketch:interactive-preview-state` 이벤트를 발행해 Properties panel preview 상태를 Prototype viewer와 동기화
+- [x] Prototype viewer에서 이벤트 수신 시 active preview 캔버스의 interactive state/variant를 즉시 반영
 - [x] 매핑되지 않은 상태는 비활성 시각화(opacity + tooltip)로 설정 누락을 빠르게 식별
-- [x] 구현: `packages/app/src/ui/properties-panel.ts`
+- [x] 구현: `packages/app/src/ui/properties-panel.ts`, `packages/app/src/ui/prototype-viewer.ts`

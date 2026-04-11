@@ -14,6 +14,7 @@ type PrototypeRingPreset = {
 
 const PROTOTYPE_RING_PRESET_KEY = "opensketch-prototype-ring-presets-v1";
 const PROTOTYPE_RING_ACTIVE_PRESET_KEY = "opensketch-prototype-ring-active-preset-id";
+const INTERACTIVE_PREVIEW_EVENT = "opensketch:interactive-preview-state";
 const DEFAULT_RING_PRESET: PrototypeRingPreset = {
   id: "default",
   name: "Default",
@@ -1003,6 +1004,7 @@ export function createPrototypeViewer(editor: Editor): {
     document.body.appendChild(overlay);
     document.addEventListener("keydown", onKeyDown);
     document.addEventListener("paste", onPaste);
+    window.addEventListener(INTERACTIVE_PREVIEW_EVENT, onInteractivePreviewEvent as EventListener);
 
     // Pick starting frame
     if (startFrameId) {
@@ -1085,6 +1087,7 @@ export function createPrototypeViewer(editor: Editor): {
     stopInertia();
     document.removeEventListener("keydown", onKeyDown);
     document.removeEventListener("paste", onPaste);
+    window.removeEventListener(INTERACTIVE_PREVIEW_EVENT, onInteractivePreviewEvent as EventListener);
     overlay.remove();
     overlay = null;
     viewCanvas = null;
@@ -2352,6 +2355,27 @@ export function createPrototypeViewer(editor: Editor): {
   let focusedHotspotNodeId: number | null = null;
   let focusedHotspotInter: any | null = null;
   let focusedInteractiveInstanceId: number | null = null;
+  const onInteractivePreviewEvent = (ev: Event) => {
+    if (!active) return;
+    const detail = (ev as CustomEvent).detail || {};
+    const instanceId = Number(detail.instanceId || 0);
+    const state = String(detail.state || "default");
+    if (instanceId <= 0) return;
+    try {
+      if (state === "default") {
+        const changed = editor.engine.apply_interactive_state(BigInt(instanceId), "default");
+        if (!changed && detail.variant) {
+          editor.engine.set_instance_variant(BigInt(instanceId), JSON.stringify(detail.variant));
+        }
+      } else {
+        const changed = editor.engine.apply_interactive_state(BigInt(instanceId), state);
+        if (!changed && detail.variant) {
+          editor.engine.set_instance_variant(BigInt(instanceId), JSON.stringify(detail.variant));
+        }
+      }
+      renderCurrentView();
+    } catch {}
+  };
   let mousePressNodeId: number | null = null;
   let mousePressX = 0;
   let mousePressY = 0;

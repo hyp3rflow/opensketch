@@ -1808,8 +1808,10 @@
 - Properties panel `INTERACTIVE VARIANTS`에 State Preview strip 추가 (`Default / Hover / Press / Focus / Disabled`)
 - 상태 칩 클릭으로 해당 variant key를 즉시 instance에 적용해 디자인/프로토타입 상태를 빠르게 검증
 - Hover/Press/Focus 상태는 적용 시 SwapVariant prototype trigger를 자동 동기화
+- `opensketch:interactive-preview-state` 커스텀 이벤트를 추가해 Properties panel 상태 변경을 Prototype viewer에 즉시 브로드캐스트
+- Prototype viewer는 해당 이벤트를 수신해 active preview 중에도 동일 interactive state/variant를 즉시 반영
 - 매핑이 없는 상태는 낮은 opacity + tooltip으로 표시해 누락 상태를 즉시 확인 가능
-- 구현: `packages/app/src/ui/properties-panel.ts`
+- 구현: `packages/app/src/ui/properties-panel.ts`, `packages/app/src/ui/prototype-viewer.ts`
 - specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Stroke Width Tool (Shift+W), 2026-04-11)

@@ -48,6 +48,7 @@ type PrototypeRingPreset = {
 const CONSTRAINT_SET_PRESET_KEY = "opensketch-constraint-set-presets";
 const PROTOTYPE_RING_PRESET_KEY = "opensketch-prototype-ring-presets-v1";
 const PROTOTYPE_RING_ACTIVE_PRESET_KEY = "opensketch-prototype-ring-active-preset-id";
+const INTERACTIVE_PREVIEW_EVENT = "opensketch:interactive-preview-state";
 
 const DEFAULT_PROTOTYPE_RING_PRESETS: PrototypeRingPreset[] = [
   {
@@ -2350,8 +2351,27 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           chip.onclick = () => {
             if (!item.variant) return;
             editor.pushUndo();
-            editor.engine.set_instance_variant(BigInt(id), JSON.stringify(normalizeVariantKey(item.variant)));
+            const normalized = normalizeVariantKey(item.variant);
+            try {
+              if (item.key === "default") {
+                editor.engine.apply_interactive_state(BigInt(id), "default");
+              } else {
+                editor.engine.apply_interactive_state(BigInt(id), item.key);
+              }
+            } catch {
+              editor.engine.set_instance_variant(BigInt(id), JSON.stringify(normalized));
+            }
+            editor.engine.set_instance_variant(BigInt(id), JSON.stringify(normalized));
             if (item.syncTrigger) syncSwapVariantInteractions();
+            window.dispatchEvent(new CustomEvent(INTERACTIVE_PREVIEW_EVENT, {
+              detail: {
+                instanceId: Number(id),
+                state: item.key,
+                variant: normalized,
+                syncTrigger: item.syncTrigger,
+                source: "properties-panel",
+              },
+            }));
             editor.requestRender();
             updatePanel();
           };
