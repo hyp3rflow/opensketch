@@ -47,6 +47,62 @@ export function setupVariablesBulkEdit(container: HTMLElement, editor: Editor, c
     return null;
   }
 
+  function normalizeNamespace(input: string): string {
+    return input.trim().replace(/\.+/g, "/").replace(/\/+/g, "/").replace(/^\/+|\/+$/g, "");
+  }
+
+  function withUniqueNames(baseNames: Map<number, string>, allVars: VarVariable[]): Map<number, string> {
+    const used = new Set<string>();
+    for (const v of allVars) {
+      if (!baseNames.has(v.id)) used.add(v.name);
+    }
+    const out = new Map<number, string>();
+    for (const [id, rawName] of baseNames.entries()) {
+      const clean = rawName.trim();
+      if (!clean) continue;
+      if (!used.has(clean)) {
+        used.add(clean);
+        out.set(id, clean);
+        continue;
+      }
+      let n = 2;
+      let next = `${clean}-${n}`;
+      while (used.has(next)) {
+        n += 1;
+        next = `${clean}-${n}`;
+      }
+      used.add(next);
+      out.set(id, next);
+    }
+    return out;
+  }
+
+  function applyBulkVariableRename(col: VarCollection, renameMap: Map<number, string>, summaryLabel: string): void {
+    if (renameMap.size === 0) {
+      alert("No matching variables.");
+      return;
+    }
+    const uniqueMap = withUniqueNames(renameMap, col.variables);
+    const changed: Array<[number, string, string]> = [];
+    for (const v of col.variables) {
+      const next = uniqueMap.get(v.id);
+      if (!next || next === v.name) continue;
+      changed.push([v.id, v.name, next]);
+    }
+    if (changed.length === 0) {
+      alert("No renames needed.");
+      return;
+    }
+    editor.engine.push_undo();
+    for (const [varId, _before, after] of changed) {
+      editor.engine.rename_variable(BigInt(collectionId), BigInt(varId), after);
+    }
+    editor.engine.apply_variables();
+    editor.requestRender();
+    alert(`${summaryLabel}: Renamed ${changed.length} variable(s).`);
+    render();
+  }
+
   function render() {
     container.innerHTML = "";
     const col = getCollection();
@@ -66,6 +122,63 @@ export function setupVariablesBulkEdit(container: HTMLElement, editor: Editor, c
     titleEl.style.cssText = "font-size:12px;font-weight:600;color:#ccc;flex:1;";
     titleEl.textContent = `${col.name} — Table View`;
     toolbar.appendChild(titleEl);
+
+    const renamePrefixBtn = document.createElement("button");
+    renamePrefixBtn.style.cssText = "background:#2a2a2a;border:1px solid #444;border-radius:4px;color:#fbbf24;cursor:pointer;font-size:10px;padding:3px 8px;";
+    renamePrefixBtn.textContent = "Prefix Rename";
+    renamePrefixBtn.title = "Bulk rename by prefix with collision auto-fix";
+    renamePrefixBtn.addEventListener("click", () => {
+      const fromRaw = prompt("Rename prefix — FROM", "color/");
+      if (fromRaw == null) return;
+      const toRaw = prompt("Rename prefix — TO", "brand/");
+      if (toRaw == null) return;
+      const from = normalizeNamespace(fromRaw);
+      const to = normalizeNamespace(toRaw);
+      const fromPrefix = from ? `${from}/` : "";
+      const toPrefix = to ? `${to}/` : "";
+      const renameMap = new Map<number, string>();
+      for (const v of col.variables) {
+        if (!fromPrefix || v.name === from || v.name.startsWith(fromPrefix)) {
+          if (!fromPrefix) {
+            renameMap.set(v.id, `${toPrefix}${v.name}`.replace(/\/+/g, "/").replace(/^\/+|\/+$/g, ""));
+          } else if (v.name === from) {
+            renameMap.set(v.id, to);
+          } else {
+            renameMap.set(v.id, `${toPrefix}${v.name.slice(fromPrefix.length)}`.replace(/\/+/g, "/").replace(/^\/+|\/+$/g, ""));
+          }
+        }
+      }
+      applyBulkVariableRename(col, renameMap, "Prefix rename");
+    });
+    toolbar.appendChild(renamePrefixBtn);
+
+    const moveNsBtn = document.createElement("button");
+    moveNsBtn.style.cssText = "background:#2a2a2a;border:1px solid #444;border-radius:4px;color:#93c5fd;cursor:pointer;font-size:10px;padding:3px 8px;";
+    moveNsBtn.textContent = "Move Namespace";
+    moveNsBtn.title = "Move variables between namespaces (auto-fix collisions)";
+    moveNsBtn.addEventListener("click", () => {
+      const fromRaw = prompt("Move namespace — FROM", "color/semantic");
+      if (fromRaw == null) return;
+      const toRaw = prompt("Move namespace — TO", "theme/light");
+      if (toRaw == null) return;
+      const from = normalizeNamespace(fromRaw);
+      const to = normalizeNamespace(toRaw);
+      if (!from) {
+        alert("FROM namespace is required.");
+        return;
+      }
+      const fromPrefix = `${from}/`;
+      const toPrefix = to ? `${to}/` : "";
+      const renameMap = new Map<number, string>();
+      for (const v of col.variables) {
+        if (v.name === from || v.name.startsWith(fromPrefix)) {
+          const tail = v.name === from ? "" : v.name.slice(fromPrefix.length);
+          renameMap.set(v.id, `${toPrefix}${tail}`.replace(/\/+/g, "/").replace(/^\/+|\/+$/g, ""));
+        }
+      }
+      applyBulkVariableRename(col, renameMap, "Namespace move");
+    });
+    toolbar.appendChild(moveNsBtn);
 
     // CSV Export
     const exportBtn = document.createElement("button");

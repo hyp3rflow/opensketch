@@ -63,6 +63,7 @@ const PROTOTYPE_RING_PRESET_KEY = "opensketch-prototype-ring-presets-v1";
 const PROTOTYPE_RING_ACTIVE_PRESET_KEY = "opensketch-prototype-ring-active-preset-id";
 const PROTOTYPE_TRANSITION_PRESET_KEY = "opensketch-prototype-transition-presets-v1";
 const PROTOTYPE_FLOW_TRANSITION_DEFAULT_KEY = "opensketch-prototype-flow-transition-defaults-v1";
+const INTERACTIVE_PREVIEW_AUTOSYNC_KEY = "opensketch-interactive-preview-autosync-v1";
 const INTERACTIVE_PREVIEW_EVENT = "opensketch:interactive-preview-state";
 
 const DEFAULT_PROTOTYPE_RING_PRESETS: PrototypeRingPreset[] = [
@@ -2310,16 +2311,44 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           return null;
         };
 
-        const syncSwapVariantInteractions = () => {
+        const stateTriggerMap: Record<string, string> = { hover: "OnHover", press: "OnPress", focus: "OnHover" };
+
+        const getSwapVariantTriggerStatus = (): Record<string, "missing" | "mismatch" | "ok"> => {
+          const status: Record<string, "missing" | "mismatch" | "ok"> = {
+            hover: "missing",
+            press: "missing",
+            focus: "missing",
+          };
           try {
             const interJson = editor.engine.get_interactions(BigInt(id));
             const interactions = JSON.parse(interJson || "[]");
-            const triggerMap: Record<string, string> = { hover: "OnHover", press: "OnPress", focus: "OnHover" };
-
             for (const state of ["hover", "press", "focus"] as const) {
+              const mapped = interactiveVariants[state];
+              if (!mapped) continue;
+              const trigger = stateTriggerMap[state];
+              const match = interactions.find((it: any) => it.action === "SwapVariant" && it.trigger === trigger);
+              if (!match) {
+                status[state] = "missing";
+                continue;
+              }
+              const expected = stringifyVariantKey(mapped);
+              const actual = stringifyVariantKey(JSON.parse(match.variant_key_json || "{}"));
+              status[state] = expected && actual === expected ? "ok" : "mismatch";
+            }
+          } catch {}
+          return status;
+        };
+
+        const syncSwapVariantInteractions = (states?: Array<"hover" | "press" | "focus">) => {
+          try {
+            const interJson = editor.engine.get_interactions(BigInt(id));
+            const interactions = JSON.parse(interJson || "[]");
+            const targetStates = states && states.length ? states : ["hover", "press", "focus"];
+
+            for (const state of targetStates) {
               const vk = interactiveVariants[state];
               if (!vk) continue;
-              const trigger = triggerMap[state];
+              const trigger = stateTriggerMap[state];
               let idx = interactions.findIndex((it: any) => it.action === "SwapVariant" && it.trigger === trigger);
               if (idx < 0) {
                 idx = editor.engine.add_interaction(BigInt(id), trigger, "swap-variant", BigInt(id), BigInt(0), "instant", 0, "linear");
@@ -2369,6 +2398,38 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         statePreviewTitle.style.cssText = "font-size:10px;color:#f9a8d4;font-weight:600;";
         statePreviewTitle.textContent = "State Preview";
         statePreviewWrap.appendChild(statePreviewTitle);
+
+        let previewAutoSync = localStorage.getItem(INTERACTIVE_PREVIEW_AUTOSYNC_KEY) !== "0";
+        const triggerStatus = getSwapVariantTriggerStatus();
+
+        const previewMetaRow = document.createElement("div");
+        previewMetaRow.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:8px;";
+        const triggerStatusRow = document.createElement("div");
+        triggerStatusRow.style.cssText = "display:flex;align-items:center;gap:4px;flex-wrap:wrap;";
+        for (const state of ["hover", "press", "focus"] as const) {
+          if (!interactiveVariants[state]) continue;
+          const badge = document.createElement("span");
+          const status = triggerStatus[state];
+          const statusColor = status === "ok" ? "#34d399" : status === "mismatch" ? "#f59e0b" : "#94a3b8";
+          badge.textContent = `${state}:${status === "ok" ? "synced" : status === "mismatch" ? "drift" : "none"}`;
+          badge.style.cssText = `font-size:9px;border:1px solid ${statusColor};color:${statusColor};border-radius:999px;padding:1px 6px;background:rgba(15,23,42,0.55);`;
+          triggerStatusRow.appendChild(badge);
+        }
+        previewMetaRow.appendChild(triggerStatusRow);
+
+        const autoSyncLabel = document.createElement("label");
+        autoSyncLabel.style.cssText = "display:flex;align-items:center;gap:4px;font-size:9px;color:#cbd5e1;cursor:pointer;user-select:none;";
+        const autoSyncInput = document.createElement("input");
+        autoSyncInput.type = "checkbox";
+        autoSyncInput.checked = previewAutoSync;
+        autoSyncInput.onchange = () => {
+          previewAutoSync = autoSyncInput.checked;
+          localStorage.setItem(INTERACTIVE_PREVIEW_AUTOSYNC_KEY, previewAutoSync ? "1" : "0");
+        };
+        autoSyncLabel.appendChild(autoSyncInput);
+        autoSyncLabel.appendChild(document.createTextNode("Auto Sync"));
+        previewMetaRow.appendChild(autoSyncLabel);
+        statePreviewWrap.appendChild(previewMetaRow);
 
         const statePreviewStrip = document.createElement("div");
         statePreviewStrip.style.cssText = "display:flex;gap:4px;flex-wrap:wrap;";
@@ -2439,7 +2500,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
               editor.engine.set_instance_variant(BigInt(id), JSON.stringify(normalized));
             }
             editor.engine.set_instance_variant(BigInt(id), JSON.stringify(normalized));
-            if (item.syncTrigger) syncSwapVariantInteractions();
+            if (item.syncTrigger && previewAutoSync) syncSwapVariantInteractions([item.key as "hover" | "press" | "focus"]);
             window.dispatchEvent(new CustomEvent(INTERACTIVE_PREVIEW_EVENT, {
               detail: {
                 instanceId: Number(id),
@@ -2457,7 +2518,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
 
         const previewHint = document.createElement("div");
         previewHint.style.cssText = "font-size:9px;color:#94a3b8;";
-        previewHint.textContent = "Click chips to instantly preview component states. Hover/Press/Focus also sync SwapVariant triggers.";
+        previewHint.textContent = "Click chips to preview states instantly. Trigger badges show sync health (synced/drift/none); Auto Sync controls whether preview clicks update SwapVariant triggers.";
         statePreviewWrap.appendChild(previewHint);
         ivSection.appendChild(statePreviewWrap);
 

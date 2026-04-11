@@ -2623,3 +2623,10 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Prototype viewer에서 이벤트 수신 시 active preview 캔버스의 interactive state/variant를 즉시 반영
 - [x] 매핑되지 않은 상태는 비활성 시각화(opacity + tooltip)로 설정 누락을 빠르게 식별
 - [x] 구현: `packages/app/src/ui/properties-panel.ts`, `packages/app/src/ui/prototype-viewer.ts`
+
+### Variables Bulk Rename & Namespace Tools (2026-04-11)
+- [x] Variables Bulk Edit(Table View) 툴바에 `Prefix Rename`, `Move Namespace` 액션 추가
+- [x] prefix/namespace 기반 일괄 rename 시 충돌 이름 자동 감지 후 `-2`, `-3` suffix로 auto-fix
+- [x] rename 대상이 없거나 실변경이 없는 경우 가드(alert) 제공
+- [x] 일괄 rename 후 `apply_variables()` + canvas refresh 연동
+- [x] 구현: `packages/app/src/ui/variables-bulk-edit.ts`
