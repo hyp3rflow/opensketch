@@ -2279,6 +2279,91 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           updatePanel();
         };
 
+        const normalizeVariantKey = (obj: Record<string, any>): Record<string, any> => {
+          const normalized: Record<string, any> = {};
+          for (const [k, v] of Object.entries(obj || {})) normalized[k] = decodeVariantValue(v);
+          return normalized;
+        };
+
+        const statePreviewWrap = document.createElement("div");
+        statePreviewWrap.style.cssText = "margin:6px 0 8px;display:flex;flex-direction:column;gap:6px;";
+        const statePreviewTitle = document.createElement("div");
+        statePreviewTitle.style.cssText = "font-size:10px;color:#f9a8d4;font-weight:600;";
+        statePreviewTitle.textContent = "State Preview";
+        statePreviewWrap.appendChild(statePreviewTitle);
+
+        const statePreviewStrip = document.createElement("div");
+        statePreviewStrip.style.cssText = "display:flex;gap:4px;flex-wrap:wrap;";
+        statePreviewWrap.appendChild(statePreviewStrip);
+
+        const currentVariantValues: Record<string, any> = { ...(compInfo.current_variant_values || {}) };
+        const stateProp = findStateProp();
+
+        const buildDefaultStateVariant = (): Record<string, any> | null => {
+          if (!Object.keys(currentVariantValues).length) return null;
+          const next = { ...currentVariantValues };
+          if (stateProp) {
+            const defaultOpt = stateProp.options.find((o) => o.toLowerCase() === "default");
+            if (defaultOpt) next[stateProp.name] = defaultOpt;
+          }
+          return next;
+        };
+
+        const inferActivePreviewState = (): string => {
+          const currentStr = stringifyVariantKey(buildVariantKeyFromString(stringifyVariantKey(currentVariantValues)));
+          const defaultKey = buildDefaultStateVariant();
+          if (defaultKey) {
+            const defaultStr = stringifyVariantKey(buildVariantKeyFromString(stringifyVariantKey(defaultKey)));
+            if (currentStr === defaultStr) return "default";
+          }
+          for (const state of INTERACTIVE_STATES) {
+            const vk = interactiveVariants[state];
+            if (!vk) continue;
+            const vkStr = stringifyVariantKey(vk);
+            if (vkStr && vkStr === currentStr) return state;
+          }
+          return "custom";
+        };
+
+        const activePreviewState = inferActivePreviewState();
+
+        const previewStates: Array<{ key: string; label: string; variant: Record<string, any> | null; syncTrigger: boolean }> = [
+          { key: "default", label: "Default", variant: buildDefaultStateVariant(), syncTrigger: false },
+          ...INTERACTIVE_STATES.map((state) => ({ key: state, label: state[0].toUpperCase() + state.slice(1), variant: interactiveVariants[state] || null, syncTrigger: state !== "disabled" })),
+        ];
+
+        for (const item of previewStates) {
+          const chip = document.createElement("button");
+          const isActive = activePreviewState === item.key;
+          chip.textContent = item.label;
+          chip.style.cssText = `
+            border:1px solid ${isActive ? "rgba(236,72,153,0.72)" : "rgba(236,72,153,0.28)"};
+            background:${isActive ? "rgba(236,72,153,0.22)" : "rgba(15,23,42,0.65)"};
+            color:${isActive ? "#fdf2f8" : "#fbcfe8"};
+            border-radius:999px;
+            padding:2px 8px;
+            font-size:10px;
+            cursor:pointer;
+            opacity:${item.variant ? "1" : "0.55"};
+          `;
+          if (!item.variant) chip.title = "Map this state first in Interactive Variants";
+          chip.onclick = () => {
+            if (!item.variant) return;
+            editor.pushUndo();
+            editor.engine.set_instance_variant(BigInt(id), JSON.stringify(normalizeVariantKey(item.variant)));
+            if (item.syncTrigger) syncSwapVariantInteractions();
+            editor.requestRender();
+            updatePanel();
+          };
+          statePreviewStrip.appendChild(chip);
+        }
+
+        const previewHint = document.createElement("div");
+        previewHint.style.cssText = "font-size:9px;color:#94a3b8;";
+        previewHint.textContent = "Click chips to instantly preview component states. Hover/Press/Focus also sync SwapVariant triggers.";
+        statePreviewWrap.appendChild(previewHint);
+        ivSection.appendChild(statePreviewWrap);
+
         for (const state of INTERACTIVE_STATES) {
           const row = document.createElement("div");
           row.style.cssText = "display:flex;align-items:center;gap:6px;margin-bottom:4px;font-size:11px;color:#e5e7eb;";

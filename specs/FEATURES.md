@@ -2603,3 +2603,10 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] 캔버스 오버레이: 경로 포인트별 width 핸들 렌더링 (커스텀 width 유무/hover/drag 상태 시각화)
 - [x] 드래그 중 `path_set_point_stroke_width`를 실시간 업데이트하고 포인터 업 시 undo/selection refresh 연동
 - [x] 구현: `packages/app/src/editor.ts`, `packages/app/src/ui/shortcut-manager.ts`
+
+### Interactive Components State Preview Strip (2026-04-11)
+- [x] Properties panel `INTERACTIVE VARIANTS`에 **State Preview** 칩 스트립 추가 (`Default / Hover / Press / Focus / Disabled`)
+- [x] 상태 칩 클릭 시 해당 interactive variant key를 즉시 instance에 적용해 우측 패널에서 바로 미리보기
+- [x] `Hover/Press/Focus` 칩 적용 시 SwapVariant prototype trigger를 자동 동기화해 trigger 매핑 일관성 유지
+- [x] 매핑되지 않은 상태는 비활성 시각화(opacity + tooltip)로 설정 누락을 빠르게 식별
+- [x] 구현: `packages/app/src/ui/properties-panel.ts`
