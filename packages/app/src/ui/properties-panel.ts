@@ -2751,6 +2751,10 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           const listWrap = document.createElement("div");
           overrideCard.appendChild(listWrap);
 
+          const diffWrap = document.createElement("div");
+          diffWrap.style.cssText = "margin-top:8px;border-top:1px dashed rgba(59,130,246,0.2);padding-top:7px;";
+          overrideCard.appendChild(diffWrap);
+
           const classifyProp = (prop: string): string => {
             const p = String(prop || "").toLowerCase();
             if (p.includes("fill") || p.includes("stroke") || p.includes("color")) return "paint";
@@ -2759,6 +2763,15 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             if (p.includes("visible")) return "visibility";
             if (p.includes("x") || p.includes("y") || p.includes("width") || p.includes("height") || p.includes("layout") || p.includes("radius")) return "layout";
             return "all";
+          };
+
+          const safeJson = (v: any, max = 64) => {
+            try {
+              const raw = typeof v === "string" ? v : JSON.stringify(v);
+              return raw.length > max ? `${raw.slice(0, max - 3)}…` : raw;
+            } catch {
+              return String(v);
+            }
           };
 
           const renderOverrideRows = () => {
@@ -2818,14 +2831,6 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
 
               const chips = document.createElement("div");
               chips.style.cssText = "display:flex;flex-wrap:wrap;gap:4px;";
-              const safeJson = (v: any) => {
-                try {
-                  const raw = typeof v === "string" ? v : JSON.stringify(v);
-                  return raw.length > 64 ? `${raw.slice(0, 61)}…` : raw;
-                } catch {
-                  return String(v);
-                }
-              };
               for (const p of matchedProps) {
                 const chipWrap = document.createElement("span");
                 chipWrap.style.cssText = "display:inline-flex;align-items:center;gap:4px;padding:1px 4px 1px 6px;border-radius:999px;background:rgba(59,130,246,0.18);border:1px solid rgba(59,130,246,0.35);";
@@ -2887,6 +2892,90 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             }
           };
 
+          const renderDiffRows = () => {
+            if (!diffInspector?.overrides || !Array.isArray(diffInspector.overrides) || diffInspector.overrides.length === 0) {
+              diffWrap.innerHTML = "";
+              return;
+            }
+            const query = queryInput.value.trim().toLowerCase();
+            const scope = scopeSel.value;
+            diffWrap.innerHTML = "";
+
+            const title = document.createElement("div");
+            title.style.cssText = "font-size:10px;color:#93c5fd;letter-spacing:0.3px;font-weight:600;margin-bottom:6px;";
+            title.textContent = "DIFF INSPECTOR";
+            diffWrap.appendChild(title);
+
+            let visibleDiffCount = 0;
+            for (const row of diffInspector.overrides) {
+              const nodeId = Number(row?.node_id || 0);
+              const nodeName = String(row?.node_name || "Untitled");
+              const diffs = Array.isArray(row?.diffs) ? row.diffs : [];
+              const matchedDiffs = diffs.filter((d: any) => {
+                const field = String(d?.field || "");
+                if (!field) return false;
+                if (scope !== "all") {
+                  const kind = classifyProp(field);
+                  if (!(kind === scope || (scope === "layout" && kind === "all"))) return false;
+                }
+                if (!query) return true;
+                return field.toLowerCase().includes(query) || nodeName.toLowerCase().includes(query);
+              });
+              if (matchedDiffs.length === 0) continue;
+
+              for (const d of matchedDiffs) {
+                visibleDiffCount++;
+                const line = document.createElement("div");
+                line.style.cssText = "display:flex;align-items:flex-start;gap:6px;padding:4px 0;font-size:10px;color:#93c5fd;border-bottom:1px solid rgba(30,64,175,0.2);";
+
+                const meta = document.createElement("div");
+                meta.style.cssText = "min-width:0;flex:1;";
+                const head = document.createElement("div");
+                head.style.cssText = "display:flex;align-items:center;gap:4px;color:#bfdbfe;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;";
+                const fieldBadge = document.createElement("span");
+                fieldBadge.style.cssText = "padding:0 5px;border-radius:999px;background:rgba(30,64,175,0.35);font-size:9px;";
+                fieldBadge.textContent = String(d.field);
+                const nodeText = document.createElement("span");
+                nodeText.title = nodeName;
+                nodeText.textContent = nodeName;
+                head.appendChild(fieldBadge);
+                head.appendChild(nodeText);
+                meta.appendChild(head);
+
+                const values = document.createElement("div");
+                values.style.cssText = "margin-top:2px;color:#7dd3fc;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:9px;line-height:1.3;";
+                values.textContent = `${safeJson(d.base, 40)} → ${safeJson(d.local, 40)}`;
+                values.title = `base: ${safeJson(d.base, 300)}\nlocal: ${safeJson(d.local, 300)}`;
+                meta.appendChild(values);
+                line.appendChild(meta);
+
+                if ((editor.engine as any).reset_instance_override_property) {
+                  const resetBtn = document.createElement("button");
+                  resetBtn.textContent = "↺";
+                  resetBtn.title = `Reset ${String(d.field)} on ${nodeName}`;
+                  resetBtn.style.cssText = "background:none;border:none;color:#60a5fa;cursor:pointer;font-size:10px;padding:0 2px;opacity:0.8;";
+                  resetBtn.onclick = () => {
+                    editor.pushUndo();
+                    const ok = (editor.engine as any).reset_instance_override_property(BigInt(id), BigInt(nodeId), String(d.field));
+                    if (!ok) return;
+                    editor.requestRender();
+                    refresh([id]);
+                  };
+                  line.appendChild(resetBtn);
+                }
+
+                diffWrap.appendChild(line);
+              }
+            }
+
+            if (visibleDiffCount === 0) {
+              const empty = document.createElement("div");
+              empty.style.cssText = "font-size:10px;color:#64748b;font-style:italic;padding:2px 0;";
+              empty.textContent = "No diff rows match this filter";
+              diffWrap.appendChild(empty);
+            }
+          };
+
           resetVisibleBtn.addEventListener("click", () => {
             const query = queryInput.value.trim().toLowerCase();
             const scope = scopeSel.value;
@@ -2910,9 +2999,16 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             refresh([id]);
           });
 
-          queryInput.addEventListener("input", renderOverrideRows);
-          scopeSel.addEventListener("change", renderOverrideRows);
+          queryInput.addEventListener("input", () => {
+            renderOverrideRows();
+            renderDiffRows();
+          });
+          scopeSel.addEventListener("change", () => {
+            renderOverrideRows();
+            renderDiffRows();
+          });
           renderOverrideRows();
+          renderDiffRows();
 
           instanceControlsCard.appendChild(overrideCard);
         }
