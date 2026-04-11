@@ -2574,6 +2574,13 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
   - 현재 선택 프레임 레이아웃 속성에 즉시 바인딩
 - [x] 구현: `packages/app/src/ui/properties-panel.ts`
 
+### Auto Layout Wrap Rows/Columns Inspector (2026-04-11)
+- [x] Flex + Wrap 활성 컨테이너에 `Wrap rows/columns inspector` 카드 추가
+- [x] 줄바꿈 결과를 line count + distribution(`R1/R2...` 또는 `C1/C2...`)으로 시각화
+- [x] 각 line chip hover 시 포함된 레이어 이름 미리보기
+- [x] Quick tuning 액션: `Gap -2`, `Gap +2`, `Align start`, `Align between`
+- [x] 구현: `packages/app/src/ui/properties-panel.ts`
+
 ### Component Variant Naming Lint (2026-04-10)
 - [x] Variant Matrix Editor 상단에 `Variant Naming Lint` 카드 추가
 - [x] axis/value 네이밍 품질 점검:

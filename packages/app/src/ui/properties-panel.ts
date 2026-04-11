@@ -12605,6 +12605,109 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         }
       }
 
+      // --- Wrap rows/columns inspector (distribution + quick tuning) ---
+      if (hasLayout && layout.mode === "Flex" && layout.wrap === "Wrap") {
+        let childIds: number[] = [];
+        try {
+          const raw = editor.engine.get_node_json(BigInt(id));
+          if (raw) {
+            const n = JSON.parse(raw);
+            childIds = (n.children || []).map((c: any) => Number(c)).filter((v: number) => Number.isFinite(v));
+          }
+        } catch {}
+
+        if (childIds.length > 0) {
+          const readBounds = (nodeId: number) => {
+            try {
+              const raw = editor.engine.get_node_json(BigInt(nodeId));
+              if (!raw) return null;
+              const n = JSON.parse(raw);
+              return { id: nodeId, name: String(n.name || `Node ${nodeId}`), x: Number(n.x || 0), y: Number(n.y || 0), w: Number(n.width || 0), h: Number(n.height || 0) };
+            } catch {
+              return null;
+            }
+          };
+
+          const bounds = childIds.map(readBounds).filter(Boolean) as Array<{id:number;name:string;x:number;y:number;w:number;h:number}>;
+          const byRow = String(layout.direction || "Row") !== "Column";
+          const sorted = [...bounds].sort((a, b) => byRow ? (a.y - b.y) || (a.x - b.x) : (a.x - b.x) || (a.y - b.y));
+
+          const lines: Array<{items: typeof sorted; anchor: number}> = [];
+          const axisThreshold = Math.max(6, Math.round((byRow ? sorted.reduce((s, it) => s + it.h, 0) : sorted.reduce((s, it) => s + it.w, 0)) / Math.max(1, sorted.length) * 0.35));
+          for (const item of sorted) {
+            const anchor = byRow ? item.y : item.x;
+            const last = lines[lines.length - 1];
+            if (!last || Math.abs(anchor - last.anchor) > axisThreshold) {
+              lines.push({ items: [item], anchor });
+            } else {
+              last.items.push(item);
+            }
+          }
+
+          const wrapInspect = document.createElement("div");
+          wrapInspect.style.cssText = "margin-top:8px;padding:8px;border:1px solid #334155;border-radius:8px;background:rgba(30,41,59,0.35);";
+          const title = document.createElement("div");
+          title.style.cssText = "font-size:10px;color:#93c5fd;font-weight:600;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.4px;";
+          title.textContent = "Wrap rows/columns inspector";
+          wrapInspect.appendChild(title);
+
+          const summary = document.createElement("div");
+          summary.style.cssText = "font-size:10px;color:#94a3b8;line-height:1.35;margin-bottom:6px;";
+          summary.textContent = `${byRow ? "Rows" : "Columns"}: ${lines.length} · distribution ${lines.map((l) => l.items.length).join(" / ")} · gap ${Math.round(Number(layout.gap || 0))}px`;
+          wrapInspect.appendChild(summary);
+
+          const linesWrap = document.createElement("div");
+          linesWrap.style.cssText = "display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;";
+          lines.forEach((line, idx) => {
+            const chip = document.createElement("div");
+            const names = line.items.map((it) => it.name).slice(0, 3).join(", ");
+            chip.style.cssText = "padding:2px 6px;border:1px solid #334155;border-radius:999px;background:#0f172a;color:#cbd5e1;font-size:10px;";
+            chip.title = names;
+            chip.textContent = `${byRow ? "R" : "C"}${idx + 1} · ${line.items.length}`;
+            linesWrap.appendChild(chip);
+          });
+          wrapInspect.appendChild(linesWrap);
+
+          const tuneRow = document.createElement("div");
+          tuneRow.style.cssText = "display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;";
+          const mk = (label: string, onClick: () => void) => {
+            const b = document.createElement("button");
+            b.className = "prop-btn";
+            b.textContent = label;
+            b.style.cssText = "font-size:10px;padding:4px 6px;";
+            b.addEventListener("click", onClick);
+            return b;
+          };
+          tuneRow.appendChild(mk("Gap -2", () => {
+            editor.engine.push_undo();
+            editor.engine.set_layout_gap(BigInt(id), (Number(layout.gap || 0) - 2));
+            editor.requestRender();
+            refresh(ids);
+          }));
+          tuneRow.appendChild(mk("Gap +2", () => {
+            editor.engine.push_undo();
+            editor.engine.set_layout_gap(BigInt(id), (Number(layout.gap || 0) + 2));
+            editor.requestRender();
+            refresh(ids);
+          }));
+          tuneRow.appendChild(mk("Align start", () => {
+            editor.engine.push_undo();
+            editor.engine.set_align_content(BigInt(id), "flex-start");
+            editor.requestRender();
+            refresh(ids);
+          }));
+          tuneRow.appendChild(mk("Align between", () => {
+            editor.engine.push_undo();
+            editor.engine.set_align_content(BigInt(id), "space-between");
+            editor.requestRender();
+            refresh(ids);
+          }));
+          wrapInspect.appendChild(tuneRow);
+
+          layoutSection.appendChild(wrapInspect);
+        }
+      }
+
       container.appendChild(layoutSection);
 
       // === Responsive Breakpoints Section ===

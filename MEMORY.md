@@ -1790,10 +1790,17 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Auto Layout Wrap Rows/Columns Inspector — wrap 컨테이너의 row/column별 gap·align 미세 조정 + 줄바꿈 분포 시각화 (임팩트 중상, 난이도 중)
 - Constraints Preview While Resize — 부모 프레임 리사이즈 드래그 중 constraint 결과를 ghost overlay로 실시간 미리보기 (임팩트 중상, 난이도 중)
 - Prototype Transition Presets Library — transition/easing/duration 프리셋 저장·적용 및 flow별 기본값 지정 (임팩트 중, 난이도 중)
 - Variables Bulk Rename & Namespace Tools — 변수 prefix 일괄 변경, namespace 이동, 충돌 감지/자동 수정 (임팩트 중상, 난이도 중)
+
+## 완료된 기능 (추가 — Auto Layout Wrap Rows/Columns Inspector, 2026-04-11)
+- Auto layout(Flex + Wrap) 컨테이너에 `Wrap rows/columns inspector` 카드 추가
+- 현재 줄바꿈 결과를 Rows/Columns 개수 + line distribution(`R1/R2...`)로 시각화
+- line chip hover로 포함 레이어 이름 확인 가능
+- Quick tuning 액션 제공: `Gap -2/+2`, `Align start`, `Align between`
+- 구현: `packages/app/src/ui/properties-panel.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Design Token Usage Map, 2026-04-11)
 - Properties panel > Design Tokens에 `Token Usage Map` 섹션 추가
