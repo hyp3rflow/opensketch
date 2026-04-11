@@ -7409,10 +7409,14 @@ export class Editor {
       const bw = item.next.w * zoom;
       const bh = item.next.h * zoom;
 
+      ctx.fillStyle = "rgba(255,255,255,0.06)";
+      ctx.fillRect(a.x, a.y, aw, ah);
       ctx.strokeStyle = "rgba(255,255,255,0.35)";
       ctx.lineWidth = 1;
       ctx.strokeRect(a.x, a.y, aw, ah);
 
+      ctx.fillStyle = "rgba(255,51,102,0.14)";
+      ctx.fillRect(b.x, b.y, bw, bh);
       ctx.strokeStyle = "rgba(255,51,102,0.95)";
       ctx.lineWidth = 1.5;
       ctx.strokeRect(b.x, b.y, bw, bh);
@@ -7424,21 +7428,28 @@ export class Editor {
       ctx.lineWidth = 1;
       ctx.stroke();
 
+      const dx = item.next.x - item.old.x;
+      const dy = item.next.y - item.old.y;
+      const dwc = item.next.w - item.old.w;
+      const dhc = item.next.h - item.old.h;
+      const deltaTag = `Δx ${dx.toFixed(0)} · Δy ${dy.toFixed(0)} · Δw ${dwc.toFixed(0)} · Δh ${dhc.toFixed(0)}`;
       const tag = `${item.hMode} / ${item.vMode}`;
       ctx.font = "10px Inter, sans-serif";
-      const tw = ctx.measureText(tag).width + 10;
+      const tw = Math.max(ctx.measureText(tag).width, ctx.measureText(deltaTag).width) + 12;
       const tx = b.x + bw / 2 - tw / 2;
-      const ty = b.y - 18;
+      const ty = b.y - 30;
       ctx.fillStyle = "rgba(16,18,24,0.9)";
       ctx.strokeStyle = "rgba(255,255,255,0.2)";
       ctx.beginPath();
-      ctx.roundRect(tx, ty, tw, 14, 4);
+      ctx.roundRect(tx, ty, tw, 26, 4);
       ctx.fill();
       ctx.stroke();
       ctx.fillStyle = "#fff";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText(tag, tx + tw / 2, ty + 7.5);
+      ctx.fillText(tag, tx + tw / 2, ty + 8);
+      ctx.fillStyle = "#f9a8d4";
+      ctx.fillText(deltaTag, tx + tw / 2, ty + 18.5);
     }
 
     ctx.restore();

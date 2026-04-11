@@ -1790,9 +1790,15 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Constraints Preview While Resize — 부모 프레임 리사이즈 드래그 중 constraint 결과를 ghost overlay로 실시간 미리보기 (임팩트 중상, 난이도 중)
 - Prototype Transition Presets Library — transition/easing/duration 프리셋 저장·적용 및 flow별 기본값 지정 (임팩트 중, 난이도 중)
 - Variables Bulk Rename & Namespace Tools — 변수 prefix 일괄 변경, namespace 이동, 충돌 감지/자동 수정 (임팩트 중상, 난이도 중)
+
+## 완료된 기능 (추가 — Constraints Preview While Resize, 2026-04-11)
+- Constraint Debug Overlay를 ghost preview 중심으로 강화
+- 자식 old/new bounds를 반투명 fill + outline로 동시 렌더링해 리사이즈 중 변화량을 직관적으로 확인
+- 각 자식 라벨에 `Δx/Δy/Δw/Δh` 수치 추가 (constraint mode와 함께 표시)
+- 구현: `packages/app/src/editor.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Auto Layout Wrap Rows/Columns Inspector, 2026-04-11)
 - Auto layout(Flex + Wrap) 컨테이너에 `Wrap rows/columns inspector` 카드 추가

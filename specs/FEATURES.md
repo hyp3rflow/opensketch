@@ -481,6 +481,7 @@
   - 부모 old/new bounds(흰색/파란색) + 자식 old/new bounds(흰색/마젠타) + 중심 이동 벡터를 동시에 렌더링
   - 각 자식 위에 `horizontal / vertical` 모드 태그(`left`, `right`, `leftAndRight`, `center`, `scale` 등)를 표시해 앵커/scale/stretch 해석을 즉시 확인 가능
   - 상단 Debug 카드의 규칙 설명(`x fixed`, `x + ΔW`, `w + ΔW`, `scale`)과 캔버스 벡터가 동기화되어 실제 엔진 결과와 예측 계산을 교차 검증 가능
+  - **v2 (2026-04-11): Constraints Preview While Resize 완료** — 자식 old/new bounds를 ghost fill(기존/예측 반투명)로 동시 표시하고, 라벨에 `Δx/Δy/Δw/Δh` 수치를 추가해 핸들 드래그 중 결과를 즉시 판독 가능
 - Backward compatible via `#[serde(default)]`
 
 ### Mask / Clip (Figma-style)
