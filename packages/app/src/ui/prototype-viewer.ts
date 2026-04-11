@@ -103,6 +103,14 @@ export function createPrototypeViewer(editor: Editor): {
   let flowLintInfo: HTMLDivElement | null = null;
   let flowLintList: HTMLDivElement | null = null;
   let flowLintSnapshot: { startFrameId: number | null; issues: Array<{ type: "unreachable" | "dead-end" | "cycle"; frameId: number; frameName: string; detail: string }>; } | null = null;
+  let timelineWrap: HTMLDivElement | null = null;
+  let timelineInfo: HTMLDivElement | null = null;
+  let timelineScrubber: HTMLInputElement | null = null;
+  let timelineList: HTMLDivElement | null = null;
+  let timelineEvents: Array<{ id: number; at: number; action: string; fromFrameId: number | null; toFrameId: number | null; transition: string; durationMs: number; note?: string }> = [];
+  let timelineSeq = 1;
+  let timelinePlaybackTimer: number | null = null;
+  let lastScrollTimelineAt = 0;
   const interactiveVisualState = new Map<number, "hover" | "press" | "focus">();
 
   type RecordedProtoEvent = {
@@ -1113,6 +1121,74 @@ export function createPrototypeViewer(editor: Editor): {
     }
   }
 
+  function pushTimelineEvent(evt: { action: string; fromFrameId: number | null; toFrameId: number | null; transition?: string; durationMs?: number; note?: string }) {
+    timelineEvents.push({
+      id: timelineSeq++,
+      at: Math.max(0, performance.now() - recorderStartedAt),
+      action: evt.action,
+      fromFrameId: evt.fromFrameId,
+      toFrameId: evt.toFrameId,
+      transition: evt.transition || "Instant",
+      durationMs: Math.max(0, Number(evt.durationMs || 0)),
+      note: evt.note,
+    });
+    if (timelineEvents.length > 160) timelineEvents = timelineEvents.slice(-160);
+    renderTimelineScrubber();
+  }
+
+  function scrubToTimelineEvent(index: number) {
+    if (!timelineEvents.length) return;
+    const safeIndex = Math.max(0, Math.min(timelineEvents.length - 1, Math.round(index)));
+    const evt = timelineEvents[safeIndex];
+    if (!evt) return;
+    if (timelineScrubber) timelineScrubber.value = String(safeIndex);
+    const target = evt.toFrameId || evt.fromFrameId;
+    if (target && target > 0 && target !== currentFrameId) {
+      currentFrameId = target;
+      renderCurrentView();
+    }
+    if (timelineInfo) {
+      const sec = (evt.at / 1000).toFixed(2);
+      timelineInfo.textContent = `#${safeIndex + 1}/${timelineEvents.length} · t+${sec}s · ${evt.action} · ${evt.transition} ${evt.durationMs}ms`;
+    }
+  }
+
+  function clearTimelinePlaybackTimer() {
+    if (timelinePlaybackTimer !== null) {
+      window.clearTimeout(timelinePlaybackTimer);
+      timelinePlaybackTimer = null;
+    }
+  }
+
+  function renderTimelineScrubber() {
+    if (!timelineScrubber || !timelineList || !timelineInfo) return;
+    timelineScrubber.min = "0";
+    timelineScrubber.max = String(Math.max(0, timelineEvents.length - 1));
+    if (timelineEvents.length === 0) {
+      timelineScrubber.value = "0";
+      timelineInfo.textContent = "No timeline events yet";
+      timelineList.innerHTML = "<div style=\"font-size:10px;color:#94a3b8;\">Record interactions or navigate to capture timeline.</div>";
+      return;
+    }
+    const currentIndex = Math.max(0, Math.min(timelineEvents.length - 1, Number(timelineScrubber.value || timelineEvents.length - 1)));
+    timelineScrubber.value = String(currentIndex);
+    const selected = timelineEvents[currentIndex];
+    const sec = (selected.at / 1000).toFixed(2);
+    timelineInfo.textContent = `#${currentIndex + 1}/${timelineEvents.length} · t+${sec}s · ${selected.action}`;
+
+    timelineList.innerHTML = "";
+    for (const evt of timelineEvents.slice(-10).reverse()) {
+      const row = document.createElement("button");
+      row.style.cssText = "width:100%;text-align:left;background:rgba(15,23,42,0.55);border:1px solid rgba(148,163,184,0.24);border-radius:6px;color:#e2e8f0;padding:4px 6px;cursor:pointer;font-size:10px;";
+      const idx = timelineEvents.findIndex((x) => x.id === evt.id);
+      const fromLabel = evt.fromFrameId ? `#${evt.fromFrameId}` : "-";
+      const toLabel = evt.toFrameId ? `#${evt.toFrameId}` : "-";
+      row.textContent = `${idx + 1}. ${evt.action} ${fromLabel}→${toLabel} (${evt.transition}/${evt.durationMs}ms)${evt.note ? ` · ${evt.note}` : ""}`;
+      row.onclick = () => scrubToTimelineEvent(idx);
+      timelineList.appendChild(row);
+    }
+  }
+
   function onFlowMinimapClick(e: MouseEvent) {
     if (!flowMinimapCanvas || !flowMinimapSnapshot) return;
     const rect = flowMinimapCanvas.getBoundingClientRect();
@@ -1144,6 +1220,9 @@ export function createPrototypeViewer(editor: Editor): {
     if (active) return;
     active = true;
     navigationStack = [];
+    timelineEvents = [];
+    timelineSeq = 1;
+    clearTimelinePlaybackTimer();
 
     overlay = document.createElement("div");
     overlay.style.cssText = `
@@ -1515,6 +1594,67 @@ export function createPrototypeViewer(editor: Editor): {
     flowLintWrap.appendChild(flowLintList);
     overlay.appendChild(flowLintWrap);
 
+    timelineWrap = document.createElement("div");
+    timelineWrap.style.cssText = "position:absolute;right:14px;top:52px;width:260px;max-height:300px;overflow:auto;background:rgba(15,23,42,0.92);border:1px solid rgba(148,163,184,0.3);border-radius:10px;padding:8px;z-index:4;display:flex;flex-direction:column;gap:6px;";
+    const timelineHead = document.createElement("div");
+    timelineHead.style.cssText = "font-size:11px;font-weight:600;color:#cbd5e1;";
+    timelineHead.textContent = "Interaction Timeline";
+    timelineWrap.appendChild(timelineHead);
+
+    timelineInfo = document.createElement("div");
+    timelineInfo.style.cssText = "font-size:10px;color:#94a3b8;line-height:1.35;";
+    timelineInfo.textContent = "No timeline events yet";
+    timelineWrap.appendChild(timelineInfo);
+
+    timelineScrubber = document.createElement("input");
+    timelineScrubber.type = "range";
+    timelineScrubber.min = "0";
+    timelineScrubber.max = "0";
+    timelineScrubber.value = "0";
+    timelineScrubber.style.cssText = "width:100%;";
+    timelineScrubber.addEventListener("input", () => scrubToTimelineEvent(Number(timelineScrubber?.value || 0)));
+    timelineWrap.appendChild(timelineScrubber);
+
+    const timelineBtns = document.createElement("div");
+    timelineBtns.style.cssText = "display:flex;gap:6px;";
+    const timelinePlayBtn = document.createElement("button");
+    timelinePlayBtn.className = "prop-btn";
+    timelinePlayBtn.textContent = "Play";
+    timelinePlayBtn.style.cssText = "flex:1;font-size:10px;padding:4px 6px;";
+    timelinePlayBtn.onclick = () => {
+      if (timelineEvents.length < 2) return;
+      clearTimelinePlaybackTimer();
+      let idx = Number(timelineScrubber?.value || 0);
+      const step = () => {
+        scrubToTimelineEvent(idx);
+        const cur = timelineEvents[idx];
+        const next = timelineEvents[idx + 1];
+        if (!cur || !next) return;
+        idx += 1;
+        const gap = Math.max(60, Math.min(1500, next.at - cur.at || cur.durationMs || 240));
+        timelinePlaybackTimer = window.setTimeout(step, gap);
+      };
+      step();
+    };
+    const timelineClearBtn = document.createElement("button");
+    timelineClearBtn.className = "prop-btn";
+    timelineClearBtn.textContent = "Clear";
+    timelineClearBtn.style.cssText = "flex:1;font-size:10px;padding:4px 6px;";
+    timelineClearBtn.onclick = () => {
+      clearTimelinePlaybackTimer();
+      timelineEvents = [];
+      timelineSeq = 1;
+      renderTimelineScrubber();
+    };
+    timelineBtns.appendChild(timelinePlayBtn);
+    timelineBtns.appendChild(timelineClearBtn);
+    timelineWrap.appendChild(timelineBtns);
+
+    timelineList = document.createElement("div");
+    timelineList.style.cssText = "display:flex;flex-direction:column;gap:4px;";
+    timelineWrap.appendChild(timelineList);
+    overlay.appendChild(timelineWrap);
+
     document.body.appendChild(overlay);
     document.addEventListener("keydown", onKeyDown);
     document.addEventListener("paste", onPaste);
@@ -1546,6 +1686,7 @@ export function createPrototypeViewer(editor: Editor): {
     // Build variables debug panel
     buildVarsPanel();
     renderFlowStartManager();
+    renderTimelineScrubber();
 
     renderCurrentView();
     startMotionPathPlayback();
@@ -1620,6 +1761,12 @@ export function createPrototypeViewer(editor: Editor): {
     flowLintInfo = null;
     flowLintList = null;
     flowLintSnapshot = null;
+    clearTimelinePlaybackTimer();
+    timelineWrap = null;
+    timelineInfo = null;
+    timelineScrubber = null;
+    timelineList = null;
+    timelineEvents = [];
     if (offThemeSync) {
       offThemeSync();
       offThemeSync = null;
@@ -1679,6 +1826,7 @@ export function createPrototypeViewer(editor: Editor): {
     if (currentFrameId !== null) navigationStack.push(currentFrameId);
     currentFrameId = frameId;
     recordEvent({ kind: "navigate", frameId: prevFrameId, toFrameId: frameId, action: "NavigateTo" });
+    pushTimelineEvent({ action: "NavigateTo", fromFrameId: prevFrameId, toFrameId: frameId, transition, durationMs });
 
     if (transition === "Instant" || !prevFrameId) {
       renderCurrentView();
@@ -1691,7 +1839,9 @@ export function createPrototypeViewer(editor: Editor): {
   function navigateBack() {
     if (transitioning) return;
     if (navigationStack.length > 0) {
+      const fromFrame = currentFrameId;
       currentFrameId = navigationStack.pop()!;
+      pushTimelineEvent({ action: "Back", fromFrameId: fromFrame, toFrameId: currentFrameId, transition: "Instant", durationMs: 0 });
       renderCurrentView();
     }
   }
@@ -3458,6 +3608,11 @@ export function createPrototypeViewer(editor: Editor): {
 
     e.preventDefault();
     recordEvent({ kind: "scroll", frameId: currentFrameId, nodeId: scrollFrameId, dx: e.deltaX, dy: e.deltaY, x: e.clientX, y: e.clientY });
+    const now = performance.now();
+    if (now - lastScrollTimelineAt > 180) {
+      pushTimelineEvent({ action: "Scroll", fromFrameId: currentFrameId, toFrameId: currentFrameId, transition: "scroll", durationMs: 0, note: `frame #${scrollFrameId}` });
+      lastScrollTimelineAt = now;
+    }
     const overflow = editor.engine.get_overflow(BigInt(scrollFrameId));
     const scrollsX = overflow === "scroll-both" || overflow === "scroll-horizontal";
     const scrollsY = overflow === "scroll-both" || overflow === "scroll-vertical";

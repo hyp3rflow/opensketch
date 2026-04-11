@@ -2679,3 +2679,10 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] cycle 체인을 리스트업(`A → B → A`)해 참조 루프를 빠르게 진단
 - [x] broken alias row의 `Clear` 액션으로 해당 mode 값을 즉시 비우고 `apply_variables()` 반영
 - 구현: `packages/app/src/ui/variables-panel.ts`
+
+### Interaction Timeline Scrubber (2026-04-12)
+- [x] Prototype Viewer 우측에 `Interaction Timeline` 패널 추가 (scrub slider + 최근 이벤트 리스트)
+- [x] Navigate/Back/Scroll 이벤트를 타임라인으로 누적해 순서/끊김을 시각 점검
+- [x] 슬라이더 또는 이벤트 row 클릭 시 해당 시점의 target frame으로 즉시 jump
+- [x] `Play` 액션으로 기록된 간격 기반 재생(transition duration fallback), `Clear`로 세션 타임라인 초기화
+- 구현: `packages/app/src/ui/prototype-viewer.ts`

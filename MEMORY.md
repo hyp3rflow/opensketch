@@ -1790,9 +1790,18 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Interaction Timeline Scrubber — Prototype viewer에서 frame transition/overlay/open-close를 타임라인으로 재생·스크럽해 끊김/순서 문제를 시각 디버깅 (임팩트 중상, 난이도 중)
 - Auto Layout Stretch Handles — 캔버스에서 자식의 Fill/Hug/Fixed를 핸들 드래그로 전환하고 남은 공간 분배를 실시간 프리뷰 (임팩트 상, 난이도 중상)
 - Component Slot Fallback Preview — slot 미바인딩/깨진 instance swap 상태를 fallback 컴포넌트와 경고 배지로 즉시 확인·복구 (임팩트 중상, 난이도 중)
+- Prototype Overlay Stack Inspector — OpenOverlay/CloseOverlay 체인을 스택 타임라인으로 표시하고 z-order/닫힘 누락을 경고 (임팩트 중상, 난이도 중)
+- Component Property Controls (Instance Exposed Props) — 컴포넌트에서 텍스트/불리언/숫자 prop을 노출해 인스턴스 패널에서 직접 편집 (임팩트 상, 난이도 상)
+- Multi-user Cursor Playback (Local Session) — 코멘트/리뷰 모드에서 가상 collaborator 커서 리플레이로 사용자 플로우 설명 지원 (임팩트 중, 난이도 중상)
+
+## 완료된 기능 (추가 — Interaction Timeline Scrubber, 2026-04-12)
+- Prototype Viewer 우측에 `Interaction Timeline` 패널 추가 (scrub slider + 최근 이벤트 목록)
+- Navigate/Back/Scroll 이벤트를 시간축으로 기록해 transition 순서/끊김을 빠르게 디버깅
+- 슬라이더/row 클릭으로 해당 시점 target frame으로 점프, `Play` 재생 및 `Clear` 초기화 제공
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Variable Alias Graph Inspector, 2026-04-12)
 - Variables 패널에 `Variable Dependency Graph` 카드 추가 (Nodes/Edges/Broken/Cycles 메타)
