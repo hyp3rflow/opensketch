@@ -179,6 +179,9 @@ export function createTokenThemeSwitcher(editor: Editor, onThemeChange?: () => v
     }
     wrapper.appendChild(tokenList);
 
+    // Token usage map (used/unused/duplicate + quick select/replace)
+    wrapper.appendChild(createTokenUsageMapSection(editor, tokens, activeId));
+
     // Add token button
     const addTokenBtn = document.createElement("button");
     addTokenBtn.style.cssText = "width:100%;margin-top:4px;padding:4px;background:#2a2a2a;border:1px solid #444;border-radius:4px;color:#aaa;font-size:10px;cursor:pointer;";
@@ -359,4 +362,152 @@ export function createTokenBindingSection(editor: Editor, nodeId: number, onUpda
 
   render();
   return section;
+}
+
+function createTokenUsageMapSection(
+  editor: Editor,
+  tokens: Array<{ id: number; name: string; type: string; value: string }>,
+  activeThemeId: number,
+): HTMLElement {
+  const section = document.createElement("div");
+  section.style.cssText = "margin-top:8px;padding:8px;border:1px solid #3a3a3a;border-radius:6px;background:#202020;";
+
+  const title = document.createElement("div");
+  title.style.cssText = "font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;";
+  title.textContent = "Token Usage Map";
+  section.appendChild(title);
+
+  const layerTree: any[] = JSON.parse(editor.engine.get_layer_list() || "[]");
+  const nodes = flattenLayerTree(layerTree);
+
+  const tokenUsage = new Map<string, number[]>();
+  const nodeNameMap = new Map<number, string>();
+  for (const n of nodes) {
+    nodeNameMap.set(n.id, n.name || `Node ${n.id}`);
+    const bindings: Array<{ property: string; tokenName: string }> = JSON.parse(editor.engine.token_get_bindings(BigInt(n.id)) || "[]");
+    for (const b of bindings) {
+      const arr = tokenUsage.get(b.tokenName) || [];
+      if (!arr.includes(n.id)) arr.push(n.id);
+      tokenUsage.set(b.tokenName, arr);
+    }
+  }
+
+  const unresolved = document.createElement("div");
+  unresolved.style.cssText = "font-size:10px;color:#8b8b8b;margin-bottom:6px;";
+  unresolved.textContent = `${tokenUsage.size} bound token(s) across ${nodes.length} node(s)`;
+  section.appendChild(unresolved);
+
+  const list = document.createElement("div");
+  list.style.cssText = "display:flex;flex-direction:column;gap:4px;max-height:160px;overflow:auto;padding-right:2px;";
+
+  for (const t of tokens) {
+    const usedNodes = tokenUsage.get(t.name) || [];
+    const row = document.createElement("div");
+    row.style.cssText = `display:flex;align-items:center;gap:6px;padding:4px 6px;border-radius:5px;background:${usedNodes.length ? "#262626" : "#241f1f"};border:1px solid ${usedNodes.length ? "#333" : "#4b2f2f"};`;
+
+    const name = document.createElement("div");
+    name.style.cssText = "flex:1;color:#ddd;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
+    name.textContent = t.name;
+    row.appendChild(name);
+
+    const count = document.createElement("span");
+    count.style.cssText = `font-size:10px;color:${usedNodes.length ? "#93c5fd" : "#fca5a5"};`;
+    count.textContent = usedNodes.length ? `${usedNodes.length} used` : "unused";
+    row.appendChild(count);
+
+    if (usedNodes.length > 0) {
+      const pick = document.createElement("button");
+      pick.style.cssText = "background:#1f2937;border:1px solid #374151;color:#cbd5e1;border-radius:4px;font-size:10px;padding:2px 6px;cursor:pointer;";
+      pick.textContent = "Pick";
+      pick.title = `${nodeNameMap.get(usedNodes[0]) || usedNodes[0]} 선택`;
+      pick.onclick = () => {
+        editor.selectNode(usedNodes[0]);
+        editor.requestRender();
+      };
+      row.appendChild(pick);
+    }
+
+    list.appendChild(row);
+  }
+  section.appendChild(list);
+
+  // Duplicate detection (same type+value)
+  const duplicateGroups = new Map<string, string[]>();
+  for (const t of tokens) {
+    let normalized = `${t.type}:${t.value}`;
+    if (t.type === "alias") {
+      const resolved = JSON.parse(editor.engine.token_resolve_deep(t.name));
+      normalized = resolved ? `${resolved.type}:${JSON.stringify(resolved.value)}` : normalized;
+    }
+    const arr = duplicateGroups.get(normalized) || [];
+    arr.push(t.name);
+    duplicateGroups.set(normalized, arr);
+  }
+  const duplicates = Array.from(duplicateGroups.values()).filter(v => v.length > 1);
+  if (duplicates.length > 0) {
+    const dupInfo = document.createElement("div");
+    dupInfo.style.cssText = "margin-top:8px;font-size:10px;color:#fbbf24;line-height:1.4;";
+    dupInfo.textContent = `Possible duplicates: ${duplicates.map(g => g.join(" = ")).join(" | ")}`;
+    section.appendChild(dupInfo);
+  }
+
+  // Batch replace bindings
+  if (tokens.length >= 2) {
+    const replaceWrap = document.createElement("div");
+    replaceWrap.style.cssText = "margin-top:8px;padding-top:6px;border-top:1px dashed #3a3a3a;display:grid;grid-template-columns:1fr auto 1fr auto;gap:4px;align-items:center;";
+
+    const fromSel = document.createElement("select");
+    const toSel = document.createElement("select");
+    fromSel.style.cssText = toSel.style.cssText = "background:#1e1e1e;color:#ccc;border:1px solid #444;border-radius:4px;padding:3px;font-size:10px;";
+    for (const t of tokens) {
+      const optA = document.createElement("option");
+      optA.value = t.name;
+      optA.textContent = t.name;
+      fromSel.appendChild(optA);
+      const optB = document.createElement("option");
+      optB.value = t.name;
+      optB.textContent = t.name;
+      toSel.appendChild(optB);
+    }
+    if (tokens.length > 1) toSel.selectedIndex = 1;
+
+    const arrow = document.createElement("span");
+    arrow.style.cssText = "font-size:10px;color:#888;text-align:center;";
+    arrow.textContent = "→";
+
+    const applyBtn = document.createElement("button");
+    applyBtn.style.cssText = "background:#1f3b2b;border:1px solid #2f5a40;color:#d1fae5;border-radius:4px;padding:3px 6px;font-size:10px;cursor:pointer;";
+    applyBtn.textContent = "Replace";
+    applyBtn.onclick = () => {
+      const from = fromSel.value;
+      const to = toSel.value;
+      if (!from || !to || from === to) return;
+      let replaced = 0;
+      for (const n of nodes) {
+        const bindings: Array<{ property: string; tokenName: string }> = JSON.parse(editor.engine.token_get_bindings(BigInt(n.id)) || "[]");
+        for (const b of bindings) {
+          if (b.tokenName !== from) continue;
+          editor.engine.token_bind_node(BigInt(n.id), b.property, to);
+          replaced += 1;
+        }
+      }
+      editor.render();
+      alert(`Replaced ${replaced} binding(s): ${from} → ${to}`);
+    };
+
+    replaceWrap.appendChild(fromSel);
+    replaceWrap.appendChild(arrow);
+    replaceWrap.appendChild(toSel);
+    replaceWrap.appendChild(applyBtn);
+    section.appendChild(replaceWrap);
+  }
+
+  return section;
+}
+
+function flattenLayerTree(layers: any[]): Array<{ id: number; name: string }> {
+  return (layers || []).map((item: any) => ({
+    id: Number(item.id),
+    name: String(item.name || `Node ${item.id}`),
+  }));
 }

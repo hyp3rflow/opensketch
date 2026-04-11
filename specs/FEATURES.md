@@ -32,6 +32,7 @@
 
 ### UI Panels
 - [x] **Left Panel** with tab navigation (Layers / Design)
+- [x] **Design Token Usage Map (2026-04-11)**: Properties > Design Tokens 패널에서 토큰별 사용 노드 수를 즉시 집계/표시하고, `Pick`으로 바운드 노드를 빠르게 선택할 수 있다. 미사용 토큰은 경고 스타일로 노출되며, 동일 resolved 값의 잠재 중복 토큰 그룹을 표시한다. 또한 `Replace` 액션으로 문서 전체 token binding(속성 단위)을 일괄 치환할 수 있다.
 - [x] **Layers Panel**: tree view with expand/collapse, indentation, SVG type icons, visibility toggle
 - [x] **Layers Panel View Modes**: stack↔grid toggle for faster scanning in large docs, with density options (Compact/Cozy) and persisted preference (localStorage). Grid mode shows flat layer cards with kind badges; stack mode keeps hierarchical drag reorder/workflow.
 - [x] **Properties Panel**: full node editing

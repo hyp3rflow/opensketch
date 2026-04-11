@@ -1790,11 +1790,19 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Design Token Usage Map — 토큰별 사용 노드 하이라이트, 미사용/중복 토큰 탐지, 일괄 교체 액션 (임팩트 중상, 난이도 중)
 - Auto Layout Wrap Rows/Columns Inspector — wrap 컨테이너의 row/column별 gap·align 미세 조정 + 줄바꿈 분포 시각화 (임팩트 중상, 난이도 중)
 - Constraints Preview While Resize — 부모 프레임 리사이즈 드래그 중 constraint 결과를 ghost overlay로 실시간 미리보기 (임팩트 중상, 난이도 중)
 - Prototype Transition Presets Library — transition/easing/duration 프리셋 저장·적용 및 flow별 기본값 지정 (임팩트 중, 난이도 중)
 - Variables Bulk Rename & Namespace Tools — 변수 prefix 일괄 변경, namespace 이동, 충돌 감지/자동 수정 (임팩트 중상, 난이도 중)
+
+## 완료된 기능 (추가 — Design Token Usage Map, 2026-04-11)
+- Properties panel > Design Tokens에 `Token Usage Map` 섹션 추가
+- active theme의 토큰별 사용 노드 수를 집계해 used/unused 상태를 즉시 표시
+- `Pick` 버튼으로 해당 토큰이 바인딩된 노드를 즉시 선택해 사용 위치 점검
+- resolved 값 기준 잠재 duplicate token 그룹을 감지해 경고 문구로 표시
+- `Replace` 액션으로 문서 전체 token binding을 from→to 일괄 치환
+- 구현: `packages/app/src/ui/token-panel.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Interactive Components State Preview Strip, 2026-04-11)
 - Properties panel `INTERACTIVE VARIANTS`에 State Preview strip 추가 (`Default / Hover / Press / Focus / Disabled`)
