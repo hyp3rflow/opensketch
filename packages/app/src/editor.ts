@@ -89,7 +89,7 @@ interface DragState {
   originalH?: number;
 }
 
-type MultiTransformHandle = "tl" | "tr" | "bl" | "br" | "rotate" | "pivot";
+type MultiTransformHandle = "tl" | "tm" | "tr" | "ml" | "mr" | "bl" | "bm" | "br" | "rotate" | "pivot";
 
 interface MultiTransformNodeSnapshot {
   id: number;
@@ -2126,12 +2126,17 @@ export class Editor {
           this.engine.set_rotation(BigInt(n.id), n.rotation + deltaDeg);
         }
       } else {
+        const isEdgeX = mt.handle === "ml" || mt.handle === "mr";
+        const isEdgeY = mt.handle === "tm" || mt.handle === "bm";
         const denomX = mt.startScenePoint.x - mt.pivot.x;
         const denomY = mt.startScenePoint.y - mt.pivot.y;
         let scaleX = Math.abs(denomX) < 1e-6 ? 1 : (sx - mt.pivot.x) / denomX;
         let scaleY = Math.abs(denomY) < 1e-6 ? 1 : (sy - mt.pivot.y) / denomY;
 
-        if (e.shiftKey || this.currentTool === "scale") {
+        if (isEdgeX) scaleY = 1;
+        if (isEdgeY) scaleX = 1;
+
+        if ((e.shiftKey || this.currentTool === "scale") && !isEdgeX && !isEdgeY) {
           const ux = Math.abs(scaleX);
           const uy = Math.abs(scaleY);
           const u = ux > uy ? ux : uy;
@@ -2139,8 +2144,8 @@ export class Editor {
           scaleY = Math.sign(scaleY || 1) * u;
         }
 
-        if (Math.abs(scaleX) < 0.02) scaleX = 0.02 * Math.sign(scaleX || 1);
-        if (Math.abs(scaleY) < 0.02) scaleY = 0.02 * Math.sign(scaleY || 1);
+        if (!isEdgeY && Math.abs(scaleX) < 0.02) scaleX = 0.02 * Math.sign(scaleX || 1);
+        if (!isEdgeX && Math.abs(scaleY) < 0.02) scaleY = 0.02 * Math.sign(scaleY || 1);
 
         for (const n of mt.nodes) {
           const x1 = mt.pivot.x + (n.x - mt.pivot.x) * scaleX;
@@ -2168,7 +2173,9 @@ export class Editor {
         if (mh === "rotate") this.canvas.style.cursor = "crosshair";
         else if (mh === "pivot") this.canvas.style.cursor = "move";
         else if (mh === "tl" || mh === "br") this.canvas.style.cursor = "nwse-resize";
-        else this.canvas.style.cursor = "nesw-resize";
+        else if (mh === "tr" || mh === "bl") this.canvas.style.cursor = "nesw-resize";
+        else if (mh === "tm" || mh === "bm") this.canvas.style.cursor = "ns-resize";
+        else this.canvas.style.cursor = "ew-resize";
         return;
       }
     }
@@ -6991,8 +6998,12 @@ export class Editor {
     if (hitCircle(px, py, hs + 2)) return "pivot";
     if (hitCircle(rotX, rotY, hs + 2)) return "rotate";
     if (hitSquare(x1, y1, hs)) return "tl";
+    if (hitSquare((x1 + x2) / 2, y1, hs)) return "tm";
     if (hitSquare(x2, y1, hs)) return "tr";
+    if (hitSquare(x1, (y1 + y2) / 2, hs)) return "ml";
+    if (hitSquare(x2, (y1 + y2) / 2, hs)) return "mr";
     if (hitSquare(x1, y2, hs)) return "bl";
+    if (hitSquare((x1 + x2) / 2, y2, hs)) return "bm";
     if (hitSquare(x2, y2, hs)) return "br";
     return null;
   }
@@ -7038,8 +7049,12 @@ export class Editor {
       this.ctx.strokeRect(cx - hs, cy - hs, hs * 2, hs * 2);
     };
     drawSquare(x, y);
+    drawSquare(x + w / 2, y);
     drawSquare(x + w, y);
+    drawSquare(x, y + h / 2);
+    drawSquare(x + w, y + h / 2);
     drawSquare(x, y + h);
+    drawSquare(x + w / 2, y + h);
     drawSquare(x + w, y + h);
 
     this.ctx.fillStyle = "#0d99ff";

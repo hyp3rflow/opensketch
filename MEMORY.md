@@ -1806,6 +1806,14 @@
 - 구현: `packages/app/src/editor.ts`
 - specs 반영: `specs/FEATURES.md`
 
+## 완료된 기능 (추가 — Multi-Object Transform Box edge handles 확장, 2026-04-11)
+- 멀티 transform box를 8개 핸들(corner + edge middle)로 확장
+- Edge handle 드래그 시 단일 축 scale(가로/세로)만 적용
+- Corner handle은 기존처럼 uniform scale(Shift/Scale tool) + pivot 교차 flip 유지
+- 핸들 hover 커서를 방향별(`ns/ew/nwse/nesw`)로 세분화
+- 구현: `packages/app/src/editor.ts`
+- specs 반영: `specs/FEATURES.md`
+
 ## 완료된 기능 (추가 — Prototype Trigger Regions (Hotspot Shape Editor) v3, 2026-04-11)
 - Properties panel Interactions의 Hotspot shape UI를 미니 캔버스 에디터로 확장
 - 모드: Node Bounds / Rect drag / Polygon point-click / Freeform drag draw
