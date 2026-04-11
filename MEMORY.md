@@ -1797,6 +1797,13 @@
 - Prototype Transition Presets Library — transition/easing/duration 프리셋 저장·적용 및 flow별 기본값 지정 (임팩트 중, 난이도 중)
 - Variables Bulk Rename & Namespace Tools — 변수 prefix 일괄 변경, namespace 이동, 충돌 감지/자동 수정 (임팩트 중상, 난이도 중)
 
+## 완료된 기능 (추가 — Stroke Width Tool (Shift+W), 2026-04-11)
+- Path 단일 선택 상태에서 Stroke Width tool(Shift+W)로 앵커 포인트를 드래그해 per-point stroke width 생성/편집
+- width 포인트 hover/active/custom 상태를 캔버스 오버레이로 시각화
+- 단축키 충돌 해소: whiteboard toggle 기본키를 Cmd+Shift+W로 조정
+- 구현: `packages/app/src/editor.ts`, `packages/app/src/ui/shortcut-manager.ts`
+- specs 반영: `specs/FEATURES.md`
+
 ## 완료된 기능 (추가 — Prototype Focus Ring Style Presets, 2026-04-11)
 - Properties panel `Interactive Variants` 내 `Prototype Ring Preset` 관리자 추가
   - 프리셋 선택 + Apply(활성 preset 지정)

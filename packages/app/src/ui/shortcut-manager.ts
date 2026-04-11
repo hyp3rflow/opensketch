@@ -38,13 +38,14 @@ const DEFAULTS: ShortcutDef[] = [
   { id: "tool.table",    category: "Tools", description: "Table",          defaultBinding: { key: "b" } },
   { id: "tool.shapeBuilder", category: "Tools", description: "Shape Builder", defaultBinding: { key: "b", shift: true } },
   { id: "tool.scale",    category: "Tools", description: "Scale",          defaultBinding: { key: "k" } },
+  { id: "tool.strokeWidth", category: "Tools", description: "Stroke Width",  defaultBinding: { key: "w", shift: true } },
   { id: "tool.slice",    category: "Tools", description: "Slice",          defaultBinding: { key: "k", shift: true } },
   { id: "tool.connector",category: "Tools", description: "Connector",      defaultBinding: { key: "l" } },
   { id: "tool.hotspot",  category: "Tools", description: "Hotspot",        defaultBinding: { key: "h", shift: true } },
   { id: "tool.callout",  category: "Tools", description: "Callout",        defaultBinding: { key: "o" } },
   { id: "tool.section",  category: "Tools", description: "Section",        defaultBinding: { key: "s", shift: true } },
   { id: "tool.freehand", category: "Tools", description: "Freehand draw",  defaultBinding: { key: "d" } },
-  { id: "whiteboard.toggle", category: "Whiteboard", description: "Toggle whiteboard mode", defaultBinding: { key: "w", shift: true } },
+  { id: "whiteboard.toggle", category: "Whiteboard", description: "Toggle whiteboard mode", defaultBinding: { key: "w", shift: true, meta: true } },
   { id: "whiteboard.timer", category: "Whiteboard", description: "Toggle timer", defaultBinding: { key: "t", shift: true, meta: true } },
 
   // Edit

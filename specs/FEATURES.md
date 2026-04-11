@@ -2594,3 +2594,10 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] `Alt + Shift + Wheel`로 편집 대상 variant axis를 순환 선택 (값 변경 없이 HUD에 축 이름 표시)
 - [x] 캔버스 상단 HUD에 `axis / current value / index`를 표시해 현재 변경 상태를 즉시 확인
 - [x] 엔진 기존 API(`get_instance_component_info`, `set_instance_variant`) 재사용, undo 통합
+
+### Stroke Width Tool (Shift+W, 2026-04-11)
+- [x] 새 ToolType `strokeWidth` 추가: 단일 Path 선택 상태에서 앵커 포인트를 직접 드래그해 per-point stroke width 생성/편집
+- [x] Shift+W 단축키 등록 (shortcut manager + editor key routing), cursor `ew-resize`
+- [x] 캔버스 오버레이: 경로 포인트별 width 핸들 렌더링 (커스텀 width 유무/hover/drag 상태 시각화)
+- [x] 드래그 중 `path_set_point_stroke_width`를 실시간 업데이트하고 포인터 업 시 undo/selection refresh 연동
+- [x] 구현: `packages/app/src/editor.ts`, `packages/app/src/ui/shortcut-manager.ts`

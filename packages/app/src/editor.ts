@@ -61,7 +61,7 @@ import { toggleFocusMode } from "./ui/focus-mode";
 import { WebGPURenderer } from "./ui/webgpu-renderer";
 import { strToU8, zipSync } from "fflate";
 
-export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "section" | "image" | "video" | "pen" | "star" | "polygon" | "slice" | "connector" | "hotspot" | "callout" | "sticky" | "table" | "chart" | "freehand" | "measure" | "annotate" | "eyedropper" | "scale" | "shapeBuilder";
+export type ToolType = "select" | "hand" | "rect" | "ellipse" | "text" | "frame" | "section" | "image" | "video" | "pen" | "star" | "polygon" | "slice" | "connector" | "hotspot" | "callout" | "sticky" | "table" | "chart" | "freehand" | "measure" | "annotate" | "eyedropper" | "scale" | "shapeBuilder" | "strokeWidth";
 
 /** Snap threshold in screen pixels */
 const SNAP_THRESHOLD_PX = 5;
@@ -204,6 +204,10 @@ export class Editor {
   private _freehandSmoothingEnabled = true;
   private _freehandSmoothingStrength = 0.3;
   private _pathEditHandleOffsets: { hix: number; hiy: number; hox: number; hoy: number } | null = null;
+
+  // Stroke Width tool state (Shift+W)
+  private _strokeWidthHoverPoint: { nodeId: number; index: number } | null = null;
+  private _strokeWidthDrag: { nodeId: number; index: number; startScreenX: number; startWidth: number } | null = null;
 
   // Vector Network edit mode state
   private _vnEditMode = false;
@@ -1247,6 +1251,7 @@ export class Editor {
       else if (_sm.matches(e, "tool.sticky")) this.setTool("sticky");
       else if (_sm.matches(e, "tool.freehand")) this.setTool("freehand");
       else if (_sm.matches(e, "tool.shapeBuilder")) this.setTool("shapeBuilder");
+      else if (_sm.matches(e, "tool.strokeWidth")) this.setTool("strokeWidth");
       else if (_sm.matches(e, "whiteboard.toggle")) { (window as any).__toggleWhiteboard?.(); }
       else if (_sm.matches(e, "whiteboard.timer")) { (window as any).__toggleTimer?.(); }
       else if (_sm.matches(e, "tool.table")) this.setTool("table");
@@ -1615,6 +1620,30 @@ export class Editor {
         this.exitPathEditMode();
         // Fall through to normal select
       }
+    }
+
+    if (this.currentTool === "strokeWidth") {
+      const pathId = this.getSingleSelectedPathId();
+      if (!pathId) return;
+      const hit = this.hitTestPathPoint(pathId, x, y);
+      if (!hit) return;
+      const existing = Number(this.engine.path_get_point_stroke_width(BigInt(pathId), hit.index));
+      let startWidth = Number.isFinite(existing) && existing > 0 ? existing : 0;
+      if (!(startWidth > 0)) {
+        try {
+          const strokeInfo = this.engine.get_stroke_info(BigInt(pathId));
+          const parsed = strokeInfo ? JSON.parse(strokeInfo) : null;
+          startWidth = Math.max(1, Number(parsed?.width) || 2);
+        } catch {
+          startWidth = 2;
+        }
+      }
+      this.engine.push_undo();
+      this._strokeWidthDrag = { nodeId: pathId, index: hit.index, startScreenX: x, startWidth };
+      this._strokeWidthHoverPoint = { nodeId: pathId, index: hit.index };
+      this.canvas.setPointerCapture(e.pointerId);
+      this.needsRender = true;
+      return;
     }
 
     if (this.currentTool === "select" && this._vnEditMode && this._vnEditNodeId != null) {
@@ -2360,6 +2389,27 @@ export class Editor {
       }
     }
 
+    // Stroke width tool dragging/hover
+    if (this.currentTool === "strokeWidth") {
+      if (this._strokeWidthDrag) {
+        const zoom = this.engine.get_zoom();
+        const dx = (e.offsetX - this._strokeWidthDrag.startScreenX) / Math.max(zoom, 0.0001);
+        const next = Math.max(0.5, Math.min(256, this._strokeWidthDrag.startWidth + dx * 0.35));
+        this.engine.path_set_point_stroke_width(BigInt(this._strokeWidthDrag.nodeId), this._strokeWidthDrag.index, next);
+        this._strokeWidthHoverPoint = { nodeId: this._strokeWidthDrag.nodeId, index: this._strokeWidthDrag.index };
+        this.needsRender = true;
+        return;
+      }
+      const pathId = this.getSingleSelectedPathId();
+      const hover = pathId ? this.hitTestPathPoint(pathId, e.offsetX, e.offsetY) : null;
+      const nextHover = hover ? { nodeId: pathId!, index: hover.index } : null;
+      if ((this._strokeWidthHoverPoint?.nodeId ?? null) !== (nextHover?.nodeId ?? null)
+        || (this._strokeWidthHoverPoint?.index ?? null) !== (nextHover?.index ?? null)) {
+        this._strokeWidthHoverPoint = nextHover;
+        this.needsRender = true;
+      }
+    }
+
     // Path edit mode dragging
     if (this._pathEditMode && this._pathEditDragType && this._pathEditNodeId != null && this._pathEditSelectedPoint != null) {
       let sx = this.engine.screen_to_scene_x(e.offsetX, e.offsetY);
@@ -2867,6 +2917,13 @@ export class Editor {
       return;
     }
 
+    if (this._strokeWidthDrag) {
+      this._strokeWidthDrag = null;
+      this.needsRender = true;
+      this.fireSelectionNow(Array.from(this.engine.get_selection()).map(Number));
+      return;
+    }
+
     if (this._pathEditDragType) {
       this._pathEditDragType = null;
       this._pathEditHandleOffsets = null;
@@ -3332,9 +3389,8 @@ export class Editor {
     this.needsRender = true;
   }
 
-  private getPathPoints(): { x: number; y: number; hix: number; hiy: number; hox: number; hoy: number }[] | null {
-    if (this._pathEditNodeId == null) return null;
-    const data = this.engine.path_get_data(this._pathEditNodeId);
+  private getPathPointsByNodeId(nodeId: number): { x: number; y: number; hix: number; hiy: number; hox: number; hoy: number }[] | null {
+    const data = this.engine.path_get_data(nodeId);
     if (!data) return null;
     const parsed = JSON.parse(data);
     if (!parsed.points) return null;
@@ -3343,6 +3399,25 @@ export class Editor {
       hix: p.handle_in_x ?? p.x, hiy: p.handle_in_y ?? p.y,
       hox: p.handle_out_x ?? p.x, hoy: p.handle_out_y ?? p.y,
     }));
+  }
+
+  private getPathPoints(): { x: number; y: number; hix: number; hiy: number; hox: number; hoy: number }[] | null {
+    if (this._pathEditNodeId == null) return null;
+    return this.getPathPointsByNodeId(this._pathEditNodeId);
+  }
+
+  private getSingleSelectedPathId(): number | null {
+    const sel = Array.from(this.engine.get_selection()).map(Number);
+    if (sel.length !== 1) return null;
+    try {
+      const json = this.engine.get_node_json(BigInt(sel[0]));
+      if (!json) return null;
+      const node = JSON.parse(json);
+      const kind = typeof node.kind === "string" ? node.kind : Object.keys(node.kind || {})[0];
+      return kind === "Path" ? sel[0] : null;
+    } catch {
+      return null;
+    }
   }
 
   private pathEditHitTest(screenX: number, screenY: number): { index: number; type: 'anchor' | 'handle_in' | 'handle_out' } | null {
@@ -3379,6 +3454,59 @@ export class Editor {
       }
     }
     return null;
+  }
+
+  private hitTestPathPoint(nodeId: number, screenX: number, screenY: number): { index: number } | null {
+    const points = this.getPathPointsByNodeId(nodeId);
+    if (!points || points.length === 0) return null;
+    const zoom = this.engine.get_zoom();
+    const panX = this.engine.get_pan_x();
+    const panY = this.engine.get_pan_y();
+    const threshold = 10;
+    let bestIdx = -1;
+    let bestDist = Infinity;
+    for (let i = 0; i < points.length; i++) {
+      const p = points[i];
+      const sx = p.x * zoom + panX;
+      const sy = p.y * zoom + panY;
+      const d = Math.hypot(screenX - sx, screenY - sy);
+      if (d <= threshold && d < bestDist) {
+        bestDist = d;
+        bestIdx = i;
+      }
+    }
+    return bestIdx >= 0 ? { index: bestIdx } : null;
+  }
+
+  private renderStrokeWidthOverlay() {
+    if (this.currentTool !== "strokeWidth") return;
+    const pathId = this.getSingleSelectedPathId();
+    if (!pathId) return;
+    const points = this.getPathPointsByNodeId(pathId);
+    if (!points) return;
+    const zoom = this.engine.get_zoom();
+    const panX = this.engine.get_pan_x();
+    const panY = this.engine.get_pan_y();
+
+    this.ctx.save();
+    for (let i = 0; i < points.length; i++) {
+      const p = points[i];
+      const sx = p.x * zoom + panX;
+      const sy = p.y * zoom + panY;
+      const width = Number(this.engine.path_get_point_stroke_width(BigInt(pathId), i)) || 0;
+      const hasCustom = width > 0.01;
+      const isActive = this._strokeWidthDrag?.nodeId === pathId && this._strokeWidthDrag?.index === i;
+      const isHover = this._strokeWidthHoverPoint?.nodeId === pathId && this._strokeWidthHoverPoint?.index === i;
+      const r = Math.max(4, Math.min(10, (hasCustom ? width : 2) * 0.9));
+      this.ctx.beginPath();
+      this.ctx.arc(sx, sy, r, 0, Math.PI * 2);
+      this.ctx.fillStyle = isActive ? "rgba(14,165,233,0.9)" : hasCustom ? "rgba(14,165,233,0.35)" : "rgba(255,255,255,0.15)";
+      this.ctx.fill();
+      this.ctx.strokeStyle = isHover || isActive ? "#38bdf8" : "rgba(125,211,252,0.7)";
+      this.ctx.lineWidth = 1.5;
+      this.ctx.stroke();
+    }
+    this.ctx.restore();
   }
 
   private renderPathEditOverlay() {
@@ -5629,6 +5757,7 @@ export class Editor {
         this.renderMeasure();
         this.renderPersistentMeasures();
         this.renderPathEditOverlay();
+        this.renderStrokeWidthOverlay();
         this.renderImageCropOverlay();
         this.renderVNEditOverlay();
         this.renderMeshEditOverlay();
@@ -5907,6 +6036,10 @@ export class Editor {
       this._shapeBuilderStroke = null;
       this._shapeBuilderTouchedIds = [];
     }
+    if (tool !== "strokeWidth") {
+      this._strokeWidthHoverPoint = null;
+      this._strokeWidthDrag = null;
+    }
     if (tool === "hotspot") {
       this._hotspotTargetNodeId = this.chooseHotspotTargetNodeId();
     }
@@ -5947,7 +6080,7 @@ export class Editor {
       section: "crosshair", image: "crosshair", pen: "crosshair",
       star: "crosshair", polygon: "crosshair",
       slice: "crosshair", connector: "crosshair", hotspot: "crosshair", callout: "crosshair", sticky: "crosshair", chart: "crosshair", freehand: "crosshair",
-      measure: "crosshair", annotate: "crosshair", eyedropper: "crosshair", scale: "nwse-resize", shapeBuilder: "crosshair",
+      measure: "crosshair", annotate: "crosshair", eyedropper: "crosshair", scale: "nwse-resize", shapeBuilder: "crosshair", strokeWidth: "ew-resize",
     };
     this.canvas.style.cursor = cursors[this.currentTool] || "default";
   }
