@@ -3425,40 +3425,73 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       }
     }
 
-    // --- Min/Max size constraints ---
+    // --- Min/Max size constraints (chip quick toggles) ---
     {
       const mmJson = editor.engine.get_min_max_size(BigInt(id));
       const mm = JSON.parse(mmJson || '{"min_w":null,"max_w":null,"min_h":null,"max_h":null}');
-      const mmRow = document.createElement("div");
-      mmRow.style.cssText = "display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:4px;margin-top:6px;";
-      for (const [key, label] of [["min_w","Min W"],["max_w","Max W"],["min_h","Min H"],["max_h","Max H"]] as const) {
-        const wrap = document.createElement("div");
-        wrap.style.cssText = "display:flex;flex-direction:column;gap:2px;";
-        const lbl = document.createElement("span");
-        lbl.style.cssText = "font-size:9px;color:#888;";
-        lbl.textContent = label;
-        wrap.appendChild(lbl);
-        const inp = document.createElement("input");
-        inp.type = "number";
-        inp.className = "prop-input";
-        inp.style.cssText = "width:100%;font-size:11px;padding:3px 4px;";
-        inp.placeholder = "—";
-        inp.value = mm[key] != null ? String(mm[key]) : "";
-        inp.addEventListener("change", () => {
+
+      const chipWrap = document.createElement("div");
+      chipWrap.style.cssText = "display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;";
+      const inputWrap = document.createElement("div");
+      inputWrap.style.cssText = "display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:6px;";
+
+      const applyMinMax = (key: "min_w" | "max_w" | "min_h" | "max_h", value: number | null) => {
+        const bigId = BigInt(id);
+        if (key === "min_w") editor.engine.set_min_width(bigId, value ?? 0);
+        else if (key === "max_w") editor.engine.set_max_width(bigId, value ?? 0);
+        else if (key === "min_h") editor.engine.set_min_height(bigId, value ?? 0);
+        else editor.engine.set_max_height(bigId, value ?? 0);
+      };
+
+      for (const [key, label, fallback] of [
+        ["min_w", "Min W", Math.max(1, Math.round(node.width || 0))],
+        ["max_w", "Max W", Math.max(1, Math.round(node.width || 0))],
+        ["min_h", "Min H", Math.max(1, Math.round(node.height || 0))],
+        ["max_h", "Max H", Math.max(1, Math.round(node.height || 0))],
+      ] as const) {
+        const active = mm[key] != null;
+
+        const chip = document.createElement("button");
+        chip.textContent = active ? `${label}: ${Math.round(Number(mm[key]))}` : label;
+        chip.style.cssText = `
+          border:1px solid ${active ? "rgba(99,102,241,0.55)" : "#3f3f46"};
+          background:${active ? "rgba(99,102,241,0.18)" : "#23232b"};
+          color:${active ? "#c7d2fe" : "#a1a1aa"};
+          border-radius:999px;
+          font-size:10px;
+          padding:2px 8px;
+          cursor:pointer;
+        `;
+        chip.title = active ? `Disable ${label}` : `Enable ${label}`;
+        chip.addEventListener("click", () => {
           editor.engine.push_undo();
-          const val = inp.value === "" ? 0 : parseFloat(inp.value);
-          const bigId = BigInt(id);
-          if (key === "min_w") editor.engine.set_min_width(bigId, val);
-          else if (key === "max_w") editor.engine.set_max_width(bigId, val);
-          else if (key === "min_h") editor.engine.set_min_height(bigId, val);
-          else editor.engine.set_max_height(bigId, val);
+          applyMinMax(key, active ? null : fallback);
           editor.requestRender();
           refresh(ids);
         });
-        wrap.appendChild(inp);
-        mmRow.appendChild(wrap);
+        chipWrap.appendChild(chip);
+
+        if (active) {
+          const inp = document.createElement("input");
+          inp.type = "number";
+          inp.className = "prop-input";
+          inp.style.cssText = "width:100%;font-size:11px;padding:3px 4px;";
+          inp.value = String(mm[key]);
+          inp.placeholder = label;
+          inp.title = label;
+          inp.addEventListener("change", () => {
+            editor.engine.push_undo();
+            const parsed = parseFloat(inp.value);
+            applyMinMax(key, Number.isFinite(parsed) && parsed > 0 ? parsed : fallback);
+            editor.requestRender();
+            refresh(ids);
+          });
+          inputWrap.appendChild(inp);
+        }
       }
-      sizeSection.appendChild(mmRow);
+
+      sizeSection.appendChild(chipWrap);
+      if (inputWrap.childElementCount > 0) sizeSection.appendChild(inputWrap);
     }
 
     container.appendChild(sizeSection);

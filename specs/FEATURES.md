@@ -468,6 +468,7 @@
   - Constraints section에 인라인 Preset selector(Built-in/Custom optgroup) + Save / Apply / Delete 버튼 제공
   - Built-in responsive presets: Mobile(Stretch width, Bottom sticky), Tablet(Centered), Desktop(Scale)
   - Saved fields: H/V constraints, sizing_h/sizing_v, min/max width/height
+  - Min/Max quick chips (2026-04-11): Size 섹션에서 `Min W/Max W/Min H/Max H`를 pill chip으로 on/off 토글, 활성 항목만 숫자 input 노출
   - Storage: localStorage (`opensketch-constraint-set-presets-v1`)
   - Custom preset은 이름 기준 덮어쓰기 저장(dedupe), 삭제 시 확인 다이얼로그 제공
   - Apply supports multi-selection (only nodes with Frame/Group parent are updated)
