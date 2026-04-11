@@ -2417,6 +2417,23 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         }
         previewMetaRow.appendChild(triggerStatusRow);
 
+        const driftStates = (Object.entries(triggerStatus)
+          .filter(([, v]) => v === "mismatch")
+          .map(([k]) => k) as Array<"hover" | "press" | "focus">);
+        if (driftStates.length > 0) {
+          const fixDriftBtn = document.createElement("button");
+          fixDriftBtn.className = "prop-btn";
+          fixDriftBtn.textContent = `Fix drift (${driftStates.length})`;
+          fixDriftBtn.style.cssText = "font-size:9px;padding:1px 6px;";
+          fixDriftBtn.onclick = () => {
+            editor.pushUndo();
+            syncSwapVariantInteractions(driftStates);
+            editor.requestRender();
+            updatePanel();
+          };
+          triggerStatusRow.appendChild(fixDriftBtn);
+        }
+
         const autoSyncLabel = document.createElement("label");
         autoSyncLabel.style.cssText = "display:flex;align-items:center;gap:4px;font-size:9px;color:#cbd5e1;cursor:pointer;user-select:none;";
         const autoSyncInput = document.createElement("input");

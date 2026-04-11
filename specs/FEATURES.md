@@ -2624,6 +2624,7 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] `opensketch:interactive-preview-state` 이벤트를 발행해 Properties panel preview 상태를 Prototype viewer와 동기화
 - [x] Prototype viewer에서 이벤트 수신 시 active preview 캔버스의 interactive state/variant를 즉시 반영
 - [x] 매핑되지 않은 상태는 비활성 시각화(opacity + tooltip)로 설정 누락을 빠르게 식별
+- [x] Trigger status가 `drift`인 상태만 선택 복구하는 `Fix drift (N)` 액션 추가 (수동 one-click selective sync)
 - [x] 구현: `packages/app/src/ui/properties-panel.ts`, `packages/app/src/ui/prototype-viewer.ts`
 
 ### Dev Mode Redlines Pinned Annotations (2026-04-11)
