@@ -89,12 +89,35 @@ interface DragState {
   originalH?: number;
 }
 
+type MultiTransformHandle = "tl" | "tr" | "bl" | "br" | "rotate" | "pivot";
+
+interface MultiTransformNodeSnapshot {
+  id: number;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  rotation: number;
+}
+
+interface MultiTransformState {
+  handle: MultiTransformHandle;
+  selection: number[];
+  bbox: { x: number; y: number; w: number; h: number };
+  pivot: { x: number; y: number };
+  startScenePoint: { x: number; y: number };
+  startRotateAngleRad: number;
+  nodes: MultiTransformNodeSnapshot[];
+}
+
 export class Editor {
   engine: Engine;
   canvas: HTMLCanvasElement;
   ctx: CanvasRenderingContext2d;
   currentTool: ToolType = "select";
   private drag: DragState | null = null;
+  private _multiTransform: MultiTransformState | null = null;
+  private _multiTransformPivot: { x: number; y: number } | null = null;
   private marquee: { startX: number; startY: number; currentX: number; currentY: number } | null = null;
   private _marqueeBaseMode: "crossing" | "contain" = "crossing";
   private _smartSelectionFilters: SmartSelectionFilterState = { shape: true, text: true, image: true, locked: true, hidden: true };
@@ -1727,6 +1750,38 @@ export class Editor {
     }
 
     if (this.currentTool === "select" || this.currentTool === "scale") {
+      const multiHandle = this.hitTestMultiTransformHandle(x, y);
+      if (multiHandle) {
+        const selection = Array.from(this.engine.get_selection()).map(Number);
+        const bbox = this.getSelectionBBox(selection);
+        if (bbox) {
+          const pivot = this.getMultiTransformPivot(bbox);
+          const sx = this.engine.screen_to_scene_x(x, y);
+          const sy = this.engine.screen_to_scene_y(x, y);
+          const nodes: MultiTransformNodeSnapshot[] = [];
+          for (const id of selection) {
+            const nj = this.engine.get_node_json(BigInt(id));
+            if (!nj) continue;
+            const n = JSON.parse(nj);
+            nodes.push({ id, x: Number(n.x || 0), y: Number(n.y || 0), w: Number(n.width || 0), h: Number(n.height || 0), rotation: Number(n.rotation || 0) });
+          }
+          if (nodes.length >= 2) {
+            this.engine.push_undo();
+            this._multiTransform = {
+              handle: multiHandle,
+              selection,
+              bbox,
+              pivot: { ...pivot },
+              startScenePoint: { x: sx, y: sy },
+              startRotateAngleRad: Math.atan2(sy - pivot.y, sx - pivot.x),
+              nodes,
+            };
+            this.canvas.setPointerCapture(e.pointerId);
+            return;
+          }
+        }
+      }
+
       const handle = this.engine.hit_test_handle(x, y);
       if (handle >= 0) {
         const sel = this.engine.get_selection();
@@ -2043,6 +2098,79 @@ export class Editor {
       // Update cursor
       const cursor = this._responsiveResize.getCursor(e.offsetX, e.offsetY);
       if (cursor) { this.canvas.style.cursor = cursor; return; }
+    }
+
+    // Multi-object transform box dragging
+    if (this._multiTransform) {
+      const mt = this._multiTransform;
+      const sx = this.engine.screen_to_scene_x(e.offsetX, e.offsetY);
+      const sy = this.engine.screen_to_scene_y(e.offsetX, e.offsetY);
+
+      if (mt.handle === "pivot") {
+        mt.pivot = { x: sx, y: sy };
+        this._multiTransformPivot = { ...mt.pivot };
+      } else if (mt.handle === "rotate") {
+        const angle = Math.atan2(sy - mt.pivot.y, sx - mt.pivot.x);
+        const deltaRad = angle - mt.startRotateAngleRad;
+        const deltaDeg = (deltaRad * 180) / Math.PI;
+        const cos = Math.cos(deltaRad);
+        const sin = Math.sin(deltaRad);
+        for (const n of mt.nodes) {
+          const cx = n.x + n.w / 2;
+          const cy = n.y + n.h / 2;
+          const vx = cx - mt.pivot.x;
+          const vy = cy - mt.pivot.y;
+          const rcx = mt.pivot.x + vx * cos - vy * sin;
+          const rcy = mt.pivot.y + vx * sin + vy * cos;
+          this.engine.set_node_position(BigInt(n.id), rcx - n.w / 2, rcy - n.h / 2);
+          this.engine.set_rotation(BigInt(n.id), n.rotation + deltaDeg);
+        }
+      } else {
+        const denomX = mt.startScenePoint.x - mt.pivot.x;
+        const denomY = mt.startScenePoint.y - mt.pivot.y;
+        let scaleX = Math.abs(denomX) < 1e-6 ? 1 : (sx - mt.pivot.x) / denomX;
+        let scaleY = Math.abs(denomY) < 1e-6 ? 1 : (sy - mt.pivot.y) / denomY;
+
+        if (e.shiftKey || this.currentTool === "scale") {
+          const ux = Math.abs(scaleX);
+          const uy = Math.abs(scaleY);
+          const u = ux > uy ? ux : uy;
+          scaleX = Math.sign(scaleX || 1) * u;
+          scaleY = Math.sign(scaleY || 1) * u;
+        }
+
+        if (Math.abs(scaleX) < 0.02) scaleX = 0.02 * Math.sign(scaleX || 1);
+        if (Math.abs(scaleY) < 0.02) scaleY = 0.02 * Math.sign(scaleY || 1);
+
+        for (const n of mt.nodes) {
+          const x1 = mt.pivot.x + (n.x - mt.pivot.x) * scaleX;
+          const x2 = mt.pivot.x + (n.x + n.w - mt.pivot.x) * scaleX;
+          const y1 = mt.pivot.y + (n.y - mt.pivot.y) * scaleY;
+          const y2 = mt.pivot.y + (n.y + n.h - mt.pivot.y) * scaleY;
+          const nx = Math.min(x1, x2);
+          const ny = Math.min(y1, y2);
+          const nw = Math.max(1, Math.abs(x2 - x1));
+          const nh = Math.max(1, Math.abs(y2 - y1));
+          this.engine.set_node_position(BigInt(n.id), nx, ny);
+          this.engine.resize_node_with_layout(BigInt(n.id), nw, nh);
+        }
+      }
+
+      this.needsRender = true;
+      this.fireSelectionThrottled(Array.from(this.engine.get_selection()).map(Number));
+      return;
+    }
+
+    // Multi-object transform hover cursor
+    if (!this.drag && (this.currentTool === "select" || this.currentTool === "scale")) {
+      const mh = this.hitTestMultiTransformHandle(e.offsetX, e.offsetY);
+      if (mh) {
+        if (mh === "rotate") this.canvas.style.cursor = "crosshair";
+        else if (mh === "pivot") this.canvas.style.cursor = "move";
+        else if (mh === "tl" || mh === "br") this.canvas.style.cursor = "nwse-resize";
+        else this.canvas.style.cursor = "nesw-resize";
+        return;
+      }
     }
 
     // Spacing handle dragging
@@ -3049,6 +3177,11 @@ export class Editor {
         this.fireSelectionNow(sel);
       }
     }
+    if (this._multiTransform) {
+      this.fireSelectionNow(Array.from(this.engine.get_selection()).map(Number));
+    }
+    this._multiTransform = null;
+
     this._dropTarget = null;
     this._snapGuides = [];
     this._pointSnapIndicators = [];
@@ -3080,6 +3213,9 @@ export class Editor {
         if (this._selHistory.length > 50) this._selHistory.shift();
         this._selHistoryIdx = this._selHistory.length - 1;
       }
+    }
+    if (ids.length < 2) {
+      this._multiTransformPivot = null;
     }
     this._gradientEditor?.updateFromSelection();
     this._spacingHandles = findSpacingHandles(this.engine);
@@ -5498,6 +5634,7 @@ export class Editor {
         this.renderComponentSetOverlays();
         this.renderGradientEditor();
         this.renderSpacingHandles();
+        this.renderMultiTransformBox();
         this.renderConstraintPinsOverlay();
         this.renderConstraintDebugOverlay();
         this.renderRemoteNodeLocks();
@@ -6821,6 +6958,103 @@ export class Editor {
     }
     if (!isFinite(minX)) return null;
     return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+  }
+
+  private getMultiTransformPivot(bbox: { x: number; y: number; w: number; h: number }) {
+    if (this._multiTransformPivot) return this._multiTransformPivot;
+    return { x: bbox.x + bbox.w / 2, y: bbox.y + bbox.h / 2 };
+  }
+
+  private hitTestMultiTransformHandle(screenX: number, screenY: number): MultiTransformHandle | null {
+    const sel = Array.from(this.engine.get_selection()).map(Number);
+    if (sel.length < 2 || (this.currentTool !== "select" && this.currentTool !== "scale")) return null;
+    const bbox = this.getSelectionBBox(sel);
+    if (!bbox || bbox.w <= 0 || bbox.h <= 0) return null;
+    const zoom = this.engine.get_zoom();
+    const panX = this.engine.get_pan_x();
+    const panY = this.engine.get_pan_y();
+    const x1 = bbox.x * zoom + panX;
+    const y1 = bbox.y * zoom + panY;
+    const x2 = (bbox.x + bbox.w) * zoom + panX;
+    const y2 = (bbox.y + bbox.h) * zoom + panY;
+    const pivot = this.getMultiTransformPivot(bbox);
+    const px = pivot.x * zoom + panX;
+    const py = pivot.y * zoom + panY;
+    const rotX = (bbox.x + bbox.w / 2) * zoom + panX;
+    const rotY = y1 - 26;
+    const hs = 7;
+
+    const hitCircle = (cx: number, cy: number, r: number) => Math.hypot(screenX - cx, screenY - cy) <= r;
+    const hitSquare = (cx: number, cy: number, size: number) =>
+      screenX >= cx - size && screenX <= cx + size && screenY >= cy - size && screenY <= cy + size;
+
+    if (hitCircle(px, py, hs + 2)) return "pivot";
+    if (hitCircle(rotX, rotY, hs + 2)) return "rotate";
+    if (hitSquare(x1, y1, hs)) return "tl";
+    if (hitSquare(x2, y1, hs)) return "tr";
+    if (hitSquare(x1, y2, hs)) return "bl";
+    if (hitSquare(x2, y2, hs)) return "br";
+    return null;
+  }
+
+  private renderMultiTransformBox() {
+    const sel = Array.from(this.engine.get_selection()).map(Number);
+    if (sel.length < 2 || (this.currentTool !== "select" && this.currentTool !== "scale")) return;
+    const bbox = this.getSelectionBBox(sel);
+    if (!bbox || bbox.w <= 0 || bbox.h <= 0) return;
+
+    const zoom = this.engine.get_zoom();
+    const panX = this.engine.get_pan_x();
+    const panY = this.engine.get_pan_y();
+    const x = bbox.x * zoom + panX;
+    const y = bbox.y * zoom + panY;
+    const w = bbox.w * zoom;
+    const h = bbox.h * zoom;
+    const pivot = this.getMultiTransformPivot(bbox);
+    const px = pivot.x * zoom + panX;
+    const py = pivot.y * zoom + panY;
+    const rotX = x + w / 2;
+    const rotY = y - 26;
+    const hs = 6;
+
+    this.ctx.save();
+    this.ctx.strokeStyle = "#0d99ff";
+    this.ctx.lineWidth = 1;
+    this.ctx.setLineDash([4, 3]);
+    this.ctx.strokeRect(x, y, w, h);
+    this.ctx.setLineDash([]);
+
+    // rotation stem
+    this.ctx.beginPath();
+    this.ctx.moveTo(rotX, y);
+    this.ctx.lineTo(rotX, rotY);
+    this.ctx.stroke();
+
+    const drawSquare = (cx: number, cy: number) => {
+      this.ctx.fillStyle = "#ffffff";
+      this.ctx.strokeStyle = "#0d99ff";
+      this.ctx.lineWidth = 1.5;
+      this.ctx.fillRect(cx - hs, cy - hs, hs * 2, hs * 2);
+      this.ctx.strokeRect(cx - hs, cy - hs, hs * 2, hs * 2);
+    };
+    drawSquare(x, y);
+    drawSquare(x + w, y);
+    drawSquare(x, y + h);
+    drawSquare(x + w, y + h);
+
+    this.ctx.fillStyle = "#0d99ff";
+    this.ctx.beginPath();
+    this.ctx.arc(rotX, rotY, 6, 0, Math.PI * 2);
+    this.ctx.fill();
+
+    this.ctx.fillStyle = "#ffffff";
+    this.ctx.strokeStyle = "#0d99ff";
+    this.ctx.lineWidth = 2;
+    this.ctx.beginPath();
+    this.ctx.arc(px, py, 5, 0, Math.PI * 2);
+    this.ctx.fill();
+    this.ctx.stroke();
+    this.ctx.restore();
   }
 
   /**

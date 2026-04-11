@@ -1797,6 +1797,15 @@
 - Prototype Transition Presets Library — transition/easing/duration 프리셋 저장·적용 및 flow별 기본값 지정 (임팩트 중, 난이도 중)
 - Variables Bulk Rename & Namespace Tools — 변수 prefix 일괄 변경, namespace 이동, 충돌 감지/자동 수정 (임팩트 중상, 난이도 중)
 
+## 완료된 기능 (추가 — Multi-Object Transform Box (Figma-style), 2026-04-11)
+- 멀티 선택 시 공통 transform box(점선 bbox + 4개 corner handle) 오버레이 렌더링
+- Corner drag로 selection 전체 scale/flip(축 반전 포함) 지원
+- Rotation handle(상단)로 pivot 기준 일괄 회전 + 각 노드 position/rotation 동시 갱신
+- Pivot handle(중심점) 드래그로 회전/스케일 기준점 이동
+- Shift 또는 Scale tool 사용 시 uniform scale 유지
+- 구현: `packages/app/src/editor.ts`
+- specs 반영: `specs/FEATURES.md`
+
 ## 완료된 기능 (추가 — Prototype Trigger Regions (Hotspot Shape Editor) v3, 2026-04-11)
 - Properties panel Interactions의 Hotspot shape UI를 미니 캔버스 에디터로 확장
 - 모드: Node Bounds / Rect drag / Polygon point-click / Freeform drag draw
