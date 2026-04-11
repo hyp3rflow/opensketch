@@ -1790,11 +1790,24 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Prototype Start Point Manager — 페이지별 start frame 지정/전환, flow별 entry 분기 및 프리뷰 실행 타깃 빠른 변경 (임팩트 상, 난이도 중)
+- Prototype Flow Entry Branch Presets — flow별 다중 entry 후보를 preset으로 저장하고 one-click으로 start point 교체 (임팩트 중상, 난이도 중)
 - Variable Alias Graph Inspector — 토큰/변수 alias 의존 그래프 시각화 + 순환 참조/깊은 체인 경고 및 one-click jump (임팩트 상, 난이도 중상)
 - Interaction Timeline Scrubber — Prototype viewer에서 frame transition/overlay/open-close를 타임라인으로 재생·스크럽해 끊김/순서 문제를 시각 디버깅 (임팩트 중상, 난이도 중)
 - Auto Layout Stretch Handles — 캔버스에서 자식의 Fill/Hug/Fixed를 핸들 드래그로 전환하고 남은 공간 분배를 실시간 프리뷰 (임팩트 상, 난이도 중상)
 - Component Slot Fallback Preview — slot 미바인딩/깨진 instance swap 상태를 fallback 컴포넌트와 경고 배지로 즉시 확인·복구 (임팩트 중상, 난이도 중)
+
+## 완료된 기능 (추가 — Prototype Start Point Manager, 2026-04-12)
+- Prototype viewer 좌측 패널에 `Start Point Manager` 카드 추가
+- Flow 선택 + start frame 선택 + `Use current` / `Save` / `Run selected flow` 액션 제공
+- `set_flow_start_frame`와 연동해 flow별 진입점을 즉시 저장하고 preview 타깃을 빠르게 전환
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
+
+## 완료된 기능 (추가 — Component Instance Override Diff Inspector v2, 2026-04-12)
+- Engine API 추가: `get_instance_override_diff_inspector(instance_id)` → node별 `{ field, local, base }` diff JSON 반환
+- Engine API 추가: `reset_instance_override_property(instance_id, target_node_id, property)`로 속성 단위 selective reset 지원
+- Properties panel Overrides 카드에서 property chip 툴팁(local/base diff) + chip 단위 `↺` reset 액션 제공
+- 구현: `crates/engine/src/lib.rs`, `packages/app/src/ui/properties-panel.ts`
 
 ## 완료된 기능 (추가 — Smart Selection Scope Bar, 2026-04-12)
 - Smart Select 패널 상단에 Selection Scope Bar 추가 (`Document / Page / Frame / Component`)

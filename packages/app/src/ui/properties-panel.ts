@@ -2646,6 +2646,24 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       try {
         const overrideJson = editor.engine.get_instance_overridden_props(id);
         const overrideInfo = JSON.parse(overrideJson);
+        const diffInspectorJson = (editor.engine as any).get_instance_override_diff_inspector
+          ? (editor.engine as any).get_instance_override_diff_inspector(BigInt(id))
+          : "null";
+        const diffInspector = (() => {
+          try { return JSON.parse(diffInspectorJson); } catch { return null; }
+        })();
+        const diffByNodeAndField = new Map<string, { local: any; base: any }>();
+        if (diffInspector?.overrides && Array.isArray(diffInspector.overrides)) {
+          for (const row of diffInspector.overrides) {
+            const nodeId = Number(row?.node_id || 0);
+            const diffs = Array.isArray(row?.diffs) ? row.diffs : [];
+            for (const d of diffs) {
+              const field = String(d?.field || "");
+              if (!field) continue;
+              diffByNodeAndField.set(`${nodeId}:${field}`, { local: d?.local, base: d?.base });
+            }
+          }
+        }
         if (overrideInfo && overrideInfo.overrides && overrideInfo.overrides.length > 0) {
           const overrideCard = document.createElement("div");
           overrideCard.style.cssText = `
@@ -2783,11 +2801,46 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
 
               const chips = document.createElement("div");
               chips.style.cssText = "display:flex;flex-wrap:wrap;gap:4px;";
+              const safeJson = (v: any) => {
+                try {
+                  const raw = typeof v === "string" ? v : JSON.stringify(v);
+                  return raw.length > 64 ? `${raw.slice(0, 61)}…` : raw;
+                } catch {
+                  return String(v);
+                }
+              };
               for (const p of matchedProps) {
+                const chipWrap = document.createElement("span");
+                chipWrap.style.cssText = "display:inline-flex;align-items:center;gap:4px;padding:1px 4px 1px 6px;border-radius:999px;background:rgba(59,130,246,0.18);border:1px solid rgba(59,130,246,0.35);";
+
                 const chip = document.createElement("span");
-                chip.style.cssText = "font-size:10px;padding:1px 6px;border-radius:999px;background:rgba(59,130,246,0.18);color:#bfdbfe;border:1px solid rgba(59,130,246,0.35);";
+                chip.style.cssText = "font-size:10px;color:#bfdbfe;";
                 chip.textContent = p;
-                chips.appendChild(chip);
+
+                const diff = diffByNodeAndField.get(`${Number(ov.node_id)}:${p}`);
+                if (diff) {
+                  chip.title = `${p}\nlocal: ${safeJson(diff.local)}\nbase: ${safeJson(diff.base)}`;
+                }
+
+                chipWrap.appendChild(chip);
+
+                if ((editor.engine as any).reset_instance_override_property) {
+                  const resetPropBtn = document.createElement("button");
+                  resetPropBtn.textContent = "↺";
+                  resetPropBtn.title = `Reset ${p} only`;
+                  resetPropBtn.style.cssText = "background:none;border:none;color:#93c5fd;cursor:pointer;font-size:10px;line-height:1;padding:0;opacity:0.8;";
+                  resetPropBtn.onclick = (ev) => {
+                    ev.stopPropagation();
+                    editor.pushUndo();
+                    const ok = (editor.engine as any).reset_instance_override_property(BigInt(id), BigInt(ov.node_id), p);
+                    if (!ok) return;
+                    editor.requestRender();
+                    refresh([id]);
+                  };
+                  chipWrap.appendChild(resetPropBtn);
+                }
+
+                chips.appendChild(chipWrap);
               }
               content.appendChild(chips);
               ovRow.appendChild(content);

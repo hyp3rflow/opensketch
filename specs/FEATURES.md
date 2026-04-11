@@ -390,6 +390,7 @@
   - Prototype viewer hover 시 활성 hotspot 강조선 + accessibility label 툴팁 표시
   - Prototype Focus Order & Keyboard Navigation v1: Tab/Shift+Tab으로 focusable hotspot(OnClick/OnPress) 순환, Enter/Space로 interaction 실행, focus ring(노란 dashed) 표시, 기본 정렬은 top→bottom / left→right
   - Prototype Focus Ring Style Presets: Properties panel Interactive Variants에 ring preset 관리자 추가(hover/press/focus별 color/width/radius), Save As/Apply 지원, Prototype viewer가 active preset을 읽어 상태별 ring 스타일(hover/press/focus)로 렌더링
+  - Prototype Start Point Manager (viewer quick switch): Prototype viewer 좌측 패널에 Flow/Start Frame selector + `Use current`/`Save`/`Run selected flow` 액션을 추가해 flow별 entry frame을 즉시 전환/저장하고 실행 타깃을 빠르게 점프
   - Interaction hotspot hints (color-coded: blue=click, green=gesture, orange=hover)
   - Gesture-based interactions: swipe (left/right/up/down), long-press (500ms), pinch in/out
   - Touch event handling in prototype viewer: swipe detection (>50px, <500ms), long-press timer, two-finger pinch distance ratio

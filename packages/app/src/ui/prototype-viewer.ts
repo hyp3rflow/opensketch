@@ -77,6 +77,10 @@ export function createPrototypeViewer(editor: Editor): {
   let flowMinimapCanvas: HTMLCanvasElement | null = null;
   let flowMinimapInfo: HTMLDivElement | null = null;
   let flowMinimapSnapshot: { nodes: Array<{ id: number; name: string; x: number; y: number }>; edges: Array<{ from: number; to: number; action: string }>; nodeHits: Array<{ id: number; x: number; y: number; r: number }>; edgeHits: Array<{ from: number; to: number; x: number; y: number }>; } | null = null;
+  let flowStartWrap: HTMLDivElement | null = null;
+  let flowStartFlowSel: HTMLSelectElement | null = null;
+  let flowStartFrameSel: HTMLSelectElement | null = null;
+  let flowStartInfo: HTMLDivElement | null = null;
   const interactiveVisualState = new Map<number, "hover" | "press" | "focus">();
 
   type RecordedProtoEvent = {
@@ -776,6 +780,74 @@ export function createPrototypeViewer(editor: Editor): {
     return false;
   }
 
+  function listPrototypeFlows(): Array<{ id: number; name: string; start_frame_id: number; page_id: number }> {
+    try {
+      const rows = JSON.parse(editor.engine.get_prototype_flows() || "[]");
+      if (!Array.isArray(rows)) return [];
+      return rows.map((r: any) => ({
+        id: Number(r?.id || 0),
+        name: String(r?.name || `Flow ${r?.id || ""}`),
+        start_frame_id: Number(r?.start_frame_id || 0),
+        page_id: Number(r?.page_id || 0),
+      })).filter((f: any) => f.id > 0);
+    } catch {
+      return [];
+    }
+  }
+
+  function listFramesForPage(pageId: number): Array<{ id: number; name: string }> {
+    try {
+      const layers = JSON.parse(editor.engine.get_layer_list() || "[]");
+      if (!Array.isArray(layers)) return [];
+      return layers
+        .filter((l: any) => Number(l?.page_id || 0) === pageId && String(l?.kind || "") === "Frame")
+        .map((l: any) => ({ id: Number(l.id || 0), name: String(l.name || `Frame ${l.id}`) }));
+    } catch {
+      return [];
+    }
+  }
+
+  function renderFlowStartManager() {
+    if (!flowStartWrap || !flowStartFlowSel || !flowStartFrameSel || !flowStartInfo) return;
+    const flows = listPrototypeFlows();
+    const prevFlow = Number(flowStartFlowSel.value || 0);
+    const selectedFlowId = flows.some((f) => f.id === prevFlow) ? prevFlow : Number(flows[0]?.id || 0);
+
+    flowStartFlowSel.innerHTML = "";
+    for (const flow of flows) {
+      const opt = document.createElement("option");
+      opt.value = String(flow.id);
+      opt.textContent = flow.name;
+      flowStartFlowSel.appendChild(opt);
+    }
+    flowStartFlowSel.value = selectedFlowId ? String(selectedFlowId) : "";
+
+    const selectedFlow = flows.find((f) => f.id === selectedFlowId) || null;
+    const fallbackPageId = Number(editor.engine.get_active_page_id?.() || 0);
+    const pageId = Number(selectedFlow?.page_id || fallbackPageId || 0);
+    const frames = listFramesForPage(pageId);
+
+    flowStartFrameSel.innerHTML = "";
+    const none = document.createElement("option");
+    none.value = "0";
+    none.textContent = "— None —";
+    flowStartFrameSel.appendChild(none);
+    for (const frame of frames) {
+      const opt = document.createElement("option");
+      opt.value = String(frame.id);
+      opt.textContent = frame.name;
+      flowStartFrameSel.appendChild(opt);
+    }
+    if (selectedFlow) flowStartFrameSel.value = String(selectedFlow.start_frame_id || 0);
+
+    if (!selectedFlow) {
+      flowStartInfo.textContent = "No flows yet. Add a flow in Prototype settings.";
+    } else {
+      const frameName = frames.find((f) => f.id === selectedFlow.start_frame_id)?.name || "None";
+      flowStartInfo.textContent = `Flow #${selectedFlow.id} · Page #${pageId} · Start: ${frameName}`;
+    }
+  }
+
   function renderFlowMinimap() {
     if (!flowMinimapCanvas || !flowMinimapInfo) return;
     const ctx = flowMinimapCanvas.getContext("2d");
@@ -1168,6 +1240,79 @@ export function createPrototypeViewer(editor: Editor): {
     flowMinimapWrap.appendChild(flowMinimapInfo);
     overlay.appendChild(flowMinimapWrap);
 
+    flowStartWrap = document.createElement("div");
+    flowStartWrap.style.cssText = "position:absolute;left:14px;top:206px;width:220px;background:rgba(15,23,42,0.92);border:1px solid rgba(148,163,184,0.3);border-radius:10px;padding:8px;z-index:4;display:flex;flex-direction:column;gap:6px;";
+    const flowStartHead = document.createElement("div");
+    flowStartHead.style.cssText = "font-size:11px;font-weight:600;color:#cbd5e1;";
+    flowStartHead.textContent = "Start Point Manager";
+    flowStartWrap.appendChild(flowStartHead);
+
+    flowStartFlowSel = document.createElement("select");
+    flowStartFlowSel.style.cssText = "background:#0f3460;color:#e2e8f0;border:1px solid #334155;border-radius:6px;padding:4px 6px;font-size:11px;";
+    flowStartWrap.appendChild(flowStartFlowSel);
+
+    flowStartFrameSel = document.createElement("select");
+    flowStartFrameSel.style.cssText = "background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:6px;padding:4px 6px;font-size:11px;";
+    flowStartWrap.appendChild(flowStartFrameSel);
+
+    const flowBtnRow = document.createElement("div");
+    flowBtnRow.style.cssText = "display:flex;gap:6px;";
+    const useCurrentBtn = document.createElement("button");
+    useCurrentBtn.className = "prop-btn";
+    useCurrentBtn.textContent = "Use current";
+    useCurrentBtn.style.cssText = "flex:1;font-size:10px;padding:3px 6px;";
+    useCurrentBtn.onclick = () => {
+      if (!flowStartFrameSel || !currentFrameId) return;
+      flowStartFrameSel.value = String(currentFrameId);
+    };
+    const saveStartBtn = document.createElement("button");
+    saveStartBtn.className = "prop-btn";
+    saveStartBtn.textContent = "Save";
+    saveStartBtn.style.cssText = "flex:1;font-size:10px;padding:3px 6px;";
+    saveStartBtn.onclick = () => {
+      if (!flowStartFlowSel || !flowStartFrameSel) return;
+      const flowId = Number(flowStartFlowSel.value || 0);
+      if (!flowId) return;
+      const frameId = Number(flowStartFrameSel.value || 0);
+      const pageId = Number(editor.engine.get_active_page_id?.() || 0);
+      editor.engine.set_flow_start_frame(BigInt(flowId), BigInt(frameId), BigInt(pageId));
+      renderFlowStartManager();
+      if (frameId > 0) {
+        currentFrameId = frameId;
+        renderCurrentView();
+      }
+    };
+    flowBtnRow.appendChild(useCurrentBtn);
+    flowBtnRow.appendChild(saveStartBtn);
+    flowStartWrap.appendChild(flowBtnRow);
+
+    const jumpBtn = document.createElement("button");
+    jumpBtn.className = "prop-btn";
+    jumpBtn.textContent = "Run selected flow";
+    jumpBtn.style.cssText = "font-size:10px;padding:4px 6px;";
+    jumpBtn.onclick = () => {
+      const frameId = Number(flowStartFrameSel?.value || 0);
+      if (frameId > 0) {
+        currentFrameId = frameId;
+        navigationStack = [];
+        renderCurrentView();
+      }
+    };
+    flowStartWrap.appendChild(jumpBtn);
+
+    flowStartInfo = document.createElement("div");
+    flowStartInfo.style.cssText = "font-size:10px;color:#94a3b8;line-height:1.35;";
+    flowStartWrap.appendChild(flowStartInfo);
+
+    flowStartFlowSel.addEventListener("change", renderFlowStartManager);
+    flowStartFrameSel.addEventListener("change", () => {
+      if (!flowStartInfo) return;
+      const frameId = Number(flowStartFrameSel?.value || 0);
+      flowStartInfo.textContent = frameId > 0 ? `Pending start frame #${frameId}` : "Start frame cleared (None)";
+    });
+
+    overlay.appendChild(flowStartWrap);
+
     document.body.appendChild(overlay);
     document.addEventListener("keydown", onKeyDown);
     document.addEventListener("paste", onPaste);
@@ -1198,6 +1343,7 @@ export function createPrototypeViewer(editor: Editor): {
 
     // Build variables debug panel
     buildVarsPanel();
+    renderFlowStartManager();
 
     renderCurrentView();
     startMotionPathPlayback();
@@ -1264,6 +1410,10 @@ export function createPrototypeViewer(editor: Editor): {
     flowMinimapCanvas = null;
     flowMinimapInfo = null;
     flowMinimapWrap = null;
+    flowStartWrap = null;
+    flowStartFlowSel = null;
+    flowStartFrameSel = null;
+    flowStartInfo = null;
     if (offThemeSync) {
       offThemeSync();
       offThemeSync = null;
@@ -2057,6 +2207,7 @@ export function createPrototypeViewer(editor: Editor): {
     // Keep debug inspector in sync with current frame + active modes
     renderVarsPanel();
     renderFlowMinimap();
+    renderFlowStartManager();
   }
 
   /** Remove old video overlays */

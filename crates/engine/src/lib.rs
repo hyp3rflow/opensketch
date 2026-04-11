@@ -5378,6 +5378,107 @@ impl Engine {
             .unwrap_or_else(|_| "null".to_string())
     }
 
+    /// Full override diff inspector for an instance.
+    /// Returns JSON: { overrides: [{ node_id, node_name, diffs: [{ field, local, base }] }] } or "null"
+    #[wasm_bindgen]
+    pub fn get_instance_override_diff_inspector(&self, instance_id: u64) -> String {
+        let (comp_id, variant_values) = match self.scene.get_node(instance_id) {
+            Some(n) => match &n.kind {
+                NodeKind::Instance(data) => (data.component_id, data.variant_values.clone()),
+                _ => return "null".to_string(),
+            },
+            None => return "null".to_string(),
+        };
+
+        let comp = match self.components.get(comp_id) {
+            Some(c) => c,
+            None => return "null".to_string(),
+        };
+
+        let variant = match comp.get_variant(&variant_values) {
+            Some(v) => v,
+            None => match comp.variants.values().next() {
+                Some(v) => v,
+                None => return "null".to_string(),
+            }
+        };
+
+        let template_root = match variant.nodes.first() {
+            Some(r) => r,
+            None => return "null".to_string(),
+        };
+
+        let instance_node = self.scene.get_node(instance_id).unwrap();
+        let mut result: Vec<serde_json::Value> = Vec::new();
+
+        let root_diffs = Self::compare_node_prop_diffs(instance_node, template_root);
+        if !root_diffs.is_empty() {
+            result.push(serde_json::json!({
+                "node_id": instance_id,
+                "node_name": instance_node.name,
+                "diffs": root_diffs,
+            }));
+        }
+
+        self.compare_children_recursive_diffs(
+            &instance_node.children,
+            template_root,
+            &variant.nodes,
+            &mut result,
+        );
+
+        serde_json::to_string(&serde_json::json!({ "overrides": result }))
+            .unwrap_or_else(|_| "null".to_string())
+    }
+
+    /// Reset a single overridden property on an instance child, restoring template value.
+    #[wasm_bindgen]
+    pub fn reset_instance_override_property(&mut self, instance_id: u64, target_node_id: u64, property: &str) -> bool {
+        let (comp_id, variant_values) = match self.scene.get_node(instance_id) {
+            Some(n) => match &n.kind {
+                NodeKind::Instance(data) => (data.component_id, data.variant_values.clone()),
+                _ => return false,
+            },
+            None => return false,
+        };
+
+        let comp = match self.components.get(comp_id) {
+            Some(c) => c,
+            None => return false,
+        };
+
+        let variant = match comp.get_variant(&variant_values) {
+            Some(v) => v.clone(),
+            None => match comp.variants.values().next() {
+                Some(v) => v.clone(),
+                None => return false,
+            }
+        };
+
+        let template_node = if target_node_id == instance_id {
+            match variant.nodes.first() {
+                Some(r) => r.clone(),
+                None => return false,
+            }
+        } else {
+            let instance_root = match self.scene.get_node(instance_id) {
+                Some(n) => n.clone(),
+                None => return false,
+            };
+            match self.find_template_for_child(target_node_id, &instance_root.children, variant.nodes.first().unwrap(), &variant.nodes) {
+                Some(t) => t.clone(),
+                None => return false,
+            }
+        };
+
+        let target = match self.scene.get_node_mut(target_node_id) {
+            Some(t) => t,
+            None => return false,
+        };
+
+        Self::apply_template_property(target, &template_node, property)
+    }
+
     /// Reset all overrides on an instance child, restoring template values.
     /// Returns true on success.
     #[wasm_bindgen]
@@ -12697,56 +12798,55 @@ fn apply_prop_value(node: &mut node::Node, key: &crdt::PropKey, value: &crdt::Pr
 // --- Style Override Indicator helpers (non-wasm) ---
 impl Engine {
     fn compare_node_props(instance_node: &crate::node::Node, template_node: &crate::node::Node) -> Vec<String> {
-        let mut overridden = Vec::new();
+        Self::compare_node_prop_diffs(instance_node, template_node)
+            .into_iter()
+            .filter_map(|entry| entry.get("field").and_then(|v| v.as_str()).map(|s| s.to_string()))
+            .collect()
+    }
 
-        // Compare fills
+    fn compare_node_prop_diffs(instance_node: &crate::node::Node, template_node: &crate::node::Node) -> Vec<serde_json::Value> {
+        let mut diffs = Vec::new();
+        let mut push = |field: &str, local: serde_json::Value, base: serde_json::Value| {
+            diffs.push(serde_json::json!({ "field": field, "local": local, "base": base }));
+        };
+
         if instance_node.fills != template_node.fills {
-            overridden.push("fill".to_string());
+            push("fill", serde_json::to_value(&instance_node.fills).unwrap_or(serde_json::Value::Null), serde_json::to_value(&template_node.fills).unwrap_or(serde_json::Value::Null));
         }
-        // Compare strokes
         if instance_node.strokes != template_node.strokes {
-            overridden.push("stroke".to_string());
+            push("stroke", serde_json::to_value(&instance_node.strokes).unwrap_or(serde_json::Value::Null), serde_json::to_value(&template_node.strokes).unwrap_or(serde_json::Value::Null));
         }
-        // Opacity
         if (instance_node.opacity - template_node.opacity).abs() > 0.001 {
-            overridden.push("opacity".to_string());
+            push("opacity", serde_json::json!(instance_node.opacity), serde_json::json!(template_node.opacity));
         }
-        // Corner radius
         if (instance_node.corner_radius - template_node.corner_radius).abs() > 0.001 {
-            overridden.push("corner_radius".to_string());
+            push("corner_radius", serde_json::json!(instance_node.corner_radius), serde_json::json!(template_node.corner_radius));
         }
-        // Size
-        if (instance_node.width - template_node.width).abs() > 0.1
-            || (instance_node.height - template_node.height).abs() > 0.1 {
-            overridden.push("size".to_string());
+        if (instance_node.width - template_node.width).abs() > 0.1 || (instance_node.height - template_node.height).abs() > 0.1 {
+            push("size", serde_json::json!({ "width": instance_node.width, "height": instance_node.height }), serde_json::json!({ "width": template_node.width, "height": template_node.height }));
         }
-        // Visibility
         if instance_node.visible != template_node.visible {
-            overridden.push("visible".to_string());
+            push("visible", serde_json::json!(instance_node.visible), serde_json::json!(template_node.visible));
         }
-        // Blur
         if (instance_node.blur - template_node.blur).abs() > 0.001 {
-            overridden.push("blur".to_string());
+            push("blur", serde_json::json!(instance_node.blur), serde_json::json!(template_node.blur));
         }
-        // Shadows
         if instance_node.shadows != template_node.shadows {
-            overridden.push("shadow".to_string());
+            push("shadow", serde_json::to_value(&instance_node.shadows).unwrap_or(serde_json::Value::Null), serde_json::to_value(&template_node.shadows).unwrap_or(serde_json::Value::Null));
         }
-        // Blend mode
         if instance_node.blend_mode != template_node.blend_mode {
-            overridden.push("blend_mode".to_string());
+            push("blend_mode", serde_json::to_value(&instance_node.blend_mode).unwrap_or(serde_json::Value::Null), serde_json::to_value(&template_node.blend_mode).unwrap_or(serde_json::Value::Null));
         }
-        // Text content
         if let (NodeKind::Text { content: ic, font_size: ifs, font_family: iff, font_weight: ifw, .. },
                 NodeKind::Text { content: tc, font_size: tfs, font_family: tff, font_weight: tfw, .. }) =
             (&instance_node.kind, &template_node.kind) {
-            if ic != tc { overridden.push("text".to_string()); }
-            if (ifs - tfs).abs() > 0.1 { overridden.push("font_size".to_string()); }
-            if iff != tff { overridden.push("font_family".to_string()); }
-            if ifw != tfw { overridden.push("font_weight".to_string()); }
+            if ic != tc { push("text", serde_json::json!(ic), serde_json::json!(tc)); }
+            if (ifs - tfs).abs() > 0.1 { push("font_size", serde_json::json!(ifs), serde_json::json!(tfs)); }
+            if iff != tff { push("font_family", serde_json::json!(iff), serde_json::json!(tff)); }
+            if ifw != tfw { push("font_weight", serde_json::json!(ifw), serde_json::json!(tfw)); }
         }
 
-        overridden
+        diffs
     }
 
     fn compare_children_recursive(
@@ -12775,6 +12875,80 @@ impl Engine {
                 self.compare_children_recursive(&instance_child.children, tmpl, all_template_nodes, result);
             }
         }
+    }
+
+    fn compare_children_recursive_diffs(
+        &self,
+        instance_children: &[u64],
+        template_parent: &crate::node::Node,
+        all_template_nodes: &[crate::node::Node],
+        result: &mut Vec<serde_json::Value>,
+    ) {
+        for (i, &child_id) in instance_children.iter().enumerate() {
+            let template_child_id = template_parent.children.get(i);
+            let template_child = template_child_id.and_then(|&tid|
+                all_template_nodes.iter().find(|n| n.id == tid)
+            );
+
+            if let (Some(instance_child), Some(tmpl)) = (self.scene.get_node(child_id), template_child) {
+                let diffs = Self::compare_node_prop_diffs(instance_child, tmpl);
+                if !diffs.is_empty() {
+                    result.push(serde_json::json!({
+                        "node_id": child_id,
+                        "node_name": instance_child.name,
+                        "diffs": diffs,
+                    }));
+                }
+                self.compare_children_recursive_diffs(&instance_child.children, tmpl, all_template_nodes, result);
+            }
+        }
+    }
+
+    fn apply_template_property(target: &mut crate::node::Node, template: &crate::node::Node, property: &str) -> bool {
+        match property {
+            "fill" => target.fills = template.fills.clone(),
+            "stroke" => target.strokes = template.strokes.clone(),
+            "opacity" => target.opacity = template.opacity,
+            "corner_radius" => target.corner_radius = template.corner_radius,
+            "size" => {
+                target.width = template.width;
+                target.height = template.height;
+            }
+            "visible" => target.visible = template.visible,
+            "blur" => target.blur = template.blur,
+            "shadow" => target.shadows = template.shadows.clone(),
+            "blend_mode" => target.blend_mode = template.blend_mode.clone(),
+            "text" => {
+                if let (NodeKind::Text { content: tc, .. }, NodeKind::Text { content: ic, .. }) = (&template.kind, &mut target.kind) {
+                    *ic = tc.clone();
+                } else {
+                    return false;
+                }
+            }
+            "font_size" => {
+                if let (NodeKind::Text { font_size: tfs, .. }, NodeKind::Text { font_size: ifs, .. }) = (&template.kind, &mut target.kind) {
+                    *ifs = *tfs;
+                } else {
+                    return false;
+                }
+            }
+            "font_family" => {
+                if let (NodeKind::Text { font_family: tff, .. }, NodeKind::Text { font_family: iff, .. }) = (&template.kind, &mut target.kind) {
+                    *iff = tff.clone();
+                } else {
+                    return false;
+                }
+            }
+            "font_weight" => {
+                if let (NodeKind::Text { font_weight: tfw, .. }, NodeKind::Text { font_weight: ifw, .. }) = (&template.kind, &mut target.kind) {
+                    *ifw = *tfw;
+                } else {
+                    return false;
+                }
+            }
+            _ => return false,
+        }
+        true
     }
 
     fn find_template_for_child<'a>(
