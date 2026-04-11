@@ -659,6 +659,7 @@
 - [x] **Variables panel**: Right pane "Variables" tab with collection CRUD, mode tabs, variable table with type-specific editors
 - [x] **Theme Mode Set quick apply**: Variables panel infers shared mode names across collections (e.g. Light/Dark/custom) and provides one-click chips to switch all mapped collections together (applies variables + re-render).
 - [x] **Variable Modes Quick Switch (Toolbar)**: 툴바 버튼으로 플로팅 패널을 열어 각 collection의 active mode를 즉시 전환 (예: Desktop/Mobile, Light/Dark), 변경 즉시 `set_active_mode` + `apply_variables` 반영
+- [x] **Variable Collections & Modes Quick Switcher (Canvas Top, 2026-04-11)**: 캔버스 상단 중앙에 shared mode 칩(예: Light/Dark/Brand) 표시, 클릭 한 번으로 모든 컬렉션의 매칭 mode를 동시 전환. 전환 시 `apply_variables` + 렌더 즉시 반영, 공통 이벤트(`opensketch:theme-mode-changed`)로 다른 UI와 동기화.
 - [x] **Binding UI**: Properties panel "Variable Bindings" section with bind/unbind per property, variable picker popup
 - [x] **Backward-compatible serde**: Default empty collections/bindings for existing files
 - [x] **Conditional visibility**: Per-node `VisibilityCondition` (variable_id + operator + value) — evaluated at render/hit-test time. Operators: Eq/NotEq/Gt/Lt/Gte/Lte/IsTrue/IsFalse. UI in Properties panel "Conditional Visibility" section. Also supports binding Boolean variables to `visible` property via variable mode switching
@@ -2385,6 +2386,7 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] **Prototype Device Frame + Safe Area Preview**: Device preset selector with bezel/notch overlays, safe-area inset tint+guide, and scroll position-aware scrollbar indicators (vertical/horizontal) in preview with top-bar `Bars` toggle
 - [x] **Prototype Device Chrome Details**: Added status-bar tint + home-indicator rendering (portrait/landscape aware) and expanded presets (`iPhone SE`) for more realistic safe-area/device-chrome validation in preview
 - [x] **Prototype theme mode switch**: Top bar `Theme` selector mirrors variable mode names (Light/Dark/custom) and switches collection active modes live during preview.
+- [x] **Prototype ↔ Canvas mode sync (2026-04-11)**: 공통 `opensketch:theme-mode-changed` 이벤트를 통해 캔버스 상단 quick switcher/Variables panel/Prototype top-bar selector가 같은 mode 상태를 유지한다.
 - [x] **Prototype Variables Inspector (2026-04-08)**: Prototype Viewer 좌하단 debug panel을 확장해 현재 프레임 subtree 기준 활성 variable binding을 실시간 표시 (Collection/Variable, active mode, resolved value, usage count). Pan/zoom/navigate 및 mode 변경 시 자동 동기화.
 - [x] **Prototype Variables Inspector Overlay v2 (2026-04-10)**: Top bar `Vars Overlay: ON/OFF` 토글 추가, 변수별 binding source preview(`LayerName (#id) · property`) 노출. 값 변경/프레임 이동 시 source 추적 정보를 함께 갱신해 “현재 값이 어디서 왔는지”를 즉시 디버깅 가능.
 - [x] **Prototype Variables Panel — Runtime Inspector v3 (2026-04-10)**: Prototype Viewer 변수 패널에 타입 표시(number/boolean/string), 인라인 수동 override(입력/토글), 변수별 Reset(default 복원), 최근 변경 이력(시간/이전→다음/source) 추가. SetVariable 실행과 수동 override를 동일 런타임 상태/히스토리로 추적해 디버깅 품질 개선.

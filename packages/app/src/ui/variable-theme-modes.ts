@@ -5,6 +5,8 @@ export interface ThemeModeOption {
   label: string;
 }
 
+export const THEME_MODE_CHANGED_EVENT = "opensketch:theme-mode-changed";
+
 const ALIASES: Record<string, string[]> = {
   light: ["light", "day", "default"],
   dark: ["dark", "night"],
@@ -77,6 +79,21 @@ export function applyThemeMode(editor: Editor, themeId: string): number {
   if (switched > 0) {
     editor.engine.apply_variables();
     editor.requestRender();
+    window.dispatchEvent(new CustomEvent(THEME_MODE_CHANGED_EVENT, {
+      detail: { themeId, switched },
+    }));
   }
   return switched;
+}
+
+export function onThemeModeChanged(handler: (detail: { themeId: string; switched: number }) => void): () => void {
+  const listener = (ev: Event) => {
+    const detail = (ev as CustomEvent).detail || {};
+    handler({
+      themeId: String(detail.themeId || ""),
+      switched: Number(detail.switched || 0),
+    });
+  };
+  window.addEventListener(THEME_MODE_CHANGED_EVENT, listener as EventListener);
+  return () => window.removeEventListener(THEME_MODE_CHANGED_EVENT, listener as EventListener);
 }

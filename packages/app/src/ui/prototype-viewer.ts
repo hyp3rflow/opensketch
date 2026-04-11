@@ -1,7 +1,7 @@
 import type { Editor } from "../editor";
 import { applyEasing } from "./easing-editor";
 import { computeScrollAnimOverrides } from "./scroll-animation";
-import { applyThemeMode, detectActiveThemeMode, listThemeModeOptions } from "./variable-theme-modes";
+import { applyThemeMode, detectActiveThemeMode, listThemeModeOptions, onThemeModeChanged } from "./variable-theme-modes";
 
 type PrototypeRingStyle = { color: string; width: number; radius: number };
 type PrototypeRingPreset = {
@@ -69,6 +69,7 @@ export function createPrototypeViewer(editor: Editor): {
   let protoVarHistory: Array<{ at: number; name: string; prev: string; next: string; source: "interaction" | "override" | "init" }> = [];
   let varsPanel: HTMLDivElement | null = null;
   let showVarsOverlay = true;
+  let offThemeSync: (() => void) | null = null;
   let snapPaginationEl: HTMLDivElement | null = null;
   let snapPaginationState: { frameId: number; axis: "x" | "y"; points: number[]; activeIndex: number } | null = null;
   const interactiveVisualState = new Map<number, "hover" | "press" | "focus">();
@@ -817,6 +818,12 @@ export function createPrototypeViewer(editor: Editor): {
         applyThemeMode(editor, themeSel.value);
         renderCurrentView();
       });
+      offThemeSync = onThemeModeChanged(() => {
+        const activeThemeNow = detectActiveThemeMode(editor);
+        if (activeThemeNow && themeSel.value !== activeThemeNow) {
+          themeSel.value = activeThemeNow;
+        }
+      });
       themeWrap.appendChild(themeLabel);
       themeWrap.appendChild(themeSel);
       topBar.appendChild(themeWrap);
@@ -1083,6 +1090,10 @@ export function createPrototypeViewer(editor: Editor): {
     viewCanvas = null;
     snapPaginationEl = null;
     snapPaginationState = null;
+    if (offThemeSync) {
+      offThemeSync();
+      offThemeSync = null;
+    }
     currentFrameId = null;
     navigationStack = [];
     focusedHotspotNodeId = null;

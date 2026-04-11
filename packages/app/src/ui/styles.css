@@ -16,6 +16,13 @@ body { font-family: Inter, system-ui, sans-serif; background: #1e1e1e; color: #c
 #bottom-toolbar { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 20; background: #2a2a2a; border-radius: 12px; display: flex; align-items: center; padding: 6px 8px; gap: 2px; box-shadow: 0 2px 8px rgba(0,0,0,0.2), 0 0 0 1px rgba(255,255,255,0.06); }
 #statusbar { display: none; }
 
+#variable-mode-quick-switcher { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 25; display: none; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 999px; background: rgba(15, 23, 42, 0.92); border: 1px solid rgba(148, 163, 184, 0.35); box-shadow: 0 4px 14px rgba(0,0,0,0.28); backdrop-filter: blur(6px); pointer-events: auto; }
+#variable-mode-quick-switcher .vmqs-label { font-size: 11px; color: #94a3b8; user-select: none; }
+#variable-mode-quick-switcher .vmqs-chips { display: flex; align-items: center; gap: 6px; }
+#variable-mode-quick-switcher .vmqs-chip { border: 1px solid #334155; background: #0f172a; color: #cbd5e1; border-radius: 999px; padding: 4px 10px; font-size: 11px; line-height: 1; cursor: pointer; }
+#variable-mode-quick-switcher .vmqs-chip.active { border-color: #6366f1; background: rgba(99, 102, 241, 0.22); color: #e0e7ff; }
+#variable-mode-quick-switcher .vmqs-chip:hover { border-color: #818cf8; }
+
 .tool-btn { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border: none; background: transparent; color: #aaa; border-radius: 4px; cursor: pointer; font-size: 16px; }
 .tool-btn:hover { background: #3a3a3a; color: #fff; }
 .tool-btn.active { background: #4a4af5; color: #fff; }

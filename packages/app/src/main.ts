@@ -48,6 +48,7 @@ import { setupDependencyGraphPanel } from "./ui/dependency-graph-panel";
 import { setupArtboardPresetsPanel } from "./ui/artboard-presets";
 import { setupPanelSync, addPopOutButton } from "./ui/panel-detach";
 import { openARQuickLookFromQuery } from "./ui/ar-quicklook";
+import { setupVariableModeQuickSwitcher } from "./ui/variable-mode-quick-switcher";
 
 async function main() {
   await initI18n();
@@ -202,6 +203,9 @@ async function main() {
     // Toggle note overlay
     noteOverlay.setEnabled(mode === "dev");
   }, () => prototypeViewer.show());
+
+  // Canvas top quick switcher for variable collection modes (Light/Dark/custom)
+  setupVariableModeQuickSwitcher(editor);
 
   // Left panel = layers only
   setupLayersPanel(document.getElementById("layers-panel")!, editor);
