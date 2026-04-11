@@ -3146,6 +3146,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         }> = JSON.parse(propValsJson);
 
         if (propVals && propVals.length > 0) {
+          const instanceSlotNodes = self_getSlotNodesForInstance(editor, id);
           const cpSection = document.createElement("div");
           cpSection.style.cssText = `
             margin-bottom:8px; padding:8px 10px;
@@ -3260,23 +3261,63 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
               });
               propRow.appendChild(input);
             } else if (pv.prop_type === "instance_swap") {
+              const selectedComponentId = Number(pv.value?.value || 0);
+              const linkedSlotId = Number(pv.definition?.linked_slot_id || 0);
+              const hasLinkedSlot = linkedSlotId > 0;
+              const linkedSlotExists = hasLinkedSlot && instanceSlotNodes.some((s) => s.id === linkedSlotId);
+              const isSlotBroken = hasLinkedSlot && !linkedSlotExists;
+              const isSlotUnbound = !hasLinkedSlot;
+
               const select = document.createElement("select");
               select.style.cssText = `
                 flex:1; background:#2a2a2a; border:1px solid #444; border-radius:4px;
                 color:#ccc; font-size:11px; padding:3px 6px; outline:none; cursor:pointer;
               `;
-              // Get all components for dropdown
+
+              // Get all components for dropdown + fallback resolution
+              let components: Array<{ id: number; name: string }> = [];
               try {
                 const compsJson = editor.engine.get_components();
-                const comps: Array<{ id: number; name: string }> = JSON.parse(compsJson);
-                for (const c of comps) {
+                components = JSON.parse(compsJson) || [];
+                for (const c of components) {
                   const opt = document.createElement("option");
                   opt.value = String(c.id);
                   opt.textContent = c.name;
-                  if (c.id === pv.value.value) opt.selected = true;
+                  if (c.id === selectedComponentId) opt.selected = true;
                   select.appendChild(opt);
                 }
               } catch {}
+
+              const selectedExists = selectedComponentId > 0 && components.some((c) => c.id === selectedComponentId);
+              if (selectedComponentId > 0 && !selectedExists) {
+                const missingOpt = document.createElement("option");
+                missingOpt.value = String(selectedComponentId);
+                missingOpt.textContent = `⚠ Missing component #${selectedComponentId}`;
+                missingOpt.selected = true;
+                select.insertBefore(missingOpt, select.firstChild);
+              }
+
+              const suggestedSlotId = self_suggestLinkedSlotId(instanceSlotNodes, pv.name);
+              const suggestedSlot = instanceSlotNodes.find((s) => s.id === suggestedSlotId);
+
+              const fallbackComponentId = (() => {
+                const defId = Number(pv.definition?.default_component_id || 0);
+                if (defId > 0 && components.some((c) => c.id === defId)) return defId;
+                if (components.length > 0) return components[0]!.id;
+                return 0;
+              })();
+              const isComponentBroken = selectedComponentId > 0 && !selectedExists;
+
+              if (isSlotUnbound || isSlotBroken || isComponentBroken) {
+                const warnBadge = document.createElement("span");
+                warnBadge.style.cssText = "font-size:9px;padding:1px 4px;border-radius:3px;background:rgba(239,68,68,0.18);color:#fca5a5;flex-shrink:0;";
+                warnBadge.textContent = "⚠";
+                if (isSlotUnbound) warnBadge.title = "Unbound slot: linked_slot_id is empty";
+                else if (isSlotBroken) warnBadge.title = `Broken slot link: #${linkedSlotId} no longer exists`;
+                else warnBadge.title = `Broken swap target: component #${selectedComponentId} not found`;
+                propRow.appendChild(warnBadge);
+              }
+
               select.addEventListener("change", () => {
                 editor.engine.push_undo();
                 editor.engine.set_instance_prop_override(
@@ -3287,6 +3328,52 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
                 refresh([id]);
               });
               propRow.appendChild(select);
+
+              if (isComponentBroken && fallbackComponentId > 0) {
+                const fallbackBtn = document.createElement("button");
+                fallbackBtn.style.cssText = "background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.35);border-radius:4px;padding:1px 6px;color:#6ee7b7;cursor:pointer;font-size:10px;flex-shrink:0;";
+                fallbackBtn.textContent = "Fallback";
+                fallbackBtn.title = `Recover swap target with fallback component #${fallbackComponentId}`;
+                fallbackBtn.addEventListener("click", () => {
+                  editor.engine.push_undo();
+                  editor.engine.set_instance_prop_override(
+                    BigInt(id),
+                    pv.name,
+                    JSON.stringify({ type: "instance_swap", value: fallbackComponentId })
+                  );
+                  editor.requestRender();
+                  refresh([id]);
+                });
+                propRow.appendChild(fallbackBtn);
+              }
+
+              if ((isSlotUnbound || isSlotBroken) && suggestedSlot) {
+                const relinkBtn = document.createElement("button");
+                relinkBtn.style.cssText = "background:rgba(59,130,246,0.14);border:1px solid rgba(59,130,246,0.34);border-radius:4px;padding:1px 6px;color:#93c5fd;cursor:pointer;font-size:10px;flex-shrink:0;";
+                relinkBtn.textContent = "Relink";
+                relinkBtn.title = `Suggested slot #${suggestedSlot.id} (${suggestedSlot.name})`;
+                relinkBtn.addEventListener("click", () => {
+                  try {
+                    const compInfoRaw = editor.engine.get_instance_component_info(BigInt(id));
+                    const compInfo = JSON.parse(compInfoRaw);
+                    const compId = Number(compInfo?.component_id || 0);
+                    if (!compId) return;
+                    const propsRaw = editor.engine.get_component_properties(BigInt(compId));
+                    const compProps = JSON.parse(propsRaw) as Array<any>;
+                    const target = compProps.find((p) => p.name === pv.name && p.type === "instance_swap");
+                    if (!target) return;
+                    editor.engine.push_undo();
+                    editor.engine.remove_component_property(BigInt(compId), pv.name);
+                    editor.engine.add_component_property(
+                      BigInt(compId),
+                      JSON.stringify({ ...target, linked_slot_id: suggestedSlot.id })
+                    );
+                    editor.requestRender();
+                    refresh([id]);
+                  } catch {}
+                });
+                propRow.appendChild(relinkBtn);
+              }
             }
 
             // Save current value as current-variant default
@@ -14096,6 +14183,39 @@ function self_buildComponentSlotsReport(
   }
 
   return { slotNodes, instanceSwapProps, ok, missing };
+}
+
+function self_getSlotNodesForInstance(editor: Editor, instanceId: number): Array<{ id: number; name: string }> {
+  try {
+    const infoRaw = editor.engine.get_instance_component_info(BigInt(instanceId));
+    const info = JSON.parse(infoRaw);
+    const sourceNodeId = Number(info?.source_node_id || 0);
+    if (!sourceNodeId) return [];
+    const children = self_getChildrenForComponent(editor, sourceNodeId);
+    const slots: Array<{ id: number; name: string }> = [];
+    for (const childId of children) {
+      try {
+        const raw = editor.engine.get_node_json(BigInt(childId));
+        const node = JSON.parse(raw);
+        if (getKindLabel(node.kind) === "Slot") {
+          slots.push({ id: childId, name: String(node.name || `Slot ${childId}`) });
+        }
+      } catch {}
+    }
+    return slots;
+  } catch {
+    return [];
+  }
+}
+
+function self_suggestLinkedSlotId(slotNodes: Array<{ id: number; name: string }>, propName: string): number {
+  if (!slotNodes.length) return 0;
+  const lower = String(propName || "").trim().toLowerCase();
+  const byExact = slotNodes.find((s) => s.name.toLowerCase() === lower);
+  if (byExact) return byExact.id;
+  const byLoose = slotNodes.find((s) => s.name.toLowerCase().includes(lower) || lower.includes(s.name.toLowerCase()));
+  if (byLoose) return byLoose.id;
+  return slotNodes[0]!.id;
 }
 
 function getKindLabel(kind: unknown): string {

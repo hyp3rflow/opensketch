@@ -1790,10 +1790,21 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Component Slot Fallback Preview — slot 미바인딩/깨진 instance swap 상태를 fallback 컴포넌트와 경고 배지로 즉시 확인·복구 (임팩트 중상, 난이도 중)
 - Prototype Overlay Stack Inspector — OpenOverlay/CloseOverlay 체인을 스택 타임라인으로 표시하고 z-order/닫힘 누락을 경고 (임팩트 중상, 난이도 중)
 - Component Property Controls (Instance Exposed Props) — 컴포넌트에서 텍스트/불리언/숫자 prop을 노출해 인스턴스 패널에서 직접 편집 (임팩트 상, 난이도 상)
 - Multi-user Cursor Playback (Local Session) — 코멘트/리뷰 모드에서 가상 collaborator 커서 리플레이로 사용자 플로우 설명 지원 (임팩트 중, 난이도 중상)
+
+## 완료된 기능 (추가 — Component Slot Fallback Preview, 2026-04-12)
+- Instance `instance_swap` prop UI에서 깨진 상태를 실시간 감지해 경고 배지(`⚠`) 노출
+  - 미바인딩 slot (`linked_slot_id = 0`)
+  - 삭제된 slot 연결 (`linked_slot_id` not found)
+  - 삭제된 target component (`value` not in component list)
+- component가 깨진 경우 dropdown에 `⚠ Missing component #id` placeholder 표시
+- one-click 복구 액션 추가
+  - `Fallback`: default component(없으면 첫 컴포넌트)로 즉시 교체
+  - `Relink`: prop name 기반 추천 slot으로 linked slot 재연결
+- 구현: `packages/app/src/ui/properties-panel.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Auto Layout Stretch Handles, 2026-04-12)
 - 단일 자식 선택 + auto-layout 부모일 때 캔버스에 stretch handle 오버레이 표시

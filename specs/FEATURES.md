@@ -2699,3 +2699,15 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] 분류 점수 기반 추천 preset(transition + duration + easing) 제안 및 원클릭 적용
 - [x] `Apply flow`로 active flow scope의 NavigateTo/OpenOverlay interaction에 일괄 적용
 - 구현: `packages/app/src/ui/properties-panel.ts`
+
+### Component Slot Fallback Preview (2026-04-12)
+- [x] Instance `instance_swap` prop row에서 slot/component 깨짐 상태를 실시간 탐지해 경고 배지(`⚠`) 노출
+- [x] 감지 규칙
+  - linked slot 미설정(`linked_slot_id = 0`)
+  - linked slot이 source component slot 목록에 없음
+  - 현재 swap target component id가 컴포넌트 목록에 없음
+- [x] broken target component의 경우 dropdown 맨 위에 `⚠ Missing component #id` placeholder를 삽입해 즉시 가시화
+- [x] 복구 액션
+  - `Fallback`: default component id(없으면 첫 component)로 override 값을 즉시 교체
+  - `Relink`: prop name 기반 slot 추천으로 linked slot id를 component prop 정의에 재연결
+- 구현: `packages/app/src/ui/properties-panel.ts`
