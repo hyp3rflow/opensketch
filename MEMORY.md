@@ -1790,9 +1790,16 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Smart Selection Scope Bar (Page/Frame/Component) — 선택 툴바에서 탐색/필터/정렬의 scope를 즉시 전환해 대형 문서에서 선택 정확도 향상 (임팩트 중상, 난이도 중)
 - Prototype Start Point Manager — 페이지별 start frame 지정/전환, flow별 entry 분기 및 프리뷰 실행 타깃 빠른 변경 (임팩트 상, 난이도 중)
 - Variable Alias Graph Inspector — 토큰/변수 alias 의존 그래프 시각화 + 순환 참조/깊은 체인 경고 및 one-click jump (임팩트 상, 난이도 중상)
+
+## 완료된 기능 (추가 — Smart Selection Scope Bar, 2026-04-12)
+- Smart Select 패널 상단에 Selection Scope Bar 추가 (`Document / Page / Frame / Component`)
+- Same Shape/Text/Image/Locked/Hidden 선택 액션이 현재 scope를 기준으로 필터링되도록 확장
+- Component scope는 선택 기준 인스턴스의 component_id를 사용해 같은 컴포넌트 인스턴스군만 선택
+- scope 상태는 결과 라벨에 반영되어 대형 문서에서 선택 컨텍스트를 즉시 파악 가능
+- 구현: `packages/app/src/ui/smart-select.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Variables Bulk Rename & Namespace Tools, 2026-04-11)
 - Variables Bulk Edit(Table View) 툴바에 `Prefix Rename`, `Move Namespace` 버튼 추가

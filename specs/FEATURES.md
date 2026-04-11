@@ -2644,3 +2644,10 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] edge midpoint 클릭 시 target frame으로 점프해 링크 검증 속도 개선
 - [x] 요약 메타 표시: `Frames N · Links N · Current #id`
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
+
+### Smart Selection Scope Bar (2026-04-12)
+- [x] Smart Select 패널에 Selection Scope Bar 추가 (`Document / Page / Frame / Component`)
+- [x] `Same Shape/Text/Image/Locked/Hidden` 액션이 scope 기준으로 결과를 필터링
+- [x] `Page`: 동일 page_id, `Frame`: 동일 parent, `Component`: 동일 instance component_id 기준
+- [x] scope 전환 시 즉시 재평가(runSelection) + 선택 결과 라벨에 현재 scope 표시
+- 구현: `packages/app/src/ui/smart-select.ts`

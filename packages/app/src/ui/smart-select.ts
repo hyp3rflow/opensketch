@@ -23,6 +23,8 @@ interface SmartSelectCriteria {
   stroke_width_threshold: number;
 }
 
+type SmartSelectionScope = 'document' | 'page' | 'frame' | 'component';
+
 interface SelectionFilterState {
   nodeKind: string;
   nameRegex: string;
@@ -60,6 +62,7 @@ export class SmartSelectPanel {
   private editor: Editor;
   private criteria: SmartSelectCriteria;
   private filter: SelectionFilterState;
+  private selectionScope: SmartSelectionScope = 'document';
   private referenceId: number = 0;
 
   constructor(editor: Editor) {
@@ -95,6 +98,15 @@ export class SmartSelectPanel {
         <button class="ssp-close" title="Close">✕</button>
       </div>
       <div class="ssp-body">
+        <div class="ssp-section">
+          <label class="ssp-label">Selection Scope</label>
+          <div class="ssp-scope-bar" style="display:flex;gap:4px;flex-wrap:wrap;">
+            ${this.scopeButton('document', 'Document')}
+            ${this.scopeButton('page', 'Page')}
+            ${this.scopeButton('frame', 'Frame')}
+            ${this.scopeButton('component', 'Component')}
+          </div>
+        </div>
         <div class="ssp-section">
           <label class="ssp-label">Match Criteria</label>
           ${this.checkbox('fill_color', 'Fill Color')}
@@ -169,6 +181,11 @@ export class SmartSelectPanel {
     return `<label class="ssp-check"><input type="checkbox" data-key="${key}" ${checked}> ${label}</label>`;
   }
 
+  private scopeButton(scope: SmartSelectionScope, label: string): string {
+    const active = this.selectionScope === scope;
+    return `<button class="ssp-btn ssp-scope-btn${active ? ' active' : ''}" data-scope="${scope}" style="padding:4px 8px;font-size:10px;${active ? 'border-color:#4f46e5;color:#e0e7ff;background:#1f2343;' : ''}">${label}</button>`;
+  }
+
   private slider(key: keyof SmartSelectCriteria, label: string, min: number, max: number, step: number): string {
     const val = this.criteria[key] as number;
     return `<div class="ssp-slider-row">
@@ -235,6 +252,21 @@ export class SmartSelectPanel {
       btn.addEventListener('click', () => {
         const key = (btn as HTMLElement).getAttribute('data-same') || 'shape';
         this.selectSameByFilter(key);
+      });
+    });
+
+    this.el.querySelectorAll('.ssp-scope-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const scope = ((btn as HTMLElement).getAttribute('data-scope') || 'document') as SmartSelectionScope;
+        this.selectionScope = scope;
+        this.el?.querySelectorAll('.ssp-scope-btn').forEach((el) => {
+          const isActive = (el as HTMLElement).getAttribute('data-scope') === scope;
+          (el as HTMLElement).classList.toggle('active', isActive);
+          (el as HTMLElement).style.borderColor = isActive ? '#4f46e5' : '';
+          (el as HTMLElement).style.color = isActive ? '#e0e7ff' : '';
+          (el as HTMLElement).style.background = isActive ? '#1f2343' : '';
+        });
+        this.runSelection();
       });
     });
 
@@ -332,11 +364,47 @@ export class SmartSelectPanel {
     return ["Rect", "Ellipse", "Path", "Star", "Polygon", "Vector", "Line"].includes(kind);
   }
 
+  private getInstanceComponentId(nodeId: number): number {
+    try {
+      const infoRaw = (this.editor.engine as any).get_instance_component_info?.(BigInt(nodeId));
+      if (!infoRaw) return 0;
+      const info = JSON.parse(infoRaw);
+      return Number(info?.component_id || 0);
+    } catch {
+      return 0;
+    }
+  }
+
+  private matchScope(node: any, nodeId: number, refNode: any, refId: number, refComponentId: number): boolean {
+    if (this.selectionScope === 'document') return true;
+    if (this.selectionScope === 'page') {
+      const refPage = Number(refNode?.page_id ?? this.editor.engine.get_active_page_id?.() ?? 0);
+      return Number(node?.page_id ?? refPage) === refPage;
+    }
+    if (this.selectionScope === 'frame') {
+      const refParent = Number(refNode?.parent ?? 0);
+      return Number(node?.parent ?? 0) === refParent;
+    }
+    if (this.selectionScope === 'component') {
+      if (refComponentId <= 0) return nodeId === refId;
+      return this.getInstanceComponentId(nodeId) === refComponentId;
+    }
+    return true;
+  }
+
   private selectSameByFilter(key: string) {
     const engine = this.editor.engine;
     if (!engine) return;
     const selected = Array.from(engine.get_selection()).map(Number);
     if (selected.length === 0) return;
+
+    const refId = Number(selected[0] || 0);
+    let refNode: any = null;
+    try {
+      const raw = engine.get_node_json(BigInt(refId));
+      if (raw) refNode = JSON.parse(raw);
+    } catch {}
+    const refComponentId = this.getInstanceComponentId(refId);
 
     const ids = Array.from(engine.get_all_node_ids()).map(Number);
     const filtered = ids.filter((id) => {
@@ -344,6 +412,7 @@ export class SmartSelectPanel {
       if (!json) return false;
       try {
         const node = JSON.parse(json);
+        if (!this.matchScope(node, id, refNode, refId, refComponentId)) return false;
         switch (key) {
           case 'text': return node.kind === 'Text';
           case 'image': return node.kind === 'Image';
@@ -360,8 +429,9 @@ export class SmartSelectPanel {
 
     (engine as any).set_selection?.(filtered.map(id => BigInt(id)));
     const label = key[0] ? key[0].toUpperCase() + key.slice(1) : key;
+    const scopeLabel = this.selectionScope[0]?.toUpperCase() + this.selectionScope.slice(1);
     const resultEl = this.el?.querySelector('#ssp-result');
-    if (resultEl) resultEl.textContent = `${filtered.length} ${label} layer${filtered.length !== 1 ? 's' : ''} selected`;
+    if (resultEl) resultEl.textContent = `${filtered.length} ${label} layer${filtered.length !== 1 ? 's' : ''} selected (${scopeLabel} scope)`;
     this.editor.onSelectionChanged?.();
     this.editor.render();
   }
