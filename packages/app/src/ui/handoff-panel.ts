@@ -213,8 +213,11 @@ export function setupHandoffPanel(container: HTMLElement, editor: Editor) {
 
   // ── Spacing Overlay Toggle ──
   function buildSpacingToggle(): HTMLElement {
+    const wrap = document.createElement("div");
+    wrap.style.cssText = "display:flex;flex-direction:column;gap:8px;padding:8px 12px;background:#1a1a1a;border-radius:8px;";
+
     const row = document.createElement("div");
-    row.style.cssText = "display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#1a1a1a;border-radius:8px;";
+    row.style.cssText = "display:flex;align-items:center;justify-content:space-between;";
 
     const label = document.createElement("span");
     label.style.cssText = "font-size:11px;color:#aaa;";
@@ -237,7 +240,48 @@ export function setupHandoffPanel(container: HTMLElement, editor: Editor) {
 
     row.appendChild(label);
     row.appendChild(toggle);
-    return row;
+    wrap.appendChild(row);
+
+    const pinRow = document.createElement("div");
+    pinRow.style.cssText = "display:flex;align-items:center;gap:6px;";
+
+    const pinBtn = document.createElement("button");
+    pinBtn.textContent = "Pin current redline";
+    pinBtn.style.cssText = "flex:1;padding:5px 8px;border:1px solid #444;background:#232323;color:#ddd;border-radius:6px;font-size:10px;cursor:pointer;";
+
+    const clearBtn = document.createElement("button");
+    clearBtn.textContent = "Clear pins";
+    clearBtn.style.cssText = "padding:5px 8px;border:1px solid #444;background:#232323;color:#aaa;border-radius:6px;font-size:10px;cursor:pointer;";
+
+    const countLabel = document.createElement("span");
+    countLabel.style.cssText = "font-size:10px;color:#777;min-width:34px;text-align:right;";
+
+    const updateCount = () => {
+      const count = (editor as any).getPinnedRedlineCountForCurrentPage?.() ?? 0;
+      countLabel.textContent = `${count} pin` + (count === 1 ? "" : "s");
+    };
+    updateCount();
+
+    pinBtn.addEventListener("click", () => {
+      const ok = (editor as any).pinActiveRedline?.();
+      if (!ok) {
+        alert("Pin할 redline이 없어요. Alt+Hover로 redline을 먼저 표시해 주세요.");
+        return;
+      }
+      updateCount();
+    });
+
+    clearBtn.addEventListener("click", () => {
+      (editor as any).clearRedlinePinsForCurrentPage?.();
+      updateCount();
+    });
+
+    pinRow.appendChild(pinBtn);
+    pinRow.appendChild(clearBtn);
+    pinRow.appendChild(countLabel);
+    wrap.appendChild(pinRow);
+
+    return wrap;
   }
 
   function createDownloadBtn(label: string, action: () => void): HTMLButtonElement {

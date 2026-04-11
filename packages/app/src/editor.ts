@@ -110,6 +110,23 @@ interface MultiTransformState {
   nodes: MultiTransformNodeSnapshot[];
 }
 
+type RedlinePinMode = "selectionToTarget" | "selectionSpacing";
+
+interface RedlinePin {
+  id: number;
+  pageId: number;
+  mode: RedlinePinMode;
+  selectionIds: number[];
+  targetId?: number;
+  createdAt: number;
+}
+
+interface ActiveRedlineContext {
+  mode: RedlinePinMode;
+  selectionIds: number[];
+  targetId?: number;
+}
+
 export class Editor {
   engine: Engine;
   canvas: HTMLCanvasElement;
@@ -268,6 +285,9 @@ export class Editor {
   private _measureLines: MeasureLine[] = [];
   private _measureTargetBounds: { x: number; y: number; w: number; h: number } | null = null;
   private _measureDimensionLabels: MeasureDimensionLabel[] = [];
+  private _activeRedlineContext: ActiveRedlineContext | null = null;
+  private _redlinePins: RedlinePin[] = [];
+  private _nextRedlinePinId = 1;
   public measureTool = new MeasureToolState();
   private _altHeld = false;
   private _devMode = false;
@@ -2621,6 +2641,7 @@ export class Editor {
       this._measureLines = [];
       this._measureTargetBounds = null;
       this._measureDimensionLabels = [];
+      this._activeRedlineContext = null;
       this.needsRender = true;
     }
 
@@ -4773,12 +4794,7 @@ export class Editor {
     const panX = this.engine.get_pan_x();
     const panY = this.engine.get_pan_y();
 
-    const getNodeBounds = (id: number): Bounds | null => {
-      const nj = this.engine.get_node_json(BigInt(id));
-      if (!nj) return null;
-      const n = JSON.parse(nj);
-      return { x: Number(n.x || 0), y: Number(n.y || 0), w: Number(n.width || 0), h: Number(n.height || 0) };
-    };
+    const getNodeBounds = (id: number): Bounds | null => this.getNodeBoundsForMeasure(id);
 
     // Show dimensions per-node when multi-select, otherwise show single selection bbox dimensions.
     if (sel.length > 1) {
@@ -4803,6 +4819,7 @@ export class Editor {
       if (targetBounds) {
         this._measureLines = computeMeasureLines(selBBox as Bounds, targetBounds, zoom, panX, panY);
         this._measureTargetBounds = targetBounds;
+        this._activeRedlineContext = { mode: "selectionToTarget", selectionIds: [...sel], targetId: hitId };
         this.needsRender = true;
         return;
       }
@@ -4819,6 +4836,7 @@ export class Editor {
         if (spacingLines.length > 0) {
           this._measureLines = spacingLines;
           this._measureTargetBounds = null;
+          this._activeRedlineContext = { mode: "selectionSpacing", selectionIds: [...sel] };
           this.needsRender = true;
           return;
         }
@@ -4846,6 +4864,7 @@ export class Editor {
         if (bestA && bestB) {
           this._measureLines = computeMeasureLines(bestA, bestB, zoom, panX, panY);
           this._measureTargetBounds = null;
+          this._activeRedlineContext = { mode: "selectionSpacing", selectionIds: [...sel] };
           this.needsRender = true;
           return;
         }
@@ -4855,6 +4874,7 @@ export class Editor {
     // No target — clear lines, keep dimension labels
     this._measureLines = [];
     this._measureTargetBounds = null;
+    this._activeRedlineContext = null;
     this.needsRender = true;
   }
 
@@ -4867,6 +4887,77 @@ export class Editor {
     }
     renderMeasureLines(this.ctx, this._measureLines);
     renderDimensionLabels(this.ctx, this._measureDimensionLabels);
+  }
+
+  private getNodeBoundsForMeasure(id: number): Bounds | null {
+    const nj = this.engine.get_node_json(BigInt(id));
+    if (!nj) return null;
+    const n = JSON.parse(nj);
+    return { x: Number(n.x || 0), y: Number(n.y || 0), w: Number(n.width || 0), h: Number(n.height || 0) };
+  }
+
+  public pinActiveRedline(): boolean {
+    if (!this._activeRedlineContext) return false;
+    const pageId = Number(this.engine.get_active_page_id?.() ?? 0);
+    this._redlinePins.push({
+      id: this._nextRedlinePinId++,
+      pageId,
+      mode: this._activeRedlineContext.mode,
+      selectionIds: [...this._activeRedlineContext.selectionIds],
+      targetId: this._activeRedlineContext.targetId,
+      createdAt: Date.now(),
+    });
+    this.needsRender = true;
+    return true;
+  }
+
+  public clearRedlinePinsForCurrentPage() {
+    const pageId = Number(this.engine.get_active_page_id?.() ?? 0);
+    this._redlinePins = this._redlinePins.filter((p) => p.pageId !== pageId);
+    this.needsRender = true;
+  }
+
+  public getPinnedRedlineCountForCurrentPage(): number {
+    const pageId = Number(this.engine.get_active_page_id?.() ?? 0);
+    return this._redlinePins.filter((p) => p.pageId === pageId).length;
+  }
+
+  private renderPinnedRedlines() {
+    if (this._redlinePins.length === 0) return;
+    const zoom = this.engine.get_zoom();
+    const panX = this.engine.get_pan_x();
+    const panY = this.engine.get_pan_y();
+    const pageId = Number(this.engine.get_active_page_id?.() ?? 0);
+
+    const filtered = this._redlinePins.filter((p) => p.pageId === pageId);
+    for (const pin of filtered) {
+      let lines: MeasureLine[] = [];
+      if (pin.mode === "selectionToTarget" && pin.targetId) {
+        const selectedBounds = pin.selectionIds
+          .map((id) => this.getNodeBoundsForMeasure(id))
+          .filter((b): b is Bounds => !!b);
+        const targetBounds = this.getNodeBoundsForMeasure(pin.targetId);
+        if (selectedBounds.length === 0 || !targetBounds) continue;
+        const union = selectedBounds.reduce((acc, b) => ({
+          x: Math.min(acc.x, b.x),
+          y: Math.min(acc.y, b.y),
+          w: Math.max(acc.x + acc.w, b.x + b.w) - Math.min(acc.x, b.x),
+          h: Math.max(acc.y + acc.h, b.y + b.h) - Math.min(acc.y, b.y),
+        }));
+        lines = computeMeasureLines(union, targetBounds, zoom, panX, panY);
+      } else if (pin.mode === "selectionSpacing") {
+        const selectedBounds = pin.selectionIds
+          .map((id) => this.getNodeBoundsForMeasure(id))
+          .filter((b): b is Bounds => !!b);
+        if (selectedBounds.length < 2) continue;
+        lines = computeSelectionSpacingLines(selectedBounds, zoom, panX, panY);
+      }
+      if (lines.length === 0) continue;
+      this.ctx.save();
+      this.ctx.globalAlpha = 0.9;
+      renderMeasureLines(this.ctx, lines);
+      this.ctx.restore();
+    }
   }
 
   private renderPersistentMeasures() {
@@ -5755,6 +5846,7 @@ export class Editor {
         this.renderBooleanPreviewOverlay();
         this.renderPointSnap();
         this.renderMeasure();
+        this.renderPinnedRedlines();
         this.renderPersistentMeasures();
         this.renderPathEditOverlay();
         this.renderStrokeWidthOverlay();

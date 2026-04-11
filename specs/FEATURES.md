@@ -2624,6 +2624,13 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] 매핑되지 않은 상태는 비활성 시각화(opacity + tooltip)로 설정 누락을 빠르게 식별
 - [x] 구현: `packages/app/src/ui/properties-panel.ts`, `packages/app/src/ui/prototype-viewer.ts`
 
+### Dev Mode Redlines Pinned Annotations (2026-04-11)
+- [x] Handoff 패널의 `Spacing Overlay` 카드에 `Pin current redline` / `Clear pins` 액션 추가
+- [x] Alt+Hover(또는 Spacing Overlay)로 생성된 redline 컨텍스트를 페이지 단위 pin으로 저장
+- [x] pin redline은 노드 id 기반으로 매 프레임 재계산되어 노드 이동/리사이즈 후에도 거리값 자동 갱신
+- [x] pin 카운터 표시로 handoff 캡처 전에 유지 중인 redline 수를 즉시 확인
+- [x] 구현: `packages/app/src/editor.ts`, `packages/app/src/ui/handoff-panel.ts`
+
 ### Variables Bulk Rename & Namespace Tools (2026-04-11)
 - [x] Variables Bulk Edit(Table View) 툴바에 `Prefix Rename`, `Move Namespace` 액션 추가
 - [x] prefix/namespace 기반 일괄 rename 시 충돌 이름 자동 감지 후 `-2`, `-3` suffix로 auto-fix
