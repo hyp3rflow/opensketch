@@ -119,6 +119,126 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
     writeTimeline(next);
   };
 
+  type VariableGraphNode = {
+    key: string;
+    collectionId: number;
+    collectionName: string;
+    variableId: number;
+    variableName: string;
+  };
+
+  type VariableAliasEdge = {
+    from: string;
+    to: string;
+    modeId: number;
+    modeName: string;
+    rawToken: string;
+  };
+
+  type VariableAliasBroken = {
+    from: string;
+    modeId: number;
+    modeName: string;
+    rawToken: string;
+  };
+
+  const parseAliasToken = (input: string): string | null => {
+    const m = String(input || "").trim().match(/^\{\s*([^}]+?)\s*\}$/);
+    return m ? m[1].trim() : null;
+  };
+
+  const buildVariableDependencyGraph = (collections: VarCollection[]) => {
+    const nodes = new Map<string, VariableGraphNode>();
+    const byQualified = new Map<string, string>();
+    const byBareName = new Map<string, string[]>();
+
+    for (const c of collections) {
+      for (const v of c.variables || []) {
+        const key = `${c.id}:${v.id}`;
+        nodes.set(key, {
+          key,
+          collectionId: c.id,
+          collectionName: c.name,
+          variableId: v.id,
+          variableName: v.name,
+        });
+        byQualified.set(`${c.name}/${v.name}`.toLowerCase(), key);
+        byQualified.set(`${c.name}.${v.name}`.toLowerCase(), key);
+        const arr = byBareName.get(v.name.toLowerCase()) || [];
+        arr.push(key);
+        byBareName.set(v.name.toLowerCase(), arr);
+      }
+    }
+
+    const resolveAlias = (token: string, srcCollectionName: string): string | null => {
+      const norm = token.trim().toLowerCase();
+      if (byQualified.has(norm)) return byQualified.get(norm)!;
+      const inSame = byQualified.get(`${srcCollectionName}/${token}`.toLowerCase()) || byQualified.get(`${srcCollectionName}.${token}`.toLowerCase());
+      if (inSame) return inSame;
+      const bare = byBareName.get(norm);
+      if (bare && bare.length === 1) return bare[0];
+      return null;
+    };
+
+    const edges: VariableAliasEdge[] = [];
+    const broken: VariableAliasBroken[] = [];
+
+    for (const c of collections) {
+      const modeById = new Map((c.modes || []).map((m) => [m.id, m.name]));
+      for (const v of c.variables || []) {
+        if (v.value_type !== "String") continue;
+        const src = `${c.id}:${v.id}`;
+        for (const [modeIdStr, raw] of Object.entries(v.values_by_mode || {})) {
+          const token = parseAliasToken(raw?.String || "");
+          if (!token) continue;
+          const modeId = Number(modeIdStr);
+          const target = resolveAlias(token, c.name);
+          if (!target) {
+            broken.push({ from: src, modeId, modeName: modeById.get(modeId) || `Mode ${modeId}`, rawToken: token });
+            continue;
+          }
+          edges.push({ from: src, to: target, modeId, modeName: modeById.get(modeId) || `Mode ${modeId}`, rawToken: token });
+        }
+      }
+    }
+
+    const adjacency = new Map<string, string[]>();
+    for (const e of edges) {
+      const list = adjacency.get(e.from) || [];
+      list.push(e.to);
+      adjacency.set(e.from, list);
+    }
+
+    const cycles: string[][] = [];
+    const visiting = new Set<string>();
+    const visited = new Set<string>();
+    const stack: string[] = [];
+
+    const dfs = (node: string) => {
+      visiting.add(node);
+      stack.push(node);
+      for (const next of adjacency.get(node) || []) {
+        if (!visited.has(next) && !visiting.has(next)) {
+          dfs(next);
+          continue;
+        }
+        if (visiting.has(next)) {
+          const idx = stack.lastIndexOf(next);
+          if (idx >= 0) cycles.push([...stack.slice(idx), next]);
+        }
+      }
+      stack.pop();
+      visiting.delete(node);
+      visited.add(node);
+    };
+
+    for (const key of nodes.keys()) {
+      if (!visited.has(key)) dfs(key);
+    }
+
+    return { nodes, edges, broken, cycles };
+  };
+
   function clearUsageHeatmap() {
     if (usageHeatmapCanvas) {
       usageHeatmapCanvas.remove();
@@ -788,6 +908,83 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
       themeSection.appendChild(chips);
       container.appendChild(themeSection);
     }
+
+    // Variable dependency graph inspector
+    const graph = buildVariableDependencyGraph(collections);
+    const graphSection = document.createElement("div");
+    graphSection.style.cssText = "margin-bottom:12px;background:#16202c;border:1px solid #274159;border-radius:6px;padding:8px;";
+
+    const graphHeader = document.createElement("div");
+    graphHeader.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;";
+    const graphTitle = document.createElement("div");
+    graphTitle.style.cssText = "font-size:10px;color:#7dd3fc;text-transform:uppercase;letter-spacing:0.5px;font-weight:700;";
+    graphTitle.textContent = "Variable Dependency Graph";
+    graphHeader.appendChild(graphTitle);
+
+    const graphMeta = document.createElement("div");
+    graphMeta.style.cssText = "font-size:10px;color:#94a3b8;";
+    graphMeta.textContent = `Nodes ${graph.nodes.size} · Edges ${graph.edges.length} · Broken ${graph.broken.length} · Cycles ${graph.cycles.length}`;
+    graphHeader.appendChild(graphMeta);
+    graphSection.appendChild(graphHeader);
+
+    const issueWrap = document.createElement("div");
+    issueWrap.style.cssText = "display:flex;flex-direction:column;gap:4px;max-height:150px;overflow:auto;";
+
+    const jumpToVariable = (key: string) => {
+      const node = graph.nodes.get(key);
+      if (!node) return;
+      selectedCollectionId = node.collectionId;
+      variableSearchQuery = node.variableName;
+      refresh();
+    };
+
+    for (const broken of graph.broken.slice(0, 20)) {
+      const source = graph.nodes.get(broken.from);
+      if (!source) continue;
+      const row = document.createElement("div");
+      row.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:6px;background:rgba(127,29,29,0.28);border:1px solid rgba(248,113,113,0.38);border-radius:4px;padding:4px 6px;";
+      const text = document.createElement("button");
+      text.style.cssText = "flex:1;text-align:left;background:none;border:none;color:#fecaca;font-size:10px;cursor:pointer;";
+      text.textContent = `${source.collectionName}/${source.variableName} (${broken.modeName}) → {${broken.rawToken}}`;
+      text.title = "Jump to source variable";
+      text.onclick = () => jumpToVariable(broken.from);
+      row.appendChild(text);
+
+      const fixBtn = document.createElement("button");
+      fixBtn.style.cssText = "background:#7f1d1d;border:1px solid #ef4444;border-radius:4px;color:#fecaca;font-size:10px;padding:2px 6px;cursor:pointer;";
+      fixBtn.textContent = "Clear";
+      fixBtn.onclick = () => {
+        editor.engine.push_undo();
+        editor.engine.set_variable_value(BigInt(source.collectionId), BigInt(source.variableId), BigInt(broken.modeId), JSON.stringify({ String: "" }));
+        editor.engine.apply_variables();
+        refresh();
+      };
+      row.appendChild(fixBtn);
+      issueWrap.appendChild(row);
+    }
+
+    for (const cyc of graph.cycles.slice(0, 8)) {
+      const names = cyc.map((key) => {
+        const n = graph.nodes.get(key);
+        return n ? `${n.collectionName}/${n.variableName}` : key;
+      });
+      const row = document.createElement("button");
+      row.style.cssText = "text-align:left;background:rgba(88,28,135,0.22);border:1px solid rgba(216,180,254,0.45);border-radius:4px;color:#e9d5ff;font-size:10px;padding:4px 6px;cursor:pointer;";
+      row.textContent = `Cycle: ${names.join(" → ")}`;
+      row.title = "Jump to first variable in cycle";
+      row.onclick = () => jumpToVariable(cyc[0]);
+      issueWrap.appendChild(row);
+    }
+
+    if (issueWrap.children.length === 0) {
+      const clean = document.createElement("div");
+      clean.style.cssText = "font-size:10px;color:#86efac;background:rgba(22,101,52,0.25);border:1px solid rgba(74,222,128,0.38);border-radius:4px;padding:5px 6px;";
+      clean.textContent = "No broken aliases or cycles found.";
+      issueWrap.appendChild(clean);
+    }
+
+    graphSection.appendChild(issueWrap);
+    container.appendChild(graphSection);
 
     // Variables table
     const varsSection = document.createElement("div");
