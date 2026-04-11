@@ -1797,6 +1797,16 @@
 - Prototype Transition Presets Library — transition/easing/duration 프리셋 저장·적용 및 flow별 기본값 지정 (임팩트 중, 난이도 중)
 - Variables Bulk Rename & Namespace Tools — 변수 prefix 일괄 변경, namespace 이동, 충돌 감지/자동 수정 (임팩트 중상, 난이도 중)
 
+## 완료된 기능 (추가 — Prototype Focus Ring Style Presets, 2026-04-11)
+- Properties panel `Interactive Variants` 내 `Prototype Ring Preset` 관리자 추가
+  - 프리셋 선택 + Apply(활성 preset 지정)
+  - Save As(현재 preset 복제 저장)
+  - hover/press/focus별 color/width/radius 인라인 편집
+- Prototype viewer가 active preset을 로드해 interactive instance의 hover/press/focus ring을 상태별 스타일로 렌더링
+- Tab focus cycling 및 클릭 focus 시 focus ring preset 적용, viewer 종료 시 상태 정리
+- 구현: `packages/app/src/ui/properties-panel.ts`, `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
+
 ## 완료된 기능 (추가 — Multi-Object Transform Box (Figma-style), 2026-04-11)
 - 멀티 선택 시 공통 transform box(점선 bbox + 4개 corner handle) 오버레이 렌더링
 - Corner drag로 selection 전체 scale/flip(축 반전 포함) 지원

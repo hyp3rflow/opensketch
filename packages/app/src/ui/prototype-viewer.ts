@@ -3,6 +3,50 @@ import { applyEasing } from "./easing-editor";
 import { computeScrollAnimOverrides } from "./scroll-animation";
 import { applyThemeMode, detectActiveThemeMode, listThemeModeOptions } from "./variable-theme-modes";
 
+type PrototypeRingStyle = { color: string; width: number; radius: number };
+type PrototypeRingPreset = {
+  id: string;
+  name: string;
+  hover: PrototypeRingStyle;
+  press: PrototypeRingStyle;
+  focus: PrototypeRingStyle;
+};
+
+const PROTOTYPE_RING_PRESET_KEY = "opensketch-prototype-ring-presets-v1";
+const PROTOTYPE_RING_ACTIVE_PRESET_KEY = "opensketch-prototype-ring-active-preset-id";
+const DEFAULT_RING_PRESET: PrototypeRingPreset = {
+  id: "default",
+  name: "Default",
+  hover: { color: "#f59e0b", width: 3, radius: 8 },
+  press: { color: "#fb7185", width: 4, radius: 10 },
+  focus: { color: "#facc15", width: 4, radius: 10 },
+};
+
+function loadActivePrototypeRingPreset(): PrototypeRingPreset {
+  try {
+    const listRaw = localStorage.getItem(PROTOTYPE_RING_PRESET_KEY);
+    const activeId = localStorage.getItem(PROTOTYPE_RING_ACTIVE_PRESET_KEY);
+    if (!listRaw) return DEFAULT_RING_PRESET;
+    const list = JSON.parse(listRaw);
+    if (!Array.isArray(list) || list.length === 0) return DEFAULT_RING_PRESET;
+    const picked = list.find((p: any) => String(p?.id) === String(activeId || "")) || list[0];
+    const sanitize = (v: any, fb: PrototypeRingStyle): PrototypeRingStyle => ({
+      color: typeof v?.color === "string" && v.color ? v.color : fb.color,
+      width: Number.isFinite(Number(v?.width)) ? Math.max(1, Number(v.width)) : fb.width,
+      radius: Number.isFinite(Number(v?.radius)) ? Math.max(0, Number(v.radius)) : fb.radius,
+    });
+    return {
+      id: String(picked?.id || DEFAULT_RING_PRESET.id),
+      name: String(picked?.name || DEFAULT_RING_PRESET.name),
+      hover: sanitize(picked?.hover, DEFAULT_RING_PRESET.hover),
+      press: sanitize(picked?.press, DEFAULT_RING_PRESET.press),
+      focus: sanitize(picked?.focus, DEFAULT_RING_PRESET.focus),
+    };
+  } catch {
+    return DEFAULT_RING_PRESET;
+  }
+}
+
 /**
  * Prototype presentation mode viewer.
  * Full-screen overlay that renders frames with clickable interaction hotspots.
@@ -27,6 +71,7 @@ export function createPrototypeViewer(editor: Editor): {
   let showVarsOverlay = true;
   let snapPaginationEl: HTMLDivElement | null = null;
   let snapPaginationState: { frameId: number; axis: "x" | "y"; points: number[]; activeIndex: number } | null = null;
+  const interactiveVisualState = new Map<number, "hover" | "press" | "focus">();
 
   type RecordedProtoEvent = {
     t: number;
@@ -1042,6 +1087,8 @@ export function createPrototypeViewer(editor: Editor): {
     navigationStack = [];
     focusedHotspotNodeId = null;
     focusedHotspotInter = null;
+    focusedInteractiveInstanceId = null;
+    interactiveVisualState.clear();
   }
 
   function onKeyDown(e: KeyboardEvent) {
@@ -2013,6 +2060,34 @@ export function createPrototypeViewer(editor: Editor): {
                          "rgba(59, 130, 246, 0.5)";
       const isHotNode = hoveredHotspotNodeId !== null && Number(nwi.id) === hoveredHotspotNodeId;
       const isFocused = focusedHotspotNodeId !== null && Number(nwi.id) === focusedHotspotNodeId;
+      const visualState = interactiveVisualState.get(Number(nwi.id)) || null;
+      const ringPreset = loadActivePrototypeRingPreset();
+      if (visualState) {
+        const ring = ringPreset[visualState];
+        ctx.save();
+        ctx.setLineDash([]);
+        ctx.strokeStyle = ring.color;
+        ctx.lineWidth = ring.width;
+        const rr = Math.max(0, Math.min(Math.min(w, h) * 0.5, ring.radius * totalScale));
+        const rx = x - ring.width * 0.5;
+        const ry = y - ring.width * 0.5;
+        const rw = w + ring.width;
+        const rh = h + ring.width;
+        ctx.beginPath();
+        if ((ctx as any).roundRect) {
+          (ctx as any).roundRect(rx, ry, rw, rh, rr);
+        } else {
+          const r = Math.min(rr, rw * 0.5, rh * 0.5);
+          ctx.moveTo(rx + r, ry);
+          ctx.arcTo(rx + rw, ry, rx + rw, ry + rh, r);
+          ctx.arcTo(rx + rw, ry + rh, rx, ry + rh, r);
+          ctx.arcTo(rx, ry + rh, rx, ry, r);
+          ctx.arcTo(rx, ry, rx + rw, ry, r);
+          ctx.closePath();
+        }
+        ctx.stroke();
+        ctx.restore();
+      }
       ctx.lineWidth = isFocused ? 4 : (isHotNode ? 3 : 2);
       ctx.setLineDash(isFocused ? [8, 3] : [4, 4]);
       if (isFocused) {
@@ -2155,14 +2230,19 @@ export function createPrototypeViewer(editor: Editor): {
         }
       } catch {}
     }
+    if (state === "hover" || state === "press" || state === "focus") {
+      interactiveVisualState.set(instanceId, state);
+    }
     try {
       const changed = editor.engine.apply_interactive_state(BigInt(instanceId), state);
       if (changed) renderCurrentView();
+      else editor.requestRender();
     } catch {}
   }
 
   /** Revert interactive state to original/default */
   function revertInteractiveState(instanceId: number) {
+    interactiveVisualState.delete(instanceId);
     const orig = interactiveOriginals.get(instanceId);
     if (orig) {
       try {
@@ -2260,6 +2340,7 @@ export function createPrototypeViewer(editor: Editor): {
   let hoveredHotspotSig = "";
   let focusedHotspotNodeId: number | null = null;
   let focusedHotspotInter: any | null = null;
+  let focusedInteractiveInstanceId: number | null = null;
   let mousePressNodeId: number | null = null;
   let mousePressX = 0;
   let mousePressY = 0;
@@ -2297,6 +2378,17 @@ export function createPrototypeViewer(editor: Editor): {
     return out;
   }
 
+  function setFocusedInteractiveInstance(nodeId: number | null) {
+    const next = nodeId !== null ? findInteractiveInstance(nodeId) : null;
+    if (focusedInteractiveInstanceId !== null && focusedInteractiveInstanceId !== next) {
+      revertInteractiveState(focusedInteractiveInstanceId);
+    }
+    focusedInteractiveInstanceId = next;
+    if (focusedInteractiveInstanceId !== null) {
+      applyInteractiveState(focusedInteractiveInstanceId, "focus");
+    }
+  }
+
   function cycleFocusedHotspot(reverse: boolean) {
     const items = listFocusableHotspots();
     if (items.length === 0) return;
@@ -2309,6 +2401,7 @@ export function createPrototypeViewer(editor: Editor): {
     hoveredHotspotNodeId = next.nodeId;
     hoveredHotspotLabel = next.interaction?.accessibility_label || next.node?.name || "";
     hoveredHotspotSig = interactionSignature(next.interaction);
+    setFocusedInteractiveInstance(next.nodeId);
     renderCurrentView();
   }
 
@@ -2427,8 +2520,10 @@ export function createPrototypeViewer(editor: Editor): {
     if (match) {
       focusedHotspotNodeId = Number(match.node?.id || 0) || null;
       focusedHotspotInter = match.interaction || null;
+      setFocusedInteractiveInstance(focusedHotspotNodeId);
       executeInteraction(match.interaction, Number(match.node?.node_id || 0));
     } else {
+      setFocusedInteractiveInstance(null);
       // Check for hyperlink on the clicked node
       const nodeId = findNodeAtPoint(e.clientX, e.clientY);
       if (nodeId !== null) {

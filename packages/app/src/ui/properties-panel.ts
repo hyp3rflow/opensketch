@@ -36,7 +36,42 @@ type ConstraintSetPreset = {
   childConstraints: Array<{ index: number; horizontal: string; vertical: string }>;
 };
 
+type PrototypeRingStyle = { color: string; width: number; radius: number };
+type PrototypeRingPreset = {
+  id: string;
+  name: string;
+  hover: PrototypeRingStyle;
+  press: PrototypeRingStyle;
+  focus: PrototypeRingStyle;
+};
+
 const CONSTRAINT_SET_PRESET_KEY = "opensketch-constraint-set-presets";
+const PROTOTYPE_RING_PRESET_KEY = "opensketch-prototype-ring-presets-v1";
+const PROTOTYPE_RING_ACTIVE_PRESET_KEY = "opensketch-prototype-ring-active-preset-id";
+
+const DEFAULT_PROTOTYPE_RING_PRESETS: PrototypeRingPreset[] = [
+  {
+    id: "default",
+    name: "Default",
+    hover: { color: "#f59e0b", width: 3, radius: 8 },
+    press: { color: "#fb7185", width: 4, radius: 10 },
+    focus: { color: "#facc15", width: 4, radius: 10 },
+  },
+  {
+    id: "a11y-high-contrast",
+    name: "A11y High Contrast",
+    hover: { color: "#22d3ee", width: 4, radius: 10 },
+    press: { color: "#f43f5e", width: 5, radius: 12 },
+    focus: { color: "#ffffff", width: 5, radius: 12 },
+  },
+  {
+    id: "subtle",
+    name: "Subtle",
+    hover: { color: "#60a5fa", width: 2, radius: 6 },
+    press: { color: "#a78bfa", width: 3, radius: 7 },
+    focus: { color: "#fde047", width: 3, radius: 7 },
+  },
+];
 
 function loadConstraintSetPresets(): ConstraintSetPreset[] {
   try {
@@ -52,6 +87,36 @@ function loadConstraintSetPresets(): ConstraintSetPreset[] {
 
 function saveConstraintSetPresets(presets: ConstraintSetPreset[]): void {
   localStorage.setItem(CONSTRAINT_SET_PRESET_KEY, JSON.stringify(presets));
+}
+
+function loadPrototypeRingPresets(): PrototypeRingPreset[] {
+  try {
+    const raw = localStorage.getItem(PROTOTYPE_RING_PRESET_KEY);
+    if (!raw) return DEFAULT_PROTOTYPE_RING_PRESETS.map((x) => ({ ...x }));
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed) || parsed.length === 0) return DEFAULT_PROTOTYPE_RING_PRESETS.map((x) => ({ ...x }));
+    const sanitize = (v: any, fallback: PrototypeRingStyle): PrototypeRingStyle => ({
+      color: typeof v?.color === "string" && v.color ? v.color : fallback.color,
+      width: Number.isFinite(Number(v?.width)) ? Math.max(1, Number(v.width)) : fallback.width,
+      radius: Number.isFinite(Number(v?.radius)) ? Math.max(0, Number(v.radius)) : fallback.radius,
+    });
+    return parsed.map((p: any, i: number) => {
+      const fb = DEFAULT_PROTOTYPE_RING_PRESETS[i] || DEFAULT_PROTOTYPE_RING_PRESETS[0];
+      return {
+        id: String(p?.id || `preset-${i + 1}`),
+        name: String(p?.name || `Preset ${i + 1}`),
+        hover: sanitize(p?.hover, fb.hover),
+        press: sanitize(p?.press, fb.press),
+        focus: sanitize(p?.focus, fb.focus),
+      };
+    });
+  } catch {
+    return DEFAULT_PROTOTYPE_RING_PRESETS.map((x) => ({ ...x }));
+  }
+}
+
+function savePrototypeRingPresets(presets: PrototypeRingPreset[]): void {
+  localStorage.setItem(PROTOTYPE_RING_PRESET_KEY, JSON.stringify(presets));
 }
 
 // Stage 4: Google Fonts list
@@ -1960,6 +2025,141 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         controlRow.appendChild(syncBtn);
         ivTitleRow.appendChild(controlRow);
         ivSection.appendChild(ivTitleRow);
+
+        const ringSection = document.createElement("div");
+        ringSection.style.cssText = "background:rgba(15,23,42,0.5);border:1px solid rgba(236,72,153,0.18);border-radius:6px;padding:6px;margin-bottom:8px;";
+        const ringTitle = document.createElement("div");
+        ringTitle.textContent = "Prototype Ring Preset";
+        ringTitle.style.cssText = "font-size:10px;color:#fbcfe8;font-weight:600;margin-bottom:6px;";
+        ringSection.appendChild(ringTitle);
+
+        const ringPresets = loadPrototypeRingPresets();
+        let activeRingPresetId = localStorage.getItem(PROTOTYPE_RING_ACTIVE_PRESET_KEY) || ringPresets[0]?.id || "default";
+        let editingRingPreset = ringPresets.find((p) => p.id === activeRingPresetId) || ringPresets[0] || DEFAULT_PROTOTYPE_RING_PRESETS[0];
+
+        const ringPresetRow = document.createElement("div");
+        ringPresetRow.style.cssText = "display:flex;gap:6px;align-items:center;margin-bottom:6px;";
+        const ringPresetSelect = document.createElement("select");
+        ringPresetSelect.style.cssText = "flex:1;background:#1e1e2e;color:#e5e7eb;border:1px solid rgba(236,72,153,0.3);border-radius:4px;padding:2px 4px;font-size:10px;";
+        for (const preset of ringPresets) {
+          const opt = document.createElement("option");
+          opt.value = preset.id;
+          opt.textContent = preset.name;
+          ringPresetSelect.appendChild(opt);
+        }
+        ringPresetSelect.value = editingRingPreset.id;
+        ringPresetRow.appendChild(ringPresetSelect);
+
+        const applyRingBtn = document.createElement("button");
+        applyRingBtn.className = "prop-btn";
+        applyRingBtn.textContent = "Apply";
+        applyRingBtn.style.cssText = "font-size:10px;padding:2px 6px;";
+        applyRingBtn.onclick = () => {
+          localStorage.setItem(PROTOTYPE_RING_ACTIVE_PRESET_KEY, ringPresetSelect.value);
+          editor.requestRender();
+        };
+        ringPresetRow.appendChild(applyRingBtn);
+
+        const saveAsRingBtn = document.createElement("button");
+        saveAsRingBtn.className = "prop-btn";
+        saveAsRingBtn.textContent = "Save As";
+        saveAsRingBtn.style.cssText = "font-size:10px;padding:2px 6px;";
+        saveAsRingBtn.onclick = () => {
+          const name = prompt("Preset name", `${editingRingPreset.name} Copy`);
+          if (!name) return;
+          const list = loadPrototypeRingPresets();
+          const next: PrototypeRingPreset = {
+            id: `ring-${Date.now()}`,
+            name: name.trim(),
+            hover: { ...editingRingPreset.hover },
+            press: { ...editingRingPreset.press },
+            focus: { ...editingRingPreset.focus },
+          };
+          list.unshift(next);
+          savePrototypeRingPresets(list.slice(0, 30));
+          localStorage.setItem(PROTOTYPE_RING_ACTIVE_PRESET_KEY, next.id);
+          updatePanel();
+        };
+        ringPresetRow.appendChild(saveAsRingBtn);
+        ringSection.appendChild(ringPresetRow);
+
+        const ringGrid = document.createElement("div");
+        ringGrid.style.cssText = "display:grid;grid-template-columns:56px 1fr 52px 52px;gap:4px;align-items:center;font-size:10px;color:#cbd5e1;";
+        const makeRingRow = (state: "hover" | "press" | "focus") => {
+          const label = document.createElement("div");
+          label.textContent = state;
+          label.style.textTransform = "capitalize";
+          const color = document.createElement("input");
+          color.type = "color";
+          color.value = editingRingPreset[state].color;
+          color.style.cssText = "width:100%;height:22px;background:#111827;border:1px solid #374151;border-radius:4px;";
+          const width = document.createElement("input");
+          width.type = "number";
+          width.min = "1";
+          width.max = "12";
+          width.step = "1";
+          width.value = String(editingRingPreset[state].width);
+          width.className = "prop-input";
+          width.style.fontSize = "10px";
+          const radius = document.createElement("input");
+          radius.type = "number";
+          radius.min = "0";
+          radius.max = "48";
+          radius.step = "1";
+          radius.value = String(editingRingPreset[state].radius);
+          radius.className = "prop-input";
+          radius.style.fontSize = "10px";
+          const sync = () => {
+            const list = loadPrototypeRingPresets();
+            const idx = list.findIndex((p) => p.id === editingRingPreset.id);
+            if (idx < 0) return;
+            list[idx][state] = {
+              color: color.value,
+              width: Math.max(1, Number(width.value) || 1),
+              radius: Math.max(0, Number(radius.value) || 0),
+            };
+            editingRingPreset = list[idx];
+            savePrototypeRingPresets(list);
+            editor.requestRender();
+          };
+          color.onchange = sync;
+          width.onchange = sync;
+          radius.onchange = sync;
+          ringGrid.appendChild(label);
+          ringGrid.appendChild(color);
+          ringGrid.appendChild(width);
+          ringGrid.appendChild(radius);
+        };
+
+        const headerSpacer = document.createElement("div");
+        headerSpacer.textContent = "state";
+        headerSpacer.style.color = "#94a3b8";
+        const headerColor = document.createElement("div");
+        headerColor.textContent = "color";
+        headerColor.style.color = "#94a3b8";
+        const headerWidth = document.createElement("div");
+        headerWidth.textContent = "w";
+        headerWidth.style.color = "#94a3b8";
+        const headerRadius = document.createElement("div");
+        headerRadius.textContent = "r";
+        headerRadius.style.color = "#94a3b8";
+        ringGrid.appendChild(headerSpacer);
+        ringGrid.appendChild(headerColor);
+        ringGrid.appendChild(headerWidth);
+        ringGrid.appendChild(headerRadius);
+        makeRingRow("hover");
+        makeRingRow("press");
+        makeRingRow("focus");
+
+        ringSection.appendChild(ringGrid);
+        ivSection.appendChild(ringSection);
+
+        ringPresetSelect.onchange = () => {
+          const found = loadPrototypeRingPresets().find((p) => p.id === ringPresetSelect.value);
+          if (!found) return;
+          editingRingPreset = found;
+          updatePanel();
+        };
 
         // Collect available variant key strings from component info
         const variantKeyStrs: string[] = compInfo.variant_keys || [];
