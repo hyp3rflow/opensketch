@@ -1147,6 +1147,7 @@ Frame overflow control and content scrolling.
 - [x] **Asset export**: PNG @1x, PNG @2x, SVG — per-node one-click download
 - [x] **Spacing overlay toggle**: enables Alt+Hover measurement mode from within handoff panel
 - [x] **Dev Handoff Redline Spec Mode (2026-04-10)**: 다중 선택(2+) 시 Handoff 탭이 anchor 기준 redline 시트로 전환되어 target별 offset(x/y), edge gap(h/v), 4px-grid spacing token 제안을 고정 표로 표시한다. `Copy Redline Sheet`로 텍스트 스펙을 바로 전달할 수 있다.
+- [x] **Design QA Diff Pins (2026-04-13)**: Handoff Redline Spec Mode에서 2개 노드를 선택하면 `Generate diff pins + comments` 액션으로 변화 영역 핀을 자동 생성한다. 색상(fill), 간격/크기(bounds), 타이포(Text font family/size/weight/line-height) 변화를 타입별로 감지하고, 비교 대상 노드에 코멘트를 남겨 리뷰 스레드와 즉시 연동한다.
 - [x] **Handoff checklist**: Auto-generated dev handoff readiness report — naming, styles, components, assets, text, layout, export checks with severity levels, progress bar, click-to-select offending nodes
 - [x] Design tokens export: W3C DTCG, Style Dictionary, Tailwind Config
 - [x] Syntax highlighting for all languages (VS Code-style colors)

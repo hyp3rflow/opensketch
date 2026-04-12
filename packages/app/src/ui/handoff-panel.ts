@@ -540,6 +540,120 @@ function renderRedlineSpecMode(container: HTMLElement, editor: Editor, ids: numb
   };
   wrap.appendChild(copy);
 
+  if (nodes.length === 2) {
+    const qaWrap = document.createElement("div");
+    qaWrap.style.cssText = "margin-top:2px;padding:8px;border:1px solid #334155;background:#111827;border-radius:8px;display:flex;flex-direction:column;gap:6px;";
+    const qaTitle = document.createElement("div");
+    qaTitle.style.cssText = "font-size:11px;color:#93c5fd;font-weight:600;";
+    qaTitle.textContent = "Design QA Diff Pins";
+    qaWrap.appendChild(qaTitle);
+
+    const qaHint = document.createElement("div");
+    qaHint.style.cssText = "font-size:10px;color:#94a3b8;line-height:1.4;";
+    qaHint.textContent = "두 요소(기준 → 비교)를 비교해 color / spacing / typography 변화 핀을 코멘트로 자동 생성합니다.";
+    qaWrap.appendChild(qaHint);
+
+    const qaBtn = document.createElement("button");
+    qaBtn.textContent = "Generate diff pins + comments";
+    qaBtn.style.cssText = "height:30px;border-radius:7px;border:1px solid #1d4ed8;background:#1e3a8a;color:#dbeafe;font-size:11px;cursor:pointer;";
+
+    const qaResult = document.createElement("div");
+    qaResult.style.cssText = "font-size:10px;color:#94a3b8;";
+    qaResult.textContent = "";
+
+    qaBtn.onclick = () => {
+      const base = nodes[0]!;
+      const target = nodes[1]!;
+      const issues: Array<{ kind: "color" | "spacing" | "typography"; note: string }> = [];
+
+      const approxEq = (a: number, b: number, eps = 0.5) => Math.abs(a - b) <= eps;
+      const readNode = (nodeId: number): any | null => {
+        try {
+          const raw = editor.engine.get_node_json(BigInt(nodeId));
+          return raw ? JSON.parse(raw) : null;
+        } catch {
+          return null;
+        }
+      };
+      const readFillHex = (nodeId: number): string => {
+        try {
+          const info = JSON.parse(editor.engine.get_fill_info(BigInt(nodeId)) || "{}");
+          const fill = info?.fill || info?.fills?.[0] || null;
+          return colorToHex(fill?.color || fill);
+        } catch {
+          return "";
+        }
+      };
+
+      const baseNode = readNode(base.id);
+      const targetNode = readNode(target.id);
+      if (!baseNode || !targetNode) {
+        qaResult.textContent = "비교 노드를 읽을 수 없습니다.";
+        return;
+      }
+
+      const baseFill = readFillHex(base.id);
+      const targetFill = readFillHex(target.id);
+      if (baseFill && targetFill && baseFill !== targetFill) {
+        issues.push({ kind: "color", note: `Fill changed ${baseFill} → ${targetFill}` });
+      }
+
+      const baseGapX = Math.round(baseNode.x + baseNode.width);
+      const targetGapX = Math.round(targetNode.x + targetNode.width);
+      const deltaX = Math.abs(baseGapX - targetGapX);
+      const deltaY = Math.abs((baseNode.y + baseNode.height) - (targetNode.y + targetNode.height));
+      if (deltaX >= 4 || deltaY >= 4 || !approxEq(baseNode.width, targetNode.width) || !approxEq(baseNode.height, targetNode.height)) {
+        issues.push({ kind: "spacing", note: `Bounds changed (${Math.round(baseNode.width)}×${Math.round(baseNode.height)}) → (${Math.round(targetNode.width)}×${Math.round(targetNode.height)}), Δedge(${deltaX}, ${deltaY})` });
+      }
+
+      const readTextMeta = (n: any) => {
+        const text = n?.kind?.Text;
+        if (!text) return null;
+        return {
+          fontFamily: String(text?.font_family || ""),
+          fontSize: Number(text?.font_size || 0),
+          fontWeight: Number(text?.font_weight || 400),
+          lineHeight: Number(text?.line_height || 0),
+        };
+      };
+      const tb = readTextMeta(baseNode);
+      const tt = readTextMeta(targetNode);
+      if (tb && tt) {
+        const typoChanged = tb.fontFamily !== tt.fontFamily || !approxEq(tb.fontSize, tt.fontSize, 0.1) || tb.fontWeight !== tt.fontWeight || !approxEq(tb.lineHeight, tt.lineHeight, 0.1);
+        if (typoChanged) {
+          issues.push({ kind: "typography", note: `Typography changed (${tb.fontFamily} ${tb.fontWeight}/${tb.fontSize}px) → (${tt.fontFamily} ${tt.fontWeight}/${tt.fontSize}px)` });
+        }
+      }
+
+      if (!issues.length) {
+        qaResult.textContent = "감지된 변화가 없습니다.";
+        return;
+      }
+
+      const kindColor: Record<string, string> = {
+        color: "🎨",
+        spacing: "📐",
+        typography: "🔤",
+      };
+      let created = 0;
+      for (const issue of issues) {
+        try {
+          const x = Number(targetNode.x || 0) + Number(targetNode.width || 0) / 2;
+          const y = Number(targetNode.y || 0) + Number(targetNode.height || 0) / 2;
+          const text = `[Design QA Diff] ${kindColor[issue.kind]} ${issue.kind.toUpperCase()}\n${issue.note}\nBase: ${base.name} (#${base.id}) → Compare: ${target.name} (#${target.id})`;
+          (editor.engine as any).add_comment_on_node?.(x, y, "Design QA Bot", text, target.id);
+          created += 1;
+        } catch {}
+      }
+      qaResult.textContent = `핀/코멘트 ${created}개 생성 완료 (${issues.length}개 이슈)`;
+      editor.requestRender();
+    };
+
+    qaWrap.appendChild(qaBtn);
+    qaWrap.appendChild(qaResult);
+    wrap.appendChild(qaWrap);
+  }
+
   container.innerHTML = "";
   container.appendChild(wrap);
 }

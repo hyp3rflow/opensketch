@@ -1790,10 +1790,19 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Design QA Diff Pins — 두 프레임/버전 비교 후 변화 영역에 핀 자동 생성(색상/간격/타이포 변경 타입별) 및 코멘트 연동 (임팩트 중상, 난이도 중)
 - Variable Alias Dependency Graph — 변수 alias 체인을 그래프로 시각화하고 순환 참조/깊은 체인 경고 + jump-to-node (임팩트 중상, 난이도 중)
 - Smart Animate Performance Budget Panel — 프레임 전환별 layer count/blur/shadow/filter 비용 추정과 저사양 preset 자동 제안 (임팩트 상, 난이도 중상)
 - Auto Layout Wrap Stress Tester — 다양한 컨테이너 폭 시뮬레이션으로 wrap 깨짐 구간 탐지 + 권장 min/max 값 제안 (임팩트 중, 난이도 중)
+
+## 완료된 기능 (추가 — Design QA Diff Pins, 2026-04-13)
+- Handoff `Redline Spec Mode`(2개 선택)에서 `Generate diff pins + comments` 액션 추가
+- 비교 대상 노드 간 변경 탐지:
+  - 색상(fill)
+  - 간격/크기(bounds edge delta + size)
+  - 타이포(Text font family/size/weight/line-height)
+- 감지된 변경을 타입별(color/spacing/typography) 코멘트로 자동 생성해 핀과 리뷰 스레드 연결
+- 구현: `packages/app/src/ui/handoff-panel.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Prototype Conditional Branch Rules, 2026-04-13)
 - Prototype viewer interaction hit-test 분기 로직 추가: 동일 hotspot/trigger에 연결된 interaction들을 branch로 평가
