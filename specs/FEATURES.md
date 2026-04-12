@@ -390,7 +390,8 @@
   - Prototype viewer hit-test가 interaction별 hotspot shape(rect/polygon/freeform)를 우선 사용하고, hover hint도 실제 shape path를 그대로 하이라이트
   - Prototype viewer hover 시 활성 hotspot 강조선 + accessibility label 툴팁 표시
   - Prototype Focus Order & Keyboard Navigation v1: Tab/Shift+Tab으로 focusable hotspot(OnClick/OnPress) 순환, Enter/Space로 interaction 실행, focus ring(노란 dashed) 표시, 기본 정렬은 top→bottom / left→right
-  - Prototype Keyboard Navigation Order Editor (2026-04-12): Prototype viewer 좌측 패널에 현재 frame의 keyboard hotspot 순서 목록을 표시하고, ↑/↓ 재정렬로 custom Tab order를 frame별 저장(localStorage) 가능. `Reset auto`로 기본(top→bottom/left→right) 순서 복귀
+  - Prototype Keyboard Navigation Order Editor v2 (2026-04-12): Prototype viewer 좌측 패널에서 keyboard hotspot을 interaction 단위(동일 노드 다중 hotspot 분리)로 시각화/재정렬(↑/↓)하고, frame별 custom Tab order를 저장(localStorage)한다. 캔버스 hotspot 힌트에 Tab index 배지를 오버레이해 순서를 즉시 검증할 수 있으며, `Reset auto`로 기본(top→bottom/left→right) 순서로 복귀한다.
+  - Prototype Flow Coverage Recorder (2026-04-12): Prototype viewer 좌측 `Flow Coverage` 패널에서 세션 중 방문 frame 수/방문 hotspot 수를 수집하고 frame별 visits + hotspot coverage bar(heatmap)를 리포트한다. row 클릭으로 해당 frame 점프, `Reset`으로 세션 coverage 초기화.
   - Prototype Focus Ring Style Presets: Properties panel Interactive Variants에 ring preset 관리자 추가(hover/press/focus별 color/width/radius), Save As/Apply 지원, Prototype viewer가 active preset을 읽어 상태별 ring 스타일(hover/press/focus)로 렌더링
   - Prototype Start Point Manager (viewer quick switch): Prototype viewer 좌측 패널에 Flow/Start Frame selector + `Use current`/`Save`/`Run selected flow` 액션을 추가해 flow별 entry frame을 즉시 전환/저장하고 실행 타깃을 빠르게 점프
   - Prototype Flow Entry Branch Presets: Start Point Manager에 flow별 entry preset 저장(`Save preset`) + one-click preset 칩 점프/적용 추가 (최근 6개 유지)

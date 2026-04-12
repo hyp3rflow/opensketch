@@ -1790,11 +1790,19 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Prototype Flow Coverage Recorder — 플레이 세션 동안 방문 frame/미방문 hotspot 수집 후 heatmap 리포트 (임팩트 중상, 난이도 중)
 - A11y Motion Guardrails — reduced-motion 프리뷰 토글 + 과도한 duration/easing 조합 lint (임팩트 중, 난이도 중)
 - Sticky Scroll Sections for Prototype — Frame 내 섹션을 스크롤 중 상단 고정(sticky)으로 설정하고 뷰어에서 실제 고정 동작 미리보기 (임팩트 상, 난이도 중상)
 - Component Instance Swap Suggestions — instance swap 시 크기/variant/property 유사도 기반 추천 리스트 + one-click 교체 (임팩트 중상, 난이도 중)
 - Dev Handoff State Capture Presets — hover/pressed/focus 등 인터랙션 상태 조합을 preset으로 저장 후 redline/export에 일괄 적용 (임팩트 중상, 난이도 중)
+
+## 완료된 기능 (추가 — Prototype Flow Coverage Recorder, 2026-04-12)
+- Prototype Viewer 좌측에 `Flow Coverage` 패널 추가
+- 세션 동안 frame 방문 횟수와 hotspot 실행 이력을 frame 단위로 수집
+- 패널 상단에서 총 방문 frame 수 + hotspot coverage(visited/total) 요약 제공
+- frame row별 visits + coverage bar(heatmap) 시각화, 클릭 시 해당 frame으로 점프
+- `Reset` 버튼으로 세션 coverage 이력 초기화
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Interactive Components Trigger Conflict Linter, 2026-04-12)
 - Interactive Variants `State Preview` 메타 영역에 `Trigger Conflict Linter` 카드 추가

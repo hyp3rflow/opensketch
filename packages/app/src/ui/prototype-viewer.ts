@@ -43,15 +43,45 @@ function saveFlowEntryPresets(presets: Record<string, Array<{ frameId: number; l
 }
 
 
-function loadKeyboardOrderMap(): Record<string, number[]> {
+type KeyboardOrderMap = Record<string, string[]>;
+
+function hotspotOrderKey(nodeId: number, sig: string): string {
+  return `${nodeId}::${sig}`;
+}
+
+function parseHotspotOrderKey(key: string): { nodeId: number; sig: string } | null {
+  const raw = String(key || "").trim();
+  if (!raw) return null;
+  const delim = raw.indexOf("::");
+  if (delim > 0) {
+    const nodeId = Number(raw.slice(0, delim));
+    const sig = raw.slice(delim + 2);
+    if (Number.isFinite(nodeId) && nodeId > 0 && sig) return { nodeId, sig };
+    return null;
+  }
+  const legacyNodeId = Number(raw);
+  if (Number.isFinite(legacyNodeId) && legacyNodeId > 0) {
+    return { nodeId: legacyNodeId, sig: "*" };
+  }
+  return null;
+}
+
+function loadKeyboardOrderMap(): KeyboardOrderMap {
   try {
     const raw = localStorage.getItem(PROTOTYPE_KEYBOARD_ORDER_KEY);
     const parsed = raw ? JSON.parse(raw) : {};
     if (!parsed || typeof parsed !== "object") return {};
-    const out: Record<string, number[]> = {};
+    const out: KeyboardOrderMap = {};
     for (const [k, v] of Object.entries(parsed)) {
       if (!Array.isArray(v)) continue;
-      out[k] = v.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0);
+      const list: string[] = [];
+      for (const entry of v) {
+        const parsedEntry = parseHotspotOrderKey(String(entry));
+        if (!parsedEntry) continue;
+        const normalized = parsedEntry.sig === "*" ? String(parsedEntry.nodeId) : hotspotOrderKey(parsedEntry.nodeId, parsedEntry.sig);
+        if (!list.includes(normalized)) list.push(normalized);
+      }
+      out[k] = list;
     }
     return out;
   } catch {
@@ -59,7 +89,7 @@ function loadKeyboardOrderMap(): Record<string, number[]> {
   }
 }
 
-function saveKeyboardOrderMap(map: Record<string, number[]>) {
+function saveKeyboardOrderMap(map: KeyboardOrderMap) {
   try {
     localStorage.setItem(PROTOTYPE_KEYBOARD_ORDER_KEY, JSON.stringify(map));
   } catch {}
@@ -129,6 +159,9 @@ export function createPrototypeViewer(editor: Editor): {
   let keyboardOrderWrap: HTMLDivElement | null = null;
   let keyboardOrderInfo: HTMLDivElement | null = null;
   let keyboardOrderList: HTMLDivElement | null = null;
+  let coverageWrap: HTMLDivElement | null = null;
+  let coverageInfo: HTMLDivElement | null = null;
+  let coverageList: HTMLDivElement | null = null;
   let flowLintInfo: HTMLDivElement | null = null;
   let flowLintFilterWrap: HTMLDivElement | null = null;
   let flowLintList: HTMLDivElement | null = null;
@@ -161,6 +194,8 @@ export function createPrototypeViewer(editor: Editor): {
   let lastScrollTimelineAt = 0;
   const interactiveVisualState = new Map<number, "hover" | "press" | "focus">();
   let keyboardOrderMap = loadKeyboardOrderMap();
+  const coverageFrameVisits = new Map<number, number>();
+  const coverageHotspotHits = new Map<number, Set<string>>();
 
   type RecordedProtoEvent = {
     t: number;
@@ -2141,6 +2176,7 @@ export function createPrototypeViewer(editor: Editor): {
       delete keyboardOrderMap[String(currentFrameId)];
       saveKeyboardOrderMap(keyboardOrderMap);
       renderKeyboardOrderEditor();
+      renderCurrentView();
     };
     kbBtnRow.appendChild(kbResetBtn);
     keyboardOrderWrap.appendChild(kbBtnRow);
@@ -2148,6 +2184,35 @@ export function createPrototypeViewer(editor: Editor): {
     keyboardOrderList.style.cssText = "display:flex;flex-direction:column;gap:4px;";
     keyboardOrderWrap.appendChild(keyboardOrderList);
     overlay.appendChild(keyboardOrderWrap);
+
+    coverageWrap = document.createElement("div");
+    coverageWrap.style.cssText = "position:absolute;left:14px;top:864px;width:220px;max-height:200px;overflow:auto;background:rgba(15,23,42,0.92);border:1px solid rgba(148,163,184,0.3);border-radius:10px;padding:8px;z-index:4;display:flex;flex-direction:column;gap:6px;";
+    const coverageHead = document.createElement("div");
+    coverageHead.style.cssText = "font-size:11px;font-weight:600;color:#cbd5e1;";
+    coverageHead.textContent = "Flow Coverage";
+    coverageWrap.appendChild(coverageHead);
+    coverageInfo = document.createElement("div");
+    coverageInfo.style.cssText = "font-size:10px;color:#94a3b8;line-height:1.35;";
+    coverageWrap.appendChild(coverageInfo);
+    const coverageBtnRow = document.createElement("div");
+    coverageBtnRow.style.cssText = "display:flex;gap:6px;";
+    const coverageResetBtn = document.createElement("button");
+    coverageResetBtn.className = "prop-btn";
+    coverageResetBtn.textContent = "Reset";
+    coverageResetBtn.style.cssText = "flex:1;font-size:10px;padding:3px 6px;";
+    coverageResetBtn.onclick = () => {
+      coverageFrameVisits.clear();
+      coverageHotspotHits.clear();
+      trackCoverageFrameVisit(currentFrameId);
+      renderCoveragePanel();
+      renderCurrentView();
+    };
+    coverageBtnRow.appendChild(coverageResetBtn);
+    coverageWrap.appendChild(coverageBtnRow);
+    coverageList = document.createElement("div");
+    coverageList.style.cssText = "display:flex;flex-direction:column;gap:4px;";
+    coverageWrap.appendChild(coverageList);
+    overlay.appendChild(coverageWrap);
 
     timelineWrap = document.createElement("div");
     timelineWrap.style.cssText = "position:absolute;right:14px;top:52px;width:260px;max-height:300px;overflow:auto;background:rgba(15,23,42,0.92);border:1px solid rgba(148,163,184,0.3);border-radius:10px;padding:8px;z-index:4;display:flex;flex-direction:column;gap:6px;";
@@ -2292,6 +2357,8 @@ export function createPrototypeViewer(editor: Editor): {
     renderTimelineScrubber();
     renderSessionSnapshotComparator();
     renderKeyboardOrderEditor();
+    trackCoverageFrameVisit(currentFrameId);
+    renderCoveragePanel();
 
     renderCurrentView();
     startMotionPathPlayback();
@@ -2452,6 +2519,7 @@ export function createPrototypeViewer(editor: Editor): {
     const prevFrameId = currentFrameId;
     if (currentFrameId !== null) navigationStack.push(currentFrameId);
     currentFrameId = frameId;
+    trackCoverageFrameVisit(currentFrameId);
     recordEvent({ kind: "navigate", frameId: prevFrameId, toFrameId: frameId, action: "NavigateTo" });
     pushTimelineEvent({ action: "NavigateTo", fromFrameId: prevFrameId, toFrameId: frameId, transition, durationMs });
 
@@ -2468,6 +2536,7 @@ export function createPrototypeViewer(editor: Editor): {
     if (navigationStack.length > 0) {
       const fromFrame = currentFrameId;
       currentFrameId = navigationStack.pop()!;
+      trackCoverageFrameVisit(currentFrameId);
       pushTimelineEvent({ action: "Back", fromFrameId: fromFrame, toFrameId: currentFrameId, transition: "Instant", durationMs: 0 });
       renderCurrentView();
     }
@@ -3191,6 +3260,7 @@ export function createPrototypeViewer(editor: Editor): {
     renderVarsPanel();
     renderFlowMinimap();
     renderFlowStartManager();
+    renderCoveragePanel();
   }
 
   /** Remove old video overlays */
@@ -3355,6 +3425,9 @@ export function createPrototypeViewer(editor: Editor): {
   function drawHotspotHints(ctx: CanvasRenderingContext2D, frameBounds: { x: number; y: number; width: number; height: number }, totalScale: number) {
     const allInterJson = editor.engine.get_all_interactions();
     const nodesWithInter: any[] = JSON.parse(allInterJson || "[]");
+    const orderedFocusable = listFocusableHotspots(currentFrameId);
+    const orderRank = new Map<string, number>();
+    orderedFocusable.forEach((item, idx) => orderRank.set(item.key, idx + 1));
 
     ctx.save();
     for (const nwi of nodesWithInter) {
@@ -3418,11 +3491,33 @@ export function createPrototypeViewer(editor: Editor): {
         ctx.strokeRect(x, y, w, h);
       } else {
         for (const interaction of interactionList) {
-          const isHotInteraction = isHotNode && hoveredHotspotSig && interactionSignature(interaction) === hoveredHotspotSig;
+          const sig = interactionSignature(interaction);
+          const isHotInteraction = isHotNode && hoveredHotspotSig && sig === hoveredHotspotSig;
           ctx.lineWidth = isFocused ? 4 : (isHotInteraction ? 4 : (isHotNode ? 3 : 2));
           ctx.beginPath();
           drawInteractionHotspotPath(ctx, node, interaction, frameBounds, totalScale);
           ctx.stroke();
+
+          const rank = orderRank.get(hotspotOrderKey(Number(nwi.id), sig));
+          if (rank) {
+            const bx = x + 6;
+            const by = y + 6 + (rank % 3) * 14;
+            ctx.save();
+            ctx.setLineDash([]);
+            ctx.fillStyle = "rgba(15,23,42,0.95)";
+            ctx.strokeStyle = "rgba(250,204,21,0.85)";
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.roundRect(bx, by, 22, 12, 6);
+            ctx.fill();
+            ctx.stroke();
+            ctx.fillStyle = "#fef08a";
+            ctx.font = "9px sans-serif";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(String(rank), bx + 11, by + 6.5);
+            ctx.restore();
+          }
         }
       }
 
@@ -3583,6 +3678,7 @@ export function createPrototypeViewer(editor: Editor): {
     // Check condition first
     if (!checkCondition(inter)) return;
 
+    trackCoverageHotspotHit(currentFrameId, sourceNodeId, inter);
     const targetId = Number(inter.target_node_id);
 
     // Handle SetVariable action
@@ -3687,8 +3783,8 @@ export function createPrototypeViewer(editor: Editor): {
   let mousePressY = 0;
   let isDragging = false;
 
-  function listFocusableHotspots(frameId: number | null = currentFrameId): Array<{ nodeId: number; node: any; interaction: any; sig: string }> {
-    const out: Array<{ nodeId: number; node: any; interaction: any; sig: string }> = [];
+  function listFocusableHotspots(frameId: number | null = currentFrameId): Array<{ nodeId: number; node: any; interaction: any; sig: string; key: string }> {
+    const out: Array<{ nodeId: number; node: any; interaction: any; sig: string; key: string }> = [];
     if (!frameId) return out;
     const fb = getFrameBounds(frameId);
     const bounds = fb || { x: 0, y: 0, width: 800, height: 600 };
@@ -3707,7 +3803,8 @@ export function createPrototypeViewer(editor: Editor): {
       const interactions = Array.isArray(nwi.interactions) ? nwi.interactions : [];
       for (const interaction of interactions) {
         if (interaction?.trigger === "OnClick" || interaction?.trigger === "OnPress") {
-          out.push({ nodeId: Number(nwi.id), node, interaction, sig: interactionSignature(interaction) });
+          const sig = interactionSignature(interaction);
+          out.push({ nodeId: Number(nwi.id), node, interaction, sig, key: hotspotOrderKey(Number(nwi.id), sig) });
         }
       }
     }
@@ -3719,11 +3816,13 @@ export function createPrototypeViewer(editor: Editor): {
     const key = String(frameId);
     const custom = Array.isArray(keyboardOrderMap[key]) ? keyboardOrderMap[key] : [];
     if (custom.length) {
-      const rank = new Map<number, number>();
-      custom.forEach((id, idx) => { if (!rank.has(id)) rank.set(id, idx); });
+      const rank = new Map<string, number>();
+      custom.forEach((entry, idx) => { if (!rank.has(entry)) rank.set(entry, idx); });
       out.sort((a, b) => {
-        const ra = rank.has(a.nodeId) ? rank.get(a.nodeId)! : Number.MAX_SAFE_INTEGER;
-        const rb = rank.has(b.nodeId) ? rank.get(b.nodeId)! : Number.MAX_SAFE_INTEGER;
+        const aLegacy = String(a.nodeId);
+        const bLegacy = String(b.nodeId);
+        const ra = rank.has(a.key) ? rank.get(a.key)! : (rank.has(aLegacy) ? rank.get(aLegacy)! : Number.MAX_SAFE_INTEGER);
+        const rb = rank.has(b.key) ? rank.get(b.key)! : (rank.has(bLegacy) ? rank.get(bLegacy)! : Number.MAX_SAFE_INTEGER);
         if (ra !== rb) return ra - rb;
         const ay = Number(a.node?.y || 0), by = Number(b.node?.y || 0);
         if (Math.abs(ay - by) > 2) return ay - by;
@@ -3731,6 +3830,63 @@ export function createPrototypeViewer(editor: Editor): {
       });
     }
     return out;
+  }
+
+  function trackCoverageFrameVisit(frameId: number | null) {
+    if (!frameId || frameId <= 0) return;
+    coverageFrameVisits.set(frameId, (coverageFrameVisits.get(frameId) || 0) + 1);
+  }
+
+  function trackCoverageHotspotHit(frameId: number | null, nodeId: number | undefined, interaction: any) {
+    if (!frameId || frameId <= 0 || !nodeId || nodeId <= 0 || !interaction) return;
+    const sig = interactionSignature(interaction);
+    const key = hotspotOrderKey(nodeId, sig);
+    const set = coverageHotspotHits.get(frameId) || new Set<string>();
+    set.add(key);
+    coverageHotspotHits.set(frameId, set);
+  }
+
+  function renderCoveragePanel() {
+    if (!coverageInfo || !coverageList) return;
+    const frameIds = Array.from(coverageFrameVisits.keys()).sort((a, b) => b - a);
+    const totalFrames = frameIds.length;
+    let visitedHotspots = 0;
+    let totalHotspots = 0;
+    for (const frameId of frameIds) {
+      const total = listFocusableHotspots(frameId).length;
+      totalHotspots += total;
+      visitedHotspots += Math.min(total, coverageHotspotHits.get(frameId)?.size || 0);
+    }
+    coverageInfo.textContent = totalFrames
+      ? `Visited ${totalFrames} frame(s) · Hotspots ${visitedHotspots}/${totalHotspots}`
+      : "No coverage yet. Navigate prototype to collect session coverage.";
+    coverageList.innerHTML = "";
+    if (!totalFrames) return;
+
+    frameIds.forEach((frameId) => {
+      const visits = coverageFrameVisits.get(frameId) || 0;
+      const total = listFocusableHotspots(frameId).length;
+      const hit = Math.min(total, coverageHotspotHits.get(frameId)?.size || 0);
+      const ratio = total > 0 ? hit / total : 0;
+      const row = document.createElement("button");
+      row.className = "prop-btn";
+      row.style.cssText = "display:flex;flex-direction:column;align-items:stretch;gap:3px;padding:5px 6px;text-align:left;";
+      row.onclick = () => {
+        currentFrameId = frameId;
+        renderCurrentView();
+      };
+      const label = document.createElement("div");
+      label.style.cssText = "font-size:10px;color:#e2e8f0;display:flex;justify-content:space-between;gap:6px;";
+      label.textContent = `#${frameId} · visits ${visits} · ${hit}/${total || 0}`;
+      const bar = document.createElement("div");
+      bar.style.cssText = "height:5px;border-radius:999px;background:rgba(51,65,85,0.9);overflow:hidden;";
+      const fill = document.createElement("div");
+      const hue = Math.round(12 + ratio * 108);
+      fill.style.cssText = `height:100%;width:${Math.max(4, Math.round(ratio * 100))}%;background:hsl(${hue} 90% 55%);`;
+      bar.appendChild(fill);
+      row.append(label, bar);
+      coverageList.appendChild(row);
+    });
   }
 
   function renderKeyboardOrderEditor() {
@@ -3741,17 +3897,27 @@ export function createPrototypeViewer(editor: Editor): {
       keyboardOrderList.innerHTML = "";
       return;
     }
+
     const items = listFocusableHotspots(frameId);
     const key = String(frameId);
     const existing = Array.isArray(keyboardOrderMap[key]) ? keyboardOrderMap[key] : [];
-    const dedup: number[] = [];
-    for (const id of [...existing, ...items.map((it) => it.nodeId)]) if (!dedup.includes(id)) dedup.push(id);
-    keyboardOrderMap[key] = dedup;
+    const nextOrder: string[] = [];
+    for (const entry of existing) {
+      if (!nextOrder.includes(entry) && items.some((it) => it.key === entry || String(it.nodeId) === entry)) {
+        nextOrder.push(entry);
+      }
+    }
+    for (const it of items) {
+      if (!nextOrder.includes(it.key)) nextOrder.push(it.key);
+    }
+    keyboardOrderMap[key] = nextOrder.slice(0, 400);
     saveKeyboardOrderMap(keyboardOrderMap);
 
     const frameName = `Frame #${frameId}`;
-    keyboardOrderInfo.textContent = `${frameName} · ${items.length} keyboard hotspot(s)`;
+    const customCount = nextOrder.filter((entry) => entry.includes("::")).length;
+    keyboardOrderInfo.textContent = `${frameName} · ${items.length} keyboard hotspot(s) · custom ${customCount}`;
     keyboardOrderList.innerHTML = "";
+
     if (!items.length) {
       const empty = document.createElement("div");
       empty.style.cssText = "font-size:10px;color:#64748b;";
@@ -3760,58 +3926,58 @@ export function createPrototypeViewer(editor: Editor): {
       return;
     }
 
-    const byNode = new Map<number, { node: any; count: number }>();
-    for (const it of items) {
-      const cur = byNode.get(it.nodeId);
-      if (cur) cur.count += 1;
-      else byNode.set(it.nodeId, { node: it.node, count: 1 });
-    }
-    const orderedIds = dedup.filter((id) => byNode.has(id));
-
-    const persistOrder = (nextIds: number[]) => {
-      keyboardOrderMap[key] = nextIds.slice(0, 200);
+    const persistOrder = (nextKeys: string[]) => {
+      keyboardOrderMap[key] = nextKeys.slice(0, 400);
       saveKeyboardOrderMap(keyboardOrderMap);
       renderKeyboardOrderEditor();
+      renderCurrentView();
     };
 
-    orderedIds.forEach((nodeId, idx) => {
-      const meta = byNode.get(nodeId)!;
+    items.forEach((item, idx) => {
       const row = document.createElement("div");
       row.style.cssText = "display:grid;grid-template-columns:auto 1fr auto auto;gap:4px;align-items:center;padding:3px 5px;border:1px solid #334155;border-radius:5px;background:#0f172a;";
       const num = document.createElement("span");
       num.style.cssText = "font-size:9px;color:#94a3b8;";
       num.textContent = `${idx + 1}.`;
+
+      const trigger = String(item.interaction?.trigger || "").replace(/^On/, "");
+      const action = String(item.interaction?.action || "");
+      const nodeName = String(item.node?.name || `Node #${item.nodeId}`);
       const label = document.createElement("button");
       label.className = "prop-btn";
       label.style.cssText = "font-size:9px;text-align:left;justify-content:flex-start;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
-      const nodeName = String(meta.node?.name || `Node #${nodeId}`);
-      label.textContent = meta.count > 1 ? `${nodeName} (${meta.count} hotspots)` : nodeName;
-      label.title = `Jump to node #${nodeId}`;
+      label.textContent = `${nodeName} · ${trigger || "Click"} → ${action || "Action"}`;
+      label.title = `Jump to hotspot on node #${item.nodeId}`;
       label.onclick = () => {
-        focusedHotspotNodeId = nodeId;
-        hoveredHotspotNodeId = nodeId;
-        setFocusedInteractiveInstance(nodeId);
+        focusedHotspotNodeId = item.nodeId;
+        focusedHotspotInter = item.interaction;
+        hoveredHotspotNodeId = item.nodeId;
+        hoveredHotspotSig = item.sig;
+        hoveredHotspotLabel = item.interaction?.accessibility_label || nodeName;
+        setFocusedInteractiveInstance(item.nodeId);
         renderCurrentView();
       };
+
       const up = document.createElement("button");
       up.className = "prop-btn";
       up.style.cssText = "font-size:9px;padding:2px 4px;";
       up.textContent = "↑";
       up.disabled = idx === 0;
       up.onclick = () => {
-        const next = orderedIds.slice();
-        [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
-        persistOrder(next);
+        const keys = items.map((it) => it.key);
+        [keys[idx - 1], keys[idx]] = [keys[idx], keys[idx - 1]];
+        persistOrder(keys);
       };
+
       const down = document.createElement("button");
       down.className = "prop-btn";
       down.style.cssText = "font-size:9px;padding:2px 4px;";
       down.textContent = "↓";
-      down.disabled = idx >= orderedIds.length - 1;
+      down.disabled = idx >= items.length - 1;
       down.onclick = () => {
-        const next = orderedIds.slice();
-        [next[idx + 1], next[idx]] = [next[idx], next[idx + 1]];
-        persistOrder(next);
+        const keys = items.map((it) => it.key);
+        [keys[idx + 1], keys[idx]] = [keys[idx], keys[idx + 1]];
+        persistOrder(keys);
       };
       row.append(num, label, up, down);
       keyboardOrderList.appendChild(row);
