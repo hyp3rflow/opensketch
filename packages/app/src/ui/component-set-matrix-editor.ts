@@ -378,7 +378,7 @@ export function openComponentSetMatrixEditor(opts: MatrixEditorOptions): void {
 
   const hint = document.createElement("div");
   hint.style.cssText = "font-size:10px;color:#c4b5fd;";
-  hint.textContent = "Click/drag to paint cells. Drag row/column headers to reorder axis values. Drag mapped cells to relocate mapping (Alt+drop = copy). Fill Empty maps only blank cells to selected target component. Missing Only dims mapped cells so you can focus gap-filling. Run Combo Test to sweep all variant combinations and flag missing/broken interaction mappings. Use Export/Import TSV for one-shot matrix remap.";
+  hint.textContent = "Click/drag to paint cells. Drag row/column headers to reorder axis values. Drag mapped cells to relocate mapping (Alt+drop = copy). Fill Empty maps only blank cells to selected target component. Missing Only dims mapped cells so you can focus gap-filling. Run Combo Test to sweep all variant combinations and flag missing mappings, dead component links, and broken interaction targets (Navigate/OpenOverlay/SwapVariant). Use Export/Import TSV for one-shot matrix remap.";
   paintRow.appendChild(hint);
 
   const coverageSummary = document.createElement("div");
@@ -434,6 +434,7 @@ export function openComponentSetMatrixEditor(opts: MatrixEditorOptions): void {
 
     const missing: string[] = [];
     const broken: string[] = [];
+    const brokenByAction: Record<string, number> = {};
     const mapped = new Set<number>();
 
     const nodeExists = (nodeId: number): boolean => {
@@ -448,6 +449,26 @@ export function openComponentSetMatrixEditor(opts: MatrixEditorOptions): void {
       }
     };
 
+    const componentExists = (componentId: number): boolean => {
+      if (!Number.isFinite(componentId) || componentId <= 0) return false;
+      try {
+        const raw = (opts.editor.engine as any).get_component(BigInt(componentId));
+        if (!raw || raw === "null") return false;
+        const parsed = JSON.parse(raw);
+        return !!parsed && typeof parsed === "object";
+      } catch {
+        return false;
+      }
+    };
+
+    const pushBroken = (reason: string, action: string) => {
+      broken.push(reason);
+      const key = (action || "unknown").toLowerCase();
+      brokenByAction[key] = (brokenByAction[key] || 0) + 1;
+    };
+
+    const knownVariantKeys = new Set(Object.keys(localVariantMap || {}));
+
     for (const combo of allCombos) {
       const key = makeKey(combo);
       const compId = Number(localVariantMap[key] || 0);
@@ -456,28 +477,71 @@ export function openComponentSetMatrixEditor(opts: MatrixEditorOptions): void {
         continue;
       }
       mapped.add(compId);
+
+      if (!componentExists(compId)) {
+        pushBroken(`${key} -> #${compId} (mapped component missing from store)`, "component");
+        continue;
+      }
+
       let interactions: any[] = [];
       try {
         interactions = JSON.parse((opts.editor.engine as any).get_interactions(BigInt(compId)) || "[]") || [];
       } catch {
         interactions = [];
       }
-      const badInter = interactions.find((it: any) => {
-        const action = String(it?.action || "").toLowerCase();
-        if (action !== "navigateto" && action !== "openoverlay") return false;
-        const target = Number(it?.target_node_id || 0);
-        return target > 0 && !nodeExists(target);
+
+      interactions.forEach((it: any) => {
+        const actionRaw = String(it?.action || "");
+        const action = actionRaw.toLowerCase();
+
+        if (action === "navigateto" || action === "openoverlay") {
+          const target = Number(it?.target_node_id || 0);
+          if (target > 0 && !nodeExists(target)) {
+            pushBroken(`${key} -> #${compId} (${actionRaw} missing target #${target})`, actionRaw);
+          }
+          return;
+        }
+
+        if (action === "swapvariant") {
+          const variantKeyJson = String(it?.variant_key_json || "").trim();
+          if (!variantKeyJson) {
+            pushBroken(`${key} -> #${compId} (SwapVariant missing variant_key_json)`, actionRaw);
+            return;
+          }
+          try {
+            const parsed = JSON.parse(variantKeyJson);
+            const targetKey = makeKey(parsed && typeof parsed === "object" ? parsed : {});
+            if (!targetKey || !knownVariantKeys.has(targetKey)) {
+              pushBroken(`${key} -> #${compId} (SwapVariant target variant missing: ${targetKey || "<empty>"})`, actionRaw);
+            }
+          } catch {
+            pushBroken(`${key} -> #${compId} (SwapVariant variant_key_json parse error)`, actionRaw);
+          }
+        }
       });
-      if (badInter) {
-        broken.push(`${key} -> #${compId} (${String(badInter.action)} missing target #${Number(badInter.target_node_id || 0)})`);
-      }
     }
 
-    const header = `Combo test · total ${allCombos.length} · mapped ${allCombos.length - missing.length} · missing ${missing.length} · broken ${broken.length}`;
+    const mappedCount = allCombos.length - missing.length;
+    const coverage = allCombos.length > 0 ? ((mappedCount / allCombos.length) * 100).toFixed(1) : "0.0";
+    const header = `Combo test · total ${allCombos.length} · mapped ${mappedCount} (${coverage}%) · missing ${missing.length} · broken ${broken.length}`;
     const lines: string[] = [header];
-    if (missing.length > 0) lines.push(`Missing examples: ${missing.slice(0, 12).join(" | ")}`);
-    if (broken.length > 0) lines.push(`Broken examples: ${broken.slice(0, 8).join(" | ")}`);
-    if (missing.length === 0 && broken.length === 0) lines.push("All variant combinations look healthy.");
+
+    if (missing.length > 0) {
+      lines.push(`Missing examples: ${missing.slice(0, 12).join(" | ")}`);
+    }
+
+    if (broken.length > 0) {
+      const actionSummary = Object.entries(brokenByAction)
+        .sort((a, b) => b[1] - a[1])
+        .map(([k, v]) => `${k}:${v}`)
+        .join(", ");
+      if (actionSummary) lines.push(`Broken by action: ${actionSummary}`);
+      lines.push(`Broken examples: ${broken.slice(0, 10).join(" | ")}`);
+    }
+
+    if (missing.length === 0 && broken.length === 0) {
+      lines.push("All variant combinations look healthy.");
+    }
 
     lastComboReport = lines.join("\n");
     comboSummary.textContent = lastComboReport;
