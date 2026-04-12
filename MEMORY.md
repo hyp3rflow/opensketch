@@ -1790,10 +1790,19 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Prototype Keyboard Navigation Order Editor — frame 단위 Tab 순서를 시각화/재정렬하고 custom order 저장 (임팩트 상, 난이도 중상)
 - Interactive Components Trigger Conflict Linter — hover/press/focus trigger 충돌(동일 instance 다중 매핑) 탐지 + quick-fix 제안 (임팩트 중상, 난이도 중)
 - Prototype Flow Coverage Recorder — 플레이 세션 동안 방문 frame/미방문 hotspot 수집 후 heatmap 리포트 (임팩트 중상, 난이도 중)
 - A11y Motion Guardrails — reduced-motion 프리뷰 토글 + 과도한 duration/easing 조합 lint (임팩트 중, 난이도 중)
+
+
+## 완료된 기능 (추가 — Prototype Keyboard Navigation Order Editor, 2026-04-12)
+- Prototype Viewer 좌측에 `Keyboard Nav Order` 패널 추가
+- 현재 frame의 keyboard hotspot(OnClick/OnPress)을 순서 목록으로 시각화
+- ↑/↓로 Tab 순서를 재정렬하고 localStorage에 frame별 custom order 저장
+- `Reset auto`로 custom order 제거 후 기본 top→bottom/left→right 정렬 복귀
+- Tab/Shift+Tab focus 순환 로직이 custom order를 우선 사용하도록 반영
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Smart Animate Preset Sequencer, 2026-04-12)
 - Interactions 편집 카드에 `Smart Animate Preset Sequencer` 섹션 추가

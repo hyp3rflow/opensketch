@@ -16,6 +16,7 @@ const PROTOTYPE_RING_PRESET_KEY = "opensketch-prototype-ring-presets-v1";
 const PROTOTYPE_RING_ACTIVE_PRESET_KEY = "opensketch-prototype-ring-active-preset-id";
 const INTERACTIVE_PREVIEW_EVENT = "opensketch:interactive-preview-state";
 const PROTOTYPE_FLOW_ENTRY_PRESETS_KEY = "opensketch-proto-flow-entry-presets-v1";
+const PROTOTYPE_KEYBOARD_ORDER_KEY = "opensketch-proto-keyboard-order-v1";
 const DEFAULT_RING_PRESET: PrototypeRingPreset = {
   id: "default",
   name: "Default",
@@ -38,6 +39,29 @@ function loadFlowEntryPresets(): Record<string, Array<{ frameId: number; label: 
 function saveFlowEntryPresets(presets: Record<string, Array<{ frameId: number; label: string }>>) {
   try {
     localStorage.setItem(PROTOTYPE_FLOW_ENTRY_PRESETS_KEY, JSON.stringify(presets));
+  } catch {}
+}
+
+
+function loadKeyboardOrderMap(): Record<string, number[]> {
+  try {
+    const raw = localStorage.getItem(PROTOTYPE_KEYBOARD_ORDER_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    if (!parsed || typeof parsed !== "object") return {};
+    const out: Record<string, number[]> = {};
+    for (const [k, v] of Object.entries(parsed)) {
+      if (!Array.isArray(v)) continue;
+      out[k] = v.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0);
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+function saveKeyboardOrderMap(map: Record<string, number[]>) {
+  try {
+    localStorage.setItem(PROTOTYPE_KEYBOARD_ORDER_KEY, JSON.stringify(map));
   } catch {}
 }
 
@@ -102,6 +126,9 @@ export function createPrototypeViewer(editor: Editor): {
   type FlowLintIssueType = "unreachable" | "dead-end" | "cycle" | "cycle-trap" | "overlay-leak" | "orphan-close" | "a11y-missing-label" | "a11y-focus-gap" | "a11y-low-contrast";
   type FlowLintIssue = { type: FlowLintIssueType; frameId: number; frameName: string; detail: string };
   let flowLintWrap: HTMLDivElement | null = null;
+  let keyboardOrderWrap: HTMLDivElement | null = null;
+  let keyboardOrderInfo: HTMLDivElement | null = null;
+  let keyboardOrderList: HTMLDivElement | null = null;
   let flowLintInfo: HTMLDivElement | null = null;
   let flowLintFilterWrap: HTMLDivElement | null = null;
   let flowLintList: HTMLDivElement | null = null;
@@ -133,6 +160,7 @@ export function createPrototypeViewer(editor: Editor): {
   let timelinePlaybackTimer: number | null = null;
   let lastScrollTimelineAt = 0;
   const interactiveVisualState = new Map<number, "hover" | "press" | "focus">();
+  let keyboardOrderMap = loadKeyboardOrderMap();
 
   type RecordedProtoEvent = {
     t: number;
@@ -2093,6 +2121,34 @@ export function createPrototypeViewer(editor: Editor): {
     flowLintWrap.appendChild(flowLintList);
     overlay.appendChild(flowLintWrap);
 
+    keyboardOrderWrap = document.createElement("div");
+    keyboardOrderWrap.style.cssText = "position:absolute;left:14px;top:638px;width:220px;max-height:220px;overflow:auto;background:rgba(15,23,42,0.92);border:1px solid rgba(148,163,184,0.3);border-radius:10px;padding:8px;z-index:4;display:flex;flex-direction:column;gap:6px;";
+    const kbHead = document.createElement("div");
+    kbHead.style.cssText = "font-size:11px;font-weight:600;color:#cbd5e1;";
+    kbHead.textContent = "Keyboard Nav Order";
+    keyboardOrderWrap.appendChild(kbHead);
+    keyboardOrderInfo = document.createElement("div");
+    keyboardOrderInfo.style.cssText = "font-size:10px;color:#94a3b8;line-height:1.35;";
+    keyboardOrderWrap.appendChild(keyboardOrderInfo);
+    const kbBtnRow = document.createElement("div");
+    kbBtnRow.style.cssText = "display:flex;gap:6px;";
+    const kbResetBtn = document.createElement("button");
+    kbResetBtn.className = "prop-btn";
+    kbResetBtn.textContent = "Reset auto";
+    kbResetBtn.style.cssText = "flex:1;font-size:10px;padding:3px 6px;";
+    kbResetBtn.onclick = () => {
+      if (!currentFrameId) return;
+      delete keyboardOrderMap[String(currentFrameId)];
+      saveKeyboardOrderMap(keyboardOrderMap);
+      renderKeyboardOrderEditor();
+    };
+    kbBtnRow.appendChild(kbResetBtn);
+    keyboardOrderWrap.appendChild(kbBtnRow);
+    keyboardOrderList = document.createElement("div");
+    keyboardOrderList.style.cssText = "display:flex;flex-direction:column;gap:4px;";
+    keyboardOrderWrap.appendChild(keyboardOrderList);
+    overlay.appendChild(keyboardOrderWrap);
+
     timelineWrap = document.createElement("div");
     timelineWrap.style.cssText = "position:absolute;right:14px;top:52px;width:260px;max-height:300px;overflow:auto;background:rgba(15,23,42,0.92);border:1px solid rgba(148,163,184,0.3);border-radius:10px;padding:8px;z-index:4;display:flex;flex-direction:column;gap:6px;";
     const timelineHead = document.createElement("div");
@@ -2235,6 +2291,7 @@ export function createPrototypeViewer(editor: Editor): {
     renderFlowStartManager();
     renderTimelineScrubber();
     renderSessionSnapshotComparator();
+    renderKeyboardOrderEditor();
 
     renderCurrentView();
     startMotionPathPlayback();
@@ -3630,10 +3687,10 @@ export function createPrototypeViewer(editor: Editor): {
   let mousePressY = 0;
   let isDragging = false;
 
-  function listFocusableHotspots(): Array<{ nodeId: number; node: any; interaction: any; sig: string }> {
+  function listFocusableHotspots(frameId: number | null = currentFrameId): Array<{ nodeId: number; node: any; interaction: any; sig: string }> {
     const out: Array<{ nodeId: number; node: any; interaction: any; sig: string }> = [];
-    if (!currentFrameId) return out;
-    const fb = getFrameBounds(currentFrameId);
+    if (!frameId) return out;
+    const fb = getFrameBounds(frameId);
     const bounds = fb || { x: 0, y: 0, width: 800, height: 600 };
     const allInterJson = editor.engine.get_all_interactions();
     const nodesWithInter: any[] = JSON.parse(allInterJson || "[]");
@@ -3659,7 +3716,106 @@ export function createPrototypeViewer(editor: Editor): {
       if (Math.abs(ay - by) > 2) return ay - by;
       return Number(a.node?.x || 0) - Number(b.node?.x || 0);
     });
+    const key = String(frameId);
+    const custom = Array.isArray(keyboardOrderMap[key]) ? keyboardOrderMap[key] : [];
+    if (custom.length) {
+      const rank = new Map<number, number>();
+      custom.forEach((id, idx) => { if (!rank.has(id)) rank.set(id, idx); });
+      out.sort((a, b) => {
+        const ra = rank.has(a.nodeId) ? rank.get(a.nodeId)! : Number.MAX_SAFE_INTEGER;
+        const rb = rank.has(b.nodeId) ? rank.get(b.nodeId)! : Number.MAX_SAFE_INTEGER;
+        if (ra !== rb) return ra - rb;
+        const ay = Number(a.node?.y || 0), by = Number(b.node?.y || 0);
+        if (Math.abs(ay - by) > 2) return ay - by;
+        return Number(a.node?.x || 0) - Number(b.node?.x || 0);
+      });
+    }
     return out;
+  }
+
+  function renderKeyboardOrderEditor() {
+    if (!keyboardOrderInfo || !keyboardOrderList) return;
+    const frameId = currentFrameId;
+    if (!frameId) {
+      keyboardOrderInfo.textContent = "Open a frame to edit keyboard tab order.";
+      keyboardOrderList.innerHTML = "";
+      return;
+    }
+    const items = listFocusableHotspots(frameId);
+    const key = String(frameId);
+    const existing = Array.isArray(keyboardOrderMap[key]) ? keyboardOrderMap[key] : [];
+    const dedup: number[] = [];
+    for (const id of [...existing, ...items.map((it) => it.nodeId)]) if (!dedup.includes(id)) dedup.push(id);
+    keyboardOrderMap[key] = dedup;
+    saveKeyboardOrderMap(keyboardOrderMap);
+
+    const frameName = `Frame #${frameId}`;
+    keyboardOrderInfo.textContent = `${frameName} · ${items.length} keyboard hotspot(s)`;
+    keyboardOrderList.innerHTML = "";
+    if (!items.length) {
+      const empty = document.createElement("div");
+      empty.style.cssText = "font-size:10px;color:#64748b;";
+      empty.textContent = "No OnClick/OnPress hotspots in current frame.";
+      keyboardOrderList.appendChild(empty);
+      return;
+    }
+
+    const byNode = new Map<number, { node: any; count: number }>();
+    for (const it of items) {
+      const cur = byNode.get(it.nodeId);
+      if (cur) cur.count += 1;
+      else byNode.set(it.nodeId, { node: it.node, count: 1 });
+    }
+    const orderedIds = dedup.filter((id) => byNode.has(id));
+
+    const persistOrder = (nextIds: number[]) => {
+      keyboardOrderMap[key] = nextIds.slice(0, 200);
+      saveKeyboardOrderMap(keyboardOrderMap);
+      renderKeyboardOrderEditor();
+    };
+
+    orderedIds.forEach((nodeId, idx) => {
+      const meta = byNode.get(nodeId)!;
+      const row = document.createElement("div");
+      row.style.cssText = "display:grid;grid-template-columns:auto 1fr auto auto;gap:4px;align-items:center;padding:3px 5px;border:1px solid #334155;border-radius:5px;background:#0f172a;";
+      const num = document.createElement("span");
+      num.style.cssText = "font-size:9px;color:#94a3b8;";
+      num.textContent = `${idx + 1}.`;
+      const label = document.createElement("button");
+      label.className = "prop-btn";
+      label.style.cssText = "font-size:9px;text-align:left;justify-content:flex-start;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
+      const nodeName = String(meta.node?.name || `Node #${nodeId}`);
+      label.textContent = meta.count > 1 ? `${nodeName} (${meta.count} hotspots)` : nodeName;
+      label.title = `Jump to node #${nodeId}`;
+      label.onclick = () => {
+        focusedHotspotNodeId = nodeId;
+        hoveredHotspotNodeId = nodeId;
+        setFocusedInteractiveInstance(nodeId);
+        renderCurrentView();
+      };
+      const up = document.createElement("button");
+      up.className = "prop-btn";
+      up.style.cssText = "font-size:9px;padding:2px 4px;";
+      up.textContent = "↑";
+      up.disabled = idx === 0;
+      up.onclick = () => {
+        const next = orderedIds.slice();
+        [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
+        persistOrder(next);
+      };
+      const down = document.createElement("button");
+      down.className = "prop-btn";
+      down.style.cssText = "font-size:9px;padding:2px 4px;";
+      down.textContent = "↓";
+      down.disabled = idx >= orderedIds.length - 1;
+      down.onclick = () => {
+        const next = orderedIds.slice();
+        [next[idx + 1], next[idx]] = [next[idx], next[idx + 1]];
+        persistOrder(next);
+      };
+      row.append(num, label, up, down);
+      keyboardOrderList.appendChild(row);
+    });
   }
 
   function setFocusedInteractiveInstance(nodeId: number | null) {
