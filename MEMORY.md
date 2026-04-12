@@ -1790,9 +1790,22 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Sticky Scroll Sections for Prototype — Frame 내 섹션을 스크롤 중 상단 고정(sticky)으로 설정하고 뷰어에서 실제 고정 동작 미리보기 (임팩트 상, 난이도 중상)
 - Component Instance Swap Suggestions — instance swap 시 크기/variant/property 유사도 기반 추천 리스트 + one-click 교체 (임팩트 중상, 난이도 중)
 - Dev Handoff State Capture Presets — hover/pressed/focus 등 인터랙션 상태 조합을 preset으로 저장 후 redline/export에 일괄 적용 (임팩트 중상, 난이도 중)
+- Prototype Conditional Branch Rules — 변수/조건식 기반 인터랙션 분기(If/Else)로 단일 핫스팟에서 다중 목적지 제어 (임팩트 상, 난이도 중상)
+- Component Variant Bulk Matrix Editor — variant 축(예: size/state/theme) 매트릭스 테이블에서 일괄 생성/수정/누락 셀 하이라이트 (임팩트 상, 난이도 중상)
+- Design QA Diff Pins — 두 프레임/버전 비교 후 변화 영역에 핀 자동 생성(색상/간격/타이포 변경 타입별) 및 코멘트 연동 (임팩트 중상, 난이도 중)
+
+## 완료된 기능 (추가 — Sticky Scroll Sections for Prototype, 2026-04-12)
+- Section 노드(스크롤 가능한 Frame의 direct child)에 `Sticky section header` 토글 추가
+- Prototype viewer 렌더 단계에서 sticky 섹션의 y를 스크롤 위치에 따라 동적으로 보정
+  - 섹션이 frame top에 닿기 전: 원래 위치 유지
+  - 닿은 후: top에 고정
+  - 다음 sticky 섹션이 올라오면 현재 섹션이 밀려나도록 종료 구간(clamp end) 적용
+- 기존 `Fixed in prototype` 동작과 공존하도록 backup/restore 렌더 파이프라인에 통합
+- Engine API 추가: `set_prototype_sticky(id, bool)`, `get_prototype_sticky(id)`
+- 구현: `crates/engine/src/node.rs`, `crates/engine/src/lib.rs`, `packages/app/src/ui/properties-panel.ts`, `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — A11y Motion Guardrails, 2026-04-12)
 - Properties panel `Interactions`에 `A11y Motion Guardrails` 카드 추가

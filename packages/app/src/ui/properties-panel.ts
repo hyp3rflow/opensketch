@@ -13200,6 +13200,26 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           fixedRegionRow.append(fixedRegionLabel, fixedRegionSelect);
           snapAlignSection.appendChild(fixedRegionRow);
 
+          if (node.kind && (node.kind as any).Section) {
+            const stickyRow = document.createElement("label");
+            stickyRow.style.cssText = "display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:6px;";
+            const stickyCb = document.createElement("input");
+            stickyCb.type = "checkbox";
+            stickyCb.checked = !!(editor.engine as any).get_prototype_sticky?.(BigInt(id));
+            stickyCb.style.cssText = "accent-color:#4f46e5;";
+            stickyCb.addEventListener("change", () => {
+              editor.engine.push_undo();
+              (editor.engine as any).set_prototype_sticky?.(BigInt(id), stickyCb.checked);
+              editor.requestRender();
+              refresh(ids);
+            });
+            const stickyLabel = document.createElement("span");
+            stickyLabel.style.cssText = "font-size:11px;color:#aaa;";
+            stickyLabel.textContent = "Sticky section header";
+            stickyRow.append(stickyCb, stickyLabel);
+            snapAlignSection.appendChild(stickyRow);
+          }
+
           const protoScrollTitle = document.createElement("div");
           protoScrollTitle.style.cssText = "font-size:10px;color:#888;margin-top:8px;margin-bottom:4px;";
           protoScrollTitle.textContent = "Prototype overflow";

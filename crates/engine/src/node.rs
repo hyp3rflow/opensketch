@@ -2404,6 +2404,9 @@ pub struct Node {
     /// Fixed region in prototype when `prototype_fixed` is true: "auto" | "top" | "bottom"
     #[serde(default = "default_prototype_fixed_region")]
     pub prototype_fixed_region: String,
+    /// Sticky section header in Prototype viewer (for Section nodes inside scrollable Frames)
+    #[serde(default)]
+    pub prototype_sticky: bool,
     /// Per-axis bounce enable for prototype scroll containers (Frame/Section)
     #[serde(default = "default_true")]
     pub prototype_scroll_bounce_x: bool,
@@ -2565,6 +2568,7 @@ impl Node {
             scroll_animations: vec![],
             prototype_fixed: false,
             prototype_fixed_region: default_prototype_fixed_region(),
+            prototype_sticky: false,
             prototype_scroll_bounce_x: true,
             prototype_scroll_bounce_y: true,
             prototype_scroll_overscroll_x: default_proto_overscroll(),

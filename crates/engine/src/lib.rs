@@ -8194,6 +8194,16 @@ impl Engine {
             .unwrap_or_else(|| "auto".to_string())
     }
 
+    pub fn set_prototype_sticky(&mut self, id: u64, sticky: bool) {
+        if let Some(node) = self.scene.get_node_mut(id) {
+            node.prototype_sticky = sticky;
+        }
+    }
+
+    pub fn get_prototype_sticky(&self, id: u64) -> bool {
+        self.scene.get_node(id).map(|n| n.prototype_sticky).unwrap_or(false)
+    }
+
     pub fn set_prototype_scroll_bounce_x(&mut self, id: u64, enabled: bool) {
         if let Some(node) = self.scene.get_node_mut(id) {
             node.prototype_scroll_bounce_x = enabled;

@@ -4515,12 +4515,38 @@ export function createPrototypeViewer(editor: Editor): {
         }
       }
 
-      // Prototype fixed layers: keep node visually pinned while current frame scrolls
+      // Prototype fixed/sticky layers: keep node visually pinned while current frame scrolls
       if (currentFrameId !== null && (frameScrollX !== 0 || frameScrollY !== 0)) {
         const frameJson = ed.engine.get_node_json(BigInt(currentFrameId));
         if (frameJson) {
           const frameNode = JSON.parse(frameJson);
-          const stack: number[] = [...(frameNode.children || [])];
+          const frameTop = Number(frameNode.y ?? 0);
+          const frameChildren: number[] = (frameNode.children || []).map((v: unknown) => Number(v));
+
+          // Sticky candidates are direct Section children with sticky enabled.
+          // Compute each section's sticky range [start, end], where end is next section top - own height.
+          type StickyInfo = { top: number; height: number; end: number };
+          const stickyInfos = new Map<number, StickyInfo>();
+          const sectionRows: Array<{ id: number; top: number; height: number }> = [];
+          for (const cid of frameChildren) {
+            const cj = ed.engine.get_node_json(BigInt(cid));
+            if (!cj) continue;
+            const c = JSON.parse(cj);
+            const kind = c?.kind ? Object.keys(c.kind)[0] : "";
+            const stickyOn = !!(ed.engine as any).get_prototype_sticky?.(BigInt(cid));
+            if (kind === "Section" && stickyOn) {
+              sectionRows.push({ id: cid, top: Number(c.y ?? 0) - frameTop, height: Number(c.height ?? 0) });
+            }
+          }
+          sectionRows.sort((a, b) => a.top - b.top);
+          for (let i = 0; i < sectionRows.length; i++) {
+            const row = sectionRows[i];
+            const next = sectionRows[i + 1];
+            const end = next ? (next.top - row.height) : Number.POSITIVE_INFINITY;
+            stickyInfos.set(row.id, { top: row.top, height: row.height, end });
+          }
+
+          const stack: number[] = [...frameChildren];
           while (stack.length > 0) {
             const nodeId = Number(stack.pop());
             const nj = ed.engine.get_node_json(BigInt(nodeId));
@@ -4529,6 +4555,22 @@ export function createPrototypeViewer(editor: Editor): {
             const children: number[] = nd.children || [];
             for (const cid of children) stack.push(Number(cid));
 
+            const curX = Number(nd.x ?? 0);
+            const curY = Number(nd.y ?? 0);
+
+            // Sticky sections: pin at top only after crossing top edge, release when next sticky section arrives.
+            const stickyInfo = stickyInfos.get(nodeId);
+            if (stickyInfo) {
+              const backup = getBackup(nodeId);
+              if (backup.y === undefined) backup.y = curY;
+              const scrollPosY = -frameScrollY;
+              const stickyTopLocal = Math.max(stickyInfo.top, Math.min(scrollPosY, stickyInfo.end));
+              const desiredY = frameTop + stickyTopLocal + frameScrollY;
+              if (Math.abs(desiredY - curY) > 0.01) {
+                ed.engine.set_node_position(BigInt(nodeId), curX, desiredY);
+              }
+            }
+
             const isFixed = !!(ed.engine as any).get_prototype_fixed?.(BigInt(nodeId));
             if (!isFixed) continue;
 
@@ -4536,8 +4578,6 @@ export function createPrototypeViewer(editor: Editor): {
             const region = regionRaw === "top" || regionRaw === "bottom" ? regionRaw : "auto";
 
             const backup = getBackup(nodeId);
-            const curX = nd.x ?? 0;
-            const curY = nd.y ?? 0;
             if (backup.x === undefined) backup.x = curX;
             if (backup.y === undefined) backup.y = curY;
 

@@ -2760,3 +2760,13 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] 기존 issue filter chip/list/jump 워크플로우에 통합
 - [x] **Focus cycle gap fix/polish (v2)**: 동일 노드에 다중 keyboard hotspot이 있을 때 `Tab` 순환이 같은 항목에 고정되던 케이스를 interaction signature 기반으로 교정. Flow Lint는 프레임 내 다중 keyboard hotspot 노드도 `a11y-focus-gap`으로 리포트.
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
+
+### Sticky Scroll Sections for Prototype (2026-04-12)
+- [x] Section 노드(스크롤 가능한 Frame의 direct child)에 `Sticky section header` 옵션 추가
+- [x] Prototype viewer 렌더 단계에서 sticky 섹션 y를 스크롤 위치 기반으로 보정
+  - 섹션이 top 도달 전에는 기본 스크롤
+  - 도달 후 상단 고정
+  - 다음 sticky section 도달 시 현재 섹션이 자연스럽게 밀려나도록 clamp 처리
+- [x] 기존 Prototype fixed 레이어 보정 로직과 충돌 없이 동일 backup/restore 파이프라인에서 처리
+- [x] Engine API 추가: `set_prototype_sticky(id, bool)`, `get_prototype_sticky(id)`
+- 구현: `crates/engine/src/node.rs`, `crates/engine/src/lib.rs`, `packages/app/src/ui/properties-panel.ts`, `packages/app/src/ui/prototype-viewer.ts`
