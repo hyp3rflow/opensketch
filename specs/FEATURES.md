@@ -2708,6 +2708,13 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] `Play` 액션으로 기록된 간격 기반 재생(transition duration fallback), `Clear`로 세션 타임라인 초기화
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
 
+### Prototype Session Timeline Scrubber v2 (2026-04-13)
+- [x] Interaction Timeline 패널을 `Prototype Session Timeline`으로 확장하고 event kind(Frame/Interaction/System) 메타를 표시
+- [x] `All events / Frame jumps / Interactions` 필터 추가로 session 검증 중 관심 이벤트만 빠르게 분리
+- [x] `← Jump / Jump →` 액션으로 이전/다음 frame transition 이벤트를 one-click 탐색
+- [x] scrubber info/row에 frame transition 중심 메타(출발/도착 frame, transition/duration, note)를 강화
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+
 ### Prototype Overlay Stack Inspector (2026-04-12)
 - [x] Flow Lint에 overlay 체인 규칙 추가
   - `overlay-leak`: reachable frame에서 OpenOverlay는 있으나 CloseOverlay가 없는 경우

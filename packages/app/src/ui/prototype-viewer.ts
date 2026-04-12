@@ -189,7 +189,9 @@ export function createPrototypeViewer(editor: Editor): {
   let timelineInfo: HTMLDivElement | null = null;
   let timelineScrubber: HTMLInputElement | null = null;
   let timelineList: HTMLDivElement | null = null;
-  let timelineEvents: Array<{ id: number; at: number; action: string; fromFrameId: number | null; toFrameId: number | null; transition: string; durationMs: number; note?: string }> = [];
+  type TimelineEventKind = "interaction" | "frame" | "system";
+  let timelineEvents: Array<{ id: number; at: number; action: string; fromFrameId: number | null; toFrameId: number | null; transition: string; durationMs: number; kind: TimelineEventKind; note?: string }> = [];
+  let timelineFilterMode: "all" | "frame" | "interaction" = "all";
   let timelineSeq = 1;
   let timelinePlaybackTimer: number | null = null;
   let lastScrollTimelineAt = 0;
@@ -1709,7 +1711,8 @@ export function createPrototypeViewer(editor: Editor): {
     }
   }
 
-  function pushTimelineEvent(evt: { action: string; fromFrameId: number | null; toFrameId: number | null; transition?: string; durationMs?: number; note?: string }) {
+  function pushTimelineEvent(evt: { action: string; fromFrameId: number | null; toFrameId: number | null; transition?: string; durationMs?: number; kind?: TimelineEventKind; note?: string }) {
+    const inferredKind: TimelineEventKind = evt.kind || ((evt.fromFrameId || 0) !== (evt.toFrameId || 0) ? "frame" : "interaction");
     timelineEvents.push({
       id: timelineSeq++,
       at: Math.max(0, performance.now() - recorderStartedAt),
@@ -1718,6 +1721,7 @@ export function createPrototypeViewer(editor: Editor): {
       toFrameId: evt.toFrameId,
       transition: evt.transition || "Instant",
       durationMs: Math.max(0, Number(evt.durationMs || 0)),
+      kind: inferredKind,
       note: evt.note,
     });
     if (timelineEvents.length > 160) timelineEvents = timelineEvents.slice(-160);
@@ -1762,16 +1766,29 @@ export function createPrototypeViewer(editor: Editor): {
     timelineScrubber.value = String(currentIndex);
     const selected = timelineEvents[currentIndex];
     const sec = (selected.at / 1000).toFixed(2);
-    timelineInfo.textContent = `#${currentIndex + 1}/${timelineEvents.length} · t+${sec}s · ${selected.action}`;
+    const selectedBadge = selected.kind === "frame" ? "Frame" : selected.kind === "system" ? "System" : "Interaction";
+    timelineInfo.textContent = `#${currentIndex + 1}/${timelineEvents.length} · ${selectedBadge} · t+${sec}s · ${selected.action}`;
+
+    const filtered = timelineEvents.filter((evt) => {
+      if (timelineFilterMode === "frame") return evt.kind === "frame";
+      if (timelineFilterMode === "interaction") return evt.kind === "interaction";
+      return true;
+    });
 
     timelineList.innerHTML = "";
-    for (const evt of timelineEvents.slice(-10).reverse()) {
+    if (filtered.length === 0) {
+      timelineList.innerHTML = '<div style="font-size:10px;color:#94a3b8;">No events for current filter.</div>';
+      return;
+    }
+
+    for (const evt of filtered.slice(-14).reverse()) {
       const row = document.createElement("button");
       row.style.cssText = "width:100%;text-align:left;background:rgba(15,23,42,0.55);border:1px solid rgba(148,163,184,0.24);border-radius:6px;color:#e2e8f0;padding:4px 6px;cursor:pointer;font-size:10px;";
       const idx = timelineEvents.findIndex((x) => x.id === evt.id);
       const fromLabel = evt.fromFrameId ? `#${evt.fromFrameId}` : "-";
       const toLabel = evt.toFrameId ? `#${evt.toFrameId}` : "-";
-      row.textContent = `${idx + 1}. ${evt.action} ${fromLabel}→${toLabel} (${evt.transition}/${evt.durationMs}ms)${evt.note ? ` · ${evt.note}` : ""}`;
+      const icon = evt.kind === "frame" ? "↔" : evt.kind === "system" ? "⚙" : "•";
+      row.textContent = `${icon} ${idx + 1}. ${evt.action} ${fromLabel}→${toLabel} (${evt.transition}/${evt.durationMs}ms)${evt.note ? ` · ${evt.note}` : ""}`;
       row.onclick = () => scrubToTimelineEvent(idx);
       timelineList.appendChild(row);
     }
@@ -2261,7 +2278,7 @@ export function createPrototypeViewer(editor: Editor): {
     timelineWrap.style.cssText = "position:absolute;right:14px;top:52px;width:260px;max-height:300px;overflow:auto;background:rgba(15,23,42,0.92);border:1px solid rgba(148,163,184,0.3);border-radius:10px;padding:8px;z-index:4;display:flex;flex-direction:column;gap:6px;";
     const timelineHead = document.createElement("div");
     timelineHead.style.cssText = "font-size:11px;font-weight:600;color:#cbd5e1;";
-    timelineHead.textContent = "Interaction Timeline";
+    timelineHead.textContent = "Prototype Session Timeline";
     timelineWrap.appendChild(timelineHead);
 
     timelineInfo = document.createElement("div");
@@ -2278,8 +2295,25 @@ export function createPrototypeViewer(editor: Editor): {
     timelineScrubber.addEventListener("input", () => scrubToTimelineEvent(Number(timelineScrubber?.value || 0)));
     timelineWrap.appendChild(timelineScrubber);
 
+    const timelineFilterRow = document.createElement("div");
+    timelineFilterRow.style.cssText = "display:flex;gap:6px;align-items:center;";
+    const timelineFilter = document.createElement("select");
+    timelineFilter.style.cssText = "flex:1;background:#1e293b;border:1px solid rgba(148,163,184,0.35);border-radius:5px;color:#cbd5e1;font-size:10px;padding:2px 6px;";
+    [["all", "All events"], ["frame", "Frame jumps"], ["interaction", "Interactions"]].forEach(([v, label]) => {
+      const opt = document.createElement("option");
+      opt.value = String(v);
+      opt.textContent = String(label);
+      timelineFilter.appendChild(opt);
+    });
+    timelineFilter.onchange = () => {
+      timelineFilterMode = timelineFilter.value as "all" | "frame" | "interaction";
+      renderTimelineScrubber();
+    };
+    timelineFilterRow.appendChild(timelineFilter);
+    timelineWrap.appendChild(timelineFilterRow);
+
     const timelineBtns = document.createElement("div");
-    timelineBtns.style.cssText = "display:flex;gap:6px;";
+    timelineBtns.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;";
     const timelinePlayBtn = document.createElement("button");
     timelinePlayBtn.className = "prop-btn";
     timelinePlayBtn.textContent = "Play";
@@ -2299,10 +2333,40 @@ export function createPrototypeViewer(editor: Editor): {
       };
       step();
     };
+    const timelinePrevJumpBtn = document.createElement("button");
+    timelinePrevJumpBtn.className = "prop-btn";
+    timelinePrevJumpBtn.textContent = "← Jump";
+    timelinePrevJumpBtn.style.cssText = "font-size:10px;padding:4px 6px;";
+    timelinePrevJumpBtn.onclick = () => {
+      if (!timelineEvents.length) return;
+      const idx = Math.max(0, Math.min(timelineEvents.length - 1, Number(timelineScrubber?.value || 0)));
+      for (let i = idx - 1; i >= 0; i -= 1) {
+        if (timelineEvents[i]?.kind === "frame") {
+          scrubToTimelineEvent(i);
+          return;
+        }
+      }
+    };
+
+    const timelineNextJumpBtn = document.createElement("button");
+    timelineNextJumpBtn.className = "prop-btn";
+    timelineNextJumpBtn.textContent = "Jump →";
+    timelineNextJumpBtn.style.cssText = "font-size:10px;padding:4px 6px;";
+    timelineNextJumpBtn.onclick = () => {
+      if (!timelineEvents.length) return;
+      const idx = Math.max(0, Math.min(timelineEvents.length - 1, Number(timelineScrubber?.value || 0)));
+      for (let i = idx + 1; i < timelineEvents.length; i += 1) {
+        if (timelineEvents[i]?.kind === "frame") {
+          scrubToTimelineEvent(i);
+          return;
+        }
+      }
+    };
+
     const timelineClearBtn = document.createElement("button");
     timelineClearBtn.className = "prop-btn";
     timelineClearBtn.textContent = "Clear";
-    timelineClearBtn.style.cssText = "flex:1;font-size:10px;padding:4px 6px;";
+    timelineClearBtn.style.cssText = "font-size:10px;padding:4px 6px;";
     timelineClearBtn.onclick = () => {
       clearTimelinePlaybackTimer();
       timelineEvents = [];
@@ -2310,6 +2374,8 @@ export function createPrototypeViewer(editor: Editor): {
       renderTimelineScrubber();
     };
     timelineBtns.appendChild(timelinePlayBtn);
+    timelineBtns.appendChild(timelinePrevJumpBtn);
+    timelineBtns.appendChild(timelineNextJumpBtn);
     timelineBtns.appendChild(timelineClearBtn);
     timelineWrap.appendChild(timelineBtns);
 
