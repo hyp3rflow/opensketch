@@ -2489,6 +2489,8 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           trigger: string;
           states: Array<"hover" | "press" | "focus">;
           expectedKeys: string[];
+          expectedByState: Record<string, string>;
+          interactionKeys: string[];
         };
 
         const detectInteractiveTriggerConflicts = (): InteractiveTriggerConflict[] => {
@@ -2501,15 +2503,33 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             if (!grouped.has(trigger)) grouped.set(trigger, []);
             grouped.get(trigger)!.push({ state, key });
           }
+
+          const triggerInteractionKeys = new Map<string, string[]>();
+          try {
+            const interactions = JSON.parse(editor.engine.get_interactions(BigInt(id)) || "[]");
+            for (const inter of interactions as any[]) {
+              if (inter?.action !== "SwapVariant") continue;
+              const trigger = String(inter?.trigger || "OnClick");
+              const key = stringifyVariantKey(JSON.parse(String(inter?.variant_key_json || "{}")));
+              if (!triggerInteractionKeys.has(trigger)) triggerInteractionKeys.set(trigger, []);
+              if (key) triggerInteractionKeys.get(trigger)!.push(key);
+            }
+          } catch {}
+
           const conflicts: InteractiveTriggerConflict[] = [];
           grouped.forEach((items, trigger) => {
             if (items.length <= 1) return;
-            const keys = Array.from(new Set(items.map((x) => x.key).filter(Boolean)));
-            if (keys.length <= 1) return;
+            const expectedByState: Record<string, string> = {};
+            for (const item of items) expectedByState[item.state] = item.key;
+            const expectedKeys = Array.from(new Set(items.map((x) => x.key).filter(Boolean)));
+            const interactionKeys = Array.from(new Set((triggerInteractionKeys.get(trigger) || []).filter(Boolean)));
+            if (expectedKeys.length <= 1 && interactionKeys.length <= 1) return;
             conflicts.push({
               trigger,
               states: items.map((x) => x.state),
-              expectedKeys: keys,
+              expectedKeys,
+              expectedByState,
+              interactionKeys,
             });
           });
           return conflicts;
@@ -2557,6 +2577,23 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
                 if (idx < 0) continue;
               }
               editor.engine.set_interaction_variant_key(BigInt(id), idx, JSON.stringify(vk));
+            }
+          } catch {}
+        };
+
+        const dedupeSwapVariantInteractionsByTrigger = () => {
+          try {
+            const interactions = JSON.parse(editor.engine.get_interactions(BigInt(id)) || "[]") as any[];
+            const seen = new Set<string>();
+            for (let i = interactions.length - 1; i >= 0; i--) {
+              const inter = interactions[i];
+              if (inter?.action !== "SwapVariant") continue;
+              const trigger = String(inter?.trigger || "OnClick");
+              if (seen.has(trigger)) {
+                editor.engine.remove_interaction(BigInt(id), i);
+                continue;
+              }
+              seen.add(trigger);
             }
           } catch {}
         };
@@ -2647,15 +2684,29 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
 
           triggerConflicts.forEach((conflict) => {
             const row = document.createElement("div");
-            row.style.cssText = "font-size:9px;color:#fde68a;line-height:1.4;";
-            row.textContent = `${conflict.trigger}: ${conflict.states.join(" + ")} mapped to ${conflict.expectedKeys.length} different variants`;
+            row.style.cssText = "font-size:9px;color:#fde68a;line-height:1.45;";
+            const stateSummary = conflict.states
+              .map((st) => `${st}→${conflict.expectedByState[st] ? "mapped" : "none"}`)
+              .join(", ");
+            const interactionSummary = conflict.interactionKeys.length > 1
+              ? ` · swap interactions disagree (${conflict.interactionKeys.length} keys)`
+              : "";
+            row.textContent = `${conflict.trigger}: ${conflict.states.join(" + ")} share one trigger but expect ${conflict.expectedKeys.length} variant keys (${stateSummary})${interactionSummary}`;
             lintWrap.appendChild(row);
           });
 
+          const hint = document.createElement("div");
+          hint.style.cssText = "font-size:9px;color:#fcd34d;line-height:1.35;";
+          hint.textContent = "Quick-fix suggestions: keep one canonical state mapping for the shared trigger, or prune duplicated SwapVariant interactions per trigger.";
+          lintWrap.appendChild(hint);
+
+          const actionRow = document.createElement("div");
+          actionRow.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;";
+
           const quickFixBtn = document.createElement("button");
           quickFixBtn.className = "prop-btn";
-          quickFixBtn.style.cssText = "font-size:9px;padding:2px 8px;align-self:flex-start;";
-          quickFixBtn.textContent = "Quick fix: mirror to hover/press";
+          quickFixBtn.style.cssText = "font-size:9px;padding:2px 8px;";
+          quickFixBtn.textContent = "Quick fix: keep hover/press canonical";
           quickFixBtn.onclick = () => {
             editor.pushUndo();
             for (const conflict of triggerConflicts) {
@@ -2668,10 +2719,26 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
               }
             }
             syncSwapVariantInteractions();
+            dedupeSwapVariantInteractionsByTrigger();
             editor.requestRender();
             updatePanel();
           };
-          lintWrap.appendChild(quickFixBtn);
+          actionRow.appendChild(quickFixBtn);
+
+          const dedupeBtn = document.createElement("button");
+          dedupeBtn.className = "prop-btn";
+          dedupeBtn.style.cssText = "font-size:9px;padding:2px 8px;";
+          dedupeBtn.textContent = "Quick fix: dedupe trigger mappings";
+          dedupeBtn.onclick = () => {
+            editor.pushUndo();
+            dedupeSwapVariantInteractionsByTrigger();
+            syncSwapVariantInteractions();
+            editor.requestRender();
+            updatePanel();
+          };
+          actionRow.appendChild(dedupeBtn);
+
+          lintWrap.appendChild(actionRow);
           statePreviewWrap.appendChild(lintWrap);
         }
 

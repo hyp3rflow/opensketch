@@ -402,6 +402,7 @@
   - Gesture trigger labels shown on hotspot hints in preview
   - Gesture Conflict Resolver: Properties panel `Interactions` 상단에서 trigger 충돌 그룹(중복 trigger, drag+swipe 혼합)을 Diagnose하고, `Auto Resolve`로 interaction 순서를 trigger 우선순위(hover→press→click→drag→swipe→long-press→pinch) 기준 자동 정렬
   - Interactive Components Trigger Conflict Linter (2026-04-12): Interactive Variants `State Preview`에서 hover/press/focus가 동일 trigger에 서로 다른 variant key로 매핑되는 충돌을 탐지/리포트하고, Quick fix(`mirror to hover/press`)로 충돌 state를 기준 variant로 정렬 후 SwapVariant interactions를 재동기화
+  - Interactive Components Trigger Conflict Linter v2 (2026-04-12): 동일 trigger 공유 상태 간 variant key 충돌뿐 아니라 SwapVariant interaction key 불일치(중복/상이 key)까지 함께 lint한다. Quick fix 제안을 2가지로 확장(`keep hover/press canonical`, `dedupe trigger mappings`)해 instance 단위 trigger drift를 빠르게 정리한다.
   - **Prototype Flows**: PrototypeFlow struct (id, name, start_frame_id, start_page_id), Scene-level storage with backward-compatible serde
   - Flow CRUD: add_flow, remove_flow, rename_flow, set_flow_start_frame
   - Flow connections: get_flow_connections (BFS from start frame), get_all_cross_page_interactions (cross-page only)
