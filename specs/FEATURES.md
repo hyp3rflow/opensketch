@@ -399,6 +399,7 @@
   - Touch event handling in prototype viewer: swipe detection (>50px, <500ms), long-press timer, two-finger pinch distance ratio
   - Gesture trigger labels shown on hotspot hints in preview
   - Gesture Conflict Resolver: Properties panel `Interactions` 상단에서 trigger 충돌 그룹(중복 trigger, drag+swipe 혼합)을 Diagnose하고, `Auto Resolve`로 interaction 순서를 trigger 우선순위(hover→press→click→drag→swipe→long-press→pinch) 기준 자동 정렬
+  - Interactive Components Trigger Conflict Linter (2026-04-12): Interactive Variants `State Preview`에서 hover/press/focus가 동일 trigger에 서로 다른 variant key로 매핑되는 충돌을 탐지/리포트하고, Quick fix(`mirror to hover/press`)로 충돌 state를 기준 variant로 정렬 후 SwapVariant interactions를 재동기화
   - **Prototype Flows**: PrototypeFlow struct (id, name, start_frame_id, start_page_id), Scene-level storage with backward-compatible serde
   - Flow CRUD: add_flow, remove_flow, rename_flow, set_flow_start_frame
   - Flow connections: get_flow_connections (BFS from start frame), get_all_cross_page_interactions (cross-page only)
@@ -409,6 +410,7 @@
   - Prototype Transition Presets Library: Interactions 섹션에서 transition/easing/duration 조합을 문서 스코프 preset으로 Save/Apply, 활성 flow 기준 `Set as flow default` 지정, 새 interaction 추가 시 flow default 자동 적용
   - Smart Animate Preset Sequencer (2026-04-12): Interactions 카드에 enter/exit 단계 체인 draft(+Step) 작성과 `Save chain` preset 저장을 추가. 저장된 chain을 `Apply chain`으로 현재 노드의 prototype interactions에 순차 적용해 enter 계열(Navigate/OpenOverlay/ScrollTo/SwapVariant/SetVariable)과 exit 계열(Back/CloseOverlay) transition/duration/easing을 일괄 세팅
   - Smart Animate Preset Sequencer v2 (2026-04-12): 시퀀스 preset에 apply mode(`clamp`/`loop`)를 추가해 interaction 수가 step 수를 초과할 때 마지막 step 고정 또는 반복 순환을 선택 가능. preset 드롭다운 메타와 apply 결과 알림에 mode를 표시해 체인 적용 의도를 명확화
+  - Smart Animate Preset Sequencer v3 (2026-04-12): 저장 preset 관리 UX 보강(`Load`로 draft 복원, `Delete`로 정리, selected preset 메타 preview). 체인 반복 튜닝/재사용 사이클을 interaction 카드 내에서 닫아 편집 왕복을 줄임.
   - Toolbar: Flow Diagram button next to prototype play button (i18n tooltip: en/ko/ja)
 
 ### Styles Library (Shared Color & Text Styles)

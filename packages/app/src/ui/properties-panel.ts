@@ -2484,6 +2484,36 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
 
         const stateTriggerMap: Record<string, string> = { hover: "OnHover", press: "OnPress", focus: "OnHover" };
 
+        type InteractiveTriggerConflict = {
+          trigger: string;
+          states: Array<"hover" | "press" | "focus">;
+          expectedKeys: string[];
+        };
+
+        const detectInteractiveTriggerConflicts = (): InteractiveTriggerConflict[] => {
+          const grouped = new Map<string, Array<{ state: "hover" | "press" | "focus"; key: string }>>();
+          for (const state of ["hover", "press", "focus"] as const) {
+            const vk = interactiveVariants[state];
+            if (!vk) continue;
+            const trigger = stateTriggerMap[state] || "OnClick";
+            const key = stringifyVariantKey(vk);
+            if (!grouped.has(trigger)) grouped.set(trigger, []);
+            grouped.get(trigger)!.push({ state, key });
+          }
+          const conflicts: InteractiveTriggerConflict[] = [];
+          grouped.forEach((items, trigger) => {
+            if (items.length <= 1) return;
+            const keys = Array.from(new Set(items.map((x) => x.key).filter(Boolean)));
+            if (keys.length <= 1) return;
+            conflicts.push({
+              trigger,
+              states: items.map((x) => x.state),
+              expectedKeys: keys,
+            });
+          });
+          return conflicts;
+        };
+
         const getSwapVariantTriggerStatus = (): Record<string, "missing" | "mismatch" | "ok"> => {
           const status: Record<string, "missing" | "mismatch" | "ok"> = {
             hover: "missing",
@@ -2603,6 +2633,45 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             updatePanel();
           };
           triggerStatusRow.appendChild(fixDriftBtn);
+        }
+
+        const triggerConflicts = detectInteractiveTriggerConflicts();
+        if (triggerConflicts.length > 0) {
+          const lintWrap = document.createElement("div");
+          lintWrap.style.cssText = "margin-top:6px;padding:6px;border:1px solid rgba(251,191,36,0.45);border-radius:6px;background:rgba(120,53,15,0.25);display:flex;flex-direction:column;gap:6px;";
+          const lintTitle = document.createElement("div");
+          lintTitle.style.cssText = "font-size:10px;color:#fbbf24;font-weight:600;";
+          lintTitle.textContent = `Trigger Conflict Linter · ${triggerConflicts.length} issue${triggerConflicts.length === 1 ? "" : "s"}`;
+          lintWrap.appendChild(lintTitle);
+
+          triggerConflicts.forEach((conflict) => {
+            const row = document.createElement("div");
+            row.style.cssText = "font-size:9px;color:#fde68a;line-height:1.4;";
+            row.textContent = `${conflict.trigger}: ${conflict.states.join(" + ")} mapped to ${conflict.expectedKeys.length} different variants`;
+            lintWrap.appendChild(row);
+          });
+
+          const quickFixBtn = document.createElement("button");
+          quickFixBtn.className = "prop-btn";
+          quickFixBtn.style.cssText = "font-size:9px;padding:2px 8px;align-self:flex-start;";
+          quickFixBtn.textContent = "Quick fix: mirror to hover/press";
+          quickFixBtn.onclick = () => {
+            editor.pushUndo();
+            for (const conflict of triggerConflicts) {
+              const baseState = conflict.states.includes("hover") ? "hover" : conflict.states.includes("press") ? "press" : conflict.states[0];
+              const base = interactiveVariants[baseState];
+              if (!base) continue;
+              for (const st of conflict.states) {
+                if (st === baseState) continue;
+                editor.engine.set_interactive_variant(BigInt(id), st, JSON.stringify(base));
+              }
+            }
+            syncSwapVariantInteractions();
+            editor.requestRender();
+            updatePanel();
+          };
+          lintWrap.appendChild(quickFixBtn);
+          statePreviewWrap.appendChild(lintWrap);
         }
 
         const autoSyncLabel = document.createElement("label");
@@ -8327,6 +8396,23 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           applySeqBtn.textContent = "Apply chain";
           applySeqBtn.disabled = presets.length === 0;
           selectRow.appendChild(applySeqBtn);
+
+          const loadDraftBtn = document.createElement("button");
+          loadDraftBtn.className = "prop-btn";
+          loadDraftBtn.style.fontSize = "10px";
+          loadDraftBtn.textContent = "Load";
+          loadDraftBtn.title = "Load selected preset into draft editor";
+          loadDraftBtn.disabled = presets.length === 0;
+          selectRow.appendChild(loadDraftBtn);
+
+          const deleteSeqBtn = document.createElement("button");
+          deleteSeqBtn.className = "prop-btn";
+          deleteSeqBtn.style.fontSize = "10px";
+          deleteSeqBtn.textContent = "Delete";
+          deleteSeqBtn.title = "Delete selected preset";
+          deleteSeqBtn.disabled = presets.length === 0;
+          selectRow.appendChild(deleteSeqBtn);
+
           seqWrap.appendChild(selectRow);
 
           const quickBuilder = document.createElement("div");
@@ -8389,6 +8475,10 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           modeRow.appendChild(modeText);
           seqWrap.appendChild(modeRow);
 
+          const selectedPresetMeta = document.createElement("div");
+          selectedPresetMeta.style.cssText = "font-size:9px;color:#7c8698;margin-top:4px;line-height:1.35;";
+          seqWrap.appendChild(selectedPresetMeta);
+
           let draftSteps: SmartAnimateSequenceStep[] = [];
           const draftList = document.createElement("div");
           draftList.style.cssText = "display:flex;flex-direction:column;gap:3px;margin-top:6px;";
@@ -8425,6 +8515,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             });
           };
           renderDraft();
+          selectedPresetMeta.textContent = presets.length ? "Pick a saved preset to preview enter/exit chain." : "No saved preset yet. Build a draft and save it.";
 
           addStepBtn.onclick = () => {
             draftSteps = [...draftSteps, normalizeSmartAnimateStep({
@@ -8436,9 +8527,46 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             renderDraft();
           };
 
+          const renderSelectedPresetMeta = () => {
+            const selected = loadSmartAnimateSequencePresets().find((p) => p.id === seqSelect.value);
+            if (!selected) {
+              selectedPresetMeta.textContent = "Pick a saved preset to preview enter/exit chain.";
+              return;
+            }
+            const enterCount = selected.steps.filter((s) => s.phase === "enter").length;
+            const exitCount = selected.steps.filter((s) => s.phase === "exit").length;
+            const firstStep = selected.steps[0];
+            selectedPresetMeta.textContent = `Enter ${enterCount} · Exit ${exitCount} · ${selected.applyMode === "loop" ? "loop" : "clamp"}${firstStep ? ` · starts: ${firstStep.phase}/${firstStep.transition}/${firstStep.durationMs}ms` : ""}`;
+          };
+
           seqSelect.onchange = () => {
             const selected = loadSmartAnimateSequencePresets().find((p) => p.id === seqSelect.value);
             if (selected) modeCheckbox.checked = selected.applyMode === "loop";
+            renderSelectedPresetMeta();
+          };
+
+          loadDraftBtn.onclick = () => {
+            const selected = loadSmartAnimateSequencePresets().find((p) => p.id === seqSelect.value);
+            if (!selected) {
+              alert("Select a preset first.");
+              return;
+            }
+            draftSteps = selected.steps.map((x) => ({ ...x }));
+            modeCheckbox.checked = selected.applyMode === "loop";
+            renderDraft();
+            renderSelectedPresetMeta();
+          };
+
+          deleteSeqBtn.onclick = () => {
+            const selected = loadSmartAnimateSequencePresets().find((p) => p.id === seqSelect.value);
+            if (!selected) {
+              alert("Select a preset first.");
+              return;
+            }
+            if (!confirm(`Delete sequence preset "${selected.name}"?`)) return;
+            const remaining = loadSmartAnimateSequencePresets().filter((p) => p.id !== selected.id);
+            saveSmartAnimateSequencePresets(remaining);
+            refresh(ids);
           };
 
           saveChainBtn.onclick = () => {

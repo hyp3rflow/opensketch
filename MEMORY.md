@@ -1790,10 +1790,18 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Interactive Components Trigger Conflict Linter — hover/press/focus trigger 충돌(동일 instance 다중 매핑) 탐지 + quick-fix 제안 (임팩트 중상, 난이도 중)
 - Prototype Flow Coverage Recorder — 플레이 세션 동안 방문 frame/미방문 hotspot 수집 후 heatmap 리포트 (임팩트 중상, 난이도 중)
 - A11y Motion Guardrails — reduced-motion 프리뷰 토글 + 과도한 duration/easing 조합 lint (임팩트 중, 난이도 중)
+- Sticky Scroll Sections for Prototype — Frame 내 섹션을 스크롤 중 상단 고정(sticky)으로 설정하고 뷰어에서 실제 고정 동작 미리보기 (임팩트 상, 난이도 중상)
+- Component Instance Swap Suggestions — instance swap 시 크기/variant/property 유사도 기반 추천 리스트 + one-click 교체 (임팩트 중상, 난이도 중)
+- Dev Handoff State Capture Presets — hover/pressed/focus 등 인터랙션 상태 조합을 preset으로 저장 후 redline/export에 일괄 적용 (임팩트 중상, 난이도 중)
 
+## 완료된 기능 (추가 — Interactive Components Trigger Conflict Linter, 2026-04-12)
+- Interactive Variants `State Preview` 메타 영역에 `Trigger Conflict Linter` 카드 추가
+- hover/press/focus state가 동일 trigger에 서로 다른 variant key로 매핑된 충돌을 탐지해 이슈 카운트/원인을 표시
+- Quick fix(`mirror to hover/press`)로 충돌 상태를 기준 state variant로 정렬하고 SwapVariant interaction 동기화를 즉시 수행
+- 구현: `packages/app/src/ui/properties-panel.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Prototype Keyboard Navigation Order Editor, 2026-04-12)
 - Prototype Viewer 좌측에 `Keyboard Nav Order` 패널 추가
