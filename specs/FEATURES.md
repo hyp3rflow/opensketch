@@ -2770,3 +2770,10 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] 기존 Prototype fixed 레이어 보정 로직과 충돌 없이 동일 backup/restore 파이프라인에서 처리
 - [x] Engine API 추가: `set_prototype_sticky(id, bool)`, `get_prototype_sticky(id)`
 - 구현: `crates/engine/src/node.rs`, `crates/engine/src/lib.rs`, `packages/app/src/ui/properties-panel.ts`, `packages/app/src/ui/prototype-viewer.ts`
+
+### Component Instance Swap Suggestions (2026-04-13)
+- [x] Instance `COMPONENT PROPS`의 `instance_swap` prop row에 추천 swap chip UI(`추천:`) 추가
+- [x] 엔진 `suggest_component_swaps(nodeId, limit)` 결과를 활용해 현재 swap target을 제외한 상위 추천 3개 표시
+- [x] 추천 chip 클릭 시 one-click으로 `set_instance_prop_override({ type: "instance_swap", value: componentId })` 적용
+- [x] 각 추천 chip에 score 표기 + reason 툴팁 제공
+- 구현: `packages/app/src/ui/properties-panel.ts`

@@ -1790,11 +1790,18 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Component Instance Swap Suggestions — instance swap 시 크기/variant/property 유사도 기반 추천 리스트 + one-click 교체 (임팩트 중상, 난이도 중)
 - Dev Handoff State Capture Presets — hover/pressed/focus 등 인터랙션 상태 조합을 preset으로 저장 후 redline/export에 일괄 적용 (임팩트 중상, 난이도 중)
 - Prototype Conditional Branch Rules — 변수/조건식 기반 인터랙션 분기(If/Else)로 단일 핫스팟에서 다중 목적지 제어 (임팩트 상, 난이도 중상)
 - Component Variant Bulk Matrix Editor — variant 축(예: size/state/theme) 매트릭스 테이블에서 일괄 생성/수정/누락 셀 하이라이트 (임팩트 상, 난이도 중상)
 - Design QA Diff Pins — 두 프레임/버전 비교 후 변화 영역에 핀 자동 생성(색상/간격/타이포 변경 타입별) 및 코멘트 연동 (임팩트 중상, 난이도 중)
+
+## 완료된 기능 (추가 — Component Instance Swap Suggestions, 2026-04-13)
+- Instance `COMPONENT PROPS`의 `instance_swap` prop row에 추천 swap chip UI 추가 (`추천:` 라벨)
+- 엔진 `suggest_component_swaps(nodeId, limit)` 결과를 불러와 현재 선택된 component를 제외한 상위 추천 3개를 표시
+- 추천 chip 클릭 시 one-click으로 해당 component id를 `set_instance_prop_override({ type: "instance_swap" })`에 적용
+- 추천 chip에 score/이유(reason) 툴팁을 함께 노출해 교체 근거를 빠르게 확인
+- 구현: `packages/app/src/ui/properties-panel.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Sticky Scroll Sections for Prototype, 2026-04-12)
 - Section 노드(스크롤 가능한 Frame의 direct child)에 `Sticky section header` 토글 추가
