@@ -2236,7 +2236,21 @@ export function createPrototypeViewer(editor: Editor): {
       renderCoveragePanel();
       renderCurrentView();
     };
-    coverageBtnRow.appendChild(coverageResetBtn);
+    const coverageCopyBtn = document.createElement("button");
+    coverageCopyBtn.className = "prop-btn";
+    coverageCopyBtn.textContent = "Copy";
+    coverageCopyBtn.style.cssText = "flex:1;font-size:10px;padding:3px 6px;";
+    coverageCopyBtn.onclick = async () => {
+      const lines = buildCoverageReportLines();
+      try {
+        await navigator.clipboard.writeText(lines.join("\n"));
+        coverageCopyBtn.textContent = "Copied";
+      } catch {
+        coverageCopyBtn.textContent = "Copy fail";
+      }
+      window.setTimeout(() => { coverageCopyBtn.textContent = "Copy"; }, 900);
+    };
+    coverageBtnRow.append(coverageResetBtn, coverageCopyBtn);
     coverageWrap.appendChild(coverageBtnRow);
     coverageList = document.createElement("div");
     coverageList.style.cssText = "display:flex;flex-direction:column;gap:4px;";
@@ -3529,15 +3543,28 @@ export function createPrototypeViewer(editor: Editor): {
       if (interactionList.length === 0) {
         ctx.strokeRect(x, y, w, h);
       } else {
+        const frameVisited = currentFrameId ? (coverageHotspotHits.get(currentFrameId) || new Set<string>()) : new Set<string>();
         for (const interaction of interactionList) {
           const sig = interactionSignature(interaction);
           const isHotInteraction = isHotNode && hoveredHotspotSig && sig === hoveredHotspotSig;
+          const covKey = hotspotOrderKey(Number(nwi.id), sig);
+          const covTracked = interaction?.trigger === "OnClick" || interaction?.trigger === "OnPress";
+          if (covTracked) {
+            const covered = frameVisited.has(covKey);
+            ctx.save();
+            ctx.setLineDash([]);
+            ctx.beginPath();
+            drawInteractionHotspotPath(ctx, node, interaction, frameBounds, totalScale);
+            ctx.fillStyle = covered ? "rgba(34,197,94,0.14)" : "rgba(239,68,68,0.18)";
+            ctx.fill();
+            ctx.restore();
+          }
           ctx.lineWidth = isFocused ? 4 : (isHotInteraction ? 4 : (isHotNode ? 3 : 2));
           ctx.beginPath();
           drawInteractionHotspotPath(ctx, node, interaction, frameBounds, totalScale);
           ctx.stroke();
 
-          const rank = orderRank.get(hotspotOrderKey(Number(nwi.id), sig));
+          const rank = orderRank.get(covKey);
           if (rank) {
             const bx = x + 6;
             const by = y + 6 + (rank % 3) * 14;
@@ -3890,46 +3917,83 @@ export function createPrototypeViewer(editor: Editor): {
     coverageHotspotHits.set(frameId, set);
   }
 
+  function getCoverageFrameRows() {
+    const frameIds = Array.from(coverageFrameVisits.keys()).sort((a, b) => b - a);
+    return frameIds.map((frameId) => {
+      const items = listFocusableHotspots(frameId);
+      const visited = coverageHotspotHits.get(frameId) || new Set<string>();
+      const unvisited = items.filter((item) => !visited.has(item.key));
+      return { frameId, items, visited, unvisited };
+    });
+  }
+
+  function buildCoverageReportLines(): string[] {
+    const rows = getCoverageFrameRows();
+    if (rows.length === 0) return ["Flow coverage report", "- no data yet"]; 
+    const lines = ["Flow coverage report"];
+    for (const row of rows) {
+      const visits = coverageFrameVisits.get(row.frameId) || 0;
+      lines.push(`- Frame #${row.frameId}: visits ${visits}, hotspots ${row.items.length - row.unvisited.length}/${row.items.length}`);
+      if (row.unvisited.length) {
+        for (const miss of row.unvisited.slice(0, 6)) {
+          const action = String(miss.interaction?.action || "-");
+          lines.push(`  · miss node #${miss.nodeId} (${action})`);
+        }
+        if (row.unvisited.length > 6) lines.push(`  · ... +${row.unvisited.length - 6} more`);
+      }
+    }
+    return lines;
+  }
+
   function renderCoveragePanel() {
     if (!coverageInfo || !coverageList) return;
-    const frameIds = Array.from(coverageFrameVisits.keys()).sort((a, b) => b - a);
-    const totalFrames = frameIds.length;
+    const rows = getCoverageFrameRows();
+    const totalFrames = rows.length;
     let visitedHotspots = 0;
     let totalHotspots = 0;
-    for (const frameId of frameIds) {
-      const total = listFocusableHotspots(frameId).length;
-      totalHotspots += total;
-      visitedHotspots += Math.min(total, coverageHotspotHits.get(frameId)?.size || 0);
+    let missingHotspots = 0;
+    for (const row of rows) {
+      totalHotspots += row.items.length;
+      visitedHotspots += row.items.length - row.unvisited.length;
+      missingHotspots += row.unvisited.length;
     }
     coverageInfo.textContent = totalFrames
-      ? `Visited ${totalFrames} frame(s) · Hotspots ${visitedHotspots}/${totalHotspots}`
+      ? `Visited ${totalFrames} frame(s) · Hotspots ${visitedHotspots}/${totalHotspots} · Missing ${missingHotspots}`
       : "No coverage yet. Navigate prototype to collect session coverage.";
     coverageList.innerHTML = "";
     if (!totalFrames) return;
 
-    frameIds.forEach((frameId) => {
-      const visits = coverageFrameVisits.get(frameId) || 0;
-      const total = listFocusableHotspots(frameId).length;
-      const hit = Math.min(total, coverageHotspotHits.get(frameId)?.size || 0);
+    rows.forEach((row) => {
+      const visits = coverageFrameVisits.get(row.frameId) || 0;
+      const total = row.items.length;
+      const hit = total - row.unvisited.length;
       const ratio = total > 0 ? hit / total : 0;
-      const row = document.createElement("button");
-      row.className = "prop-btn";
-      row.style.cssText = "display:flex;flex-direction:column;align-items:stretch;gap:3px;padding:5px 6px;text-align:left;";
-      row.onclick = () => {
-        currentFrameId = frameId;
+      const rowEl = document.createElement("button");
+      rowEl.className = "prop-btn";
+      rowEl.style.cssText = "display:flex;flex-direction:column;align-items:stretch;gap:3px;padding:5px 6px;text-align:left;";
+      rowEl.onclick = () => {
+        currentFrameId = row.frameId;
         renderCurrentView();
       };
       const label = document.createElement("div");
       label.style.cssText = "font-size:10px;color:#e2e8f0;display:flex;justify-content:space-between;gap:6px;";
-      label.textContent = `#${frameId} · visits ${visits} · ${hit}/${total || 0}`;
+      label.textContent = `#${row.frameId} · visits ${visits} · ${hit}/${total || 0}`;
+      const miss = document.createElement("div");
+      miss.style.cssText = "font-size:9px;color:#94a3b8;";
+      if (row.unvisited.length > 0) {
+        const sample = row.unvisited.slice(0, 2).map((item) => `#${item.nodeId}`).join(", ");
+        miss.textContent = `Unvisited ${row.unvisited.length}: ${sample}${row.unvisited.length > 2 ? "…" : ""}`;
+      } else {
+        miss.textContent = "All hotspots visited ✅";
+      }
       const bar = document.createElement("div");
       bar.style.cssText = "height:5px;border-radius:999px;background:rgba(51,65,85,0.9);overflow:hidden;";
       const fill = document.createElement("div");
       const hue = Math.round(12 + ratio * 108);
       fill.style.cssText = `height:100%;width:${Math.max(4, Math.round(ratio * 100))}%;background:hsl(${hue} 90% 55%);`;
       bar.appendChild(fill);
-      row.append(label, bar);
-      coverageList.appendChild(row);
+      rowEl.append(label, miss, bar);
+      coverageList.appendChild(rowEl);
     });
   }
 

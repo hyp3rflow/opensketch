@@ -1795,6 +1795,14 @@
 - Component Variant Bulk Matrix Editor — variant 축(예: size/state/theme) 매트릭스 테이블에서 일괄 생성/수정/누락 셀 하이라이트 (임팩트 상, 난이도 중상)
 - Design QA Diff Pins — 두 프레임/버전 비교 후 변화 영역에 핀 자동 생성(색상/간격/타이포 변경 타입별) 및 코멘트 연동 (임팩트 중상, 난이도 중)
 
+## 완료된 기능 (추가 — Prototype Flow Coverage Recorder + Heatmap Report, 2026-04-13)
+- Prototype Viewer `Flow Coverage` 패널 summary에 `Missing N`(미방문 hotspot 수) 집계 추가
+- frame row별 미방문 hotspot node id preview 표기
+- `Copy` 버튼으로 coverage 리포트(방문 frame/visit 수/hotspot hit·miss/미방문 샘플) 클립보드 export 지원
+- 캔버스 hotspot hint에 coverage heatmap overlay 추가 (visited=green, unvisited=red)
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
+
 ## 완료된 기능 (추가 — Component Instance Swap Suggestions, 2026-04-13)
 - Instance `COMPONENT PROPS`의 `instance_swap` prop row에 추천 swap chip UI 추가 (`추천:` 라벨)
 - 엔진 `suggest_component_swaps(nodeId, limit)` 결과를 불러와 현재 선택된 component를 제외한 상위 추천 3개를 표시

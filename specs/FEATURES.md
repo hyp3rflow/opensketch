@@ -2777,3 +2777,12 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] 추천 chip 클릭 시 one-click으로 `set_instance_prop_override({ type: "instance_swap", value: componentId })` 적용
 - [x] 각 추천 chip에 score 표기 + reason 툴팁 제공
 - 구현: `packages/app/src/ui/properties-panel.ts`
+
+### Prototype Flow Coverage Recorder + Heatmap Report (2026-04-13)
+- [x] Prototype Viewer `Flow Coverage` 패널에 미방문 hotspot 집계(`Missing N`) 추가
+- [x] frame row마다 미방문 hotspot node id 미리보기 제공으로 누락 구간 빠른 식별 지원
+- [x] `Copy` 액션 추가: 현재 세션 coverage 리포트(방문 frame, hotspot hit/miss, 미방문 샘플) 클립보드 내보내기
+- [x] canvas hotspot hint에 coverage heatmap 오버레이 추가
+  - 방문한 hotspot: 초록 반투명
+  - 미방문 hotspot: 빨강 반투명
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
