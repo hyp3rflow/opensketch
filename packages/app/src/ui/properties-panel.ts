@@ -199,6 +199,58 @@ function savePrototypeFlowTransitionDefaults(editor: Editor, defaults: Prototype
   localStorage.setItem(key, JSON.stringify(defaults));
 }
 
+type SelectionSetPreset = {
+  id: string;
+  name: string;
+  scope: "page" | "doc";
+  pageId: string;
+  nodeIds: number[];
+  createdAt: number;
+};
+
+const SELECTION_SET_PRESET_KEY = "opensketch-selection-set-presets-v1";
+
+function getSelectionSetStorageKey(editor: Editor): string {
+  return `${SELECTION_SET_PRESET_KEY}-${getPrototypeDocKey(editor)}`;
+}
+
+function getActivePageKey(editor: Editor): string {
+  try {
+    const pageId = editor.engine.get_active_page_id?.();
+    if (pageId === undefined || pageId === null) return "0";
+    return String(pageId);
+  } catch {
+    return "0";
+  }
+}
+
+function loadSelectionSetPresets(editor: Editor): SelectionSetPreset[] {
+  try {
+    const raw = localStorage.getItem(getSelectionSetStorageKey(editor));
+    const parsed = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((it: any, i: number) => ({
+        id: String(it?.id || `set-${i + 1}`),
+        name: String(it?.name || `Set ${i + 1}`),
+        scope: it?.scope === "doc" ? "doc" : "page",
+        pageId: String(it?.pageId || "0"),
+        nodeIds: Array.isArray(it?.nodeIds)
+          ? it.nodeIds.map((v: any) => Number(v)).filter((v: number) => Number.isFinite(v) && v > 0)
+          : [],
+        createdAt: Number(it?.createdAt || Date.now()),
+      }))
+      .filter((it: SelectionSetPreset) => it.nodeIds.length > 0)
+      .slice(0, 80);
+  } catch {
+    return [];
+  }
+}
+
+function saveSelectionSetPresets(editor: Editor, presets: SelectionSetPreset[]) {
+  localStorage.setItem(getSelectionSetStorageKey(editor), JSON.stringify(presets.slice(0, 80)));
+}
+
 
 type SmartAnimateSequenceStep = {
   phase: "enter" | "exit";
@@ -889,6 +941,92 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       title.className = "prop-section-title";
       title.textContent = `${ids.length} elements selected`;
       wrap.appendChild(title);
+
+      const selectionSetSection = createSection("Selection Sets");
+      const scopeRow = document.createElement("div");
+      scopeRow.style.cssText = "display:flex;gap:6px;margin-bottom:6px;";
+      const scopeSelect = document.createElement("select");
+      scopeSelect.className = "prop-input";
+      scopeSelect.style.cssText = "flex:1;";
+      scopeSelect.innerHTML = '<option value="page">Page set</option><option value="doc">Document set</option>';
+      scopeRow.appendChild(scopeSelect);
+      const saveSetBtn = document.createElement("button");
+      saveSetBtn.className = "prop-btn";
+      saveSetBtn.style.cssText = "font-size:10px;padding:4px 8px;";
+      saveSetBtn.textContent = "Save current";
+      scopeRow.appendChild(saveSetBtn);
+      selectionSetSection.appendChild(scopeRow);
+
+      const setsList = document.createElement("div");
+      setsList.style.cssText = "display:flex;flex-direction:column;gap:4px;";
+      selectionSetSection.appendChild(setsList);
+
+      const renderSelectionSets = () => {
+        const pageKey = getActivePageKey(editor);
+        const sets = loadSelectionSetPresets(editor).filter((it) => it.scope === "doc" || it.pageId === pageKey);
+        setsList.innerHTML = "";
+        if (sets.length === 0) {
+          const hint = document.createElement("div");
+          hint.style.cssText = "font-size:10px;color:#94a3b8;line-height:1.35;";
+          hint.textContent = "Save frequently used layer selections. Page sets follow current page, doc sets are shared across pages.";
+          setsList.appendChild(hint);
+          return;
+        }
+        for (const set of sets.slice(0, 10)) {
+          const row = document.createElement("div");
+          row.style.cssText = "display:flex;align-items:center;gap:6px;padding:4px 6px;border:1px solid #334155;border-radius:6px;background:#111827;";
+          const meta = document.createElement("div");
+          meta.style.cssText = "flex:1;min-width:0;";
+          const nm = document.createElement("div");
+          nm.style.cssText = "font-size:10px;color:#e2e8f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;";
+          nm.textContent = set.name;
+          const sub = document.createElement("div");
+          sub.style.cssText = "font-size:9px;color:#94a3b8;";
+          sub.textContent = `${set.scope === "doc" ? "Doc" : "Page"} · ${set.nodeIds.length} layers`;
+          meta.append(nm, sub);
+          row.appendChild(meta);
+
+          const applyBtn = document.createElement("button");
+          applyBtn.className = "prop-btn";
+          applyBtn.style.cssText = "font-size:9px;padding:3px 6px;";
+          applyBtn.textContent = "Apply";
+          applyBtn.onclick = () => editor.fireSelectionNow(set.nodeIds);
+          row.appendChild(applyBtn);
+
+          const delBtn = document.createElement("button");
+          delBtn.className = "prop-btn";
+          delBtn.style.cssText = "font-size:9px;padding:3px 6px;color:#fda4af;border-color:#7f1d1d;";
+          delBtn.textContent = "Delete";
+          delBtn.onclick = () => {
+            const next = loadSelectionSetPresets(editor).filter((it) => it.id !== set.id);
+            saveSelectionSetPresets(editor, next);
+            renderSelectionSets();
+          };
+          row.appendChild(delBtn);
+          setsList.appendChild(row);
+        }
+      };
+
+      saveSetBtn.onclick = () => {
+        const name = prompt("Selection set name", `Set ${new Date().toLocaleTimeString()}`)?.trim();
+        if (!name) return;
+        const scope = scopeSelect.value === "doc" ? "doc" : "page";
+        const pageKey = getActivePageKey(editor);
+        const next: SelectionSetPreset = {
+          id: `set-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+          name,
+          scope,
+          pageId: scope === "doc" ? "*" : pageKey,
+          nodeIds: [...ids],
+          createdAt: Date.now(),
+        };
+        const existing = loadSelectionSetPresets(editor);
+        saveSelectionSetPresets(editor, [next, ...existing.filter((it) => !(it.name === next.name && it.scope === next.scope && it.pageId === next.pageId))]);
+        renderSelectionSets();
+      };
+
+      renderSelectionSets();
+      wrap.appendChild(selectionSetSection);
 
       // Alignment section
       const alignSection = createSection("Align");

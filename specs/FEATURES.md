@@ -46,6 +46,7 @@
   - Text: content, font family (14 fonts), font size
   - Node name, type badge
   - Multi-select count, empty state
+  - **Smart Selection Set Presets (2026-04-13)**: 멀티 선택 상태에서 Selection Sets 섹션으로 현재 선택 레이어 집합을 `Page set`/`Document set`으로 저장하고, 저장된 세트를 one-click Apply/Delete로 호출/관리한다. Page set은 활성 페이지에만 노출되고 Document set은 문서 전체에서 재사용된다.
 - [x] **Design System Panel**: tokens management
   - Colors: 24 swatches (grid), click=fill, right-click=stroke
   - Typography: 11 presets with live preview, click-to-apply
