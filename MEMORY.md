@@ -1790,9 +1790,19 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Dev Handoff State Capture Presets — hover/pressed/focus 등 인터랙션 상태 조합을 preset으로 저장 후 redline/export에 일괄 적용 (임팩트 중상, 난이도 중)
 - Prototype Conditional Branch Rules — 변수/조건식 기반 인터랙션 분기(If/Else)로 단일 핫스팟에서 다중 목적지 제어 (임팩트 상, 난이도 중상)
 - Design QA Diff Pins — 두 프레임/버전 비교 후 변화 영역에 핀 자동 생성(색상/간격/타이포 변경 타입별) 및 코멘트 연동 (임팩트 중상, 난이도 중)
+- Variable Alias Dependency Graph — 변수 alias 체인을 그래프로 시각화하고 순환 참조/깊은 체인 경고 + jump-to-node (임팩트 중상, 난이도 중)
+- Smart Animate Performance Budget Panel — 프레임 전환별 layer count/blur/shadow/filter 비용 추정과 저사양 preset 자동 제안 (임팩트 상, 난이도 중상)
+- Auto Layout Wrap Stress Tester — 다양한 컨테이너 폭 시뮬레이션으로 wrap 깨짐 구간 탐지 + 권장 min/max 값 제안 (임팩트 중, 난이도 중)
+
+## 완료된 기능 (추가 — Dev Handoff State Capture Presets, 2026-04-13)
+- Handoff 패널에 `State Capture Presets` 카드 추가 (hover / pressed / focus 토글)
+- 상태 조합을 preset으로 저장/호출/삭제, 문서+페이지 키로 localStorage 저장
+- 현재 state 조합을 redline pin에 함께 저장하고 캔버스에 `State H/P/F` 라벨로 표기
+- PNG/SVG export 파일명에 상태 suffix(`-hover`, `-pressed-focus` 등) 자동 부여
+- 구현: `packages/app/src/ui/handoff-panel.ts`, `packages/app/src/editor.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Component Variant Bulk Matrix Editor 보강, 2026-04-13)
 - Variant Matrix Panel에 `Run Combo Test` / `Copy Combo Report` 추가

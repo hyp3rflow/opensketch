@@ -2645,6 +2645,13 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] pin 카운터 표시로 handoff 캡처 전에 유지 중인 redline 수를 즉시 확인
 - [x] 구현: `packages/app/src/editor.ts`, `packages/app/src/ui/handoff-panel.ts`
 
+### Dev Handoff State Capture Presets (2026-04-13)
+- [x] Handoff 패널에 `State Capture Presets` 카드 추가 (hover / pressed / focus 토글)
+- [x] 상태 조합을 preset으로 저장/호출/삭제 (문서+페이지 단위 localStorage)
+- [x] 적용된 state 조합을 redline pin에 함께 저장하고 캔버스 라벨(`State H/P/F`)로 표시
+- [x] PNG/SVG export 파일명에 상태 suffix(`-hover-pressed` 등) 반영
+- [x] 구현: `packages/app/src/ui/handoff-panel.ts`, `packages/app/src/editor.ts`
+
 ### Variables Bulk Rename & Namespace Tools (2026-04-11)
 - [x] Variables Bulk Edit(Table View) 툴바에 `Prefix Rename`, `Move Namespace` 액션 추가
 - [x] prefix/namespace 기반 일괄 rename 시 충돌 이름 자동 감지 후 `-2`, `-3` suffix로 auto-fix

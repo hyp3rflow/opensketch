@@ -122,6 +122,12 @@ interface MultiTransformState {
 
 type RedlinePinMode = "selectionToTarget" | "selectionSpacing";
 
+interface HandoffStateCapture {
+  hover: boolean;
+  pressed: boolean;
+  focus: boolean;
+}
+
 interface RedlinePin {
   id: number;
   pageId: number;
@@ -129,6 +135,7 @@ interface RedlinePin {
   selectionIds: number[];
   targetId?: number;
   createdAt: number;
+  stateCapture?: HandoffStateCapture;
 }
 
 interface ActiveRedlineContext {
@@ -298,6 +305,7 @@ export class Editor {
   private _activeRedlineContext: ActiveRedlineContext | null = null;
   private _redlinePins: RedlinePin[] = [];
   private _nextRedlinePinId = 1;
+  private _handoffStateCapture: HandoffStateCapture = { hover: false, pressed: false, focus: false };
   public measureTool = new MeasureToolState();
   private _altHeld = false;
   private _devMode = false;
@@ -4964,6 +4972,19 @@ export class Editor {
     return { x: Number(n.x || 0), y: Number(n.y || 0), w: Number(n.width || 0), h: Number(n.height || 0) };
   }
 
+  public setHandoffStateCapture(state: Partial<HandoffStateCapture>) {
+    this._handoffStateCapture = {
+      hover: !!state.hover,
+      pressed: !!state.pressed,
+      focus: !!state.focus,
+    };
+    this.needsRender = true;
+  }
+
+  public getHandoffStateCapture(): HandoffStateCapture {
+    return { ...this._handoffStateCapture };
+  }
+
   public pinActiveRedline(): boolean {
     if (!this._activeRedlineContext) return false;
     const pageId = Number(this.engine.get_active_page_id?.() ?? 0);
@@ -4974,6 +4995,7 @@ export class Editor {
       selectionIds: [...this._activeRedlineContext.selectionIds],
       targetId: this._activeRedlineContext.targetId,
       createdAt: Date.now(),
+      stateCapture: { ...this._handoffStateCapture },
     });
     this.needsRender = true;
     return true;
@@ -5025,6 +5047,30 @@ export class Editor {
       this.ctx.globalAlpha = 0.9;
       renderMeasureLines(this.ctx, lines);
       this.ctx.restore();
+
+      const sc = pin.stateCapture;
+      if (sc && (sc.hover || sc.pressed || sc.focus)) {
+        const tags: string[] = [];
+        if (sc.hover) tags.push("H");
+        if (sc.pressed) tags.push("P");
+        if (sc.focus) tags.push("F");
+        const anchor = lines[0];
+        if (anchor) {
+          const text = `State ${tags.join("+")}`;
+          this.ctx.save();
+          this.ctx.font = "10px Inter, system-ui, sans-serif";
+          const tw = this.ctx.measureText(text).width;
+          const x = anchor.x1 + 6;
+          const y = anchor.y1 - 8;
+          this.ctx.fillStyle = "rgba(17,24,39,0.9)";
+          this.ctx.fillRect(x - 4, y - 12, tw + 8, 16);
+          this.ctx.strokeStyle = "rgba(99,102,241,0.85)";
+          this.ctx.strokeRect(x - 4, y - 12, tw + 8, 16);
+          this.ctx.fillStyle = "#c7d2fe";
+          this.ctx.fillText(text, x, y);
+          this.ctx.restore();
+        }
+      }
     }
   }
 

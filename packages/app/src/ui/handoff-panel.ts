@@ -3,6 +3,11 @@ import { icons } from "./icons";
 
 type CodeLang = "css" | "tailwind" | "swiftui" | "kotlin" | "svg";
 
+type HandoffStateCapture = { hover: boolean; pressed: boolean; focus: boolean };
+type StateCapturePreset = { id: string; name: string; state: HandoffStateCapture; createdAt: number };
+
+const HANDOFF_STATE_PRESETS_KEY = "opensketch-handoff-state-presets-v1";
+
 /**
  * Handoff panel — design specs, multi-language code generation, asset export, spacing overlay.
  * Replaces the old Inspect panel with a comprehensive developer handoff experience.
@@ -11,9 +16,11 @@ export function setupHandoffPanel(container: HTMLElement, editor: Editor) {
   let currentLang: CodeLang = "css";
   let currentIds: number[] = [];
   let spacingOverlayEnabled = false;
+  let handoffStateCapture: HandoffStateCapture = loadSelectedStateCapture(editor);
 
   function refresh(ids: number[]) {
     currentIds = ids;
+    (editor as any).setHandoffStateCapture?.(handoffStateCapture);
     container.innerHTML = "";
     if (ids.length === 0) {
       renderChecklist(container, editor);
@@ -58,6 +65,7 @@ export function setupHandoffPanel(container: HTMLElement, editor: Editor) {
 
     // ── Spacing Overlay Toggle ──
     wrap.appendChild(buildSpacingToggle());
+    wrap.appendChild(buildStateCapturePresets());
 
     // ── Code Language Tabs ──
     const tabBar = document.createElement("div");
@@ -101,9 +109,9 @@ export function setupHandoffPanel(container: HTMLElement, editor: Editor) {
     wrap.appendChild(assetLabel);
     const assetSection = document.createElement("div");
     assetSection.style.cssText = "display:flex;gap:8px;";
-    assetSection.appendChild(createDownloadBtn("↓ PNG @1x", () => downloadAsset(editor, ids[0]!, "png", 1)));
-    assetSection.appendChild(createDownloadBtn("↓ PNG @2x", () => downloadAsset(editor, ids[0]!, "png", 2)));
-    assetSection.appendChild(createDownloadBtn("↓ SVG", () => downloadAsset(editor, ids[0]!, "svg", 1)));
+    assetSection.appendChild(createDownloadBtn("↓ PNG @1x", () => downloadAsset(editor, ids[0]!, "png", 1, handoffStateCapture)));
+    assetSection.appendChild(createDownloadBtn("↓ PNG @2x", () => downloadAsset(editor, ids[0]!, "png", 2, handoffStateCapture)));
+    assetSection.appendChild(createDownloadBtn("↓ SVG", () => downloadAsset(editor, ids[0]!, "svg", 1, handoffStateCapture)));
     wrap.appendChild(assetSection);
 
     // ── Design Tokens ──
@@ -280,6 +288,95 @@ export function setupHandoffPanel(container: HTMLElement, editor: Editor) {
     pinRow.appendChild(clearBtn);
     pinRow.appendChild(countLabel);
     wrap.appendChild(pinRow);
+
+    return wrap;
+  }
+
+  function buildStateCapturePresets(): HTMLElement {
+    const wrap = document.createElement("div");
+    wrap.style.cssText = "display:flex;flex-direction:column;gap:8px;padding:8px 12px;background:#1a1a1a;border-radius:8px;";
+
+    const title = document.createElement("div");
+    title.style.cssText = "font-size:11px;color:#aaa;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;";
+    title.textContent = "State Capture Presets";
+    wrap.appendChild(title);
+
+    const toggles = document.createElement("div");
+    toggles.style.cssText = "display:flex;gap:6px;";
+    (["hover", "pressed", "focus"] as const).forEach((key) => {
+      const btn = document.createElement("button");
+      const sync = () => {
+        const active = handoffStateCapture[key];
+        btn.textContent = key;
+        btn.style.cssText = `padding:4px 8px;border-radius:999px;border:1px solid ${active ? "#6366f1" : "#3f3f46"};background:${active ? "rgba(99,102,241,0.2)" : "#232323"};color:${active ? "#c7d2fe" : "#a1a1aa"};font-size:10px;cursor:pointer;text-transform:capitalize;`;
+      };
+      sync();
+      btn.onclick = () => {
+        handoffStateCapture = { ...handoffStateCapture, [key]: !handoffStateCapture[key] };
+        (editor as any).setHandoffStateCapture?.(handoffStateCapture);
+        saveSelectedStateCapture(editor, handoffStateCapture);
+        sync();
+      };
+      toggles.appendChild(btn);
+    });
+    wrap.appendChild(toggles);
+
+    const actions = document.createElement("div");
+    actions.style.cssText = "display:flex;gap:6px;align-items:center;";
+    const saveBtn = document.createElement("button");
+    saveBtn.textContent = "Save preset";
+    saveBtn.style.cssText = "padding:5px 8px;border:1px solid #444;background:#232323;color:#ddd;border-radius:6px;font-size:10px;cursor:pointer;";
+    saveBtn.onclick = () => {
+      const name = prompt("Preset 이름", stateCaptureLabel(handoffStateCapture));
+      if (!name) return;
+      const list = loadStateCapturePresets(editor);
+      list.unshift({ id: `scp-${Date.now()}`, name: name.trim(), state: { ...handoffStateCapture }, createdAt: Date.now() });
+      saveStateCapturePresets(editor, list.slice(0, 20));
+      refresh(currentIds);
+    };
+    actions.appendChild(saveBtn);
+
+    const clearBtn = document.createElement("button");
+    clearBtn.textContent = "Reset";
+    clearBtn.style.cssText = "padding:5px 8px;border:1px solid #444;background:#232323;color:#aaa;border-radius:6px;font-size:10px;cursor:pointer;";
+    clearBtn.onclick = () => {
+      handoffStateCapture = { hover: false, pressed: false, focus: false };
+      (editor as any).setHandoffStateCapture?.(handoffStateCapture);
+      saveSelectedStateCapture(editor, handoffStateCapture);
+      refresh(currentIds);
+    };
+    actions.appendChild(clearBtn);
+    wrap.appendChild(actions);
+
+    const presets = loadStateCapturePresets(editor);
+    if (presets.length > 0) {
+      const list = document.createElement("div");
+      list.style.cssText = "display:flex;flex-direction:column;gap:4px;";
+      presets.slice(0, 6).forEach((preset) => {
+        const row = document.createElement("div");
+        row.style.cssText = "display:flex;align-items:center;gap:6px;";
+        const applyBtn = document.createElement("button");
+        applyBtn.textContent = `${preset.name} (${stateCaptureLabel(preset.state)})`;
+        applyBtn.style.cssText = "flex:1;padding:4px 8px;border:1px solid #3f3f46;background:#202020;color:#d4d4d8;border-radius:6px;font-size:10px;cursor:pointer;text-align:left;";
+        applyBtn.onclick = () => {
+          handoffStateCapture = { ...preset.state };
+          (editor as any).setHandoffStateCapture?.(handoffStateCapture);
+          saveSelectedStateCapture(editor, handoffStateCapture);
+          refresh(currentIds);
+        };
+        const delBtn = document.createElement("button");
+        delBtn.textContent = "✕";
+        delBtn.style.cssText = "padding:2px 6px;border:1px solid #3f3f46;background:#202020;color:#a1a1aa;border-radius:6px;font-size:10px;cursor:pointer;";
+        delBtn.onclick = () => {
+          const next = loadStateCapturePresets(editor).filter((p) => p.id !== preset.id);
+          saveStateCapturePresets(editor, next);
+          refresh(currentIds);
+        };
+        row.append(applyBtn, delBtn);
+        list.appendChild(row);
+      });
+      wrap.appendChild(list);
+    }
 
     return wrap;
   }
@@ -945,24 +1042,25 @@ function generateSVGProps(ctx: CodeCtx): string | null {
 
 // ─── Asset Download ───────────────────────────────────
 
-function downloadAsset(editor: Editor, nodeId: number, format: "png" | "svg", scale: number) {
+function downloadAsset(editor: Editor, nodeId: number, format: "png" | "svg", scale: number, stateCapture?: HandoffStateCapture) {
   try {
+    const stateSuffix = stateCapture ? `-${stateCaptureLabel(stateCapture).replace(/\+/g, "-")}` : "";
     if (format === "svg") {
       const svg = editor.engine.export_node_svg(BigInt(nodeId));
       if (svg) {
         const blob = new Blob([svg], { type: "image/svg+xml" });
-        downloadBlob(blob, `node-${nodeId}.svg`);
+        downloadBlob(blob, `node-${nodeId}${stateSuffix}.svg`);
       }
     } else {
       try {
         const png = (editor as any).exportNodePNG?.(nodeId, scale);
-        if (png) { downloadBlob(png, `node-${nodeId}@${scale}x.png`); return; }
+        if (png) { downloadBlob(png, `node-${nodeId}${stateSuffix}@${scale}x.png`); return; }
       } catch {}
       const dataUrl = editor.engine.export_png(BigInt(nodeId), scale);
       if (dataUrl) {
         const a = document.createElement("a");
         a.href = dataUrl;
-        a.download = `node-${nodeId}@${scale}x.png`;
+        a.download = `node-${nodeId}${stateSuffix}@${scale}x.png`;
         a.click();
       }
     }
@@ -981,6 +1079,54 @@ function downloadBlob(blob: Blob, filename: string) {
 }
 
 // ─── Utility ──────────────────────────────────────────
+
+function getHandoffDocKey(editor: Editor): string {
+  try {
+    const pageId = Number((editor.engine as any).get_active_page_id?.() ?? 0);
+    return `doc:${location.pathname}:page:${pageId}`;
+  } catch {
+    return `doc:${location.pathname}`;
+  }
+}
+
+function loadStateCapturePresets(editor: Editor): StateCapturePreset[] {
+  try {
+    const raw = localStorage.getItem(`${HANDOFF_STATE_PRESETS_KEY}-${getHandoffDocKey(editor)}`) || localStorage.getItem(HANDOFF_STATE_PRESETS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveStateCapturePresets(editor: Editor, presets: StateCapturePreset[]) {
+  localStorage.setItem(`${HANDOFF_STATE_PRESETS_KEY}-${getHandoffDocKey(editor)}`, JSON.stringify(presets));
+  localStorage.setItem(HANDOFF_STATE_PRESETS_KEY, JSON.stringify(presets));
+}
+
+function loadSelectedStateCapture(editor: Editor): HandoffStateCapture {
+  try {
+    const raw = localStorage.getItem(`${HANDOFF_STATE_PRESETS_KEY}-selected-${getHandoffDocKey(editor)}`);
+    if (!raw) return { hover: false, pressed: false, focus: false };
+    const parsed = JSON.parse(raw);
+    return { hover: !!parsed?.hover, pressed: !!parsed?.pressed, focus: !!parsed?.focus };
+  } catch {
+    return { hover: false, pressed: false, focus: false };
+  }
+}
+
+function saveSelectedStateCapture(editor: Editor, state: HandoffStateCapture) {
+  localStorage.setItem(`${HANDOFF_STATE_PRESETS_KEY}-selected-${getHandoffDocKey(editor)}`, JSON.stringify(state));
+}
+
+function stateCaptureLabel(state: HandoffStateCapture): string {
+  const parts: string[] = [];
+  if (state.hover) parts.push("hover");
+  if (state.pressed) parts.push("pressed");
+  if (state.focus) parts.push("focus");
+  return parts.length ? parts.join("+") : "default";
+}
 
 function cssAlignValue(v: string): string {
   const map: Record<string, string> = { Start: "flex-start", Center: "center", End: "flex-end", Stretch: "stretch", Baseline: "baseline" };
