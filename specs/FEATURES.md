@@ -680,6 +680,7 @@
 - [x] **Variables Usage Heatmap overlay**: Variables Inspector에 `Usage heatmap overlay` 토글을 추가해 컬렉션 전체 변수 사용처를 노드별로 집계하고, 캔버스에 binding density(저밀도→고밀도 색상)를 반투명 오버레이로 표시.
 - [x] **Variables Collection Diff Timeline**: Variables 패널에 `Variable Diff Timeline` 섹션을 추가해 mode별 값 변경 이력을 스냅샷(before/after)으로 기록하고, 변경 모드 기준 quick diff를 표시한다. 항목 확장 시 모든 mode 값 비교를 확인할 수 있고 `Rollback latest`/`Rollback this`로 특정 시점 이전 상태를 즉시 복구할 수 있다 (localStorage 기반 히스토리 보존).
 - [x] **Variables Mode Parity Checker**: Variables 패널에 `Mode Parity Checker`를 추가해 컬렉션 내 변수별 mode 누락 값을 탐지하고, `Normalize missing`으로 active mode(없으면 첫 유효 mode) 값을 누락 mode들에 일괄 채워 mode parity를 빠르게 맞출 수 있다.
+- [x] **Variable Mode Drift Auto-Fix Recipes (2026-04-12)**: Variables 패널에 `Mode Drift Auto-Fix Recipes` 섹션을 추가해 source mode → target mode 패턴을 recipe로 저장/재사용 가능. recipe는 value type 범위(Any/Color/Number/String/Boolean)를 지원하며 `Apply` 한 번으로 drift된 mode 값만 일괄 정리(`set_variable_value` + `apply_variables`)한다.
 
 ### Asset Library Panel
 - [x] **Assets tab**: Right pane "Assets" tab alongside Properties/Agent/History/Inspect/Comments/Variables

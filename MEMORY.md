@@ -1796,6 +1796,15 @@
 - Flow Coverage Heatmap in Minimap — 테스트 세션 중 방문/미방문 frame 상태를 minimap 색상으로 누적 표시하고 reset/compare 지원 (임팩트 중상, 난이도 중)
 - Prototype Network Mock Panel — API 응답 mock(성공/지연/에러)을 interaction 단위로 주입해 상태 기반 UX 테스트 강화 (임팩트 중상, 난이도 중상)
 
+## 완료된 기능 (추가 — Variable Mode Drift Auto-Fix Recipes, 2026-04-12)
+- Variables 패널에 `Mode Drift Auto-Fix Recipes` 섹션 추가
+- Source mode / target modes / value type(Any/Color/Number/String/Boolean) 조합을 recipe로 저장(localStorage)
+- 저장된 recipe를 one-click `Apply`로 현재 컬렉션 전체 변수에 일괄 적용
+- drift된 target mode 값만 선택적으로 source 값으로 동기화하여 변경량 최소화
+- recipe 삭제 워크플로우 포함
+- 구현: `packages/app/src/ui/variables-panel.ts`
+- specs 반영: `specs/FEATURES.md`
+
 ## 완료된 기능 (추가 — Prototype Overlay Stack Inspector, 2026-04-12)
 - Prototype Viewer Flow Lint에 overlay chain 규칙 추가
   - `overlay-leak`: OpenOverlay는 있으나 CloseOverlay가 없는 reachable frame

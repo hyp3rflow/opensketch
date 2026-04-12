@@ -28,6 +28,17 @@ interface VariableTimelineEntry {
 }
 
 const VARIABLE_TIMELINE_STORAGE_KEY = "opensketch-variable-diff-timeline-v1";
+const VARIABLE_MODE_DRIFT_RECIPES_KEY = "opensketch-variable-mode-drift-recipes-v1";
+
+interface VariableModeDriftRecipe {
+  id: string;
+  name: string;
+  collection_name: string;
+  value_type: "Any" | "Color" | "Number" | "String" | "Boolean";
+  source_mode_name: string;
+  target_mode_names: string[];
+  created_at: number;
+}
 
 export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
   let selectedCollectionId: number | null = null;
@@ -73,6 +84,34 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
       if (hasTypedValue(variable.value_type, v)) return { ...(v || {}) };
     }
     return null;
+  };
+
+  const readModeDriftRecipes = (): VariableModeDriftRecipe[] => {
+    try {
+      const raw = localStorage.getItem(VARIABLE_MODE_DRIFT_RECIPES_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      return parsed as VariableModeDriftRecipe[];
+    } catch {
+      return [];
+    }
+  };
+
+  const writeModeDriftRecipes = (recipes: VariableModeDriftRecipe[]) => {
+    try {
+      localStorage.setItem(VARIABLE_MODE_DRIFT_RECIPES_KEY, JSON.stringify(recipes.slice(0, 30)));
+    } catch {
+      // ignore storage quota errors
+    }
+  };
+
+  const equalPrimitive = (valueType: string, a?: VarPrimitive, b?: VarPrimitive): boolean => {
+    if (valueType === "Color") return (a?.Color || "") === (b?.Color || "");
+    if (valueType === "Number") return Number(a?.Number ?? NaN) === Number(b?.Number ?? NaN);
+    if (valueType === "String") return String(a?.String ?? "") === String(b?.String ?? "");
+    if (valueType === "Boolean") return Boolean(a?.Boolean) === Boolean(b?.Boolean);
+    return JSON.stringify(a || {}) === JSON.stringify(b || {});
   };
 
   const readTimeline = (): VariableTimelineEntry[] => {
@@ -908,6 +947,164 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
       themeSection.appendChild(chips);
       container.appendChild(themeSection);
     }
+
+    // Variable mode drift auto-fix recipes
+    const modeRecipeSection = document.createElement("div");
+    modeRecipeSection.style.cssText = "margin-bottom:12px;background:#1f2937;border:1px solid #334155;border-radius:6px;padding:8px;";
+
+    const modeRecipeHeader = document.createElement("div");
+    modeRecipeHeader.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;";
+    const modeRecipeTitle = document.createElement("div");
+    modeRecipeTitle.style.cssText = "font-size:10px;color:#93c5fd;text-transform:uppercase;letter-spacing:0.5px;font-weight:700;";
+    modeRecipeTitle.textContent = "Mode Drift Auto-Fix Recipes";
+    modeRecipeHeader.appendChild(modeRecipeTitle);
+
+    const modeRecipeMeta = document.createElement("span");
+    modeRecipeMeta.style.cssText = "font-size:10px;color:#94a3b8;";
+    modeRecipeMeta.textContent = `Collection: ${col.name}`;
+    modeRecipeHeader.appendChild(modeRecipeMeta);
+    modeRecipeSection.appendChild(modeRecipeHeader);
+
+    const recipes = readModeDriftRecipes();
+    const recipeListWrap = document.createElement("div");
+    recipeListWrap.style.cssText = "display:flex;flex-direction:column;gap:6px;";
+
+    const saveRecipeBtn = document.createElement("button");
+    saveRecipeBtn.style.cssText = "align-self:flex-start;background:#1d4ed8;border:1px solid #3b82f6;border-radius:4px;color:#dbeafe;cursor:pointer;font-size:10px;padding:3px 8px;";
+    saveRecipeBtn.textContent = "+ Save recipe from current modes";
+    saveRecipeBtn.title = "Store current source/target mode mapping as reusable drift cleanup recipe";
+    saveRecipeBtn.onclick = () => {
+      if ((col.modes || []).length < 2) {
+        alert("Need at least 2 modes to save a drift recipe.");
+        return;
+      }
+      const sourceName = prompt(`Source mode name for recipe (${col.modes.map((m) => m.name).join(", ")}):`, col.modes[0]?.name || "");
+      if (!sourceName) return;
+      const sourceMode = (col.modes || []).find((m) => String(m.name).trim().toLowerCase() === sourceName.trim().toLowerCase());
+      if (!sourceMode) {
+        alert(`Mode not found: ${sourceName}`);
+        return;
+      }
+      const targetRaw = prompt("Target mode names (comma separated)", col.modes.filter((m) => m.id !== sourceMode.id).map((m) => m.name).join(", "));
+      if (!targetRaw) return;
+      const targetNames = targetRaw.split(",").map((s) => s.trim()).filter(Boolean);
+      if (targetNames.length === 0) return;
+      const missing = targetNames.filter((name) => !(col.modes || []).some((m) => m.name.toLowerCase() === name.toLowerCase()));
+      if (missing.length > 0) {
+        alert(`Unknown mode(s): ${missing.join(", ")}`);
+        return;
+      }
+      const name = prompt("Recipe name", `${col.name}: ${sourceMode.name} → ${targetNames.join("/")}`)?.trim();
+      if (!name) return;
+      const valueTypeRaw = prompt("Value type scope (Any|Color|Number|String|Boolean)", "Any") || "Any";
+      const normalizedType = ["Any", "Color", "Number", "String", "Boolean"].includes(valueTypeRaw) ? valueTypeRaw as VariableModeDriftRecipe["value_type"] : "Any";
+
+      const next: VariableModeDriftRecipe = {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        name,
+        collection_name: col.name,
+        value_type: normalizedType,
+        source_mode_name: sourceMode.name,
+        target_mode_names: targetNames,
+        created_at: Date.now(),
+      };
+      writeModeDriftRecipes([next, ...recipes.filter((r) => r.id !== next.id)]);
+      refresh();
+    };
+    modeRecipeSection.appendChild(saveRecipeBtn);
+
+    const applyRecipe = (recipe: VariableModeDriftRecipe) => {
+      const sourceMode = (col.modes || []).find((m) => m.name.toLowerCase() === recipe.source_mode_name.toLowerCase());
+      if (!sourceMode) {
+        alert(`Source mode '${recipe.source_mode_name}' not found in '${col.name}'.`);
+        return;
+      }
+      const targets = recipe.target_mode_names
+        .map((name) => (col.modes || []).find((m) => m.name.toLowerCase() === name.toLowerCase()))
+        .filter(Boolean) as VarMode[];
+      if (targets.length === 0) {
+        alert("No target modes in this collection match the recipe.");
+        return;
+      }
+
+      let fixed = 0;
+      editor.engine.push_undo();
+      for (const variable of col.variables || []) {
+        if (recipe.value_type !== "Any" && variable.value_type !== recipe.value_type) continue;
+        const sourceValue = variable.values_by_mode?.[String(sourceMode.id)];
+        if (!hasTypedValue(variable.value_type, sourceValue)) continue;
+        for (const targetMode of targets) {
+          const targetValue = variable.values_by_mode?.[String(targetMode.id)];
+          if (equalPrimitive(variable.value_type, sourceValue, targetValue)) continue;
+          editor.engine.set_variable_value(BigInt(col.id), BigInt(variable.id), BigInt(targetMode.id), JSON.stringify(sourceValue));
+          fixed += 1;
+        }
+      }
+      editor.engine.apply_variables();
+      editor.requestRender();
+      alert(fixed > 0 ? `Applied '${recipe.name}' and fixed ${fixed} drifted mode values.` : `No drift found for '${recipe.name}'.`);
+      refresh();
+    };
+
+    const deleteRecipe = (recipeId: string) => {
+      const next = recipes.filter((r) => r.id !== recipeId);
+      writeModeDriftRecipes(next);
+      refresh();
+    };
+
+    if (recipes.length === 0) {
+      const empty = document.createElement("div");
+      empty.style.cssText = "font-size:10px;color:#94a3b8;";
+      empty.textContent = "No recipes yet. Save a source→targets pattern, then one-click clean drift across variables.";
+      recipeListWrap.appendChild(empty);
+    } else {
+      for (const recipe of recipes.slice(0, 8)) {
+        const row = document.createElement("div");
+        row.style.cssText = "background:#111827;border:1px solid #374151;border-radius:5px;padding:6px;display:flex;flex-direction:column;gap:5px;";
+
+        const top = document.createElement("div");
+        top.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:6px;";
+        const label = document.createElement("div");
+        label.style.cssText = "font-size:10px;color:#e2e8f0;font-weight:600;";
+        label.textContent = recipe.name;
+        top.appendChild(label);
+
+        const typeBadge = document.createElement("span");
+        typeBadge.style.cssText = "font-size:9px;color:#bfdbfe;background:#1e3a8a;border:1px solid #1d4ed8;border-radius:999px;padding:1px 6px;";
+        typeBadge.textContent = recipe.value_type;
+        top.appendChild(typeBadge);
+        row.appendChild(top);
+
+        const meta = document.createElement("div");
+        meta.style.cssText = "font-size:10px;color:#93c5fd;";
+        meta.textContent = `${recipe.source_mode_name} → ${recipe.target_mode_names.join(", ")}`;
+        row.appendChild(meta);
+
+        const actions = document.createElement("div");
+        actions.style.cssText = "display:flex;gap:6px;";
+
+        const applyBtn = document.createElement("button");
+        applyBtn.style.cssText = "background:#065f46;border:1px solid #10b981;border-radius:4px;color:#d1fae5;cursor:pointer;font-size:10px;padding:2px 7px;";
+        applyBtn.textContent = "Apply";
+        applyBtn.onclick = () => applyRecipe(recipe);
+        actions.appendChild(applyBtn);
+
+        const delBtn = document.createElement("button");
+        delBtn.style.cssText = "background:#3f1d1d;border:1px solid #ef4444;border-radius:4px;color:#fecaca;cursor:pointer;font-size:10px;padding:2px 7px;";
+        delBtn.textContent = "Delete";
+        delBtn.onclick = () => {
+          if (!confirm(`Delete recipe '${recipe.name}'?`)) return;
+          deleteRecipe(recipe.id);
+        };
+        actions.appendChild(delBtn);
+
+        row.appendChild(actions);
+        recipeListWrap.appendChild(row);
+      }
+    }
+
+    modeRecipeSection.appendChild(recipeListWrap);
+    container.appendChild(modeRecipeSection);
 
     // Variable dependency graph inspector
     const graph = buildVariableDependencyGraph(collections);
