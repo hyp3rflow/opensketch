@@ -1160,8 +1160,10 @@ export function createPrototypeViewer(editor: Editor): {
     const overlaysOpenByFrame = new Map<number, number>();
     const overlaysCloseByFrame = new Map<number, number>();
     const interactionRowsByFrame = new Map<number, any[]>();
+    let allInteractionRows: any[] = [];
     try {
       const allInter: any[] = JSON.parse(editor.engine.get_all_interactions() || "[]") || [];
+      allInteractionRows = allInter;
       for (const row of allInter) {
         const from = Number(row?.id || 0);
         const interactions: any[] = Array.isArray(row?.interactions) ? row.interactions : [];
@@ -1312,16 +1314,43 @@ export function createPrototypeViewer(editor: Editor): {
 
     for (const frame of snapshot.nodes) {
       if (!visited.has(frame.id)) continue;
-      const interactions = interactionRowsByFrame.get(frame.id) || [];
+      const frameNodesWithKeyboardInteractions: Array<{ nodeId: number; count: number; missingLabels: number }> = [];
+      let frameAnyInteractionCount = 0;
       let keyboardFocusableCount = 0;
       let missingLabelCount = 0;
-      for (const inter of interactions) {
-        const trigger = String(inter?.trigger || "");
-        const isKeyboardRelevant = trigger === "OnClick" || trigger === "OnPress";
-        if (!isKeyboardRelevant) continue;
-        keyboardFocusableCount += 1;
-        const a11yLabel = String(inter?.accessibility_label || "").trim();
-        if (!a11yLabel) missingLabelCount += 1;
+      for (const row of allInteractionRows) {
+        const nodeId = Number(row?.id || 0);
+        if (!nodeId) continue;
+        let rawNode = "";
+        try { rawNode = editor.engine.get_node_json(BigInt(nodeId)) || ""; } catch { rawNode = ""; }
+        if (!rawNode) continue;
+        let node: any = null;
+        try { node = JSON.parse(rawNode); } catch { node = null; }
+        if (!node) continue;
+        const nx = Number(node?.x || 0);
+        const ny = Number(node?.y || 0);
+        const nw = Number(node?.width || 0);
+        const nh = Number(node?.height || 0);
+        const inFrame = nx >= frame.x && ny >= frame.y && (nx + nw) <= (frame.x + frame.width) && (ny + nh) <= (frame.y + frame.height);
+        if (!inFrame) continue;
+
+        const interactions: any[] = Array.isArray(row?.interactions) ? row.interactions : [];
+        if (interactions.length > 0) frameAnyInteractionCount += 1;
+        let localCount = 0;
+        let localMissingLabel = 0;
+        for (const inter of interactions) {
+          const trigger = String(inter?.trigger || "");
+          const isKeyboardRelevant = trigger === "OnClick" || trigger === "OnPress";
+          if (!isKeyboardRelevant) continue;
+          keyboardFocusableCount += 1;
+          localCount += 1;
+          const a11yLabel = String(inter?.accessibility_label || "").trim();
+          if (!a11yLabel) {
+            missingLabelCount += 1;
+            localMissingLabel += 1;
+          }
+        }
+        if (localCount > 0) frameNodesWithKeyboardInteractions.push({ nodeId, count: localCount, missingLabels: localMissingLabel });
       }
       if (missingLabelCount > 0) {
         issues.push({
@@ -1331,12 +1360,20 @@ export function createPrototypeViewer(editor: Editor): {
           detail: `${missingLabelCount} hotspot(s) missing accessibility label`,
         });
       }
-      if (interactions.length > 0 && keyboardFocusableCount === 0) {
+      const duplicatedFocusableNodes = frameNodesWithKeyboardInteractions.filter((r) => r.count > 1).length;
+      if (frameAnyInteractionCount > 0 && keyboardFocusableCount === 0) {
         issues.push({
           type: "a11y-focus-gap",
           frameId: frame.id,
           frameName: frame.name,
           detail: "No keyboard-focusable hotspot (OnClick/OnPress) in this frame",
+        });
+      } else if (duplicatedFocusableNodes > 0) {
+        issues.push({
+          type: "a11y-focus-gap",
+          frameId: frame.id,
+          frameName: frame.name,
+          detail: `${duplicatedFocusableNodes} node(s) have multiple keyboard hotspots; tab order can feel broken`,
         });
       }
 
@@ -3593,8 +3630,8 @@ export function createPrototypeViewer(editor: Editor): {
   let mousePressY = 0;
   let isDragging = false;
 
-  function listFocusableHotspots(): Array<{ nodeId: number; node: any; interaction: any }> {
-    const out: Array<{ nodeId: number; node: any; interaction: any }> = [];
+  function listFocusableHotspots(): Array<{ nodeId: number; node: any; interaction: any; sig: string }> {
+    const out: Array<{ nodeId: number; node: any; interaction: any; sig: string }> = [];
     if (!currentFrameId) return out;
     const fb = getFrameBounds(currentFrameId);
     const bounds = fb || { x: 0, y: 0, width: 800, height: 600 };
@@ -3613,7 +3650,7 @@ export function createPrototypeViewer(editor: Editor): {
       const interactions = Array.isArray(nwi.interactions) ? nwi.interactions : [];
       for (const interaction of interactions) {
         if (interaction?.trigger === "OnClick" || interaction?.trigger === "OnPress") {
-          out.push({ nodeId: Number(nwi.id), node, interaction });
+          out.push({ nodeId: Number(nwi.id), node, interaction, sig: interactionSignature(interaction) });
         }
       }
     }
@@ -3639,7 +3676,11 @@ export function createPrototypeViewer(editor: Editor): {
   function cycleFocusedHotspot(reverse: boolean) {
     const items = listFocusableHotspots();
     if (items.length === 0) return;
-    let idx = items.findIndex((it) => it.nodeId === focusedHotspotNodeId);
+    const focusedSig = focusedHotspotInter ? interactionSignature(focusedHotspotInter) : "";
+    let idx = items.findIndex((it) => it.nodeId === focusedHotspotNodeId && it.sig === focusedSig);
+    if (idx < 0 && focusedHotspotNodeId !== null) {
+      idx = items.findIndex((it) => it.nodeId === focusedHotspotNodeId);
+    }
     if (idx < 0) idx = reverse ? 0 : -1;
     idx = (idx + (reverse ? -1 : 1) + items.length) % items.length;
     const next = items[idx];

@@ -2749,4 +2749,5 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
   - `a11y-low-contrast`: frame 배경 대비 텍스트 4.5:1 미만
 - [x] Flow Lint summary에 A11y 집계(`missing-label/focus-gap/low-contrast`) 추가
 - [x] 기존 issue filter chip/list/jump 워크플로우에 통합
+- [x] **Focus cycle gap fix/polish (v2)**: 동일 노드에 다중 keyboard hotspot이 있을 때 `Tab` 순환이 같은 항목에 고정되던 케이스를 interaction signature 기반으로 교정. Flow Lint는 프레임 내 다중 keyboard hotspot 노드도 `a11y-focus-gap`으로 리포트.
 - 구현: `packages/app/src/ui/prototype-viewer.ts`

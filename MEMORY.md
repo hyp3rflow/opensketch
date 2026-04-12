@@ -1790,10 +1790,11 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Multi-user Cursor Playback (Local Session) — 코멘트/리뷰 모드에서 가상 collaborator 커서 리플레이로 사용자 플로우 설명 지원 (임팩트 중, 난이도 중상)
-- Prototype Condition Builder (AND/OR groups) — visibility/trigger 조건식을 시각 빌더로 구성하고 JSON 규칙과 양방향 동기화 (임팩트 상, 난이도 중상)
-- Flow Coverage Heatmap in Minimap — 테스트 세션 중 방문/미방문 frame 상태를 minimap 색상으로 누적 표시하고 reset/compare 지원 (임팩트 중상, 난이도 중)
-- Prototype Network Mock Panel — API 응답 mock(성공/지연/에러)을 interaction 단위로 주입해 상태 기반 UX 테스트 강화 (임팩트 중상, 난이도 중상)
+- Smart Animate Preset Sequencer — preset 다중 단계 체인(enter/exit) 저장 후 interaction에 순차 적용 (임팩트 중상, 난이도 중상)
+- Prototype Keyboard Navigation Order Editor — frame 단위 Tab 순서를 시각화/재정렬하고 custom order 저장 (임팩트 상, 난이도 중상)
+- Interactive Components Trigger Conflict Linter — hover/press/focus trigger 충돌(동일 instance 다중 매핑) 탐지 + quick-fix 제안 (임팩트 중상, 난이도 중)
+- Prototype Flow Coverage Recorder — 플레이 세션 동안 방문 frame/미방문 hotspot 수집 후 heatmap 리포트 (임팩트 중상, 난이도 중)
+- A11y Motion Guardrails — reduced-motion 프리뷰 토글 + 과도한 duration/easing 조합 lint (임팩트 중, 난이도 중)
 
 ## 완료된 기능 (추가 — Component Property Controls number prop 지원, 2026-04-12)
 - Instance `COMPONENT PROPS`에서 exposed `number` prop 편집 UI 추가 (step=any, Enter 커밋)
@@ -1802,10 +1803,11 @@
 - 구현: `packages/app/src/ui/properties-panel.ts`
 - specs 반영: `specs/FEATURES.md`
 
-## 완료된 기능 (추가 — Prototype Accessibility Audit (Focus/Label/Contrast), 2026-04-12)
-- Flow Lint 접근성 규칙 추가: `a11y-missing-label`, `a11y-focus-gap`, `a11y-low-contrast`
-- summary 메타에 A11y 카운트(`missing-label/focus-gap/low-contrast`) 추가
-- 기존 filter chip + issue jump 워크플로우에 통합
+## 완료된 기능 (추가 — Prototype Accessibility Audit v2: Focus Cycle Gap Fix, 2026-04-12)
+- Flow Lint 접근성 규칙 유지: `a11y-missing-label`, `a11y-focus-gap`, `a11y-low-contrast`
+- hotspot 감사 범위를 frame 노드 단일 interaction에서 frame 내부 전체 interaction 스캔으로 보정
+- 동일 노드에 다중 OnClick/OnPress hotspot이 있을 때 Tab 순환이 끊기던 케이스를 interaction signature 기반으로 수정
+- Flow Lint `a11y-focus-gap`에 다중 keyboard hotspot 노드 감지 리포트 추가(`tab order can feel broken`)
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
 - specs 반영: `specs/FEATURES.md`
 
