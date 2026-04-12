@@ -1790,10 +1790,18 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- A11y Motion Guardrails — reduced-motion 프리뷰 토글 + 과도한 duration/easing 조합 lint (임팩트 중, 난이도 중)
 - Sticky Scroll Sections for Prototype — Frame 내 섹션을 스크롤 중 상단 고정(sticky)으로 설정하고 뷰어에서 실제 고정 동작 미리보기 (임팩트 상, 난이도 중상)
 - Component Instance Swap Suggestions — instance swap 시 크기/variant/property 유사도 기반 추천 리스트 + one-click 교체 (임팩트 중상, 난이도 중)
 - Dev Handoff State Capture Presets — hover/pressed/focus 등 인터랙션 상태 조합을 preset으로 저장 후 redline/export에 일괄 적용 (임팩트 중상, 난이도 중)
+
+## 완료된 기능 (추가 — A11y Motion Guardrails, 2026-04-12)
+- Properties panel `Interactions`에 `A11y Motion Guardrails` 카드 추가
+- Reduced motion preview 토글을 추가해 문서별/전역 localStorage에 저장하고, Prototype viewer와 이벤트로 동기화
+- transition duration ≥ 900ms 또는 aggressive easing(elastic/bounce/back/spring) 조합을 lint로 탐지
+- `Quick fix excessive motion`으로 lint 대상 interaction을 Dissolve 220ms + ease_out으로 일괄 정규화
+- Prototype viewer reduced-motion ON 시 transition을 짧은 Dissolve(최대 180ms, ease_out)로 자동 가드
+- 구현: `packages/app/src/ui/properties-panel.ts`, `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Prototype Flow Coverage Recorder, 2026-04-12)
 - Prototype Viewer 좌측에 `Flow Coverage` 패널 추가

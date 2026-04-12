@@ -64,6 +64,7 @@ const PROTOTYPE_RING_ACTIVE_PRESET_KEY = "opensketch-prototype-ring-active-prese
 const PROTOTYPE_TRANSITION_PRESET_KEY = "opensketch-prototype-transition-presets-v1";
 const PROTOTYPE_FLOW_TRANSITION_DEFAULT_KEY = "opensketch-prototype-flow-transition-defaults-v1";
 const INTERACTIVE_PREVIEW_AUTOSYNC_KEY = "opensketch-interactive-preview-autosync-v1";
+const PROTOTYPE_REDUCED_MOTION_KEY = "opensketch-prototype-reduced-motion-v1";
 const INTERACTIVE_PREVIEW_EVENT = "opensketch:interactive-preview-state";
 
 const DEFAULT_PROTOTYPE_RING_PRESETS: PrototypeRingPreset[] = [
@@ -7008,6 +7009,93 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       conflictBtnRow.appendChild(resolveBtn);
       conflictCard.appendChild(conflictBtnRow);
       interSection.appendChild(conflictCard);
+
+      const motionCard = document.createElement("div");
+      motionCard.style.cssText = "background:#111827;border:1px solid #374151;border-radius:8px;padding:8px;margin-bottom:8px;display:flex;flex-direction:column;gap:6px;";
+      const motionTitle = document.createElement("div");
+      motionTitle.style.cssText = "font-size:10px;color:#86efac;font-weight:600;";
+      motionTitle.textContent = "A11y Motion Guardrails";
+      motionCard.appendChild(motionTitle);
+
+      const reducedMotionKey = `${PROTOTYPE_REDUCED_MOTION_KEY}-${getPrototypeDocKey(editor)}`;
+      let reducedMotionPreview = localStorage.getItem(reducedMotionKey) === "1" || localStorage.getItem(PROTOTYPE_REDUCED_MOTION_KEY) === "1";
+      const reducedMotionLabel = document.createElement("label");
+      reducedMotionLabel.style.cssText = "display:flex;align-items:center;gap:6px;font-size:10px;color:#cbd5e1;cursor:pointer;";
+      const reducedMotionInput = document.createElement("input");
+      reducedMotionInput.type = "checkbox";
+      reducedMotionInput.checked = reducedMotionPreview;
+      reducedMotionInput.onchange = () => {
+        reducedMotionPreview = reducedMotionInput.checked;
+        localStorage.setItem(reducedMotionKey, reducedMotionPreview ? "1" : "0");
+        localStorage.setItem(PROTOTYPE_REDUCED_MOTION_KEY, reducedMotionPreview ? "1" : "0");
+        window.dispatchEvent(new CustomEvent("opensketch:prototype-reduced-motion-changed", {
+          detail: { key: reducedMotionKey, enabled: reducedMotionPreview },
+        }));
+      };
+      reducedMotionLabel.append(reducedMotionInput, document.createTextNode("Reduced motion preview (prototype viewer)"));
+      motionCard.appendChild(reducedMotionLabel);
+
+      const severeMotion = interactions.filter((inter) => {
+        const transition = String(inter.transition || "Instant");
+        const easing = String(inter.easing || "ease_in_out").toLowerCase();
+        const duration = Number(inter.transition_duration_ms || 0);
+        const isLong = duration >= 900;
+        const isAggressive = easing.includes("elastic") || easing.includes("bounce") || easing.includes("back") || easing.includes("spring");
+        const isAnimated = transition !== "Instant" && transition !== "None";
+        return isAnimated && (isLong || isAggressive);
+      });
+
+      const motionSummary = document.createElement("div");
+      motionSummary.style.cssText = "font-size:10px;color:#cbd5e1;line-height:1.4;";
+      motionSummary.textContent = severeMotion.length
+        ? `${severeMotion.length} interaction(s) may feel excessive (duration ≥ 900ms or aggressive easing).`
+        : "No excessive motion patterns detected on this node.";
+      motionCard.appendChild(motionSummary);
+
+      if (severeMotion.length) {
+        const fixMotionBtn = document.createElement("button");
+        fixMotionBtn.className = "prop-input";
+        fixMotionBtn.style.cssText = "height:24px;font-size:10px;cursor:pointer;";
+        fixMotionBtn.textContent = "Quick fix excessive motion";
+        fixMotionBtn.onclick = () => {
+          ensureUndo();
+          const fixedSet = new Set(severeMotion);
+          const normalized = interactions.map((inter) => {
+            if (!fixedSet.has(inter)) return inter;
+            return {
+              ...inter,
+              transition: "Dissolve",
+              transition_duration_ms: 220,
+              easing: "ease_out",
+            };
+          });
+          for (let i = interactions.length - 1; i >= 0; i--) editor.engine.remove_interaction(id, i);
+          for (const inter of normalized) {
+            const trig = triggerKeyMap[String(inter.trigger || "")] || String(inter.trigger || "click").toLowerCase();
+            const action = actionKeyMap[String(inter.action || "")] || String(inter.action || "navigate-to").toLowerCase();
+            const transition = String(inter.transition || "instant").replace(/[A-Z]/g, (m, p0, str) => (p0 > 0 ? "-" : "") + m.toLowerCase());
+            const newIdx = editor.engine.add_interaction(
+              id,
+              trig,
+              action,
+              BigInt(Number(inter.target_node_id || 0)),
+              BigInt(Number(inter.target_page_id || 0)),
+              transition,
+              Number(inter.transition_duration_ms || 300),
+              String(inter.easing || "ease_in_out")
+            );
+            if (newIdx >= 0) {
+              if (inter.variant_key_json) editor.engine.set_interaction_variant_key(id, newIdx, inter.variant_key_json);
+              if (inter.smart_animate_timeline_json) editor.engine.set_interaction_timeline(id, newIdx, inter.smart_animate_timeline_json);
+            }
+          }
+          editor.requestRender();
+          refresh(ids);
+        };
+        motionCard.appendChild(fixMotionBtn);
+      }
+
+      interSection.appendChild(motionCard);
 
       const summarizeConflicts = () => {
         const triggerBuckets = new Map<string, number>();

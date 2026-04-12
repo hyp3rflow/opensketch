@@ -17,6 +17,7 @@ const PROTOTYPE_RING_ACTIVE_PRESET_KEY = "opensketch-prototype-ring-active-prese
 const INTERACTIVE_PREVIEW_EVENT = "opensketch:interactive-preview-state";
 const PROTOTYPE_FLOW_ENTRY_PRESETS_KEY = "opensketch-proto-flow-entry-presets-v1";
 const PROTOTYPE_KEYBOARD_ORDER_KEY = "opensketch-proto-keyboard-order-v1";
+const PROTOTYPE_REDUCED_MOTION_KEY = "opensketch-prototype-reduced-motion-v1";
 const DEFAULT_RING_PRESET: PrototypeRingPreset = {
   id: "default",
   name: "Default",
@@ -194,6 +195,7 @@ export function createPrototypeViewer(editor: Editor): {
   let lastScrollTimelineAt = 0;
   const interactiveVisualState = new Map<number, "hover" | "press" | "focus">();
   let keyboardOrderMap = loadKeyboardOrderMap();
+  let reducedMotionPreview = localStorage.getItem(PROTOTYPE_REDUCED_MOTION_KEY) === "1";
   const coverageFrameVisits = new Map<number, number>();
   const coverageHotspotHits = new Map<number, Set<string>>();
 
@@ -2327,6 +2329,7 @@ export function createPrototypeViewer(editor: Editor): {
     document.addEventListener("keydown", onKeyDown);
     document.addEventListener("paste", onPaste);
     window.addEventListener(INTERACTIVE_PREVIEW_EVENT, onInteractivePreviewEvent as EventListener);
+    window.addEventListener("opensketch:prototype-reduced-motion-changed", onReducedMotionChanged as EventListener);
 
     // Pick starting frame
     if (startFrameId) {
@@ -2416,6 +2419,7 @@ export function createPrototypeViewer(editor: Editor): {
     document.removeEventListener("keydown", onKeyDown);
     document.removeEventListener("paste", onPaste);
     window.removeEventListener(INTERACTIVE_PREVIEW_EVENT, onInteractivePreviewEvent as EventListener);
+    window.removeEventListener("opensketch:prototype-reduced-motion-changed", onReducedMotionChanged as EventListener);
     overlay.remove();
     overlay = null;
     viewCanvas = null;
@@ -2514,21 +2518,29 @@ export function createPrototypeViewer(editor: Editor): {
     recordEvent({ kind: "input", frameId: currentFrameId, inputType: "paste", text: snippet });
   }
 
+  function applyMotionGuardrails(transition: string, durationMs: number, easing: string): { transition: string; durationMs: number; easing: string } {
+    if (!reducedMotionPreview) return { transition, durationMs, easing };
+    const nextDuration = Math.max(0, Math.min(180, Number(durationMs || 0)));
+    const nextTransition = transition === "Instant" ? "Instant" : "Dissolve";
+    return { transition: nextTransition, durationMs: nextDuration, easing: "ease_out" };
+  }
+
   function navigateTo(frameId: number, transition: string = "Instant", durationMs: number = 300, easing: string = "ease_in_out", timeline?: SmartTimelineKeyframe[]) {
     if (transitioning) return;
     const prevFrameId = currentFrameId;
     if (currentFrameId !== null) navigationStack.push(currentFrameId);
     currentFrameId = frameId;
     trackCoverageFrameVisit(currentFrameId);
+    const guarded = applyMotionGuardrails(transition, durationMs, easing);
     recordEvent({ kind: "navigate", frameId: prevFrameId, toFrameId: frameId, action: "NavigateTo" });
-    pushTimelineEvent({ action: "NavigateTo", fromFrameId: prevFrameId, toFrameId: frameId, transition, durationMs });
+    pushTimelineEvent({ action: "NavigateTo", fromFrameId: prevFrameId, toFrameId: frameId, transition: guarded.transition, durationMs: guarded.durationMs });
 
-    if (transition === "Instant" || !prevFrameId) {
+    if (guarded.transition === "Instant" || !prevFrameId) {
       renderCurrentView();
       return;
     }
 
-    performTransition(prevFrameId, frameId, transition, durationMs, easing, timeline);
+    performTransition(prevFrameId, frameId, guarded.transition, guarded.durationMs, guarded.easing, timeline);
   }
 
   function navigateBack() {
@@ -3778,6 +3790,11 @@ export function createPrototypeViewer(editor: Editor): {
       renderCurrentView();
     } catch {}
   };
+  const onReducedMotionChanged = (ev: Event) => {
+    const detail = (ev as CustomEvent).detail || {};
+    if (detail?.key && String(detail.key) !== PROTOTYPE_REDUCED_MOTION_KEY && !String(detail.key).startsWith(`${PROTOTYPE_REDUCED_MOTION_KEY}-`)) return;
+    reducedMotionPreview = !!detail?.enabled;
+  };
   let mousePressNodeId: number | null = null;
   let mousePressX = 0;
   let mousePressY = 0;
@@ -3933,12 +3950,84 @@ export function createPrototypeViewer(editor: Editor): {
       renderCurrentView();
     };
 
+    let dragKey: string | null = null;
+    let dropKey: string | null = null;
+    let dropBefore = true;
+
+    const drawDropIndicator = () => {
+      if (!keyboardOrderList) return;
+      const rows = Array.from(keyboardOrderList.children) as HTMLDivElement[];
+      rows.forEach((rowEl) => {
+        rowEl.style.borderTopColor = "#334155";
+        rowEl.style.borderBottomColor = "#334155";
+      });
+      if (!dropKey) return;
+      const dropEl = rows.find((rowEl) => rowEl.dataset.orderKey === dropKey);
+      if (!dropEl) return;
+      if (dropBefore) {
+        dropEl.style.borderTopColor = "#38bdf8";
+      } else {
+        dropEl.style.borderBottomColor = "#38bdf8";
+      }
+    };
+
+    const applyDragOrder = (targetKey: string, before: boolean) => {
+      if (!dragKey || dragKey === targetKey) return;
+      const keys = items.map((it) => it.key);
+      const from = keys.indexOf(dragKey);
+      const toRaw = keys.indexOf(targetKey);
+      if (from < 0 || toRaw < 0) return;
+      const [moved] = keys.splice(from, 1);
+      let to = toRaw;
+      if (from < to) to -= 1;
+      if (!before) to += 1;
+      to = Math.max(0, Math.min(keys.length, to));
+      keys.splice(to, 0, moved);
+      persistOrder(keys);
+    };
+
     items.forEach((item, idx) => {
       const row = document.createElement("div");
-      row.style.cssText = "display:grid;grid-template-columns:auto 1fr auto auto;gap:4px;align-items:center;padding:3px 5px;border:1px solid #334155;border-radius:5px;background:#0f172a;";
+      row.dataset.orderKey = item.key;
+      row.draggable = true;
+      row.style.cssText = "display:grid;grid-template-columns:auto auto 1fr auto auto;gap:4px;align-items:center;padding:3px 5px;border:1px solid #334155;border-radius:5px;background:#0f172a;";
+      row.ondragstart = (ev) => {
+        dragKey = item.key;
+        dropKey = item.key;
+        dropBefore = true;
+        row.style.opacity = "0.5";
+        try {
+          ev.dataTransfer?.setData("text/plain", item.key);
+          if (ev.dataTransfer) ev.dataTransfer.effectAllowed = "move";
+        } catch {}
+        drawDropIndicator();
+      };
+      row.ondragend = () => {
+        dragKey = null;
+        dropKey = null;
+        row.style.opacity = "1";
+        drawDropIndicator();
+      };
+      row.ondragover = (ev) => {
+        ev.preventDefault();
+        const rect = row.getBoundingClientRect();
+        dropBefore = ev.clientY < rect.top + rect.height / 2;
+        dropKey = item.key;
+        drawDropIndicator();
+      };
+      row.ondrop = (ev) => {
+        ev.preventDefault();
+        applyDragOrder(item.key, dropBefore);
+      };
+
       const num = document.createElement("span");
       num.style.cssText = "font-size:9px;color:#94a3b8;";
       num.textContent = `${idx + 1}.`;
+
+      const drag = document.createElement("span");
+      drag.style.cssText = "font-size:10px;color:#64748b;cursor:grab;user-select:none;";
+      drag.textContent = "⋮⋮";
+      drag.title = "Drag to reorder";
 
       const trigger = String(item.interaction?.trigger || "").replace(/^On/, "");
       const action = String(item.interaction?.action || "");
@@ -3979,7 +4068,7 @@ export function createPrototypeViewer(editor: Editor): {
         [keys[idx + 1], keys[idx]] = [keys[idx], keys[idx + 1]];
         persistOrder(keys);
       };
-      row.append(num, label, up, down);
+      row.append(num, drag, label, up, down);
       keyboardOrderList.appendChild(row);
     });
   }
