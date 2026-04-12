@@ -119,6 +119,7 @@ export function openComponentSetMatrixEditor(opts: MatrixEditorOptions): void {
   const localVariantMap: Record<string, number> = { ...(opts.variantMap || {}) };
   let coverageMode = false;
   let showMissingOnly = false;
+  let lastComboReport = "";
 
   let componentOptions: Array<{ id: number; name: string }> = [];
   try {
@@ -363,14 +364,31 @@ export function openComponentSetMatrixEditor(opts: MatrixEditorOptions): void {
   copyMissingBtn.style.cssText = "height:26px;background:rgba(190,24,93,0.16);border:1px solid rgba(244,114,182,0.45);border-radius:6px;color:#fbcfe8;font-size:11px;cursor:pointer;padding:0 10px;";
   paintRow.appendChild(copyMissingBtn);
 
+  const comboTestBtn = document.createElement("button");
+  comboTestBtn.type = "button";
+  comboTestBtn.textContent = "Run Combo Test";
+  comboTestBtn.style.cssText = "height:26px;background:rgba(56,189,248,0.16);border:1px solid rgba(103,232,249,0.45);border-radius:6px;color:#cffafe;font-size:11px;cursor:pointer;padding:0 10px;";
+  paintRow.appendChild(comboTestBtn);
+
+  const copyComboReportBtn = document.createElement("button");
+  copyComboReportBtn.type = "button";
+  copyComboReportBtn.textContent = "Copy Combo Report";
+  copyComboReportBtn.style.cssText = "height:26px;background:rgba(15,118,110,0.16);border:1px solid rgba(94,234,212,0.45);border-radius:6px;color:#ccfbf1;font-size:11px;cursor:pointer;padding:0 10px;";
+  paintRow.appendChild(copyComboReportBtn);
+
   const hint = document.createElement("div");
   hint.style.cssText = "font-size:10px;color:#c4b5fd;";
-  hint.textContent = "Click/drag to paint cells. Drag row/column headers to reorder axis values. Drag mapped cells to relocate mapping (Alt+drop = copy). Fill Empty maps only blank cells to selected target component. Missing Only dims mapped cells so you can focus gap-filling. Use Export/Import TSV for one-shot matrix remap.";
+  hint.textContent = "Click/drag to paint cells. Drag row/column headers to reorder axis values. Drag mapped cells to relocate mapping (Alt+drop = copy). Fill Empty maps only blank cells to selected target component. Missing Only dims mapped cells so you can focus gap-filling. Run Combo Test to sweep all variant combinations and flag missing/broken interaction mappings. Use Export/Import TSV for one-shot matrix remap.";
   paintRow.appendChild(hint);
 
   const coverageSummary = document.createElement("div");
   coverageSummary.style.cssText = "font-size:10px;color:#f5d0fe;";
   paintRow.appendChild(coverageSummary);
+
+  const comboSummary = document.createElement("div");
+  comboSummary.style.cssText = "font-size:10px;color:#bae6fd;white-space:pre-wrap;line-height:1.45;";
+  comboSummary.textContent = "Combo tester: not run yet.";
+  paintRow.appendChild(comboSummary);
   modal.appendChild(paintRow);
 
   const axisWrap = document.createElement("div");
@@ -395,6 +413,74 @@ export function openComponentSetMatrixEditor(opts: MatrixEditorOptions): void {
       fixedValues[axis.name] = extraFilters[axis.name] ?? axis.values[0] ?? "";
     });
     return { rowAxis, colAxis, fixedValues };
+  };
+
+  const runVariantCombinationTest = () => {
+    const scope = getActiveMatrixScope();
+    if (!scope) return;
+
+    const { fixedValues } = scope;
+    const axes = localAxes;
+    const allCombos: Array<Record<string, string>> = [];
+    const walk = (idx: number, acc: Record<string, string>) => {
+      if (idx >= axes.length) {
+        allCombos.push({ ...acc });
+        return;
+      }
+      const axis = axes[idx]!;
+      for (const value of axis.values || []) walk(idx + 1, { ...acc, [axis.name]: value });
+    };
+    walk(0, { ...fixedValues });
+
+    const missing: string[] = [];
+    const broken: string[] = [];
+    const mapped = new Set<number>();
+
+    const nodeExists = (nodeId: number): boolean => {
+      if (!Number.isFinite(nodeId) || nodeId <= 0) return false;
+      try {
+        const raw = (opts.editor.engine as any).get_node_json(BigInt(nodeId));
+        if (!raw || raw === "null") return false;
+        const parsed = JSON.parse(raw);
+        return !!parsed && typeof parsed === "object";
+      } catch {
+        return false;
+      }
+    };
+
+    for (const combo of allCombos) {
+      const key = makeKey(combo);
+      const compId = Number(localVariantMap[key] || 0);
+      if (compId <= 0) {
+        missing.push(key);
+        continue;
+      }
+      mapped.add(compId);
+      let interactions: any[] = [];
+      try {
+        interactions = JSON.parse((opts.editor.engine as any).get_interactions(BigInt(compId)) || "[]") || [];
+      } catch {
+        interactions = [];
+      }
+      const badInter = interactions.find((it: any) => {
+        const action = String(it?.action || "").toLowerCase();
+        if (action !== "navigateto" && action !== "openoverlay") return false;
+        const target = Number(it?.target_node_id || 0);
+        return target > 0 && !nodeExists(target);
+      });
+      if (badInter) {
+        broken.push(`${key} -> #${compId} (${String(badInter.action)} missing target #${Number(badInter.target_node_id || 0)})`);
+      }
+    }
+
+    const header = `Combo test · total ${allCombos.length} · mapped ${allCombos.length - missing.length} · missing ${missing.length} · broken ${broken.length}`;
+    const lines: string[] = [header];
+    if (missing.length > 0) lines.push(`Missing examples: ${missing.slice(0, 12).join(" | ")}`);
+    if (broken.length > 0) lines.push(`Broken examples: ${broken.slice(0, 8).join(" | ")}`);
+    if (missing.length === 0 && broken.length === 0) lines.push("All variant combinations look healthy.");
+
+    lastComboReport = lines.join("\n");
+    comboSummary.textContent = lastComboReport;
   };
 
   const render = () => {
@@ -793,6 +879,24 @@ export function openComponentSetMatrixEditor(opts: MatrixEditorOptions): void {
       alert(`Copied ${missing.length} missing variant key(s).`);
     } catch {
       prompt("Copy missing variant keys", text);
+    }
+  };
+
+  comboTestBtn.onclick = () => {
+    runVariantCombinationTest();
+  };
+
+  copyComboReportBtn.onclick = async () => {
+    if (!lastComboReport) runVariantCombinationTest();
+    if (!lastComboReport) {
+      alert("No combo report yet.");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(lastComboReport);
+      alert("Copied combo report.");
+    } catch {
+      prompt("Copy combo report", lastComboReport);
     }
   };
 
