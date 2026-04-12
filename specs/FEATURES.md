@@ -2749,12 +2749,13 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] 유효 숫자만 `set_instance_prop_override({ type: "number" })`로 반영, invalid 입력은 기존값으로 복구
 - 구현: `packages/app/src/ui/properties-panel.ts`
 
-### Prototype Accessibility Audit (Focus/Label/Contrast) (2026-04-12)
-- [x] Prototype Viewer Flow Lint에 접근성 규칙 3종 추가
+### Prototype Accessibility Audit (Focus/Label/Contrast/Motion) (2026-04-12)
+- [x] Prototype Viewer Flow Lint에 접근성 규칙 4종 추가
   - `a11y-missing-label`: OnClick/OnPress hotspot의 accessibility label 누락
   - `a11y-focus-gap`: interaction은 있으나 keyboard-focusable hotspot 없음
   - `a11y-low-contrast`: frame 배경 대비 텍스트 4.5:1 미만
-- [x] Flow Lint summary에 A11y 집계(`missing-label/focus-gap/low-contrast`) 추가
+  - `a11y-motion`: transition duration ≥ 900ms 또는 aggressive easing(elastic/bounce/back/spring)+긴 duration 조합
+- [x] Flow Lint summary에 A11y 집계(`missing-label/focus-gap/low-contrast/motion`) 추가
 - [x] 기존 issue filter chip/list/jump 워크플로우에 통합
 - [x] **Focus cycle gap fix/polish (v2)**: 동일 노드에 다중 keyboard hotspot이 있을 때 `Tab` 순환이 같은 항목에 고정되던 케이스를 interaction signature 기반으로 교정. Flow Lint는 프레임 내 다중 keyboard hotspot 노드도 `a11y-focus-gap`으로 리포트.
 - 구현: `packages/app/src/ui/prototype-viewer.ts`

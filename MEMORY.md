@@ -1828,6 +1828,14 @@
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
 - specs 반영: `specs/FEATURES.md`
 
+## 완료된 기능 (추가 — Prototype Accessibility Audit v3: Motion Guardrail Lint, 2026-04-12)
+- Prototype Viewer Flow Lint 접근성 규칙에 `a11y-motion` 타입 추가
+- 프레임 내 interaction의 transition duration ≥ 900ms 또는 aggressive easing(elastic/bounce/back/spring)+긴 duration(≥480ms) 조합을 이슈로 집계
+- Flow Lint 요약 A11y 카운트(`missing-label/focus-gap/low-contrast/motion`) 확장
+- issue filter chip/정렬 우선순위/리스트 색상 매핑에 `a11y-motion` 통합
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
+
 ## 완료된 기능 (추가 — Smart Animate Preset Sequencer, 2026-04-12)
 - Interactions 편집 카드에 `Smart Animate Preset Sequencer` 섹션 추가
 - enter/exit 단계별 step draft 작성(+Step), 저장(Save chain), preset 재사용 흐름 제공
