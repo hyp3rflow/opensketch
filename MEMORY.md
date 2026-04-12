@@ -1790,11 +1790,24 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Component Property Controls (Instance Exposed Props) — 컴포넌트에서 텍스트/불리언/숫자 prop을 노출해 인스턴스 패널에서 직접 편집 (임팩트 상, 난이도 상)
 - Multi-user Cursor Playback (Local Session) — 코멘트/리뷰 모드에서 가상 collaborator 커서 리플레이로 사용자 플로우 설명 지원 (임팩트 중, 난이도 중상)
 - Prototype Condition Builder (AND/OR groups) — visibility/trigger 조건식을 시각 빌더로 구성하고 JSON 규칙과 양방향 동기화 (임팩트 상, 난이도 중상)
 - Flow Coverage Heatmap in Minimap — 테스트 세션 중 방문/미방문 frame 상태를 minimap 색상으로 누적 표시하고 reset/compare 지원 (임팩트 중상, 난이도 중)
 - Prototype Network Mock Panel — API 응답 mock(성공/지연/에러)을 interaction 단위로 주입해 상태 기반 UX 테스트 강화 (임팩트 중상, 난이도 중상)
+
+## 완료된 기능 (추가 — Component Property Controls number prop 지원, 2026-04-12)
+- Instance `COMPONENT PROPS`에서 exposed `number` prop 편집 UI 추가 (step=any, Enter 커밋)
+- default 값 placeholder/tooltip 반영 + 유효 숫자 검증 후 override 적용
+- 기존 text/boolean/instance_swap prop 편집 흐름과 동일하게 undo/render/refresh 통합
+- 구현: `packages/app/src/ui/properties-panel.ts`
+- specs 반영: `specs/FEATURES.md`
+
+## 완료된 기능 (추가 — Prototype Accessibility Audit (Focus/Label/Contrast), 2026-04-12)
+- Flow Lint 접근성 규칙 추가: `a11y-missing-label`, `a11y-focus-gap`, `a11y-low-contrast`
+- summary 메타에 A11y 카운트(`missing-label/focus-gap/low-contrast`) 추가
+- 기존 filter chip + issue jump 워크플로우에 통합
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Variable Mode Drift Auto-Fix Recipes, 2026-04-12)
 - Variables 패널에 `Mode Drift Auto-Fix Recipes` 섹션 추가

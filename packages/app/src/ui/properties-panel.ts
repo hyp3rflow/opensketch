@@ -3260,6 +3260,44 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
                 }
               });
               propRow.appendChild(input);
+            } else if (pv.prop_type === "number") {
+              const input = document.createElement("input");
+              input.type = "number";
+              input.step = "any";
+              input.style.cssText = `
+                flex:1; background:#2a2a2a; border:1px solid #444; border-radius:4px;
+                color:#ccc; font-size:11px; padding:3px 6px; outline:none;
+              `;
+              const cur = Number(pv.value?.value ?? pv.definition?.default ?? 0);
+              input.value = Number.isFinite(cur) ? String(cur) : "0";
+              if (pv.definition?.default !== undefined) {
+                input.placeholder = String(pv.definition.default);
+                input.title = `Default: ${pv.definition.default}`;
+              }
+              const applyNumber = () => {
+                const next = Number(input.value);
+                if (!Number.isFinite(next)) {
+                  input.value = Number.isFinite(cur) ? String(cur) : "0";
+                  return;
+                }
+                editor.engine.push_undo();
+                editor.engine.set_instance_prop_override(
+                  BigInt(id),
+                  pv.name,
+                  JSON.stringify({ type: "number", value: next })
+                );
+                editor.requestRender();
+                refresh([id]);
+              };
+              input.addEventListener("change", applyNumber);
+              input.addEventListener("keydown", (e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  applyNumber();
+                  input.blur();
+                }
+              });
+              propRow.appendChild(input);
             } else if (pv.prop_type === "instance_swap") {
               const selectedComponentId = Number(pv.value?.value || 0);
               const linkedSlotId = Number(pv.definition?.linked_slot_id || 0);

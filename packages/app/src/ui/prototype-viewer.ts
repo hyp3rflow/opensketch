@@ -99,7 +99,7 @@ export function createPrototypeViewer(editor: Editor): {
   let flowStartFlowSel: HTMLSelectElement | null = null;
   let flowStartFrameSel: HTMLSelectElement | null = null;
   let flowStartInfo: HTMLDivElement | null = null;
-  type FlowLintIssueType = "unreachable" | "dead-end" | "cycle" | "cycle-trap" | "overlay-leak" | "orphan-close";
+  type FlowLintIssueType = "unreachable" | "dead-end" | "cycle" | "cycle-trap" | "overlay-leak" | "orphan-close" | "a11y-missing-label" | "a11y-focus-gap" | "a11y-low-contrast";
   type FlowLintIssue = { type: FlowLintIssueType; frameId: number; frameName: string; detail: string };
   let flowLintWrap: HTMLDivElement | null = null;
   let flowLintInfo: HTMLDivElement | null = null;
@@ -1069,6 +1069,56 @@ export function createPrototypeViewer(editor: Editor): {
     }
   }
 
+
+  function parseColorToRgb(input: unknown): { r: number; g: number; b: number } | null {
+    const raw = String(input || "").trim();
+    if (!raw) return null;
+    const hex = raw.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+    if (hex) {
+      const body = hex[1];
+      if (body.length === 3) {
+        return {
+          r: parseInt(body[0] + body[0], 16),
+          g: parseInt(body[1] + body[1], 16),
+          b: parseInt(body[2] + body[2], 16),
+        };
+      }
+      return {
+        r: parseInt(body.slice(0, 2), 16),
+        g: parseInt(body.slice(2, 4), 16),
+        b: parseInt(body.slice(4, 6), 16),
+      };
+    }
+    const rgb = raw.match(/^rgba?\(([^)]+)\)$/i);
+    if (rgb) {
+      const parts = rgb[1].split(",").map((v) => Number(v.trim()));
+      if (parts.length >= 3 && parts.slice(0, 3).every(Number.isFinite)) {
+        return {
+          r: Math.max(0, Math.min(255, Math.round(parts[0]!))),
+          g: Math.max(0, Math.min(255, Math.round(parts[1]!))),
+          b: Math.max(0, Math.min(255, Math.round(parts[2]!))),
+        };
+      }
+    }
+    return null;
+  }
+
+  function relativeLuminance(rgb: { r: number; g: number; b: number }): number {
+    const toLinear = (v: number) => {
+      const x = v / 255;
+      return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4);
+    };
+    return 0.2126 * toLinear(rgb.r) + 0.7152 * toLinear(rgb.g) + 0.0722 * toLinear(rgb.b);
+  }
+
+  function contrastRatio(fg: { r: number; g: number; b: number }, bg: { r: number; g: number; b: number }): number {
+    const l1 = relativeLuminance(fg);
+    const l2 = relativeLuminance(bg);
+    const hi = Math.max(l1, l2);
+    const lo = Math.min(l1, l2);
+    return (hi + 0.05) / (lo + 0.05);
+  }
+
   function renderFlowLint() {
     if (!flowLintInfo || !flowLintList) return;
     const snapshot = flowMinimapSnapshot;
@@ -1109,12 +1159,14 @@ export function createPrototypeViewer(editor: Editor): {
     const backByFrame = new Map<number, number>();
     const overlaysOpenByFrame = new Map<number, number>();
     const overlaysCloseByFrame = new Map<number, number>();
+    const interactionRowsByFrame = new Map<number, any[]>();
     try {
       const allInter: any[] = JSON.parse(editor.engine.get_all_interactions() || "[]") || [];
       for (const row of allInter) {
         const from = Number(row?.id || 0);
-        if (!visited.has(from)) continue;
         const interactions: any[] = Array.isArray(row?.interactions) ? row.interactions : [];
+        interactionRowsByFrame.set(from, interactions);
+        if (!visited.has(from)) continue;
         for (const inter of interactions) {
           const action = String(inter?.action || "");
           if (action === "Back") backByFrame.set(from, (backByFrame.get(from) || 0) + 1);
@@ -1238,6 +1290,87 @@ export function createPrototypeViewer(editor: Editor): {
       }
     }
 
+    // Accessibility audit (prototype-specific): missing labels, keyboard focus gaps, low text contrast.
+    const defaultBg = { r: 255, g: 255, b: 255 };
+    const frameFillCache = new Map<number, { r: number; g: number; b: number }>();
+    const getFrameBg = (frameId: number) => {
+      if (frameFillCache.has(frameId)) return frameFillCache.get(frameId)!;
+      let out = defaultBg;
+      try {
+        const raw = editor.engine.get_node_json(BigInt(frameId));
+        if (raw) {
+          const frame = JSON.parse(raw);
+          const fills = Array.isArray(frame?.fills) ? frame.fills : [];
+          const firstVisible = fills.find((f: any) => f && f.visible !== false) || fills[0];
+          const parsed = parseColorToRgb(firstVisible?.color || frame?.fill?.color);
+          if (parsed) out = parsed;
+        }
+      } catch {}
+      frameFillCache.set(frameId, out);
+      return out;
+    };
+
+    for (const frame of snapshot.nodes) {
+      if (!visited.has(frame.id)) continue;
+      const interactions = interactionRowsByFrame.get(frame.id) || [];
+      let keyboardFocusableCount = 0;
+      let missingLabelCount = 0;
+      for (const inter of interactions) {
+        const trigger = String(inter?.trigger || "");
+        const isKeyboardRelevant = trigger === "OnClick" || trigger === "OnPress";
+        if (!isKeyboardRelevant) continue;
+        keyboardFocusableCount += 1;
+        const a11yLabel = String(inter?.accessibility_label || "").trim();
+        if (!a11yLabel) missingLabelCount += 1;
+      }
+      if (missingLabelCount > 0) {
+        issues.push({
+          type: "a11y-missing-label",
+          frameId: frame.id,
+          frameName: frame.name,
+          detail: `${missingLabelCount} hotspot(s) missing accessibility label`,
+        });
+      }
+      if (interactions.length > 0 && keyboardFocusableCount === 0) {
+        issues.push({
+          type: "a11y-focus-gap",
+          frameId: frame.id,
+          frameName: frame.name,
+          detail: "No keyboard-focusable hotspot (OnClick/OnPress) in this frame",
+        });
+      }
+
+      let lowContrastCount = 0;
+      const bg = getFrameBg(frame.id);
+      for (const n of snapshot.nodes) {
+        if (!visited.has(n.id)) continue;
+        const inFrame = n.x >= frame.x && n.y >= frame.y && (n.x + n.width) <= (frame.x + frame.width) && (n.y + n.height) <= (frame.y + frame.height);
+        if (!inFrame) continue;
+        let rawNode: any = null;
+        try {
+          const raw = editor.engine.get_node_json(BigInt(n.id));
+          if (!raw) continue;
+          rawNode = JSON.parse(raw);
+        } catch { continue; }
+        const kind = String(rawNode?.kind || "");
+        if (kind !== "Text") continue;
+        const fills = Array.isArray(rawNode?.fills) ? rawNode.fills : [];
+        const firstVisible = fills.find((f: any) => f && f.visible !== false) || fills[0];
+        const fg = parseColorToRgb(firstVisible?.color || rawNode?.fill?.color || "");
+        if (!fg) continue;
+        const ratio = contrastRatio(fg, bg);
+        if (ratio < 4.5) lowContrastCount += 1;
+      }
+      if (lowContrastCount > 0) {
+        issues.push({
+          type: "a11y-low-contrast",
+          frameId: frame.id,
+          frameName: frame.name,
+          detail: `${lowContrastCount} text node(s) below 4.5:1 contrast`,
+        });
+      }
+    }
+
     flowLintSnapshot = { startFrameId, issues };
 
     const deadEndCount = issues.filter((i) => i.type === "dead-end").length;
@@ -1246,7 +1379,10 @@ export function createPrototypeViewer(editor: Editor): {
     const cycleTrapCount = issues.filter((i) => i.type === "cycle-trap").length;
     const overlayLeakCount = issues.filter((i) => i.type === "overlay-leak").length;
     const orphanCloseCount = issues.filter((i) => i.type === "orphan-close").length;
-    flowLintInfo.textContent = `Start #${startFrameId} · Dead-end ${deadEndCount} · Unreachable ${unreachableCount} · Cycles ${cycleCount}/${cycleTrapCount} · Overlay ${overlayLeakCount}/${orphanCloseCount}`;
+    const missingLabelCount = issues.filter((i) => i.type === "a11y-missing-label").length;
+    const focusGapCount = issues.filter((i) => i.type === "a11y-focus-gap").length;
+    const lowContrastCount = issues.filter((i) => i.type === "a11y-low-contrast").length;
+    flowLintInfo.textContent = `Start #${startFrameId} · Dead-end ${deadEndCount} · Unreachable ${unreachableCount} · Cycles ${cycleCount}/${cycleTrapCount} · Overlay ${overlayLeakCount}/${orphanCloseCount} · A11y ${missingLabelCount}/${focusGapCount}/${lowContrastCount}`;
 
     flowLintList.innerHTML = "";
     if (issues.length === 0) {
@@ -1258,15 +1394,18 @@ export function createPrototypeViewer(editor: Editor): {
     }
 
     const rank: Record<FlowLintIssueType, number> = {
-      "cycle-trap": 0,
-      "dead-end": 1,
-      "unreachable": 2,
-      "cycle": 3,
-      "overlay-leak": 4,
-      "orphan-close": 5,
+      "a11y-missing-label": 0,
+      "a11y-focus-gap": 1,
+      "a11y-low-contrast": 2,
+      "cycle-trap": 3,
+      "dead-end": 4,
+      "unreachable": 5,
+      "cycle": 6,
+      "overlay-leak": 7,
+      "orphan-close": 8,
     };
     const sortedIssues = [...issues].sort((a, b) => (rank[a.type] - rank[b.type]) || a.frameName.localeCompare(b.frameName));
-    const issueTypes: FlowLintIssueType[] = ["dead-end", "unreachable", "cycle-trap", "cycle", "overlay-leak", "orphan-close"];
+    const issueTypes: FlowLintIssueType[] = ["a11y-missing-label", "a11y-focus-gap", "a11y-low-contrast", "dead-end", "unreachable", "cycle-trap", "cycle", "overlay-leak", "orphan-close"];
     if (flowLintFilterTypes.size === 0) {
       for (const t of issueTypes) flowLintFilterTypes.add(t);
     }
@@ -1299,17 +1438,23 @@ export function createPrototypeViewer(editor: Editor): {
 
     for (const [issueIndex, issue] of visibleIssues.entries()) {
       const row = document.createElement("button");
-      const color = issue.type === "dead-end"
-        ? "#fca5a5"
-        : issue.type === "unreachable"
-          ? "#fbbf24"
-          : issue.type === "cycle"
-            ? "#c4b5fd"
-            : issue.type === "cycle-trap"
-              ? "#ef4444"
-              : issue.type === "overlay-leak"
-                ? "#fb7185"
-                : "#22d3ee";
+      const color = issue.type === "a11y-missing-label"
+        ? "#f59e0b"
+        : issue.type === "a11y-focus-gap"
+          ? "#fb7185"
+          : issue.type === "a11y-low-contrast"
+            ? "#ef4444"
+            : issue.type === "dead-end"
+              ? "#fca5a5"
+              : issue.type === "unreachable"
+                ? "#fbbf24"
+                : issue.type === "cycle"
+                  ? "#c4b5fd"
+                  : issue.type === "cycle-trap"
+                    ? "#ef4444"
+                    : issue.type === "overlay-leak"
+                      ? "#fb7185"
+                      : "#22d3ee";
       row.style.cssText = `display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;text-align:left;background:rgba(15,23,42,0.55);border:1px solid rgba(148,163,184,0.25);border-left:3px solid ${color};border-radius:6px;color:#e2e8f0;padding:4px 6px;cursor:pointer;`;
       row.dataset.lintNavIndex = String(issueIndex);
       row.innerHTML = `<span style="font-size:10px;font-weight:600;color:${color};text-transform:uppercase;">${issue.type}</span><span style="font-size:10px;">${issue.frameName} (#${issue.frameId})</span><span style="font-size:9px;color:#94a3b8;">${issue.detail}</span>`;

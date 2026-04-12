@@ -2735,3 +2735,18 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
   - `Fallback`: default component id(없으면 첫 component)로 override 값을 즉시 교체
   - `Relink`: prop name 기반 slot 추천으로 linked slot id를 component prop 정의에 재연결
 - 구현: `packages/app/src/ui/properties-panel.ts`
+
+### Component Property Controls — Number Prop Support (2026-04-12)
+- [x] Instance `COMPONENT PROPS` 카드에서 `number` 타입 exposed prop 편집 지원
+- [x] 숫자 입력 UI 추가: step=any, Enter 커밋, 기본값 placeholder/tooltip 표시
+- [x] 유효 숫자만 `set_instance_prop_override({ type: "number" })`로 반영, invalid 입력은 기존값으로 복구
+- 구현: `packages/app/src/ui/properties-panel.ts`
+
+### Prototype Accessibility Audit (Focus/Label/Contrast) (2026-04-12)
+- [x] Prototype Viewer Flow Lint에 접근성 규칙 3종 추가
+  - `a11y-missing-label`: OnClick/OnPress hotspot의 accessibility label 누락
+  - `a11y-focus-gap`: interaction은 있으나 keyboard-focusable hotspot 없음
+  - `a11y-low-contrast`: frame 배경 대비 텍스트 4.5:1 미만
+- [x] Flow Lint summary에 A11y 집계(`missing-label/focus-gap/low-contrast`) 추가
+- [x] 기존 issue filter chip/list/jump 워크플로우에 통합
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
