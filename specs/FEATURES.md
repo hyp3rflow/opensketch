@@ -2653,8 +2653,9 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Prototype Viewer 좌측에 `Flow Lint` 패널 추가: 현재 선택 start frame(없으면 current frame) 기준으로 flow graph lint 수행
 - [x] 진단 규칙
   - `Unreachable`: start frame에서 도달 불가한 frame
-  - `Dead-end`: 도달 가능하지만 NavigateTo/OpenOverlay outbound link가 없는 frame
+  - `Dead-end`: 도달 가능하지만 `NavigateTo/OpenOverlay/Back/CloseOverlay` 경로가 모두 없는 frame
   - `Cycle`: 도달 가능한 그래프에서 순환 루프 루트 탐지
+  - `Cycle-trap`: SCC(강결합 루프) 내부에서 바깥 frame으로 빠져나가는 edge가 없는 loop trap 탐지
 - [x] 이슈를 클릭 가능한 리스트로 표시하여 해당 frame으로 즉시 점프 (검증 루프 단축)
 - [x] Start Point Manager/minimap 변화에 연동해 lint 결과 자동 재계산
 

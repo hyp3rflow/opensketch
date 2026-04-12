@@ -99,7 +99,7 @@ export function createPrototypeViewer(editor: Editor): {
   let flowStartFlowSel: HTMLSelectElement | null = null;
   let flowStartFrameSel: HTMLSelectElement | null = null;
   let flowStartInfo: HTMLDivElement | null = null;
-  type FlowLintIssueType = "unreachable" | "dead-end" | "cycle" | "overlay-leak" | "orphan-close";
+  type FlowLintIssueType = "unreachable" | "dead-end" | "cycle" | "cycle-trap" | "overlay-leak" | "orphan-close";
   type FlowLintIssue = { type: FlowLintIssueType; frameId: number; frameName: string; detail: string };
   let flowLintWrap: HTMLDivElement | null = null;
   let flowLintInfo: HTMLDivElement | null = null;
@@ -1076,12 +1076,34 @@ export function createPrototypeViewer(editor: Editor): {
 
     const issues: FlowLintIssue[] = [];
 
+    const backByFrame = new Map<number, number>();
+    const overlaysOpenByFrame = new Map<number, number>();
+    const overlaysCloseByFrame = new Map<number, number>();
+    try {
+      const allInter: any[] = JSON.parse(editor.engine.get_all_interactions() || "[]") || [];
+      for (const row of allInter) {
+        const from = Number(row?.id || 0);
+        if (!visited.has(from)) continue;
+        const interactions: any[] = Array.isArray(row?.interactions) ? row.interactions : [];
+        for (const inter of interactions) {
+          const action = String(inter?.action || "");
+          if (action === "Back") backByFrame.set(from, (backByFrame.get(from) || 0) + 1);
+          if (action === "OpenOverlay") overlaysOpenByFrame.set(from, (overlaysOpenByFrame.get(from) || 0) + 1);
+          if (action === "CloseOverlay") overlaysCloseByFrame.set(from, (overlaysCloseByFrame.get(from) || 0) + 1);
+        }
+      }
+    } catch {}
+
     for (const node of snapshot.nodes) {
       const outs = adjacency.get(node.id) || [];
       if (!visited.has(node.id)) {
         issues.push({ type: "unreachable", frameId: node.id, frameName: node.name, detail: "Not reachable from current start frame" });
-      } else if (outs.length === 0) {
-        issues.push({ type: "dead-end", frameId: node.id, frameName: node.name, detail: "No outbound NavigateTo/OpenOverlay links" });
+      } else {
+        const hasBack = (backByFrame.get(node.id) || 0) > 0;
+        const hasClose = (overlaysCloseByFrame.get(node.id) || 0) > 0;
+        if (outs.length === 0 && !hasBack && !hasClose) {
+          issues.push({ type: "dead-end", frameId: node.id, frameName: node.name, detail: "No outbound NavigateTo/OpenOverlay/Back/CloseOverlay path" });
+        }
       }
     }
 
@@ -1105,22 +1127,75 @@ export function createPrototypeViewer(editor: Editor): {
       issues.push({ type: "cycle", frameId: cycleId, frameName: n.name, detail: "Cycle detected in reachable flow graph" });
     }
 
-    // Overlay stack lint: OpenOverlay/CloseOverlay imbalance per reachable frame
-    const overlaysOpenByFrame = new Map<number, number>();
-    const overlaysCloseByFrame = new Map<number, number>();
-    try {
-      const allInter: any[] = JSON.parse(editor.engine.get_all_interactions() || "[]") || [];
-      for (const row of allInter) {
-        const from = Number(row?.id || 0);
-        if (!visited.has(from)) continue;
-        const interactions: any[] = Array.isArray(row?.interactions) ? row.interactions : [];
-        for (const inter of interactions) {
-          const action = String(inter?.action || "");
-          if (action === "OpenOverlay") overlaysOpenByFrame.set(from, (overlaysOpenByFrame.get(from) || 0) + 1);
-          if (action === "CloseOverlay") overlaysCloseByFrame.set(from, (overlaysCloseByFrame.get(from) || 0) + 1);
+    // Tarjan SCC: detect strongly-connected "trap" loops with no exit edge.
+    const indexMap = new Map<number, number>();
+    const lowMap = new Map<number, number>();
+    const onStack = new Set<number>();
+    const tarjanStack: number[] = [];
+    const sccs: number[][] = [];
+    let index = 0;
+    const strongConnect = (v: number) => {
+      indexMap.set(v, index);
+      lowMap.set(v, index);
+      index += 1;
+      tarjanStack.push(v);
+      onStack.add(v);
+
+      for (const w of adjacency.get(v) || []) {
+        if (!visited.has(w)) continue;
+        if (!indexMap.has(w)) {
+          strongConnect(w);
+          lowMap.set(v, Math.min(lowMap.get(v)!, lowMap.get(w)!));
+        } else if (onStack.has(w)) {
+          lowMap.set(v, Math.min(lowMap.get(v)!, indexMap.get(w)!));
         }
       }
-    } catch {}
+
+      if (lowMap.get(v) === indexMap.get(v)) {
+        const component: number[] = [];
+        while (tarjanStack.length > 0) {
+          const w = tarjanStack.pop()!;
+          onStack.delete(w);
+          component.push(w);
+          if (w === v) break;
+        }
+        sccs.push(component);
+      }
+    };
+
+    for (const id of visited) {
+      if (!indexMap.has(id)) strongConnect(id);
+    }
+
+    for (const component of sccs) {
+      if (component.length <= 1) {
+        const only = component[0];
+        if (!only) continue;
+        const selfLoop = (adjacency.get(only) || []).includes(only);
+        if (!selfLoop) continue;
+      }
+      const set = new Set(component);
+      let hasExternalExit = false;
+      for (const from of component) {
+        const outs = adjacency.get(from) || [];
+        if (outs.some((to) => !set.has(to))) {
+          hasExternalExit = true;
+          break;
+        }
+      }
+      if (!hasExternalExit) {
+        const lead = component[0];
+        const node = frameById.get(lead);
+        if (node) {
+          issues.push({
+            type: "cycle-trap",
+            frameId: node.id,
+            frameName: node.name,
+            detail: `Loop group(${component.length}) has no exit to outside frames`,
+          });
+        }
+      }
+    }
 
     for (const node of snapshot.nodes) {
       if (!visited.has(node.id)) continue;
@@ -1138,9 +1213,10 @@ export function createPrototypeViewer(editor: Editor): {
     const deadEndCount = issues.filter((i) => i.type === "dead-end").length;
     const unreachableCount = issues.filter((i) => i.type === "unreachable").length;
     const cycleCount = issues.filter((i) => i.type === "cycle").length;
+    const cycleTrapCount = issues.filter((i) => i.type === "cycle-trap").length;
     const overlayLeakCount = issues.filter((i) => i.type === "overlay-leak").length;
     const orphanCloseCount = issues.filter((i) => i.type === "orphan-close").length;
-    flowLintInfo.textContent = `Start #${startFrameId} · Dead-end ${deadEndCount} · Unreachable ${unreachableCount} · Cycles ${cycleCount} · Overlay ${overlayLeakCount}/${orphanCloseCount}`;
+    flowLintInfo.textContent = `Start #${startFrameId} · Dead-end ${deadEndCount} · Unreachable ${unreachableCount} · Cycles ${cycleCount}/${cycleTrapCount} · Overlay ${overlayLeakCount}/${orphanCloseCount}`;
 
     flowLintList.innerHTML = "";
     if (issues.length === 0) {
@@ -1151,7 +1227,17 @@ export function createPrototypeViewer(editor: Editor): {
       return;
     }
 
-    for (const issue of issues.slice(0, 14)) {
+    const rank: Record<FlowLintIssueType, number> = {
+      "cycle-trap": 0,
+      "dead-end": 1,
+      "unreachable": 2,
+      "cycle": 3,
+      "overlay-leak": 4,
+      "orphan-close": 5,
+    };
+    const sortedIssues = [...issues].sort((a, b) => (rank[a.type] - rank[b.type]) || a.frameName.localeCompare(b.frameName));
+
+    for (const issue of sortedIssues.slice(0, 14)) {
       const row = document.createElement("button");
       const color = issue.type === "dead-end"
         ? "#fca5a5"
@@ -1159,9 +1245,11 @@ export function createPrototypeViewer(editor: Editor): {
           ? "#fbbf24"
           : issue.type === "cycle"
             ? "#c4b5fd"
-            : issue.type === "overlay-leak"
-              ? "#fb7185"
-              : "#22d3ee";
+            : issue.type === "cycle-trap"
+              ? "#ef4444"
+              : issue.type === "overlay-leak"
+                ? "#fb7185"
+                : "#22d3ee";
       row.style.cssText = `display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;text-align:left;background:rgba(15,23,42,0.55);border:1px solid rgba(148,163,184,0.25);border-left:3px solid ${color};border-radius:6px;color:#e2e8f0;padding:4px 6px;cursor:pointer;`;
       row.innerHTML = `<span style="font-size:10px;font-weight:600;color:${color};text-transform:uppercase;">${issue.type}</span><span style="font-size:10px;">${issue.frameName} (#${issue.frameId})</span><span style="font-size:9px;color:#94a3b8;">${issue.detail}</span>`;
       row.onclick = () => navigateTo(issue.frameId, "Instant", 0, "linear");
