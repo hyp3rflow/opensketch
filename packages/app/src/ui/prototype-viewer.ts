@@ -3620,6 +3620,21 @@ export function createPrototypeViewer(editor: Editor): {
     ctx.restore();
   }
 
+  function hasInteractionCondition(inter: any): boolean {
+    if (!inter || typeof inter !== "object") return false;
+    const legacyVar = String(inter.condition_variable || "").trim();
+    if (legacyVar) return true;
+    const groupJson = String(inter.condition_group_json || "").trim();
+    if (!groupJson) return false;
+    try {
+      const parsed = JSON.parse(groupJson);
+      if (!parsed || typeof parsed !== "object") return false;
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   /** Convert screen coords to scene coords and find matching interaction */
   function findInteractionAtPoint(
     clientX: number, clientY: number, triggerFilter: string
@@ -3648,9 +3663,13 @@ export function createPrototypeViewer(editor: Editor): {
       const interactions = interMap.get(currentId) || [];
       const raw = editor.engine.get_node_json(BigInt(currentId));
       const node = raw ? JSON.parse(raw) : null;
-      const inter = interactions.find((i: any) => i.trigger === triggerFilter && (!node || pointInHotspot(sceneX, sceneY, node, i)));
-      if (inter && node) {
-        return { interaction: inter, node };
+      const candidates = interactions.filter((i: any) => i.trigger === triggerFilter && (!node || pointInHotspot(sceneX, sceneY, node, i)));
+      if (node && candidates.length) {
+        const conditionals = candidates.filter((i: any) => hasInteractionCondition(i));
+        const fallbacks = candidates.filter((i: any) => !hasInteractionCondition(i));
+        const branch = conditionals.find((i: any) => checkCondition(i))
+          || fallbacks.find((i: any) => checkCondition(i));
+        if (branch) return { interaction: branch, node };
       }
       const p = Number((editor.engine as any).get_node_parent?.(BigInt(currentId)) ?? 0);
       if (!Number.isFinite(p) || p <= 0 || p === currentId) break;

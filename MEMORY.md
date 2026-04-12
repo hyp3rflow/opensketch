@@ -1790,11 +1790,18 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Prototype Conditional Branch Rules — 변수/조건식 기반 인터랙션 분기(If/Else)로 단일 핫스팟에서 다중 목적지 제어 (임팩트 상, 난이도 중상)
 - Design QA Diff Pins — 두 프레임/버전 비교 후 변화 영역에 핀 자동 생성(색상/간격/타이포 변경 타입별) 및 코멘트 연동 (임팩트 중상, 난이도 중)
 - Variable Alias Dependency Graph — 변수 alias 체인을 그래프로 시각화하고 순환 참조/깊은 체인 경고 + jump-to-node (임팩트 중상, 난이도 중)
 - Smart Animate Performance Budget Panel — 프레임 전환별 layer count/blur/shadow/filter 비용 추정과 저사양 preset 자동 제안 (임팩트 상, 난이도 중상)
 - Auto Layout Wrap Stress Tester — 다양한 컨테이너 폭 시뮬레이션으로 wrap 깨짐 구간 탐지 + 권장 min/max 값 제안 (임팩트 중, 난이도 중)
+
+## 완료된 기능 (추가 — Prototype Conditional Branch Rules, 2026-04-13)
+- Prototype viewer interaction hit-test 분기 로직 추가: 동일 hotspot/trigger에 연결된 interaction들을 branch로 평가
+- 조건식이 있는 interaction들을 먼저 순서대로 검사해 첫 번째 true 조건 branch만 실행
+- 조건 없는 interaction은 fallback(else) branch로 처리하여 기본 경로 제공
+- 기존 interaction 모델/에디터 UI를 유지한 채 변수/조건식 기반 다중 목적지 제어(If/Else) 워크플로우를 지원
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Dev Handoff State Capture Presets, 2026-04-13)
 - Handoff 패널에 `State Capture Presets` 카드 추가 (hover / pressed / focus 토글)
