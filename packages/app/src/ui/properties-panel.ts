@@ -210,6 +210,7 @@ type SmartAnimateSequencePreset = {
   id: string;
   name: string;
   steps: SmartAnimateSequenceStep[];
+  applyMode: "clamp" | "loop";
   createdAt: number;
 };
 
@@ -234,6 +235,7 @@ function loadSmartAnimateSequencePresets(): SmartAnimateSequencePreset[] {
         id: String(p?.id || `sa-seq-${idx + 1}`),
         name: String(p?.name || `Preset ${idx + 1}`),
         steps: Array.isArray(p?.steps) ? p.steps.map(normalizeSmartAnimateStep).slice(0, 16) : [],
+        applyMode: String(p?.applyMode || "clamp") === "loop" ? "loop" : "clamp",
         createdAt: Number(p?.createdAt || Date.now()),
       }))
       .filter((p: SmartAnimateSequencePreset) => p.steps.length > 0)
@@ -8314,7 +8316,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           for (const p of presets) {
             const opt = document.createElement("option");
             opt.value = p.id;
-            opt.textContent = `${p.name} (${p.steps.length} steps)`;
+            opt.textContent = `${p.name} (${p.steps.length} steps · ${p.applyMode === "loop" ? "loop" : "clamp"})`;
             seqSelect.appendChild(opt);
           }
           selectRow.appendChild(seqSelect);
@@ -8376,6 +8378,17 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
 
           seqWrap.appendChild(quickBuilder);
 
+          const modeRow = document.createElement("label");
+          modeRow.style.cssText = "display:flex;align-items:center;gap:6px;margin-top:6px;font-size:9px;color:#94a3b8;";
+          const modeCheckbox = document.createElement("input");
+          modeCheckbox.type = "checkbox";
+          modeCheckbox.checked = false;
+          modeRow.appendChild(modeCheckbox);
+          const modeText = document.createElement("span");
+          modeText.textContent = "Loop steps when interactions exceed step count";
+          modeRow.appendChild(modeText);
+          seqWrap.appendChild(modeRow);
+
           let draftSteps: SmartAnimateSequenceStep[] = [];
           const draftList = document.createElement("div");
           draftList.style.cssText = "display:flex;flex-direction:column;gap:3px;margin-top:6px;";
@@ -8423,6 +8436,11 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             renderDraft();
           };
 
+          seqSelect.onchange = () => {
+            const selected = loadSmartAnimateSequencePresets().find((p) => p.id === seqSelect.value);
+            if (selected) modeCheckbox.checked = selected.applyMode === "loop";
+          };
+
           saveChainBtn.onclick = () => {
             if (draftSteps.length === 0) {
               alert("Add at least one step first.");
@@ -8435,6 +8453,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
               id: `sa-seq-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
               name,
               steps: draftSteps.map((x) => ({ ...x })),
+              applyMode: modeCheckbox.checked ? "loop" : "clamp",
               createdAt: Date.now(),
             };
             saveSmartAnimateSequencePresets([next, ...existing]);
@@ -8469,6 +8488,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
 
             const enterSteps = selected.steps.filter((s) => s.phase === "enter");
             const exitSteps = selected.steps.filter((s) => s.phase === "exit");
+            const useLoop = selected.applyMode === "loop";
             let touched = 0;
 
             ensureUndo();
@@ -8484,13 +8504,15 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
               const enterPos = enterIdx.indexOf(idx);
               const exitPos = exitIdx.indexOf(idx);
               if (enterPos >= 0 && enterSteps.length > 0) {
-                const step = enterSteps[Math.min(enterPos, enterSteps.length - 1)]!;
+                const idx = useLoop ? (enterPos % enterSteps.length) : Math.min(enterPos, enterSteps.length - 1);
+                const step = enterSteps[idx]!;
                 nextTransition = step.transition;
                 nextDuration = step.durationMs;
                 nextEasing = step.easing;
                 touched += 1;
               } else if (exitPos >= 0 && exitSteps.length > 0) {
-                const step = exitSteps[Math.min(exitPos, exitSteps.length - 1)]!;
+                const idx = useLoop ? (exitPos % exitSteps.length) : Math.min(exitPos, exitSteps.length - 1);
+                const step = exitSteps[idx]!;
                 nextTransition = step.transition;
                 nextDuration = step.durationMs;
                 nextEasing = step.easing;
@@ -8511,7 +8533,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
 
             editor.requestRender();
             refresh(ids);
-            alert(`Applied sequence preset to ${touched} interaction${touched === 1 ? "" : "s"}.`);
+            alert(`Applied sequence preset (${useLoop ? "loop" : "clamp"}) to ${touched} interaction${touched === 1 ? "" : "s"}.`);
           };
 
           interEl.appendChild(seqWrap);

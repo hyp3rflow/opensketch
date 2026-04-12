@@ -1802,6 +1802,15 @@
 - 구현: `packages/app/src/ui/properties-panel.ts`
 - specs 반영: `specs/FEATURES.md`
 
+## 완료된 기능 (추가 — Smart Animate Preset Sequencer v2, 2026-04-12)
+- Smart Animate sequence preset에 `applyMode`(`clamp`/`loop`) 저장 필드 추가
+- preset 선택 시 mode를 표시하고, 적용 시 mode 기준으로 enter/exit step index 계산
+  - clamp: step 수 초과 시 마지막 step 유지
+  - loop: step 수 초과 시 step 순환 반복
+- apply 완료 알림에 mode를 포함해 어떤 방식으로 반영되었는지 즉시 확인 가능
+- 구현: `packages/app/src/ui/properties-panel.ts`
+- specs 반영: `specs/FEATURES.md`
+
 ## 완료된 기능 (추가 — Component Property Controls number prop 지원, 2026-04-12)
 - Instance `COMPONENT PROPS`에서 exposed `number` prop 편집 UI 추가 (step=any, Enter 커밋)
 - default 값 placeholder/tooltip 반영 + 유효 숫자 검증 후 override 적용

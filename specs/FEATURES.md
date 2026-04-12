@@ -407,6 +407,7 @@
   - Prototype Start Points Manager: flow card마다 start point select(연결 노드 기반 후보), `Use selected`/`Clear` 빠른 액션, flow focus 전환 버튼으로 flow별 진입점 관리 강화
   - Prototype Transition Presets Library: Interactions 섹션에서 transition/easing/duration 조합을 문서 스코프 preset으로 Save/Apply, 활성 flow 기준 `Set as flow default` 지정, 새 interaction 추가 시 flow default 자동 적용
   - Smart Animate Preset Sequencer (2026-04-12): Interactions 카드에 enter/exit 단계 체인 draft(+Step) 작성과 `Save chain` preset 저장을 추가. 저장된 chain을 `Apply chain`으로 현재 노드의 prototype interactions에 순차 적용해 enter 계열(Navigate/OpenOverlay/ScrollTo/SwapVariant/SetVariable)과 exit 계열(Back/CloseOverlay) transition/duration/easing을 일괄 세팅
+  - Smart Animate Preset Sequencer v2 (2026-04-12): 시퀀스 preset에 apply mode(`clamp`/`loop`)를 추가해 interaction 수가 step 수를 초과할 때 마지막 step 고정 또는 반복 순환을 선택 가능. preset 드롭다운 메타와 apply 결과 알림에 mode를 표시해 체인 적용 의도를 명확화
   - Toolbar: Flow Diagram button next to prototype play button (i18n tooltip: en/ko/ja)
 
 ### Styles Library (Shared Color & Text Styles)
