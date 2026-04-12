@@ -1790,9 +1790,28 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Prototype Overlay Stack Inspector — OpenOverlay/CloseOverlay 체인을 스택 타임라인으로 표시하고 z-order/닫힘 누락을 경고 (임팩트 중상, 난이도 중)
 - Component Property Controls (Instance Exposed Props) — 컴포넌트에서 텍스트/불리언/숫자 prop을 노출해 인스턴스 패널에서 직접 편집 (임팩트 상, 난이도 상)
 - Multi-user Cursor Playback (Local Session) — 코멘트/리뷰 모드에서 가상 collaborator 커서 리플레이로 사용자 플로우 설명 지원 (임팩트 중, 난이도 중상)
+- Prototype Condition Builder (AND/OR groups) — visibility/trigger 조건식을 시각 빌더로 구성하고 JSON 규칙과 양방향 동기화 (임팩트 상, 난이도 중상)
+- Flow Coverage Heatmap in Minimap — 테스트 세션 중 방문/미방문 frame 상태를 minimap 색상으로 누적 표시하고 reset/compare 지원 (임팩트 중상, 난이도 중)
+- Prototype Network Mock Panel — API 응답 mock(성공/지연/에러)을 interaction 단위로 주입해 상태 기반 UX 테스트 강화 (임팩트 중상, 난이도 중상)
+
+## 완료된 기능 (추가 — Prototype Overlay Stack Inspector, 2026-04-12)
+- Prototype Viewer Flow Lint에 overlay chain 규칙 추가
+  - `overlay-leak`: OpenOverlay는 있으나 CloseOverlay가 없는 reachable frame
+  - `orphan-close`: CloseOverlay만 존재하는 reachable frame
+- lint summary 메타에 overlay 이슈 카운트 포함 (`Overlay leak/orphan`)
+- 이슈 리스트 클릭으로 해당 frame 점프 (기존 lint UX 재사용)
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
+
+## 완료된 기능 (추가 — Prototype Session Snapshot Comparator, 2026-04-12)
+- Prototype Viewer 우측에 `Session Snapshot Comparator` 패널 추가
+- current frame/name + scroll offset + runtime variables를 snapshot으로 캡처 (최대 10개 유지)
+- snapshot A/B 선택 diff 제공: frame 변경, scroll delta, 변수 변경 목록
+- `Capture current` / `Clear` 액션으로 재현성 디버깅 루프 지원
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Component Slot Fallback Preview, 2026-04-12)
 - Instance `instance_swap` prop UI에서 깨진 상태를 실시간 감지해 경고 배지(`⚠`) 노출

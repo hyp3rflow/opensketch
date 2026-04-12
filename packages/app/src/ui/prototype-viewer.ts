@@ -99,10 +99,27 @@ export function createPrototypeViewer(editor: Editor): {
   let flowStartFlowSel: HTMLSelectElement | null = null;
   let flowStartFrameSel: HTMLSelectElement | null = null;
   let flowStartInfo: HTMLDivElement | null = null;
+  type FlowLintIssueType = "unreachable" | "dead-end" | "cycle" | "overlay-leak" | "orphan-close";
+  type FlowLintIssue = { type: FlowLintIssueType; frameId: number; frameName: string; detail: string };
   let flowLintWrap: HTMLDivElement | null = null;
   let flowLintInfo: HTMLDivElement | null = null;
   let flowLintList: HTMLDivElement | null = null;
-  let flowLintSnapshot: { startFrameId: number | null; issues: Array<{ type: "unreachable" | "dead-end" | "cycle"; frameId: number; frameName: string; detail: string }>; } | null = null;
+  let flowLintSnapshot: { startFrameId: number | null; issues: FlowLintIssue[]; } | null = null;
+  let sessionSnapshotWrap: HTMLDivElement | null = null;
+  let sessionSnapshotInfo: HTMLDivElement | null = null;
+  let sessionSnapshotList: HTMLDivElement | null = null;
+  let sessionSnapshotSelectA: HTMLSelectElement | null = null;
+  let sessionSnapshotSelectB: HTMLSelectElement | null = null;
+  type ProtoSessionSnapshot = {
+    id: string;
+    at: number;
+    frameId: number | null;
+    frameName: string;
+    scrollX: number;
+    scrollY: number;
+    vars: Array<{ name: string; value: string }>;
+  };
+  let sessionSnapshots: ProtoSessionSnapshot[] = [];
   let timelineWrap: HTMLDivElement | null = null;
   let timelineInfo: HTMLDivElement | null = null;
   let timelineScrubber: HTMLInputElement | null = null;
@@ -1057,7 +1074,7 @@ export function createPrototypeViewer(editor: Editor): {
       for (const to of next) if (!visited.has(to)) stack.push(to);
     }
 
-    const issues: Array<{ type: "unreachable" | "dead-end" | "cycle"; frameId: number; frameName: string; detail: string }> = [];
+    const issues: FlowLintIssue[] = [];
 
     for (const node of snapshot.nodes) {
       const outs = adjacency.get(node.id) || [];
@@ -1088,12 +1105,42 @@ export function createPrototypeViewer(editor: Editor): {
       issues.push({ type: "cycle", frameId: cycleId, frameName: n.name, detail: "Cycle detected in reachable flow graph" });
     }
 
+    // Overlay stack lint: OpenOverlay/CloseOverlay imbalance per reachable frame
+    const overlaysOpenByFrame = new Map<number, number>();
+    const overlaysCloseByFrame = new Map<number, number>();
+    try {
+      const allInter: any[] = JSON.parse(editor.engine.get_all_interactions() || "[]") || [];
+      for (const row of allInter) {
+        const from = Number(row?.id || 0);
+        if (!visited.has(from)) continue;
+        const interactions: any[] = Array.isArray(row?.interactions) ? row.interactions : [];
+        for (const inter of interactions) {
+          const action = String(inter?.action || "");
+          if (action === "OpenOverlay") overlaysOpenByFrame.set(from, (overlaysOpenByFrame.get(from) || 0) + 1);
+          if (action === "CloseOverlay") overlaysCloseByFrame.set(from, (overlaysCloseByFrame.get(from) || 0) + 1);
+        }
+      }
+    } catch {}
+
+    for (const node of snapshot.nodes) {
+      if (!visited.has(node.id)) continue;
+      const openCount = overlaysOpenByFrame.get(node.id) || 0;
+      const closeCount = overlaysCloseByFrame.get(node.id) || 0;
+      if (openCount > 0 && closeCount === 0) {
+        issues.push({ type: "overlay-leak", frameId: node.id, frameName: node.name, detail: `Opens overlay ${openCount}x but never closes it` });
+      } else if (closeCount > 0 && openCount === 0) {
+        issues.push({ type: "orphan-close", frameId: node.id, frameName: node.name, detail: `CloseOverlay ${closeCount}x without local OpenOverlay trigger` });
+      }
+    }
+
     flowLintSnapshot = { startFrameId, issues };
 
     const deadEndCount = issues.filter((i) => i.type === "dead-end").length;
     const unreachableCount = issues.filter((i) => i.type === "unreachable").length;
     const cycleCount = issues.filter((i) => i.type === "cycle").length;
-    flowLintInfo.textContent = `Start #${startFrameId} · Dead-end ${deadEndCount} · Unreachable ${unreachableCount} · Cycles ${cycleCount}`;
+    const overlayLeakCount = issues.filter((i) => i.type === "overlay-leak").length;
+    const orphanCloseCount = issues.filter((i) => i.type === "orphan-close").length;
+    flowLintInfo.textContent = `Start #${startFrameId} · Dead-end ${deadEndCount} · Unreachable ${unreachableCount} · Cycles ${cycleCount} · Overlay ${overlayLeakCount}/${orphanCloseCount}`;
 
     flowLintList.innerHTML = "";
     if (issues.length === 0) {
@@ -1106,7 +1153,15 @@ export function createPrototypeViewer(editor: Editor): {
 
     for (const issue of issues.slice(0, 14)) {
       const row = document.createElement("button");
-      const color = issue.type === "dead-end" ? "#fca5a5" : issue.type === "unreachable" ? "#fbbf24" : "#c4b5fd";
+      const color = issue.type === "dead-end"
+        ? "#fca5a5"
+        : issue.type === "unreachable"
+          ? "#fbbf24"
+          : issue.type === "cycle"
+            ? "#c4b5fd"
+            : issue.type === "overlay-leak"
+              ? "#fb7185"
+              : "#22d3ee";
       row.style.cssText = `display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;text-align:left;background:rgba(15,23,42,0.55);border:1px solid rgba(148,163,184,0.25);border-left:3px solid ${color};border-radius:6px;color:#e2e8f0;padding:4px 6px;cursor:pointer;`;
       row.innerHTML = `<span style="font-size:10px;font-weight:600;color:${color};text-transform:uppercase;">${issue.type}</span><span style="font-size:10px;">${issue.frameName} (#${issue.frameId})</span><span style="font-size:9px;color:#94a3b8;">${issue.detail}</span>`;
       row.onclick = () => navigateTo(issue.frameId, "Instant", 0, "linear");
@@ -1118,6 +1173,113 @@ export function createPrototypeViewer(editor: Editor): {
       more.style.cssText = "font-size:9px;color:#94a3b8;";
       more.textContent = `+ ${issues.length - 14} more issues`;
       flowLintList.appendChild(more);
+    }
+  }
+
+  function captureSessionSnapshot() {
+    const frameId = currentFrameId && currentFrameId > 0 ? currentFrameId : null;
+    let frameName = frameId ? `Frame #${frameId}` : "None";
+    let scrollX = 0;
+    let scrollY = 0;
+    if (frameId) {
+      try {
+        const raw = editor.engine.get_node_json(BigInt(frameId));
+        if (raw) {
+          const node = JSON.parse(raw);
+          frameName = String(node?.name || frameName);
+        }
+      } catch {}
+      try {
+        const scroll = JSON.parse(editor.engine.get_scroll_offset(BigInt(frameId)) || "{}") || {};
+        scrollX = Number(scroll?.x || 0);
+        scrollY = Number(scroll?.y || 0);
+      } catch {}
+    }
+
+    const vars = Array.from(protoVars.entries())
+      .map(([name, value]) => ({ name, value: String(value) }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    const snap: ProtoSessionSnapshot = {
+      id: `snap-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+      at: Date.now(),
+      frameId,
+      frameName,
+      scrollX,
+      scrollY,
+      vars,
+    };
+    sessionSnapshots = [...sessionSnapshots, snap].slice(-10);
+    if (sessionSnapshotSelectB) sessionSnapshotSelectB.value = snap.id;
+    if (sessionSnapshotSelectA && sessionSnapshots.length >= 2 && !sessionSnapshotSelectA.value) {
+      sessionSnapshotSelectA.value = sessionSnapshots[sessionSnapshots.length - 2]!.id;
+    }
+    renderSessionSnapshotComparator();
+  }
+
+  function renderSessionSnapshotComparator() {
+    if (!sessionSnapshotInfo || !sessionSnapshotList || !sessionSnapshotSelectA || !sessionSnapshotSelectB) return;
+
+    const prevA = sessionSnapshotSelectA.value;
+    const prevB = sessionSnapshotSelectB.value;
+    const opts = ['<option value="">(none)</option>', ...sessionSnapshots.map((s) => {
+      const hhmm = new Date(s.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      return `<option value="${s.id}">${hhmm} · ${s.frameName}</option>`;
+    })].join("");
+    sessionSnapshotSelectA.innerHTML = opts;
+    sessionSnapshotSelectB.innerHTML = opts;
+    if (prevA && sessionSnapshots.some((s) => s.id === prevA)) sessionSnapshotSelectA.value = prevA;
+    else if (sessionSnapshots.length >= 2) sessionSnapshotSelectA.value = sessionSnapshots[sessionSnapshots.length - 2]!.id;
+
+    if (prevB && sessionSnapshots.some((s) => s.id === prevB)) sessionSnapshotSelectB.value = prevB;
+    else if (sessionSnapshots.length >= 1) sessionSnapshotSelectB.value = sessionSnapshots[sessionSnapshots.length - 1]!.id;
+
+    const a = sessionSnapshots.find((s) => s.id === sessionSnapshotSelectA.value);
+    const b = sessionSnapshots.find((s) => s.id === sessionSnapshotSelectB.value);
+
+    sessionSnapshotList.innerHTML = "";
+    if (!a || !b) {
+      sessionSnapshotInfo.textContent = sessionSnapshots.length === 0
+        ? "Capture snapshots to compare runtime state."
+        : "Pick two snapshots (A/B) to diff.";
+      return;
+    }
+
+    const varA = new Map(a.vars.map((v) => [v.name, v.value]));
+    const varB = new Map(b.vars.map((v) => [v.name, v.value]));
+    const keys = new Set([...varA.keys(), ...varB.keys()]);
+    const varDiffs: Array<{ name: string; from: string; to: string }> = [];
+    for (const key of keys) {
+      const from = varA.get(key) ?? "(unset)";
+      const to = varB.get(key) ?? "(unset)";
+      if (from !== to) varDiffs.push({ name: key, from, to });
+    }
+    varDiffs.sort((x, y) => x.name.localeCompare(y.name));
+
+    const frameChanged = a.frameId !== b.frameId;
+    const dx = Math.round((b.scrollX - a.scrollX) * 10) / 10;
+    const dy = Math.round((b.scrollY - a.scrollY) * 10) / 10;
+    const scrollChanged = Math.abs(dx) > 0.01 || Math.abs(dy) > 0.01;
+
+    sessionSnapshotInfo.textContent = `Δ frame ${frameChanged ? "changed" : "same"} · Δ scroll (${dx}, ${dy}) · Δ vars ${varDiffs.length}`;
+
+    const addRow = (title: string, detail: string, color = "#94a3b8") => {
+      const row = document.createElement("div");
+      row.style.cssText = `padding:4px 6px;border-radius:6px;background:rgba(15,23,42,0.55);border:1px solid rgba(148,163,184,0.2);font-size:10px;color:${color};line-height:1.35;`;
+      row.innerHTML = `<div style="font-weight:600;color:#cbd5e1;">${title}</div><div>${detail}</div>`;
+      sessionSnapshotList!.appendChild(row);
+    };
+
+    addRow("Frame", frameChanged ? `${a.frameName} (#${a.frameId || "-"}) → ${b.frameName} (#${b.frameId || "-"})` : `${a.frameName} (unchanged)`, frameChanged ? "#fbbf24" : "#86efac");
+    addRow("Scroll", scrollChanged ? `(${a.scrollX.toFixed(1)}, ${a.scrollY.toFixed(1)}) → (${b.scrollX.toFixed(1)}, ${b.scrollY.toFixed(1)})` : `(${b.scrollX.toFixed(1)}, ${b.scrollY.toFixed(1)}) unchanged`, scrollChanged ? "#fca5a5" : "#86efac");
+
+    if (varDiffs.length === 0) {
+      addRow("Variables", "No variable diffs", "#86efac");
+    } else {
+      for (const diff of varDiffs.slice(0, 8)) {
+        addRow(`Var · ${diff.name}`, `${diff.from} → ${diff.to}`, "#c4b5fd");
+      }
+      if (varDiffs.length > 8) addRow("Variables", `+${varDiffs.length - 8} more changes`, "#94a3b8");
     }
   }
 
@@ -1655,6 +1817,54 @@ export function createPrototypeViewer(editor: Editor): {
     timelineWrap.appendChild(timelineList);
     overlay.appendChild(timelineWrap);
 
+    sessionSnapshotWrap = document.createElement("div");
+    sessionSnapshotWrap.style.cssText = "position:absolute;right:14px;top:366px;width:260px;max-height:280px;overflow:auto;background:rgba(15,23,42,0.92);border:1px solid rgba(148,163,184,0.3);border-radius:10px;padding:8px;z-index:4;display:flex;flex-direction:column;gap:6px;";
+    const ssHead = document.createElement("div");
+    ssHead.style.cssText = "font-size:11px;font-weight:600;color:#cbd5e1;";
+    ssHead.textContent = "Session Snapshot Comparator";
+    sessionSnapshotWrap.appendChild(ssHead);
+
+    const ssBtnRow = document.createElement("div");
+    ssBtnRow.style.cssText = "display:flex;gap:6px;";
+    const ssCaptureBtn = document.createElement("button");
+    ssCaptureBtn.className = "prop-btn";
+    ssCaptureBtn.textContent = "Capture current";
+    ssCaptureBtn.style.cssText = "flex:1;font-size:10px;padding:4px 6px;";
+    ssCaptureBtn.onclick = () => captureSessionSnapshot();
+    const ssClearBtn = document.createElement("button");
+    ssClearBtn.className = "prop-btn";
+    ssClearBtn.textContent = "Clear";
+    ssClearBtn.style.cssText = "font-size:10px;padding:4px 6px;";
+    ssClearBtn.onclick = () => {
+      sessionSnapshots = [];
+      renderSessionSnapshotComparator();
+    };
+    ssBtnRow.appendChild(ssCaptureBtn);
+    ssBtnRow.appendChild(ssClearBtn);
+    sessionSnapshotWrap.appendChild(ssBtnRow);
+
+    const ssSelRow = document.createElement("div");
+    ssSelRow.style.cssText = "display:grid;grid-template-columns:1fr 1fr;gap:6px;";
+    sessionSnapshotSelectA = document.createElement("select");
+    sessionSnapshotSelectA.style.cssText = "background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:6px;padding:4px 6px;font-size:10px;";
+    sessionSnapshotSelectA.onchange = () => renderSessionSnapshotComparator();
+    sessionSnapshotSelectB = document.createElement("select");
+    sessionSnapshotSelectB.style.cssText = sessionSnapshotSelectA.style.cssText;
+    sessionSnapshotSelectB.onchange = () => renderSessionSnapshotComparator();
+    ssSelRow.appendChild(sessionSnapshotSelectA);
+    ssSelRow.appendChild(sessionSnapshotSelectB);
+    sessionSnapshotWrap.appendChild(ssSelRow);
+
+    sessionSnapshotInfo = document.createElement("div");
+    sessionSnapshotInfo.style.cssText = "font-size:10px;color:#94a3b8;line-height:1.35;";
+    sessionSnapshotInfo.textContent = "Capture snapshots to compare runtime state.";
+    sessionSnapshotWrap.appendChild(sessionSnapshotInfo);
+
+    sessionSnapshotList = document.createElement("div");
+    sessionSnapshotList.style.cssText = "display:flex;flex-direction:column;gap:4px;";
+    sessionSnapshotWrap.appendChild(sessionSnapshotList);
+    overlay.appendChild(sessionSnapshotWrap);
+
     document.body.appendChild(overlay);
     document.addEventListener("keydown", onKeyDown);
     document.addEventListener("paste", onPaste);
@@ -1687,6 +1897,7 @@ export function createPrototypeViewer(editor: Editor): {
     buildVarsPanel();
     renderFlowStartManager();
     renderTimelineScrubber();
+    renderSessionSnapshotComparator();
 
     renderCurrentView();
     startMotionPathPlayback();
@@ -1767,6 +1978,12 @@ export function createPrototypeViewer(editor: Editor): {
     timelineScrubber = null;
     timelineList = null;
     timelineEvents = [];
+    sessionSnapshotWrap = null;
+    sessionSnapshotInfo = null;
+    sessionSnapshotList = null;
+    sessionSnapshotSelectA = null;
+    sessionSnapshotSelectB = null;
+    sessionSnapshots = [];
     if (offThemeSync) {
       offThemeSync();
       offThemeSync = null;

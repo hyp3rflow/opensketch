@@ -2687,6 +2687,21 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] `Play` 액션으로 기록된 간격 기반 재생(transition duration fallback), `Clear`로 세션 타임라인 초기화
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
 
+### Prototype Overlay Stack Inspector (2026-04-12)
+- [x] Flow Lint에 overlay 체인 규칙 추가
+  - `overlay-leak`: reachable frame에서 OpenOverlay는 있으나 CloseOverlay가 없는 경우
+  - `orphan-close`: reachable frame에서 CloseOverlay만 있는 경우
+- [x] lint summary에 overlay 이슈 카운트(`Overlay leak/orphan`)를 함께 표시
+- [x] 기존 lint issue 리스트/점프 워크플로우와 동일하게 클릭 네비게이션 지원
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+
+### Prototype Session Snapshot Comparator (2026-04-12)
+- [x] Prototype Viewer 우측에 `Session Snapshot Comparator` 패널 추가
+- [x] current frame/name, frame scroll offset, runtime variables를 스냅샷으로 캡처(최대 10개)
+- [x] snapshot A/B 선택 비교: frame 변경, scroll delta, variable diff를 카드 리스트로 표시
+- [x] `Capture current`/`Clear` 액션 제공으로 재현성 디버깅 루프 단축
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+
 ### Auto Layout Stretch Handles (2026-04-12)
 - [x] 단일 자식 선택 + auto-layout 부모일 때 캔버스에 stretch handle 오버레이 표시
 - [x] handle 드래그 거리 기반 sizing mode 전환 지원 (`Hug` / `Fixed` / `Fill`)
