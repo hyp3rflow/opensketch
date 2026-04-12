@@ -198,6 +198,55 @@ function savePrototypeFlowTransitionDefaults(editor: Editor, defaults: Prototype
   localStorage.setItem(key, JSON.stringify(defaults));
 }
 
+
+type SmartAnimateSequenceStep = {
+  phase: "enter" | "exit";
+  transition: string;
+  durationMs: number;
+  easing: string;
+};
+
+type SmartAnimateSequencePreset = {
+  id: string;
+  name: string;
+  steps: SmartAnimateSequenceStep[];
+  createdAt: number;
+};
+
+const SMART_ANIMATE_SEQUENCE_PRESET_KEY = "opensketch-smart-animate-sequence-presets-v1";
+
+function normalizeSmartAnimateStep(raw: any): SmartAnimateSequenceStep {
+  const phase = String(raw?.phase || "enter").toLowerCase() === "exit" ? "exit" : "enter";
+  const transition = String(raw?.transition || "smart-animate");
+  const durationMs = Math.max(60, Math.min(5000, Number(raw?.durationMs ?? raw?.duration_ms ?? 280) || 280));
+  const easing = String(raw?.easing || "ease_in_out");
+  return { phase, transition, durationMs, easing };
+}
+
+function loadSmartAnimateSequencePresets(): SmartAnimateSequencePreset[] {
+  try {
+    const raw = localStorage.getItem(SMART_ANIMATE_SEQUENCE_PRESET_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((p: any, idx: number) => ({
+        id: String(p?.id || `sa-seq-${idx + 1}`),
+        name: String(p?.name || `Preset ${idx + 1}`),
+        steps: Array.isArray(p?.steps) ? p.steps.map(normalizeSmartAnimateStep).slice(0, 16) : [],
+        createdAt: Number(p?.createdAt || Date.now()),
+      }))
+      .filter((p: SmartAnimateSequencePreset) => p.steps.length > 0)
+      .slice(0, 60);
+  } catch {
+    return [];
+  }
+}
+
+function saveSmartAnimateSequencePresets(presets: SmartAnimateSequencePreset[]): void {
+  localStorage.setItem(SMART_ANIMATE_SEQUENCE_PRESET_KEY, JSON.stringify(presets.slice(0, 60)));
+}
+
 type SmartAnimateDiffPreset = {
   id: "transform" | "opacity" | "fill" | "text";
   label: string;
@@ -8233,6 +8282,239 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           targetInput.addEventListener("change", renderSmartDiffRows);
           renderSmartDiffRows();
           interEl.appendChild(smartDiffWrap);
+        }
+
+        {
+          const seqWrap = document.createElement("div");
+          seqWrap.style.cssText = "margin-top:6px;padding:6px;border:1px solid #2f3340;border-radius:6px;background:#141824;";
+
+          const seqHead = document.createElement("div");
+          seqHead.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:6px;";
+          const seqTitle = document.createElement("span");
+          seqTitle.style.cssText = "font-size:10px;color:#c4b5fd;font-weight:600;";
+          seqTitle.textContent = "Smart Animate Preset Sequencer";
+          seqHead.appendChild(seqTitle);
+          seqWrap.appendChild(seqHead);
+
+          const seqHint = document.createElement("div");
+          seqHint.style.cssText = "font-size:9px;color:#7c8698;margin-top:4px;line-height:1.35;";
+          seqHint.textContent = "Save enter/exit transition chains and apply in order to this node's interactions.";
+          seqWrap.appendChild(seqHint);
+
+          const presets = loadSmartAnimateSequencePresets();
+          const selectRow = document.createElement("div");
+          selectRow.style.cssText = "display:flex;gap:6px;align-items:center;margin-top:6px;";
+          const seqSelect = document.createElement("select");
+          seqSelect.className = "prop-input";
+          seqSelect.style.fontSize = "10px";
+          const placeholder = document.createElement("option");
+          placeholder.value = "";
+          placeholder.textContent = presets.length ? "Select sequence preset…" : "No saved sequence presets";
+          seqSelect.appendChild(placeholder);
+          for (const p of presets) {
+            const opt = document.createElement("option");
+            opt.value = p.id;
+            opt.textContent = `${p.name} (${p.steps.length} steps)`;
+            seqSelect.appendChild(opt);
+          }
+          selectRow.appendChild(seqSelect);
+
+          const applySeqBtn = document.createElement("button");
+          applySeqBtn.className = "prop-btn";
+          applySeqBtn.style.fontSize = "10px";
+          applySeqBtn.textContent = "Apply chain";
+          applySeqBtn.disabled = presets.length === 0;
+          selectRow.appendChild(applySeqBtn);
+          seqWrap.appendChild(selectRow);
+
+          const quickBuilder = document.createElement("div");
+          quickBuilder.style.cssText = "display:grid;grid-template-columns:1fr auto auto auto auto;gap:4px;margin-top:6px;align-items:center;";
+          const phaseSelect = document.createElement("select");
+          phaseSelect.className = "prop-input";
+          phaseSelect.style.fontSize = "10px";
+          ["enter", "exit"].forEach((v) => {
+            const opt = document.createElement("option");
+            opt.value = v;
+            opt.textContent = v;
+            phaseSelect.appendChild(opt);
+          });
+          quickBuilder.appendChild(phaseSelect);
+
+          const durMini = document.createElement("input");
+          durMini.className = "prop-input";
+          durMini.type = "number";
+          durMini.min = "60";
+          durMini.max = "5000";
+          durMini.step = "10";
+          durMini.value = String(parseInt(durInput.value) || 300);
+          durMini.style.fontSize = "10px";
+          quickBuilder.appendChild(durMini);
+
+          const transMini = document.createElement("select");
+          transMini.className = "prop-input";
+          transMini.style.fontSize = "10px";
+          ["instant", "dissolve", "smart-animate", "slide-in", "slide-out", "push"].forEach((v) => {
+            const opt = document.createElement("option");
+            opt.value = v;
+            opt.textContent = v;
+            transMini.appendChild(opt);
+          });
+          transMini.value = transSelect.value;
+          quickBuilder.appendChild(transMini);
+
+          const addStepBtn = document.createElement("button");
+          addStepBtn.className = "prop-btn";
+          addStepBtn.style.fontSize = "10px";
+          addStepBtn.textContent = "+ Step";
+          quickBuilder.appendChild(addStepBtn);
+
+          const saveChainBtn = document.createElement("button");
+          saveChainBtn.className = "prop-btn";
+          saveChainBtn.style.fontSize = "10px";
+          saveChainBtn.textContent = "Save chain";
+          quickBuilder.appendChild(saveChainBtn);
+
+          seqWrap.appendChild(quickBuilder);
+
+          let draftSteps: SmartAnimateSequenceStep[] = [];
+          const draftList = document.createElement("div");
+          draftList.style.cssText = "display:flex;flex-direction:column;gap:3px;margin-top:6px;";
+          seqWrap.appendChild(draftList);
+
+          const renderDraft = () => {
+            draftList.innerHTML = "";
+            if (draftSteps.length === 0) {
+              const empty = document.createElement("div");
+              empty.style.cssText = "font-size:9px;color:#64748b;";
+              empty.textContent = "Draft is empty. Add enter/exit steps, then save as preset.";
+              draftList.appendChild(empty);
+              return;
+            }
+            draftSteps.forEach((step, i) => {
+              const row = document.createElement("div");
+              row.style.cssText = "display:grid;grid-template-columns:auto 1fr auto;gap:6px;align-items:center;padding:3px 6px;border:1px solid #2f3340;border-radius:4px;background:#0f172a;";
+              const idx = document.createElement("span");
+              idx.style.cssText = "font-size:9px;color:#94a3b8;";
+              idx.textContent = `${i + 1}. ${step.phase}`;
+              const meta = document.createElement("span");
+              meta.style.cssText = "font-size:9px;color:#cbd5e1;";
+              meta.textContent = `${step.transition} · ${step.durationMs}ms · ${step.easing}`;
+              const del = document.createElement("button");
+              del.className = "prop-btn";
+              del.style.fontSize = "9px";
+              del.textContent = "×";
+              del.onclick = () => {
+                draftSteps = draftSteps.filter((_, idx2) => idx2 !== i);
+                renderDraft();
+              };
+              row.append(idx, meta, del);
+              draftList.appendChild(row);
+            });
+          };
+          renderDraft();
+
+          addStepBtn.onclick = () => {
+            draftSteps = [...draftSteps, normalizeSmartAnimateStep({
+              phase: phaseSelect.value,
+              transition: transMini.value,
+              durationMs: parseInt(durMini.value) || parseInt(durInput.value) || 300,
+              easing: currentEasing,
+            })].slice(0, 16);
+            renderDraft();
+          };
+
+          saveChainBtn.onclick = () => {
+            if (draftSteps.length === 0) {
+              alert("Add at least one step first.");
+              return;
+            }
+            const name = (prompt("Sequence preset name", `Smart chain ${new Date().toLocaleTimeString()}`) || "").trim();
+            if (!name) return;
+            const existing = loadSmartAnimateSequencePresets();
+            const next: SmartAnimateSequencePreset = {
+              id: `sa-seq-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+              name,
+              steps: draftSteps.map((x) => ({ ...x })),
+              createdAt: Date.now(),
+            };
+            saveSmartAnimateSequencePresets([next, ...existing]);
+            refresh(ids);
+          };
+
+          applySeqBtn.onclick = () => {
+            const selected = loadSmartAnimateSequencePresets().find((p) => p.id === seqSelect.value);
+            if (!selected) return;
+            let interactions: any[] = [];
+            try { interactions = JSON.parse(editor.engine.get_interactions(id) || "[]") || []; } catch {}
+            if (!Array.isArray(interactions) || interactions.length === 0) {
+              alert("No interactions on this node.");
+              return;
+            }
+
+            const isEnterAction = (a: string) => ["navigateto", "openoverlay", "scrollto", "swapvariant", "setvariable"].includes(a);
+            const isExitAction = (a: string) => ["back", "closeoverlay"].includes(a);
+
+            const enterIdx: number[] = [];
+            const exitIdx: number[] = [];
+            interactions.forEach((item, idx) => {
+              const action = String(item?.action || "").toLowerCase();
+              if (isEnterAction(action)) enterIdx.push(idx);
+              else if (isExitAction(action)) exitIdx.push(idx);
+            });
+
+            if (enterIdx.length === 0 && exitIdx.length === 0) {
+              alert("No prototype navigation interactions to apply.");
+              return;
+            }
+
+            const enterSteps = selected.steps.filter((s) => s.phase === "enter");
+            const exitSteps = selected.steps.filter((s) => s.phase === "exit");
+            let touched = 0;
+
+            ensureUndo();
+            for (let rem = interactions.length - 1; rem >= 0; rem--) {
+              editor.engine.remove_interaction(id, rem);
+            }
+
+            interactions.forEach((item, idx) => {
+              let nextTransition = String(item?.transition || "instant");
+              let nextDuration = Number(item?.transition_duration_ms || 300);
+              let nextEasing = String(item?.easing || "ease_in_out");
+
+              const enterPos = enterIdx.indexOf(idx);
+              const exitPos = exitIdx.indexOf(idx);
+              if (enterPos >= 0 && enterSteps.length > 0) {
+                const step = enterSteps[Math.min(enterPos, enterSteps.length - 1)]!;
+                nextTransition = step.transition;
+                nextDuration = step.durationMs;
+                nextEasing = step.easing;
+                touched += 1;
+              } else if (exitPos >= 0 && exitSteps.length > 0) {
+                const step = exitSteps[Math.min(exitPos, exitSteps.length - 1)]!;
+                nextTransition = step.transition;
+                nextDuration = step.durationMs;
+                nextEasing = step.easing;
+                touched += 1;
+              }
+
+              editor.engine.add_interaction(
+                id,
+                String(item?.trigger || "OnClick"),
+                String(item?.action || "NavigateTo"),
+                BigInt(Number(item?.target_node_id || 0)),
+                BigInt(Number(item?.target_page_id || 0)),
+                nextTransition,
+                nextDuration,
+              );
+              editor.engine.set_interaction_easing(id, idx, nextEasing);
+            });
+
+            editor.requestRender();
+            refresh(ids);
+            alert(`Applied sequence preset to ${touched} interaction${touched === 1 ? "" : "s"}.`);
+          };
+
+          interEl.appendChild(seqWrap);
         }
 
         // --- Easing Curve Editor ---

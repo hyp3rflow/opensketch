@@ -1790,11 +1790,17 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Smart Animate Preset Sequencer — preset 다중 단계 체인(enter/exit) 저장 후 interaction에 순차 적용 (임팩트 중상, 난이도 중상)
 - Prototype Keyboard Navigation Order Editor — frame 단위 Tab 순서를 시각화/재정렬하고 custom order 저장 (임팩트 상, 난이도 중상)
 - Interactive Components Trigger Conflict Linter — hover/press/focus trigger 충돌(동일 instance 다중 매핑) 탐지 + quick-fix 제안 (임팩트 중상, 난이도 중)
 - Prototype Flow Coverage Recorder — 플레이 세션 동안 방문 frame/미방문 hotspot 수집 후 heatmap 리포트 (임팩트 중상, 난이도 중)
 - A11y Motion Guardrails — reduced-motion 프리뷰 토글 + 과도한 duration/easing 조합 lint (임팩트 중, 난이도 중)
+
+## 완료된 기능 (추가 — Smart Animate Preset Sequencer, 2026-04-12)
+- Interactions 편집 카드에 `Smart Animate Preset Sequencer` 섹션 추가
+- enter/exit 단계별 step draft 작성(+Step), 저장(Save chain), preset 재사용 흐름 제공
+- 저장된 시퀀스를 현재 노드 interactions에 순차 적용해 enter 계열(Navigate/OpenOverlay/ScrollTo/SwapVariant/SetVariable)과 exit 계열(Back/CloseOverlay)을 일괄 세팅
+- 구현: `packages/app/src/ui/properties-panel.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Component Property Controls number prop 지원, 2026-04-12)
 - Instance `COMPONENT PROPS`에서 exposed `number` prop 편집 UI 추가 (step=any, Enter 커밋)
