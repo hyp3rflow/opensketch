@@ -103,8 +103,12 @@ export function createPrototypeViewer(editor: Editor): {
   type FlowLintIssue = { type: FlowLintIssueType; frameId: number; frameName: string; detail: string };
   let flowLintWrap: HTMLDivElement | null = null;
   let flowLintInfo: HTMLDivElement | null = null;
+  let flowLintFilterWrap: HTMLDivElement | null = null;
   let flowLintList: HTMLDivElement | null = null;
   let flowLintSnapshot: { startFrameId: number | null; issues: FlowLintIssue[]; } | null = null;
+  let flowLintFilterTypes = new Set<FlowLintIssueType>();
+  let flowLintRenderedIssues: FlowLintIssue[] = [];
+  let flowLintNavIndex = -1;
   let sessionSnapshotWrap: HTMLDivElement | null = null;
   let sessionSnapshotInfo: HTMLDivElement | null = null;
   let sessionSnapshotList: HTMLDivElement | null = null;
@@ -1041,6 +1045,30 @@ export function createPrototypeViewer(editor: Editor): {
     renderFlowLint();
   }
 
+  function jumpFlowLintIssue(delta: 1 | -1) {
+    if (flowLintRenderedIssues.length === 0) return;
+    if (flowLintNavIndex < 0 || flowLintNavIndex >= flowLintRenderedIssues.length) {
+      flowLintNavIndex = delta > 0 ? 0 : flowLintRenderedIssues.length - 1;
+    } else {
+      flowLintNavIndex = (flowLintNavIndex + delta + flowLintRenderedIssues.length) % flowLintRenderedIssues.length;
+    }
+    const issue = flowLintRenderedIssues[flowLintNavIndex];
+    if (!issue) return;
+    navigateTo(issue.frameId, "Instant", 0, "linear");
+    if (flowLintList) {
+      const row = flowLintList.querySelector<HTMLButtonElement>(`button[data-lint-nav-index="${flowLintNavIndex}"]`);
+      if (row) {
+        row.style.outline = "2px solid rgba(56,189,248,0.9)";
+        row.style.outlineOffset = "1px";
+        row.scrollIntoView({ block: "nearest" });
+        window.setTimeout(() => {
+          row.style.outline = "";
+          row.style.outlineOffset = "";
+        }, 480);
+      }
+    }
+  }
+
   function renderFlowLint() {
     if (!flowLintInfo || !flowLintList) return;
     const snapshot = flowMinimapSnapshot;
@@ -1048,6 +1076,8 @@ export function createPrototypeViewer(editor: Editor): {
       flowLintInfo.textContent = "No frames to lint";
       flowLintList.innerHTML = "";
       flowLintSnapshot = { startFrameId: null, issues: [] };
+      flowLintRenderedIssues = [];
+      flowLintNavIndex = -1;
       return;
     }
 
@@ -1236,8 +1266,38 @@ export function createPrototypeViewer(editor: Editor): {
       "orphan-close": 5,
     };
     const sortedIssues = [...issues].sort((a, b) => (rank[a.type] - rank[b.type]) || a.frameName.localeCompare(b.frameName));
+    const issueTypes: FlowLintIssueType[] = ["dead-end", "unreachable", "cycle-trap", "cycle", "overlay-leak", "orphan-close"];
+    if (flowLintFilterTypes.size === 0) {
+      for (const t of issueTypes) flowLintFilterTypes.add(t);
+    }
+    if (flowLintFilterWrap) {
+      const counts = new Map<FlowLintIssueType, number>();
+      for (const t of issueTypes) counts.set(t, sortedIssues.filter((i) => i.type === t).length);
+      flowLintFilterWrap.innerHTML = "";
+      for (const t of issueTypes) {
+        const chip = document.createElement("button");
+        const activeType = flowLintFilterTypes.has(t);
+        chip.textContent = `${t} ${counts.get(t) || 0}`;
+        chip.style.cssText = `font-size:9px;padding:2px 6px;border-radius:999px;border:1px solid ${activeType ? "rgba(56,189,248,0.85)" : "rgba(148,163,184,0.35)"};background:${activeType ? "rgba(14,116,144,0.35)" : "rgba(15,23,42,0.45)"};color:${activeType ? "#67e8f9" : "#94a3b8"};cursor:pointer;`;
+        chip.onclick = () => {
+          if (flowLintFilterTypes.has(t)) flowLintFilterTypes.delete(t);
+          else flowLintFilterTypes.add(t);
+          if (flowLintFilterTypes.size === 0) {
+            for (const allType of issueTypes) flowLintFilterTypes.add(allType);
+          }
+          flowLintNavIndex = -1;
+          renderFlowLint();
+        };
+        flowLintFilterWrap.appendChild(chip);
+      }
+    }
 
-    for (const issue of sortedIssues.slice(0, 14)) {
+    const filteredIssues = sortedIssues.filter((i) => flowLintFilterTypes.has(i.type));
+    const visibleIssues = filteredIssues.slice(0, 14);
+    flowLintRenderedIssues = visibleIssues;
+    flowLintNavIndex = Math.min(flowLintNavIndex, flowLintRenderedIssues.length - 1);
+
+    for (const [issueIndex, issue] of visibleIssues.entries()) {
       const row = document.createElement("button");
       const color = issue.type === "dead-end"
         ? "#fca5a5"
@@ -1251,15 +1311,19 @@ export function createPrototypeViewer(editor: Editor): {
                 ? "#fb7185"
                 : "#22d3ee";
       row.style.cssText = `display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;text-align:left;background:rgba(15,23,42,0.55);border:1px solid rgba(148,163,184,0.25);border-left:3px solid ${color};border-radius:6px;color:#e2e8f0;padding:4px 6px;cursor:pointer;`;
+      row.dataset.lintNavIndex = String(issueIndex);
       row.innerHTML = `<span style="font-size:10px;font-weight:600;color:${color};text-transform:uppercase;">${issue.type}</span><span style="font-size:10px;">${issue.frameName} (#${issue.frameId})</span><span style="font-size:9px;color:#94a3b8;">${issue.detail}</span>`;
-      row.onclick = () => navigateTo(issue.frameId, "Instant", 0, "linear");
+      row.onclick = () => {
+        flowLintNavIndex = issueIndex;
+        navigateTo(issue.frameId, "Instant", 0, "linear");
+      };
       flowLintList.appendChild(row);
     }
 
-    if (issues.length > 14) {
+    if (filteredIssues.length > 14) {
       const more = document.createElement("div");
       more.style.cssText = "font-size:9px;color:#94a3b8;";
-      more.textContent = `+ ${issues.length - 14} more issues`;
+      more.textContent = `+ ${filteredIssues.length - 14} more issues`;
       flowLintList.appendChild(more);
     }
   }
@@ -1839,6 +1903,9 @@ export function createPrototypeViewer(editor: Editor): {
     flowLintInfo.style.cssText = "font-size:10px;color:#94a3b8;line-height:1.35;";
     flowLintInfo.textContent = "Analyzing flow graph…";
     flowLintWrap.appendChild(flowLintInfo);
+    flowLintFilterWrap = document.createElement("div");
+    flowLintFilterWrap.style.cssText = "display:flex;flex-wrap:wrap;gap:4px;";
+    flowLintWrap.appendChild(flowLintFilterWrap);
     flowLintList = document.createElement("div");
     flowLintList.style.cssText = "display:flex;flex-direction:column;gap:4px;";
     flowLintWrap.appendChild(flowLintList);
@@ -2058,8 +2125,11 @@ export function createPrototypeViewer(editor: Editor): {
     flowStartInfo = null;
     flowLintWrap = null;
     flowLintInfo = null;
+    flowLintFilterWrap = null;
     flowLintList = null;
     flowLintSnapshot = null;
+    flowLintRenderedIssues = [];
+    flowLintNavIndex = -1;
     clearTimelinePlaybackTimer();
     timelineWrap = null;
     timelineInfo = null;
@@ -2093,6 +2163,19 @@ export function createPrototypeViewer(editor: Editor): {
     if (e.key === "ArrowLeft" || e.key === "Backspace") {
       navigateBack();
       if (recorderEnabled) recordEvent({ kind: "input", frameId: currentFrameId, inputType: "key", key: e.key });
+      return;
+    }
+
+    if (e.shiftKey && (e.key === "N" || e.key === "n")) {
+      e.preventDefault();
+      jumpFlowLintIssue(1);
+      if (recorderEnabled) recordEvent({ kind: "input", frameId: currentFrameId, inputType: "key", key: "Shift+N" });
+      return;
+    }
+    if (e.shiftKey && (e.key === "P" || e.key === "p")) {
+      e.preventDefault();
+      jumpFlowLintIssue(-1);
+      if (recorderEnabled) recordEvent({ kind: "input", frameId: currentFrameId, inputType: "key", key: "Shift+P" });
       return;
     }
 

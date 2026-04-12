@@ -2696,6 +2696,13 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] 기존 lint issue 리스트/점프 워크플로우와 동일하게 클릭 네비게이션 지원
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
 
+### Prototype Viewer Issue Navigator Strip (2026-04-12)
+- [x] Flow Lint 패널에 issue type 필터 chip strip 추가 (dead-end/unreachable/cycle-trap/cycle/overlay-leak/orphan-close)
+- [x] 선택된 chip 상태에 따라 lint 이슈 리스트를 즉시 필터링하고 `+ N more` 카운트도 필터 결과 기준으로 표시
+- [x] Shift+N / Shift+P 단축키로 필터된 lint 이슈를 순환 탐색 (다음/이전 frame jump)
+- [x] 단축키 네비게이션 시 해당 이슈 row 하이라이트 + 자동 스크롤로 검증 루프 가시성 강화
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+
 ### Prototype Session Snapshot Comparator (2026-04-12)
 - [x] Prototype Viewer 우측에 `Session Snapshot Comparator` 패널 추가
 - [x] current frame/name, frame scroll offset, runtime variables를 스냅샷으로 캡처(최대 10개)
