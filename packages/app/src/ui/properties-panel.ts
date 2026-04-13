@@ -7275,24 +7275,41 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       reducedMotionLabel.append(reducedMotionInput, document.createTextNode("Reduced motion preview (prototype viewer)"));
       motionCard.appendChild(reducedMotionLabel);
 
+      const isAggressiveMotionEasing = (raw: string) => {
+        const easing = String(raw || "").toLowerCase();
+        return easing.includes("elastic") || easing.includes("bounce") || easing.includes("back") || easing.includes("spring");
+      };
+      const MOTION_LONG_DURATION_MS = 900;
+      const MOTION_COMBO_DURATION_MS = 480;
       const severeMotion = interactions.filter((inter) => {
         const transition = String(inter.transition || "Instant");
-        const easing = String(inter.easing || "ease_in_out").toLowerCase();
+        const easing = String(inter.easing || "ease_in_out");
         const duration = Number(inter.transition_duration_ms || 0);
-        const isLong = duration >= 900;
-        const isAggressive = easing.includes("elastic") || easing.includes("bounce") || easing.includes("back") || easing.includes("spring");
+        const isLong = duration >= MOTION_LONG_DURATION_MS;
+        const aggressiveCombo = duration >= MOTION_COMBO_DURATION_MS && isAggressiveMotionEasing(easing);
         const isAnimated = transition !== "Instant" && transition !== "None";
-        return isAnimated && (isLong || isAggressive);
+        return isAnimated && (isLong || aggressiveCombo);
       });
+
+      const longDurationCount = severeMotion.filter((inter) => Number(inter.transition_duration_ms || 0) >= MOTION_LONG_DURATION_MS).length;
+      const aggressiveComboCount = severeMotion.filter((inter) => {
+        const duration = Number(inter.transition_duration_ms || 0);
+        return duration >= MOTION_COMBO_DURATION_MS && isAggressiveMotionEasing(String(inter.easing || "ease_in_out"));
+      }).length;
 
       const motionSummary = document.createElement("div");
       motionSummary.style.cssText = "font-size:10px;color:#cbd5e1;line-height:1.4;";
       motionSummary.textContent = severeMotion.length
-        ? `${severeMotion.length} interaction(s) may feel excessive (duration ≥ 900ms or aggressive easing).`
+        ? `${severeMotion.length} interaction(s) exceed guardrail (≥${MOTION_LONG_DURATION_MS}ms or aggressive easing + ≥${MOTION_COMBO_DURATION_MS}ms).`
         : "No excessive motion patterns detected on this node.";
       motionCard.appendChild(motionSummary);
 
       if (severeMotion.length) {
+        const motionBreakdown = document.createElement("div");
+        motionBreakdown.style.cssText = "font-size:10px;color:#93c5fd;line-height:1.4;";
+        motionBreakdown.textContent = `Long duration ${longDurationCount} · Aggressive combo ${aggressiveComboCount}`;
+        motionCard.appendChild(motionBreakdown);
+
         const fixMotionBtn = document.createElement("button");
         fixMotionBtn.className = "prop-input";
         fixMotionBtn.style.cssText = "height:24px;font-size:10px;cursor:pointer;";

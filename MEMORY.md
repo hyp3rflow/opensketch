@@ -1790,9 +1790,20 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Variable Alias Dependency Graph — 변수 alias 체인을 그래프로 시각화하고 순환 참조/깊은 체인 경고 + jump-to-node (임팩트 중상, 난이도 중)
-- Smart Animate Performance Budget Panel — 프레임 전환별 layer count/blur/shadow/filter 비용 추정과 저사양 preset 자동 제안 (임팩트 상, 난이도 중상)
-- Auto Layout Wrap Stress Tester — 다양한 컨테이너 폭 시뮬레이션으로 wrap 깨짐 구간 탐지 + 권장 min/max 값 제안 (임팩트 중, 난이도 중)
+- Export Preset Profiles Manager — PNG/SVG/PDF export 옵션 묶음을 preset으로 저장/팀 공유 JSON import/export (임팩트 중상, 난이도 중)
+- Text Truncation & Overflow Inspector — frame/auto-layout 내 텍스트 잘림/overflow 감지 및 one-click resize/fix 제안 (임팩트 중상, 난이도 중)
+- Auto Layout Reorder Handles — auto-layout 컨테이너에서 캔버스 상 children 순서를 직접 drag-reorder (임팩트 중상, 난이도 중)
+- Variable Alias Graph Inspector — 변수 alias 체인/순환/미해결 참조를 그래프로 점검하고 one-click fix 제안 (임팩트 중상, 난이도 중상)
+- Prototype Focus Trap Simulator — overlay/모달에서 Tab focus trap 누락을 시뮬레이션하고 즉시 수정 액션 제공 (임팩트 중, 난이도 중)
+
+## 완료된 기능 (추가 — A11y Motion Guardrails v2, 2026-04-13)
+- Interactions 패널 `A11y Motion Guardrails` lint 규칙을 Prototype Flow Lint와 동일한 기준으로 정렬
+  - long duration: transition duration ≥ 900ms
+  - aggressive combo: elastic/bounce/back/spring easing + duration ≥ 480ms
+- 카드 요약에 위반 기준별 집계(`Long duration`, `Aggressive combo`)를 추가해 원인 분류를 빠르게 확인
+- `Quick fix excessive motion`은 위 기준에 걸린 interaction만 Dissolve 220ms/ease_out으로 정규화
+- 구현: `packages/app/src/ui/properties-panel.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Design QA Diff Pins, 2026-04-13)
 - Handoff `Redline Spec Mode`(2개 선택)에서 `Generate diff pins + comments` 액션 추가
