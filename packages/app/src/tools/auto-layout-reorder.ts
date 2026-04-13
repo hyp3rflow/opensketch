@@ -31,6 +31,8 @@ export interface ReorderDragState {
   originalIndex: number;
   /** Current effective index during drag */
   currentIndex: number;
+  /** True once at least one reorder mutation was applied */
+  didReorder: boolean;
   /** Sibling positions (scene coords) for threshold calculations */
   siblings: Array<{ id: number; x: number; y: number; w: number; h: number }>;
 }
@@ -171,6 +173,7 @@ export function beginReorderDrag(
     startScreenY: screenY,
     originalIndex: handle.childIndex,
     currentIndex: handle.childIndex,
+    didReorder: false,
     siblings,
   };
 }
@@ -188,6 +191,9 @@ export function updateReorderDrag(
   const zoom = engine.get_zoom();
   const panX = engine.get_pan_x();
   const panY = engine.get_pan_y();
+
+  const dragDist = Math.hypot(screenX - state.startScreenX, screenY - state.startScreenY);
+  if (!state.didReorder && dragDist < 6) return state.currentIndex;
 
   const sceneX = (screenX - panX) / zoom;
   const sceneY = (screenY - panY) / zoom;

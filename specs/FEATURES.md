@@ -2761,6 +2761,7 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] **v2**: auto-layout 컨테이너 자체를 선택해도 자식 전체 reorder 핸들을 캔버스에 노출 (기존 child-only 진입점 유지)
 - [x] **v3**: target index 계산을 insertion-slot 기반으로 보강해 hidden/absolute sibling이 섞인 컨테이너에서도 드래그 경계가 안정적으로 유지되도록 개선
 - [x] **v4**: Cmd/Ctrl+Alt+Arrow로 auto-layout 자식 순서를 키보드로 재정렬 (Shift 조합 시 start/end로 즉시 이동)
+- [x] **v5**: reorder drag hysteresis(6px) + lazy undo(push_undo on first actual reorder)로 클릭 오동작/불필요 undo 항목 최소화
 - 구현: `packages/app/src/tools/auto-layout-reorder.ts`, `packages/app/src/editor.ts`
 
 ### Selection Color Palette Inspector (2026-04-13)

@@ -1797,7 +1797,6 @@ export class Editor {
     if (this.currentTool === "select" && this._reorderHandles.length > 0) {
       const hit = hitTestReorderHandle(this._reorderHandles, x, y);
       if (hit) {
-        this.engine.push_undo();
         this._reorderDrag = beginReorderDrag(this.engine, hit, x, y);
         this.canvas.setPointerCapture(e.pointerId);
         return;
@@ -2297,6 +2296,10 @@ export class Editor {
     if (this._reorderDrag) {
       const newIndex = updateReorderDrag(this.engine, this._reorderDrag, e.offsetX, e.offsetY);
       if (newIndex !== this._reorderDrag.currentIndex) {
+        if (!this._reorderDrag.didReorder) {
+          this.engine.push_undo();
+          this._reorderDrag.didReorder = true;
+        }
         executeReorder(this.engine, this._reorderDrag.handle.parentId, this._reorderDrag.handle.childId, newIndex);
         this._reorderDrag.currentIndex = newIndex;
         // Refresh sibling positions after reorder
