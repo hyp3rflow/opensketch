@@ -1805,6 +1805,15 @@
 - 구현: `packages/app/src/ui/export-presets.ts`, `packages/app/src/ui/batch-export.ts`
 - specs 반영: `specs/FEATURES.md`
 
+## 완료된 기능 (추가 — Export Preset Profiles Manager v2, 2026-04-13)
+- Presets manager에 `Document / Global` scope 전환을 추가해 문서별 preset과 공용 preset을 독립 관리
+- Team sharing JSON import 워크플로우를 `Merge / Replace` 모드로 확장
+- Merge 모드에서 `name + format + scale + suffix` 기준 dedupe 병합으로 중복 preset 누적 방지
+- JSON export payload에 `version`, `scope`, `exportedAt` 메타데이터 포함
+- 관리 액션 라벨을 `Sync Global → Doc`로 정리
+- 구현: `packages/app/src/ui/export-presets.ts`
+- specs 반영: `specs/FEATURES.md`
+
 ## 완료된 기능 (추가 — A11y Motion Guardrails v2, 2026-04-13)
 - Interactions 패널 `A11y Motion Guardrails` lint 규칙을 Prototype Flow Lint와 동일한 기준으로 정렬
   - long duration: transition duration ≥ 900ms

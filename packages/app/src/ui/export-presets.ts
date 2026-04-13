@@ -75,6 +75,22 @@ function saveDocumentPresetMap(map: Record<string, ExportPreset[]>): void {
   localStorage.setItem(DOC_STORAGE_KEY, JSON.stringify(map));
 }
 
+function loadGlobalPresets(): ExportPreset[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [...DEFAULT_PRESETS];
+    const parsed = JSON.parse(raw);
+    const presets = safePresetList(parsed);
+    return presets.length > 0 ? presets : [...DEFAULT_PRESETS];
+  } catch {
+    return [...DEFAULT_PRESETS];
+  }
+}
+
+function saveGlobalPresets(presets: ExportPreset[]): void {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(presets.length > 0 ? presets : [...DEFAULT_PRESETS]));
+}
+
 export function loadPresets(editor?: Editor): ExportPreset[] {
   try {
     if (editor) {
@@ -106,7 +122,7 @@ export function savePresets(presets: ExportPreset[], editor?: Editor): void {
       saveDocumentPresetMap(docMap);
     }
   }
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(safe));
+  saveGlobalPresets(safe);
 }
 
 function genId(): string {
@@ -522,22 +538,63 @@ function showPresetsManager(editor: Editor, refresh: () => void): void {
   overlay.style.cssText = "position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:10000;";
 
   const dialog = document.createElement("div");
-  dialog.style.cssText = "background:#1e1e2e;border:1px solid #444;border-radius:12px;padding:20px;width:400px;max-height:500px;overflow-y:auto;color:#ccc;font-size:12px;";
+  dialog.style.cssText = "background:#1e1e2e;border:1px solid #444;border-radius:12px;padding:20px;width:420px;max-height:500px;overflow-y:auto;color:#ccc;font-size:12px;";
 
   const h3 = document.createElement("h3");
-  h3.style.cssText = "margin:0 0 16px 0;font-size:14px;color:#fff;";
+  h3.style.cssText = "margin:0 0 12px 0;font-size:14px;color:#fff;";
   h3.textContent = "Export Presets";
   dialog.appendChild(h3);
 
+  const docKey = getDocumentKey(editor);
+  let scope: "document" | "global" = "document";
+
+  const scopeRow = document.createElement("div");
+  scopeRow.style.cssText = "display:flex;gap:8px;align-items:center;margin-bottom:10px;";
+  const scopeLabel = document.createElement("span");
+  scopeLabel.style.cssText = "font-size:11px;color:#8f98b0;";
+  scopeLabel.textContent = "Scope:";
+  const scopeSelect = document.createElement("select");
+  scopeSelect.style.cssText = "background:#2a2a2a;color:#ccc;border:1px solid #444;border-radius:4px;padding:3px 6px;font-size:11px;";
+  scopeSelect.innerHTML = `
+    <option value="document">Document presets</option>
+    <option value="global">Global presets</option>
+  `;
+  const scopeHint = document.createElement("span");
+  scopeHint.style.cssText = "font-size:10px;color:#6f7485;";
+  scopeRow.append(scopeLabel, scopeSelect, scopeHint);
+  dialog.appendChild(scopeRow);
+
+  const getScopedPresets = (): ExportPreset[] => {
+    if (scope === "global") return loadGlobalPresets();
+    const map = loadDocumentPresetMap();
+    const list = map[docKey];
+    if (list && list.length > 0) return list;
+    return loadGlobalPresets();
+  };
+
+  const saveScopedPresets = (presets: ExportPreset[]): void => {
+    if (scope === "global") {
+      saveGlobalPresets(presets);
+      return;
+    }
+    const map = loadDocumentPresetMap();
+    map[docKey] = presets.length > 0 ? presets : [...DEFAULT_PRESETS];
+    saveDocumentPresetMap(map);
+    saveGlobalPresets(map[docKey]);
+  };
+
+  function renderScopeHint() {
+    scopeHint.textContent = scope === "document" ? `Current doc key: ${docKey}` : "Shared across documents";
+  }
+
   function renderList() {
-    // Clear existing list
     const existing = dialog.querySelector(".preset-list");
     if (existing) existing.remove();
 
     const list = document.createElement("div");
     list.className = "preset-list";
 
-    const presets = loadPresets(editor);
+    const presets = getScopedPresets();
     for (const p of presets) {
       const row = document.createElement("div");
       row.style.cssText = "display:flex;align-items:center;gap:8px;padding:6px 8px;background:#252535;border-radius:6px;margin-bottom:4px;";
@@ -556,8 +613,8 @@ function showPresetsManager(editor: Editor, refresh: () => void): void {
       delBtn.style.cssText = "background:none;border:none;color:#e74c3c;cursor:pointer;font-size:12px;padding:2px 4px;";
       delBtn.textContent = "✕";
       delBtn.addEventListener("click", () => {
-        const all = loadPresets(editor).filter(pp => pp.id !== p.id);
-        savePresets(all, editor);
+        const all = getScopedPresets().filter(pp => pp.id !== p.id);
+        saveScopedPresets(all);
         renderList();
       });
       row.appendChild(delBtn);
@@ -565,6 +622,14 @@ function showPresetsManager(editor: Editor, refresh: () => void): void {
     }
     dialog.appendChild(list);
   }
+
+  scopeSelect.addEventListener("change", () => {
+    scope = scopeSelect.value === "global" ? "global" : "document";
+    renderScopeHint();
+    renderList();
+  });
+
+  renderScopeHint();
   renderList();
 
   const utilRow = document.createElement("div");
@@ -572,21 +637,15 @@ function showPresetsManager(editor: Editor, refresh: () => void): void {
 
   const syncDocBtn = document.createElement("button");
   syncDocBtn.style.cssText = "padding:5px 10px;background:#2d3b4f;color:#9ecbff;border:1px solid #3d4f66;border-radius:6px;font-size:11px;cursor:pointer;";
-  syncDocBtn.textContent = "Sync to This Document";
+  syncDocBtn.textContent = "Sync Global → Doc";
   syncDocBtn.title = "Copy global presets into the current document preset set";
   syncDocBtn.addEventListener("click", () => {
-    const global = (() => {
-      try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (!raw) return [...DEFAULT_PRESETS];
-        const parsed = JSON.parse(raw);
-        const list = safePresetList(parsed);
-        return list.length > 0 ? list : [...DEFAULT_PRESETS];
-      } catch {
-        return [...DEFAULT_PRESETS];
-      }
-    })();
-    savePresets(global, editor);
+    const map = loadDocumentPresetMap();
+    map[docKey] = loadGlobalPresets();
+    saveDocumentPresetMap(map);
+    scope = "document";
+    scopeSelect.value = "document";
+    renderScopeHint();
     renderList();
     refresh();
   });
@@ -597,12 +656,13 @@ function showPresetsManager(editor: Editor, refresh: () => void): void {
   exportBtn.textContent = "Export JSON";
   exportBtn.addEventListener("click", () => {
     const payload = {
-      version: 1,
+      version: 2,
       exportedAt: new Date().toISOString(),
-      presets: loadPresets(editor),
+      scope,
+      presets: getScopedPresets(),
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-    downloadBlob(blob, "opensketch-export-presets.json");
+    downloadBlob(blob, `opensketch-export-presets-${scope}.json`);
   });
   utilRow.appendChild(exportBtn);
 
@@ -624,7 +684,21 @@ function showPresetsManager(editor: Editor, refresh: () => void): void {
           alert("No valid presets found in JSON.");
           return;
         }
-        savePresets(imported, editor);
+
+        const merge = confirm("Import mode: OK = Merge, Cancel = Replace");
+        if (merge) {
+          const existing = getScopedPresets();
+          const dedupe = new Map<string, ExportPreset>();
+          for (const p of existing) dedupe.set(`${p.name.toLowerCase()}|${p.format}|${p.scale}|${p.suffix}`, p);
+          for (const p of imported) {
+            const key = `${p.name.toLowerCase()}|${p.format}|${p.scale}|${p.suffix}`;
+            dedupe.set(key, { ...p, id: p.id || genId() });
+          }
+          saveScopedPresets(Array.from(dedupe.values()));
+        } else {
+          saveScopedPresets(imported.map(p => ({ ...p, id: p.id || genId() })));
+        }
+
         renderList();
         refresh();
       } catch {
@@ -644,9 +718,10 @@ function showPresetsManager(editor: Editor, refresh: () => void): void {
   resetBtn.style.cssText = "padding:6px 12px;background:#333;color:#e74c3c;border:1px solid #444;border-radius:6px;font-size:11px;cursor:pointer;";
   resetBtn.textContent = "Reset to Defaults";
   resetBtn.addEventListener("click", () => {
-    if (confirm("Reset all presets to defaults?")) {
-      savePresets([...DEFAULT_PRESETS], editor);
+    if (confirm(`Reset ${scope} presets to defaults?`)) {
+      saveScopedPresets([...DEFAULT_PRESETS]);
       renderList();
+      refresh();
     }
   });
 

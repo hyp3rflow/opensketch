@@ -931,7 +931,10 @@ Save, manage, and apply named export configurations (format, scale, suffix) for 
 - [x] **Preset editor modal**: Create/edit presets with name, format, scale, suffix fields
 - [x] **Presets manager modal**: View all presets, delete individual, reset to defaults
 - [x] **Team sharing actions**: Presets manager에서 JSON Export/Import 지원
-- [x] **Document sync action**: `Sync to This Document`로 글로벌 preset을 현재 문서 세트에 복제
+- [x] **Scope-aware manager (v2)**: Presets manager에서 `Document / Global` scope 전환 후 각각 독립 관리
+- [x] **JSON import mode (v2)**: Import 시 Merge/Replace 모드 선택 + name/format/scale/suffix 기준 dedupe merge
+- [x] **JSON payload metadata (v2)**: export payload에 `version`, `scope`, `exportedAt` 포함
+- [x] **Document sync action**: `Sync Global → Doc`으로 글로벌 preset을 현재 문서 세트에 복제
 - [x] **Batch export**: "Export N presets" button — downloads all active presets at once
 - [x] **Format badges**: Color-coded PNG (blue) / SVG (purple) / PDF (amber) indicators
 
