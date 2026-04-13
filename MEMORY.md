@@ -1790,11 +1790,19 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Component Instance Swap Suggestions — 인스턴스 선택 시 variant/property 문맥 기반 추천 후보를 상단 chip으로 제안하고 one-click swap (임팩트 중상, 난이도 중)
 - Dev Mode Measurement Pins — 간격/사이즈 측정값을 pin으로 고정해 핸드오프 스냅샷에서도 유지되는 redline 앵커 제공 (임팩트 중, 난이도 중)
 - Smart Animate Stage Preview (Onion Frames) — prototype 재생 없이 start/end/intermediate 상태를 오버레이로 비교해 모션 타이밍 검증 (임팩트 상, 난이도 중상)
 - Variable Scope Audit (Collection/Page/Frame) — 변수 바인딩 스코프 누수/중복을 탐지하고 자동 정리 제안 (임팩트 중상, 난이도 중)
 - Constraint Conflict Linter — min/max/fill/hug/constraints 조합 충돌을 프레임 단위로 리포트하고 quick fix 제공 (임팩트 상, 난이도 중상)
+
+## 완료된 기능 (추가 — Component Instance Swap Suggestions v2, 2026-04-14)
+- Instance `instance_swap` prop row의 추천 chip 영역을 select 상단으로 승격해 "상단 chip" 흐름으로 개선
+- 추천 후보 노출 수를 3→4로 확장 (`suggest_component_swaps(nodeId, 6)` 결과 상위 후보 표시)
+- chip 라벨은 이름 중심으로 간결화하고 점수/근거는 tooltip(`score + reason`)으로 유지
+- 추천 chip 클릭 시 one-click swap override 적용 흐름 유지
+- 구현: `packages/app/src/ui/properties-panel.ts`
+- 빌드 확인: `wasm-pack build --target web`, `pnpm -C packages/app build`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Smart Animate Stagger Graph Editor, 2026-04-14)
 - Smart Animate timeline modal의 배치 카드 확장: `Smart Animate Stagger Graph` 섹션 추가

@@ -1268,6 +1268,9 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
     graphHeader.appendChild(graphMeta);
     graphSection.appendChild(graphHeader);
 
+    const graphActions = document.createElement("div");
+    graphActions.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;";
+
     const issueWrap = document.createElement("div");
     issueWrap.style.cssText = "display:flex;flex-direction:column;gap:4px;max-height:180px;overflow:auto;";
 
@@ -1298,6 +1301,109 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
       refresh();
     };
 
+    const clearAliasFor = (source: VariableGraphNode, modeId: number) => {
+      editor.engine.push_undo();
+      editor.engine.set_variable_value(BigInt(source.collectionId), BigInt(source.variableId), BigInt(modeId), JSON.stringify({ String: "" }));
+      editor.engine.apply_variables();
+      refresh();
+    };
+
+    const autoFixBtn = document.createElement("button");
+    autoFixBtn.style.cssText = "background:#052e16;border:1px solid #22c55e;border-radius:4px;color:#bbf7d0;font-size:10px;padding:2px 7px;cursor:pointer;";
+    autoFixBtn.textContent = "Auto-fix unresolved";
+    autoFixBtn.onclick = () => {
+      const fixPlan = graph.broken
+        .map((broken) => {
+          const source = graph.nodes.get(broken.from);
+          if (!source) return null;
+          return { source, modeId: broken.modeId, targetKey: broken.candidates[0] || null };
+        })
+        .filter((v): v is { source: VariableGraphNode; modeId: number; targetKey: string | null } => Boolean(v));
+      if (fixPlan.length === 0) return;
+      editor.engine.push_undo();
+      for (const fix of fixPlan) {
+        if (fix.targetKey) {
+          const target = graph.nodes.get(fix.targetKey);
+          if (target) {
+            editor.engine.set_variable_value(
+              BigInt(fix.source.collectionId),
+              BigInt(fix.source.variableId),
+              BigInt(fix.modeId),
+              JSON.stringify({ String: `{${target.collectionName}/${target.variableName}}` })
+            );
+            continue;
+          }
+        }
+        editor.engine.set_variable_value(BigInt(fix.source.collectionId), BigInt(fix.source.variableId), BigInt(fix.modeId), JSON.stringify({ String: "" }));
+      }
+      editor.engine.apply_variables();
+      refresh();
+    };
+    graphActions.appendChild(autoFixBtn);
+
+    const breakCyclesBtn = document.createElement("button");
+    breakCyclesBtn.style.cssText = "background:#3b0764;border:1px solid #a78bfa;border-radius:4px;color:#ede9fe;font-size:10px;padding:2px 7px;cursor:pointer;";
+    breakCyclesBtn.textContent = "Break all cycles";
+    breakCyclesBtn.onclick = () => {
+      const breakPlan = new Map<string, { source: VariableGraphNode; modeId: number }>();
+      for (const cyc of graph.cycles) {
+        if (cyc.length < 2) continue;
+        const source = graph.nodes.get(cyc[0]);
+        if (!source) continue;
+        const edge = graph.edges.find((e) => e.from === cyc[0] && e.to === cyc[1]);
+        if (!edge) continue;
+        breakPlan.set(`${source.key}:${edge.modeId}`, { source, modeId: edge.modeId });
+      }
+      if (breakPlan.size === 0) return;
+      editor.engine.push_undo();
+      for (const entry of breakPlan.values()) {
+        editor.engine.set_variable_value(BigInt(entry.source.collectionId), BigInt(entry.source.variableId), BigInt(entry.modeId), JSON.stringify({ String: "" }));
+      }
+      editor.engine.apply_variables();
+      refresh();
+    };
+    graphActions.appendChild(breakCyclesBtn);
+
+    const copyReportBtn = document.createElement("button");
+    copyReportBtn.style.cssText = "background:#0c4a6e;border:1px solid #38bdf8;border-radius:4px;color:#bae6fd;font-size:10px;padding:2px 7px;cursor:pointer;";
+    copyReportBtn.textContent = "Copy report";
+    copyReportBtn.onclick = async () => {
+      const lines: string[] = [
+        `Variable Alias Graph Inspector`,
+        `Nodes: ${graph.nodes.size}`,
+        `Edges: ${graph.edges.length}`,
+        `Unresolved: ${graph.broken.length}`,
+        `Cycles: ${graph.cycles.length}`,
+        `Chains: ${graph.chains.length}`,
+      ];
+      if (graph.broken.length > 0) {
+        lines.push("", "Unresolved aliases:");
+        for (const broken of graph.broken.slice(0, 20)) {
+          const source = graph.nodes.get(broken.from);
+          if (!source) continue;
+          lines.push(`- ${source.collectionName}/${source.variableName} [${broken.modeName}] -> {${broken.rawToken}} (${broken.reason})`);
+        }
+      }
+      if (graph.cycles.length > 0) {
+        lines.push("", "Cycles:");
+        for (const cyc of graph.cycles.slice(0, 12)) {
+          lines.push(`- ${cyc.map((key) => aliasLabel(key)).join(" -> ")}`);
+        }
+      }
+      try {
+        await navigator.clipboard.writeText(lines.join("\n"));
+        copyReportBtn.textContent = "Copied";
+        setTimeout(() => {
+          copyReportBtn.textContent = "Copy report";
+        }, 1200);
+      } catch {
+        // ignore clipboard errors
+      }
+    };
+    graphActions.appendChild(copyReportBtn);
+
+    graphSection.appendChild(graphActions);
+
     for (const broken of graph.broken.slice(0, 20)) {
       const source = graph.nodes.get(broken.from);
       if (!source) continue;
@@ -1324,12 +1430,7 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
       const fixBtn = document.createElement("button");
       fixBtn.style.cssText = "background:#7f1d1d;border:1px solid #ef4444;border-radius:4px;color:#fecaca;font-size:10px;padding:2px 6px;cursor:pointer;";
       fixBtn.textContent = "Clear";
-      fixBtn.onclick = () => {
-        editor.engine.push_undo();
-        editor.engine.set_variable_value(BigInt(source.collectionId), BigInt(source.variableId), BigInt(broken.modeId), JSON.stringify({ String: "" }));
-        editor.engine.apply_variables();
-        refresh();
-      };
+      fixBtn.onclick = () => clearAliasFor(source, broken.modeId);
       row.appendChild(fixBtn);
       issueWrap.appendChild(row);
     }
@@ -1357,10 +1458,7 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
           breakBtn.onclick = () => {
             const edge = graph.edges.find((e) => e.from === cyc[0] && e.to === targetKey);
             if (!edge) return;
-            editor.engine.push_undo();
-            editor.engine.set_variable_value(BigInt(source.collectionId), BigInt(source.variableId), BigInt(edge.modeId), JSON.stringify({ String: "" }));
-            editor.engine.apply_variables();
-            refresh();
+            clearAliasFor(source, edge.modeId);
           };
           row.appendChild(breakBtn);
         }

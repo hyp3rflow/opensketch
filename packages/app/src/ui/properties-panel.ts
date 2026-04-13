@@ -4058,26 +4058,26 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
                 editor.requestRender();
                 refresh([id]);
               });
-              propRow.appendChild(select);
 
               try {
                 const suggestFn = (editor.engine as any).suggest_component_swaps;
                 if (typeof suggestFn === "function") {
-                  const suggestions = JSON.parse(suggestFn(BigInt(id), 4) || "[]") as Array<{ id: number; name: string; score: number; reason?: string }>;
-                  const filtered = suggestions.filter((s) => Number(s.id) > 0 && Number(s.id) !== selectedComponentId).slice(0, 3);
+                  const suggestions = JSON.parse(suggestFn(BigInt(id), 6) || "[]") as Array<{ id: number; name: string; score: number; reason?: string }>;
+                  const filtered = suggestions.filter((s) => Number(s.id) > 0 && Number(s.id) !== selectedComponentId).slice(0, 4);
                   if (filtered.length) {
                     const suggestRow = document.createElement("div");
-                    suggestRow.style.cssText = "display:flex;align-items:center;gap:4px;flex-wrap:wrap;width:100%;margin-top:4px;";
+                    suggestRow.style.cssText = "display:flex;align-items:center;gap:4px;flex-wrap:wrap;width:100%;margin-bottom:4px;";
                     const suggestLabel = document.createElement("span");
-                    suggestLabel.textContent = "추천:";
+                    suggestLabel.textContent = "Swap suggestions:";
                     suggestLabel.style.cssText = "font-size:9px;color:#a78bfa;";
                     suggestRow.appendChild(suggestLabel);
                     filtered.forEach((s) => {
                       const chip = document.createElement("button");
                       chip.className = "prop-btn";
                       chip.style.cssText = "font-size:9px;padding:1px 6px;line-height:1.4;border-color:rgba(139,92,246,0.45);color:#ddd;";
-                      chip.textContent = `${s.name} (${Math.max(0, Math.round(Number(s.score) || 0))})`;
-                      chip.title = s.reason ? `Swap suggestion · ${s.reason}` : "Swap suggestion";
+                      chip.textContent = s.name;
+                      const score = Math.max(0, Math.round(Number(s.score) || 0));
+                      chip.title = s.reason ? `Swap suggestion · score ${score} · ${s.reason}` : `Swap suggestion · score ${score}`;
                       chip.onclick = () => {
                         editor.engine.push_undo();
                         editor.engine.set_instance_prop_override(
@@ -4094,6 +4094,8 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
                   }
                 }
               } catch {}
+
+              propRow.appendChild(select);
 
               if (isComponentBroken && fallbackComponentId > 0) {
                 const fallbackBtn = document.createElement("button");

@@ -2741,6 +2741,12 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] source variable jump 흐름(컬렉션 자동 전환 + 검색) 유지
 - 구현: `packages/app/src/ui/variables-panel.ts`
 
+### Variable Alias Graph Inspector v2 (2026-04-14)
+- [x] Graph header에 bulk action 추가: `Auto-fix unresolved`(후보 우선 retarget, 후보 없으면 clear), `Break all cycles`
+- [x] cycle break 동작을 dedupe해 같은 source/mode alias를 한 번만 정리하도록 개선
+- [x] `Copy report` 액션으로 unresolved/cycle 요약을 클립보드로 내보내 디버깅/리뷰 공유 흐름 강화
+- 구현: `packages/app/src/ui/variables-panel.ts`
+
 ### Smart Animate Stagger Graph Editor (2026-04-14)
 - [x] Smart Animate timeline modal의 배치 카드에 `Smart Animate Stagger Graph` 섹션 추가
 - [x] 동일 이름 레이어 그룹(라벨 정규화) 단위로 시간 오프셋을 적용해 반복 레이어 순차 애니메이션 편집 지원
@@ -2876,6 +2882,13 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] 엔진 `suggest_component_swaps(nodeId, limit)` 결과를 활용해 현재 swap target을 제외한 상위 추천 3개 표시
 - [x] 추천 chip 클릭 시 one-click으로 `set_instance_prop_override({ type: "instance_swap", value: componentId })` 적용
 - [x] 각 추천 chip에 score 표기 + reason 툴팁 제공
+- 구현: `packages/app/src/ui/properties-panel.ts`
+
+### Component Instance Swap Suggestions v2 (2026-04-14)
+- [x] 추천 chip row를 select 상단에 배치해 variant/property 문맥 추천을 먼저 확인하는 흐름으로 개선
+- [x] 추천 후보 노출 수를 4개까지 확장(엔진 제안 limit 6 조회 후 현재 target 제외)
+- [x] chip 텍스트는 이름 중심으로 단순화하고 score/reason은 tooltip으로 유지
+- [x] 추천 chip 클릭 시 one-click `instance_swap` override 적용 흐름 유지
 - 구현: `packages/app/src/ui/properties-panel.ts`
 
 ### Prototype Flow Coverage Recorder + Heatmap Report (2026-04-13)
