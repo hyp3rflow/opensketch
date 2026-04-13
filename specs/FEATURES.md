@@ -2759,6 +2759,7 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Layers panel 자동 동기화 (`onLayersChanges` 호출)
 - [x] Drop indicator 렌더링을 smart guides 상태와 분리해, 가이드가 없는 장면에서도 reorder 인디케이터가 항상 표시됨
 - [x] **v2**: auto-layout 컨테이너 자체를 선택해도 자식 전체 reorder 핸들을 캔버스에 노출 (기존 child-only 진입점 유지)
+- [x] **v3**: target index 계산을 insertion-slot 기반으로 보강해 hidden/absolute sibling이 섞인 컨테이너에서도 드래그 경계가 안정적으로 유지되도록 개선
 - 구현: `packages/app/src/tools/auto-layout-reorder.ts`, `packages/app/src/editor.ts`
 
 ### Selection Color Palette Inspector (2026-04-13)

@@ -1793,6 +1793,15 @@
 - Prototype Conditional Branch Visual Debugger — interaction condition true/false 경로를 프레임 그래프에 오버레이하고 dead branch를 바로 수정 (임팩트 상, 난이도 중상)
 - Auto Layout Wrap Line Inspector — wrap 컨테이너의 line break 지점을 캔버스에 표시하고 per-line gap/align 미세 조정 (임팩트 중상, 난이도 중)
 - Variable Token Drift Timeline — 컬렉션/모드별 변수 값 변경 이력을 타임라인으로 추적하고 특정 시점으로 롤백 (임팩트 중상, 난이도 상)
+- Token Usage Heatmap on Canvas — 선택/페이지 기준 style token 사용 밀도를 캔버스 오버레이로 시각화하고 미사용 토큰 정리 제안 (임팩트 중, 난이도 중)
+- Prototype Start Points Manager — 페이지/플로우별 multiple start point를 저장/전환해 QA 시나리오를 빠르게 재생 (임팩트 중상, 난이도 중)
+
+## 완료된 기능 (추가 — Auto Layout Reorder Handles v3, 2026-04-13)
+- reorder target index 계산을 insertion-slot 기반으로 보강해 hidden/absolute sibling이 섞인 auto-layout에서도 드래그 경계가 안정적으로 동작
+- `collectVisibleSiblings()` 유틸로 drag 시작/갱신 시 sibling 스냅샷 수집 로직을 일원화
+- reorder 인디케이터 라인 계산을 정렬된 sibling 기준으로 정리하고 불필요 변수를 제거
+- 구현: `packages/app/src/tools/auto-layout-reorder.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Component Property Formula Tokens, 2026-04-13)
 - Instance `COMPONENT PROPS`의 text/number prop row에 formula(`ƒx`) 입력 필드 추가

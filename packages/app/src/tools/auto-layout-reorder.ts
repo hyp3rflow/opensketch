@@ -35,6 +35,26 @@ export interface ReorderDragState {
   siblings: Array<{ id: number; x: number; y: number; w: number; h: number }>;
 }
 
+function collectVisibleSiblings(engine: Engine, parentId: number): ReorderDragState["siblings"] {
+  const parentJson = engine.get_node_json(BigInt(parentId));
+  if (!parentJson) return [];
+  const parent = JSON.parse(parentJson);
+  const out: ReorderDragState["siblings"] = [];
+  for (const rawId of (parent.children || [])) {
+    const cid = Number(rawId);
+    try {
+      const cj = engine.get_node_json(BigInt(cid));
+      if (!cj) continue;
+      const cn = JSON.parse(cj);
+      if (cn.visible === false || cn.absolute_position) continue;
+      out.push({ id: cid, x: cn.x, y: cn.y, w: cn.width, h: cn.height });
+    } catch {
+      // skip invalid children
+    }
+  }
+  return out;
+}
+
 /**
  * Find reorder handles for selected nodes that are children of auto-layout frames.
  */
@@ -143,20 +163,7 @@ export function beginReorderDrag(
   screenX: number,
   screenY: number,
 ): ReorderDragState {
-  // Collect all visible non-absolute siblings
-  const parentJson = engine.get_node_json(BigInt(handle.parentId));
-  const parent = parentJson ? JSON.parse(parentJson) : { children: [] };
-  const siblings: ReorderDragState["siblings"] = [];
-
-  for (const cid of (parent.children || [])) {
-    try {
-      const cj = engine.get_node_json(BigInt(cid));
-      if (!cj) continue;
-      const cn = JSON.parse(cj);
-      if (cn.visible === false || cn.absolute_position) continue;
-      siblings.push({ id: cid, x: cn.x, y: cn.y, w: cn.width, h: cn.height });
-    } catch { /* skip */ }
-  }
+  const siblings = collectVisibleSiblings(engine, handle.parentId);
 
   return {
     handle,
@@ -182,59 +189,51 @@ export function updateReorderDrag(
   const panX = engine.get_pan_x();
   const panY = engine.get_pan_y();
 
-  // Convert screen to scene
   const sceneX = (screenX - panX) / zoom;
   const sceneY = (screenY - panY) / zoom;
-
-  const isRow = state.handle.direction === "row";
+  const cursor = state.handle.direction === "row" ? sceneX : sceneY;
   const siblings = state.siblings;
+  if (siblings.length <= 1) return state.currentIndex;
 
-  // Find the visual index of the child among visible siblings
-  let visibleIndex = siblings.findIndex(s => s.id === state.handle.childId);
-  if (visibleIndex < 0) return state.currentIndex;
+  const childId = state.handle.childId;
+  const otherSiblings = siblings.filter(s => s.id !== childId);
+  if (otherSiblings.length === 0) return state.currentIndex;
 
-  // Find target index by comparing cursor against sibling midpoints
-  let targetVisibleIndex = siblings.length - 1;
-  for (let i = 0; i < siblings.length; i++) {
-    const s = siblings[i];
-    if (s.id === state.handle.childId) continue;
-
-    const mid = isRow ? s.x + s.w / 2 : s.y + s.h / 2;
-    const cursor = isRow ? sceneX : sceneY;
-
-    if (cursor < mid) {
-      targetVisibleIndex = i > visibleIndex ? i - 1 : i;
+  // Insert slot among visible siblings: [before first, between ..., after last]
+  let insertionSlot = otherSiblings.length;
+  for (let i = 0; i < otherSiblings.length; i++) {
+    const s = otherSiblings[i]!;
+    const center = state.handle.direction === "row" ? (s.x + s.w / 2) : (s.y + s.h / 2);
+    if (cursor < center) {
+      insertionSlot = i;
       break;
     }
   }
 
-  // Clamp
-  targetVisibleIndex = Math.max(0, Math.min(targetVisibleIndex, siblings.length - 1));
-
-  // Convert visible index back to actual children index
-  // The siblings array was built from parent.children in order, filtering invisible/absolute ones.
-  // We need to find the actual parent children index corresponding to targetVisibleIndex.
   const parentJson = engine.get_node_json(BigInt(state.handle.parentId));
   if (!parentJson) return state.currentIndex;
   const parent = JSON.parse(parentJson);
-  const allChildren: number[] = parent.children || [];
+  const allChildren: number[] = (parent.children || []).map(Number);
 
-  // Build mapping from visible index to actual index
-  let vi = 0;
-  let actualTargetIndex = allChildren.length - 1;
-  for (let ai = 0; ai < allChildren.length; ai++) {
-    const cid = allChildren[ai];
-    // Check if this child is in our visible siblings list
-    const inVisible = siblings.some(s => s.id === cid);
-    if (!inVisible) continue;
-    if (vi === targetVisibleIndex) {
-      actualTargetIndex = ai;
-      break;
-    }
-    vi++;
+  const visibleOrdered = allChildren.filter((cid) => siblings.some(s => s.id === cid));
+  const withoutDragged = visibleOrdered.filter(cid => cid !== childId);
+
+  let beforeVisibleId: number | null = null;
+  if (insertionSlot < withoutDragged.length) {
+    beforeVisibleId = withoutDragged[insertionSlot]!;
   }
 
-  return actualTargetIndex;
+  if (beforeVisibleId == null) {
+    // Insert after the last visible sibling while keeping trailing non-visible children.
+    let lastVisibleIdx = -1;
+    for (let i = 0; i < allChildren.length; i++) {
+      if (visibleOrdered.includes(allChildren[i]!)) lastVisibleIdx = i;
+    }
+    return Math.max(0, lastVisibleIdx + 1);
+  }
+
+  const actualIndex = allChildren.indexOf(beforeVisibleId);
+  return actualIndex >= 0 ? actualIndex : state.currentIndex;
 }
 
 /**
@@ -300,47 +299,32 @@ export function renderReorderHandles(
     const siblings = state.siblings;
     const isRow = state.handle.direction === "row";
 
-    // Find the visual position for the insertion indicator
-    const parentJson = ctx.canvas.getAttribute("data-reorder-parent-json");
-    // We draw an indicator line at the target position
-    // Use sibling bounds to determine where the line should be
     const targetIdx = state.currentIndex;
-
-    // Find the target sibling position
-    // We need to determine where to draw the insertion line among visible siblings
     let linePos: number;
-    const visibleSiblings = siblings.filter(s => s.id !== state.handle.childId);
     const draggedSibling = siblings.find(s => s.id === state.handle.childId);
     if (!draggedSibling) return;
 
-    // Build ordered list including the dragged node at its current target
-    // Find where the target index places us among visible siblings
-    let targetVisIndex = 0;
-    for (let i = 0; i < siblings.length; i++) {
-      if (siblings[i].id === state.handle.childId) continue;
-      if (i <= targetIdx && i < siblings.length) targetVisIndex++;
-    }
+    const ordered = [...siblings].sort((a, b) => isRow ? (a.x - b.x) : (a.y - b.y));
+    const draggedPos = ordered.findIndex(s => s.id === draggedSibling.id);
+    const lineIdx = Math.max(0, Math.min(ordered.length, draggedPos + (targetIdx > state.originalIndex ? 1 : 0)));
 
-    // Determine line position
     if (isRow) {
-      if (targetIdx <= 0) {
-        linePos = siblings[0].x - 2;
-      } else if (targetIdx >= siblings.length - 1) {
-        const last = siblings[siblings.length - 1];
+      if (lineIdx <= 0) {
+        linePos = ordered[0]!.x - 2;
+      } else if (lineIdx >= ordered.length) {
+        const last = ordered[ordered.length - 1]!;
         linePos = last.x + last.w + 2;
       } else {
-        const before = siblings[targetIdx];
-        linePos = before.x;
+        linePos = ordered[lineIdx]!.x;
       }
     } else {
-      if (targetIdx <= 0) {
-        linePos = siblings[0].y - 2;
-      } else if (targetIdx >= siblings.length - 1) {
-        const last = siblings[siblings.length - 1];
+      if (lineIdx <= 0) {
+        linePos = ordered[0]!.y - 2;
+      } else if (lineIdx >= ordered.length) {
+        const last = ordered[ordered.length - 1]!;
         linePos = last.y + last.h + 2;
       } else {
-        const before = siblings[targetIdx];
-        linePos = before.y;
+        linePos = ordered[lineIdx]!.y;
       }
     }
 
