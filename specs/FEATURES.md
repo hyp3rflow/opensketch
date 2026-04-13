@@ -923,7 +923,7 @@ Save, manage, and apply named export configurations (format, scale, suffix) for 
 ### Storage
 - [x] localStorage-based preset storage with default presets (iOS @1x/2x/3x, Android mdpi/xxhdpi, Web @2x, SVG)
 - [x] 문서별 preset 세트 지원: scene hash 기반 doc key로 presets/active presets를 분리 저장
-- [x] ExportPreset interface: id, name, format (png/svg), scale (0.5-4x), suffix, quality
+- [x] ExportPreset interface: id, name, format (png/svg/pdf), scale (0.5-4x), suffix, quality
 
 ### UI
 - [x] **Properties panel**: "Export" section for selected nodes (dropdown + active preset list)
@@ -933,11 +933,12 @@ Save, manage, and apply named export configurations (format, scale, suffix) for 
 - [x] **Team sharing actions**: Presets manager에서 JSON Export/Import 지원
 - [x] **Document sync action**: `Sync to This Document`로 글로벌 preset을 현재 문서 세트에 복제
 - [x] **Batch export**: "Export N presets" button — downloads all active presets at once
-- [x] **Format badges**: Color-coded PNG (blue) / SVG (purple) indicators
+- [x] **Format badges**: Color-coded PNG (blue) / SVG (purple) / PDF (amber) indicators
 
 ### Export Execution
 - [x] PNG export: Uses editor.exportPng() with configurable scale
 - [x] SVG export: Uses engine.export_node_svg() / export_svg()
+- [x] PDF export preset: canvas는 `exportPDF()`(현재 페이지), node는 PNG snapshot을 single-page PDF로 변환
 - [x] Auto-naming: node name + suffix + format extension
 
 ## Batch Export (ZIP)

@@ -1790,11 +1790,20 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Export Preset Profiles Manager — PNG/SVG/PDF export 옵션 묶음을 preset으로 저장/팀 공유 JSON import/export (임팩트 중상, 난이도 중)
 - Text Truncation & Overflow Inspector — frame/auto-layout 내 텍스트 잘림/overflow 감지 및 one-click resize/fix 제안 (임팩트 중상, 난이도 중)
 - Auto Layout Reorder Handles — auto-layout 컨테이너에서 캔버스 상 children 순서를 직접 drag-reorder (임팩트 중상, 난이도 중)
 - Variable Alias Graph Inspector — 변수 alias 체인/순환/미해결 참조를 그래프로 점검하고 one-click fix 제안 (임팩트 중상, 난이도 중상)
 - Prototype Focus Trap Simulator — overlay/모달에서 Tab focus trap 누락을 시뮬레이션하고 즉시 수정 액션 제공 (임팩트 중, 난이도 중)
+
+## 완료된 기능 (추가 — Export Preset Profiles Manager, 2026-04-13)
+- Export preset format을 `png/svg`에서 `png/svg/pdf`로 확장
+- Preset editor/manager/active list의 format badge 및 선택 UI에 PDF 추가
+- Export 실행 시 PDF 지원:
+  - 캔버스 export: 기존 `exportPDF()` 경로로 현재 페이지 PDF 다운로드
+  - 노드 export: node PNG snapshot을 단일 페이지 PDF로 변환해 다운로드
+- Batch export preset 적용 시 PDF preset은 ZIP 호환을 위해 PNG 포맷으로 매핑 적용
+- 구현: `packages/app/src/ui/export-presets.ts`, `packages/app/src/ui/batch-export.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — A11y Motion Guardrails v2, 2026-04-13)
 - Interactions 패널 `A11y Motion Guardrails` lint 규칙을 Prototype Flow Lint와 동일한 기준으로 정렬

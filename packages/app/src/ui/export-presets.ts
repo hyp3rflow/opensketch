@@ -4,11 +4,12 @@
  */
 
 import type { Editor } from "../editor";
+import { exportPDF } from "./pdf-export";
 
 export interface ExportPreset {
   id: string;
   name: string;
-  format: "png" | "svg";
+  format: "png" | "svg" | "pdf";
   scale: number;        // 0.5, 1, 1.5, 2, 3, 4
   suffix: string;       // e.g. "@2x", "-thumb"
   quality: number;      // 0.1 - 1.0 (PNG compression hint, mostly for future JPEG)
@@ -26,6 +27,7 @@ const DEFAULT_PRESETS: ExportPreset[] = [
   { id: "android-xxhdpi", name: "Android xxhdpi", format: "png", scale: 3, suffix: "-xxhdpi", quality: 1.0 },
   { id: "web-2x", name: "Web @2x", format: "png", scale: 2, suffix: "@2x", quality: 0.9 },
   { id: "svg-vector", name: "SVG Vector", format: "svg", scale: 1, suffix: "", quality: 1.0 },
+  { id: "pdf-current-page", name: "PDF Current Page", format: "pdf", scale: 1, suffix: "", quality: 1.0 },
 ];
 
 function hashString(input: string): string {
@@ -124,14 +126,20 @@ export function executeExport(editor: Editor, nodeId: number | bigint | undefine
       const svg = editor.engine.export_svg();
       downloadBlob(new Blob([svg], { type: "image/svg+xml" }), filename);
     }
-  } else {
-    // PNG
-    const dataUrl = editor.exportPng(nodeId, preset.scale, 0);
-    const a = document.createElement("a");
-    a.href = dataUrl;
-    a.download = filename;
-    a.click();
+    return;
   }
+
+  if (preset.format === "pdf") {
+    void exportAsPdf(editor, nodeId, `${name}${preset.suffix}.pdf`);
+    return;
+  }
+
+  // PNG
+  const dataUrl = editor.exportPng(nodeId, preset.scale, 0);
+  const a = document.createElement("a");
+  a.href = dataUrl;
+  a.download = filename;
+  a.click();
 }
 
 function getNodeName(editor: Editor, nodeId: number | bigint): string {
@@ -141,6 +149,109 @@ function getNodeName(editor: Editor, nodeId: number | bigint): string {
     const node = JSON.parse(json);
     return node.name || "";
   } catch { return ""; }
+}
+
+async function exportAsPdf(editor: Editor, nodeId: number | bigint | undefined, filename: string): Promise<void> {
+  // Canvas export: use existing page-based PDF exporter.
+  if (nodeId == null) {
+    await exportPDF(editor, { filename, includeAllPages: false, jpegQuality: 0.92 });
+    return;
+  }
+
+  // Node export: convert node PNG snapshot to a single-page PDF.
+  const dataUrl = editor.exportPng(nodeId, 2, 0);
+  const pdfBytes = await pngDataUrlToSinglePagePdf(dataUrl);
+  downloadBlob(new Blob([pdfBytes], { type: "application/pdf" }), filename);
+}
+
+async function pngDataUrlToSinglePagePdf(dataUrl: string): Promise<Uint8Array> {
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const i = new Image();
+    i.onload = () => resolve(i);
+    i.onerror = () => reject(new Error("Failed to decode PNG for PDF export"));
+    i.src = dataUrl;
+  });
+
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(img.naturalWidth || img.width));
+  canvas.height = Math.max(1, Math.round(img.naturalHeight || img.height));
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas context unavailable for PDF export");
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+  const jpegDataUrl = canvas.toDataURL("image/jpeg", 0.92);
+  const jpegBytes = base64ToBytes(jpegDataUrl.split(",")[1] || "");
+  return buildSingleImagePdf(jpegBytes, canvas.width, canvas.height);
+}
+
+function base64ToBytes(base64: string): Uint8Array {
+  const binary = atob(base64);
+  const out = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i);
+  return out;
+}
+
+function buildSingleImagePdf(jpegBytes: Uint8Array, widthPx: number, heightPx: number): Uint8Array {
+  // 96dpi px -> points
+  const widthPt = (widthPx * 72) / 96;
+  const heightPt = (heightPx * 72) / 96;
+
+  const chunks: Uint8Array[] = [];
+  const offsets: number[] = [0];
+  let size = 0;
+  const enc = new TextEncoder();
+
+  const pushStr = (s: string) => {
+    const b = enc.encode(s);
+    chunks.push(b);
+    size += b.length;
+  };
+  const pushBytes = (b: Uint8Array) => {
+    chunks.push(b);
+    size += b.length;
+  };
+
+  const objStart = () => offsets.push(size);
+
+  pushStr("%PDF-1.4\n%\xE2\xE3\xCF\xD3\n");
+
+  objStart();
+  pushStr("1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n");
+
+  objStart();
+  pushStr("2 0 obj\n<< /Type /Pages /Count 1 /Kids [3 0 R] >>\nendobj\n");
+
+  objStart();
+  pushStr(`3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${widthPt.toFixed(2)} ${heightPt.toFixed(2)}] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>\nendobj\n`);
+
+  objStart();
+  pushStr(`4 0 obj\n<< /Type /XObject /Subtype /Image /Width ${widthPx} /Height ${heightPx} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpegBytes.length} >>\nstream\n`);
+  pushBytes(jpegBytes);
+  pushStr("\nendstream\nendobj\n");
+
+  const content = `q\n${widthPt.toFixed(2)} 0 0 ${heightPt.toFixed(2)} 0 0 cm\n/Im0 Do\nQ\n`;
+  const contentBytes = enc.encode(content);
+  objStart();
+  pushStr(`5 0 obj\n<< /Length ${contentBytes.length} >>\nstream\n`);
+  pushBytes(contentBytes);
+  pushStr("endstream\nendobj\n");
+
+  const xrefOffset = size;
+  pushStr("xref\n0 6\n0000000000 65535 f \n");
+  for (let i = 1; i <= 5; i++) {
+    pushStr(`${String(offsets[i]).padStart(10, "0")} 00000 n \n`);
+  }
+  pushStr(`trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`);
+
+  const out = new Uint8Array(size);
+  let cursor = 0;
+  for (const c of chunks) {
+    out.set(c, cursor);
+    cursor += c.length;
+  }
+  return out;
 }
 
 function downloadBlob(blob: Blob, filename: string): void {
@@ -228,7 +339,7 @@ export function createExportPresetsSection(
     row.style.cssText = "display:flex;align-items:center;gap:6px;padding:4px 6px;background:#1e1e2e;border-radius:4px;margin-bottom:4px;";
 
     const formatBadge = document.createElement("span");
-    formatBadge.style.cssText = `font-size:9px;font-weight:700;padding:1px 4px;border-radius:3px;color:#fff;background:${preset.format === "svg" ? "#9b59b6" : "#3498db"};`;
+    formatBadge.style.cssText = `font-size:9px;font-weight:700;padding:1px 4px;border-radius:3px;color:#fff;background:${preset.format === "svg" ? "#9b59b6" : preset.format === "pdf" ? "#f39c12" : "#3498db"};`;
     formatBadge.textContent = preset.format.toUpperCase();
     row.appendChild(formatBadge);
 
@@ -352,6 +463,7 @@ function showPresetEditor(
   addField("Format", "format", "select", [
     { value: "png", label: "PNG" },
     { value: "svg", label: "SVG" },
+    { value: "pdf", label: "PDF" },
   ], preset?.format || "png");
   addField("Scale", "scale", "select", [
     { value: "0.5", label: "0.5x" },
@@ -379,7 +491,7 @@ function showPresetEditor(
     const newPreset: ExportPreset = {
       id: preset?.id || genId(),
       name: (fields.name as HTMLInputElement).value || "Untitled",
-      format: (fields.format as HTMLSelectElement).value as "png" | "svg",
+      format: (fields.format as HTMLSelectElement).value as "png" | "svg" | "pdf",
       scale: parseFloat((fields.scale as HTMLSelectElement).value) || 2,
       suffix: (fields.suffix as HTMLInputElement).value || "",
       quality: 1.0,
@@ -431,7 +543,7 @@ function showPresetsManager(editor: Editor, refresh: () => void): void {
       row.style.cssText = "display:flex;align-items:center;gap:8px;padding:6px 8px;background:#252535;border-radius:6px;margin-bottom:4px;";
 
       const badge = document.createElement("span");
-      badge.style.cssText = `font-size:9px;font-weight:700;padding:2px 5px;border-radius:3px;color:#fff;background:${p.format === "svg" ? "#9b59b6" : "#3498db"};`;
+      badge.style.cssText = `font-size:9px;font-weight:700;padding:2px 5px;border-radius:3px;color:#fff;background:${p.format === "svg" ? "#9b59b6" : p.format === "pdf" ? "#f39c12" : "#3498db"};`;
       badge.textContent = p.format.toUpperCase();
       row.appendChild(badge);
 

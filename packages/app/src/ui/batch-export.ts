@@ -196,7 +196,8 @@ function showDialog(editor: Editor, items: ExportItem[]): void {
     presetSelect.addEventListener("change", () => {
       const preset = presets.find(p => p.id === presetSelect.value);
       if (preset) {
-        items.forEach(i => { i.format = preset.format; i.scale = preset.scale; });
+        const mappedFormat: "png" | "svg" = preset.format === "pdf" ? "png" : preset.format;
+        items.forEach(i => { i.format = mappedFormat; i.scale = preset.scale; });
         renderList();
       }
       presetSelect.value = "";
