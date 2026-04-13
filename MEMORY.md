@@ -1790,9 +1790,21 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Smart Animate Stagger Graph Editor — 프레임 내 동일 이름 레이어 그룹에 시간 오프셋 커브(Linear/Ease/Custom)를 적용해 순차 애니메이션을 시각 편집 (임팩트 상, 난이도 중상)
 - Component Instance Swap Suggestions — 인스턴스 선택 시 variant/property 문맥 기반 추천 후보를 상단 chip으로 제안하고 one-click swap (임팩트 중상, 난이도 중)
 - Dev Mode Measurement Pins — 간격/사이즈 측정값을 pin으로 고정해 핸드오프 스냅샷에서도 유지되는 redline 앵커 제공 (임팩트 중, 난이도 중)
+- Smart Animate Stage Preview (Onion Frames) — prototype 재생 없이 start/end/intermediate 상태를 오버레이로 비교해 모션 타이밍 검증 (임팩트 상, 난이도 중상)
+- Variable Scope Audit (Collection/Page/Frame) — 변수 바인딩 스코프 누수/중복을 탐지하고 자동 정리 제안 (임팩트 중상, 난이도 중)
+- Constraint Conflict Linter — min/max/fill/hug/constraints 조합 충돌을 프레임 단위로 리포트하고 quick fix 제공 (임팩트 상, 난이도 중상)
+
+## 완료된 기능 (추가 — Smart Animate Stagger Graph Editor, 2026-04-14)
+- Smart Animate timeline modal의 배치 카드 확장: `Smart Animate Stagger Graph` 섹션 추가
+- 동일 이름 레이어 그룹(라벨 정규화 기준) 단위로 stagger 적용 (frame 내 반복 레이어 순차 애니메이션 용)
+- curve 옵션 제공: `linear` / `ease` / `custom` (comma-separated curve 샘플)
+- mode 옵션 유지: `forward` / `reverse` / `center-out`
+- curve preview bar를 통해 적용 전 오프셋 분포를 시각 확인
+- 구현: `packages/app/src/ui/properties-panel.ts`
+- 빌드 확인: `wasm-pack build --target web`, `pnpm -C packages/app build`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Prototype Start Points Manager v2, 2026-04-14)
 - Start Point Manager preset 저장 키를 flow-only에서 `flow+page`로 확장해 페이지/플로우별 시작 시나리오를 분리

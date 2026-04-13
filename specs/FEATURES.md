@@ -2741,6 +2741,14 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] source variable jump 흐름(컬렉션 자동 전환 + 검색) 유지
 - 구현: `packages/app/src/ui/variables-panel.ts`
 
+### Smart Animate Stagger Graph Editor (2026-04-14)
+- [x] Smart Animate timeline modal의 배치 카드에 `Smart Animate Stagger Graph` 섹션 추가
+- [x] 동일 이름 레이어 그룹(라벨 정규화) 단위로 시간 오프셋을 적용해 반복 레이어 순차 애니메이션 편집 지원
+- [x] curve 옵션: `linear` / `ease` / `custom`(comma-separated 샘플 포인트)
+- [x] mode 옵션: `forward` / `reverse` / `center-out`
+- [x] curve preview bar로 오프셋 분포를 적용 전 시각 확인
+- 구현: `packages/app/src/ui/properties-panel.ts`
+
 ### Interaction Timeline Scrubber (2026-04-12)
 - [x] Prototype Viewer 우측에 `Interaction Timeline` 패널 추가 (scrub slider + 최근 이벤트 리스트)
 - [x] Navigate/Back/Scroll 이벤트를 타임라인으로 누적해 순서/끊김을 시각 점검

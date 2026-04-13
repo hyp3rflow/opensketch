@@ -9938,40 +9938,126 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
 
             const staggerCard = document.createElement("div");
             staggerCard.style.cssText = "padding:8px;border:1px solid #2e2e2e;border-radius:8px;";
-            staggerCard.innerHTML = '<div style="font-size:10px;color:#a3a3a3;margin-bottom:6px;">Stagger (선택 행 우선)</div>';
+            staggerCard.innerHTML = '<div style="font-size:10px;color:#a3a3a3;margin-bottom:6px;">Smart Animate Stagger Graph</div>';
+
             const staggerRow = document.createElement("div");
-            staggerRow.style.cssText = "display:flex;gap:6px;align-items:center;";
+            staggerRow.style.cssText = "display:flex;gap:6px;align-items:center;flex-wrap:wrap;";
             const staggerMs = document.createElement("input");
             staggerMs.className = "prop-input";
             staggerMs.type = "number";
-            staggerMs.value = "30";
-            staggerMs.style.width = "90px";
+            staggerMs.value = "40";
+            staggerMs.style.width = "80px";
+
             const staggerMode = document.createElement("select");
             staggerMode.className = "prop-input";
             ["forward", "reverse", "center-out"].forEach((m) => {
-              const o = document.createElement("option"); o.value = m; o.textContent = m; staggerMode.appendChild(o);
+              const o = document.createElement("option");
+              o.value = m;
+              o.textContent = m;
+              staggerMode.appendChild(o);
             });
+
+            const staggerCurve = document.createElement("select");
+            staggerCurve.className = "prop-input";
+            ["linear", "ease", "custom"].forEach((m) => {
+              const o = document.createElement("option");
+              o.value = m;
+              o.textContent = m;
+              staggerCurve.appendChild(o);
+            });
+
+            const customCurve = document.createElement("input");
+            customCurve.className = "prop-input";
+            customCurve.type = "text";
+            customCurve.placeholder = "0,0.2,0.7,1";
+            customCurve.value = "0,0.15,0.5,0.85,1";
+            customCurve.style.cssText = "flex:1;min-width:120px;";
+
+            const preview = document.createElement("div");
+            preview.style.cssText = "display:flex;align-items:flex-end;gap:3px;height:28px;margin-top:6px;padding:4px;border:1px solid #2a3344;border-radius:6px;background:#111827;";
+
+            const parseCustomCurve = () => customCurve.value
+              .split(",")
+              .map((it) => Number(it.trim()))
+              .filter((v) => Number.isFinite(v))
+              .map((v) => Math.max(0, Math.min(1, v)));
+
+            const sampleCurve = (curve: string, t: number) => {
+              const x = Math.max(0, Math.min(1, t));
+              if (curve === "ease") return x * x * (3 - 2 * x);
+              if (curve === "custom") {
+                const points = parseCustomCurve();
+                if (points.length < 2) return x;
+                const at = x * (points.length - 1);
+                const i0 = Math.floor(at);
+                const i1 = Math.min(points.length - 1, i0 + 1);
+                const w = at - i0;
+                return points[i0] * (1 - w) + points[i1] * w;
+              }
+              return x;
+            };
+
+            const drawPreview = () => {
+              preview.innerHTML = "";
+              const steps = 12;
+              for (let i = 0; i < steps; i += 1) {
+                const t = steps === 1 ? 1 : i / (steps - 1);
+                const v = sampleCurve(staggerCurve.value, t);
+                const bar = document.createElement("div");
+                bar.style.cssText = `flex:1;min-width:4px;border-radius:2px 2px 0 0;background:#60a5fa;height:${6 + Math.round(v * 18)}px;opacity:${0.45 + v * 0.55};`;
+                preview.appendChild(bar);
+              }
+            };
+            staggerCurve.addEventListener("change", drawPreview);
+            customCurve.addEventListener("input", drawPreview);
+            drawPreview();
+
+            const normalizeLayerName = (label: string) => {
+              const raw = String(label || "").trim();
+              if (!raw) return "unnamed";
+              const byColon = raw.split(":").pop() || raw;
+              const byPipe = byColon.split("|")[0] || byColon;
+              return byPipe.trim().toLowerCase() || "unnamed";
+            };
+
             const applyStagger = document.createElement("button");
             applyStagger.className = "prop-add-btn";
             applyStagger.textContent = "Apply";
             applyStagger.addEventListener("click", () => {
               const ids = targetIndices();
               const delta = Math.max(0, parseInt(staggerMs.value) || 0);
-              let ordered = [...ids];
-              if (staggerMode.value === "reverse") ordered = ordered.reverse();
-              if (staggerMode.value === "center-out") {
-                const center = Math.floor(ordered.length / 2);
-                ordered.sort((a, b) => Math.abs(a - ordered[center]) - Math.abs(b - ordered[center]));
-              }
-              ordered.forEach((idx, order) => {
-                timeline[idx].time += delta * order;
+              const byName = new Map<string, number[]>();
+              ids.forEach((idx) => {
+                const key = normalizeLayerName(timeline[idx].label || "");
+                const list = byName.get(key) || [];
+                list.push(idx);
+                byName.set(key, list);
               });
+
+              for (const list of byName.values()) {
+                let ordered = [...list].sort((a, b) => (timeline[a].time || 0) - (timeline[b].time || 0));
+                if (staggerMode.value === "reverse") ordered = ordered.reverse();
+                if (staggerMode.value === "center-out") {
+                  const center = Math.floor(ordered.length / 2);
+                  ordered.sort((a, b) => Math.abs(a - ordered[center]) - Math.abs(b - ordered[center]));
+                }
+                const anchor = Math.min(...ordered.map((idx) => Number(timeline[idx].time || 0)));
+                ordered.forEach((idx, order) => {
+                  const t = ordered.length <= 1 ? 1 : order / (ordered.length - 1);
+                  const offset = Math.round(sampleCurve(staggerCurve.value, t) * delta * Math.max(1, ordered.length - 1));
+                  timeline[idx].time = anchor + offset;
+                });
+              }
+
               sortAndClamp();
               persistTimeline();
               renderTable();
             });
-            staggerRow.append(staggerMs, staggerMode, applyStagger);
+
+            staggerRow.append(staggerMs, staggerMode, staggerCurve, applyStagger);
             staggerCard.appendChild(staggerRow);
+            staggerCard.appendChild(customCurve);
+            staggerCard.appendChild(preview);
 
             const groupCard = document.createElement("div");
             groupCard.style.cssText = "padding:8px;border:1px solid #2e2e2e;border-radius:8px;";
