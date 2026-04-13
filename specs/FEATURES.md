@@ -2794,6 +2794,16 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] 유효 숫자만 `set_instance_prop_override({ type: "number" })`로 반영, invalid 입력은 기존값으로 복구
 - 구현: `packages/app/src/ui/properties-panel.ts`
 
+### Component Property Formula Tokens (2026-04-13)
+- [x] Instance `COMPONENT PROPS`의 text/number prop row에 formula 입력(`ƒx`) 필드 추가
+- [x] `=base * 1.2` 형태 수식 평가 지원 (기본 컨텍스트: `base`, `value` + prototype variable 이름)
+- [x] formula 저장소(localStorage) 도입: instance id + prop name 기준으로 수식 지속 저장
+- [x] 수식 유효성/결과에 따라 상태 피드백 제공
+  - parse/token 오류: 빨간 테두리 + 에러 툴팁
+  - 성공: 초록 테두리 + resolved value 툴팁
+- [x] 수식이 있으면 렌더 시 자동 평가해 prop override를 갱신하여 실시간 토큰 바인딩 워크플로우 제공
+- 구현: `packages/app/src/ui/properties-panel.ts`
+
 ### Prototype Accessibility Audit (Focus/Label/Contrast/Motion) (2026-04-12)
 - [x] Prototype Viewer Flow Lint에 접근성 규칙 4종 추가
   - `a11y-missing-label`: OnClick/OnPress hotspot의 accessibility label 누락

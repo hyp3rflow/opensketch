@@ -66,6 +66,83 @@ const PROTOTYPE_FLOW_TRANSITION_DEFAULT_KEY = "opensketch-prototype-flow-transit
 const INTERACTIVE_PREVIEW_AUTOSYNC_KEY = "opensketch-interactive-preview-autosync-v1";
 const PROTOTYPE_REDUCED_MOTION_KEY = "opensketch-prototype-reduced-motion-v1";
 const INTERACTIVE_PREVIEW_EVENT = "opensketch:interactive-preview-state";
+const COMPONENT_PROP_FORMULA_KEY = "opensketch-component-prop-formulas-v1";
+
+type ComponentPropFormulaStore = Record<string, Record<string, string>>;
+
+function loadComponentPropFormulaStore(): ComponentPropFormulaStore {
+  try {
+    const raw = localStorage.getItem(COMPONENT_PROP_FORMULA_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return {};
+    return parsed as ComponentPropFormulaStore;
+  } catch {
+    return {};
+  }
+}
+
+function saveComponentPropFormulaStore(store: ComponentPropFormulaStore): void {
+  localStorage.setItem(COMPONENT_PROP_FORMULA_KEY, JSON.stringify(store));
+}
+
+function getComponentPropFormula(instanceId: number, propName: string): string {
+  const store = loadComponentPropFormulaStore();
+  return String(store[String(instanceId)]?.[propName] || "");
+}
+
+function setComponentPropFormula(instanceId: number, propName: string, formula: string): void {
+  const store = loadComponentPropFormulaStore();
+  const key = String(instanceId);
+  const prev = store[key] || {};
+  const next = formula.trim();
+  if (!next) {
+    if (prev[propName] !== undefined) {
+      delete prev[propName];
+      if (Object.keys(prev).length === 0) delete store[key];
+      else store[key] = prev;
+      saveComponentPropFormulaStore(store);
+    }
+    return;
+  }
+  store[key] = { ...prev, [propName]: next };
+  saveComponentPropFormulaStore(store);
+}
+
+function buildComponentPropFormulaContext(editor: Editor, baseValue: any): Record<string, string | number | boolean> {
+  const ctx: Record<string, string | number | boolean> = { base: baseValue ?? 0, value: baseValue ?? 0 };
+  try {
+    const protoVars: Array<{ name: string; var_type: string; default_value: string }> =
+      JSON.parse((editor.engine as any).get_prototype_variables?.() || "[]") || [];
+    for (const v of protoVars) {
+      if (!v?.name) continue;
+      const t = String(v.var_type || "").toLowerCase();
+      const raw = String(v.default_value ?? "");
+      if (t === "number") ctx[v.name] = Number(raw) || 0;
+      else if (t === "boolean") ctx[v.name] = raw === "true" || raw === "1";
+      else ctx[v.name] = raw;
+    }
+  } catch {}
+  return ctx;
+}
+
+function evalComponentPropFormula(formula: string, context: Record<string, string | number | boolean>): { ok: true; value: any } | { ok: false; reason: string } {
+  const src = formula.trim();
+  if (!src) return { ok: false, reason: "empty" };
+  const expr = src.startsWith("=") ? src.slice(1).trim() : src;
+  if (!expr) return { ok: false, reason: "empty" };
+  if (!/^[\w\s+\-*/%().,:<>=!&|?'"`]+$/.test(expr)) {
+    return { ok: false, reason: "unsupported token" };
+  }
+  try {
+    const keys = Object.keys(context);
+    const values = keys.map((k) => context[k]);
+    const fn = new Function(...keys, `return (${expr});`);
+    return { ok: true, value: fn(...values) };
+  } catch {
+    return { ok: false, reason: "parse error" };
+  }
+}
 
 const DEFAULT_PROTOTYPE_RING_PRESETS: PrototypeRingPreset[] = [
   {
@@ -3761,70 +3838,121 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
                 refresh([id]);
               });
               propRow.appendChild(toggle);
-            } else if (pv.prop_type === "text") {
-              const input = document.createElement("input");
-              input.style.cssText = `
-                flex:1; background:#2a2a2a; border:1px solid #444; border-radius:4px;
+            } else if (pv.prop_type === "text" || pv.prop_type === "number") {
+              const isNumberProp = pv.prop_type === "number";
+              const valInput = document.createElement("input");
+              valInput.type = isNumberProp ? "number" : "text";
+              if (isNumberProp) valInput.step = "any";
+              valInput.style.cssText = `
+                flex:1; min-width:64px; background:#2a2a2a; border:1px solid #444; border-radius:4px;
                 color:#ccc; font-size:11px; padding:3px 6px; outline:none;
               `;
-              input.value = pv.value.value || "";
-              if (pv.definition?.default) {
-                input.placeholder = String(pv.definition.default);
-                input.title = `Default: ${pv.definition.default}`;
-              }
-              input.addEventListener("change", () => {
-                editor.engine.push_undo();
-                editor.engine.set_instance_prop_override(
-                  BigInt(id), pv.name,
-                  JSON.stringify({ type: "text", value: input.value })
-                );
-                editor.requestRender();
-                refresh([id]);
-              });
-              input.addEventListener("keydown", (e) => {
-                if (e.key === "Enter") {
-                  input.blur();
-                }
-              });
-              propRow.appendChild(input);
-            } else if (pv.prop_type === "number") {
-              const input = document.createElement("input");
-              input.type = "number";
-              input.step = "any";
-              input.style.cssText = `
-                flex:1; background:#2a2a2a; border:1px solid #444; border-radius:4px;
-                color:#ccc; font-size:11px; padding:3px 6px; outline:none;
-              `;
-              const cur = Number(pv.value?.value ?? pv.definition?.default ?? 0);
-              input.value = Number.isFinite(cur) ? String(cur) : "0";
+
+              const rawCurrent = pv.value?.value ?? pv.definition?.default ?? (isNumberProp ? 0 : "");
+              const current = isNumberProp ? Number(rawCurrent) : String(rawCurrent ?? "");
+              valInput.value = isNumberProp
+                ? (Number.isFinite(current as number) ? String(current) : "0")
+                : String(current ?? "");
               if (pv.definition?.default !== undefined) {
-                input.placeholder = String(pv.definition.default);
-                input.title = `Default: ${pv.definition.default}`;
+                valInput.placeholder = String(pv.definition.default);
+                valInput.title = `Default: ${pv.definition.default}`;
               }
-              const applyNumber = () => {
-                const next = Number(input.value);
-                if (!Number.isFinite(next)) {
-                  input.value = Number.isFinite(cur) ? String(cur) : "0";
+
+              const formulaInput = document.createElement("input");
+              formulaInput.type = "text";
+              formulaInput.placeholder = isNumberProp ? "=base * 1.2" : "=base + ' / ' + state";
+              formulaInput.style.cssText = `
+                flex:1; min-width:90px; background:#1f2430; border:1px dashed #4b5563; border-radius:4px;
+                color:#a5b4fc; font-size:10px; padding:3px 6px; outline:none;
+              `;
+              formulaInput.value = getComponentPropFormula(id, pv.name);
+
+              const formulaHint = document.createElement("span");
+              formulaHint.style.cssText = "font-size:9px;color:#6b7280;flex-shrink:0;";
+              formulaHint.textContent = "ƒx";
+              formulaHint.title = "Formula tokens: =base * 1.2, prototype variable names";
+
+              const applyValue = (nextValue: any, pushUndo = true) => {
+                const prevComparable = isNumberProp ? Number(pv.value?.value ?? rawCurrent ?? 0) : String(pv.value?.value ?? rawCurrent ?? "");
+                const nextComparable = isNumberProp ? Number(nextValue) : String(nextValue ?? "");
+                if ((isNumberProp && Number.isFinite(prevComparable) && prevComparable === nextComparable)
+                  || (!isNumberProp && prevComparable === nextComparable)) {
                   return;
                 }
-                editor.engine.push_undo();
+                if (pushUndo) editor.engine.push_undo();
                 editor.engine.set_instance_prop_override(
                   BigInt(id),
                   pv.name,
-                  JSON.stringify({ type: "number", value: next })
+                  JSON.stringify({ type: pv.prop_type, value: nextValue })
                 );
                 editor.requestRender();
                 refresh([id]);
               };
-              input.addEventListener("change", applyNumber);
-              input.addEventListener("keydown", (e) => {
+
+              const applyManual = () => {
+                if (isNumberProp) {
+                  const next = Number(valInput.value);
+                  if (!Number.isFinite(next)) {
+                    valInput.value = Number.isFinite(current as number) ? String(current) : "0";
+                    return;
+                  }
+                  applyValue(next);
+                } else {
+                  applyValue(valInput.value);
+                }
+              };
+
+              const applyFormula = (pushUndo = false) => {
+                const f = formulaInput.value.trim();
+                setComponentPropFormula(id, pv.name, f);
+                if (!f) {
+                  formulaInput.style.borderColor = "#4b5563";
+                  formulaInput.title = "";
+                  return;
+                }
+                const context = buildComponentPropFormulaContext(editor, rawCurrent);
+                const result = evalComponentPropFormula(f, context);
+                if (!result.ok) {
+                  formulaInput.style.borderColor = "#ef4444";
+                  formulaInput.title = `Formula error: ${result.reason}`;
+                  return;
+                }
+                const computed = isNumberProp ? Number(result.value) : String(result.value ?? "");
+                if (isNumberProp && !Number.isFinite(computed)) {
+                  formulaInput.style.borderColor = "#ef4444";
+                  formulaInput.title = "Formula error: result is not a finite number";
+                  return;
+                }
+                formulaInput.style.borderColor = "#22c55e";
+                formulaInput.title = `Resolved: ${computed}`;
+                applyValue(computed, pushUndo);
+              };
+
+              valInput.addEventListener("change", applyManual);
+              valInput.addEventListener("keydown", (e) => {
                 if (e.key === "Enter") {
                   e.preventDefault();
-                  applyNumber();
-                  input.blur();
+                  applyManual();
+                  valInput.blur();
                 }
               });
-              propRow.appendChild(input);
+
+              formulaInput.addEventListener("change", () => applyFormula(true));
+              formulaInput.addEventListener("keydown", (e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  applyFormula(true);
+                  formulaInput.blur();
+                }
+              });
+
+              propRow.appendChild(valInput);
+              propRow.appendChild(formulaHint);
+              propRow.appendChild(formulaInput);
+
+              if (formulaInput.value.trim()) {
+                applyFormula(false);
+              }
             } else if (pv.prop_type === "instance_swap") {
               const selectedComponentId = Number(pv.value?.value || 0);
               const linkedSlotId = Number(pv.definition?.linked_slot_id || 0);

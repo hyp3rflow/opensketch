@@ -1790,10 +1790,18 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Component Property Formula Tokens — 숫자/문자열 prop에 `=base * 1.2` 같은 수식 바인딩을 허용하고 변수/상태 기반 실시간 평가 (임팩트 상, 난이도 중상)
 - Prototype Conditional Branch Visual Debugger — interaction condition true/false 경로를 프레임 그래프에 오버레이하고 dead branch를 바로 수정 (임팩트 상, 난이도 중상)
 - Auto Layout Wrap Line Inspector — wrap 컨테이너의 line break 지점을 캔버스에 표시하고 per-line gap/align 미세 조정 (임팩트 중상, 난이도 중)
 - Variable Token Drift Timeline — 컬렉션/모드별 변수 값 변경 이력을 타임라인으로 추적하고 특정 시점으로 롤백 (임팩트 중상, 난이도 상)
+
+## 완료된 기능 (추가 — Component Property Formula Tokens, 2026-04-13)
+- Instance `COMPONENT PROPS`의 text/number prop row에 formula(`ƒx`) 입력 필드 추가
+- `=base * 1.2` 형태 수식 평가 지원 (base/value + prototype variable 이름 컨텍스트)
+- formula를 instance id + prop name 기준으로 localStorage에 저장/복원
+- 수식 상태 피드백: parse/token 오류(빨강), 성공/해결값 표시(초록)
+- formula가 있는 prop은 패널 렌더 시 자동 평가해 override를 갱신하도록 연결
+- 구현: `packages/app/src/ui/properties-panel.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Selection Color Palette Inspector, 2026-04-13)
 - 멀티 선택 상태 Properties 패널에 `Selection Color Palette Inspector` 섹션 추가
