@@ -1796,6 +1796,14 @@
 - Token Usage Heatmap on Canvas — 선택/페이지 기준 style token 사용 밀도를 캔버스 오버레이로 시각화하고 미사용 토큰 정리 제안 (임팩트 중, 난이도 중)
 - Prototype Start Points Manager — 페이지/플로우별 multiple start point를 저장/전환해 QA 시나리오를 빠르게 재생 (임팩트 중상, 난이도 중)
 
+## 완료된 기능 (추가 — Auto Layout Reorder Handles v4 Keyboard Reorder, 2026-04-13)
+- `Cmd/Ctrl+Alt+Arrow` 단축키로 auto-layout 자식 순서를 키보드로 재정렬 지원
+  - Row 컨테이너: Left/Right, Column 컨테이너: Up/Down에만 반응
+  - `Shift` 조합 시 시작/끝 위치로 즉시 이동
+- 내부 동작: `reparent_node_at` + `recompute_layout` + Layers/캔버스 즉시 동기화
+- 구현: `packages/app/src/editor.ts`
+- specs 반영: `specs/FEATURES.md`
+
 ## 완료된 기능 (백로그 정리 — Auto Layout Reorder Handles 구현 확인, 2026-04-13)
 - 자동 구현 대상이었던 `Auto Layout Reorder Handles`가 코드/스펙에 이미 반영된 상태임을 재확인
   - 코드: `packages/app/src/tools/auto-layout-reorder.ts`, `packages/app/src/editor.ts`

@@ -1246,6 +1246,16 @@ export class Editor {
         this.openCursorChat();
         return;
       }
+      // Auto-layout reorder hotkey: Cmd/Ctrl+Alt+Arrow (Shift to send to start/end)
+      if ((e.metaKey || e.ctrlKey) && e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === "ArrowLeft" || e.key === "ArrowRight")) {
+        const direction = (e.key === "ArrowLeft" || e.key === "ArrowUp") ? -1 : 1;
+        const axis: "horizontal" | "vertical" = (e.key === "ArrowLeft" || e.key === "ArrowRight") ? "horizontal" : "vertical";
+        if (this.nudgeAutoLayoutReorder(direction, e.shiftKey, axis)) {
+          e.preventDefault();
+          return;
+        }
+      }
+
       // Arrow key nudge: move selected nodes
       if (e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === "ArrowLeft" || e.key === "ArrowRight") {
         const sel = Array.from(this.engine.get_selection()).map(Number);
@@ -6486,6 +6496,77 @@ export class Editor {
     }
 
     return depth;
+  }
+
+  private nudgeAutoLayoutReorder(direction: -1 | 1, toEdge: boolean, axis: "horizontal" | "vertical"): boolean {
+    try {
+      const sel = Array.from(this.engine.get_selection()).map(Number);
+      if (sel.length !== 1) return false;
+      const childId = sel[0]!;
+
+      const parentId = Number((this.engine as any).get_node_parent?.(BigInt(childId)) ?? 0);
+      if (!Number.isFinite(parentId) || parentId <= 0) return false;
+
+      const parentJson = this.engine.get_node_json(BigInt(parentId));
+      if (!parentJson) return false;
+      const parent = JSON.parse(parentJson);
+      if (!parent.layout || parent.layout.mode === "None") return false;
+
+      const isRow = parent.layout.direction === "Row";
+      if ((isRow && axis !== "horizontal") || (!isRow && axis !== "vertical")) return false;
+      const allChildren: number[] = (parent.children || []).map(Number);
+      const visibleChildren = allChildren.filter((cid) => {
+        const cj = this.engine.get_node_json(BigInt(cid));
+        if (!cj) return false;
+        try {
+          const cn = JSON.parse(cj);
+          return cn.visible !== false && !cn.absolute_position;
+        } catch {
+          return false;
+        }
+      });
+      if (visibleChildren.length < 2) return false;
+
+      const fromVisibleIndex = visibleChildren.indexOf(childId);
+      if (fromVisibleIndex < 0) return false;
+
+      const targetVisibleIndex = toEdge
+        ? (direction < 0 ? 0 : visibleChildren.length - 1)
+        : Math.max(0, Math.min(visibleChildren.length - 1, fromVisibleIndex + direction));
+      if (targetVisibleIndex === fromVisibleIndex) return false;
+
+      const without = visibleChildren.filter((cid) => cid !== childId);
+      const nextVisible = without[targetVisibleIndex] ?? null;
+
+      let targetIndex = 0;
+      if (nextVisible == null) {
+        let lastVisibleIdx = -1;
+        for (let i = 0; i < allChildren.length; i++) {
+          if (visibleChildren.includes(allChildren[i]!)) lastVisibleIdx = i;
+        }
+        targetIndex = Math.max(0, lastVisibleIdx + 1);
+      } else {
+        const idx = allChildren.indexOf(nextVisible);
+        if (idx < 0) return false;
+        targetIndex = idx;
+      }
+
+      this.engine.push_undo();
+      (this.engine as any).reparent_node_at(BigInt(childId), parentId, targetIndex);
+      try { (this.engine as any).recompute_layout(BigInt(parentId)); } catch { /* noop */ }
+
+      this._reorderHandles = findReorderHandles(this.engine);
+      this._reorderHovered = this._reorderHandles.find((h) => h.childId === childId && h.parentId === parentId) || null;
+      this.onLayersChanges.forEach(fn => fn());
+      this.needsRender = true;
+
+      const dirLabel = isRow ? (direction < 0 ? "left" : "right") : (direction < 0 ? "up" : "down");
+      const edgeLabel = isRow ? (direction < 0 ? "start" : "end") : (direction < 0 ? "top" : "bottom");
+      this.showToast?.(`Auto Layout reorder: ${toEdge ? edgeLabel : dirLabel}`);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   private resolveAutoLayoutFrameFromScreenPoint(screenX: number, screenY: number): number | null {
