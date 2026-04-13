@@ -1790,9 +1790,17 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Variable Token Drift Timeline — 컬렉션/모드별 변수 값 변경 이력을 타임라인으로 추적하고 특정 시점으로 롤백 (임팩트 중상, 난이도 상)
 - Token Usage Heatmap on Canvas — 선택/페이지 기준 style token 사용 밀도를 캔버스 오버레이로 시각화하고 미사용 토큰 정리 제안 (임팩트 중, 난이도 중)
 - Prototype Start Points Manager — 페이지/플로우별 multiple start point를 저장/전환해 QA 시나리오를 빠르게 재생 (임팩트 중상, 난이도 중)
+
+## 완료된 기능 (추가 — Variable Token Drift Timeline v2, 2026-04-14)
+- Variables 패널 timeline 카드명을 `Variable Token Drift Timeline`으로 정렬
+- 컬렉션 내 mode 필터(All + mode별) 추가로 drift 이력 탐색 범위를 빠르게 축소
+- 항목별 `Rollback to here` 액션 추가: 선택 시점의 before 스냅샷으로 복원 + 해당 변수의 이후 스냅샷 자동 정리
+- 기존 `Rollback latest`/`Rollback this` + mode별 before/after 상세 비교는 유지
+- 구현: `packages/app/src/ui/variables-panel.ts`
+- 빌드 확인: `wasm-pack build --target web`, `pnpm -C packages/app build`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Auto Layout Wrap Line Inspector, 2026-04-14)
 - Wrap 활성 Auto-layout 컨테이너용 `Wrap Line Inspector` 카드 추가

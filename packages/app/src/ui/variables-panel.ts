@@ -49,6 +49,7 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
   let usageHeatmapEnabled = false;
   let usageHeatmapCanvas: HTMLCanvasElement | null = null;
   let expandedTimelineEntryId: string | null = null;
+  let selectedTimelineModeId: number | "all" = "all";
 
   const cloneModeValues = (input: Record<string, VarPrimitive> | undefined | null): Record<string, VarPrimitive> => {
     const out: Record<string, VarPrimitive> = {};
@@ -830,17 +831,40 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
     container.appendChild(paritySection);
 
     const timelineEntries = readTimeline().filter((entry) => entry.collection_id === col.id);
+    const filteredTimelineEntries = selectedTimelineModeId === "all"
+      ? timelineEntries
+      : timelineEntries.filter((entry) => entry.changed_mode_id === selectedTimelineModeId);
     const timelineSection = document.createElement("div");
     timelineSection.style.cssText = "margin-bottom:12px;background:#1e1e1e;border:1px solid #2f2f2f;border-radius:6px;padding:8px;";
     const timelineHeader = document.createElement("div");
     timelineHeader.style.cssText = "display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;";
     const timelineTitle = document.createElement("span");
     timelineTitle.style.cssText = "font-size:10px;color:#a7f3d0;text-transform:uppercase;letter-spacing:0.5px;font-weight:700;";
-    timelineTitle.textContent = "Variable Diff Timeline";
+    timelineTitle.textContent = "Variable Token Drift Timeline";
     timelineHeader.appendChild(timelineTitle);
 
     const timelineActions = document.createElement("div");
-    timelineActions.style.cssText = "display:flex;gap:6px;";
+    timelineActions.style.cssText = "display:flex;gap:6px;align-items:center;";
+
+    const modeFilter = document.createElement("select");
+    modeFilter.style.cssText = "background:#222;border:1px solid #3a3a3a;border-radius:4px;color:#cbd5e1;font-size:10px;padding:2px 4px;";
+    const modeAll = document.createElement("option");
+    modeAll.value = "all";
+    modeAll.textContent = "All modes";
+    modeFilter.appendChild(modeAll);
+    for (const mode of col.modes) {
+      const opt = document.createElement("option");
+      opt.value = String(mode.id);
+      opt.textContent = mode.name;
+      modeFilter.appendChild(opt);
+    }
+    modeFilter.value = selectedTimelineModeId === "all" ? "all" : String(selectedTimelineModeId);
+    modeFilter.addEventListener("change", () => {
+      selectedTimelineModeId = modeFilter.value === "all" ? "all" : Number(modeFilter.value);
+      expandedTimelineEntryId = null;
+      refresh();
+    });
+    timelineActions.appendChild(modeFilter);
 
     const clearCollectionBtn = document.createElement("button");
     clearCollectionBtn.style.cssText = "background:#2a2a2a;border:1px solid #454545;border-radius:4px;color:#999;cursor:pointer;font-size:10px;padding:2px 6px;";
@@ -858,9 +882,9 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
     const rollbackLatestBtn = document.createElement("button");
     rollbackLatestBtn.style.cssText = "background:#1f3b2a;border:1px solid #166534;border-radius:4px;color:#86efac;cursor:pointer;font-size:10px;padding:2px 6px;";
     rollbackLatestBtn.textContent = "Rollback latest";
-    rollbackLatestBtn.disabled = timelineEntries.length === 0;
+    rollbackLatestBtn.disabled = filteredTimelineEntries.length === 0;
     rollbackLatestBtn.addEventListener("click", () => {
-      const latest = timelineEntries[0];
+      const latest = filteredTimelineEntries[0];
       if (!latest) return;
       if (!confirm(`Rollback latest change for ${latest.variable_name}?`)) return;
       editor.engine.push_undo();
@@ -878,7 +902,7 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
     timelineHeader.appendChild(timelineActions);
     timelineSection.appendChild(timelineHeader);
 
-    if (timelineEntries.length === 0) {
+    if (filteredTimelineEntries.length === 0) {
       const emptyTimeline = document.createElement("div");
       emptyTimeline.style.cssText = "font-size:10px;color:#666;";
       emptyTimeline.textContent = "No recorded variable mode diffs yet.";
@@ -886,7 +910,7 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
     } else {
       const list = document.createElement("div");
       list.style.cssText = "display:flex;flex-direction:column;gap:6px;max-height:220px;overflow:auto;";
-      timelineEntries.slice(0, 20).forEach((entry) => {
+      filteredTimelineEntries.slice(0, 20).forEach((entry) => {
         const row = document.createElement("div");
         row.style.cssText = "background:#232323;border:1px solid #333;border-radius:5px;padding:6px;";
 
@@ -909,8 +933,11 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
         top.appendChild(when);
         row.appendChild(top);
 
+        const rollbackRow = document.createElement("div");
+        rollbackRow.style.cssText = "display:flex;gap:6px;margin-top:6px;";
+
         const rollbackBtn = document.createElement("button");
-        rollbackBtn.style.cssText = "margin-top:6px;background:#2a2033;border:1px solid #5b3a7e;border-radius:4px;color:#d8b4fe;cursor:pointer;font-size:10px;padding:2px 6px;";
+        rollbackBtn.style.cssText = "background:#2a2033;border:1px solid #5b3a7e;border-radius:4px;color:#d8b4fe;cursor:pointer;font-size:10px;padding:2px 6px;";
         rollbackBtn.textContent = "Rollback this";
         rollbackBtn.addEventListener("click", () => {
           if (!confirm(`Rollback this snapshot for ${entry.variable_name}?`)) return;
@@ -924,7 +951,29 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
           editor.requestRender();
           refresh();
         });
-        row.appendChild(rollbackBtn);
+        rollbackRow.appendChild(rollbackBtn);
+
+        const rollbackToHereBtn = document.createElement("button");
+        rollbackToHereBtn.style.cssText = "background:#1f2937;border:1px solid #334155;border-radius:4px;color:#bfdbfe;cursor:pointer;font-size:10px;padding:2px 6px;";
+        rollbackToHereBtn.textContent = "Rollback to here";
+        rollbackToHereBtn.title = "Apply this snapshot and drop newer timeline entries for this variable";
+        rollbackToHereBtn.addEventListener("click", () => {
+          if (!confirm(`Rollback ${entry.variable_name} to this timestamp and discard newer snapshots?`)) return;
+          editor.engine.push_undo();
+          for (const mode of col.modes) {
+            const val = entry.before[String(mode.id)];
+            if (!val) continue;
+            editor.engine.set_variable_value(BigInt(col.id), BigInt(entry.variable_id), BigInt(mode.id), JSON.stringify(val));
+          }
+          editor.engine.apply_variables();
+          editor.requestRender();
+          const trimmed = readTimeline().filter((it) => !(it.collection_id === col.id && it.variable_id === entry.variable_id && it.ts > entry.ts));
+          writeTimeline(trimmed);
+          refresh();
+        });
+        rollbackRow.appendChild(rollbackToHereBtn);
+
+        row.appendChild(rollbackRow);
 
         if (expandedTimelineEntryId === entry.id) {
           const detail = document.createElement("div");
