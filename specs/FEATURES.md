@@ -2748,6 +2748,14 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] 전환 즉시 `set_sizing_h/v` + `compute_layout()` 적용으로 남은 공간 분배 실시간 프리뷰
 - 구현: `packages/app/src/editor.ts`
 
+### Auto Layout Reorder Handles (2026-04-13)
+- [x] Auto-layout 자식 선택 시 캔버스에 6-dot grip 핸들 오버레이 표시 (row: 상단 중앙, column: 좌측 중앙)
+- [x] 핸들 드래그로 siblings 간 순서 변경: 커서 위치 기반 target index 계산 → `reparent_node_at` + `recompute_layout` 실시간 적용
+- [x] 드래그 중 삽입 위치에 파란 인디케이터 라인 + 현재 인덱스 badge 표시
+- [x] 드래그 중 sibling positions 실시간 갱신으로 연속 reorder 지원
+- [x] Layers panel 자동 동기화 (`onLayersChanges` 호출)
+- 구현: `packages/app/src/tools/auto-layout-reorder.ts`, `packages/app/src/editor.ts`
+
 ### Smart Animate Property Diff Presets (2026-04-12)
 - [x] Interactions 편집 카드에 `Smart Animate Diff Presets` 섹션 추가 (Scan/Apply/Apply flow)
 - [x] source/target frame 트리를 비교해 변경 속성을 Transform/Opacity/Fill/Text로 자동 분류
