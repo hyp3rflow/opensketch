@@ -2754,6 +2754,7 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] 드래그 중 삽입 위치에 파란 인디케이터 라인 + 현재 인덱스 badge 표시
 - [x] 드래그 중 sibling positions 실시간 갱신으로 연속 reorder 지원
 - [x] Layers panel 자동 동기화 (`onLayersChanges` 호출)
+- [x] Drop indicator 렌더링을 smart guides 상태와 분리해, 가이드가 없는 장면에서도 reorder 인디케이터가 항상 표시됨
 - 구현: `packages/app/src/tools/auto-layout-reorder.ts`, `packages/app/src/editor.ts`
 
 ### Smart Animate Property Diff Presets (2026-04-12)

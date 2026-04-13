@@ -87,18 +87,6 @@ interface StretchHandle {
   sh: number;
 }
 
-interface AutoLayoutReorderHandle {
-  nodeId: number;
-  parentId: number;
-  direction: "row" | "column";
-  position: "before" | "after";
-  targetIndex: number;
-  sx: number;
-  sy: number;
-  sw: number;
-  sh: number;
-}
-
 interface DragState {
   startX: number;
   startY: number;
@@ -346,16 +334,6 @@ export class Editor {
   private _spacingDragStartX = 0;
   private _spacingDragStartGap = 0;
 
-  // Auto-layout reorder handles (drag child order directly on canvas)
-  private _autoLayoutReorderHandles: AutoLayoutReorderHandle[] = [];
-  private _autoLayoutReorderHovered: AutoLayoutReorderHandle | null = null;
-  private _autoLayoutReorderDragging: {
-    nodeId: number;
-    parentId: number;
-    fromIndex: number;
-    currentIndex: number;
-    direction: "row" | "column";
-  } | null = null;
 
   // Auto-layout stretch handle (child sizing_h/v quick drag)
   private _stretchHandle: StretchHandle | null = null;
@@ -1851,35 +1829,6 @@ export class Editor {
         this._paddingDragStartValue = phit.value;
         this._paddingDragStart = (phit.side === "left" || phit.side === "right") ? x : y;
         this.canvas.setPointerCapture(e.pointerId);
-        return;
-      }
-    }
-
-    // Auto-layout reorder handle drag
-    if (this.currentTool === "select" && this._autoLayoutReorderHandles.length > 0) {
-      const rhit = this.hitTestAutoLayoutReorderHandle(x, y);
-      if (rhit) {
-        this.engine.push_undo();
-        const zoneJson = (this.engine as any).get_layout_drop_zones?.(BigInt(rhit.parentId));
-        let fromIndex = Math.max(0, rhit.targetIndex - (rhit.position === "after" ? 1 : 0));
-        try {
-          if (zoneJson && zoneJson !== "null") {
-            const zone = JSON.parse(zoneJson);
-            if (Array.isArray(zone?.children)) {
-              const idx = zone.children.findIndex((c: any) => Number(c?.id) === rhit.nodeId);
-              if (idx >= 0) fromIndex = idx;
-            }
-          }
-        } catch {}
-        this._autoLayoutReorderDragging = {
-          nodeId: rhit.nodeId,
-          parentId: rhit.parentId,
-          fromIndex,
-          currentIndex: rhit.targetIndex,
-          direction: rhit.direction,
-        };
-        this.canvas.setPointerCapture(e.pointerId);
-        this.needsRender = true;
         return;
       }
     }
@@ -5288,12 +5237,14 @@ export class Editor {
   }
 
   private renderSmartGuides() {
-    if (this._snapGuides.length === 0) return;
+    if (this._snapGuides.length === 0 && !this._dropTarget) return;
     const zoom = this.engine.get_zoom();
     const panX = this.engine.get_pan_x();
     const panY = this.engine.get_pan_y();
-    renderGuides(this.ctx, this._snapGuides, zoom, panX, panY);
-    // Render drop indicator for drag-to-reparent
+    if (this._snapGuides.length > 0) {
+      renderGuides(this.ctx, this._snapGuides, zoom, panX, panY);
+    }
+    // Render drop indicator for drag-to-reparent/reorder
     if (this._dropTarget) {
       renderDropIndicator(this.ctx, this._dropTarget, zoom, panX, panY);
     }
@@ -6100,7 +6051,6 @@ export class Editor {
         this.renderComponentSetOverlays();
         this.renderGradientEditor();
         this.renderSpacingHandles();
-        this.renderAutoLayoutReorderHandles();
         this.renderMultiTransformBox();
         this.renderConstraintPinsOverlay();
         this.renderConstraintDebugOverlay();
@@ -7631,104 +7581,22 @@ export class Editor {
     return x >= h.sx && x <= h.sx + h.sw && y >= h.sy && y <= h.sy + h.sh ? h : null;
   }
 
-  private computeAutoLayoutReorderHandles(): AutoLayoutReorderHandle[] {
-    const handles: AutoLayoutReorderHandle[] = [];
-    const sel = Array.from(this.engine.get_selection()).map(Number);
-    if (sel.length !== 1) return handles;
-    const nodeId = sel[0]!;
-    try {
-      const nodeJson = this.engine.get_node_json(BigInt(nodeId));
-      if (!nodeJson) return handles;
-      const node = JSON.parse(nodeJson);
-      const parentId = Number(node?.parent || 0);
-      if (!(parentId > 0) || node?.absolute_position || node?.locked) return handles;
-
-      const zoneJson = (this.engine as any).get_layout_drop_zones?.(BigInt(parentId));
-      if (!zoneJson || zoneJson === "null") return handles;
-      const zone = JSON.parse(zoneJson);
-      if (!zone || zone.mode !== "flex" || !Array.isArray(zone.children)) return handles;
-
-      const idx = zone.children.findIndex((c: any) => Number(c?.id) === nodeId);
-      if (idx < 0) return handles;
-
+  private renderAutoLayoutReorderHandles() {
+    this._reorderHandles = findReorderHandles(this.engine);
+    if (this._reorderHandles.length > 0 || this._reorderDrag) {
       const zoom = this.engine.get_zoom();
       const panX = this.engine.get_pan_x();
       const panY = this.engine.get_pan_y();
-      const isRow = zone.direction === "row";
-      const size = 14;
-      const margin = 8;
-      const half = size / 2;
-      const child = zone.children[idx];
-      const cx = zone.frame_x + Number(child.x || 0);
-      const cy = zone.frame_y + Number(child.y || 0);
-      const cw = Number(child.w || 0);
-      const ch = Number(child.h || 0);
-
-      if (isRow) {
-        const beforeX = (cx - margin) * zoom + panX - half;
-        const afterX = (cx + cw + margin) * zoom + panX - half;
-        const centerY = (cy + ch / 2) * zoom + panY - half;
-        handles.push({ nodeId, parentId, direction: "row", position: "before", targetIndex: idx, sx: beforeX, sy: centerY, sw: size, sh: size });
-        handles.push({ nodeId, parentId, direction: "row", position: "after", targetIndex: idx + 1, sx: afterX, sy: centerY, sw: size, sh: size });
-      } else {
-        const beforeY = (cy - margin) * zoom + panY - half;
-        const afterY = (cy + ch + margin) * zoom + panY - half;
-        const centerX = (cx + cw / 2) * zoom + panX - half;
-        handles.push({ nodeId, parentId, direction: "column", position: "before", targetIndex: idx, sx: centerX, sy: beforeY, sw: size, sh: size });
-        handles.push({ nodeId, parentId, direction: "column", position: "after", targetIndex: idx + 1, sx: centerX, sy: afterY, sw: size, sh: size });
-      }
-    } catch {
-      return [];
+      renderReorderHandles(
+        this.ctx,
+        this._reorderHandles,
+        this._reorderHovered,
+        this._reorderDrag,
+        zoom,
+        panX,
+        panY,
+      );
     }
-    return handles;
-  }
-
-  private hitTestAutoLayoutReorderHandle(x: number, y: number): AutoLayoutReorderHandle | null {
-    for (const h of this._autoLayoutReorderHandles) {
-      if (x >= h.sx && x <= h.sx + h.sw && y >= h.sy && y <= h.sy + h.sh) return h;
-    }
-    return null;
-  }
-
-  private renderAutoLayoutReorderHandles() {
-    this._autoLayoutReorderHandles = this.computeAutoLayoutReorderHandles();
-    if (this._autoLayoutReorderHandles.length === 0) {
-      this._autoLayoutReorderHovered = null;
-      return;
-    }
-
-    this.ctx.save();
-    for (const h of this._autoLayoutReorderHandles) {
-      const active = this._autoLayoutReorderDragging
-        ? (this._autoLayoutReorderDragging.nodeId === h.nodeId && this._autoLayoutReorderDragging.currentIndex === h.targetIndex)
-        : (this._autoLayoutReorderHovered?.targetIndex === h.targetIndex && this._autoLayoutReorderHovered?.position === h.position);
-      this.ctx.fillStyle = active ? "#0d99ff" : "rgba(13,153,255,0.18)";
-      this.ctx.strokeStyle = "#0d99ff";
-      this.ctx.lineWidth = 1;
-      this.ctx.beginPath();
-      this.ctx.roundRect(h.sx, h.sy, h.sw, h.sh, 4);
-      this.ctx.fill();
-      this.ctx.stroke();
-
-      this.ctx.strokeStyle = active ? "#ffffff" : "#0d99ff";
-      this.ctx.lineWidth = 1.5;
-      const cx = h.sx + h.sw / 2;
-      const cy = h.sy + h.sh / 2;
-      this.ctx.beginPath();
-      if (h.direction === "row") {
-        const dir = h.position === "before" ? -1 : 1;
-        this.ctx.moveTo(cx - dir * 2, cy - 3);
-        this.ctx.lineTo(cx + dir * 2, cy);
-        this.ctx.lineTo(cx - dir * 2, cy + 3);
-      } else {
-        const dir = h.position === "before" ? -1 : 1;
-        this.ctx.moveTo(cx - 3, cy - dir * 2);
-        this.ctx.lineTo(cx, cy + dir * 2);
-        this.ctx.lineTo(cx + 3, cy - dir * 2);
-      }
-      this.ctx.stroke();
-    }
-    this.ctx.restore();
   }
 
   private renderSpacingHandles() {

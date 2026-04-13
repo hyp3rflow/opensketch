@@ -1802,6 +1802,7 @@
 - 핸들 드래그로 siblings 간 순서 실시간 변경 (reparent_node_at + recompute_layout)
 - 드래그 중 삽입 위치 인디케이터 라인 + 현재 인덱스 badge
 - Layers panel 자동 동기화
+- (보강) smart guides 유무와 무관하게 reorder drop indicator가 항상 렌더되도록 경로 정리
 - 구현: `packages/app/src/tools/auto-layout-reorder.ts`, `packages/app/src/editor.ts`
 - specs 반영: `specs/FEATURES.md`
 
