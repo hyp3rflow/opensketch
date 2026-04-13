@@ -179,6 +179,8 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
     modeId: number;
     modeName: string;
     rawToken: string;
+    candidates: string[];
+    reason: "missing" | "ambiguous";
   };
 
   const parseAliasToken = (input: string): string | null => {
@@ -209,14 +211,34 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
       }
     }
 
-    const resolveAlias = (token: string, srcCollectionName: string): string | null => {
+    const resolveAliasCandidates = (token: string, srcCollectionName: string): string[] => {
       const norm = token.trim().toLowerCase();
-      if (byQualified.has(norm)) return byQualified.get(norm)!;
+      const results: string[] = [];
+
+      const qualified = byQualified.get(norm);
+      if (qualified) results.push(qualified);
+
       const inSame = byQualified.get(`${srcCollectionName}/${token}`.toLowerCase()) || byQualified.get(`${srcCollectionName}.${token}`.toLowerCase());
-      if (inSame) return inSame;
-      const bare = byBareName.get(norm);
-      if (bare && bare.length === 1) return bare[0];
-      return null;
+      if (inSame && !results.includes(inSame)) results.push(inSame);
+
+      const bare = byBareName.get(norm) || [];
+      for (const key of bare) {
+        if (!results.includes(key)) results.push(key);
+      }
+
+      if (results.length > 0) return results;
+
+      // soft suggestion: token suffix/name overlap for one-click retarget
+      const tokenLeaf = norm.split(/[./]/).filter(Boolean).pop() || norm;
+      for (const [name, keys] of byBareName.entries()) {
+        if (name.includes(tokenLeaf) || tokenLeaf.includes(name)) {
+          for (const key of keys) {
+            if (!results.includes(key)) results.push(key);
+          }
+        }
+      }
+
+      return results.slice(0, 5);
     };
 
     const edges: VariableAliasEdge[] = [];
@@ -231,12 +253,30 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
           const token = parseAliasToken(raw?.String || "");
           if (!token) continue;
           const modeId = Number(modeIdStr);
-          const target = resolveAlias(token, c.name);
-          if (!target) {
-            broken.push({ from: src, modeId, modeName: modeById.get(modeId) || `Mode ${modeId}`, rawToken: token });
+          const candidates = resolveAliasCandidates(token, c.name);
+          if (candidates.length === 0) {
+            broken.push({
+              from: src,
+              modeId,
+              modeName: modeById.get(modeId) || `Mode ${modeId}`,
+              rawToken: token,
+              candidates: [],
+              reason: "missing",
+            });
             continue;
           }
-          edges.push({ from: src, to: target, modeId, modeName: modeById.get(modeId) || `Mode ${modeId}`, rawToken: token });
+          if (candidates.length > 1) {
+            broken.push({
+              from: src,
+              modeId,
+              modeName: modeById.get(modeId) || `Mode ${modeId}`,
+              rawToken: token,
+              candidates,
+              reason: "ambiguous",
+            });
+            continue;
+          }
+          edges.push({ from: src, to: candidates[0], modeId, modeName: modeById.get(modeId) || `Mode ${modeId}`, rawToken: token });
         }
       }
     }
@@ -1106,7 +1146,7 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
     modeRecipeSection.appendChild(recipeListWrap);
     container.appendChild(modeRecipeSection);
 
-    // Variable dependency graph inspector
+    // Variable alias graph inspector
     const graph = buildVariableDependencyGraph(collections);
     const graphSection = document.createElement("div");
     graphSection.style.cssText = "margin-bottom:12px;background:#16202c;border:1px solid #274159;border-radius:6px;padding:8px;";
@@ -1115,17 +1155,17 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
     graphHeader.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;";
     const graphTitle = document.createElement("div");
     graphTitle.style.cssText = "font-size:10px;color:#7dd3fc;text-transform:uppercase;letter-spacing:0.5px;font-weight:700;";
-    graphTitle.textContent = "Variable Dependency Graph";
+    graphTitle.textContent = "Variable Alias Graph Inspector";
     graphHeader.appendChild(graphTitle);
 
     const graphMeta = document.createElement("div");
     graphMeta.style.cssText = "font-size:10px;color:#94a3b8;";
-    graphMeta.textContent = `Nodes ${graph.nodes.size} · Edges ${graph.edges.length} · Broken ${graph.broken.length} · Cycles ${graph.cycles.length}`;
+    graphMeta.textContent = `Nodes ${graph.nodes.size} · Edges ${graph.edges.length} · Unresolved ${graph.broken.length} · Cycles ${graph.cycles.length}`;
     graphHeader.appendChild(graphMeta);
     graphSection.appendChild(graphHeader);
 
     const issueWrap = document.createElement("div");
-    issueWrap.style.cssText = "display:flex;flex-direction:column;gap:4px;max-height:150px;overflow:auto;";
+    issueWrap.style.cssText = "display:flex;flex-direction:column;gap:4px;max-height:180px;overflow:auto;";
 
     const jumpToVariable = (key: string) => {
       const node = graph.nodes.get(key);
@@ -1135,17 +1175,47 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
       refresh();
     };
 
+    const aliasLabel = (key: string) => {
+      const n = graph.nodes.get(key);
+      return n ? `${n.collectionName}/${n.variableName}` : key;
+    };
+
+    const setAliasFor = (source: VariableGraphNode, modeId: number, targetKey: string) => {
+      const target = graph.nodes.get(targetKey);
+      if (!target) return;
+      editor.engine.push_undo();
+      editor.engine.set_variable_value(
+        BigInt(source.collectionId),
+        BigInt(source.variableId),
+        BigInt(modeId),
+        JSON.stringify({ String: `{${target.collectionName}/${target.variableName}}` })
+      );
+      editor.engine.apply_variables();
+      refresh();
+    };
+
     for (const broken of graph.broken.slice(0, 20)) {
       const source = graph.nodes.get(broken.from);
       if (!source) continue;
       const row = document.createElement("div");
       row.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:6px;background:rgba(127,29,29,0.28);border:1px solid rgba(248,113,113,0.38);border-radius:4px;padding:4px 6px;";
+
       const text = document.createElement("button");
       text.style.cssText = "flex:1;text-align:left;background:none;border:none;color:#fecaca;font-size:10px;cursor:pointer;";
-      text.textContent = `${source.collectionName}/${source.variableName} (${broken.modeName}) → {${broken.rawToken}}`;
+      const reasonText = broken.reason === "ambiguous" ? "ambiguous" : "missing";
+      text.textContent = `${source.collectionName}/${source.variableName} (${broken.modeName}) → {${broken.rawToken}} [${reasonText}]`;
       text.title = "Jump to source variable";
       text.onclick = () => jumpToVariable(broken.from);
       row.appendChild(text);
+
+      if (broken.candidates.length > 0) {
+        const retargetBtn = document.createElement("button");
+        retargetBtn.style.cssText = "background:#1e3a8a;border:1px solid #60a5fa;border-radius:4px;color:#bfdbfe;font-size:10px;padding:2px 6px;cursor:pointer;";
+        retargetBtn.textContent = "Retarget";
+        retargetBtn.title = `Set alias to ${aliasLabel(broken.candidates[0])}`;
+        retargetBtn.onclick = () => setAliasFor(source, broken.modeId, broken.candidates[0]);
+        row.appendChild(retargetBtn);
+      }
 
       const fixBtn = document.createElement("button");
       fixBtn.style.cssText = "background:#7f1d1d;border:1px solid #ef4444;border-radius:4px;color:#fecaca;font-size:10px;padding:2px 6px;cursor:pointer;";
@@ -1161,22 +1231,44 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
     }
 
     for (const cyc of graph.cycles.slice(0, 8)) {
-      const names = cyc.map((key) => {
-        const n = graph.nodes.get(key);
-        return n ? `${n.collectionName}/${n.variableName}` : key;
-      });
-      const row = document.createElement("button");
-      row.style.cssText = "text-align:left;background:rgba(88,28,135,0.22);border:1px solid rgba(216,180,254,0.45);border-radius:4px;color:#e9d5ff;font-size:10px;padding:4px 6px;cursor:pointer;";
-      row.textContent = `Cycle: ${names.join(" → ")}`;
-      row.title = "Jump to first variable in cycle";
-      row.onclick = () => jumpToVariable(cyc[0]);
+      const names = cyc.map((key) => aliasLabel(key));
+      const row = document.createElement("div");
+      row.style.cssText = "display:flex;align-items:center;gap:6px;background:rgba(88,28,135,0.22);border:1px solid rgba(216,180,254,0.45);border-radius:4px;padding:4px 6px;";
+
+      const cycBtn = document.createElement("button");
+      cycBtn.style.cssText = "flex:1;text-align:left;background:none;border:none;color:#e9d5ff;font-size:10px;cursor:pointer;";
+      cycBtn.textContent = `Cycle: ${names.join(" → ")}`;
+      cycBtn.title = "Jump to first variable in cycle";
+      cycBtn.onclick = () => jumpToVariable(cyc[0]);
+      row.appendChild(cycBtn);
+
+      if (cyc.length >= 2) {
+        const source = graph.nodes.get(cyc[0]);
+        const targetKey = cyc[1];
+        if (source) {
+          const breakBtn = document.createElement("button");
+          breakBtn.style.cssText = "background:#4c1d95;border:1px solid #a78bfa;border-radius:4px;color:#ede9fe;font-size:10px;padding:2px 6px;cursor:pointer;";
+          breakBtn.textContent = "Break";
+          breakBtn.title = `Clear alias from ${aliasLabel(cyc[0])} to break cycle`;
+          breakBtn.onclick = () => {
+            const edge = graph.edges.find((e) => e.from === cyc[0] && e.to === targetKey);
+            if (!edge) return;
+            editor.engine.push_undo();
+            editor.engine.set_variable_value(BigInt(source.collectionId), BigInt(source.variableId), BigInt(edge.modeId), JSON.stringify({ String: "" }));
+            editor.engine.apply_variables();
+            refresh();
+          };
+          row.appendChild(breakBtn);
+        }
+      }
+
       issueWrap.appendChild(row);
     }
 
     if (issueWrap.children.length === 0) {
       const clean = document.createElement("div");
       clean.style.cssText = "font-size:10px;color:#86efac;background:rgba(22,101,52,0.25);border:1px solid rgba(74,222,128,0.38);border-radius:4px;padding:5px 6px;";
-      clean.textContent = "No broken aliases or cycles found.";
+      clean.textContent = "No unresolved aliases or cycles found.";
       issueWrap.appendChild(clean);
     }
 

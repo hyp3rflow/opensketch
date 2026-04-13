@@ -2698,12 +2698,12 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] scope 전환 시 즉시 재평가(runSelection) + 선택 결과 라벨에 현재 scope 표시
 - 구현: `packages/app/src/ui/smart-select.ts`
 
-### Variable Alias Graph Inspector (2026-04-12)
-- [x] Variables 패널에 `Variable Dependency Graph` 인스펙터 추가 (nodes/edges/broken/cycles 요약 메타)
-- [x] String 변수의 `{alias}` 값을 alias edge로 파싱해 변수 간 의존 그래프를 생성
-- [x] broken alias를 mode 단위로 표시하고 source variable로 one-click jump 지원
-- [x] cycle 체인을 리스트업(`A → B → A`)해 참조 루프를 빠르게 진단
-- [x] broken alias row의 `Clear` 액션으로 해당 mode 값을 즉시 비우고 `apply_variables()` 반영
+### Variable Alias Graph Inspector (2026-04-13)
+- [x] Variables 패널 인스펙터명을 `Variable Alias Graph Inspector`로 정리하고 요약 메타를 `Unresolved` 중심으로 갱신
+- [x] String alias 파서가 `missing`/`ambiguous` 상태를 분리해 unresolved 원인을 명시
+- [x] unresolved alias row에 one-click `Retarget`(추천 타깃 재지정) + `Clear` 액션 제공
+- [x] cycle row에 one-click `Break` 액션 추가 (cycle edge alias를 즉시 끊고 `apply_variables()` 반영)
+- [x] source variable jump 흐름(컬렉션 자동 전환 + 검색) 유지
 - 구현: `packages/app/src/ui/variables-panel.ts`
 
 ### Interaction Timeline Scrubber (2026-04-12)

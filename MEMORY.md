@@ -1790,12 +1790,20 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Variable Alias Graph Inspector — 변수 alias 체인/순환/미해결 참조를 그래프로 점검하고 one-click fix 제안 (임팩트 중상, 난이도 중상)
 - Prototype Focus Trap Simulator — overlay/모달에서 Tab focus trap 누락을 시뮬레이션하고 즉시 수정 액션 제공 (임팩트 중, 난이도 중)
 - Canvas Comment Threads — 캔버스 위 특정 좌표에 코멘트 핀을 달고 스레드 형태로 리뷰/피드백 남기기 (임팩트 중상, 난이도 중)
 - Batch Rename Layer Tool — 다중 선택 레이어에 패턴 기반 일괄 이름 변경 (find/replace, prefix/suffix, numbering) (임팩트 중, 난이도 중하)
 - Selection Color Palette Inspector — 선택된 노드 트리의 모든 fill/stroke 색상을 수집·정리하고, 유사색 병합 및 design token 매핑 제안 (임팩트 중상, 난이도 중)
 
+
+
+## 완료된 기능 (추가 — Variable Alias Graph Inspector 강화, 2026-04-13)
+- Variables 패널 그래프 카드를 `Variable Alias Graph Inspector`로 정리하고 unresolved/cycle 메타를 강화
+- alias 해석 시 unresolved를 `missing` / `ambiguous`로 분류해 이슈 원인을 명시
+- unresolved row에 one-click `Retarget`(추천 타깃으로 alias 재지정) + `Clear` 액션 추가
+- cycle row에 one-click `Break` 액션 추가 (cycle edge alias 값을 즉시 비우고 apply)
+- 구현: `packages/app/src/ui/variables-panel.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Auto Layout Reorder Handles, 2026-04-13)
 - Auto-layout 자식 선택 시 캔버스에 6-dot grip 핸들 오버레이 표시
