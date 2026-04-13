@@ -397,6 +397,47 @@ function createTokenUsageMapSection(
   unresolved.textContent = `${tokenUsage.size} bound token(s) across ${nodes.length} node(s)`;
   section.appendChild(unresolved);
 
+  const heatmapWrap = document.createElement("div");
+  heatmapWrap.style.cssText = "display:grid;grid-template-columns:auto 1fr auto;gap:4px;align-items:center;margin-bottom:6px;";
+  const heatmapToggle = document.createElement("input");
+  heatmapToggle.type = "checkbox";
+  const scopeSel = document.createElement("select");
+  scopeSel.style.cssText = "background:#1e1e1e;color:#ccc;border:1px solid #444;border-radius:4px;padding:2px 4px;font-size:10px;";
+  ["Page", "Selection"].forEach((scope) => {
+    const opt = document.createElement("option");
+    opt.value = scope.toLowerCase();
+    opt.textContent = scope;
+    scopeSel.appendChild(opt);
+  });
+  const refreshHeatmapBtn = document.createElement("button");
+  refreshHeatmapBtn.textContent = "Heatmap";
+  refreshHeatmapBtn.style.cssText = "background:#1f2937;border:1px solid #374151;color:#cbd5e1;border-radius:4px;font-size:10px;padding:2px 6px;cursor:pointer;";
+
+  const applyHeatmap = () => {
+    const selected = new Set<number>(Array.from(editor.engine.get_selection?.() || []).map((v: any) => Number(v)).filter((v: number) => Number.isFinite(v) && v > 0));
+    const weights: Record<number, number> = {};
+    for (const n of nodes) {
+      if (scopeSel.value === "selection" && !selected.has(Number(n.id))) continue;
+      const bindings: Array<{ property: string; tokenName: string }> = JSON.parse(editor.engine.token_get_bindings(BigInt(n.id)) || "[]");
+      if (!bindings.length) continue;
+      weights[n.id] = bindings.length;
+    }
+    (editor as any).setTokenUsageHeatmap?.(heatmapToggle.checked, weights, scopeSel.value === "selection" ? "selection" : "page");
+    editor.requestRender();
+  };
+
+  heatmapToggle.addEventListener("change", applyHeatmap);
+  scopeSel.addEventListener("change", applyHeatmap);
+  refreshHeatmapBtn.onclick = () => {
+    heatmapToggle.checked = !heatmapToggle.checked;
+    applyHeatmap();
+  };
+
+  heatmapWrap.appendChild(heatmapToggle);
+  heatmapWrap.appendChild(scopeSel);
+  heatmapWrap.appendChild(refreshHeatmapBtn);
+  section.appendChild(heatmapWrap);
+
   const list = document.createElement("div");
   list.style.cssText = "display:flex;flex-direction:column;gap:4px;max-height:160px;overflow:auto;padding-right:2px;";
 

@@ -14364,6 +14364,84 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             refresh(ids);
           });
           layoutSection.appendChild(alignSel);
+
+          // Baseline alignment quick controls (especially useful for mixed text/icon rows)
+          const baselineCard = document.createElement("div");
+          baselineCard.style.cssText = "margin-bottom:8px;background:#1a2332;border:1px solid #2f4561;border-radius:6px;padding:6px;display:flex;flex-direction:column;gap:6px;";
+
+          const baselineHead = document.createElement("div");
+          baselineHead.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:8px;";
+
+          const baselineTitle = document.createElement("div");
+          baselineTitle.style.cssText = "font-size:10px;color:#7dd3fc;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;";
+          baselineTitle.textContent = "Baseline";
+          baselineHead.appendChild(baselineTitle);
+
+          const baselineMeta = document.createElement("div");
+          baselineMeta.style.cssText = "font-size:10px;color:#93c5fd;";
+
+          let hasTextChild = false;
+          let hasNonTextChild = false;
+          try {
+            const nodeJson = editor.engine.get_node(BigInt(id));
+            const node = nodeJson ? JSON.parse(nodeJson) : null;
+            const childIds: number[] = Array.isArray(node?.children) ? node.children : [];
+            for (const childId of childIds) {
+              const childJson = editor.engine.get_node(BigInt(childId));
+              if (!childJson) continue;
+              const child = JSON.parse(childJson);
+              const kind = typeof child?.kind === "string" ? child.kind : String(child?.kind || "");
+              if (kind === "Text") hasTextChild = true;
+              else hasNonTextChild = true;
+              if (hasTextChild && hasNonTextChild) break;
+            }
+          } catch {
+            // no-op (best-effort inspector)
+          }
+
+          const isMixedTextRow = hasTextChild && hasNonTextChild;
+          baselineMeta.textContent = isMixedTextRow ? "Mixed text/icon row detected" : "Use for text baseline consistency";
+          baselineHead.appendChild(baselineMeta);
+          baselineCard.appendChild(baselineHead);
+
+          const baselineHint = document.createElement("div");
+          baselineHint.style.cssText = "font-size:10px;color:#94a3b8;";
+          const canUseBaseline = dir === "row";
+          baselineHint.textContent = canUseBaseline
+            ? "First/Last baseline aligns text naturally in horizontal auto-layout."
+            : "Baseline alignment works in Row direction. Switch direction to Row to apply.";
+          baselineCard.appendChild(baselineHint);
+
+          const baselineBtns = document.createElement("div");
+          baselineBtns.style.cssText = "display:flex;gap:4px;flex-wrap:wrap;";
+          const baselineActions = [
+            { value: "first-baseline", label: "First baseline" },
+            { value: "last-baseline", label: "Last baseline" },
+            { value: "center", label: "Center" },
+          ];
+
+          baselineActions.forEach((action) => {
+            const btn = document.createElement("button");
+            const active = curAlign === action.value;
+            btn.style.cssText = `
+              padding:3px 8px;border:1px solid ${active ? "#4f46e5" : "#3a3a3a"};
+              border-radius:5px;background:${active ? "#4f46e520" : "#2a2a2a"};
+              color:${active ? "#818cf8" : "#94a3b8"};font-size:10px;cursor:${canUseBaseline ? "pointer" : "not-allowed"};
+              opacity:${canUseBaseline ? "1" : "0.55"};
+            `;
+            btn.textContent = action.label;
+            btn.disabled = !canUseBaseline;
+            btn.onclick = () => {
+              editor.engine.push_undo();
+              editor.engine.set_align_items(BigInt(id), action.value);
+              editor.requestRender();
+              refresh(ids);
+            };
+            baselineBtns.appendChild(btn);
+          });
+
+          baselineCard.appendChild(baselineBtns);
+          layoutSection.appendChild(baselineCard);
         }
 
         // --- Gap & Padding compact row ---

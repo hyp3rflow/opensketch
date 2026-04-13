@@ -312,6 +312,7 @@ export class Editor {
   private _altHeld = false;
   private _devMode = false;
   private _devModeOverlay: DevModeOverlay;
+  private _tokenUsageHeatmap: { enabled: boolean; label: string; weights: Map<number, number> } = { enabled: false, label: "", weights: new Map() };
   private _devHoverNodeId: number | null = null;
   private _devHoverTimer: ReturnType<typeof setTimeout> | null = null;
   private onSaveCallbacks: (() => void)[] = [];
@@ -6080,6 +6081,7 @@ export class Editor {
         this.renderTextFlowLinks();
         this.renderMotionPathOverlay();
         this._annotationHeatmap?.render(this.ctx, this.zoom, this.panX, this.panY);
+        this.renderTokenUsageHeatmap();
         this.renderSearchHighlights();
         this.renderDiffOverlay();
         this.renderSearchFilterOverlay();
@@ -7598,6 +7600,66 @@ export class Editor {
   onLayersChange(fn: () => void) { this.onLayersChanges.push(fn); }
   getSelection(): number[] { return Array.from(this.engine.get_selection()).map(Number); }
   requestRender() { this.needsRender = true; }
+
+  setTokenUsageHeatmap(enabled: boolean, weights?: Record<number, number>, label?: string) {
+    this._tokenUsageHeatmap.enabled = !!enabled;
+    this._tokenUsageHeatmap.label = String(label || "");
+    const map = new Map<number, number>();
+    if (weights) {
+      for (const [k, v] of Object.entries(weights)) {
+        const id = Number(k);
+        const weight = Number(v);
+        if (!Number.isFinite(id) || !Number.isFinite(weight) || weight <= 0) continue;
+        map.set(id, weight);
+      }
+    }
+    this._tokenUsageHeatmap.weights = map;
+    this.needsRender = true;
+  }
+
+  private renderTokenUsageHeatmap() {
+    if (!this._tokenUsageHeatmap.enabled || this._tokenUsageHeatmap.weights.size === 0) return;
+    const zoom = this.engine.get_zoom();
+    const panX = this.engine.get_pan_x();
+    const panY = this.engine.get_pan_y();
+    const maxWeight = Math.max(...Array.from(this._tokenUsageHeatmap.weights.values()), 1);
+
+    this.ctx.save();
+    for (const [id, weight] of this._tokenUsageHeatmap.weights.entries()) {
+      try {
+        const nodeJson = this.engine.get_node_json(BigInt(id));
+        if (!nodeJson) continue;
+        const node = JSON.parse(nodeJson);
+        if (node?.visible === false) continue;
+        const sx = (Number(node.x || 0) - panX) * zoom;
+        const sy = (Number(node.y || 0) - panY) * zoom;
+        const sw = Number(node.width || 0) * zoom;
+        const sh = Number(node.height || 0) * zoom;
+        if (sw <= 0 || sh <= 0) continue;
+        const t = Math.max(0, Math.min(1, weight / maxWeight));
+        const alpha = 0.12 + t * 0.25;
+        this.ctx.fillStyle = `rgba(${Math.round(239 - t * 80)}, ${Math.round(68 + t * 130)}, ${Math.round(68 + t * 30)}, ${alpha})`;
+        this.ctx.strokeStyle = `rgba(${Math.round(248 - t * 60)}, ${Math.round(113 + t * 100)}, ${Math.round(113 + t * 40)}, ${0.4 + t * 0.4})`;
+        this.ctx.lineWidth = 1.5;
+        this.ctx.fillRect(sx, sy, sw, sh);
+        this.ctx.strokeRect(sx, sy, sw, sh);
+      } catch {
+        // ignore invalid node references
+      }
+    }
+
+    this.ctx.fillStyle = "rgba(15,23,42,0.88)";
+    this.ctx.strokeStyle = "rgba(148,163,184,0.5)";
+    this.ctx.lineWidth = 1;
+    this.ctx.fillRect(10, 10, 240, 26);
+    this.ctx.strokeRect(10, 10, 240, 26);
+    this.ctx.fillStyle = "#e2e8f0";
+    this.ctx.font = "11px Inter, sans-serif";
+    const count = this._tokenUsageHeatmap.weights.size;
+    const suffix = this._tokenUsageHeatmap.label ? ` · ${this._tokenUsageHeatmap.label}` : "";
+    this.ctx.fillText(`Token Heatmap · ${count} nodes${suffix}`, 16, 27);
+    this.ctx.restore();
+  }
 
   setWrapLineInspectorEnabled(enabled: boolean) {
     this._wrapLineInspectorEnabled = !!enabled;

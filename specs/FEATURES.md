@@ -33,6 +33,7 @@
 ### UI Panels
 - [x] **Left Panel** with tab navigation (Layers / Design)
 - [x] **Design Token Usage Map (2026-04-11)**: Properties > Design Tokens 패널에서 토큰별 사용 노드 수를 즉시 집계/표시하고, `Pick`으로 바운드 노드를 빠르게 선택할 수 있다. 미사용 토큰은 경고 스타일로 노출되며, 동일 resolved 값의 잠재 중복 토큰 그룹을 표시한다. 또한 `Replace` 액션으로 문서 전체 token binding(속성 단위)을 일괄 치환할 수 있다.
+- [x] **Token Usage Heatmap on Canvas (2026-04-14)**: Token Usage Map에 Canvas heatmap 토글 + scope(Page/Selection)를 추가해 토큰 바인딩 밀도를 캔버스 오버레이로 시각화한다. 바인딩 수가 많은 노드는 더 강한 색으로 표시되고 HUD에 대상 노드 수/스코프를 표시해 정리 우선순위를 빠르게 파악할 수 있다.
 - [x] **Layers Panel**: tree view with expand/collapse, indentation, SVG type icons, visibility toggle
 - [x] **Layers Panel View Modes**: stack↔grid toggle for faster scanning in large docs, with density options (Compact/Cozy) and persisted preference (localStorage). Grid mode shows flat layer cards with kind badges; stack mode keeps hierarchical drag reorder/workflow.
 - [x] **Properties Panel**: full node editing
@@ -81,6 +82,7 @@
 - [x] Font family support (14 fonts)
 - [x] Font Fallback Inspector: Properties > Text에서 `Inspect Fallback`으로 선택된 Text 레이어의 요청 폰트 로드 여부를 점검하고, 미로드 시 추정 fallback(`system-ui/sans-serif/serif/monospace`) 및 추천 대체 폰트를 리포트. `Replace Missing`으로 미로드 레이어 일괄 치환 가능
 - [x] Text Truncation & Overflow Inspector (2026-04-13): Fixed text box에서 텍스트 메트릭 기반 Required W/H를 계산해 가로/세로 overflow를 감지하고, Properties 패널에서 `Resize box to fit` / `Switch to Fit sizing` / `Fix height only` / `Set overflow: Ellipsis` one-click 수정을 제공. Auto Layout 부모 감지 시 영향 경고 힌트 표시
+- [x] Auto Layout Baseline Alignment Controls (2026-04-14): Flex(Row) 컨테이너의 Alignment 영역에 `Baseline` 카드(First baseline / Last baseline / Center quick actions)를 추가. children 분석으로 text+icon 혼합 여부를 감지해 상태 힌트를 보여주고, Row가 아닌 경우 baseline 액션을 비활성화해 오동작을 방지.
 - [x] Enter to commit, Escape to cancel
 - [x] Default text fill: black
 - [x] Text transform: None/Uppercase/Lowercase/Capitalize (visual + SVG export + CSS codegen)
