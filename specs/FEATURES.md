@@ -2617,6 +2617,19 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Quick tuning 액션: `Gap -2`, `Gap +2`, `Align start`, `Align between`
 - [x] 구현: `packages/app/src/ui/properties-panel.ts`
 
+### Auto Layout Wrap Line Inspector (2026-04-14)
+- [x] Flex + Wrap 컨테이너의 줄 그룹(line)을 geometry + `wrap_before` 기준으로 계산하는 inspector 모델 추가
+  - API: `computeWrapInspectorModel(engine, frameId)`
+  - line별 bounds/childIds/평균 gap 산출 + `missingBreakBeforeChildIds` 탐지
+- [x] Properties panel `Wrap Line Inspector` 카드 추가
+  - 요약: line 수 + missing break 수
+  - line별 액션: `Break`, `Use gap`
+  - one-click `Fix missing breaks` (누락된 `wrap_before` 일괄 설정)
+- [x] Canvas overlay 지원
+  - line별 bounding box 점선 + `L{n} · gap {x}px` 라벨
+  - 토글 상태를 `localStorage['opensketch-wrap-line-inspector']`에 저장
+- [x] 구현: `packages/app/src/tools/auto-layout-wrap-inspector.ts`, `packages/app/src/ui/properties-panel.ts`, `packages/app/src/editor.ts`
+
 ### Component Variant Naming Lint (2026-04-10)
 - [x] Variant Matrix Editor 상단에 `Variant Naming Lint` 카드 추가
 - [x] axis/value 네이밍 품질 점검:

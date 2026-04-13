@@ -32,6 +32,7 @@ import { SpatialAudio } from "./spatial-audio";
 import { initSpatialAudioPanel, toggleSpatialAudioPanel, closeSpatialAudioPanel, isSpatialAudioPanelOpen } from "./ui/spatial-audio-panel";
 import { findSpacingHandles, hitTestSpacingHandle, renderSpacingHandles, type SpacingHandle, findPaddingHandles, hitTestPaddingHandle, renderPaddingHandles, type PaddingHandle } from "./tools/spacing-handles";
 import { findReorderHandles, hitTestReorderHandle, beginReorderDrag, updateReorderDrag, executeReorder, renderReorderHandles, type ReorderHandle, type ReorderDragState } from "./tools/auto-layout-reorder";
+import { computeWrapInspectorModel, renderWrapInspectorOverlay } from "./tools/auto-layout-wrap-inspector";
 import { type CropState, type CropHandle, hitTestCropHandle, getCropCursor, applyCropDrag, renderCropOverlay } from "./tools/image-crop";
 import { showLayoutSuggestion, dismissSuggestion } from "./ui/ai-layout-suggest";
 import { openSymbolDetachPreview } from "./ui/symbol-detach-preview";
@@ -352,6 +353,7 @@ export class Editor {
   private _reorderHandles: ReorderHandle[] = [];
   private _reorderHovered: ReorderHandle | null = null;
   private _reorderDrag: ReorderDragState | null = null;
+  private _wrapLineInspectorEnabled = false;
 
   // Cursor presence
   private _cursorPresence = new CursorPresence();
@@ -435,6 +437,8 @@ export class Editor {
         }));
       },
     });
+
+    this._wrapLineInspectorEnabled = localStorage.getItem("opensketch-wrap-line-inspector") === "1";
 
     const preferredBackend = localStorage.getItem("opensketch-renderer-backend");
     if (preferredBackend === "webgpu") {
@@ -6064,6 +6068,7 @@ export class Editor {
         this.renderComponentSetOverlays();
         this.renderGradientEditor();
         this.renderSpacingHandles();
+        this.renderWrapLineInspectorOverlay();
         this.renderMultiTransformBox();
         this.renderConstraintPinsOverlay();
         this.renderConstraintDebugOverlay();
@@ -7594,6 +7599,16 @@ export class Editor {
   getSelection(): number[] { return Array.from(this.engine.get_selection()).map(Number); }
   requestRender() { this.needsRender = true; }
 
+  setWrapLineInspectorEnabled(enabled: boolean) {
+    this._wrapLineInspectorEnabled = !!enabled;
+    try { localStorage.setItem("opensketch-wrap-line-inspector", this._wrapLineInspectorEnabled ? "1" : "0"); } catch {}
+    this.needsRender = true;
+  }
+
+  isWrapLineInspectorEnabled(): boolean {
+    return this._wrapLineInspectorEnabled;
+  }
+
   get layoutGridsVisible() { return this._layoutGridsVisible; }
   set layoutGridsVisible(v: boolean) { this._layoutGridsVisible = v; this.needsRender = true; }
 
@@ -7710,6 +7725,21 @@ export class Editor {
     this.ctx.textBaseline = "middle";
     this.ctx.fillText(h.mode[0], h.sx + h.sw * 0.5, h.sy + h.sh * 0.5 + 0.5);
     this.ctx.restore();
+  }
+
+  private renderWrapLineInspectorOverlay() {
+    if (!this._wrapLineInspectorEnabled) return;
+    const sel = Array.from(this.engine.get_selection()).map(Number);
+    if (sel.length !== 1) return;
+    const model = computeWrapInspectorModel(this.engine, sel[0]);
+    if (!model) return;
+    renderWrapInspectorOverlay(
+      this.ctx,
+      model,
+      this.engine.get_zoom(),
+      this.engine.get_pan_x(),
+      this.engine.get_pan_y(),
+    );
   }
 
   // auto-layout reorder handles rendered by renderAutoLayoutReorderHandles() above.

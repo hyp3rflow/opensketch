@@ -1790,10 +1790,20 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Auto Layout Wrap Line Inspector — wrap 컨테이너의 line break 지점을 캔버스에 표시하고 per-line gap/align 미세 조정 (임팩트 중상, 난이도 중)
 - Variable Token Drift Timeline — 컬렉션/모드별 변수 값 변경 이력을 타임라인으로 추적하고 특정 시점으로 롤백 (임팩트 중상, 난이도 상)
 - Token Usage Heatmap on Canvas — 선택/페이지 기준 style token 사용 밀도를 캔버스 오버레이로 시각화하고 미사용 토큰 정리 제안 (임팩트 중, 난이도 중)
 - Prototype Start Points Manager — 페이지/플로우별 multiple start point를 저장/전환해 QA 시나리오를 빠르게 재생 (임팩트 중상, 난이도 중)
+
+## 완료된 기능 (추가 — Auto Layout Wrap Line Inspector, 2026-04-14)
+- Wrap 활성 Auto-layout 컨테이너용 `Wrap Line Inspector` 카드 추가
+  - line count/평균 gap/missing break 요약
+  - line별 quick action: `Break`(해당 line 첫 child `wrap_before=true`), `Use gap`(line 평균 gap을 container gap으로 적용)
+  - `Fix missing breaks`로 geometry 기반 줄바꿈인데 `wrap_before` 누락된 케이스를 일괄 보정
+- Canvas overlay 토글 추가 (`Canvas` 체크박스 + localStorage 유지)
+  - 각 wrap line bounding box + `L{n} · gap` 라벨을 캔버스에 표시
+- 구현: `packages/app/src/tools/auto-layout-wrap-inspector.ts`, `packages/app/src/ui/properties-panel.ts`, `packages/app/src/editor.ts`
+- 빌드 확인: `wasm-pack build --target web`, `pnpm -C packages/app build`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Auto Layout Baseline Alignment Controls v2, 2026-04-14)
 - Align enum 확장: `FirstBaseline` / `LastBaseline` 추가 (`set_align_items(..., "first-baseline"|"last-baseline")` 지원)

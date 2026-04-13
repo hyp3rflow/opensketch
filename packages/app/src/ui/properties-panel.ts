@@ -13,6 +13,7 @@ import { renderScrollAnimSection } from "./scroll-animation";
 import { openARQuickLook } from "./ar-quicklook";
 import { downloadDesignSystemDocs } from "./design-system-docs";
 import { openComponentSetMatrixEditor } from "./component-set-matrix-editor";
+import { computeWrapInspectorModel } from "../tools/auto-layout-wrap-inspector";
 
 type ConstraintSetPreset = {
   id: string;
@@ -14022,6 +14023,105 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
               refresh(ids);
             });
             dirRow.appendChild(acSel);
+          }
+
+          if (isWrap) {
+            const wrapModel = computeWrapInspectorModel(editor.engine as any, Number(id));
+            const inspectorCard = document.createElement("div");
+            inspectorCard.style.cssText = "margin-bottom:8px;background:#1a2332;border:1px solid #2f4561;border-radius:6px;padding:6px;display:flex;flex-direction:column;gap:6px;";
+
+            const top = document.createElement("div");
+            top.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:8px;";
+            const title = document.createElement("div");
+            title.style.cssText = "font-size:10px;color:#7dd3fc;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;";
+            title.textContent = "Wrap Line Inspector";
+            top.appendChild(title);
+
+            const toggleWrapOverlay = document.createElement("label");
+            toggleWrapOverlay.style.cssText = "display:flex;align-items:center;gap:5px;font-size:10px;color:#93c5fd;cursor:pointer;";
+            const toggleInput = document.createElement("input");
+            toggleInput.type = "checkbox";
+            toggleInput.checked = !!(editor as any).isWrapLineInspectorEnabled?.();
+            toggleInput.addEventListener("change", () => {
+              (editor as any).setWrapLineInspectorEnabled?.(toggleInput.checked);
+              editor.requestRender();
+            });
+            toggleWrapOverlay.append(toggleInput, document.createTextNode("Canvas"));
+            top.appendChild(toggleWrapOverlay);
+            inspectorCard.appendChild(top);
+
+            const meta = document.createElement("div");
+            const lineCount = wrapModel?.lines.length || 0;
+            const unresolved = wrapModel?.missingBreakBeforeChildIds.length || 0;
+            meta.style.cssText = "font-size:10px;color:#94a3b8;";
+            meta.textContent = `Lines ${lineCount} · Missing breaks ${unresolved}`;
+            inspectorCard.appendChild(meta);
+
+            if (wrapModel && wrapModel.lines.length > 0) {
+              const list = document.createElement("div");
+              list.style.cssText = "display:flex;flex-direction:column;gap:4px;max-height:150px;overflow:auto;";
+
+              for (const line of wrapModel.lines.slice(0, 8)) {
+                const row = document.createElement("div");
+                row.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:6px;background:#0f172a;border:1px solid #334155;border-radius:5px;padding:4px 6px;";
+
+                const info = document.createElement("div");
+                info.style.cssText = "font-size:10px;color:#cbd5e1;";
+                info.textContent = `L${line.index + 1} · ${line.childIds.length} items · gap≈${Math.round(line.averageGap * 10) / 10}px`;
+                row.appendChild(info);
+
+                const actions = document.createElement("div");
+                actions.style.cssText = "display:flex;gap:4px;";
+
+                if (line.index > 0) {
+                  const br = document.createElement("button");
+                  br.style.cssText = "background:#172554;border:1px solid #3b82f6;border-radius:4px;color:#bfdbfe;font-size:10px;padding:2px 5px;cursor:pointer;";
+                  br.textContent = "Break";
+                  br.title = "Force first item of this line to wrap before";
+                  br.onclick = () => {
+                    editor.engine.push_undo();
+                    (editor.engine as any).set_wrap_before(BigInt(line.firstChildId), true);
+                    editor.requestRender();
+                    refresh(ids);
+                  };
+                  actions.appendChild(br);
+                }
+
+                const gapBtn = document.createElement("button");
+                gapBtn.style.cssText = "background:#064e3b;border:1px solid #10b981;border-radius:4px;color:#d1fae5;font-size:10px;padding:2px 5px;cursor:pointer;";
+                gapBtn.textContent = "Use gap";
+                gapBtn.title = "Apply this line's average gap to container";
+                gapBtn.onclick = () => {
+                  editor.engine.push_undo();
+                  editor.engine.set_gap(BigInt(id), Math.max(0, Math.round(line.averageGap)));
+                  editor.requestRender();
+                  refresh(ids);
+                };
+                actions.appendChild(gapBtn);
+
+                row.appendChild(actions);
+                list.appendChild(row);
+              }
+
+              inspectorCard.appendChild(list);
+            }
+
+            if (wrapModel && wrapModel.missingBreakBeforeChildIds.length > 0) {
+              const fixBtn = document.createElement("button");
+              fixBtn.style.cssText = "align-self:flex-start;background:#3f1d1d;border:1px solid #ef4444;border-radius:4px;color:#fecaca;font-size:10px;padding:3px 8px;cursor:pointer;";
+              fixBtn.textContent = `Fix missing breaks (${wrapModel.missingBreakBeforeChildIds.length})`;
+              fixBtn.onclick = () => {
+                editor.engine.push_undo();
+                for (const childId of wrapModel.missingBreakBeforeChildIds) {
+                  (editor.engine as any).set_wrap_before(BigInt(childId), true);
+                }
+                editor.requestRender();
+                refresh(ids);
+              };
+              inspectorCard.appendChild(fixBtn);
+            }
+
+            layoutSection.appendChild(inspectorCard);
           }
         }
 
