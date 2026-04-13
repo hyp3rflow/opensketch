@@ -502,8 +502,8 @@ function buildTools(): Tool[] {
     {
       name: "align",
       description: "Set align-items",
-      usage: "align <node_id> <start|center|end|stretch|baseline>",
-      pattern: /^align\s+(\d+)\s+(start|center|end|stretch|baseline)$/i,
+      usage: "align <node_id> <start|center|end|stretch|baseline|first-baseline|last-baseline>",
+      pattern: /^align\s+(\d+)\s+(start|center|end|stretch|baseline|first-baseline|last-baseline)$/i,
       execute: (m, editor) => {
         editor.engine.set_align_items(BigInt(m[1]!), m[2]!.toLowerCase());
         editor.requestRender();

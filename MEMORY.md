@@ -1795,6 +1795,17 @@
 - Token Usage Heatmap on Canvas — 선택/페이지 기준 style token 사용 밀도를 캔버스 오버레이로 시각화하고 미사용 토큰 정리 제안 (임팩트 중, 난이도 중)
 - Prototype Start Points Manager — 페이지/플로우별 multiple start point를 저장/전환해 QA 시나리오를 빠르게 재생 (임팩트 중상, 난이도 중)
 
+## 완료된 기능 (추가 — Auto Layout Baseline Alignment Controls v2, 2026-04-14)
+- Align enum 확장: `FirstBaseline` / `LastBaseline` 추가 (`set_align_items(..., "first-baseline"|"last-baseline")` 지원)
+- Flex row baseline 정렬 계산 확장
+  - text: first baseline + (줄 수 기반) last baseline 오프셋 추정
+  - non-text: first/last baseline 모두 bottom edge로 처리
+- Properties panel Auto Layout에 `Cross: First Baseline (Row)` / `Cross: Last Baseline (Row)` 옵션 추가
+- 코드/프리뷰 내보내기 매핑 업데이트
+  - component export / live preview / inspect / handoff의 align-items 매핑에 first/last baseline 반영
+- 구현: `crates/engine/src/node.rs`, `crates/engine/src/layout.rs`, `crates/engine/src/lib.rs`, `crates/engine/src/code_to_design.rs`, `packages/app/src/ui/properties-panel.ts` 외
+- specs 반영: `specs/FEATURES.md`
+
 ## 완료된 기능 (추가 — Prototype Conditional Branch Visual Debugger, 2026-04-14)
 - Prototype viewer `Flow Minimap`이 conditional interaction branch 상태를 실시간 색상 오버레이로 표시
   - 조건 없는 링크: 기본 회색, condition true: 초록(✓), condition false: 빨강 점선(✕)

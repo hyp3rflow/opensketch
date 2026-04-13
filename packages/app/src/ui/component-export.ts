@@ -136,7 +136,7 @@ function getNodeStyles(editor: Editor, nodeId: number, depth: number): StyleMap 
       if (layout.mode === "Flex") {
         s["display"] = "flex";
         if (layout.direction === "Column") s["flex-direction"] = "column";
-        const aiMap: Record<string, string> = { Start: "flex-start", Center: "center", End: "flex-end", Stretch: "stretch", Baseline: "baseline" };
+        const aiMap: Record<string, string> = { Start: "flex-start", Center: "center", End: "flex-end", Stretch: "stretch", Baseline: "baseline", FirstBaseline: "first baseline", LastBaseline: "last baseline" };
         if (layout.align_items && aiMap[layout.align_items]) s["align-items"] = aiMap[layout.align_items]!;
         const jcMap: Record<string, string> = { Start: "flex-start", Center: "center", End: "flex-end", SpaceBetween: "space-between", SpaceAround: "space-around", SpaceEvenly: "space-evenly" };
         if (layout.justify_content && jcMap[layout.justify_content]) s["justify-content"] = jcMap[layout.justify_content]!;

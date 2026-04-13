@@ -2551,6 +2551,15 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Properties panel Auto Layout에 `Cross: Baseline (Row)` 옵션 추가
 - [x] Inspect/Handoff/Figma export의 align-items/counter-axis 매핑에 Baseline 반영
 
+### Auto Layout Baseline Alignment Controls v2 (2026-04-14)
+- [x] Align enum 확장: `FirstBaseline` / `LastBaseline` 추가 (`set_align_items(..., "first-baseline"|"last-baseline")`)
+- [x] Flex row baseline 계산 확장
+  - text: first baseline(half-leading + ascent) + multi-line content 기반 last baseline 오프셋 추정
+  - non-text: bottom edge를 baseline으로 처리
+- [x] Properties panel Auto Layout `Cross` 옵션에 `First Baseline (Row)` / `Last Baseline (Row)` 추가
+- [x] Code export/live preview/inspect/handoff align-items 매핑에 first/last baseline 반영
+- [x] `baseline` 기존 값은 legacy 호환으로 유지 (first baseline과 동일 동작)
+
 ### Component Slots Inspector (2026-04-09)
 - [x] Properties > Component source (`[C] ...`) header actions에 `Slots` / `Repair` 추가
 - [x] `Slots` inspector: instance_swap property의 linked slot 유효성 점검 (slot node 수, 정상/누락 개수, 누락 항목별 추천 slot)

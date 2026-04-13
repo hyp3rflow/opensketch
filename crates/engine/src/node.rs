@@ -1145,6 +1145,8 @@ pub enum Align {
     End,
     Stretch,
     Baseline,
+    FirstBaseline,
+    LastBaseline,
 }
 
 impl Default for Align {

@@ -14133,7 +14133,9 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             { value: "center", label: "Cross: Center" },
             { value: "end", label: "Cross: End" },
             { value: "stretch", label: "Cross: Stretch" },
-            { value: "baseline", label: "Cross: Baseline (Row)" },
+            { value: "first-baseline", label: "Cross: First Baseline (Row)" },
+            { value: "last-baseline", label: "Cross: Last Baseline (Row)" },
+            { value: "baseline", label: "Cross: Baseline (Legacy)" },
           ];
           alignOptions.forEach((o) => {
             const opt = document.createElement("option");

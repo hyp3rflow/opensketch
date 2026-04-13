@@ -815,7 +815,7 @@ function generateTailwind(ctx: CodeCtx): string {
       classes.push("flex");
       if (layout.direction === "Column") classes.push("flex-col");
       if (layout.align_items) {
-        const m: Record<string, string> = { Start: "items-start", Center: "items-center", End: "items-end", Stretch: "items-stretch", Baseline: "items-baseline" };
+        const m: Record<string, string> = { Start: "items-start", Center: "items-center", End: "items-end", Stretch: "items-stretch", Baseline: "items-baseline", FirstBaseline: "items-baseline", LastBaseline: "items-baseline" };
         classes.push(m[layout.align_items] || "");
       }
       if (layout.justify_content) {
@@ -1243,7 +1243,7 @@ function stateCaptureLabel(state: HandoffStateCapture): string {
 }
 
 function cssAlignValue(v: string): string {
-  const map: Record<string, string> = { Start: "flex-start", Center: "center", End: "flex-end", Stretch: "stretch", Baseline: "baseline" };
+  const map: Record<string, string> = { Start: "flex-start", Center: "center", End: "flex-end", Stretch: "stretch", Baseline: "baseline", FirstBaseline: "first baseline", LastBaseline: "last baseline" };
   return map[v] || v.toLowerCase();
 }
 

@@ -811,6 +811,8 @@ fn create_frame_node(scene: &mut Scene, tag: &str, styles: &CssProps, _classes: 
             "center" => Align::Center,
             "flex-end" | "end" => Align::End,
             "stretch" => Align::Stretch,
+            "first baseline" | "first-baseline" => Align::FirstBaseline,
+            "last baseline" | "last-baseline" => Align::LastBaseline,
             "baseline" => Align::Baseline,
             _ => Align::Start,
         };

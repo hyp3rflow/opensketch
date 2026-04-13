@@ -146,7 +146,7 @@ function nodeToHTML(editor: Editor, nodeId: number, depth: number = 0): string {
         styles.push("display:flex");
         if (layout.direction === "Column") styles.push("flex-direction:column");
         if (layout.align_items) {
-          const aiMap: Record<string, string> = { Start: "flex-start", Center: "center", End: "flex-end", Stretch: "stretch", Baseline: "baseline" };
+          const aiMap: Record<string, string> = { Start: "flex-start", Center: "center", End: "flex-end", Stretch: "stretch", Baseline: "baseline", FirstBaseline: "first baseline", LastBaseline: "last baseline" };
           if (aiMap[layout.align_items]) styles.push(`align-items:${aiMap[layout.align_items]}`);
         }
         if (layout.justify_content) {
