@@ -9719,12 +9719,13 @@ export class Editor {
     } catch { /* ignore */ }
   }
 
-  createRepeatGrid() {
+  createRepeatGrid(nodeId?: number) {
     const sel = Array.from(this.engine.get_selection()).map(Number);
-    if (sel.length !== 1) return;
+    const targetId = typeof nodeId === "number" && nodeId > 0 ? nodeId : (sel.length === 1 ? sel[0]! : 0);
+    if (!targetId) return;
     try {
       this.engine.push_undo();
-      const gridId = Number(this.engine.create_repeat_grid(BigInt(sel[0]!)));
+      const gridId = Number(this.engine.create_repeat_grid(BigInt(targetId)));
       if (gridId) {
         this.engine.deselect_all();
         this.engine.select(BigInt(gridId));
@@ -10263,18 +10264,6 @@ export class Editor {
       const newSel = Array.from(this.engine.get_selection()).map(Number);
       this.onLayersChanges.forEach(fn => fn());
       this.fireSelectionNow(newSel);
-      this.needsRender = true;
-    }
-  }
-
-  private createRepeatGrid(nodeId: number) {
-    this.engine.push_undo();
-    const gridId = Number(this.engine.create_repeat_grid(BigInt(nodeId)));
-    if (gridId > 0) {
-      this.engine.deselect_all();
-      this.engine.select(BigInt(gridId));
-      this.onLayersChanges.forEach(fn => fn());
-      this.fireSelectionNow([gridId]);
       this.needsRender = true;
     }
   }

@@ -1790,10 +1790,19 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Prototype Focus Trap Simulator — overlay/모달에서 Tab focus trap 누락을 시뮬레이션하고 즉시 수정 액션 제공 (임팩트 중, 난이도 중)
 - Canvas Comment Threads — 캔버스 위 특정 좌표에 코멘트 핀을 달고 스레드 형태로 리뷰/피드백 남기기 (임팩트 중상, 난이도 중)
 - Batch Rename Layer Tool — 다중 선택 레이어에 패턴 기반 일괄 이름 변경 (find/replace, prefix/suffix, numbering) (임팩트 중, 난이도 중하)
 - Selection Color Palette Inspector — 선택된 노드 트리의 모든 fill/stroke 색상을 수집·정리하고, 유사색 병합 및 design token 매핑 제안 (임팩트 중상, 난이도 중)
+
+## 완료된 기능 (추가 — Prototype Focus Trap Simulator, 2026-04-13)
+- Prototype Viewer Flow Lint 접근성 규칙에 `a11y-focus-trap` 추가
+  - frame의 OpenOverlay 타깃 overlay를 시뮬레이션해 keyboard close path(OnClick/OnPress + CloseOverlay/Back) 누락 여부 탐지
+  - overlay 내부 keyboard NavigateTo가 외부 frame으로 새는 경우도 trap risk로 리포트
+- Flow Lint 패널에 `Quick fix focus trap` 버튼 추가
+  - 위험 overlay에서 close/back keyboard 액션이 없을 때 overlay 내부 첫 interaction node에 `OnPress + CloseOverlay`를 자동 주입
+  - 적용 후 lint 즉시 재실행
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 
 

@@ -15,8 +15,17 @@ export interface ExportPreset {
   quality: number;      // 0.1 - 1.0 (PNG compression hint, mostly for future JPEG)
 }
 
+export interface ExportPresetProfile {
+  id: string;
+  name: string;
+  presetIds: string[];
+  createdAt: number;
+}
+
 const STORAGE_KEY = "opensketch-export-presets";
 const DOC_STORAGE_KEY = "opensketch-export-presets-by-doc";
+const PROFILES_STORAGE_KEY = "opensketch-export-preset-profiles";
+const DOC_PROFILES_STORAGE_KEY = "opensketch-export-preset-profiles-by-doc";
 const ACTIVE_EXPORTS_PREFIX = "opensketch-active-exports";
 
 const DEFAULT_PRESETS: ExportPreset[] = [
@@ -85,6 +94,55 @@ function loadGlobalPresets(): ExportPreset[] {
   } catch {
     return [...DEFAULT_PRESETS];
   }
+}
+
+function safeProfileList(value: unknown): ExportPresetProfile[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((p) => p && typeof p.id === "string" && typeof p.name === "string" && Array.isArray((p as { presetIds?: unknown }).presetIds))
+    .map((p) => {
+      const item = p as Partial<ExportPresetProfile>;
+      return {
+        id: String(item.id || genId()),
+        name: String(item.name || "Untitled Profile"),
+        presetIds: Array.isArray(item.presetIds) ? item.presetIds.filter((id): id is string => typeof id === "string") : [],
+        createdAt: typeof item.createdAt === "number" ? item.createdAt : Date.now(),
+      };
+    });
+}
+
+function loadDocumentProfileMap(): Record<string, ExportPresetProfile[]> {
+  try {
+    const raw = localStorage.getItem(DOC_PROFILES_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return {};
+    const out: Record<string, ExportPresetProfile[]> = {};
+    for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+      out[k] = safeProfileList(v);
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+function saveDocumentProfileMap(map: Record<string, ExportPresetProfile[]>): void {
+  localStorage.setItem(DOC_PROFILES_STORAGE_KEY, JSON.stringify(map));
+}
+
+function loadGlobalProfiles(): ExportPresetProfile[] {
+  try {
+    const raw = localStorage.getItem(PROFILES_STORAGE_KEY);
+    if (!raw) return [];
+    return safeProfileList(JSON.parse(raw));
+  } catch {
+    return [];
+  }
+}
+
+function saveGlobalProfiles(profiles: ExportPresetProfile[]): void {
+  localStorage.setItem(PROFILES_STORAGE_KEY, JSON.stringify(profiles));
 }
 
 function saveGlobalPresets(presets: ExportPreset[]): void {
@@ -317,6 +375,64 @@ export function createExportPresetsSection(
     const raw = localStorage.getItem(activeKey);
     if (raw) activeIds = JSON.parse(raw);
   } catch { /* ignore */ }
+
+  // Profile quick apply/save
+  const profilesDocMap = loadDocumentProfileMap();
+  const profiles = (profilesDocMap[docKey] && profilesDocMap[docKey].length > 0) ? profilesDocMap[docKey] : loadGlobalProfiles();
+  if (profiles.length > 0) {
+    const profileRow = document.createElement("div");
+    profileRow.style.cssText = "display:flex;gap:4px;margin-bottom:6px;";
+
+    const profileSelect = document.createElement("select");
+    profileSelect.style.cssText = "flex:1;background:#2a2a2a;color:#aaa;border:1px solid #444;border-radius:4px;padding:3px 6px;font-size:10px;";
+    const ph = document.createElement("option");
+    ph.value = "";
+    ph.textContent = "Apply export profile…";
+    profileSelect.appendChild(ph);
+    for (const profile of profiles) {
+      const opt = document.createElement("option");
+      opt.value = profile.id;
+      opt.textContent = `${profile.name} (${profile.presetIds.length})`;
+      profileSelect.appendChild(opt);
+    }
+    profileRow.appendChild(profileSelect);
+
+    const applyProfileBtn = document.createElement("button");
+    applyProfileBtn.style.cssText = "background:#2b3548;color:#9ecbff;border:1px solid #3d4f66;border-radius:4px;padding:3px 8px;font-size:10px;cursor:pointer;";
+    applyProfileBtn.textContent = "Apply";
+    applyProfileBtn.addEventListener("click", () => {
+      const selected = profiles.find((p) => p.id === profileSelect.value);
+      if (!selected) return;
+      activeIds = selected.presetIds.filter((id) => presets.some((p) => p.id === id));
+      localStorage.setItem(activeKey, JSON.stringify(activeIds));
+      refreshPanel();
+    });
+    profileRow.appendChild(applyProfileBtn);
+    section.appendChild(profileRow);
+  }
+
+  const saveProfileRow = document.createElement("div");
+  saveProfileRow.style.cssText = "display:flex;justify-content:flex-end;margin:-2px 0 6px;";
+  const saveProfileBtn = document.createElement("button");
+  saveProfileBtn.style.cssText = "background:none;border:none;color:#6f7485;font-size:10px;cursor:pointer;text-decoration:underline;";
+  saveProfileBtn.textContent = "Save active set as profile";
+  saveProfileBtn.addEventListener("click", () => {
+    if (activeIds.length === 0) {
+      alert("Add at least one active export preset first.");
+      return;
+    }
+    const name = prompt("Profile name", `Export set ${new Date().toLocaleDateString()}`)?.trim();
+    if (!name) return;
+    const map = loadDocumentProfileMap();
+    const existing = map[docKey] || [];
+    const withoutDup = existing.filter((p) => p.name.toLowerCase() !== name.toLowerCase());
+    withoutDup.unshift({ id: genId(), name, presetIds: [...activeIds], createdAt: Date.now() });
+    map[docKey] = withoutDup.slice(0, 30);
+    saveDocumentProfileMap(map);
+    refreshPanel();
+  });
+  saveProfileRow.appendChild(saveProfileBtn);
+  section.appendChild(saveProfileRow);
 
   // Preset selector dropdown + add button
   const selectorRow = document.createElement("div");
@@ -616,6 +732,7 @@ function showPresetsManager(editor: Editor, refresh: () => void): void {
         const all = getScopedPresets().filter(pp => pp.id !== p.id);
         saveScopedPresets(all);
         renderList();
+        renderProfilesList();
       });
       row.appendChild(delBtn);
       list.appendChild(row);
@@ -623,10 +740,76 @@ function showPresetsManager(editor: Editor, refresh: () => void): void {
     dialog.appendChild(list);
   }
 
+  function renderProfilesList() {
+    const existing = dialog.querySelector(".profile-list");
+    if (existing) existing.remove();
+
+    const wrap = document.createElement("div");
+    wrap.className = "profile-list";
+    wrap.style.cssText = "margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.08);";
+
+    const title = document.createElement("div");
+    title.style.cssText = "font-size:11px;color:#8f98b0;margin-bottom:6px;";
+    title.textContent = "Export Profiles";
+    wrap.appendChild(title);
+
+    const presets = getScopedPresets();
+    const presetIdSet = new Set(presets.map((p) => p.id));
+    const profiles = getScopedProfiles();
+    profiles.forEach((profile) => {
+      const row = document.createElement("div");
+      row.style.cssText = "display:flex;align-items:center;gap:8px;padding:5px 8px;background:#202838;border-radius:6px;margin-bottom:4px;";
+
+      const name = document.createElement("span");
+      name.style.cssText = "flex:1;font-size:11px;color:#c9d6ea;";
+      const validCount = profile.presetIds.filter((id) => presetIdSet.has(id)).length;
+      name.textContent = `${profile.name} (${validCount})`;
+      row.appendChild(name);
+
+      const overwriteBtn = document.createElement("button");
+      overwriteBtn.style.cssText = "background:none;border:none;color:#9ecbff;cursor:pointer;font-size:10px;padding:0;";
+      overwriteBtn.textContent = "Overwrite";
+      overwriteBtn.addEventListener("click", () => {
+        const next = getScopedProfiles().map((p) => p.id === profile.id ? { ...p, presetIds: presets.map((item) => item.id) } : p);
+        saveScopedProfiles(next);
+        renderProfilesList();
+      });
+      row.appendChild(overwriteBtn);
+
+      const delBtn = document.createElement("button");
+      delBtn.style.cssText = "background:none;border:none;color:#e74c3c;cursor:pointer;font-size:12px;padding:0;";
+      delBtn.textContent = "✕";
+      delBtn.addEventListener("click", () => {
+        saveScopedProfiles(getScopedProfiles().filter((p) => p.id !== profile.id));
+        renderProfilesList();
+      });
+      row.appendChild(delBtn);
+
+      wrap.appendChild(row);
+    });
+
+    const addBtn = document.createElement("button");
+    addBtn.style.cssText = "padding:4px 8px;background:#2b3548;color:#9ecbff;border:1px solid #3d4f66;border-radius:6px;font-size:10px;cursor:pointer;";
+    addBtn.textContent = "Save preset list as profile";
+    addBtn.addEventListener("click", () => {
+      const name = prompt("Profile name", `Profile ${new Date().toLocaleDateString()}`)?.trim();
+      if (!name) return;
+      const currentIds = presets.map((p) => p.id);
+      const next = getScopedProfiles().filter((p) => p.name.toLowerCase() !== name.toLowerCase());
+      next.unshift({ id: genId(), name, presetIds: currentIds, createdAt: Date.now() });
+      saveScopedProfiles(next.slice(0, 30));
+      renderProfilesList();
+    });
+    wrap.appendChild(addBtn);
+
+    dialog.appendChild(wrap);
+  }
+
   scopeSelect.addEventListener("change", () => {
     scope = scopeSelect.value === "global" ? "global" : "document";
     renderScopeHint();
     renderList();
+    renderProfilesList();
   });
 
   renderScopeHint();
@@ -647,19 +830,39 @@ function showPresetsManager(editor: Editor, refresh: () => void): void {
     scopeSelect.value = "document";
     renderScopeHint();
     renderList();
+    renderProfilesList();
     refresh();
   });
   utilRow.appendChild(syncDocBtn);
+
+  const getScopedProfiles = (): ExportPresetProfile[] => {
+    if (scope === "global") return loadGlobalProfiles();
+    const map = loadDocumentProfileMap();
+    return map[docKey] || [];
+  };
+
+  const saveScopedProfiles = (profiles: ExportPresetProfile[]): void => {
+    if (scope === "global") {
+      saveGlobalProfiles(profiles);
+      return;
+    }
+    const map = loadDocumentProfileMap();
+    map[docKey] = profiles;
+    saveDocumentProfileMap(map);
+  };
+
+  renderProfilesList();
 
   const exportBtn = document.createElement("button");
   exportBtn.style.cssText = "padding:5px 10px;background:#333;color:#ccc;border:1px solid #444;border-radius:6px;font-size:11px;cursor:pointer;";
   exportBtn.textContent = "Export JSON";
   exportBtn.addEventListener("click", () => {
     const payload = {
-      version: 2,
+      version: 3,
       exportedAt: new Date().toISOString(),
       scope,
       presets: getScopedPresets(),
+      profiles: getScopedProfiles(),
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     downloadBlob(blob, `opensketch-export-presets-${scope}.json`);
@@ -680,6 +883,7 @@ function showPresetsManager(editor: Editor, refresh: () => void): void {
         const text = await file.text();
         const data = JSON.parse(text);
         const imported = safePresetList((data?.presets ?? data) as unknown);
+        const importedProfiles = safeProfileList((data?.profiles ?? []) as unknown);
         if (imported.length === 0) {
           alert("No valid presets found in JSON.");
           return;
@@ -694,12 +898,35 @@ function showPresetsManager(editor: Editor, refresh: () => void): void {
             const key = `${p.name.toLowerCase()}|${p.format}|${p.scale}|${p.suffix}`;
             dedupe.set(key, { ...p, id: p.id || genId() });
           }
-          saveScopedPresets(Array.from(dedupe.values()));
+          const mergedPresets = Array.from(dedupe.values());
+          saveScopedPresets(mergedPresets);
+
+          if (importedProfiles.length > 0) {
+            const mergedIds = new Set(mergedPresets.map((p) => p.id));
+            const profileMap = new Map<string, ExportPresetProfile>();
+            for (const profile of getScopedProfiles()) profileMap.set(profile.name.toLowerCase(), profile);
+            for (const profile of importedProfiles) {
+              profileMap.set(profile.name.toLowerCase(), {
+                ...profile,
+                id: profile.id || genId(),
+                presetIds: profile.presetIds.filter((id) => mergedIds.has(id)),
+              });
+            }
+            saveScopedProfiles(Array.from(profileMap.values()));
+          }
         } else {
-          saveScopedPresets(imported.map(p => ({ ...p, id: p.id || genId() })));
+          const normalizedPresets = imported.map(p => ({ ...p, id: p.id || genId() }));
+          saveScopedPresets(normalizedPresets);
+          const allowedIds = new Set(normalizedPresets.map((p) => p.id));
+          saveScopedProfiles(importedProfiles.map((profile) => ({
+            ...profile,
+            id: profile.id || genId(),
+            presetIds: profile.presetIds.filter((id) => allowedIds.has(id)),
+          })));
         }
 
         renderList();
+        renderProfilesList();
         refresh();
       } catch {
         alert("Failed to import presets JSON.");

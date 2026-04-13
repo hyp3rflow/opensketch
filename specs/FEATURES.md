@@ -936,6 +936,9 @@ Save, manage, and apply named export configurations (format, scale, suffix) for 
 - [x] **JSON import mode (v2)**: Import 시 Merge/Replace 모드 선택 + name/format/scale/suffix 기준 dedupe merge
 - [x] **JSON payload metadata (v2)**: export payload에 `version`, `scope`, `exportedAt` 포함
 - [x] **Document sync action**: `Sync Global → Doc`으로 글로벌 preset을 현재 문서 세트에 복제
+- [x] **Preset profiles manager (v3)**: preset id 리스트를 named profile로 저장/삭제/덮어쓰기하고 active export set에 one-click 적용
+- [x] **Profile quick actions (v3)**: Export 섹션에서 `Apply export profile` + `Save active set as profile` 제공
+- [x] **Team sharing JSON v3 (v3)**: preset JSON payload에 `profiles` 포함, Import Merge/Replace 시 profile도 함께 동기화
 - [x] **Batch export**: "Export N presets" button — downloads all active presets at once
 - [x] **Format badges**: Color-coded PNG (blue) / SVG (purple) / PDF (amber) indicators
 
@@ -2791,6 +2794,9 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Flow Lint summary에 A11y 집계(`missing-label/focus-gap/low-contrast/motion`) 추가
 - [x] 기존 issue filter chip/list/jump 워크플로우에 통합
 - [x] **Focus cycle gap fix/polish (v2)**: 동일 노드에 다중 keyboard hotspot이 있을 때 `Tab` 순환이 같은 항목에 고정되던 케이스를 interaction signature 기반으로 교정. Flow Lint는 프레임 내 다중 keyboard hotspot 노드도 `a11y-focus-gap`으로 리포트.
+- [x] **Focus trap simulator + quick fix (v3)**: OpenOverlay 타깃 overlay를 lint에서 시뮬레이션해 keyboard close path(Click/Press + CloseOverlay/Back) 누락/외부 누수 NavigateTo를 `a11y-focus-trap`으로 리포트.
+- [x] **Quick fix focus trap (v3)**: Flow Lint 패널 버튼으로 위험 overlay의 첫 interaction node에 `OnPress + CloseOverlay`를 자동 주입하고 lint를 즉시 재실행.
+- [x] Flow Lint summary/filter chip에 `a11y-focus-trap` 집계 통합.
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
 
 ### Sticky Scroll Sections for Prototype (2026-04-12)

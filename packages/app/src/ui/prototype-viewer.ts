@@ -154,7 +154,7 @@ export function createPrototypeViewer(editor: Editor): {
   let flowStartFlowSel: HTMLSelectElement | null = null;
   let flowStartFrameSel: HTMLSelectElement | null = null;
   let flowStartInfo: HTMLDivElement | null = null;
-  type FlowLintIssueType = "unreachable" | "dead-end" | "cycle" | "cycle-trap" | "overlay-leak" | "orphan-close" | "a11y-missing-label" | "a11y-focus-gap" | "a11y-low-contrast" | "a11y-motion";
+  type FlowLintIssueType = "unreachable" | "dead-end" | "cycle" | "cycle-trap" | "overlay-leak" | "orphan-close" | "a11y-missing-label" | "a11y-focus-gap" | "a11y-focus-trap" | "a11y-low-contrast" | "a11y-motion";
   type FlowLintIssue = { type: FlowLintIssueType; frameId: number; frameName: string; detail: string };
   let flowLintWrap: HTMLDivElement | null = null;
   let keyboardOrderWrap: HTMLDivElement | null = null;
@@ -1186,6 +1186,95 @@ export function createPrototypeViewer(editor: Editor): {
     return (hi + 0.05) / (lo + 0.05);
   }
 
+  function quickFixFocusTrapIssues(): number {
+    const snapshot = buildFlowGraphSnapshot();
+    if (!snapshot) return 0;
+    const frameById = new Map(snapshot.nodes.map((n) => [n.id, n]));
+    let changed = 0;
+    let allInter: any[] = [];
+    try {
+      allInter = JSON.parse(editor.engine.get_all_interactions() || "[]") || [];
+    } catch {
+      return 0;
+    }
+
+    const nodeCache = new Map<number, any>();
+    const getNode = (id: number) => {
+      if (nodeCache.has(id)) return nodeCache.get(id);
+      try {
+        const raw = editor.engine.get_node_json(BigInt(id));
+        const node = raw ? JSON.parse(raw) : null;
+        nodeCache.set(id, node);
+        return node;
+      } catch {
+        nodeCache.set(id, null);
+        return null;
+      }
+    };
+
+    const getRowsInFrame = (frameId: number) => {
+      const frame = frameById.get(frameId);
+      if (!frame) return [] as any[];
+      return allInter.filter((row) => {
+        const node = getNode(Number(row?.id || 0));
+        if (!node) return false;
+        const nx = Number(node?.x || 0);
+        const ny = Number(node?.y || 0);
+        const nw = Number(node?.width || 0);
+        const nh = Number(node?.height || 0);
+        return nx >= frame.x && ny >= frame.y && (nx + nw) <= (frame.x + frame.width) && (ny + nh) <= (frame.y + frame.height);
+      });
+    };
+
+    for (const frame of snapshot.nodes) {
+      const frameRows = getRowsInFrame(frame.id);
+      const overlayTargets = new Set<number>();
+      for (const row of frameRows) {
+        const interactions: any[] = Array.isArray(row?.interactions) ? row.interactions : [];
+        for (const inter of interactions) {
+          if (String(inter?.action || "") === "OpenOverlay") {
+            const target = Number(inter?.target_node_id || 0);
+            if (target > 0) overlayTargets.add(target);
+          }
+        }
+      }
+      for (const overlayId of overlayTargets) {
+        const overlayRows = getRowsInFrame(overlayId);
+        const hasClose = overlayRows.some((row) => {
+          const interactions: any[] = Array.isArray(row?.interactions) ? row.interactions : [];
+          return interactions.some((inter) => {
+            const trigger = String(inter?.trigger || "");
+            const action = String(inter?.action || "");
+            return (trigger === "OnClick" || trigger === "OnPress") && (action === "CloseOverlay" || action === "Back");
+          });
+        });
+        if (hasClose || overlayRows.length === 0) continue;
+
+        const first = overlayRows[0];
+        const sourceNodeId = Number(first?.id || 0);
+        if (!sourceNodeId) continue;
+        try {
+          editor.engine.add_interaction(
+            BigInt(sourceNodeId),
+            "OnPress",
+            "CloseOverlay",
+            BigInt(0),
+            BigInt(0),
+            "Instant",
+            0,
+            "ease_in_out"
+          );
+          changed += 1;
+        } catch {}
+      }
+    }
+
+    if (changed > 0) {
+      editor.requestRender();
+    }
+    return changed;
+  }
+
   function renderFlowLint() {
     if (!flowLintInfo || !flowLintList) return;
     const snapshot = flowMinimapSnapshot;
@@ -1244,6 +1333,44 @@ export function createPrototypeViewer(editor: Editor): {
         }
       }
     } catch {}
+
+    const rowNodeCache = new Map<number, any>();
+    const getNodeForRow = (row: any) => {
+      const nodeId = Number(row?.id || 0);
+      if (!nodeId) return null;
+      if (rowNodeCache.has(nodeId)) return rowNodeCache.get(nodeId);
+      try {
+        const rawNode = editor.engine.get_node_json(BigInt(nodeId));
+        const node = rawNode ? JSON.parse(rawNode) : null;
+        rowNodeCache.set(nodeId, node);
+        return node;
+      } catch {
+        rowNodeCache.set(nodeId, null);
+        return null;
+      }
+    };
+
+    const frameInteractionCache = new Map<number, any[]>();
+    const getFrameInteractions = (frameId: number) => {
+      if (frameInteractionCache.has(frameId)) return frameInteractionCache.get(frameId) || [];
+      const frame = frameById.get(frameId);
+      if (!frame) return [];
+      const collected: any[] = [];
+      for (const row of allInteractionRows) {
+        const node = getNodeForRow(row);
+        if (!node) continue;
+        const nx = Number(node?.x || 0);
+        const ny = Number(node?.y || 0);
+        const nw = Number(node?.width || 0);
+        const nh = Number(node?.height || 0);
+        const inFrame = nx >= frame.x && ny >= frame.y && (nx + nw) <= (frame.x + frame.width) && (ny + nh) <= (frame.y + frame.height);
+        if (!inFrame) continue;
+        const interactions: any[] = Array.isArray(row?.interactions) ? row.interactions : [];
+        for (const inter of interactions) collected.push(inter);
+      }
+      frameInteractionCache.set(frameId, collected);
+      return collected;
+    };
 
     for (const node of snapshot.nodes) {
       const outs = adjacency.get(node.id) || [];
@@ -1391,6 +1518,7 @@ export function createPrototypeViewer(editor: Editor): {
       let keyboardFocusableCount = 0;
       let missingLabelCount = 0;
       let motionIssueCount = 0;
+      const overlayTargets = new Set<number>();
       for (const row of allInteractionRows) {
         const nodeId = Number(row?.id || 0);
         if (!nodeId) continue;
@@ -1413,9 +1541,14 @@ export function createPrototypeViewer(editor: Editor): {
         let localMissingLabel = 0;
         for (const inter of interactions) {
           const trigger = String(inter?.trigger || "");
+          const action = String(inter?.action || "");
           const transition = String(inter?.transition || "Instant");
           const easing = String(inter?.easing || "ease_in_out");
           const duration = Number(inter?.transition_duration_ms || 0);
+          if (action === "OpenOverlay") {
+            const targetOverlayId = Number(inter?.target_node_id || 0);
+            if (targetOverlayId > 0) overlayTargets.add(targetOverlayId);
+          }
           const isAnimated = transition !== "Instant" && transition !== "None";
           if (isAnimated) {
             const longDuration = duration >= 900;
@@ -1457,6 +1590,35 @@ export function createPrototypeViewer(editor: Editor): {
           frameName: frame.name,
           detail: `${duplicatedFocusableNodes} node(s) have multiple keyboard hotspots; tab order can feel broken`,
         });
+      }
+
+      if (overlayTargets.size > 0) {
+        let trapRiskCount = 0;
+        for (const overlayId of overlayTargets) {
+          const overlayInteractions = getFrameInteractions(overlayId);
+          const keyboardActions = overlayInteractions.filter((inter) => {
+            const trig = String(inter?.trigger || "");
+            return trig === "OnClick" || trig === "OnPress";
+          });
+          const hasClosePath = keyboardActions.some((inter) => {
+            const action = String(inter?.action || "");
+            return action === "CloseOverlay" || action === "Back";
+          });
+          const leaksOutside = keyboardActions.some((inter) => {
+            const action = String(inter?.action || "");
+            const target = Number(inter?.target_node_id || 0);
+            return action === "NavigateTo" && target > 0 && target !== frame.id && target !== overlayId;
+          });
+          if (!hasClosePath || leaksOutside) trapRiskCount += 1;
+        }
+        if (trapRiskCount > 0) {
+          issues.push({
+            type: "a11y-focus-trap",
+            frameId: frame.id,
+            frameName: frame.name,
+            detail: `${trapRiskCount} overlay target(s) are missing keyboard trap close path`,
+          });
+        }
       }
 
       let lowContrastCount = 0;
@@ -1508,9 +1670,10 @@ export function createPrototypeViewer(editor: Editor): {
     const orphanCloseCount = issues.filter((i) => i.type === "orphan-close").length;
     const missingLabelCount = issues.filter((i) => i.type === "a11y-missing-label").length;
     const focusGapCount = issues.filter((i) => i.type === "a11y-focus-gap").length;
+    const focusTrapCount = issues.filter((i) => i.type === "a11y-focus-trap").length;
     const lowContrastCount = issues.filter((i) => i.type === "a11y-low-contrast").length;
     const motionGuardrailCount = issues.filter((i) => i.type === "a11y-motion").length;
-    flowLintInfo.textContent = `Start #${startFrameId} · Dead-end ${deadEndCount} · Unreachable ${unreachableCount} · Cycles ${cycleCount}/${cycleTrapCount} · Overlay ${overlayLeakCount}/${orphanCloseCount} · A11y ${missingLabelCount}/${focusGapCount}/${lowContrastCount}/${motionGuardrailCount}`;
+    flowLintInfo.textContent = `Start #${startFrameId} · Dead-end ${deadEndCount} · Unreachable ${unreachableCount} · Cycles ${cycleCount}/${cycleTrapCount} · Overlay ${overlayLeakCount}/${orphanCloseCount} · A11y ${missingLabelCount}/${focusGapCount}/${focusTrapCount}/${lowContrastCount}/${motionGuardrailCount}`;
 
     flowLintList.innerHTML = "";
     if (issues.length === 0) {
@@ -1524,17 +1687,18 @@ export function createPrototypeViewer(editor: Editor): {
     const rank: Record<FlowLintIssueType, number> = {
       "a11y-missing-label": 0,
       "a11y-focus-gap": 1,
-      "a11y-low-contrast": 2,
-      "a11y-motion": 3,
-      "cycle-trap": 4,
-      "dead-end": 5,
-      "unreachable": 6,
-      "cycle": 7,
-      "overlay-leak": 8,
-      "orphan-close": 9,
+      "a11y-focus-trap": 2,
+      "a11y-low-contrast": 3,
+      "a11y-motion": 4,
+      "cycle-trap": 5,
+      "dead-end": 6,
+      "unreachable": 7,
+      "cycle": 8,
+      "overlay-leak": 9,
+      "orphan-close": 10,
     };
     const sortedIssues = [...issues].sort((a, b) => (rank[a.type] - rank[b.type]) || a.frameName.localeCompare(b.frameName));
-    const issueTypes: FlowLintIssueType[] = ["a11y-missing-label", "a11y-focus-gap", "a11y-low-contrast", "a11y-motion", "dead-end", "unreachable", "cycle-trap", "cycle", "overlay-leak", "orphan-close"];
+    const issueTypes: FlowLintIssueType[] = ["a11y-missing-label", "a11y-focus-gap", "a11y-focus-trap", "a11y-low-contrast", "a11y-motion", "dead-end", "unreachable", "cycle-trap", "cycle", "overlay-leak", "orphan-close"];
     if (flowLintFilterTypes.size === 0) {
       for (const t of issueTypes) flowLintFilterTypes.add(t);
     }
@@ -1571,10 +1735,12 @@ export function createPrototypeViewer(editor: Editor): {
         ? "#f59e0b"
         : issue.type === "a11y-focus-gap"
           ? "#fb7185"
-          : issue.type === "a11y-low-contrast"
-            ? "#ef4444"
-            : issue.type === "a11y-motion"
-              ? "#34d399"
+          : issue.type === "a11y-focus-trap"
+            ? "#f97316"
+            : issue.type === "a11y-low-contrast"
+              ? "#ef4444"
+              : issue.type === "a11y-motion"
+                ? "#34d399"
               : issue.type === "dead-end"
                 ? "#fca5a5"
                 : issue.type === "unreachable"
@@ -2197,6 +2363,21 @@ export function createPrototypeViewer(editor: Editor): {
     flowLintFilterWrap = document.createElement("div");
     flowLintFilterWrap.style.cssText = "display:flex;flex-wrap:wrap;gap:4px;";
     flowLintWrap.appendChild(flowLintFilterWrap);
+
+    const focusTrapFixBtn = document.createElement("button");
+    focusTrapFixBtn.className = "prop-btn";
+    focusTrapFixBtn.textContent = "Quick fix focus trap";
+    focusTrapFixBtn.style.cssText = "width:100%;font-size:10px;padding:3px 6px;";
+    focusTrapFixBtn.onclick = () => {
+      const changed = quickFixFocusTrapIssues();
+      focusTrapFixBtn.textContent = changed > 0 ? `Fixed ${changed}` : "No fix needed";
+      window.setTimeout(() => {
+        focusTrapFixBtn.textContent = "Quick fix focus trap";
+      }, 1100);
+      renderFlowLint();
+    };
+    flowLintWrap.appendChild(focusTrapFixBtn);
+
     flowLintList = document.createElement("div");
     flowLintList.style.cssText = "display:flex;flex-direction:column;gap:4px;";
     flowLintWrap.appendChild(flowLintList);
