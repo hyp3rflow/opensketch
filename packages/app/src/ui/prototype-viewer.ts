@@ -149,7 +149,7 @@ export function createPrototypeViewer(editor: Editor): {
   let flowMinimapWrap: HTMLDivElement | null = null;
   let flowMinimapCanvas: HTMLCanvasElement | null = null;
   let flowMinimapInfo: HTMLDivElement | null = null;
-  let flowMinimapSnapshot: { nodes: Array<{ id: number; name: string; x: number; y: number }>; edges: Array<{ from: number; to: number; action: string }>; nodeHits: Array<{ id: number; x: number; y: number; r: number }>; edgeHits: Array<{ from: number; to: number; x: number; y: number }>; } | null = null;
+  let flowMinimapSnapshot: { nodes: Array<{ id: number; name: string; x: number; y: number }>; edges: Array<{ from: number; to: number; action: string; sourceNodeId: number; interactionIndex: number; conditional: boolean; branchActive: boolean | null; conditionSummary: string }>; nodeHits: Array<{ id: number; x: number; y: number; r: number }>; edgeHits: Array<{ from: number; to: number; x: number; y: number }>; } | null = null;
   let flowStartWrap: HTMLDivElement | null = null;
   let flowStartFlowSel: HTMLSelectElement | null = null;
   let flowStartFrameSel: HTMLSelectElement | null = null;
@@ -166,6 +166,8 @@ export function createPrototypeViewer(editor: Editor): {
   let flowLintInfo: HTMLDivElement | null = null;
   let flowLintFilterWrap: HTMLDivElement | null = null;
   let flowLintList: HTMLDivElement | null = null;
+  let condDebugInfo: HTMLDivElement | null = null;
+  let condDebugList: HTMLDivElement | null = null;
   let flowLintSnapshot: { startFrameId: number | null; issues: FlowLintIssue[]; } | null = null;
   let flowLintFilterTypes = new Set<FlowLintIssueType>();
   let flowLintRenderedIssues: FlowLintIssue[] = [];
@@ -373,6 +375,7 @@ export function createPrototypeViewer(editor: Editor): {
     protoVars.set(varName, next);
     protoVarHistory.unshift({ at: Date.now(), name: varName, prev, next, source });
     if (protoVarHistory.length > 40) protoVarHistory.length = 40;
+    renderFlowMinimap();
   }
 
   /** Evaluate a SetVariable expression */
@@ -1000,13 +1003,55 @@ export function createPrototypeViewer(editor: Editor): {
     }
   }
 
+  function resolveInteractionCondition(inter: any): any | null {
+    if (!inter || typeof inter !== "object") return null;
+    if (inter.condition && typeof inter.condition === "object") return inter.condition;
+    const legacyVar = String(inter.condition_variable || "").trim();
+    if (legacyVar) {
+      return {
+        variable: legacyVar,
+        operator: String(inter.condition_operator || "Equal"),
+        value: String(inter.condition_value ?? ""),
+      };
+    }
+    const groupJson = String(inter.condition_group_json || "").trim();
+    if (!groupJson) return null;
+    try {
+      const parsed = JSON.parse(groupJson);
+      return parsed && typeof parsed === "object" ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function summarizeCondition(cond: any): string {
+    if (!cond || typeof cond !== "object") return "";
+    const children = Array.isArray(cond.conditions) ? cond.conditions : [];
+    const logic = String(cond.logic || "").toUpperCase();
+    if ((logic === "AND" || logic === "OR") && children.length > 0) {
+      return `${logic}(${children.map((c) => summarizeCondition(c)).filter(Boolean).join(` ${logic} `)})`;
+    }
+    const variable = String(cond.variable || "").trim();
+    if (!variable) return "";
+    const opMap: Record<string, string> = {
+      Equal: "==",
+      NotEqual: "!=",
+      GreaterThan: ">",
+      LessThan: "<",
+      GreaterThanOrEqual: ">=",
+      LessThanOrEqual: "<=",
+    };
+    const op = opMap[String(cond.operator || "Equal")] || "==";
+    return `${variable} ${op} ${String(cond.value ?? "")}`;
+  }
+
   function renderFlowMinimap() {
     if (!flowMinimapCanvas || !flowMinimapInfo) return;
     const ctx = flowMinimapCanvas.getContext("2d");
     if (!ctx) return;
 
     const frames: Array<{ id: number; name: string; x: number; y: number }> = [];
-    const edges: Array<{ from: number; to: number; action: string }> = [];
+    const edges: Array<{ from: number; to: number; action: string; sourceNodeId: number; interactionIndex: number; conditional: boolean; branchActive: boolean | null; conditionSummary: string }> = [];
 
     try {
       const layers: any[] = JSON.parse(editor.engine.get_layer_list() || "[]") || [];
@@ -1025,16 +1070,35 @@ export function createPrototypeViewer(editor: Editor): {
     try {
       const allInter: any[] = JSON.parse(editor.engine.get_all_interactions() || "[]") || [];
       for (const row of allInter) {
-        const from = Number(row?.id || 0);
-        if (!frameIds.has(from)) continue;
+        const sourceNodeId = Number(row?.id || 0);
+        if (!sourceNodeId) continue;
+        const rawNode = editor.engine.get_node_json(BigInt(sourceNodeId));
+        if (!rawNode) continue;
+        const sourceNode = JSON.parse(rawNode);
+        const parentFrameId = isFrameNode(sourceNode)
+          ? sourceNodeId
+          : Number(editor.engine.find_parent_frame(BigInt(sourceNodeId)) || 0);
+        if (!frameIds.has(parentFrameId)) continue;
+
         const interactions: any[] = Array.isArray(row?.interactions) ? row.interactions : [];
-        for (const inter of interactions) {
+        interactions.forEach((inter, interactionIndex) => {
           const action = String(inter?.action || "");
           const target = Number(inter?.target_node_id || 0);
-          if ((action === "NavigateTo" || action === "OpenOverlay") && frameIds.has(target) && target > 0) {
-            edges.push({ from, to: target, action });
-          }
-        }
+          if ((action !== "NavigateTo" && action !== "OpenOverlay") || !frameIds.has(target) || target <= 0) return;
+          const cond = resolveInteractionCondition(inter);
+          const conditional = !!cond;
+          const branchActive = conditional ? checkCondition({ ...inter, condition: cond }) : null;
+          edges.push({
+            from: parentFrameId,
+            to: target,
+            action,
+            sourceNodeId,
+            interactionIndex,
+            conditional,
+            branchActive,
+            conditionSummary: summarizeCondition(cond),
+          });
+        });
       }
     } catch {}
 
@@ -1070,12 +1134,17 @@ export function createPrototypeViewer(editor: Editor): {
     const edgeHits: Array<{ from: number; to: number; x: number; y: number }> = [];
 
     ctx.save();
-    ctx.strokeStyle = "rgba(100,116,139,0.7)";
-    ctx.lineWidth = 1;
+    ctx.lineWidth = 1.2;
     for (const e of edges) {
       const a = pos.get(e.from);
       const b = pos.get(e.to);
       if (!a || !b) continue;
+      ctx.strokeStyle = !e.conditional
+        ? "rgba(100,116,139,0.7)"
+        : e.branchActive
+          ? "rgba(34,197,94,0.9)"
+          : "rgba(239,68,68,0.85)";
+      ctx.setLineDash(e.conditional && e.branchActive === false ? [4, 3] : []);
       ctx.beginPath();
       ctx.moveTo(a.x, a.y);
       ctx.lineTo(b.x, b.y);
@@ -1083,10 +1152,13 @@ export function createPrototypeViewer(editor: Editor): {
       const mx = (a.x + b.x) * 0.5;
       const my = (a.y + b.y) * 0.5;
       edgeHits.push({ from: e.from, to: e.to, x: mx, y: my });
-      ctx.fillStyle = "rgba(148,163,184,0.9)";
+      ctx.fillStyle = e.conditional
+        ? (e.branchActive ? "rgba(74,222,128,0.95)" : "rgba(248,113,113,0.95)")
+        : "rgba(148,163,184,0.9)";
       ctx.font = "9px sans-serif";
-      ctx.fillText("→", mx + 2, my - 2);
+      ctx.fillText(e.conditional ? (e.branchActive ? "✓" : "✕") : "→", mx + 2, my - 2);
     }
+    ctx.setLineDash([]);
     ctx.restore();
 
     for (const f of frames) {
@@ -1107,9 +1179,77 @@ export function createPrototypeViewer(editor: Editor): {
     }
 
     const edgeCount = edges.length;
-    flowMinimapInfo.textContent = `Frames ${frames.length} · Links ${edgeCount} · Current #${currentFrameId || "-"}`;
+    const conditionalCount = edges.filter((e) => e.conditional).length;
+    const deadConditionalCount = edges.filter((e) => e.conditional && e.branchActive === false).length;
+    flowMinimapInfo.textContent = `Frames ${frames.length} · Links ${edgeCount} · Conditional ${conditionalCount} (dead ${deadConditionalCount}) · Current #${currentFrameId || "-"}`;
     flowMinimapSnapshot = { nodes: frames, edges, nodeHits, edgeHits };
+    renderConditionalBranchDebugger();
     renderFlowLint();
+  }
+
+  function renderConditionalBranchDebugger() {
+    if (!condDebugInfo || !condDebugList) return;
+    const snapshot = flowMinimapSnapshot;
+    if (!snapshot) {
+      condDebugInfo.textContent = "Conditional graph unavailable";
+      condDebugList.innerHTML = "";
+      return;
+    }
+    const nodeById = new Map(snapshot.nodes.map((n) => [n.id, n]));
+    const conditionalEdges = snapshot.edges.filter((e) => e.conditional);
+    const deadEdges = conditionalEdges.filter((e) => e.branchActive === false);
+    condDebugInfo.textContent = `Conditional ${conditionalEdges.length} · Active ${conditionalEdges.length - deadEdges.length} · Dead ${deadEdges.length}`;
+    condDebugList.innerHTML = "";
+
+    if (!deadEdges.length) {
+      const empty = document.createElement("div");
+      empty.style.cssText = "font-size:10px;color:#86efac;";
+      empty.textContent = "No dead conditional branches for current variable state.";
+      condDebugList.appendChild(empty);
+      return;
+    }
+
+    deadEdges.slice(0, 8).forEach((edge) => {
+      const from = nodeById.get(edge.from);
+      const to = nodeById.get(edge.to);
+      const row = document.createElement("div");
+      row.style.cssText = "border:1px solid rgba(248,113,113,0.45);background:rgba(127,29,29,0.25);border-radius:6px;padding:5px;display:flex;flex-direction:column;gap:4px;";
+      const title = document.createElement("div");
+      title.style.cssText = "font-size:10px;color:#fecaca;line-height:1.3;";
+      title.textContent = `${from?.name || `Frame ${edge.from}`} → ${to?.name || `Frame ${edge.to}`}`;
+      row.appendChild(title);
+      const detail = document.createElement("div");
+      detail.style.cssText = "font-size:9px;color:#fca5a5;line-height:1.3;";
+      detail.textContent = edge.conditionSummary || "Condition expression";
+      row.appendChild(detail);
+      const btnRow = document.createElement("div");
+      btnRow.style.cssText = "display:flex;gap:4px;";
+      const jumpBtn = document.createElement("button");
+      jumpBtn.className = "prop-btn";
+      jumpBtn.style.cssText = "flex:1;font-size:9px;padding:2px 4px;";
+      jumpBtn.textContent = "Jump";
+      jumpBtn.onclick = () => {
+        currentFrameId = edge.from;
+        renderCurrentView();
+      };
+      const fixBtn = document.createElement("button");
+      fixBtn.className = "prop-btn";
+      fixBtn.style.cssText = "flex:1;font-size:9px;padding:2px 4px;";
+      fixBtn.textContent = "Quick fix";
+      fixBtn.onclick = () => {
+        try {
+          editor.engine.set_interaction_condition(BigInt(edge.sourceNodeId), edge.interactionIndex, "");
+          fixBtn.textContent = "Fixed";
+          renderFlowMinimap();
+          renderCurrentView();
+        } catch {
+          fixBtn.textContent = "Fix failed";
+        }
+      };
+      btnRow.append(jumpBtn, fixBtn);
+      row.appendChild(btnRow);
+      condDebugList.appendChild(row);
+    });
   }
 
   function jumpFlowLintIssue(delta: 1 | -1) {
@@ -2383,8 +2523,23 @@ export function createPrototypeViewer(editor: Editor): {
     flowLintWrap.appendChild(flowLintList);
     overlay.appendChild(flowLintWrap);
 
+    const condDebugWrap = document.createElement("div");
+    condDebugWrap.style.cssText = "position:absolute;left:14px;top:634px;width:220px;max-height:220px;overflow:auto;background:rgba(15,23,42,0.92);border:1px solid rgba(248,113,113,0.35);border-radius:10px;padding:8px;z-index:4;display:flex;flex-direction:column;gap:6px;";
+    const condDebugHead = document.createElement("div");
+    condDebugHead.style.cssText = "font-size:11px;font-weight:600;color:#fecaca;";
+    condDebugHead.textContent = "Conditional Branch Debugger";
+    condDebugWrap.appendChild(condDebugHead);
+    condDebugInfo = document.createElement("div");
+    condDebugInfo.style.cssText = "font-size:10px;color:#fca5a5;line-height:1.35;";
+    condDebugInfo.textContent = "Analyzing conditional branches…";
+    condDebugWrap.appendChild(condDebugInfo);
+    condDebugList = document.createElement("div");
+    condDebugList.style.cssText = "display:flex;flex-direction:column;gap:4px;";
+    condDebugWrap.appendChild(condDebugList);
+    overlay.appendChild(condDebugWrap);
+
     keyboardOrderWrap = document.createElement("div");
-    keyboardOrderWrap.style.cssText = "position:absolute;left:14px;top:638px;width:220px;max-height:220px;overflow:auto;background:rgba(15,23,42,0.92);border:1px solid rgba(148,163,184,0.3);border-radius:10px;padding:8px;z-index:4;display:flex;flex-direction:column;gap:6px;";
+    keyboardOrderWrap.style.cssText = "position:absolute;left:14px;top:860px;width:220px;max-height:220px;overflow:auto;background:rgba(15,23,42,0.92);border:1px solid rgba(148,163,184,0.3);border-radius:10px;padding:8px;z-index:4;display:flex;flex-direction:column;gap:6px;";
     const kbHead = document.createElement("div");
     kbHead.style.cssText = "font-size:11px;font-weight:600;color:#cbd5e1;";
     kbHead.textContent = "Keyboard Nav Order";
@@ -2413,7 +2568,7 @@ export function createPrototypeViewer(editor: Editor): {
     overlay.appendChild(keyboardOrderWrap);
 
     coverageWrap = document.createElement("div");
-    coverageWrap.style.cssText = "position:absolute;left:14px;top:864px;width:220px;max-height:200px;overflow:auto;background:rgba(15,23,42,0.92);border:1px solid rgba(148,163,184,0.3);border-radius:10px;padding:8px;z-index:4;display:flex;flex-direction:column;gap:6px;";
+    coverageWrap.style.cssText = "position:absolute;left:14px;top:1086px;width:220px;max-height:200px;overflow:auto;background:rgba(15,23,42,0.92);border:1px solid rgba(148,163,184,0.3);border-radius:10px;padding:8px;z-index:4;display:flex;flex-direction:column;gap:6px;";
     const coverageHead = document.createElement("div");
     coverageHead.style.cssText = "font-size:11px;font-weight:600;color:#cbd5e1;";
     coverageHead.textContent = "Flow Coverage";
@@ -3868,18 +4023,7 @@ export function createPrototypeViewer(editor: Editor): {
   }
 
   function hasInteractionCondition(inter: any): boolean {
-    if (!inter || typeof inter !== "object") return false;
-    const legacyVar = String(inter.condition_variable || "").trim();
-    if (legacyVar) return true;
-    const groupJson = String(inter.condition_group_json || "").trim();
-    if (!groupJson) return false;
-    try {
-      const parsed = JSON.parse(groupJson);
-      if (!parsed || typeof parsed !== "object") return false;
-      return true;
-    } catch {
-      return false;
-    }
+    return !!resolveInteractionCondition(inter);
   }
 
   /** Convert screen coords to scene coords and find matching interaction */

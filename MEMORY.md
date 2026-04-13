@@ -1790,11 +1790,22 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Prototype Conditional Branch Visual Debugger — interaction condition true/false 경로를 프레임 그래프에 오버레이하고 dead branch를 바로 수정 (임팩트 상, 난이도 중상)
 - Auto Layout Wrap Line Inspector — wrap 컨테이너의 line break 지점을 캔버스에 표시하고 per-line gap/align 미세 조정 (임팩트 중상, 난이도 중)
 - Variable Token Drift Timeline — 컬렉션/모드별 변수 값 변경 이력을 타임라인으로 추적하고 특정 시점으로 롤백 (임팩트 중상, 난이도 상)
 - Token Usage Heatmap on Canvas — 선택/페이지 기준 style token 사용 밀도를 캔버스 오버레이로 시각화하고 미사용 토큰 정리 제안 (임팩트 중, 난이도 중)
 - Prototype Start Points Manager — 페이지/플로우별 multiple start point를 저장/전환해 QA 시나리오를 빠르게 재생 (임팩트 중상, 난이도 중)
+
+## 완료된 기능 (추가 — Prototype Conditional Branch Visual Debugger, 2026-04-14)
+- Prototype viewer `Flow Minimap`이 conditional interaction branch 상태를 실시간 색상 오버레이로 표시
+  - 조건 없는 링크: 기본 회색, condition true: 초록(✓), condition false: 빨강 점선(✕)
+  - 좌측 정보 문구에 conditional/dead branch 카운트 표시
+- 좌측 `Conditional Branch Debugger` 패널 추가
+  - dead branch 목록(최대 8개): source frame → target frame + condition expression 표시
+  - `Jump`로 source frame 즉시 이동
+  - `Quick fix`로 해당 interaction condition을 즉시 제거(else fallback화)해 dead branch를 바로 복구
+- prototype 변수 값이 변경될 때(minimap/debugger) branch 상태를 즉시 재평가하도록 연결
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Auto Layout Reorder Handles v5 Drag Hysteresis + Lazy Undo, 2026-04-13)
 - 캔버스 reorder handle 드래그 오동작 방지: 최소 드래그 거리(6px) 이전에는 reparent 실행하지 않도록 hysteresis 추가
