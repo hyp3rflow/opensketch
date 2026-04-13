@@ -1792,6 +1792,9 @@
 ## 다음 할 것
 - Token Usage Heatmap on Canvas — 선택/페이지 기준 style token 사용 밀도를 캔버스 오버레이로 시각화하고 미사용 토큰 정리 제안 (임팩트 중, 난이도 중)
 - Prototype Start Points Manager — 페이지/플로우별 multiple start point를 저장/전환해 QA 시나리오를 빠르게 재생 (임팩트 중상, 난이도 중)
+- Smart Animate Stagger Graph Editor — 프레임 내 동일 이름 레이어 그룹에 시간 오프셋 커브(Linear/Ease/Custom)를 적용해 순차 애니메이션을 시각 편집 (임팩트 상, 난이도 중상)
+- Component Instance Swap Suggestions — 인스턴스 선택 시 variant/property 문맥 기반 추천 후보를 상단 chip으로 제안하고 one-click swap (임팩트 중상, 난이도 중)
+- Dev Mode Measurement Pins — 간격/사이즈 측정값을 pin으로 고정해 핸드오프 스냅샷에서도 유지되는 redline 앵커 제공 (임팩트 중, 난이도 중)
 
 ## 완료된 기능 (추가 — Variable Token Drift Timeline v2, 2026-04-14)
 - Variables 패널 timeline 카드명을 `Variable Token Drift Timeline`으로 정렬
