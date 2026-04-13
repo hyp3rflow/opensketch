@@ -523,7 +523,7 @@ function suggestReplacementFont(requested: string): string {
   if (byPrefix) return byPrefix;
   const byContain = googleFonts.find((f) => f.toLowerCase().includes(requested.toLowerCase()));
   return byContain || "Inter";
-
+}
 
 function wrapTextLineByChars(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
   if (maxWidth <= 0 || !text) return text ? [text] : [""];
@@ -604,7 +604,6 @@ function inspectTextOverflow(node: any, parentNode: any | null) {
     lineCount,
     parentAutoLayout,
   };
-}
 }
 
 export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
@@ -11678,6 +11677,20 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
               refresh(ids);
             });
             actions.appendChild(fitSizingBtn);
+
+            if (typeof editor.engine.set_text_overflow === "function") {
+              const ellipsisBtn = document.createElement("button");
+              ellipsisBtn.className = "prop-add-btn";
+              ellipsisBtn.style.marginTop = "0";
+              ellipsisBtn.textContent = "Set overflow: Ellipsis";
+              ellipsisBtn.addEventListener("click", () => {
+                ensureUndo();
+                editor.engine.set_text_overflow(BigInt(id), "ellipsis");
+                editor.requestRender();
+                refresh(ids);
+              });
+              actions.appendChild(ellipsisBtn);
+            }
 
             if (overflowInfo.overflowY) {
               const heightBtn = document.createElement("button");
