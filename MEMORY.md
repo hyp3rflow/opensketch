@@ -1790,10 +1790,17 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Prototype Start Points Manager — 페이지/플로우별 multiple start point를 저장/전환해 QA 시나리오를 빠르게 재생 (임팩트 중상, 난이도 중)
 - Smart Animate Stagger Graph Editor — 프레임 내 동일 이름 레이어 그룹에 시간 오프셋 커브(Linear/Ease/Custom)를 적용해 순차 애니메이션을 시각 편집 (임팩트 상, 난이도 중상)
 - Component Instance Swap Suggestions — 인스턴스 선택 시 variant/property 문맥 기반 추천 후보를 상단 chip으로 제안하고 one-click swap (임팩트 중상, 난이도 중)
 - Dev Mode Measurement Pins — 간격/사이즈 측정값을 pin으로 고정해 핸드오프 스냅샷에서도 유지되는 redline 앵커 제공 (임팩트 중, 난이도 중)
+
+## 완료된 기능 (추가 — Prototype Start Points Manager v2, 2026-04-14)
+- Start Point Manager preset 저장 키를 flow-only에서 `flow+page`로 확장해 페이지/플로우별 시작 시나리오를 분리
+- `Save preset`에 라벨 prompt를 추가해 QA 시나리오 이름을 저장 가능
+- `Run next` 버튼으로 저장된 preset을 라운드로빈 순서로 즉시 재생
+- 기존 preset 데이터(frameId/label)도 backward-compatible로 로드
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Token Usage Heatmap on Canvas, 2026-04-14)
 - Token Usage Map 섹션에 `Canvas heatmap` 토글 + scope(Page/Selection) 제어 추가

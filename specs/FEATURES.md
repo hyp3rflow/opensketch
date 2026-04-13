@@ -2878,3 +2878,10 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
   - 방문한 hotspot: 초록 반투명
   - 미방문 hotspot: 빨강 반투명
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
+
+### Prototype Start Points Manager v2 (2026-04-14)
+- [x] Start Point Manager preset을 flow-only에서 `flow+page` 스코프로 확장해 페이지/플로우별 QA 시작점 시나리오를 분리 저장
+- [x] `Save preset` 시 라벨(prompt) 저장 지원으로 시나리오 이름을 부여해 재생 목록 가독성 개선
+- [x] `Run next` 액션 추가: 저장된 preset을 순차 라운드로빈 재생해 QA 시나리오 반복 검증 속도 향상
+- [x] 기존 preset 포맷(frameId/label)과 backward-compatible 로딩 유지
+- 구현: `packages/app/src/ui/prototype-viewer.ts`

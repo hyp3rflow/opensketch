@@ -184,6 +184,15 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
     reason: "missing" | "ambiguous";
   };
 
+  type VariableAliasChain = {
+    path: string[];
+    startFrom: string;
+    modeId: number;
+    modeName: string;
+    terminal: string;
+    hops: number;
+  };
+
   const parseAliasToken = (input: string): string | null => {
     const m = String(input || "").trim().match(/^\{\s*([^}]+?)\s*\}$/);
     return m ? m[1].trim() : null;
@@ -316,7 +325,53 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
       if (!visited.has(key)) dfs(key);
     }
 
-    return { nodes, edges, broken, cycles };
+    const chains: VariableAliasChain[] = [];
+    const chainSeen = new Set<string>();
+    const edgesByFrom = new Map<string, VariableAliasEdge[]>();
+    for (const edge of edges) {
+      const list = edgesByFrom.get(edge.from) || [];
+      list.push(edge);
+      edgesByFrom.set(edge.from, list);
+    }
+
+    for (const edge of edges) {
+      const path = [edge.from, edge.to];
+      const visitedPath = new Set(path);
+      let current = edge.to;
+      let cycleHit = false;
+
+      for (let i = 0; i < 12; i += 1) {
+        const nextEdges = edgesByFrom.get(current) || [];
+        const uniqueTargets = Array.from(new Set(nextEdges.map((it) => it.to)));
+        if (uniqueTargets.length !== 1) break;
+        const next = uniqueTargets[0];
+        if (visitedPath.has(next)) {
+          cycleHit = true;
+          break;
+        }
+        path.push(next);
+        visitedPath.add(next);
+        current = next;
+      }
+
+      if (cycleHit || path.length < 3) continue;
+
+      const signature = `${edge.from}:${edge.modeId}:${path.join("->")}`;
+      if (chainSeen.has(signature)) continue;
+      chainSeen.add(signature);
+      chains.push({
+        path,
+        startFrom: edge.from,
+        modeId: edge.modeId,
+        modeName: edge.modeName,
+        terminal: path[path.length - 1],
+        hops: path.length - 1,
+      });
+    }
+
+    chains.sort((a, b) => b.hops - a.hops);
+
+    return { nodes, edges, broken, cycles, chains };
   };
 
   function clearUsageHeatmap() {
@@ -1209,7 +1264,7 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
 
     const graphMeta = document.createElement("div");
     graphMeta.style.cssText = "font-size:10px;color:#94a3b8;";
-    graphMeta.textContent = `Nodes ${graph.nodes.size} · Edges ${graph.edges.length} · Unresolved ${graph.broken.length} · Cycles ${graph.cycles.length}`;
+    graphMeta.textContent = `Nodes ${graph.nodes.size} · Edges ${graph.edges.length} · Unresolved ${graph.broken.length} · Cycles ${graph.cycles.length} · Chains ${graph.chains.length}`;
     graphHeader.appendChild(graphMeta);
     graphSection.appendChild(graphHeader);
 
@@ -1309,6 +1364,31 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
           };
           row.appendChild(breakBtn);
         }
+      }
+
+      issueWrap.appendChild(row);
+    }
+
+    for (const chain of graph.chains.slice(0, 12)) {
+      const source = graph.nodes.get(chain.startFrom);
+      if (!source) continue;
+      const row = document.createElement("div");
+      row.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:6px;background:rgba(8,47,73,0.28);border:1px solid rgba(56,189,248,0.42);border-radius:4px;padding:4px 6px;";
+
+      const chainBtn = document.createElement("button");
+      chainBtn.style.cssText = "flex:1;text-align:left;background:none;border:none;color:#bae6fd;font-size:10px;cursor:pointer;";
+      chainBtn.textContent = `Chain (${chain.modeName}): ${chain.path.map((key) => aliasLabel(key)).join(" → ")}`;
+      chainBtn.title = "Jump to chain start variable";
+      chainBtn.onclick = () => jumpToVariable(chain.startFrom);
+      row.appendChild(chainBtn);
+
+      if (chain.terminal !== chain.path[1]) {
+        const collapseBtn = document.createElement("button");
+        collapseBtn.style.cssText = "background:#0c4a6e;border:1px solid #38bdf8;border-radius:4px;color:#bae6fd;font-size:10px;padding:2px 6px;cursor:pointer;";
+        collapseBtn.textContent = "Collapse";
+        collapseBtn.title = `Retarget start alias to terminal: ${aliasLabel(chain.terminal)}`;
+        collapseBtn.onclick = () => setAliasFor(source, chain.modeId, chain.terminal);
+        row.appendChild(collapseBtn);
       }
 
       issueWrap.appendChild(row);

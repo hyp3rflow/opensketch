@@ -18,6 +18,9 @@ const INTERACTIVE_PREVIEW_EVENT = "opensketch:interactive-preview-state";
 const PROTOTYPE_FLOW_ENTRY_PRESETS_KEY = "opensketch-proto-flow-entry-presets-v1";
 const PROTOTYPE_KEYBOARD_ORDER_KEY = "opensketch-proto-keyboard-order-v1";
 const PROTOTYPE_REDUCED_MOTION_KEY = "opensketch-prototype-reduced-motion-v1";
+
+type FlowEntryPreset = { frameId: number; label: string; pageId?: number };
+
 const DEFAULT_RING_PRESET: PrototypeRingPreset = {
   id: "default",
   name: "Default",
@@ -26,21 +29,45 @@ const DEFAULT_RING_PRESET: PrototypeRingPreset = {
   focus: { color: "#facc15", width: 4, radius: 10 },
 };
 
-function loadFlowEntryPresets(): Record<string, Array<{ frameId: number; label: string }>> {
+function flowPresetKey(flowId: number, pageId: number): string {
+  return `${flowId}:${pageId}`;
+}
+
+function loadFlowEntryPresets(): Record<string, FlowEntryPreset[]> {
   try {
     const raw = localStorage.getItem(PROTOTYPE_FLOW_ENTRY_PRESETS_KEY);
     const parsed = raw ? JSON.parse(raw) : {};
     if (!parsed || typeof parsed !== "object") return {};
-    return parsed;
+    const out: Record<string, FlowEntryPreset[]> = {};
+    for (const [key, value] of Object.entries(parsed)) {
+      if (!Array.isArray(value)) continue;
+      const list: FlowEntryPreset[] = [];
+      for (const row of value) {
+        const frameId = Number((row as any)?.frameId || 0);
+        if (!frameId) continue;
+        const label = String((row as any)?.label || `Frame #${frameId}`).trim() || `Frame #${frameId}`;
+        const pageId = Number((row as any)?.pageId || 0) || undefined;
+        list.push({ frameId, label, pageId });
+      }
+      out[key] = list;
+    }
+    return out;
   } catch {
     return {};
   }
 }
 
-function saveFlowEntryPresets(presets: Record<string, Array<{ frameId: number; label: string }>>) {
+function saveFlowEntryPresets(presets: Record<string, FlowEntryPreset[]>) {
   try {
     localStorage.setItem(PROTOTYPE_FLOW_ENTRY_PRESETS_KEY, JSON.stringify(presets));
   } catch {}
+}
+
+function readFlowPresetBucket(presets: Record<string, FlowEntryPreset[]>, flowId: number, pageId: number): FlowEntryPreset[] {
+  const keyed = presets[flowPresetKey(flowId, pageId)];
+  if (Array.isArray(keyed)) return keyed;
+  const legacy = presets[String(flowId)];
+  return Array.isArray(legacy) ? legacy.map((row) => ({ ...row, pageId })) : [];
 }
 
 
@@ -154,6 +181,7 @@ export function createPrototypeViewer(editor: Editor): {
   let flowStartFlowSel: HTMLSelectElement | null = null;
   let flowStartFrameSel: HTMLSelectElement | null = null;
   let flowStartInfo: HTMLDivElement | null = null;
+  const flowPresetCursor = new Map<string, number>();
   type FlowLintIssueType = "unreachable" | "dead-end" | "cycle" | "cycle-trap" | "overlay-leak" | "orphan-close" | "a11y-missing-label" | "a11y-focus-gap" | "a11y-focus-trap" | "a11y-low-contrast" | "a11y-motion";
   type FlowLintIssue = { type: FlowLintIssueType; frameId: number; frameName: string; detail: string };
   let flowLintWrap: HTMLDivElement | null = null;
@@ -972,7 +1000,7 @@ export function createPrototypeViewer(editor: Editor): {
     if (presetList) {
       presetList.innerHTML = "";
       const presets = loadFlowEntryPresets();
-      const flowPresets = Array.isArray(presets[String(selectedFlowId)]) ? presets[String(selectedFlowId)] : [];
+      const flowPresets = readFlowPresetBucket(presets, selectedFlowId, pageId);
       if (flowPresets.length === 0) {
         const empty = document.createElement("div");
         empty.style.cssText = "font-size:9px;color:#64748b;";
@@ -990,7 +1018,7 @@ export function createPrototypeViewer(editor: Editor): {
             flowStartFrameSel.value = String(preset.frameId);
             const flowId = Number(flowStartFlowSel?.value || 0);
             if (flowId > 0) {
-              const pageIdNow = Number(editor.engine.get_active_page_id?.() || 0);
+              const pageIdNow = Number(selectedFlow?.page_id || editor.engine.get_active_page_id?.() || 0);
               editor.engine.set_flow_start_frame(BigInt(flowId), BigInt(preset.frameId), BigInt(pageIdNow));
             }
             currentFrameId = preset.frameId;
@@ -2460,16 +2488,43 @@ export function createPrototypeViewer(editor: Editor): {
       const flowId = Number(flowStartFlowSel?.value || 0);
       const frameId = Number(flowStartFrameSel?.value || 0);
       if (!flowId || !frameId) return;
+      const pageId = Number(editor.engine.get_active_page_id?.() || 0);
       const frameName = (flowStartFrameSel?.selectedOptions?.[0]?.textContent || `Frame #${frameId}`).trim();
+      const label = (prompt("Preset label (QA scenario)", frameName) || frameName).trim() || frameName;
       const presets = loadFlowEntryPresets();
-      const key = String(flowId);
-      const list = Array.isArray(presets[key]) ? presets[key] : [];
-      const next = [{ frameId, label: frameName }, ...list.filter((p) => p.frameId !== frameId)].slice(0, 6);
+      const key = flowPresetKey(flowId, pageId);
+      const list = readFlowPresetBucket(presets, flowId, pageId);
+      const next = [{ frameId, label, pageId }, ...list.filter((p) => p.frameId !== frameId)].slice(0, 8);
       presets[key] = next;
       saveFlowEntryPresets(presets);
+      flowPresetCursor.set(key, 0);
       renderFlowStartManager();
     };
     presetBtnRow.appendChild(savePresetBtn);
+
+    const runNextPresetBtn = document.createElement("button");
+    runNextPresetBtn.className = "prop-btn";
+    runNextPresetBtn.textContent = "Run next";
+    runNextPresetBtn.style.cssText = "flex:1;font-size:10px;padding:3px 6px;";
+    runNextPresetBtn.onclick = () => {
+      const flowId = Number(flowStartFlowSel?.value || 0);
+      const pageId = Number(editor.engine.get_active_page_id?.() || 0);
+      if (!flowId) return;
+      const presets = loadFlowEntryPresets();
+      const key = flowPresetKey(flowId, pageId);
+      const list = readFlowPresetBucket(presets, flowId, pageId);
+      if (list.length === 0) return;
+      const cursor = flowPresetCursor.get(key) || 0;
+      const target = list[cursor % list.length];
+      flowPresetCursor.set(key, (cursor + 1) % list.length);
+      if (flowStartFrameSel) flowStartFrameSel.value = String(target.frameId);
+      editor.engine.set_flow_start_frame(BigInt(flowId), BigInt(target.frameId), BigInt(pageId));
+      currentFrameId = target.frameId;
+      renderFlowStartManager();
+      renderCurrentView();
+      renderFlowLint();
+    };
+    presetBtnRow.appendChild(runNextPresetBtn);
     flowStartWrap.appendChild(presetBtnRow);
 
     const presetList = document.createElement("div");
