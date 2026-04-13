@@ -1790,10 +1790,24 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Text Truncation & Overflow Inspector — frame/auto-layout 내 텍스트 잘림/overflow 감지 및 one-click resize/fix 제안 (임팩트 중상, 난이도 중)
 - Auto Layout Reorder Handles — auto-layout 컨테이너에서 캔버스 상 children 순서를 직접 drag-reorder (임팩트 중상, 난이도 중)
 - Variable Alias Graph Inspector — 변수 alias 체인/순환/미해결 참조를 그래프로 점검하고 one-click fix 제안 (임팩트 중상, 난이도 중상)
 - Prototype Focus Trap Simulator — overlay/모달에서 Tab focus trap 누락을 시뮬레이션하고 즉시 수정 액션 제공 (임팩트 중, 난이도 중)
+
+
+## 완료된 기능 (추가 — Text Truncation & Overflow Inspector, 2026-04-13)
+- Text 노드(Fixed sizing) Properties 패널에 `Text truncation / overflow inspector` 카드 추가
+- 텍스트 메트릭(폰트/line-height/letter spacing/paragraph spacing) 기반으로 필요 크기(Required W/H) 계산
+- Overflow 상태 감지:
+  - 가로 overflow(비줄바꿈 기준 max width 초과)
+  - 세로 overflow(줄바꿈 반영 높이 초과)
+- 상태 요약 표시: Needed vs Current size, line count, Auto Layout parent 영향 힌트
+- One-click fix 액션 제공:
+  - `Resize box to fit`
+  - `Switch to Fit sizing`
+  - `Fix height only` (세로 overflow 시)
+- 구현: `packages/app/src/ui/properties-panel.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Export Preset Profiles Manager, 2026-04-13)
 - Export preset format을 `png/svg`에서 `png/svg/pdf`로 확장

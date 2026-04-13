@@ -80,6 +80,7 @@
 - [x] Real-time canvas re-render on input
 - [x] Font family support (14 fonts)
 - [x] Font Fallback Inspector: Properties > Text에서 `Inspect Fallback`으로 선택된 Text 레이어의 요청 폰트 로드 여부를 점검하고, 미로드 시 추정 fallback(`system-ui/sans-serif/serif/monospace`) 및 추천 대체 폰트를 리포트. `Replace Missing`으로 미로드 레이어 일괄 치환 가능
+- [x] Text Truncation & Overflow Inspector (2026-04-13): Fixed text box에서 텍스트 메트릭 기반 Required W/H를 계산해 가로/세로 overflow를 감지하고, Properties 패널에서 `Resize box to fit` / `Switch to Fit sizing` / `Fix height only` one-click 수정을 제공
 - [x] Enter to commit, Escape to cancel
 - [x] Default text fill: black
 - [x] Text transform: None/Uppercase/Lowercase/Capitalize (visual + SVG export + CSS codegen)

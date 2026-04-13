@@ -523,6 +523,88 @@ function suggestReplacementFont(requested: string): string {
   if (byPrefix) return byPrefix;
   const byContain = googleFonts.find((f) => f.toLowerCase().includes(requested.toLowerCase()));
   return byContain || "Inter";
+
+
+function wrapTextLineByChars(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
+  if (maxWidth <= 0 || !text) return text ? [text] : [""];
+  const out: string[] = [];
+  let cur = "";
+  for (const ch of text) {
+    const next = cur + ch;
+    if (cur && ctx.measureText(next).width > maxWidth) {
+      out.push(cur);
+      cur = ch;
+    } else {
+      cur = next;
+    }
+  }
+  out.push(cur || "");
+  return out;
+}
+
+function inspectTextOverflow(node: any, parentNode: any | null) {
+  if (!node?.kind?.Text) return null;
+  const text = String(node.kind.Text.content || "");
+  const fontSize = Number(node.kind.Text.font_size ?? 16) || 16;
+  const fontWeight = Number(node.kind.Text.font_weight ?? 400) || 400;
+  const fontStyle = (node.kind.Text.font_style === "Italic" ? "italic" : "normal") as string;
+  const lineHeightRatio = Number(node.kind.Text.line_height ?? 1.2) || 1.2;
+  const letterSpacing = Number(node.kind.Text.letter_spacing ?? 0) || 0;
+  const paragraphSpacing = Number(node.kind.Text.paragraph_spacing ?? 0) || 0;
+  const fontFamily = String(node.kind.Text.font_family || "Inter");
+
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+  ctx.font = `${fontStyle} ${fontWeight} ${fontSize}px ${fontFamily}`;
+
+  const rawLines = text.split('\n');
+  const maxUnwrappedWidth = rawLines.reduce((m, line) => Math.max(m, ctx.measureText(line).width + Math.max(0, line.length - 1) * letterSpacing), 0);
+
+  const maxWidth = Number(node.width || 0);
+  const wrapped: string[] = [];
+  if (maxWidth > 0) {
+    for (const line of rawLines) {
+      if (!line) {
+        wrapped.push("");
+        continue;
+      }
+      const words = line.split(/(\s+)/).filter(Boolean);
+      let cur = "";
+      for (const token of words) {
+        const cand = cur + token;
+        const candWidth = ctx.measureText(cand).width + Math.max(0, cand.length - 1) * letterSpacing;
+        if (cur && candWidth > maxWidth) {
+          wrapped.push(cur);
+          const tokenWidth = ctx.measureText(token).width + Math.max(0, token.length - 1) * letterSpacing;
+          if (tokenWidth > maxWidth) wrapped.push(...wrapTextLineByChars(ctx, token, maxWidth));
+          else cur = token;
+          if (tokenWidth > maxWidth) cur = "";
+        } else {
+          cur = cand;
+        }
+      }
+      wrapped.push(cur || "");
+    }
+  }
+
+  const lineHeightPx = fontSize * lineHeightRatio;
+  const lineCount = maxWidth > 0 ? Math.max(1, wrapped.length) : Math.max(1, rawLines.length);
+  const paragraphCount = Math.max(0, rawLines.length - 1);
+  const requiredHeight = lineCount * lineHeightPx + paragraphCount * paragraphSpacing;
+  const overflowX = maxUnwrappedWidth > maxWidth + 0.5;
+  const overflowY = requiredHeight > Number(node.height || 0) + 0.5;
+
+  const parentAutoLayout = !!parentNode?.layout && String(parentNode.layout.mode || "None") !== "None";
+  return {
+    overflowX,
+    overflowY,
+    requiredWidth: Math.ceil(maxUnwrappedWidth),
+    requiredHeight: Math.ceil(requiredHeight),
+    lineCount,
+    parentAutoLayout,
+  };
+}
 }
 
 export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
@@ -11537,6 +11619,86 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         textSection.appendChild(overflowRow);
       }
 
+
+
+      // Text truncation / overflow inspector
+      if (currentSizing === "fixed") {
+        const parentNode = node.parent != null
+          ? JSON.parse(editor.engine.get_node_json(BigInt(node.parent)) || "null")
+          : null;
+        const overflowInfo = inspectTextOverflow(node, parentNode);
+        if (overflowInfo) {
+          const card = document.createElement("div");
+          const hasOverflow = overflowInfo.overflowX || overflowInfo.overflowY;
+          card.style.cssText = `margin-top:8px;padding:8px;border-radius:6px;border:1px solid ${hasOverflow ? "#7f1d1d" : "#1f5138"};background:${hasOverflow ? "rgba(127,29,29,0.18)" : "rgba(16,82,53,0.18)"};`;
+
+          const title = document.createElement("div");
+          title.style.cssText = `font-size:11px;font-weight:600;color:${hasOverflow ? "#fca5a5" : "#86efac"};`;
+          title.textContent = hasOverflow ? "⚠ Text truncation detected" : "✓ No text truncation";
+          card.appendChild(title);
+
+          const meta = document.createElement("div");
+          meta.style.cssText = "margin-top:4px;font-size:10px;color:#cbd5e1;line-height:1.35;";
+          meta.textContent = `Needed ${overflowInfo.requiredWidth}×${overflowInfo.requiredHeight}px · Current ${Math.round(node.width)}×${Math.round(node.height)}px · ${overflowInfo.lineCount} line(s)`;
+          card.appendChild(meta);
+
+          if (overflowInfo.parentAutoLayout) {
+            const hint = document.createElement("div");
+            hint.style.cssText = "margin-top:4px;font-size:9px;color:#94a3b8;";
+            hint.textContent = "Parent uses Auto Layout — resizing text frame may affect siblings.";
+            card.appendChild(hint);
+          }
+
+          if (hasOverflow) {
+            const actions = document.createElement("div");
+            actions.style.cssText = "display:flex;gap:4px;flex-wrap:wrap;margin-top:7px;";
+
+            const fitBoxBtn = document.createElement("button");
+            fitBoxBtn.className = "prop-add-btn";
+            fitBoxBtn.style.marginTop = "0";
+            fitBoxBtn.textContent = "Resize box to fit";
+            fitBoxBtn.addEventListener("click", () => {
+              ensureUndo();
+              const nextW = Math.max(Number(node.width || 0), overflowInfo.requiredWidth);
+              const nextH = Math.max(Number(node.height || 0), overflowInfo.requiredHeight);
+              editor.engine.resize_node(BigInt(id), nextW, nextH);
+              editor.requestRender();
+              refresh(ids);
+            });
+            actions.appendChild(fitBoxBtn);
+
+            const fitSizingBtn = document.createElement("button");
+            fitSizingBtn.className = "prop-add-btn";
+            fitSizingBtn.style.marginTop = "0";
+            fitSizingBtn.textContent = "Switch to Fit sizing";
+            fitSizingBtn.addEventListener("click", () => {
+              ensureUndo();
+              editor.engine.set_text_sizing(BigInt(id), "fit");
+              editor.requestRender();
+              refresh(ids);
+            });
+            actions.appendChild(fitSizingBtn);
+
+            if (overflowInfo.overflowY) {
+              const heightBtn = document.createElement("button");
+              heightBtn.className = "prop-add-btn";
+              heightBtn.style.marginTop = "0";
+              heightBtn.textContent = "Fix height only";
+              heightBtn.addEventListener("click", () => {
+                ensureUndo();
+                editor.engine.resize_node(BigInt(id), Number(node.width || 0), Math.max(Number(node.height || 0), overflowInfo.requiredHeight));
+                editor.requestRender();
+                refresh(ids);
+              });
+              actions.appendChild(heightBtn);
+            }
+
+            card.appendChild(actions);
+          }
+
+          textSection.appendChild(card);
+        }
+      }
       container.appendChild(textSection);
 
       // --- Text Flow section ---
