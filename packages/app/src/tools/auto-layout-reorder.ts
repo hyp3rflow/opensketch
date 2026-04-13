@@ -40,6 +40,7 @@ export interface ReorderDragState {
  */
 export function findReorderHandles(engine: Engine): ReorderHandle[] {
   const handles: ReorderHandle[] = [];
+  const seen = new Set<string>();
   try {
     const sel = Array.from(engine.get_selection()).map(Number);
     if (sel.length === 0) return handles;
@@ -48,29 +49,19 @@ export function findReorderHandles(engine: Engine): ReorderHandle[] {
     const panX = engine.get_pan_x();
     const panY = engine.get_pan_y();
 
-    for (const id of sel) {
-      // Get parent info
-      const parentId = Number((engine as any).get_node_parent?.(BigInt(id)) ?? -1);
-      if (parentId <= 0) continue;
+    const pushHandle = (parentId: number, parent: any, childId: number) => {
+      const key = `${parentId}:${childId}`;
+      if (seen.has(key)) return;
 
-      // Check if parent has auto-layout
-      const parentJson = engine.get_node_json(BigInt(parentId));
-      if (!parentJson) continue;
-      const parent = JSON.parse(parentJson);
-      if (!parent.layout || parent.layout.mode === "None") continue;
-
-      // Get child's info
-      const childJson = engine.get_node_json(BigInt(id));
-      if (!childJson) continue;
+      const childJson = engine.get_node_json(BigInt(childId));
+      if (!childJson) return;
       const child = JSON.parse(childJson);
-      if (child.absolute_position) continue;
+      if (child.visible === false || child.absolute_position) return;
 
-      // Find child index in parent
       const children: number[] = parent.children || [];
-      const childIndex = children.indexOf(id);
-      if (childIndex < 0) continue;
+      const childIndex = children.indexOf(childId);
+      if (childIndex < 0) return;
 
-      // Count visible non-absolute siblings (need at least 2 to reorder)
       let visibleCount = 0;
       for (const cid of children) {
         try {
@@ -80,25 +71,22 @@ export function findReorderHandles(engine: Engine): ReorderHandle[] {
           if (cn.visible !== false && !cn.absolute_position) visibleCount++;
         } catch { /* skip */ }
       }
-      if (visibleCount < 2) continue;
+      if (visibleCount < 2) return;
 
       const isRow = parent.layout.direction === "Row";
       const handleSize = 16;
-
-      // Position handle: left edge (column) or top edge (row) of the child
-      let hx: number, hy: number;
+      let hx: number;
+      let hy: number;
       if (isRow) {
-        // Handle at top-center of child
         hx = (child.x + child.width / 2 - handleSize / 2) * zoom + panX;
         hy = child.y * zoom + panY - handleSize - 4;
       } else {
-        // Handle at left-center of child
         hx = child.x * zoom + panX - handleSize - 4;
         hy = (child.y + child.height / 2 - handleSize / 2) * zoom + panY;
       }
 
       handles.push({
-        childId: id,
+        childId,
         parentId,
         childIndex,
         sx: hx, sy: hy, sw: handleSize, sh: handleSize,
@@ -106,6 +94,27 @@ export function findReorderHandles(engine: Engine): ReorderHandle[] {
         sceneX: child.x, sceneY: child.y,
         sceneW: child.width, sceneH: child.height,
       });
+      seen.add(key);
+    };
+
+    for (const id of sel) {
+      const nodeJson = engine.get_node_json(BigInt(id));
+      if (!nodeJson) continue;
+      const node = JSON.parse(nodeJson);
+
+      // Case 1) Selected node itself is an auto-layout container → expose handles for all reorderable children.
+      if (node.layout && node.layout.mode !== "None") {
+        for (const cid of (node.children || [])) pushHandle(id, node, Number(cid));
+      }
+
+      // Case 2) Selected node is a child of an auto-layout container → expose handle for the selected child.
+      const parentId = Number((engine as any).get_node_parent?.(BigInt(id)) ?? -1);
+      if (parentId <= 0) continue;
+      const parentJson = engine.get_node_json(BigInt(parentId));
+      if (!parentJson) continue;
+      const parent = JSON.parse(parentJson);
+      if (!parent.layout || parent.layout.mode === "None") continue;
+      pushHandle(parentId, parent, id);
     }
   } catch { /* ignore */ }
   return handles;

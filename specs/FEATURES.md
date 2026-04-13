@@ -2758,7 +2758,16 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] 드래그 중 sibling positions 실시간 갱신으로 연속 reorder 지원
 - [x] Layers panel 자동 동기화 (`onLayersChanges` 호출)
 - [x] Drop indicator 렌더링을 smart guides 상태와 분리해, 가이드가 없는 장면에서도 reorder 인디케이터가 항상 표시됨
+- [x] **v2**: auto-layout 컨테이너 자체를 선택해도 자식 전체 reorder 핸들을 캔버스에 노출 (기존 child-only 진입점 유지)
 - 구현: `packages/app/src/tools/auto-layout-reorder.ts`, `packages/app/src/editor.ts`
+
+### Selection Color Palette Inspector (2026-04-13)
+- [x] 멀티 선택 상태 Properties 패널에 `Selection Color Palette Inspector` 섹션 추가
+- [x] 선택 노드 + 하위 트리 전체의 fill/stroke 색상을 수집해 총/유니크 색상 메타 표시
+- [x] 사용 빈도 상위 팔레트 목록(스와치 + hex + count) 제공
+- [x] `list_color_styles()` 기반 nearest style token 후보(Δ distance) 제안 표시
+- [x] 유사색 병합 후보 수치( RGB distance ≤ 20 )를 요약해 정리 우선순위 가이드 제공
+- 구현: `packages/app/src/ui/properties-panel.ts`
 
 ### Smart Animate Property Diff Presets (2026-04-12)
 - [x] Interactions 편집 카드에 `Smart Animate Diff Presets` 섹션 추가 (Scan/Apply/Apply flow)

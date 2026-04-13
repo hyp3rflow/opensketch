@@ -1109,6 +1109,126 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       renderSelectionSets();
       wrap.appendChild(selectionSetSection);
 
+      // Selection color palette inspector (selected tree)
+      const paletteSection = createSection("Selection Color Palette Inspector");
+      type PaletteEntry = { hex: string; rgba: [number, number, number, number]; nodeId: number; source: "fill" | "stroke" };
+      const toHex = (r: number, g: number, b: number) => `#${[r, g, b].map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0")).join("")}`;
+      const parseColor = (value: any): [number, number, number, number] | null => {
+        if (!value) return null;
+        if (typeof value === "string") {
+          const m = value.trim().match(/^#([0-9a-f]{6}|[0-9a-f]{8})$/i);
+          if (m) {
+            const raw = m[1];
+            if (raw.length === 6) return [parseInt(raw.slice(0, 2), 16), parseInt(raw.slice(2, 4), 16), parseInt(raw.slice(4, 6), 16), 1];
+            return [parseInt(raw.slice(0, 2), 16), parseInt(raw.slice(2, 4), 16), parseInt(raw.slice(4, 6), 16), parseInt(raw.slice(6, 8), 16) / 255];
+          }
+          return null;
+        }
+        if (typeof value === "object") {
+          if (typeof value.color === "string") return parseColor(value.color);
+          if (typeof value.r === "number" && typeof value.g === "number" && typeof value.b === "number") {
+            const toByte = (v: number) => (v <= 1 ? v * 255 : v);
+            return [toByte(value.r), toByte(value.g), toByte(value.b), typeof value.a === "number" ? value.a : 1];
+          }
+        }
+        return null;
+      };
+      const styleCandidates = (() => {
+        try {
+          return JSON.parse((editor.engine as any).list_color_styles?.() || "[]");
+        } catch {
+          return [];
+        }
+      })();
+      const entries: PaletteEntry[] = [];
+      const seenNode = new Set<number>();
+      const walkNode = (nodeId: number) => {
+        if (seenNode.has(nodeId)) return;
+        seenNode.add(nodeId);
+        try {
+          const nj = editor.engine.get_node_json(BigInt(nodeId));
+          if (!nj) return;
+          const node = JSON.parse(nj);
+          const fills: any[] = Array.isArray(node.fills) ? node.fills : (node.fill ? [node.fill] : []);
+          for (const f of fills) {
+            if (f?.visible === false) continue;
+            const c = parseColor(f?.color ?? f);
+            if (!c) continue;
+            entries.push({ hex: toHex(c[0], c[1], c[2]), rgba: c, nodeId, source: "fill" });
+          }
+          const stroke = parseColor(node.stroke?.color ?? node.stroke);
+          if (stroke) entries.push({ hex: toHex(stroke[0], stroke[1], stroke[2]), rgba: stroke, nodeId, source: "stroke" });
+          for (const cid of (node.children || [])) walkNode(Number(cid));
+        } catch {
+          // ignore malformed node
+        }
+      };
+      for (const sid of ids) walkNode(sid);
+      const unique = new Map<string, number>();
+      for (const e of entries) unique.set(e.hex, (unique.get(e.hex) || 0) + 1);
+      const info = document.createElement("div");
+      info.style.cssText = "font-size:10px;color:#94a3b8;margin-bottom:6px;line-height:1.35;";
+      info.textContent = `Nodes ${seenNode.size} · Colors ${entries.length} · Unique ${unique.size}`;
+      paletteSection.appendChild(info);
+
+      if (entries.length === 0) {
+        const empty = document.createElement("div");
+        empty.style.cssText = "font-size:10px;color:#64748b;";
+        empty.textContent = "No fill/stroke colors found in selected tree.";
+        paletteSection.appendChild(empty);
+      } else {
+        const sorted = Array.from(unique.entries()).sort((a, b) => b[1] - a[1]);
+        const list = document.createElement("div");
+        list.style.cssText = "display:flex;flex-direction:column;gap:4px;max-height:200px;overflow:auto;margin-bottom:6px;";
+        for (const [hex, count] of sorted.slice(0, 14)) {
+          const row = document.createElement("div");
+          row.style.cssText = "display:flex;align-items:center;gap:6px;padding:4px;border:1px solid #334155;border-radius:6px;background:#0b1220;";
+          const sw = document.createElement("span");
+          sw.style.cssText = `width:12px;height:12px;border-radius:3px;border:1px solid rgba(255,255,255,.25);background:${hex};`;
+          const label = document.createElement("div");
+          label.style.cssText = "flex:1;font-size:10px;color:#e2e8f0;";
+          label.textContent = `${hex} · ${count}`;
+          const nearest = (() => {
+            let best: any = null;
+            let bestD = Number.POSITIVE_INFINITY;
+            const target = parseColor(hex)!;
+            for (const st of styleCandidates) {
+              const c = parseColor(st?.color);
+              if (!c) continue;
+              const d = Math.hypot(c[0] - target[0], c[1] - target[1], c[2] - target[2]);
+              if (d < bestD) { bestD = d; best = st; }
+            }
+            if (!best) return "";
+            return `${best.name || `Style #${best.id}`} (Δ${Math.round(bestD)})`;
+          })();
+          const hint = document.createElement("div");
+          hint.style.cssText = "font-size:9px;color:#93c5fd;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
+          hint.textContent = nearest ? `↪ ${nearest}` : "";
+          row.append(sw, label, hint);
+          list.appendChild(row);
+        }
+        paletteSection.appendChild(list);
+
+        const mergeCandidates = (() => {
+          const keys = sorted.map(([hex]) => hex);
+          let groups = 0;
+          for (let i = 0; i < keys.length; i++) {
+            const a = parseColor(keys[i])!;
+            for (let j = i + 1; j < keys.length; j++) {
+              const b = parseColor(keys[j])!;
+              if (Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) <= 20) groups++;
+            }
+          }
+          return groups;
+        })();
+        const mergeHint = document.createElement("div");
+        mergeHint.style.cssText = "font-size:10px;color:#cbd5e1;line-height:1.35;";
+        mergeHint.textContent = `Merge suggestion: ${mergeCandidates} similar pair(s) detected (RGB distance ≤ 20).`;
+        paletteSection.appendChild(mergeHint);
+      }
+
+      wrap.appendChild(paletteSection);
+
       // Alignment section
       const alignSection = createSection("Align");
       const alignRow = document.createElement("div");

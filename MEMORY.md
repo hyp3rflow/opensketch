@@ -1790,9 +1790,25 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Canvas Comment Threads — 캔버스 위 특정 좌표에 코멘트 핀을 달고 스레드 형태로 리뷰/피드백 남기기 (임팩트 중상, 난이도 중)
-- Batch Rename Layer Tool — 다중 선택 레이어에 패턴 기반 일괄 이름 변경 (find/replace, prefix/suffix, numbering) (임팩트 중, 난이도 중하)
-- Selection Color Palette Inspector — 선택된 노드 트리의 모든 fill/stroke 색상을 수집·정리하고, 유사색 병합 및 design token 매핑 제안 (임팩트 중상, 난이도 중)
+- Component Property Formula Tokens — 숫자/문자열 prop에 `=base * 1.2` 같은 수식 바인딩을 허용하고 변수/상태 기반 실시간 평가 (임팩트 상, 난이도 중상)
+- Prototype Conditional Branch Visual Debugger — interaction condition true/false 경로를 프레임 그래프에 오버레이하고 dead branch를 바로 수정 (임팩트 상, 난이도 중상)
+- Auto Layout Wrap Line Inspector — wrap 컨테이너의 line break 지점을 캔버스에 표시하고 per-line gap/align 미세 조정 (임팩트 중상, 난이도 중)
+- Variable Token Drift Timeline — 컬렉션/모드별 변수 값 변경 이력을 타임라인으로 추적하고 특정 시점으로 롤백 (임팩트 중상, 난이도 상)
+
+## 완료된 기능 (추가 — Selection Color Palette Inspector, 2026-04-13)
+- 멀티 선택 상태 Properties 패널에 `Selection Color Palette Inspector` 섹션 추가
+- 선택 노드 + 하위 트리 전체의 fill/stroke 색상을 수집해 total/unique 색상 메타 표시
+- 사용 빈도 상위 팔레트 목록(스와치 + hex + count) 제공
+- color styles 라이브러리와의 nearest 매핑 후보(Δ 거리) 제안 표시
+- 유사색 병합 후보 수치( RGB distance ≤ 20 )를 요약해 정리 우선순위를 빠르게 판단 가능
+- 구현: `packages/app/src/ui/properties-panel.ts`
+- specs 반영: `specs/FEATURES.md`
+
+## 완료된 기능 (추가 — Auto Layout Reorder Handles v2, 2026-04-13)
+- Auto-layout 컨테이너 자체를 선택했을 때도 자식 전체 reorder grip을 캔버스에 노출
+- 기존 child 선택 진입점과 병행 동작 + parent:child key dedupe로 중복 핸들 방지
+- 구현: `packages/app/src/tools/auto-layout-reorder.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Prototype Focus Trap Simulator, 2026-04-13)
 - Prototype Viewer Flow Lint 접근성 규칙에 `a11y-focus-trap` 추가
