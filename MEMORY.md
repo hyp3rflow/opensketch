@@ -1796,6 +1796,14 @@
 - Token Usage Heatmap on Canvas — 선택/페이지 기준 style token 사용 밀도를 캔버스 오버레이로 시각화하고 미사용 토큰 정리 제안 (임팩트 중, 난이도 중)
 - Prototype Start Points Manager — 페이지/플로우별 multiple start point를 저장/전환해 QA 시나리오를 빠르게 재생 (임팩트 중상, 난이도 중)
 
+## 완료된 기능 (백로그 정리 — Auto Layout Reorder Handles 구현 확인, 2026-04-13)
+- 자동 구현 대상이었던 `Auto Layout Reorder Handles`가 코드/스펙에 이미 반영된 상태임을 재확인
+  - 코드: `packages/app/src/tools/auto-layout-reorder.ts`, `packages/app/src/editor.ts`
+  - 스펙: `specs/FEATURES.md` 내 Auto Layout Reorder Handles 섹션
+- 검증 실행:
+  - WASM 빌드: `wasm-pack build --target web --out-dir ../../packages/app/src/wasm` ✅
+  - Vite 빌드: `packages/app`에서 `pnpm build` ✅
+
 ## 완료된 기능 (추가 — Auto Layout Reorder Handles v3, 2026-04-13)
 - reorder target index 계산을 insertion-slot 기반으로 보강해 hidden/absolute sibling이 섞인 auto-layout에서도 드래그 경계가 안정적으로 동작
 - `collectVisibleSiblings()` 유틸로 drag 시작/갱신 시 sibling 스냅샷 수집 로직을 일원화
