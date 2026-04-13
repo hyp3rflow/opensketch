@@ -59,6 +59,16 @@ type PrototypeFlowTransitionDefaults = {
   [flowId: string]: { transition: string; durationMs: number; easing: string };
 };
 
+type StrokeStylePreset = {
+  id: string;
+  name: string;
+  dash: string;
+  cap: "butt" | "round" | "square";
+  join: "miter" | "round" | "bevel";
+  align: "Center" | "Inside" | "Outside";
+  createdAt: number;
+};
+
 const CONSTRAINT_SET_PRESET_KEY = "opensketch-constraint-set-presets";
 const PROTOTYPE_RING_PRESET_KEY = "opensketch-prototype-ring-presets-v1";
 const PROTOTYPE_RING_ACTIVE_PRESET_KEY = "opensketch-prototype-ring-active-preset-id";
@@ -68,6 +78,7 @@ const INTERACTIVE_PREVIEW_AUTOSYNC_KEY = "opensketch-interactive-preview-autosyn
 const PROTOTYPE_REDUCED_MOTION_KEY = "opensketch-prototype-reduced-motion-v1";
 const INTERACTIVE_PREVIEW_EVENT = "opensketch:interactive-preview-state";
 const COMPONENT_PROP_FORMULA_KEY = "opensketch-component-prop-formulas-v1";
+const STROKE_STYLE_PRESET_KEY = "opensketch-stroke-style-presets-v1";
 
 type ComponentPropFormulaStore = Record<string, Record<string, string>>;
 
@@ -143,6 +154,32 @@ function evalComponentPropFormula(formula: string, context: Record<string, strin
   } catch {
     return { ok: false, reason: "parse error" };
   }
+}
+
+function loadStrokeStylePresets(): StrokeStylePreset[] {
+  try {
+    const raw = localStorage.getItem(STROKE_STYLE_PRESET_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((it: any) => ({
+        id: String(it?.id || Math.random().toString(36).slice(2)),
+        name: String(it?.name || "Preset").trim() || "Preset",
+        dash: String(it?.dash || ""),
+        cap: (it?.cap === "round" || it?.cap === "square") ? it.cap : "butt",
+        join: (it?.join === "round" || it?.join === "bevel") ? it.join : "miter",
+        align: (it?.align === "Inside" || it?.align === "Outside") ? it.align : "Center",
+        createdAt: Number(it?.createdAt) || Date.now(),
+      }))
+      .slice(0, 40);
+  } catch {
+    return [];
+  }
+}
+
+function saveStrokeStylePresets(presets: StrokeStylePreset[]): void {
+  localStorage.setItem(STROKE_STYLE_PRESET_KEY, JSON.stringify(presets.slice(0, 40)));
 }
 
 const DEFAULT_PROTOTYPE_RING_PRESETS: PrototypeRingPreset[] = [
@@ -6463,6 +6500,82 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           sBlend.addEventListener("change", () => { editor.engine.set_stroke_blend_mode_at(id, idx, sBlend.value); editor.requestRender(); refresh(ids); });
           optRow.appendChild(sBlend);
           strokeItem.appendChild(optRow);
+
+          const presetRow = document.createElement("div");
+          presetRow.className = "prop-row";
+          presetRow.style.cssText = "margin-top:4px;gap:4px;";
+          const presetSelect = document.createElement("select");
+          presetSelect.className = "prop-input";
+          presetSelect.style.flex = "1";
+          const baseOpt = document.createElement("option");
+          baseOpt.value = "";
+          baseOpt.textContent = "Stroke preset…";
+          presetSelect.appendChild(baseOpt);
+          const strokePresets = loadStrokeStylePresets();
+          for (const preset of strokePresets) {
+            const opt = document.createElement("option");
+            opt.value = preset.id;
+            opt.textContent = preset.name;
+            presetSelect.appendChild(opt);
+          }
+          presetRow.appendChild(presetSelect);
+
+          const applyPresetBtn = document.createElement("button");
+          applyPresetBtn.className = "prop-icon-btn";
+          applyPresetBtn.textContent = "Apply";
+          applyPresetBtn.title = "Apply selected stroke preset";
+          applyPresetBtn.addEventListener("click", () => {
+            const preset = strokePresets.find((p) => p.id === presetSelect.value);
+            if (!preset) return;
+            editor.engine.push_undo();
+            editor.engine.set_stroke_dash_at(id, idx, preset.dash, 0);
+            editor.engine.set_stroke_cap_at(id, idx, preset.cap);
+            editor.engine.set_stroke_join_at(id, idx, preset.join);
+            editor.engine.set_stroke_align_at(id, idx, preset.align);
+            editor.requestRender();
+            refresh(ids);
+          });
+          presetRow.appendChild(applyPresetBtn);
+
+          const savePresetBtn = document.createElement("button");
+          savePresetBtn.className = "prop-icon-btn";
+          savePresetBtn.textContent = "Save";
+          savePresetBtn.title = "Save current dash/cap/join/align as preset";
+          savePresetBtn.addEventListener("click", () => {
+            const name = (prompt("Preset name:", `Stroke ${strokePresets.length + 1}`) || "").trim();
+            if (!name) return;
+            const cap = stroke.line_cap === "round" || stroke.line_cap === "square" ? stroke.line_cap : "butt";
+            const join = stroke.line_join === "round" || stroke.line_join === "bevel" ? stroke.line_join : "miter";
+            const align = stroke.align === "Inside" || stroke.align === "Outside" ? stroke.align : "Center";
+            const next: StrokeStylePreset = {
+              id: `stroke-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
+              name,
+              dash: String(dashInput.value || "").trim(),
+              cap,
+              join,
+              align,
+              createdAt: Date.now(),
+            };
+            const prev = loadStrokeStylePresets().filter((p) => p.name.toLowerCase() !== next.name.toLowerCase());
+            saveStrokeStylePresets([next, ...prev]);
+            refresh(ids);
+          });
+          presetRow.appendChild(savePresetBtn);
+
+          const delPresetBtn = document.createElement("button");
+          delPresetBtn.className = "prop-icon-btn";
+          delPresetBtn.textContent = "Del";
+          delPresetBtn.title = "Delete selected stroke preset";
+          delPresetBtn.addEventListener("click", () => {
+            if (!presetSelect.value) return;
+            const target = strokePresets.find((p) => p.id === presetSelect.value);
+            if (!target) return;
+            if (!confirm(`Delete stroke preset '${target.name}'?`)) return;
+            saveStrokeStylePresets(loadStrokeStylePresets().filter((p) => p.id !== target.id));
+            refresh(ids);
+          });
+          presetRow.appendChild(delPresetBtn);
+          strokeItem.appendChild(presetRow);
 
           strokeSection.appendChild(strokeItem);
         });

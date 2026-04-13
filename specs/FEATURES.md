@@ -2630,6 +2630,13 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
   - 토글 상태를 `localStorage['opensketch-wrap-line-inspector']`에 저장
 - [x] 구현: `packages/app/src/tools/auto-layout-wrap-inspector.ts`, `packages/app/src/ui/properties-panel.ts`, `packages/app/src/editor.ts`
 
+### Stroke Styles Presets (Dashed Tokens) (2026-04-14)
+- [x] Properties panel Stroke 섹션에 `Stroke preset` 행 추가 (dash/cap/join/align 조합 프리셋)
+- [x] `Save`/`Apply`/`Del` 액션으로 현재 스트로크 스타일 저장·적용·삭제 지원
+- [x] 프리셋 저장소: `localStorage['opensketch-stroke-style-presets-v1']` (최대 40개)
+- [x] 적용 시 `set_stroke_dash_at` + `set_stroke_cap_at` + `set_stroke_join_at` + `set_stroke_align_at`를 one-click 실행
+- [x] 구현: `packages/app/src/ui/properties-panel.ts`
+
 ### Component Variant Naming Lint (2026-04-10)
 - [x] Variant Matrix Editor 상단에 `Variant Naming Lint` 카드 추가
 - [x] axis/value 네이밍 품질 점검:
