@@ -2865,6 +2865,10 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] **Focus trap simulator + quick fix (v3)**: OpenOverlay 타깃 overlay를 lint에서 시뮬레이션해 keyboard close path(Click/Press + CloseOverlay/Back) 누락/외부 누수 NavigateTo를 `a11y-focus-trap`으로 리포트.
 - [x] **Quick fix focus trap (v3)**: Flow Lint 패널 버튼으로 위험 overlay의 첫 interaction node에 `OnPress + CloseOverlay`를 자동 주입하고 lint를 즉시 재실행.
 - [x] Flow Lint summary/filter chip에 `a11y-focus-trap` 집계 통합.
+- [x] **Focus Trap Simulator panel (v4)**: Prototype Viewer 좌측에 전용 `Focus Trap Simulator` 패널 추가
+  - `Run simulation`: overlay별 trap risk(닫기 경로 누락 / 외부 누수)를 리스트업
+  - row 액션: `Jump`(해당 frame으로 이동), `Fix`(해당 overlay에만 OnPress+CloseOverlay 주입)
+  - `Fix all`: 기존 quick fix를 패널에서 즉시 실행
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
 
 ### Sticky Scroll Sections for Prototype (2026-04-12)

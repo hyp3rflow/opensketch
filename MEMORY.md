@@ -1795,6 +1795,15 @@
 - Variable Scope Audit (Collection/Page/Frame) — 변수 바인딩 스코프 누수/중복을 탐지하고 자동 정리 제안 (임팩트 중상, 난이도 중)
 - Constraint Conflict Linter — min/max/fill/hug/constraints 조합 충돌을 프레임 단위로 리포트하고 quick fix 제공 (임팩트 상, 난이도 중상)
 
+## 완료된 기능 (추가 — Prototype Focus Trap Simulator Panel, 2026-04-14)
+- Prototype Viewer 좌측에 `Focus Trap Simulator` 패널 추가
+  - `Run simulation`: OpenOverlay 대상 overlay의 keyboard trap 리스크(닫기 경로 누락/외부 누수) 스캔
+  - 리스크 row 액션: `Jump`(원본 frame 이동), `Fix`(해당 overlay에만 OnPress + CloseOverlay 주입)
+  - `Fix all`: 기존 quick-fix 루틴(다중 리스크 일괄 수정) 호출
+- fix 실행 후 Flow Lint(`a11y-focus-trap`)와 simulator 결과를 즉시 재계산해 검증 루프 단축
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
+
 ## 완료된 기능 (추가 — Component Instance Swap Suggestions v2, 2026-04-14)
 - Instance `instance_swap` prop row의 추천 chip 영역을 select 상단으로 승격해 "상단 chip" 흐름으로 개선
 - 추천 후보 노출 수를 3→4로 확장 (`suggest_component_swaps(nodeId, 6)` 결과 상위 후보 표시)
