@@ -5076,7 +5076,73 @@ export class Editor {
     return { ...this._handoffStateCapture };
   }
 
+  private ensureRedlinePinsLoaded() {
+    if ((this as any)._redlinePinsLoaded) return;
+    (this as any)._redlinePinsLoaded = true;
+    try {
+      const raw = localStorage.getItem("opensketch-redline-pins-v1");
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return;
+      this._redlinePins = parsed
+        .map((p: any) => ({
+          id: Number(p?.id || 0),
+          pageId: Number(p?.pageId || 0),
+          mode: p?.mode === "selectionSpacing" ? "selectionSpacing" : "selectionToTarget",
+          selectionIds: Array.isArray(p?.selectionIds) ? p.selectionIds.map((v: any) => Number(v || 0)).filter((v: number) => v > 0) : [],
+          targetId: Number(p?.targetId || 0) || undefined,
+          createdAt: Number(p?.createdAt || Date.now()),
+          stateCapture: {
+            hover: !!p?.stateCapture?.hover,
+            pressed: !!p?.stateCapture?.pressed,
+            focus: !!p?.stateCapture?.focus,
+          },
+        }))
+        .filter((p: RedlinePin) => p.id > 0 && p.selectionIds.length > 0)
+        .slice(-160);
+      const maxId = this._redlinePins.reduce((acc, p) => Math.max(acc, p.id), 0);
+      this._nextRedlinePinId = Math.max(this._nextRedlinePinId, maxId + 1);
+    } catch {
+      // ignore malformed storage
+    }
+  }
+
+  private persistRedlinePins() {
+    try {
+      localStorage.setItem("opensketch-redline-pins-v1", JSON.stringify(this._redlinePins.slice(-160)));
+    } catch {
+      // ignore storage failures
+    }
+  }
+
+  public listRedlinePinsForCurrentPage(): Array<{ id: number; mode: RedlinePinMode; createdAt: number; stateCapture: HandoffStateCapture; selectionCount: number; targetId?: number }> {
+    this.ensureRedlinePinsLoaded();
+    const pageId = Number(this.engine.get_active_page_id?.() ?? 0);
+    return this._redlinePins
+      .filter((p) => p.pageId === pageId)
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .map((p) => ({
+        id: p.id,
+        mode: p.mode,
+        createdAt: p.createdAt,
+        stateCapture: { ...p.stateCapture },
+        selectionCount: p.selectionIds.length,
+        targetId: p.targetId,
+      }));
+  }
+
+  public removeRedlinePin(pinId: number) {
+    this.ensureRedlinePinsLoaded();
+    const before = this._redlinePins.length;
+    this._redlinePins = this._redlinePins.filter((p) => p.id !== pinId);
+    if (this._redlinePins.length !== before) {
+      this.persistRedlinePins();
+      this.needsRender = true;
+    }
+  }
+
   public pinActiveRedline(): boolean {
+    this.ensureRedlinePinsLoaded();
     if (!this._activeRedlineContext) return false;
     const pageId = Number(this.engine.get_active_page_id?.() ?? 0);
     this._redlinePins.push({
@@ -5088,22 +5154,27 @@ export class Editor {
       createdAt: Date.now(),
       stateCapture: { ...this._handoffStateCapture },
     });
+    this.persistRedlinePins();
     this.needsRender = true;
     return true;
   }
 
   public clearRedlinePinsForCurrentPage() {
+    this.ensureRedlinePinsLoaded();
     const pageId = Number(this.engine.get_active_page_id?.() ?? 0);
     this._redlinePins = this._redlinePins.filter((p) => p.pageId !== pageId);
+    this.persistRedlinePins();
     this.needsRender = true;
   }
 
   public getPinnedRedlineCountForCurrentPage(): number {
+    this.ensureRedlinePinsLoaded();
     const pageId = Number(this.engine.get_active_page_id?.() ?? 0);
     return this._redlinePins.filter((p) => p.pageId === pageId).length;
   }
 
   private renderPinnedRedlines() {
+    this.ensureRedlinePinsLoaded();
     if (this._redlinePins.length === 0) return;
     const zoom = this.engine.get_zoom();
     const panX = this.engine.get_pan_x();

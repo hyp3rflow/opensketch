@@ -2688,6 +2688,12 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] pin 카운터 표시로 handoff 캡처 전에 유지 중인 redline 수를 즉시 확인
 - [x] 구현: `packages/app/src/editor.ts`, `packages/app/src/ui/handoff-panel.ts`
 
+### Dev Mode Measurement Pins v2 (2026-04-14)
+- [x] redline pin 데이터를 localStorage(`opensketch-redline-pins-v1`)에 저장/복원해 새로고침 이후에도 handoff 측정 앵커 유지
+- [x] Handoff `Spacing Overlay` 카드에 pinned 측정 목록 추가 (모드/selection 수/state badge 표시)
+- [x] 목록 row에 one-click 삭제(×) 액션 추가, 카운트/캔버스 렌더와 즉시 동기화
+- [x] 구현: `packages/app/src/editor.ts`, `packages/app/src/ui/handoff-panel.ts`
+
 ### Dev Handoff State Capture Presets (2026-04-13)
 - [x] Handoff 패널에 `State Capture Presets` 카드 추가 (hover / pressed / focus 토글)
 - [x] 상태 조합을 preset으로 저장/호출/삭제 (문서+페이지 단위 localStorage)

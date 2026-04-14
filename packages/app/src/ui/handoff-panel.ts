@@ -289,6 +289,51 @@ export function setupHandoffPanel(container: HTMLElement, editor: Editor) {
     pinRow.appendChild(countLabel);
     wrap.appendChild(pinRow);
 
+    const pinList = document.createElement("div");
+    pinList.style.cssText = "display:flex;flex-direction:column;gap:4px;max-height:120px;overflow:auto;";
+
+    const renderPinList = () => {
+      pinList.innerHTML = "";
+      const pins = ((editor as any).listRedlinePinsForCurrentPage?.() || []) as Array<{ id: number; mode: "selectionToTarget" | "selectionSpacing"; createdAt: number; stateCapture: { hover: boolean; pressed: boolean; focus: boolean }; selectionCount: number; targetId?: number }>;
+      if (pins.length === 0) {
+        const empty = document.createElement("div");
+        empty.style.cssText = "font-size:10px;color:#777;";
+        empty.textContent = "No pinned measurements yet.";
+        pinList.appendChild(empty);
+        return;
+      }
+      for (const pin of pins.slice(0, 10)) {
+        const row = document.createElement("div");
+        row.style.cssText = "display:flex;align-items:center;gap:6px;background:#111827;border:1px solid #374151;border-radius:5px;padding:3px 5px;";
+        const label = document.createElement("div");
+        label.style.cssText = "flex:1;font-size:10px;color:#cbd5e1;";
+        const tags = [pin.stateCapture.hover ? "H" : "", pin.stateCapture.pressed ? "P" : "", pin.stateCapture.focus ? "F" : ""].filter(Boolean).join("+");
+        label.textContent = `${pin.mode === "selectionSpacing" ? "Spacing" : "Target"} · ${pin.selectionCount} sel${tags ? ` · ${tags}` : ""}`;
+        row.appendChild(label);
+
+        const del = document.createElement("button");
+        del.textContent = "×";
+        del.title = "Remove pin";
+        del.style.cssText = "padding:0 5px;height:18px;border:1px solid #7f1d1d;background:#3f1d1d;color:#fecaca;border-radius:4px;font-size:10px;cursor:pointer;";
+        del.onclick = () => {
+          (editor as any).removeRedlinePin?.(pin.id);
+          updateCount();
+          renderPinList();
+        };
+        row.appendChild(del);
+        pinList.appendChild(row);
+      }
+    };
+
+    const refreshPins = () => {
+      updateCount();
+      renderPinList();
+    };
+    pinBtn.addEventListener("click", refreshPins);
+    clearBtn.addEventListener("click", refreshPins);
+    renderPinList();
+    wrap.appendChild(pinList);
+
     return wrap;
   }
 

@@ -1790,9 +1790,18 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Dev Mode Measurement Pins — 간격/사이즈 측정값을 pin으로 고정해 핸드오프 스냅샷에서도 유지되는 redline 앵커 제공 (임팩트 중, 난이도 중)
 - Smart Animate Stage Preview (Onion Frames) — prototype 재생 없이 start/end/intermediate 상태를 오버레이로 비교해 모션 타이밍 검증 (임팩트 상, 난이도 중상)
 - Constraint Conflict Linter — min/max/fill/hug/constraints 조합 충돌을 프레임 단위로 리포트하고 quick fix 제공 (임팩트 상, 난이도 중상)
+- Prototype Scroll Lock Regions — overlay/side-sheet 오픈 시 배경 스크롤 잠금 영역을 지정하고 누수 스크롤을 lint + one-click fix (임팩트 중상, 난이도 중)
+- Auto Layout Safe Area Insets — 모바일 프레임 상단/하단 safe area preset(iOS/Android) 적용 + hug/fill과 충돌 감지 (임팩트 중상, 난이도 중상)
+- Variable Contract Tests — 컴포넌트별 required variable schema를 저장하고 누락/타입불일치를 릴리즈 전 일괄 검사 (임팩트 상, 난이도 중)
+
+## 완료된 기능 (추가 — Dev Mode Measurement Pins v2, 2026-04-14)
+- redline pin을 localStorage(`opensketch-redline-pins-v1`)에 저장/복원해 새로고침 이후에도 핸드오프 측정 앵커 유지
+- Handoff > Spacing Overlay 카드에 pinned 측정 목록 추가 (mode/selection/state(H/P/F) 메타 표시)
+- 목록 row별 one-click 삭제(×)로 개별 pin 정리 가능, pin count와 캔버스 렌더 즉시 동기화
+- 구현: `packages/app/src/editor.ts`, `packages/app/src/ui/handoff-panel.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Variable Scope Audit (Collection/Page/Frame), 2026-04-14)
 - Variables 패널에 `Variable Scope Audit` 섹션 추가 (scope: Collection/Page/Frame)
