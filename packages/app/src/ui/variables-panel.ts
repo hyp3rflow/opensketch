@@ -50,6 +50,7 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
   let usageHeatmapCanvas: HTMLCanvasElement | null = null;
   let expandedTimelineEntryId: string | null = null;
   let selectedTimelineModeId: number | "all" = "all";
+  let selectedScopeAudit: "Collection" | "Page" | "Frame" = "Collection";
 
   const cloneModeValues = (input: Record<string, VarPrimitive> | undefined | null): Record<string, VarPrimitive> => {
     const out: Record<string, VarPrimitive> = {};
@@ -181,7 +182,7 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
     modeName: string;
     rawToken: string;
     candidates: string[];
-    reason: "missing" | "ambiguous";
+    reason: "missing" | "ambiguous" | "self";
   };
 
   type VariableAliasChain = {
@@ -283,6 +284,17 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
               rawToken: token,
               candidates,
               reason: "ambiguous",
+            });
+            continue;
+          }
+          if (candidates[0] === src) {
+            broken.push({
+              from: src,
+              modeId,
+              modeName: modeById.get(modeId) || `Mode ${modeId}`,
+              rawToken: token,
+              candidates,
+              reason: "self",
             });
             continue;
           }
@@ -1316,7 +1328,8 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
         .map((broken) => {
           const source = graph.nodes.get(broken.from);
           if (!source) return null;
-          return { source, modeId: broken.modeId, targetKey: broken.candidates[0] || null };
+          const targetKey = broken.reason === "self" ? null : (broken.candidates[0] || null);
+          return { source, modeId: broken.modeId, targetKey };
         })
         .filter((v): v is { source: VariableGraphNode; modeId: number; targetKey: string | null } => Boolean(v));
       if (fixPlan.length === 0) return;
@@ -1412,7 +1425,11 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
 
       const text = document.createElement("button");
       text.style.cssText = "flex:1;text-align:left;background:none;border:none;color:#fecaca;font-size:10px;cursor:pointer;";
-      const reasonText = broken.reason === "ambiguous" ? "ambiguous" : "missing";
+      const reasonText = broken.reason === "ambiguous"
+        ? "ambiguous"
+        : broken.reason === "self"
+          ? "self-reference"
+          : "missing";
       text.textContent = `${source.collectionName}/${source.variableName} (${broken.modeName}) → {${broken.rawToken}} [${reasonText}]`;
       text.title = "Jump to source variable";
       text.onclick = () => jumpToVariable(broken.from);
@@ -1501,6 +1518,135 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
 
     graphSection.appendChild(issueWrap);
     container.appendChild(graphSection);
+
+    // Variable scope audit (Collection/Page/Frame)
+    const auditSection = document.createElement("div");
+    auditSection.style.cssText = "margin-bottom:12px;background:#1a2332;border:1px solid #334155;border-radius:6px;padding:8px;";
+    const auditHead = document.createElement("div");
+    auditHead.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;";
+    const auditTitle = document.createElement("div");
+    auditTitle.style.cssText = "font-size:10px;color:#93c5fd;text-transform:uppercase;letter-spacing:0.5px;font-weight:700;";
+    auditTitle.textContent = "Variable Scope Audit";
+    auditHead.appendChild(auditTitle);
+
+    const auditScopeSel = document.createElement("select");
+    auditScopeSel.style.cssText = "background:#111827;border:1px solid #374151;border-radius:4px;color:#cbd5e1;font-size:10px;padding:2px 6px;";
+    for (const scope of ["Collection", "Page", "Frame"] as const) {
+      const opt = document.createElement("option");
+      opt.value = scope;
+      opt.textContent = scope;
+      if (scope === selectedScopeAudit) opt.selected = true;
+      auditScopeSel.appendChild(opt);
+    }
+    auditScopeSel.onchange = () => {
+      selectedScopeAudit = auditScopeSel.value as "Collection" | "Page" | "Frame";
+      refresh();
+    };
+    auditHead.appendChild(auditScopeSel);
+    auditSection.appendChild(auditHead);
+
+    const auditList = document.createElement("div");
+    auditList.style.cssText = "display:flex;flex-direction:column;gap:4px;max-height:140px;overflow:auto;";
+
+    const nodeCache = new Map<number, any | null>();
+    const readNode = (nodeId: number): any | null => {
+      if (nodeCache.has(nodeId)) return nodeCache.get(nodeId) ?? null;
+      let node: any = null;
+      try { node = JSON.parse(editor.engine.get_node_json(BigInt(nodeId)) || "null"); } catch { node = null; }
+      nodeCache.set(nodeId, node);
+      return node;
+    };
+
+    const findTopFrameId = (nodeId: number): number => {
+      let current = readNode(nodeId);
+      let lastFrame = 0;
+      let guard = 0;
+      while (current && guard < 80) {
+        if (String(current.kind || "") === "Frame") lastFrame = Number(current.id || 0);
+        const parentId = Number(current.parent || 0);
+        if (!parentId) break;
+        current = readNode(parentId);
+        guard += 1;
+      }
+      return lastFrame;
+    };
+
+    const findPageId = (nodeId: number): number => {
+      let current = readNode(nodeId);
+      let guard = 0;
+      while (current && guard < 80) {
+        if (typeof current.page_id === "number") return Number(current.page_id || 0);
+        const parentId = Number(current.parent || 0);
+        if (!parentId) break;
+        current = readNode(parentId);
+        guard += 1;
+      }
+      return 0;
+    };
+
+    const scopeIssues: Array<{ variable: VarVariable; mode: string; detail: string }> = [];
+    for (const variable of col.variables || []) {
+      let usages: Array<{ node_id?: number }> = [];
+      try {
+        usages = JSON.parse((editor.engine as any).get_variable_usages?.(BigInt(col.id), BigInt(variable.id)) || "[]");
+      } catch {
+        usages = [];
+      }
+      if (usages.length <= 1 || selectedScopeAudit === "Collection") continue;
+
+      if (selectedScopeAudit === "Page") {
+        const pages = new Set<number>();
+        for (const u of usages) {
+          const nodeId = Number(u.node_id || 0);
+          if (nodeId <= 0) continue;
+          pages.add(findPageId(nodeId));
+        }
+        if (pages.size > 1) {
+          scopeIssues.push({ variable, mode: "Page", detail: `used in ${pages.size} pages` });
+        }
+      } else if (selectedScopeAudit === "Frame") {
+        const frames = new Set<number>();
+        for (const u of usages) {
+          const nodeId = Number(u.node_id || 0);
+          if (nodeId <= 0) continue;
+          frames.add(findTopFrameId(nodeId));
+        }
+        if (frames.size > 1) {
+          scopeIssues.push({ variable, mode: "Frame", detail: `used in ${frames.size} top frames` });
+        }
+      }
+    }
+
+    if (scopeIssues.length === 0) {
+      const ok = document.createElement("div");
+      ok.style.cssText = "font-size:10px;color:#86efac;background:rgba(22,101,52,0.25);border:1px solid rgba(74,222,128,0.35);border-radius:4px;padding:5px 6px;";
+      ok.textContent = selectedScopeAudit === "Collection" ? "Collection scope selected. Switch to Page/Frame to lint scope leaks." : `No ${selectedScopeAudit.toLowerCase()} scope leaks found.`;
+      auditList.appendChild(ok);
+    } else {
+      for (const issue of scopeIssues.slice(0, 24)) {
+        const row = document.createElement("div");
+        row.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:6px;background:rgba(127,29,29,0.24);border:1px solid rgba(248,113,113,0.36);border-radius:4px;padding:4px 6px;";
+
+        const text = document.createElement("div");
+        text.style.cssText = "flex:1;font-size:10px;color:#fecaca;";
+        text.textContent = `${issue.variable.name} (${issue.variable.value_type}) · ${issue.detail}`;
+        row.appendChild(text);
+
+        const filterBtn = document.createElement("button");
+        filterBtn.style.cssText = "background:#1e3a8a;border:1px solid #60a5fa;border-radius:4px;color:#bfdbfe;font-size:10px;padding:2px 6px;cursor:pointer;";
+        filterBtn.textContent = "Filter";
+        filterBtn.onclick = () => {
+          variableSearchQuery = issue.variable.name;
+          refresh();
+        };
+        row.appendChild(filterBtn);
+
+        auditList.appendChild(row);
+      }
+    }
+
+    auditSection.appendChild(auditList);
+    container.appendChild(auditSection);
 
     // Variables table
     const varsSection = document.createElement("div");

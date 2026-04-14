@@ -1792,8 +1792,15 @@
 ## 다음 할 것
 - Dev Mode Measurement Pins — 간격/사이즈 측정값을 pin으로 고정해 핸드오프 스냅샷에서도 유지되는 redline 앵커 제공 (임팩트 중, 난이도 중)
 - Smart Animate Stage Preview (Onion Frames) — prototype 재생 없이 start/end/intermediate 상태를 오버레이로 비교해 모션 타이밍 검증 (임팩트 상, 난이도 중상)
-- Variable Scope Audit (Collection/Page/Frame) — 변수 바인딩 스코프 누수/중복을 탐지하고 자동 정리 제안 (임팩트 중상, 난이도 중)
 - Constraint Conflict Linter — min/max/fill/hug/constraints 조합 충돌을 프레임 단위로 리포트하고 quick fix 제공 (임팩트 상, 난이도 중상)
+
+## 완료된 기능 (추가 — Variable Scope Audit (Collection/Page/Frame), 2026-04-14)
+- Variables 패널에 `Variable Scope Audit` 섹션 추가 (scope: Collection/Page/Frame)
+- Page 모드: 동일 변수가 여러 페이지에 퍼진 경우 leak로 리포트
+- Frame 모드: 동일 변수가 여러 top-level frame에 퍼진 경우 leak로 리포트
+- 각 leak row에 `Filter` 액션 추가(해당 변수명으로 즉시 검색)
+- 구현: `packages/app/src/ui/variables-panel.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Prototype Focus Trap Simulator Panel, 2026-04-14)
 - Prototype Viewer 좌측에 `Focus Trap Simulator` 패널 추가

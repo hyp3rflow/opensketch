@@ -2747,6 +2747,13 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] `Copy report` 액션으로 unresolved/cycle 요약을 클립보드로 내보내 디버깅/리뷰 공유 흐름 강화
 - 구현: `packages/app/src/ui/variables-panel.ts`
 
+### Variable Scope Audit (Collection/Page/Frame) (2026-04-14)
+- [x] Variables 패널에 `Variable Scope Audit` 카드 추가, scope(`Collection / Page / Frame`) 기준으로 변수 사용 범위 누수를 점검
+- [x] `Page` 모드: 동일 변수의 usage가 여러 page로 퍼진 경우 leak로 리포트
+- [x] `Frame` 모드: usage가 여러 top-level frame으로 분산된 변수를 리포트
+- [x] leak row에 `Filter` 액션 제공(해당 변수명으로 즉시 검색 필터)
+- 구현: `packages/app/src/ui/variables-panel.ts`
+
 ### Smart Animate Stagger Graph Editor (2026-04-14)
 - [x] Smart Animate timeline modal의 배치 카드에 `Smart Animate Stagger Graph` 섹션 추가
 - [x] 동일 이름 레이어 그룹(라벨 정규화) 단위로 시간 오프셋을 적용해 반복 레이어 순차 애니메이션 편집 지원
