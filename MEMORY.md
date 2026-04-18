@@ -1790,9 +1790,18 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Focus Ring Preset Contrast Report — 프리셋별 hover/press/focus 대비 점수표와 위험 상태 배지를 제공해 릴리즈 전 a11y 검수를 빠르게 수행 (임팩트 중, 난이도 중)
 - Overlay Escape Intent Hints — CloseOverlay/Back 액션이 없는 hotspot에 캔버스 경고 배지를 표시하고 권장 액션 템플릿을 제안 (임팩트 중상, 난이도 중)
 - Variable Token Merge Dry-Run Diff — merge 전에 영향을 받는 노드/스타일/프로토타입 경로를 diff 카드로 미리보기 (임팩트 상, 난이도 중상)
+- Prototype Focus Return Map — overlay 닫힘 시 포커스가 돌아갈 origin hotspot 후보를 시각화하고 누락 시 fallback 노드 추천 (임팩트 중상, 난이도 중)
+- Keyboard Trigger Coverage Heatmap — OnClick/OnPress hotspot 중 keyboard trigger 누락 영역을 frame heatmap으로 집계 (임팩트 중, 난이도 중)
+- Ring Preset Auto-Guard Rules — 릴리즈 모드에서 Safe 미만 preset 사용 시 자동 guard/경고 정책을 flow별로 설정 (임팩트 중, 난이도 중)
+
+## 완료된 기능 (추가 — Focus Ring Preset Contrast Report, 2026-04-19)
+- Prototype Viewer 상단 Ring 컨트롤에 `Report` 버튼 추가
+- preset별 hover/press/focus 링 색 대비를 `x.xx:1` 점수표로 표시
+- 최소 대비 기반 `Safe / Warn / Risk` 배지를 제공해 a11y 검수 속도 개선
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Variable Token Cleanup Queue, 2026-04-19)
 - Variables Inspector에 `Variable Token Cleanup Queue` 카드 추가

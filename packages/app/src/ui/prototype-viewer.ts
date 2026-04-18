@@ -262,6 +262,7 @@ export function createPrototypeViewer(editor: Editor): {
     leaksOutside: boolean;
     trappedInLoop: boolean;
     simulatedTabSteps: number;
+    tabTrace: string[];
   };
   let flowLintWrap: HTMLDivElement | null = null;
   let keyboardOrderWrap: HTMLDivElement | null = null;
@@ -1559,6 +1560,7 @@ export function createPrototypeViewer(editor: Editor): {
         let simulatedTabSteps = 0;
         let leaksOutside = false;
         let trappedInLoop = false;
+        const tabTrace: string[] = [];
         if (focusables.length > 0) {
           const maxSteps = Math.max(6, focusables.length * 2);
           for (let step = 0; step < maxSteps; step += 1) {
@@ -1568,6 +1570,9 @@ export function createPrototypeViewer(editor: Editor): {
             if (!interaction) continue;
             const action = String(interaction?.action || "");
             const target = Number(interaction?.target_node_id || 0);
+            const nodeLabel = String(focusable?.node?.name || `Node #${focusable?.nodeId || 0}`);
+            const targetLabel = target > 0 ? ` → #${target}` : "";
+            tabTrace.push(`Tab ${step + 1}: ${nodeLabel} · ${action}${targetLabel}`);
             if (action === "CloseOverlay" || action === "Back") {
               trappedInLoop = false;
               break;
@@ -1592,6 +1597,7 @@ export function createPrototypeViewer(editor: Editor): {
           leaksOutside,
           trappedInLoop,
           simulatedTabSteps,
+          tabTrace: tabTrace.slice(0, 4),
         });
       }
     }
@@ -1672,6 +1678,13 @@ export function createPrototypeViewer(editor: Editor): {
       meta.style.cssText = "font-size:9px;color:#fecaca;";
       meta.textContent = `Keyboard hotspots: ${issue.keyboardHotspots} · Simulated tabs: ${issue.simulatedTabSteps}`;
       row.appendChild(meta);
+
+      if (issue.tabTrace.length > 0) {
+        const trace = document.createElement("div");
+        trace.style.cssText = "font-size:9px;color:#fda4af;line-height:1.35;white-space:pre-wrap;";
+        trace.textContent = issue.tabTrace.join("\n");
+        row.appendChild(trace);
+      }
 
       const btnRow = document.createElement("div");
       btnRow.style.cssText = "display:flex;gap:4px;";
@@ -2836,6 +2849,11 @@ export function createPrototypeViewer(editor: Editor): {
     ringGuardBtn.className = "prop-btn";
     ringGuardBtn.textContent = "Guard";
     ringGuardBtn.style.cssText = "font-size:10px;padding:3px 6px;color:#facc15;border-color:rgba(250,204,21,0.45);";
+    const ringReportBtn = document.createElement("button");
+    ringReportBtn.className = "prop-btn";
+    ringReportBtn.textContent = "Report";
+    ringReportBtn.style.cssText = "font-size:10px;padding:3px 6px;color:#93c5fd;border-color:rgba(147,197,253,0.45);";
+    let ringReportWrap: HTMLDivElement | null = null;
     const syncRingPresetSelect = () => {
       const presets = loadPrototypeRingPresets();
       const flowId = detectFlowIdForFrame(currentFrameId);
@@ -2904,7 +2922,47 @@ export function createPrototypeViewer(editor: Editor): {
       syncRingPresetSelect();
       renderCurrentView();
     };
-    ringWrap.append(ringLabel, ringSel, ringFlowCheckLabel, ringSaveBtn, ringGuardBtn);
+    ringReportBtn.onclick = () => {
+      if (!overlay) return;
+      if (ringReportWrap && ringReportWrap.parentElement) {
+        ringReportWrap.remove();
+        ringReportWrap = null;
+        ringReportBtn.textContent = "Report";
+        return;
+      }
+      const frameBg = detectFrameBackgroundRgb(currentFrameId);
+      const presets = loadPrototypeRingPresets();
+      ringReportWrap = document.createElement("div");
+      ringReportWrap.style.cssText = "position:absolute;right:14px;top:58px;max-width:320px;max-height:300px;overflow:auto;background:rgba(15,23,42,0.96);border:1px solid rgba(148,163,184,0.32);border-radius:10px;padding:8px;z-index:8;display:flex;flex-direction:column;gap:6px;";
+      const head = document.createElement("div");
+      head.style.cssText = "font-size:11px;font-weight:600;color:#cbd5e1;";
+      head.textContent = "Focus Ring Contrast Report";
+      ringReportWrap.appendChild(head);
+      for (const preset of presets) {
+        const card = document.createElement("div");
+        card.style.cssText = "display:flex;flex-direction:column;gap:4px;border:1px solid rgba(71,85,105,0.5);border-radius:8px;padding:6px;";
+        const hoverRatio = contrastRatio(parseColorToRgb(preset.hover.color) || frameBg, frameBg);
+        const pressRatio = contrastRatio(parseColorToRgb(preset.press.color) || frameBg, frameBg);
+        const focusRatio = contrastRatio(parseColorToRgb(preset.focus.color) || frameBg, frameBg);
+        const minRatio = Math.min(hoverRatio, pressRatio, focusRatio);
+        const badge = minRatio >= 3 ? "Safe" : (minRatio >= 2.3 ? "Warn" : "Risk");
+        const badgeColor = badge === "Safe" ? "#22c55e" : (badge === "Warn" ? "#f59e0b" : "#ef4444");
+
+        const title = document.createElement("div");
+        title.style.cssText = "display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:10px;color:#e2e8f0;";
+        title.innerHTML = `<span>${preset.name}</span><span style=\"color:${badgeColor};font-weight:700;\">${badge}</span>`;
+        card.appendChild(title);
+
+        const score = document.createElement("div");
+        score.style.cssText = "font-size:9px;color:#94a3b8;line-height:1.35;";
+        score.textContent = `hover ${hoverRatio.toFixed(2)}:1 · press ${pressRatio.toFixed(2)}:1 · focus ${focusRatio.toFixed(2)}:1`;
+        card.appendChild(score);
+        ringReportWrap.appendChild(card);
+      }
+      overlay.appendChild(ringReportWrap);
+      ringReportBtn.textContent = "Close";
+    };
+    ringWrap.append(ringLabel, ringSel, ringFlowCheckLabel, ringSaveBtn, ringGuardBtn, ringReportBtn);
     syncRingPresetSelect();
     topBar.appendChild(ringWrap);
 

@@ -2926,6 +2926,10 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
   - Tab simulation 누수 판정 보강: 같은 hotspot node에 CloseOverlay/Back이 이미 있으면 외부 NavigateTo를 누수로 보지 않음
   - 개별 `Fix`/`Fix all`이 missing close 뿐 아니라 leak/loop 위험도 함께 처리
   - leak 노드엔 CloseOverlay fallback을 주입하고, loop/close-missing은 overlay의 마지막 keyboard hotspot에 close path를 생성
+- [x] **Focus Ring Preset Contrast Report (v1, 2026-04-19)**
+  - Prototype Viewer 상단 Ring 컨트롤에 `Report` 버튼 추가
+  - 모든 ring preset의 hover/press/focus 대비비를 배경 대비 `x.xx:1` 점수표로 표시
+  - 최소 대비 기준으로 `Safe / Warn / Risk` 배지를 제공해 릴리즈 전 a11y 리스크를 즉시 스캔
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
 
 ### Sticky Scroll Sections for Prototype (2026-04-12)
