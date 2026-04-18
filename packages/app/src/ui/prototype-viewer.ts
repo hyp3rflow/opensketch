@@ -232,6 +232,12 @@ export function createPrototypeViewer(editor: Editor): {
   let timelineInfo: HTMLDivElement | null = null;
   let timelineScrubber: HTMLInputElement | null = null;
   let timelineList: HTMLDivElement | null = null;
+  let stagePreviewWrap: HTMLDivElement | null = null;
+  let stagePreviewInfo: HTMLDivElement | null = null;
+  let stagePreviewCanvas: HTMLCanvasElement | null = null;
+  let stagePreviewScrubber: HTMLInputElement | null = null;
+  let stagePreviewOnion = true;
+  let lastTransitionPreview: { fromId: number; toId: number; transition: string; durationMs: number; easing: string; timeline?: SmartTimelineKeyframe[] } | null = null;
   type TimelineEventKind = "interaction" | "frame" | "system";
   let timelineEvents: Array<{ id: number; at: number; action: string; fromFrameId: number | null; toFrameId: number | null; transition: string; durationMs: number; kind: TimelineEventKind; note?: string }> = [];
   let timelineFilterMode: "all" | "frame" | "interaction" = "all";
@@ -2337,6 +2343,69 @@ export function createPrototypeViewer(editor: Editor): {
     }
   }
 
+  function renderStagePreviewFrame(tRaw: number) {
+    if (!stagePreviewCanvas || !stagePreviewInfo) return;
+    const ctx = stagePreviewCanvas.getContext("2d");
+    if (!ctx) return;
+    const preview = lastTransitionPreview;
+    if (!preview) {
+      stagePreviewInfo.textContent = "Run a frame transition first to preview stages.";
+      ctx.clearRect(0, 0, stagePreviewCanvas.width, stagePreviewCanvas.height);
+      return;
+    }
+
+    const fromCanvas = renderFrameToCanvas(preview.fromId);
+    const toCanvas = renderFrameToCanvas(preview.toId);
+    if (!fromCanvas || !toCanvas) {
+      stagePreviewInfo.textContent = "Failed to render source/target frame.";
+      ctx.clearRect(0, 0, stagePreviewCanvas.width, stagePreviewCanvas.height);
+      return;
+    }
+
+    const t = Math.max(0, Math.min(1, tRaw));
+    const eased = applyEasing(preview.easing || "ease_in_out", t);
+    const w = stagePreviewCanvas.width;
+    const h = stagePreviewCanvas.height;
+    ctx.clearRect(0, 0, w, h);
+
+    if (stagePreviewOnion) {
+      ctx.globalAlpha = 0.2;
+      ctx.drawImage(fromCanvas, 0, 0, w, h);
+      ctx.globalAlpha = 0.2;
+      ctx.drawImage(toCanvas, 0, 0, w, h);
+      ctx.globalAlpha = 1;
+    }
+
+    switch (preview.transition) {
+      case "SlideIn":
+        ctx.drawImage(fromCanvas, -w * eased, 0, w, h);
+        ctx.drawImage(toCanvas, w * (1 - eased), 0, w, h);
+        break;
+      case "SlideOut":
+        ctx.drawImage(toCanvas, 0, 0, w, h);
+        ctx.drawImage(fromCanvas, w * eased, 0, w, h);
+        break;
+      case "Push":
+        ctx.drawImage(fromCanvas, -w * eased, 0, w, h);
+        ctx.drawImage(toCanvas, w - w * eased, 0, w, h);
+        break;
+      case "SmartAnimate":
+      case "Dissolve":
+      default:
+        ctx.globalAlpha = 1 - eased;
+        ctx.drawImage(fromCanvas, 0, 0, w, h);
+        ctx.globalAlpha = eased;
+        ctx.drawImage(toCanvas, 0, 0, w, h);
+        ctx.globalAlpha = 1;
+        break;
+    }
+
+    ctx.strokeStyle = "rgba(148,163,184,0.6)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(0.5, 0.5, w - 1, h - 1);
+    stagePreviewInfo.textContent = `${preview.transition} · ${(eased * 100).toFixed(0)}% · ${preview.durationMs}ms · onion ${stagePreviewOnion ? "ON" : "OFF"}`;
+  }
+
   function onFlowMinimapClick(e: MouseEvent) {
     if (!flowMinimapCanvas || !flowMinimapSnapshot) return;
     const rect = flowMinimapCanvas.getBoundingClientRect();
@@ -3026,8 +3095,67 @@ export function createPrototypeViewer(editor: Editor): {
     timelineWrap.appendChild(timelineList);
     overlay.appendChild(timelineWrap);
 
+    stagePreviewWrap = document.createElement("div");
+    stagePreviewWrap.style.cssText = "position:absolute;right:14px;top:360px;width:260px;background:rgba(15,23,42,0.92);border:1px solid rgba(148,163,184,0.3);border-radius:10px;padding:8px;z-index:4;display:flex;flex-direction:column;gap:6px;";
+    const stageHead = document.createElement("div");
+    stageHead.style.cssText = "font-size:11px;font-weight:600;color:#cbd5e1;";
+    stageHead.textContent = "Smart Animate Stage Preview";
+    stagePreviewWrap.appendChild(stageHead);
+
+    stagePreviewInfo = document.createElement("div");
+    stagePreviewInfo.style.cssText = "font-size:10px;color:#94a3b8;line-height:1.35;";
+    stagePreviewInfo.textContent = "Run a transition and inspect start/mid/end stages.";
+    stagePreviewWrap.appendChild(stagePreviewInfo);
+
+    stagePreviewCanvas = document.createElement("canvas");
+    stagePreviewCanvas.width = 520;
+    stagePreviewCanvas.height = 260;
+    stagePreviewCanvas.style.cssText = "width:100%;height:120px;border-radius:6px;background:#020617;";
+    stagePreviewWrap.appendChild(stagePreviewCanvas);
+
+    stagePreviewScrubber = document.createElement("input");
+    stagePreviewScrubber.type = "range";
+    stagePreviewScrubber.min = "0";
+    stagePreviewScrubber.max = "100";
+    stagePreviewScrubber.value = "50";
+    stagePreviewScrubber.style.cssText = "width:100%;";
+    stagePreviewScrubber.oninput = () => renderStagePreviewFrame(Number(stagePreviewScrubber?.value || 0) / 100);
+    stagePreviewWrap.appendChild(stagePreviewScrubber);
+
+    const stageBtnRow = document.createElement("div");
+    stageBtnRow.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;";
+    const mkStageBtn = (label: string, v: number) => {
+      const btn = document.createElement("button");
+      btn.className = "prop-btn";
+      btn.textContent = label;
+      btn.style.cssText = "font-size:10px;padding:3px 6px;";
+      btn.onclick = () => {
+        if (stagePreviewScrubber) stagePreviewScrubber.value = String(v);
+        renderStagePreviewFrame(v / 100);
+      };
+      return btn;
+    };
+    stageBtnRow.appendChild(mkStageBtn("Start", 0));
+    stageBtnRow.appendChild(mkStageBtn("Mid", 50));
+    stageBtnRow.appendChild(mkStageBtn("End", 100));
+
+    const onionBtn = document.createElement("button");
+    onionBtn.className = "prop-btn";
+    onionBtn.style.cssText = "font-size:10px;padding:3px 6px;";
+    const syncOnionLabel = () => { onionBtn.textContent = stagePreviewOnion ? "Onion ON" : "Onion OFF"; };
+    syncOnionLabel();
+    onionBtn.onclick = () => {
+      stagePreviewOnion = !stagePreviewOnion;
+      syncOnionLabel();
+      renderStagePreviewFrame(Number(stagePreviewScrubber?.value || 0) / 100);
+    };
+    stageBtnRow.appendChild(onionBtn);
+    stagePreviewWrap.appendChild(stageBtnRow);
+
+    overlay.appendChild(stagePreviewWrap);
+
     sessionSnapshotWrap = document.createElement("div");
-    sessionSnapshotWrap.style.cssText = "position:absolute;right:14px;top:366px;width:260px;max-height:280px;overflow:auto;background:rgba(15,23,42,0.92);border:1px solid rgba(148,163,184,0.3);border-radius:10px;padding:8px;z-index:4;display:flex;flex-direction:column;gap:6px;";
+    sessionSnapshotWrap.style.cssText = "position:absolute;right:14px;top:572px;width:260px;max-height:280px;overflow:auto;background:rgba(15,23,42,0.92);border:1px solid rgba(148,163,184,0.3);border-radius:10px;padding:8px;z-index:4;display:flex;flex-direction:column;gap:6px;";
     const ssHead = document.createElement("div");
     ssHead.style.cssText = "font-size:11px;font-weight:600;color:#cbd5e1;";
     ssHead.textContent = "Session Snapshot Comparator";
@@ -3107,6 +3235,9 @@ export function createPrototypeViewer(editor: Editor): {
     buildVarsPanel();
     renderFlowStartManager();
     renderTimelineScrubber();
+    lastTransitionPreview = null;
+    if (stagePreviewScrubber) stagePreviewScrubber.value = "50";
+    renderStagePreviewFrame(0.5);
     renderSessionSnapshotComparator();
     renderKeyboardOrderEditor();
     trackCoverageFrameVisit(currentFrameId);
@@ -3283,6 +3414,18 @@ export function createPrototypeViewer(editor: Editor): {
     const guarded = applyMotionGuardrails(transition, durationMs, easing);
     recordEvent({ kind: "navigate", frameId: prevFrameId, toFrameId: frameId, action: "NavigateTo" });
     pushTimelineEvent({ action: "NavigateTo", fromFrameId: prevFrameId, toFrameId: frameId, transition: guarded.transition, durationMs: guarded.durationMs });
+
+    if (prevFrameId) {
+      lastTransitionPreview = {
+        fromId: prevFrameId,
+        toId: frameId,
+        transition: guarded.transition,
+        durationMs: guarded.durationMs,
+        easing: guarded.easing,
+        timeline,
+      };
+      renderStagePreviewFrame(Number(stagePreviewScrubber?.value || 50) / 100);
+    }
 
     if (guarded.transition === "Instant" || !prevFrameId) {
       renderCurrentView();
