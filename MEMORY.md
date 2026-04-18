@@ -1790,10 +1790,17 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Constraint Conflict Linter — min/max/fill/hug/constraints 조합 충돌을 프레임 단위로 리포트하고 quick fix 제공 (임팩트 상, 난이도 중상)
 - Prototype Scroll Lock Regions — overlay/side-sheet 오픈 시 배경 스크롤 잠금 영역을 지정하고 누수 스크롤을 lint + one-click fix (임팩트 중상, 난이도 중)
 - Auto Layout Safe Area Insets — 모바일 프레임 상단/하단 safe area preset(iOS/Android) 적용 + hug/fill과 충돌 감지 (임팩트 중상, 난이도 중상)
 - Variable Contract Tests — 컴포넌트별 required variable schema를 저장하고 누락/타입불일치를 릴리즈 전 일괄 검사 (임팩트 상, 난이도 중)
+
+## 완료된 기능 (추가 — Constraint Conflict Linter, 2026-04-18)
+- Properties 패널 `Constraints` 섹션에 `Constraint Conflict Linter` 카드 추가
+- 검사 규칙: Min/Max 역전(`min_w>max_w`, `min_h>max_h`) + Fill sizing과 축 constraints 불일치(H/V)
+- 각 이슈 row에서 one-click fix 제공, `Fix all`로 일괄 정리 가능
+- 수정 시 undo 통합 + 즉시 렌더/패널 새로고침
+- 구현: `packages/app/src/ui/properties-panel.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Smart Animate Stage Preview (Onion Frames), 2026-04-18)
 - `Smart Animate Timeline Editor v2` 모달에 `Smart Animate Stage Preview` 카드 추가 (Start/Mid/End + Mid scrubber)

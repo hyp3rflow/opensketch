@@ -4887,6 +4887,138 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             applyConstraints(hSelect.value, vSelect.value);
           });
 
+          // Constraint Conflict Linter (min/max + sizing + constraints)
+          {
+            const lintSection = document.createElement("div");
+            lintSection.style.cssText = "margin-top:8px;padding:6px;border:1px solid #334155;border-radius:6px;background:#1a2332;";
+
+            const lintHead = document.createElement("div");
+            lintHead.style.cssText = "display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:6px;";
+            const lintTitle = document.createElement("div");
+            lintTitle.style.cssText = "font-size:10px;color:#93c5fd;text-transform:uppercase;letter-spacing:0.4px;font-weight:700;";
+            lintTitle.textContent = "Constraint Conflict Linter";
+            lintHead.appendChild(lintTitle);
+
+            const lintBody = document.createElement("div");
+            lintBody.style.cssText = "display:flex;flex-direction:column;gap:4px;";
+
+            type ConstraintLintIssue = {
+              key: string;
+              text: string;
+              severity: "warn" | "error";
+              fixLabel: string;
+              applyFix: () => void;
+            };
+
+            const mmNow = JSON.parse(editor.engine.get_min_max_size(BigInt(id)) || '{"min_w":null,"max_w":null,"min_h":null,"max_h":null}');
+            const sizingNow = JSON.parse(editor.engine.get_sizing(BigInt(id)) || '{"horizontal":"fixed","vertical":"fixed"}');
+            const lintIssues: ConstraintLintIssue[] = [];
+
+            const minW = typeof mmNow.min_w === "number" ? Number(mmNow.min_w) : null;
+            const maxW = typeof mmNow.max_w === "number" ? Number(mmNow.max_w) : null;
+            const minH = typeof mmNow.min_h === "number" ? Number(mmNow.min_h) : null;
+            const maxH = typeof mmNow.max_h === "number" ? Number(mmNow.max_h) : null;
+
+            if (minW != null && maxW != null && minW > maxW) {
+              lintIssues.push({
+                key: "minmax-width-inverted",
+                severity: "error",
+                text: `Min W (${Math.round(minW)}) > Max W (${Math.round(maxW)})`,
+                fixLabel: "Swap",
+                applyFix: () => {
+                  editor.engine.set_min_width(BigInt(id), Math.round(maxW));
+                  editor.engine.set_max_width(BigInt(id), Math.round(minW));
+                },
+              });
+            }
+
+            if (minH != null && maxH != null && minH > maxH) {
+              lintIssues.push({
+                key: "minmax-height-inverted",
+                severity: "error",
+                text: `Min H (${Math.round(minH)}) > Max H (${Math.round(maxH)})`,
+                fixLabel: "Swap",
+                applyFix: () => {
+                  editor.engine.set_min_height(BigInt(id), Math.round(maxH));
+                  editor.engine.set_max_height(BigInt(id), Math.round(minH));
+                },
+              });
+            }
+
+            if (String(sizingNow.horizontal || "fixed") === "fill" && hSelect.value !== "leftAndRight") {
+              lintIssues.push({
+                key: "fill-horizontal-constraint",
+                severity: "warn",
+                text: "Sizing H=Fill인데 H constraints가 Left&Right가 아님",
+                fixLabel: "Set L&R",
+                applyFix: () => {
+                  editor.engine.set_constraints(BigInt(id), "leftAndRight", vSelect.value);
+                },
+              });
+            }
+
+            if (String(sizingNow.vertical || "fixed") === "fill" && vSelect.value !== "topAndBottom") {
+              lintIssues.push({
+                key: "fill-vertical-constraint",
+                severity: "warn",
+                text: "Sizing V=Fill인데 V constraints가 Top&Bottom이 아님",
+                fixLabel: "Set T&B",
+                applyFix: () => {
+                  editor.engine.set_constraints(BigInt(id), hSelect.value, "topAndBottom");
+                },
+              });
+            }
+
+            const lintBadge = document.createElement("div");
+            lintBadge.style.cssText = `font-size:10px;color:${lintIssues.length > 0 ? "#fca5a5" : "#86efac"};`;
+            lintBadge.textContent = lintIssues.length > 0 ? `${lintIssues.length} issues` : "No conflicts";
+            lintHead.appendChild(lintBadge);
+            lintSection.appendChild(lintHead);
+
+            if (lintIssues.length === 0) {
+              const ok = document.createElement("div");
+              ok.style.cssText = "font-size:10px;color:#86efac;background:rgba(22,101,52,0.25);border:1px solid rgba(74,222,128,0.36);border-radius:4px;padding:4px 6px;";
+              ok.textContent = "현재 min/max, sizing, constraints 조합에서 충돌을 찾지 못했어요.";
+              lintBody.appendChild(ok);
+            } else {
+              for (const issue of lintIssues) {
+                const row = document.createElement("div");
+                row.style.cssText = `display:flex;align-items:center;justify-content:space-between;gap:6px;border:1px solid ${issue.severity === "error" ? "rgba(248,113,113,0.45)" : "rgba(251,191,36,0.45)"};background:${issue.severity === "error" ? "rgba(127,29,29,0.24)" : "rgba(120,53,15,0.24)"};border-radius:4px;padding:4px 6px;`;
+
+                const txt = document.createElement("div");
+                txt.style.cssText = "flex:1;font-size:10px;color:#fecaca;";
+                txt.textContent = issue.text;
+                row.appendChild(txt);
+
+                const fixBtn = document.createElement("button");
+                fixBtn.style.cssText = "background:#1e3a8a;border:1px solid #60a5fa;border-radius:4px;color:#bfdbfe;font-size:10px;padding:2px 6px;cursor:pointer;";
+                fixBtn.textContent = issue.fixLabel;
+                fixBtn.onclick = () => {
+                  editor.engine.push_undo();
+                  issue.applyFix();
+                  editor.requestRender();
+                  refresh(ids);
+                };
+                row.appendChild(fixBtn);
+                lintBody.appendChild(row);
+              }
+
+              const fixAllBtn = document.createElement("button");
+              fixAllBtn.style.cssText = "align-self:flex-end;background:#052e16;border:1px solid #22c55e;border-radius:4px;color:#bbf7d0;font-size:10px;padding:2px 7px;cursor:pointer;";
+              fixAllBtn.textContent = "Fix all";
+              fixAllBtn.onclick = () => {
+                editor.engine.push_undo();
+                for (const issue of lintIssues) issue.applyFix();
+                editor.requestRender();
+                refresh(ids);
+              };
+              lintBody.appendChild(fixAllBtn);
+            }
+
+            lintSection.appendChild(lintBody);
+            constraintSection.appendChild(lintSection);
+          }
+
           const pinSectionLabel = document.createElement("div");
           pinSectionLabel.textContent = "Pins";
           pinSectionLabel.style.cssText = "font-size:10px;color:#9a9a9a;margin:8px 0 4px;";

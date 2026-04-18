@@ -2930,3 +2930,13 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] `Run next` 액션 추가: 저장된 preset을 순차 라운드로빈 재생해 QA 시나리오 반복 검증 속도 향상
 - [x] 기존 preset 포맷(frameId/label)과 backward-compatible 로딩 유지
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
+
+### Constraint Conflict Linter (2026-04-18)
+- [x] Properties > Constraints 섹션에 `Constraint Conflict Linter` 카드 추가
+- [x] 프레임 자식 레이어의 충돌 규칙 검사
+  - Min W > Max W / Min H > Max H (역전)
+  - Sizing H=Fill 인데 H constraint가 Left&Right 아님
+  - Sizing V=Fill 인데 V constraint가 Top&Bottom 아님
+- [x] 각 이슈 row에 one-click fix 제공 + `Fix all` 일괄 수정 버튼 제공
+- [x] 수정 시 undo 통합 + 즉시 렌더/패널 갱신
+- 구현: `packages/app/src/ui/properties-panel.ts`
