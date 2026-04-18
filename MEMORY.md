@@ -1790,11 +1790,17 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Prototype Focus Scope Preview — overlay open 시 탭 가능 hotspot 범위를 반투명 마스크로 시각화해 trap 누락을 즉시 확인 (임팩트 중, 난이도 중)
 - Variable Token Cleanup Queue — 미사용/중복 token 후보를 queue로 적재하고 일괄 rename/merge 플로우 제공 (임팩트 중상, 난이도 중상)
 - Focus Ring Preset Contrast Report — 프리셋별 hover/press/focus 대비 점수표와 위험 상태 배지를 제공해 릴리즈 전 a11y 검수를 빠르게 수행 (임팩트 중, 난이도 중)
 - Overlay Escape Intent Hints — CloseOverlay/Back 액션이 없는 hotspot에 캔버스 경고 배지를 표시하고 권장 액션 템플릿을 제안 (임팩트 중상, 난이도 중)
 - Variable Token Merge Dry-Run Diff — merge 전에 영향을 받는 노드/스타일/프로토타입 경로를 diff 카드로 미리보기 (임팩트 상, 난이도 중상)
+
+## 완료된 기능 (추가 — Prototype Focus Scope Preview, 2026-04-19)
+- Prototype viewer에서 `OpenOverlay` 타깃 frame을 감지하면 focus scope preview 마스크를 자동 렌더
+- `OnClick/OnPress` 탭 가능한 hotspot 경로만 투명하게 남기고 나머지 overlay 영역을 반투명 딤 처리
+- `CloseOverlay/Back` escape 액션이 없으면 `escape missing` 경고 배지를 붉은 톤으로 표시해 trap 누락을 즉시 식별
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Focus Ring Contrast Guard, 2026-04-19)
 - Prototype viewer top bar `Ring` 행에 `Guard` 버튼 추가

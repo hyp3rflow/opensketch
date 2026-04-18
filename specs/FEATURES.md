@@ -2800,6 +2800,12 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] **Focus Ring Contrast Guard**: `Guard` one-click 액션으로 현재 프레임 배경 대비 3:1 미만 ring 색상(hover/press/focus)을 감지하고 고대비 대체 색으로 자동 교체
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
 
+### Prototype Focus Scope Preview (2026-04-19)
+- [x] `OpenOverlay`로 진입 가능한 overlay frame에서 Tab-focus 대상 hotspot 영역을 `Focus scope` 마스크로 시각화
+- [x] 탭 가능 hotspot 밖 영역을 반투명 딤 처리해 trap 범위를 빠르게 확인
+- [x] `CloseOverlay/Back` escape 경로가 없으면 `escape missing` 경고 배지 + 붉은 톤 강조로 누락을 즉시 식별
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+
 ### Interaction Timeline Scrubber (2026-04-12)
 - [x] Prototype Viewer 우측에 `Interaction Timeline` 패널 추가 (scrub slider + 최근 이벤트 리스트)
 - [x] Navigate/Back/Scroll 이벤트를 타임라인으로 누적해 순서/끊김을 시각 점검

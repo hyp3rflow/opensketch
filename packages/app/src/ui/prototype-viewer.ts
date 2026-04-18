@@ -4612,6 +4612,7 @@ export function createPrototypeViewer(editor: Editor): {
 
     // Draw interaction hotspot hints (blue border on nodes with interactions)
     drawHotspotHints(ctx, bounds, scale * dpr);
+    drawFocusScopePreviewMask(ctx, bounds, scale * dpr);
     // Draw event hotspot hints (orange dotted border on nodes with JS events)
     drawEventHints(ctx, bounds, scale * dpr);
 
@@ -4785,6 +4786,70 @@ export function createPrototypeViewer(editor: Editor): {
       ctx.lineTo((nx + px * nw - frameBounds.x) * totalScale, (ny + py * nh - frameBounds.y) * totalScale);
     }
     ctx.closePath();
+  }
+
+  function hasIncomingOpenOverlay(frameId: number | null): boolean {
+    if (!frameId) return false;
+    try {
+      const allInterJson = editor.engine.get_all_interactions();
+      const nodesWithInter: any[] = JSON.parse(allInterJson || "[]");
+      for (const nwi of nodesWithInter) {
+        const interactions = Array.isArray(nwi?.interactions) ? nwi.interactions : [];
+        for (const interaction of interactions) {
+          if (String(interaction?.action || "") !== "OpenOverlay") continue;
+          if (Number(interaction?.target_node_id || 0) === frameId) return true;
+        }
+      }
+    } catch {}
+    return false;
+  }
+
+  function drawFocusScopePreviewMask(ctx: CanvasRenderingContext2D, frameBounds: { x: number; y: number; width: number; height: number }, totalScale: number) {
+    if (!currentFrameId || !hasIncomingOpenOverlay(currentFrameId)) return;
+    const focusables = listFocusableHotspots(currentFrameId);
+    if (focusables.length === 0) return;
+
+    const hasEscape = focusables.some((item) => {
+      const action = String(item.interaction?.action || "");
+      return action === "CloseOverlay" || action === "Back";
+    });
+
+    const canvasW = viewCanvas?.width || 0;
+    const canvasH = viewCanvas?.height || 0;
+    if (canvasW <= 0 || canvasH <= 0) return;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, canvasW, canvasH);
+    for (const item of focusables) {
+      drawInteractionHotspotPath(ctx, item.node, item.interaction, frameBounds, totalScale);
+    }
+    ctx.fillStyle = hasEscape ? "rgba(15,23,42,0.45)" : "rgba(127,29,29,0.45)";
+    ctx.fill("evenodd");
+
+    for (const item of focusables) {
+      ctx.beginPath();
+      drawInteractionHotspotPath(ctx, item.node, item.interaction, frameBounds, totalScale);
+      ctx.lineWidth = hasEscape ? 2 : 2.5;
+      ctx.strokeStyle = hasEscape ? "rgba(56,189,248,0.95)" : "rgba(248,113,113,0.95)";
+      ctx.setLineDash([6, 4]);
+      ctx.stroke();
+    }
+
+    const badge = hasEscape
+      ? `Focus scope ${focusables.length} hotspot(s)`
+      : `Focus scope ${focusables.length} hotspot(s) · escape missing`;
+    const padX = 8;
+    const padY = 4;
+    ctx.setLineDash([]);
+    ctx.font = "11px sans-serif";
+    const bw = ctx.measureText(badge).width + padX * 2;
+    const bh = 20;
+    ctx.fillStyle = hasEscape ? "rgba(2,132,199,0.9)" : "rgba(185,28,28,0.92)";
+    ctx.fillRect(10, 10, bw, bh);
+    ctx.fillStyle = "#f8fafc";
+    ctx.fillText(badge, 10 + padX, 10 + bh - padY - 1);
+    ctx.restore();
   }
 
   function drawHotspotHints(ctx: CanvasRenderingContext2D, frameBounds: { x: number; y: number; width: number; height: number }, totalScale: number) {
