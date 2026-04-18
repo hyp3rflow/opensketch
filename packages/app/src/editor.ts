@@ -1261,6 +1261,16 @@ export class Editor {
         }
       }
 
+      // Alt+Arrow: auto-layout keyboard reorder (Shift sends to start/end).
+      if (!e.metaKey && !e.ctrlKey && e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === "ArrowLeft" || e.key === "ArrowRight")) {
+        const direction = (e.key === "ArrowLeft" || e.key === "ArrowUp") ? -1 : 1;
+        const axis: "horizontal" | "vertical" = (e.key === "ArrowLeft" || e.key === "ArrowRight") ? "horizontal" : "vertical";
+        if (this.nudgeAutoLayoutReorder(direction, e.shiftKey, axis)) {
+          e.preventDefault();
+          return;
+        }
+      }
+
       // Arrow key nudge: move selected nodes
       if (e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === "ArrowLeft" || e.key === "ArrowRight") {
         const sel = Array.from(this.engine.get_selection()).map(Number);
@@ -6643,7 +6653,9 @@ export class Editor {
 
       const dirLabel = isRow ? (direction < 0 ? "left" : "right") : (direction < 0 ? "up" : "down");
       const edgeLabel = isRow ? (direction < 0 ? "start" : "end") : (direction < 0 ? "top" : "bottom");
-      this.showToast?.(`Auto Layout reorder: ${toEdge ? edgeLabel : dirLabel}`);
+      const gap = Number(parent.layout?.gap ?? 0);
+      const gapLabel = Number.isFinite(gap) ? `${Math.max(0, Math.round(gap * 10) / 10)}px` : "0px";
+      this.showToast?.(`Auto Layout reorder (${gapLabel} gap): ${toEdge ? edgeLabel : dirLabel}`);
       return true;
     } catch {
       return false;

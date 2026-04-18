@@ -1790,9 +1790,18 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Auto Layout Keyboard Nudge Controls — 선택된 auto-layout 자식을 Alt+Arrow로 gap 단위 정렬 이동하고 reorder 인디케이터 표시 (임팩트 중, 난이도 중)
 - Prototype Overlay Stack Inspector — 중첩 overlay의 open/close stack을 타임라인으로 시각화하고 orphan overlay를 one-click 정리 (임팩트 중상, 난이도 중상)
 - Variable Mode Diff Snapshot — mode 간 변수값 diff를 스냅샷으로 저장/비교하고 변경량 리포트 export (임팩트 중, 난이도 중)
+- Focus Ring Preset Manager — prototype keyboard focus ring 스타일(컬러/두께/radius) 프리셋 저장·적용 및 flow별 override 지원 (임팩트 중, 난이도 중)
+- Overlay Escape Route Map — frame별 Esc/Back/CloseOverlay 탈출 경로를 그래프로 시각화하고 trap branch를 quick-fix로 정리 (임팩트 중상, 난이도 중상)
+- Variable Usage Heatmap — 캔버스/컴포넌트 단위 변수 사용 밀도를 히트맵으로 표시하고 dead token 정리 우선순위 제안 (임팩트 중, 난이도 중상)
+
+## 완료된 기능 (추가 — Auto Layout Keyboard Nudge Controls, 2026-04-18)
+- Alt+Arrow(Shift 포함)로 auto-layout 자식의 keyboard reorder를 직접 지원 (기존 Cmd/Ctrl+Alt+Arrow 경로 유지)
+- nudge reorder toast에 parent gap(px) 메타를 포함해 gap 단위 이동 컨텍스트를 즉시 확인 가능
+- reorder 후 handle hover 동기화 + 레이어 패널/렌더 갱신으로 인디케이터 피드백 유지
+- 구현: `packages/app/src/editor.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Variable Contract Tests, 2026-04-18)
 - Variables 패널에 `Variable Contract Tests` 섹션 추가

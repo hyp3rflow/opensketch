@@ -2844,6 +2844,7 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] **v3**: target index 계산을 insertion-slot 기반으로 보강해 hidden/absolute sibling이 섞인 컨테이너에서도 드래그 경계가 안정적으로 유지되도록 개선
 - [x] **v4**: Cmd/Ctrl+Alt+Arrow로 auto-layout 자식 순서를 키보드로 재정렬 (Shift 조합 시 start/end로 즉시 이동)
 - [x] **v5**: reorder drag hysteresis(6px) + lazy undo(push_undo on first actual reorder)로 클릭 오동작/불필요 undo 항목 최소화
+- [x] **v6**: Alt+Arrow(Shift 포함)만으로도 auto-layout 자식 keyboard reorder 지원 (기존 Cmd/Ctrl+Alt+Arrow 유지), nudge toast에 parent gap(px) 메타를 표시해 gap 단위 이동 컨텍스트 강화
 - 구현: `packages/app/src/tools/auto-layout-reorder.ts`, `packages/app/src/editor.ts`
 
 ### Selection Color Palette Inspector (2026-04-13)
