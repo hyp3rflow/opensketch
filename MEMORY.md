@@ -1790,10 +1790,16 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Variable Mode Diff Snapshot — mode 간 변수값 diff를 스냅샷으로 저장/비교하고 변경량 리포트 export (임팩트 중, 난이도 중)
 - Focus Ring Preset Manager — prototype keyboard focus ring 스타일(컬러/두께/radius) 프리셋 저장·적용 및 flow별 override 지원 (임팩트 중, 난이도 중)
 - Overlay Escape Route Map — frame별 Esc/Back/CloseOverlay 탈출 경로를 그래프로 시각화하고 trap branch를 quick-fix로 정리 (임팩트 중상, 난이도 중상)
 - Variable Usage Heatmap — 캔버스/컴포넌트 단위 변수 사용 밀도를 히트맵으로 표시하고 dead token 정리 우선순위 제안 (임팩트 중, 난이도 중상)
+
+## 완료된 기능 (추가 — Variable Mode Diff Snapshot v1, 2026-04-19)
+- Variables 패널 `Variable Token Drift Timeline` 헤더에 `Snapshot`/`Export` 액션 추가
+- Snapshot은 컬렉션 전체 변수 mode 값을 localStorage(`opensketch-variable-mode-diff-snapshots-v1`)에 저장하고, 직전 스냅샷 대비 changed variables / changed mode cells를 즉시 집계
+- Export는 최신 스냅샷을 텍스트 리포트로 클립보드 복사해 QA/리뷰 공유를 빠르게 지원
+- 구현: `packages/app/src/ui/variables-panel.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Prototype Overlay Stack Inspector, 2026-04-19)
 - Prototype viewer 좌측에 `Overlay Stack Inspector` 패널 추가

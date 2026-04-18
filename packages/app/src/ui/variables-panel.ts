@@ -27,7 +27,22 @@ interface VariableTimelineEntry {
   after: Record<string, VarPrimitive>;
 }
 
+interface VariableModeDiffSnapshot {
+  id: string;
+  ts: number;
+  collection_id: number;
+  collection_name: string;
+  modes: Array<{ id: number; name: string }>;
+  variables: Array<{
+    id: number;
+    name: string;
+    value_type: string;
+    values_by_mode: Record<string, VarPrimitive>;
+  }>;
+}
+
 const VARIABLE_TIMELINE_STORAGE_KEY = "opensketch-variable-diff-timeline-v1";
+const VARIABLE_MODE_DIFF_SNAPSHOTS_KEY = "opensketch-variable-mode-diff-snapshots-v1";
 const VARIABLE_MODE_DRIFT_RECIPES_KEY = "opensketch-variable-mode-drift-recipes-v1";
 const VARIABLE_CONTRACT_TESTS_KEY = "opensketch-variable-contract-tests-v1";
 
@@ -157,6 +172,60 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
     } catch {
       // ignore storage quota errors
     }
+  };
+
+  const readModeDiffSnapshots = (): VariableModeDiffSnapshot[] => {
+    try {
+      const raw = localStorage.getItem(VARIABLE_MODE_DIFF_SNAPSHOTS_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      return parsed as VariableModeDiffSnapshot[];
+    } catch {
+      return [];
+    }
+  };
+
+  const writeModeDiffSnapshots = (entries: VariableModeDiffSnapshot[]) => {
+    try {
+      localStorage.setItem(VARIABLE_MODE_DIFF_SNAPSHOTS_KEY, JSON.stringify(entries.slice(0, 80)));
+    } catch {
+      // ignore storage quota errors
+    }
+  };
+
+  const createModeDiffSnapshot = (collection: VarCollection): VariableModeDiffSnapshot => ({
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    ts: Date.now(),
+    collection_id: collection.id,
+    collection_name: collection.name,
+    modes: collection.modes.map((mode) => ({ id: mode.id, name: mode.name })),
+    variables: collection.variables.map((variable) => ({
+      id: variable.id,
+      name: variable.name,
+      value_type: variable.value_type,
+      values_by_mode: cloneModeValues(variable.values_by_mode),
+    })),
+  });
+
+  const diffModeSnapshots = (prev: VariableModeDiffSnapshot, next: VariableModeDiffSnapshot) => {
+    const prevByVar = new Map(prev.variables.map((v) => [v.id, v]));
+    let changedVariables = 0;
+    let changedCells = 0;
+    for (const variable of next.variables) {
+      const before = prevByVar.get(variable.id);
+      if (!before) continue;
+      let variableChanged = false;
+      for (const mode of next.modes) {
+        const key = String(mode.id);
+        if (!equalPrimitive(variable.value_type, before.values_by_mode[key], variable.values_by_mode[key])) {
+          changedCells += 1;
+          variableChanged = true;
+        }
+      }
+      if (variableChanged) changedVariables += 1;
+    }
+    return { changedVariables, changedCells };
   };
 
   const readContractEntries = (): VariableContractEntry[] => {
@@ -960,6 +1029,10 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
     const filteredTimelineEntries = selectedTimelineModeId === "all"
       ? timelineEntries
       : timelineEntries.filter((entry) => entry.changed_mode_id === selectedTimelineModeId);
+    const modeSnapshots = readModeDiffSnapshots().filter((entry) => entry.collection_id === col.id).sort((a, b) => b.ts - a.ts);
+    const latestSnapshot = modeSnapshots[0] || null;
+    const previousSnapshot = modeSnapshots[1] || null;
+    const latestSnapshotDiff = latestSnapshot && previousSnapshot ? diffModeSnapshots(previousSnapshot, latestSnapshot) : null;
     const timelineSection = document.createElement("div");
     timelineSection.style.cssText = "margin-bottom:12px;background:#1e1e1e;border:1px solid #2f2f2f;border-radius:6px;padding:8px;";
     const timelineHeader = document.createElement("div");
@@ -1005,6 +1078,43 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
     });
     timelineActions.appendChild(clearCollectionBtn);
 
+    const snapshotBtn = document.createElement("button");
+    snapshotBtn.style.cssText = "background:#1f2937;border:1px solid #334155;border-radius:4px;color:#bfdbfe;cursor:pointer;font-size:10px;padding:2px 6px;";
+    snapshotBtn.textContent = "Snapshot";
+    snapshotBtn.title = "Capture current mode values for this collection";
+    snapshotBtn.addEventListener("click", () => {
+      const next = [createModeDiffSnapshot(col), ...readModeDiffSnapshots()];
+      writeModeDiffSnapshots(next);
+      refresh();
+    });
+    timelineActions.appendChild(snapshotBtn);
+
+    const exportBtn = document.createElement("button");
+    exportBtn.style.cssText = "background:#243227;border:1px solid #3f5a45;border-radius:4px;color:#86efac;cursor:pointer;font-size:10px;padding:2px 6px;";
+    exportBtn.textContent = "Export";
+    exportBtn.title = "Copy mode diff snapshot report";
+    exportBtn.disabled = !latestSnapshot;
+    exportBtn.addEventListener("click", async () => {
+      if (!latestSnapshot) return;
+      const header = `Variable Mode Diff Snapshot\nCollection: ${col.name}\nCaptured: ${new Date(latestSnapshot.ts).toLocaleString()}`;
+      const diffSummary = latestSnapshotDiff
+        ? `Compared with previous: changed variables ${latestSnapshotDiff.changedVariables}, changed mode cells ${latestSnapshotDiff.changedCells}`
+        : "Compared with previous: (not enough snapshots)";
+      const lines = latestSnapshot.variables.slice(0, 80).map((variable) => {
+        const modeParts = latestSnapshot.modes.map((mode) => `${mode.name}=${formatPrimitive(variable.value_type, variable.values_by_mode[String(mode.id)])}`);
+        return `- ${variable.name} [${variable.value_type}] :: ${modeParts.join(" | ")}`;
+      });
+      const payload = [header, diffSummary, "", ...lines].join("\n");
+      try {
+        await navigator.clipboard.writeText(payload);
+        exportBtn.textContent = "Copied";
+      } catch {
+        exportBtn.textContent = "Copy failed";
+      }
+      window.setTimeout(() => { exportBtn.textContent = "Export"; }, 1100);
+    });
+    timelineActions.appendChild(exportBtn);
+
     const rollbackLatestBtn = document.createElement("button");
     rollbackLatestBtn.style.cssText = "background:#1f3b2a;border:1px solid #166534;border-radius:4px;color:#86efac;cursor:pointer;font-size:10px;padding:2px 6px;";
     rollbackLatestBtn.textContent = "Rollback latest";
@@ -1027,6 +1137,17 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
 
     timelineHeader.appendChild(timelineActions);
     timelineSection.appendChild(timelineHeader);
+
+    const snapshotMeta = document.createElement("div");
+    snapshotMeta.style.cssText = "font-size:10px;color:#93c5fd;margin-bottom:6px;";
+    if (!latestSnapshot) {
+      snapshotMeta.textContent = "Snapshot: none (capture one to compare/export mode diffs).";
+    } else if (!latestSnapshotDiff) {
+      snapshotMeta.textContent = `Snapshot: ${new Date(latestSnapshot.ts).toLocaleTimeString()} · waiting for previous snapshot`;
+    } else {
+      snapshotMeta.textContent = `Snapshot diff: variables ${latestSnapshotDiff.changedVariables} · mode cells ${latestSnapshotDiff.changedCells}`;
+    }
+    timelineSection.appendChild(snapshotMeta);
 
     if (filteredTimelineEntries.length === 0) {
       const emptyTimeline = document.createElement("div");

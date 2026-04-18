@@ -1532,7 +1532,7 @@ export function createPrototypeViewer(editor: Editor): {
       return nx >= frame.x && ny >= frame.y && (nx + nw) <= (frame.x + frame.width) && (ny + nh) <= (frame.y + frame.height);
     });
     const first = overlayRows[0];
-    const sourceNodeId = Number(first?.id || 0);
+    const sourceNodeId = Number(first?.id || issue.overlayId || 0);
     if (!sourceNodeId) return false;
     try {
       editor.engine.add_interaction(BigInt(sourceNodeId), "OnPress", "CloseOverlay", BigInt(0), BigInt(0), "Instant", 0, "ease_in_out");
@@ -1661,10 +1661,10 @@ export function createPrototypeViewer(editor: Editor): {
             return (trigger === "OnClick" || trigger === "OnPress") && (action === "CloseOverlay" || action === "Back");
           });
         });
-        if (hasClose || overlayRows.length === 0) continue;
+        if (hasClose) continue;
 
         const first = overlayRows[0];
-        const sourceNodeId = Number(first?.id || 0);
+        const sourceNodeId = Number(first?.id || overlayId || 0);
         if (!sourceNodeId) continue;
         try {
           editor.engine.add_interaction(
