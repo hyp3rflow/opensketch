@@ -1790,9 +1790,18 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Focus Ring Contrast Guard — 배경 대비가 낮은 ring preset을 자동 감지하고 색상 대체안을 one-click 제안 (임팩트 중, 난이도 중)
 - Prototype Focus Scope Preview — overlay open 시 탭 가능 hotspot 범위를 반투명 마스크로 시각화해 trap 누락을 즉시 확인 (임팩트 중, 난이도 중)
 - Variable Token Cleanup Queue — 미사용/중복 token 후보를 queue로 적재하고 일괄 rename/merge 플로우 제공 (임팩트 중상, 난이도 중상)
+- Focus Ring Preset Contrast Report — 프리셋별 hover/press/focus 대비 점수표와 위험 상태 배지를 제공해 릴리즈 전 a11y 검수를 빠르게 수행 (임팩트 중, 난이도 중)
+- Overlay Escape Intent Hints — CloseOverlay/Back 액션이 없는 hotspot에 캔버스 경고 배지를 표시하고 권장 액션 템플릿을 제안 (임팩트 중상, 난이도 중)
+- Variable Token Merge Dry-Run Diff — merge 전에 영향을 받는 노드/스타일/프로토타입 경로를 diff 카드로 미리보기 (임팩트 상, 난이도 중상)
+
+## 완료된 기능 (추가 — Focus Ring Contrast Guard, 2026-04-19)
+- Prototype viewer top bar `Ring` 행에 `Guard` 버튼 추가
+- 현재 프레임 배경색 대비 3:1 미만 ring 색상(hover/press/focus)을 감지하고, 고대비 팔레트에서 안전한 대체 색으로 즉시 교체
+- 프리셋 저장소(localStorage) 업데이트 후 즉시 렌더 반영, 변경 수를 버튼 라벨(`Guarded N`)로 피드백
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Variable Usage Heatmap + Cleanup Priority, 2026-04-19)
 - Variables Inspector의 usage heatmap 워크플로우를 확장해 dead/low-usage token 우선순위 카드를 추가

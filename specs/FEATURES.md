@@ -2797,6 +2797,7 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Prototype top bar에 `Ring` 프리셋 selector + `Save` 추가, 현재 active ring 스타일을 즉시 프리셋으로 저장/재사용
 - [x] Flow override 토글(`Flow`) 지원: 현재 frame의 flow start 기준으로 preset을 flow 단위로 override
 - [x] 렌더링 시 `flow override > active preset > default` 우선순위로 hover/press/focus ring 스타일 적용
+- [x] **Focus Ring Contrast Guard**: `Guard` one-click 액션으로 현재 프레임 배경 대비 3:1 미만 ring 색상(hover/press/focus)을 감지하고 고대비 대체 색으로 자동 교체
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
 
 ### Interaction Timeline Scrubber (2026-04-12)

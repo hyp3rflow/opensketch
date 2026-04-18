@@ -1450,6 +1450,41 @@ export function createPrototypeViewer(editor: Editor): {
     return (hi + 0.05) / (lo + 0.05);
   }
 
+  function detectFrameBackgroundRgb(frameId: number): { r: number; g: number; b: number } {
+    try {
+      const raw = editor.engine.get_node_json(BigInt(frameId));
+      if (!raw) return { r: 15, g: 23, b: 42 };
+      const node = JSON.parse(raw);
+      const fills = Array.isArray(node?.fills) ? node.fills : [];
+      for (const fill of fills) {
+        if (fill?.visible === false) continue;
+        const rgb = parseColorToRgb(fill?.color);
+        if (rgb) return rgb;
+      }
+      const rgb = parseColorToRgb(node?.fill?.color);
+      if (rgb) return rgb;
+    } catch {}
+    return { r: 15, g: 23, b: 42 };
+  }
+
+  function pickContrastSafeRingColor(rawColor: string, bg: { r: number; g: number; b: number }, minRatio: number = 3): string {
+    const current = parseColorToRgb(rawColor);
+    if (current && contrastRatio(current, bg) >= minRatio) return rawColor;
+    const candidates = ["#ffffff", "#f8fafc", "#e2e8f0", "#111827", "#0f172a", "#2563eb", "#22c55e", "#f59e0b", "#ef4444"];
+    let best = "#ffffff";
+    let bestRatio = 0;
+    for (const c of candidates) {
+      const rgb = parseColorToRgb(c);
+      if (!rgb) continue;
+      const ratio = contrastRatio(rgb, bg);
+      if (ratio > bestRatio) {
+        bestRatio = ratio;
+        best = c;
+      }
+    }
+    return best;
+  }
+
   function collectFocusTrapSimulationIssues(snapshotInput?: { nodes: Array<{ id: number; name: string; x: number; y: number; width: number; height: number }>; edges: Array<{ from: number; to: number; action: string; sourceNodeId: number; interactionIndex: number; conditional: boolean; branchActive: boolean | null; conditionSummary: string }>; }): FocusTrapSimIssue[] {
     const snapshot = snapshotInput || buildFlowGraphSnapshot();
     if (!snapshot) return [];
@@ -1652,6 +1687,7 @@ export function createPrototypeViewer(editor: Editor): {
       fixBtn.textContent = "Fix";
       fixBtn.style.cssText = "flex:1;font-size:10px;padding:3px 6px;color:#fca5a5;border-color:rgba(248,113,113,0.5);";
       fixBtn.onclick = () => {
+        editor.engine.push_undo();
         const ok = applyFocusTrapFix(issue);
         fixBtn.textContent = ok ? "Fixed" : "No-op";
         if (ok) {
@@ -1671,6 +1707,7 @@ export function createPrototypeViewer(editor: Editor): {
     const issues = collectFocusTrapSimulationIssues(flowMinimapSnapshot || undefined);
     if (issues.length === 0) return 0;
 
+    editor.engine.push_undo();
     const seen = new Set<string>();
     let changed = 0;
     for (const issue of issues) {
@@ -2795,6 +2832,10 @@ export function createPrototypeViewer(editor: Editor): {
     ringSaveBtn.className = "prop-btn";
     ringSaveBtn.textContent = "Save";
     ringSaveBtn.style.cssText = "font-size:10px;padding:3px 6px;";
+    const ringGuardBtn = document.createElement("button");
+    ringGuardBtn.className = "prop-btn";
+    ringGuardBtn.textContent = "Guard";
+    ringGuardBtn.style.cssText = "font-size:10px;padding:3px 6px;color:#facc15;border-color:rgba(250,204,21,0.45);";
     const syncRingPresetSelect = () => {
       const presets = loadPrototypeRingPresets();
       const flowId = detectFlowIdForFrame(currentFrameId);
@@ -2839,7 +2880,31 @@ export function createPrototypeViewer(editor: Editor): {
       syncRingPresetSelect();
       renderCurrentView();
     };
-    ringWrap.append(ringLabel, ringSel, ringFlowCheckLabel, ringSaveBtn);
+    ringGuardBtn.onclick = () => {
+      const presets = loadPrototypeRingPresets();
+      const presetIndex = presets.findIndex((p) => p.id === ringSel.value);
+      if (presetIndex < 0) return;
+      const frameBg = detectFrameBackgroundRgb(currentFrameId);
+      const preset = presets[presetIndex]!;
+      const nextPreset: PrototypeRingPreset = {
+        ...preset,
+        hover: { ...preset.hover, color: pickContrastSafeRingColor(preset.hover.color, frameBg, 3) },
+        press: { ...preset.press, color: pickContrastSafeRingColor(preset.press.color, frameBg, 3) },
+        focus: { ...preset.focus, color: pickContrastSafeRingColor(preset.focus.color, frameBg, 3) },
+      };
+      const changed = Number(nextPreset.hover.color !== preset.hover.color)
+        + Number(nextPreset.press.color !== preset.press.color)
+        + Number(nextPreset.focus.color !== preset.focus.color);
+      presets[presetIndex] = nextPreset;
+      try { localStorage.setItem(PROTOTYPE_RING_PRESET_KEY, JSON.stringify(presets)); } catch {}
+      ringGuardBtn.textContent = changed > 0 ? `Guarded ${changed}` : "Already safe";
+      window.setTimeout(() => {
+        ringGuardBtn.textContent = "Guard";
+      }, 1200);
+      syncRingPresetSelect();
+      renderCurrentView();
+    };
+    ringWrap.append(ringLabel, ringSel, ringFlowCheckLabel, ringSaveBtn, ringGuardBtn);
     syncRingPresetSelect();
     topBar.appendChild(ringWrap);
 
