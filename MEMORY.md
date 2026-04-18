@@ -1796,10 +1796,10 @@
 - Variable Contract Tests — 컴포넌트별 required variable schema를 저장하고 누락/타입불일치를 릴리즈 전 일괄 검사 (임팩트 상, 난이도 중)
 
 ## 완료된 기능 (추가 — Smart Animate Stage Preview (Onion Frames), 2026-04-18)
-- Prototype Viewer 우측에 `Smart Animate Stage Preview` 카드 추가 (start/mid/end 버튼 + scrubber)
-- 최근 transition(from/to frame, transition, duration/easing)을 캡처해 prototype 재생 없이 정지 stage 프리뷰 가능
-- Onion overlay 토글을 제공해 start/end ghost를 겹쳐 intermediate 모션 차이 검증
-- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- `Smart Animate Timeline Editor v2` 모달에 `Smart Animate Stage Preview` 카드 추가 (Start/Mid/End + Mid scrubber)
+- 재생 없이 동일 타임라인 위에서 3-stage 상태를 오버레이로 비교해 모션 타이밍 검증 가능
+- Mid stage에서 track별 이전/다음 keyframe onion marker를 강조해 간격/겹침(overlap) 확인 지원
+- 구현: `packages/app/src/ui/properties-panel.ts`
 - specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Dev Mode Measurement Pins v2, 2026-04-14)

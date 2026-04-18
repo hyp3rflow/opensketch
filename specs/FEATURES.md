@@ -2769,11 +2769,11 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - 구현: `packages/app/src/ui/properties-panel.ts`
 
 ### Smart Animate Stage Preview (Onion Frames) (2026-04-18)
-- [x] Prototype Viewer 우측에 `Smart Animate Stage Preview` 카드 추가 (Start/Mid/End + scrubber)
-- [x] 최근 frame transition(from/to, transition type, duration/easing)을 캡처해 재생 없이 중간 stage를 정지 프리뷰
-- [x] Onion overlay 토글로 start/end ghost를 겹쳐 타이밍/위치 차이를 빠르게 시각 검증
-- [x] Slide/Push/Dissolve/SmartAnimate 전환 타입별 stage 합성 프리뷰 지원
-- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- [x] `Smart Animate Timeline Editor v2` 모달 상단에 `Smart Animate Stage Preview (Onion Frames)` 카드 추가
+- [x] Start / Mid / End 3-stage를 동일 타임라인에 겹쳐 표시해 재생 없이 타이밍 비교 가능
+- [x] Mid scrubber(10~90%)로 중간 지점을 이동하며 track별 keyframe 분포와 overlap 상태를 즉시 확인
+- [x] Mid stage에서 이전/다음 keyframe onion marker를 강조해 타이밍 간격 점검 지원
+- 구현: `packages/app/src/ui/properties-panel.ts`
 
 ### Interaction Timeline Scrubber (2026-04-12)
 - [x] Prototype Viewer 우측에 `Interaction Timeline` 패널 추가 (scrub slider + 최근 이벤트 리스트)

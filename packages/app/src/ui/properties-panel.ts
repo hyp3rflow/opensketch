@@ -9799,6 +9799,127 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
               return byDot || "misc";
             };
 
+            const stagePreviewCard = document.createElement("div");
+            stagePreviewCard.style.cssText = "margin-bottom:10px;border:1px solid #2e2e2e;border-radius:8px;padding:8px;background:rgba(16,185,129,0.06);";
+            const stageHead = document.createElement("div");
+            stageHead.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;";
+            const stageTitle = document.createElement("div");
+            stageTitle.style.cssText = "font-size:10px;color:#6ee7b7;";
+            stageTitle.textContent = "Smart Animate Stage Preview (Onion Frames)";
+            const stageHint = document.createElement("div");
+            stageHint.style.cssText = "font-size:10px;color:#6b7280;";
+            stageHint.textContent = "재생 없이 Start / Mid / End 상태를 겹쳐 비교";
+            stageHead.append(stageTitle, stageHint);
+            stagePreviewCard.appendChild(stageHead);
+
+            const stageControl = document.createElement("div");
+            stageControl.style.cssText = "display:flex;align-items:center;gap:8px;margin-bottom:8px;";
+            const stageSlider = document.createElement("input");
+            stageSlider.type = "range";
+            stageSlider.min = "10";
+            stageSlider.max = "90";
+            stageSlider.value = "50";
+            stageSlider.style.cssText = "flex:1;";
+            const stageSliderLabel = document.createElement("span");
+            stageSliderLabel.style.cssText = "font-size:10px;color:#86efac;min-width:70px;text-align:right;";
+            stageControl.append(stageSlider, stageSliderLabel);
+            stagePreviewCard.appendChild(stageControl);
+
+            const stageRows = document.createElement("div");
+            stageRows.style.cssText = "display:grid;gap:6px;";
+            stagePreviewCard.appendChild(stageRows);
+            panel.appendChild(stagePreviewCard);
+
+            const renderStagePreview = () => {
+              stageRows.innerHTML = "";
+              const dur = Math.max(1, getDuration());
+              const midPercent = Math.max(10, Math.min(90, parseInt(stageSlider.value) || 50));
+              const midTime = Math.round((midPercent / 100) * dur);
+              stageSliderLabel.textContent = `Mid ${midPercent}% · ${midTime}ms`;
+
+              const editable = timeline.filter((_, i) => i > 0 && i < timeline.length - 1);
+              if (!editable.length) {
+                const empty = document.createElement("div");
+                empty.style.cssText = "font-size:10px;color:#9ca3af;";
+                empty.textContent = "중간 키프레임이 없어 Start/End만 비교 가능합니다.";
+                stageRows.appendChild(empty);
+                return;
+              }
+
+              const tracks = Array.from(new Set(editable.map((k) => trackOf(k.label || ""))));
+              const trackPoints = new Map<string, number[]>();
+              tracks.forEach((tr) => {
+                const points = editable
+                  .filter((k) => trackOf(k.label || "") === tr)
+                  .map((k) => Math.max(0, Math.min(dur, Number(k.time || 0))))
+                  .sort((a, b) => a - b);
+                trackPoints.set(tr, points);
+              });
+
+              const stages = [
+                { name: "Start", time: 0, color: "#60a5fa" },
+                { name: "Mid", time: midTime, color: "#f59e0b" },
+                { name: "End", time: dur, color: "#34d399" },
+              ];
+
+              stages.forEach((stage) => {
+                const row = document.createElement("div");
+                row.style.cssText = "display:grid;grid-template-columns:62px 1fr 120px;align-items:center;gap:8px;";
+                const label = document.createElement("div");
+                label.style.cssText = `font-size:10px;color:${stage.color};`;
+                label.textContent = `${stage.name} ${stage.time}ms`;
+
+                const rail = document.createElement("div");
+                rail.style.cssText = "position:relative;height:34px;border-radius:6px;border:1px solid #22303a;background:#0b1220;overflow:hidden;";
+
+                tracks.forEach((tr, idx) => {
+                  const points = trackPoints.get(tr) || [];
+                  const y = 6 + Math.round((idx / Math.max(1, tracks.length - 1)) * 22);
+                  const line = document.createElement("div");
+                  line.style.cssText = `position:absolute;left:0;right:0;top:${y}px;height:1px;background:rgba(148,163,184,0.28);`;
+                  rail.appendChild(line);
+                  points.forEach((t) => {
+                    const x = Math.round((t / dur) * 1000) / 10;
+                    const dot = document.createElement("div");
+                    dot.style.cssText = `position:absolute;left:calc(${x}% - 3px);top:${y - 3}px;width:6px;height:6px;border-radius:999px;background:#93c5fd;opacity:0.55;`;
+                    rail.appendChild(dot);
+                  });
+                  if (stage.name === "Mid") {
+                    const prev = [...points].reverse().find((t) => t <= stage.time);
+                    const next = points.find((t) => t >= stage.time);
+                    [prev, next].forEach((t, onionIdx) => {
+                      if (t == null) return;
+                      const x = Math.round((t / dur) * 1000) / 10;
+                      const onion = document.createElement("div");
+                      onion.style.cssText = `position:absolute;left:calc(${x}% - 5px);top:${y - 5}px;width:10px;height:10px;border-radius:999px;border:1px solid ${onionIdx === 0 ? "#f59e0b" : "#34d399"};background:rgba(255,255,255,0.06);`;
+                      rail.appendChild(onion);
+                    });
+                  }
+                });
+
+                const stageX = Math.round((stage.time / dur) * 1000) / 10;
+                const marker = document.createElement("div");
+                marker.style.cssText = `position:absolute;top:0;bottom:0;left:calc(${stageX}% - 1px);width:2px;background:${stage.color};box-shadow:0 0 0 1px rgba(0,0,0,0.35);`;
+                rail.appendChild(marker);
+
+                const summary = document.createElement("div");
+                summary.style.cssText = "font-size:10px;color:#a3a3a3;line-height:1.3;";
+                if (stage.name === "Mid") {
+                  const coverage = tracks.filter((tr) => {
+                    const pts = trackPoints.get(tr) || [];
+                    return pts.some((t) => t <= stage.time) && pts.some((t) => t >= stage.time);
+                  }).length;
+                  summary.textContent = `onion overlap ${coverage}/${tracks.length} track`;
+                } else {
+                  summary.textContent = `${tracks.length} tracks overlay`;
+                }
+
+                row.append(label, rail, summary);
+                stageRows.appendChild(row);
+              });
+            };
+            stageSlider.addEventListener("input", renderStagePreview);
+
             const graphWrap = document.createElement("div");
             graphWrap.style.cssText = "margin-bottom:10px;border:1px solid #2e2e2e;border-radius:8px;padding:8px;background:rgba(99,102,241,0.06);";
             const graphTitle = document.createElement("div");
@@ -9932,6 +10053,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
               });
               refreshGroups();
               renderGraph();
+              renderStagePreview();
             };
             panel.appendChild(table);
 
