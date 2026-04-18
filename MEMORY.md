@@ -1790,10 +1790,16 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Variable Usage Heatmap — 캔버스/컴포넌트 단위 변수 사용 밀도를 히트맵으로 표시하고 dead token 정리 우선순위 제안 (임팩트 중, 난이도 중상)
 - Focus Ring Contrast Guard — 배경 대비가 낮은 ring preset을 자동 감지하고 색상 대체안을 one-click 제안 (임팩트 중, 난이도 중)
 - Prototype Focus Scope Preview — overlay open 시 탭 가능 hotspot 범위를 반투명 마스크로 시각화해 trap 누락을 즉시 확인 (임팩트 중, 난이도 중)
 - Variable Token Cleanup Queue — 미사용/중복 token 후보를 queue로 적재하고 일괄 rename/merge 플로우 제공 (임팩트 중상, 난이도 중상)
+
+## 완료된 기능 (추가 — Variable Usage Heatmap + Cleanup Priority, 2026-04-19)
+- Variables Inspector의 usage heatmap 워크플로우를 확장해 dead/low-usage token 우선순위 카드를 추가
+- 변수별 usage count + alias 여부를 기반으로 정리 후보를 정렬하고 상위 후보(최대 8개)를 즉시 표시
+- summary에 dead token/전체 후보 집계를 노출해 cleanup 범위를 빠르게 판단 가능
+- 구현: `packages/app/src/ui/variables-panel.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Overlay Escape Route Map + Focus Trap Fix Coverage, 2026-04-19)
 - Prototype viewer 좌측에 `Overlay Escape Route Map` 패널 추가

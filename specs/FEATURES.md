@@ -2969,3 +2969,10 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] 각 이슈 row에 one-click fix 제공 + `Fix all` 일괄 수정 버튼 제공
 - [x] 수정 시 undo 통합 + 즉시 렌더/패널 갱신
 - 구현: `packages/app/src/ui/properties-panel.ts`
+
+### Variable Usage Heatmap + Cleanup Priority (2026-04-19)
+- [x] Variables Inspector에 `Usage heatmap overlay` 토글과 함께 dead/low-usage token 정리 우선순위 카드 추가
+- [x] 변수별 usage count를 기반으로 후보를 정렬해 dead token(usage 0)과 low-usage token을 상단 제시
+- [x] alias 토큰 여부를 함께 표시해 삭제/병합 전 영향도 파악 속도 개선
+- [x] summary에 `dead N / total candidates N` 집계를 표시해 정리 범위를 즉시 확인
+- 구현: `packages/app/src/ui/variables-panel.ts`

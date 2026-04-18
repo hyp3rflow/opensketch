@@ -837,6 +837,45 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
     heatmapRow.appendChild(heatmapLabel);
     inspector.appendChild(heatmapRow);
 
+    const usagePriorityRows = col.variables.map((variable) => {
+      let usages: Array<{ node_id?: number }> = [];
+      try {
+        usages = JSON.parse((editor.engine as any).get_variable_usages?.(BigInt(col.id), BigInt(variable.id)) || "[]");
+      } catch {
+        usages = [];
+      }
+      const usageCount = usages.filter((entry) => Number(entry?.node_id || 0) > 0).length;
+      const hasAlias = Object.values(variable.values_by_mode || {}).some((raw: any) => {
+        const s = String(raw?.String || "").trim();
+        return s.startsWith("{") && s.endsWith("}");
+      });
+      const priority = usageCount === 0 ? (hasAlias ? 120 : 100) : usageCount <= 2 ? 40 : 0;
+      return { variable, usageCount, hasAlias, priority };
+    }).filter((row) => row.priority > 0)
+      .sort((a, b) => b.priority - a.priority || a.usageCount - b.usageCount || a.variable.name.localeCompare(b.variable.name));
+
+    const usageSummary = document.createElement("div");
+    usageSummary.style.cssText = "font-size:10px;color:#93c5fd;line-height:1.4;margin-bottom:6px;";
+    const deadCount = usagePriorityRows.filter((row) => row.usageCount === 0).length;
+    usageSummary.textContent = deadCount > 0
+      ? `Cleanup priority: dead ${deadCount} · total candidates ${usagePriorityRows.length}`
+      : `Cleanup priority: low-usage candidates ${usagePriorityRows.length}`;
+    inspector.appendChild(usageSummary);
+
+    if (usagePriorityRows.length > 0) {
+      const usageList = document.createElement("div");
+      usageList.style.cssText = "display:flex;flex-direction:column;gap:4px;max-height:96px;overflow:auto;margin-bottom:8px;";
+      for (const row of usagePriorityRows.slice(0, 8)) {
+        const item = document.createElement("div");
+        item.style.cssText = "font-size:10px;color:#bfdbfe;background:#172033;border:1px solid #24324d;border-radius:4px;padding:4px 6px;";
+        const badge = row.usageCount === 0 ? "dead" : "low";
+        const aliasTag = row.hasAlias ? " · alias" : "";
+        item.textContent = `${row.variable.name} · ${badge} (${row.usageCount})${aliasTag}`;
+        usageList.appendChild(item);
+      }
+      inspector.appendChild(usageList);
+    }
+
     if (brokenBindings.length > 0) {
       const list = document.createElement("div");
       list.style.cssText = "display:flex;flex-direction:column;gap:4px;max-height:110px;overflow:auto;margin-bottom:6px;";
