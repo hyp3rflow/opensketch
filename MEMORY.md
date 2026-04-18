@@ -1790,8 +1790,17 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Auto Layout Safe Area Insets — 모바일 프레임 상단/하단 safe area preset(iOS/Android) 적용 + hug/fill과 충돌 감지 (임팩트 중상, 난이도 중상)
 - Variable Contract Tests — 컴포넌트별 required variable schema를 저장하고 누락/타입불일치를 릴리즈 전 일괄 검사 (임팩트 상, 난이도 중)
+- Auto Layout Keyboard Nudge Controls — 선택된 auto-layout 자식을 Alt+Arrow로 gap 단위 정렬 이동하고 reorder 인디케이터 표시 (임팩트 중, 난이도 중)
+- Prototype Overlay Stack Inspector — 중첩 overlay의 open/close stack을 타임라인으로 시각화하고 orphan overlay를 one-click 정리 (임팩트 중상, 난이도 중상)
+- Variable Mode Diff Snapshot — mode 간 변수값 diff를 스냅샷으로 저장/비교하고 변경량 리포트 export (임팩트 중, 난이도 중)
+
+## 완료된 기능 (추가 — Auto Layout Safe Area Insets, 2026-04-18)
+- Auto layout 섹션에 `Safe Area Insets` 카드 추가: iOS(47/0/34/0), Android(24/0/16/0), Reset 프리셋으로 padding 즉시 적용
+- 현재 inset(T/R/B/L) 메타를 표시하고 one-click으로 모바일 safe area를 빠르게 세팅 가능
+- Hug/Fill 축에서 inset이 함께 적용된 경우 `Conflict check` 경고를 노출해 clipping 위험을 즉시 점검
+- 구현: `packages/app/src/ui/properties-panel.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Prototype Scroll Lock Regions + Scroll Leak Lint, 2026-04-18)
 - Prototype Flow Lint에 `scroll-leak` 이슈 타입 추가: OpenOverlay 타깃에 scroll lock region이 없으면 누수 리포트

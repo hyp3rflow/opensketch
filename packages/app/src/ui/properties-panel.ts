@@ -15034,6 +15034,72 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
 
         layoutSection.appendChild(presetsWrap);
 
+        // --- Safe Area Insets presets (mobile frame helper) ---
+        const safeAreaCard = document.createElement("div");
+        safeAreaCard.style.cssText = "margin-top:8px;padding:8px;border:1px solid #2f4561;border-radius:8px;background:rgba(30,41,59,0.45);display:flex;flex-direction:column;gap:6px;";
+
+        const safeHead = document.createElement("div");
+        safeHead.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:8px;";
+        const safeTitle = document.createElement("div");
+        safeTitle.style.cssText = "font-size:10px;color:#93c5fd;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;";
+        safeTitle.textContent = "Safe Area Insets";
+        safeHead.appendChild(safeTitle);
+
+        const safeMeta = document.createElement("div");
+        safeMeta.style.cssText = "font-size:10px;color:#64748b;";
+        safeMeta.textContent = `T${Math.round(Number(layout.padding_top || 0))} R${Math.round(Number(layout.padding_right || 0))} B${Math.round(Number(layout.padding_bottom || 0))} L${Math.round(Number(layout.padding_left || 0))}`;
+        safeHead.appendChild(safeMeta);
+        safeAreaCard.appendChild(safeHead);
+
+        const safeHint = document.createElement("div");
+        safeHint.style.cssText = "font-size:10px;color:#94a3b8;line-height:1.35;";
+        safeHint.textContent = "Apply mobile presets to padding and keep content inside status/home indicator zones.";
+        safeAreaCard.appendChild(safeHint);
+
+        const safePresetRow = document.createElement("div");
+        safePresetRow.style.cssText = "display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;";
+        const applySafePreset = (top: number, right: number, bottom: number, left: number) => {
+          editor.engine.push_undo();
+          editor.engine.set_layout_padding(BigInt(id), top, right, bottom, left);
+          editor.requestRender();
+          refresh(ids);
+        };
+        const mkSafeBtn = (label: string, top: number, right: number, bottom: number, left: number) => {
+          const b = document.createElement("button");
+          b.className = "prop-btn";
+          b.textContent = label;
+          b.style.cssText = "font-size:10px;padding:4px 6px;border:1px solid rgba(59,130,246,0.4);background:rgba(59,130,246,0.12);color:#bfdbfe;border-radius:5px;cursor:pointer;";
+          b.onclick = () => applySafePreset(top, right, bottom, left);
+          return b;
+        };
+        safePresetRow.appendChild(mkSafeBtn("iOS", 47, 0, 34, 0));
+        safePresetRow.appendChild(mkSafeBtn("Android", 24, 0, 16, 0));
+        safePresetRow.appendChild(mkSafeBtn("Reset", 0, 0, 0, 0));
+        safeAreaCard.appendChild(safePresetRow);
+
+        try {
+          const sizing = JSON.parse(editor.engine.get_sizing(BigInt(id)) || '{"horizontal":"fixed","vertical":"fixed"}');
+          const insetX = Number(layout.padding_left || 0) + Number(layout.padding_right || 0);
+          const insetY = Number(layout.padding_top || 0) + Number(layout.padding_bottom || 0);
+          const issues: string[] = [];
+          if (insetX > 0 && (sizing.horizontal === "hug" || sizing.horizontal === "fill")) {
+            issues.push(`H: ${String(sizing.horizontal).toUpperCase()} + inset ${Math.round(insetX)}px`);
+          }
+          if (insetY > 0 && (sizing.vertical === "hug" || sizing.vertical === "fill")) {
+            issues.push(`V: ${String(sizing.vertical).toUpperCase()} + inset ${Math.round(insetY)}px`);
+          }
+          if (issues.length > 0) {
+            const warn = document.createElement("div");
+            warn.style.cssText = "font-size:10px;color:#fbbf24;background:rgba(120,53,15,0.22);border:1px solid rgba(245,158,11,0.35);border-radius:6px;padding:6px;line-height:1.35;";
+            warn.textContent = `Conflict check: ${issues.join(" · ")}. Hug/Fill 축에서 safe inset 적용 시 내부 콘텐츠 clipping 여부를 확인하세요.`;
+            safeAreaCard.appendChild(warn);
+          }
+        } catch {
+          // no-op
+        }
+
+        layoutSection.appendChild(safeAreaCard);
+
         // --- Auto Layout Gap Suggestions (analyze children spacing pattern) ---
         const readNodeBounds = (nodeId: number): { x: number; y: number; w: number; h: number } | null => {
           try {

@@ -37,6 +37,7 @@
 - [x] **Layers Panel**: tree view with expand/collapse, indentation, SVG type icons, visibility toggle
 - [x] **Layers Panel View Modes**: stack↔grid toggle for faster scanning in large docs, with density options (Compact/Cozy) and persisted preference (localStorage). Grid mode shows flat layer cards with kind badges; stack mode keeps hierarchical drag reorder/workflow.
 - [x] **Properties Panel**: full node editing
+- [x] **Auto Layout Safe Area Insets (2026-04-18)**: Auto layout section에 `Safe Area Insets` 카드 추가(iOS/Android/Reset 프리셋). 선택한 Frame/Group/Instance/Slot의 layout padding을 모바일 safe area 값으로 one-click 적용하고, Hug/Fill 축 + inset 동시 사용 시 `Conflict check` 경고를 표시해 clipping 위험을 빠르게 점검.
   - Position (X/Y), Size (W/H), Rotation
   - Instance detach preview modal (Detach button / context menu / ⌘⌥B): impact summary + changed layer/property list + selective detach toggle for nested instances before apply
   - Corner radius (Rect/Frame only)
@@ -396,6 +397,7 @@
   - Prototype viewer hover 시 활성 hotspot 강조선 + accessibility label 툴팁 표시
   - Prototype Focus Order & Keyboard Navigation v1: Tab/Shift+Tab으로 focusable hotspot(OnClick/OnPress) 순환, Enter/Space로 interaction 실행, focus ring(노란 dashed) 표시, 기본 정렬은 top→bottom / left→right
   - Prototype Keyboard Navigation Order Editor v2 (2026-04-12): Prototype viewer 좌측 패널에서 keyboard hotspot을 interaction 단위(동일 노드 다중 hotspot 분리)로 시각화/재정렬(↑/↓)하고, frame별 custom Tab order를 저장(localStorage)한다. 캔버스 hotspot 힌트에 Tab index 배지를 오버레이해 순서를 즉시 검증할 수 있으며, `Reset auto`로 기본(top→bottom/left→right) 순서로 복귀한다.
+  - Prototype Focus Trap Simulator (2026-04-18): Prototype viewer 좌측 `Focus Trap Simulator`가 overlay/모달의 Tab 순환을 시뮬레이션하고, close path 누락/외부 frame escape를 리스크 카드로 리포트한다. 카드에는 `Tab N: node → action` 요약이 표시되며, `Fix`/`Quick fix all`로 `OnPress → CloseOverlay` quick-fix를 즉시 적용할 수 있다.
   - Prototype Flow Coverage Recorder (2026-04-12): Prototype viewer 좌측 `Flow Coverage` 패널에서 세션 중 방문 frame 수/방문 hotspot 수를 수집하고 frame별 visits + hotspot coverage bar(heatmap)를 리포트한다. row 클릭으로 해당 frame 점프, `Reset`으로 세션 coverage 초기화.
   - A11y Motion Guardrails v2 (2026-04-13): Properties panel `Interactions`에 Reduced motion preview 토글 + 과도한 모션 lint 카드. lint 기준은 long duration(transition duration ≥ 900ms) 또는 aggressive combo(elastic/bounce/back/spring easing + duration ≥ 480ms)이며, 카드에 기준별 집계(Long duration/Aggressive combo)를 표시한다. `Quick fix excessive motion`은 위반 interaction만 Dissolve 220ms/ease_out으로 정규화하고, Prototype viewer는 reduced-motion ON 시 animated transition을 짧은 Dissolve(최대 180ms)로 가드한다.
   - Prototype Conditional Branch Rules (2026-04-13): Prototype viewer interaction hit-test가 동일 hotspot/trigger에서 다중 interaction을 branch처럼 평가한다. 조건식이 있는 interaction들을 먼저 순서대로 검사해 첫 번째 true branch를 실행하고, 조건 없는 interaction은 fallback(else)으로 처리한다. 이로써 단일 hotspot에서도 변수/조건식 기반 다중 목적지 분기(If/Else)를 안정적으로 구성할 수 있다.
