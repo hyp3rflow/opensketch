@@ -1790,9 +1790,19 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Focus Ring Preset Manager — prototype keyboard focus ring 스타일(컬러/두께/radius) 프리셋 저장·적용 및 flow별 override 지원 (임팩트 중, 난이도 중)
 - Overlay Escape Route Map — frame별 Esc/Back/CloseOverlay 탈출 경로를 그래프로 시각화하고 trap branch를 quick-fix로 정리 (임팩트 중상, 난이도 중상)
 - Variable Usage Heatmap — 캔버스/컴포넌트 단위 변수 사용 밀도를 히트맵으로 표시하고 dead token 정리 우선순위 제안 (임팩트 중, 난이도 중상)
+- Focus Ring Contrast Guard — 배경 대비가 낮은 ring preset을 자동 감지하고 색상 대체안을 one-click 제안 (임팩트 중, 난이도 중)
+- Prototype Focus Scope Preview — overlay open 시 탭 가능 hotspot 범위를 반투명 마스크로 시각화해 trap 누락을 즉시 확인 (임팩트 중, 난이도 중)
+- Variable Token Cleanup Queue — 미사용/중복 token 후보를 queue로 적재하고 일괄 rename/merge 플로우 제공 (임팩트 중상, 난이도 중상)
+
+## 완료된 기능 (추가 — Focus Ring Preset Manager, 2026-04-19)
+- Prototype viewer top bar에 `Ring` 프리셋 selector + `Save` 액션 추가
+- 현재 focus ring 스타일(hover/press/focus)을 프리셋으로 저장하고 active preset으로 즉시 전환
+- `Flow` 토글로 flow start 기준 preset override 저장(localStorage) 지원
+- 렌더링 우선순위: flow override > active preset > default preset
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Variable Mode Diff Snapshot v1, 2026-04-19)
 - Variables 패널 `Variable Token Drift Timeline` 헤더에 `Snapshot`/`Export` 액션 추가

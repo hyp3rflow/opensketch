@@ -2793,6 +2793,12 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] scroll lock region 데이터는 localStorage(`opensketch-prototype-scroll-lock-regions-v1`)로 저장/복원
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
 
+### Focus Ring Preset Manager (2026-04-19)
+- [x] Prototype top bar에 `Ring` 프리셋 selector + `Save` 추가, 현재 active ring 스타일을 즉시 프리셋으로 저장/재사용
+- [x] Flow override 토글(`Flow`) 지원: 현재 frame의 flow start 기준으로 preset을 flow 단위로 override
+- [x] 렌더링 시 `flow override > active preset > default` 우선순위로 hover/press/focus ring 스타일 적용
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+
 ### Interaction Timeline Scrubber (2026-04-12)
 - [x] Prototype Viewer 우측에 `Interaction Timeline` 패널 추가 (scrub slider + 최근 이벤트 리스트)
 - [x] Navigate/Back/Scroll 이벤트를 타임라인으로 누적해 순서/끊김을 시각 점검

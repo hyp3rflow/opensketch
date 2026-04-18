@@ -14,6 +14,7 @@ type PrototypeRingPreset = {
 
 const PROTOTYPE_RING_PRESET_KEY = "opensketch-prototype-ring-presets-v1";
 const PROTOTYPE_RING_ACTIVE_PRESET_KEY = "opensketch-prototype-ring-active-preset-id";
+const PROTOTYPE_RING_FLOW_OVERRIDE_KEY = "opensketch-prototype-ring-flow-overrides-v1";
 const INTERACTIVE_PREVIEW_EVENT = "opensketch:interactive-preview-state";
 const PROTOTYPE_FLOW_ENTRY_PRESETS_KEY = "opensketch-proto-flow-entry-presets-v1";
 const PROTOTYPE_KEYBOARD_ORDER_KEY = "opensketch-proto-keyboard-order-v1";
@@ -152,29 +153,67 @@ function saveKeyboardOrderMap(map: KeyboardOrderMap) {
   } catch {}
 }
 
-function loadActivePrototypeRingPreset(): PrototypeRingPreset {
+function sanitizeRingPreset(raw: any): PrototypeRingPreset {
+  const sanitize = (v: any, fb: PrototypeRingStyle): PrototypeRingStyle => ({
+    color: typeof v?.color === "string" && v.color ? v.color : fb.color,
+    width: Number.isFinite(Number(v?.width)) ? Math.max(1, Number(v.width)) : fb.width,
+    radius: Number.isFinite(Number(v?.radius)) ? Math.max(0, Number(v.radius)) : fb.radius,
+  });
+  return {
+    id: String(raw?.id || DEFAULT_RING_PRESET.id),
+    name: String(raw?.name || DEFAULT_RING_PRESET.name),
+    hover: sanitize(raw?.hover, DEFAULT_RING_PRESET.hover),
+    press: sanitize(raw?.press, DEFAULT_RING_PRESET.press),
+    focus: sanitize(raw?.focus, DEFAULT_RING_PRESET.focus),
+  };
+}
+
+function loadPrototypeRingPresets(): PrototypeRingPreset[] {
   try {
     const listRaw = localStorage.getItem(PROTOTYPE_RING_PRESET_KEY);
-    const activeId = localStorage.getItem(PROTOTYPE_RING_ACTIVE_PRESET_KEY);
-    if (!listRaw) return DEFAULT_RING_PRESET;
-    const list = JSON.parse(listRaw);
-    if (!Array.isArray(list) || list.length === 0) return DEFAULT_RING_PRESET;
-    const picked = list.find((p: any) => String(p?.id) === String(activeId || "")) || list[0];
-    const sanitize = (v: any, fb: PrototypeRingStyle): PrototypeRingStyle => ({
-      color: typeof v?.color === "string" && v.color ? v.color : fb.color,
-      width: Number.isFinite(Number(v?.width)) ? Math.max(1, Number(v.width)) : fb.width,
-      radius: Number.isFinite(Number(v?.radius)) ? Math.max(0, Number(v.radius)) : fb.radius,
-    });
-    return {
-      id: String(picked?.id || DEFAULT_RING_PRESET.id),
-      name: String(picked?.name || DEFAULT_RING_PRESET.name),
-      hover: sanitize(picked?.hover, DEFAULT_RING_PRESET.hover),
-      press: sanitize(picked?.press, DEFAULT_RING_PRESET.press),
-      focus: sanitize(picked?.focus, DEFAULT_RING_PRESET.focus),
-    };
+    const list = listRaw ? JSON.parse(listRaw) : [];
+    if (!Array.isArray(list) || list.length === 0) return [DEFAULT_RING_PRESET];
+    const out = list.map((row: any) => sanitizeRingPreset(row)).filter((row: PrototypeRingPreset) => !!row.id);
+    return out.length ? out : [DEFAULT_RING_PRESET];
   } catch {
-    return DEFAULT_RING_PRESET;
+    return [DEFAULT_RING_PRESET];
   }
+}
+
+function loadRingFlowOverrides(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem(PROTOTYPE_RING_FLOW_OVERRIDE_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    if (!parsed || typeof parsed !== "object") return {};
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(parsed)) {
+      const flowId = Number(k);
+      if (!flowId || flowId <= 0) continue;
+      const presetId = String(v || "").trim();
+      if (presetId) out[String(flowId)] = presetId;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+function saveRingFlowOverrides(map: Record<string, string>) {
+  try {
+    localStorage.setItem(PROTOTYPE_RING_FLOW_OVERRIDE_KEY, JSON.stringify(map));
+  } catch {}
+}
+
+function loadActivePrototypeRingPreset(flowId?: number | null): PrototypeRingPreset {
+  const presets = loadPrototypeRingPresets();
+  const flowOverrides = loadRingFlowOverrides();
+  const overridePresetId = flowId && flowId > 0 ? String(flowOverrides[String(flowId)] || "") : "";
+  const activeId = localStorage.getItem(PROTOTYPE_RING_ACTIVE_PRESET_KEY);
+  const picked = presets.find((p) => p.id === overridePresetId)
+    || presets.find((p) => p.id === String(activeId || ""))
+    || presets[0]
+    || DEFAULT_RING_PRESET;
+  return sanitizeRingPreset(picked);
 }
 
 /**
@@ -221,6 +260,8 @@ export function createPrototypeViewer(editor: Editor): {
     keyboardHotspots: number;
     missingClosePath: boolean;
     leaksOutside: boolean;
+    trappedInLoop: boolean;
+    simulatedTabSteps: number;
   };
   let flowLintWrap: HTMLDivElement | null = null;
   let keyboardOrderWrap: HTMLDivElement | null = null;
@@ -1461,24 +1502,37 @@ export function createPrototypeViewer(editor: Editor): {
       }
 
       for (const overlayId of overlayTargets) {
-        const overlayRows = rowsInFrame(overlayId);
-        const keyboardInteractions = overlayRows.flatMap((row) => {
-          const interactions: any[] = Array.isArray(row?.interactions) ? row.interactions : [];
-          return interactions.filter((inter) => {
-            const trig = String(inter?.trigger || "");
-            return trig === "OnClick" || trig === "OnPress";
-          });
-        });
+        const focusables = listFocusableHotspots(overlayId);
+        const keyboardInteractions = focusables.map((item) => item.interaction);
         const hasClosePath = keyboardInteractions.some((inter) => {
           const action = String(inter?.action || "");
           return action === "CloseOverlay" || action === "Back";
         });
-        const leaksOutside = keyboardInteractions.some((inter) => {
-          const action = String(inter?.action || "");
-          const target = Number(inter?.target_node_id || 0);
-          return action === "NavigateTo" && target > 0 && target !== frame.id && target !== overlayId;
-        });
-        if (hasClosePath && !leaksOutside) continue;
+
+        let simulatedTabSteps = 0;
+        let leaksOutside = false;
+        let trappedInLoop = false;
+        if (focusables.length > 0) {
+          const maxSteps = Math.max(6, focusables.length * 2);
+          for (let step = 0; step < maxSteps; step += 1) {
+            simulatedTabSteps += 1;
+            const interaction = focusables[step % focusables.length]?.interaction;
+            if (!interaction) continue;
+            const action = String(interaction?.action || "");
+            const target = Number(interaction?.target_node_id || 0);
+            if (action === "CloseOverlay" || action === "Back") {
+              trappedInLoop = false;
+              break;
+            }
+            if (action === "NavigateTo" && target > 0 && target !== frame.id && target !== overlayId) {
+              leaksOutside = true;
+              break;
+            }
+            if (step === maxSteps - 1) trappedInLoop = true;
+          }
+        }
+
+        if (hasClosePath && !leaksOutside && !trappedInLoop) continue;
         const overlayNode = frameById.get(overlayId);
         issues.push({
           frameId: frame.id,
@@ -1488,6 +1542,8 @@ export function createPrototypeViewer(editor: Editor): {
           keyboardHotspots: keyboardInteractions.length,
           missingClosePath: !hasClosePath,
           leaksOutside,
+          trappedInLoop,
+          simulatedTabSteps,
         });
       }
     }
@@ -1562,12 +1618,13 @@ export function createPrototypeViewer(editor: Editor): {
       const parts = [];
       if (issue.missingClosePath) parts.push("missing close path");
       if (issue.leaksOutside) parts.push("escapes outside");
+      if (issue.trappedInLoop) parts.push("tab loop without close");
       label.textContent = `${issue.frameName} → ${issue.overlayName} (${parts.join(" + ") || "risk"})`;
       row.appendChild(label);
 
       const meta = document.createElement("div");
       meta.style.cssText = "font-size:9px;color:#fecaca;";
-      meta.textContent = `Keyboard hotspots: ${issue.keyboardHotspots}`;
+      meta.textContent = `Keyboard hotspots: ${issue.keyboardHotspots} · Simulated tabs: ${issue.simulatedTabSteps}`;
       row.appendChild(meta);
 
       const btnRow = document.createElement("div");
@@ -2676,6 +2733,71 @@ export function createPrototypeViewer(editor: Editor): {
       themeWrap.appendChild(themeSel);
       topBar.appendChild(themeWrap);
     }
+
+    const ringWrap = document.createElement("div");
+    ringWrap.style.cssText = "display:flex;align-items:center;gap:6px;";
+    const ringLabel = document.createElement("span");
+    ringLabel.style.cssText = "font-size:11px;color:#94a3b8;";
+    ringLabel.textContent = "Ring";
+    const ringSel = document.createElement("select");
+    ringSel.style.cssText = "background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:6px;padding:5px 8px;font-size:11px;max-width:150px;";
+    const ringFlowCheckLabel = document.createElement("label");
+    ringFlowCheckLabel.style.cssText = "display:flex;align-items:center;gap:3px;color:#94a3b8;font-size:10px;";
+    const ringFlowCheck = document.createElement("input");
+    ringFlowCheck.type = "checkbox";
+    ringFlowCheckLabel.appendChild(ringFlowCheck);
+    ringFlowCheckLabel.appendChild(document.createTextNode("Flow"));
+    const ringSaveBtn = document.createElement("button");
+    ringSaveBtn.className = "prop-btn";
+    ringSaveBtn.textContent = "Save";
+    ringSaveBtn.style.cssText = "font-size:10px;padding:3px 6px;";
+    const syncRingPresetSelect = () => {
+      const presets = loadPrototypeRingPresets();
+      const flowId = detectFlowIdForFrame(currentFrameId);
+      const flowOverrides = loadRingFlowOverrides();
+      const overridePresetId = flowId ? String(flowOverrides[String(flowId)] || "") : "";
+      ringSel.innerHTML = "";
+      for (const preset of presets) {
+        const opt = document.createElement("option");
+        opt.value = preset.id;
+        opt.textContent = preset.name;
+        ringSel.appendChild(opt);
+      }
+      const activeId = localStorage.getItem(PROTOTYPE_RING_ACTIVE_PRESET_KEY) || presets[0]?.id || DEFAULT_RING_PRESET.id;
+      ringSel.value = ringFlowCheck.checked ? (overridePresetId || activeId) : activeId;
+      ringFlowCheck.disabled = !flowId;
+      ringFlowCheck.title = flowId ? `Flow #${flowId} override` : "Current frame is not a flow start";
+    };
+    ringSel.addEventListener("change", () => {
+      const presets = loadPrototypeRingPresets();
+      const picked = presets.find((p) => p.id === ringSel.value);
+      if (!picked) return;
+      if (ringFlowCheck.checked) {
+        const flowId = detectFlowIdForFrame(currentFrameId);
+        if (flowId && flowId > 0) {
+          const map = loadRingFlowOverrides();
+          map[String(flowId)] = picked.id;
+          saveRingFlowOverrides(map);
+        }
+      } else {
+        localStorage.setItem(PROTOTYPE_RING_ACTIVE_PRESET_KEY, picked.id);
+      }
+      renderCurrentView();
+    });
+    ringFlowCheck.addEventListener("change", syncRingPresetSelect);
+    ringSaveBtn.onclick = () => {
+      const preset = loadActivePrototypeRingPreset(detectFlowIdForFrame(currentFrameId));
+      const next = loadPrototypeRingPresets();
+      const id = `preset-${Date.now().toString(36)}`;
+      next.unshift({ ...preset, id, name: `Preset ${next.length + 1}` });
+      try { localStorage.setItem(PROTOTYPE_RING_PRESET_KEY, JSON.stringify(next)); } catch {}
+      localStorage.setItem(PROTOTYPE_RING_ACTIVE_PRESET_KEY, id);
+      syncRingPresetSelect();
+      renderCurrentView();
+    };
+    ringWrap.append(ringLabel, ringSel, ringFlowCheckLabel, ringSaveBtn);
+    syncRingPresetSelect();
+    topBar.appendChild(ringWrap);
 
     const deviceWrap = document.createElement("div");
     deviceWrap.style.cssText = "display:flex;align-items:center;gap:6px;";
@@ -4535,6 +4657,7 @@ export function createPrototypeViewer(editor: Editor): {
     const orderedFocusable = listFocusableHotspots(currentFrameId);
     const orderRank = new Map<string, number>();
     orderedFocusable.forEach((item, idx) => orderRank.set(item.key, idx + 1));
+    const ringPreset = loadActivePrototypeRingPreset(detectFlowIdForFrame(currentFrameId));
 
     ctx.save();
     for (const nwi of nodesWithInter) {
@@ -4561,7 +4684,6 @@ export function createPrototypeViewer(editor: Editor): {
       const isHotNode = hoveredHotspotNodeId !== null && Number(nwi.id) === hoveredHotspotNodeId;
       const isFocused = focusedHotspotNodeId !== null && Number(nwi.id) === focusedHotspotNodeId;
       const visualState = interactiveVisualState.get(Number(nwi.id)) || null;
-      const ringPreset = loadActivePrototypeRingPreset();
       if (visualState) {
         const ring = ringPreset[visualState];
         ctx.save();
