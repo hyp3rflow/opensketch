@@ -1790,10 +1790,17 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Variable Contract Tests — 컴포넌트별 required variable schema를 저장하고 누락/타입불일치를 릴리즈 전 일괄 검사 (임팩트 상, 난이도 중)
 - Auto Layout Keyboard Nudge Controls — 선택된 auto-layout 자식을 Alt+Arrow로 gap 단위 정렬 이동하고 reorder 인디케이터 표시 (임팩트 중, 난이도 중)
 - Prototype Overlay Stack Inspector — 중첩 overlay의 open/close stack을 타임라인으로 시각화하고 orphan overlay를 one-click 정리 (임팩트 중상, 난이도 중상)
 - Variable Mode Diff Snapshot — mode 간 변수값 diff를 스냅샷으로 저장/비교하고 변경량 리포트 export (임팩트 중, 난이도 중)
+
+## 완료된 기능 (추가 — Variable Contract Tests, 2026-04-18)
+- Variables 패널에 `Variable Contract Tests` 섹션 추가
+- 컴포넌트별 required schema(`name:type`) 저장/삭제 + localStorage(`opensketch-variable-contract-tests-v1`) 유지
+- `Run`으로 전체 contract 누락/타입 불일치 일괄 검사
+- missing 항목에 `Create` quick-fix 제공(선택 collection에 변수 즉시 생성)
+- 구현: `packages/app/src/ui/variables-panel.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Auto Layout Safe Area Insets, 2026-04-18)
 - Auto layout 섹션에 `Safe Area Insets` 카드 추가: iOS(47/0/34/0), Android(24/0/16/0), Reset 프리셋으로 padding 즉시 적용

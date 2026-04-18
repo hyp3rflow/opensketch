@@ -29,6 +29,7 @@ interface VariableTimelineEntry {
 
 const VARIABLE_TIMELINE_STORAGE_KEY = "opensketch-variable-diff-timeline-v1";
 const VARIABLE_MODE_DRIFT_RECIPES_KEY = "opensketch-variable-mode-drift-recipes-v1";
+const VARIABLE_CONTRACT_TESTS_KEY = "opensketch-variable-contract-tests-v1";
 
 interface VariableModeDriftRecipe {
   id: string;
@@ -38,6 +39,26 @@ interface VariableModeDriftRecipe {
   source_mode_name: string;
   target_mode_names: string[];
   created_at: number;
+}
+
+interface VariableContractField {
+  name: string;
+  value_type: "Color" | "Number" | "String" | "Boolean";
+}
+
+interface VariableContractEntry {
+  component_id: number;
+  component_name: string;
+  required: VariableContractField[];
+  updated_at: number;
+}
+
+interface VariableContractIssue {
+  componentName: string;
+  variableName: string;
+  expectedType: string;
+  actualType: string | null;
+  kind: "missing" | "type-mismatch";
 }
 
 export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
@@ -51,6 +72,8 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
   let expandedTimelineEntryId: string | null = null;
   let selectedTimelineModeId: number | "all" = "all";
   let selectedScopeAudit: "Collection" | "Page" | "Frame" = "Collection";
+  let selectedContractComponentId: number | null = null;
+  let contractSchemaDraft = "";
 
   const cloneModeValues = (input: Record<string, VarPrimitive> | undefined | null): Record<string, VarPrimitive> => {
     const out: Record<string, VarPrimitive> = {};
@@ -134,6 +157,42 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
     } catch {
       // ignore storage quota errors
     }
+  };
+
+  const readContractEntries = (): VariableContractEntry[] => {
+    try {
+      const raw = localStorage.getItem(VARIABLE_CONTRACT_TESTS_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      return parsed as VariableContractEntry[];
+    } catch {
+      return [];
+    }
+  };
+
+  const writeContractEntries = (entries: VariableContractEntry[]) => {
+    try {
+      localStorage.setItem(VARIABLE_CONTRACT_TESTS_KEY, JSON.stringify(entries.slice(0, 200)));
+    } catch {
+      // ignore storage quota errors
+    }
+  };
+
+  const parseContractSchema = (raw: string): VariableContractField[] => {
+    const out: VariableContractField[] = [];
+    const chunks = raw.split(",").map((token) => token.trim()).filter(Boolean);
+    const allowed = new Set(["Color", "Number", "String", "Boolean"]);
+    for (const chunk of chunks) {
+      const [nameRaw, typeRaw] = chunk.split(":").map((s) => s.trim());
+      if (!nameRaw || !typeRaw || !allowed.has(typeRaw)) continue;
+      out.push({ name: nameRaw, value_type: typeRaw as VariableContractField["value_type"] });
+    }
+    return out;
+  };
+
+  const stringifyContractSchema = (required: VariableContractField[]): string => {
+    return required.map((field) => `${field.name}:${field.value_type}`).join(", ");
   };
 
   const pushTimelineEntry = (
@@ -1679,6 +1738,198 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
 
     auditSection.appendChild(auditList);
     container.appendChild(auditSection);
+
+    // Variable contract tests (release preflight)
+    const contractSection = document.createElement("div");
+    contractSection.style.cssText = "margin-bottom:12px;background:#1a2332;border:1px solid #334155;border-radius:6px;padding:8px;";
+    const contractHead = document.createElement("div");
+    contractHead.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;";
+    const contractTitle = document.createElement("div");
+    contractTitle.style.cssText = "font-size:10px;color:#93c5fd;text-transform:uppercase;letter-spacing:0.5px;font-weight:700;";
+    contractTitle.textContent = "Variable Contract Tests";
+    contractHead.appendChild(contractTitle);
+
+    const contractRunBtn = document.createElement("button");
+    contractRunBtn.style.cssText = "background:#0f172a;border:1px solid #475569;border-radius:4px;color:#cbd5e1;font-size:10px;padding:2px 8px;cursor:pointer;";
+    contractRunBtn.textContent = "Run";
+    contractHead.appendChild(contractRunBtn);
+    contractSection.appendChild(contractHead);
+
+    let components: Array<{ id: number; name: string }> = [];
+    try {
+      components = JSON.parse(editor.engine.get_components?.() || "[]").map((c: any) => ({ id: Number(c.id || 0), name: String(c.name || `Component #${c.id}`) })).filter((c: any) => c.id > 0);
+    } catch {
+      components = [];
+    }
+
+    if (!selectedContractComponentId || !components.some((comp) => comp.id === selectedContractComponentId)) {
+      selectedContractComponentId = components[0]?.id ?? null;
+    }
+
+    const existingContracts = readContractEntries();
+    const contractMap = new Map<number, VariableContractEntry>();
+    for (const entry of existingContracts) contractMap.set(Number(entry.component_id || 0), entry);
+    const selectedContract = selectedContractComponentId ? contractMap.get(selectedContractComponentId) : null;
+    if (!contractSchemaDraft.trim() && selectedContract) {
+      contractSchemaDraft = stringifyContractSchema(selectedContract.required || []);
+    }
+
+    const editorRow = document.createElement("div");
+    editorRow.style.cssText = "display:flex;flex-direction:column;gap:6px;margin-bottom:8px;";
+
+    const compSel = document.createElement("select");
+    compSel.style.cssText = "width:100%;background:#111827;border:1px solid #374151;border-radius:4px;color:#cbd5e1;font-size:10px;padding:4px 6px;";
+    for (const comp of components) {
+      const opt = document.createElement("option");
+      opt.value = String(comp.id);
+      opt.textContent = `${comp.name} (#${comp.id})`;
+      if (comp.id === selectedContractComponentId) opt.selected = true;
+      compSel.appendChild(opt);
+    }
+    compSel.onchange = () => {
+      selectedContractComponentId = Number(compSel.value || 0) || null;
+      const picked = selectedContractComponentId ? contractMap.get(selectedContractComponentId) : null;
+      contractSchemaDraft = picked ? stringifyContractSchema(picked.required || []) : "";
+      refresh();
+    };
+    editorRow.appendChild(compSel);
+
+    const schemaInput = document.createElement("input");
+    schemaInput.type = "text";
+    schemaInput.placeholder = "e.g. color.primary:Color, spacing.md:Number";
+    schemaInput.value = contractSchemaDraft;
+    schemaInput.style.cssText = "width:100%;background:#111827;border:1px solid #374151;border-radius:4px;color:#cbd5e1;font-size:10px;padding:4px 6px;";
+    schemaInput.oninput = () => {
+      contractSchemaDraft = schemaInput.value;
+    };
+    editorRow.appendChild(schemaInput);
+
+    const hint = document.createElement("div");
+    hint.style.cssText = "font-size:9px;color:#94a3b8;line-height:1.35;";
+    hint.textContent = "컴포넌트별 required variable schema를 저장하고 릴리즈 전 Run으로 누락/타입불일치를 한 번에 검사합니다.";
+    editorRow.appendChild(hint);
+
+    const rowButtons = document.createElement("div");
+    rowButtons.style.cssText = "display:flex;gap:6px;";
+    const saveContractBtn = document.createElement("button");
+    saveContractBtn.className = "prop-btn";
+    saveContractBtn.textContent = "Save contract";
+    saveContractBtn.style.cssText = "flex:1;font-size:10px;padding:3px 6px;";
+    saveContractBtn.onclick = () => {
+      if (!selectedContractComponentId) return;
+      const comp = components.find((item) => item.id === selectedContractComponentId);
+      if (!comp) return;
+      const required = parseContractSchema(contractSchemaDraft);
+      const next = readContractEntries().filter((entry) => Number(entry.component_id || 0) !== selectedContractComponentId);
+      next.unshift({
+        component_id: selectedContractComponentId,
+        component_name: comp.name,
+        required,
+        updated_at: Date.now(),
+      });
+      writeContractEntries(next);
+      refresh();
+    };
+    rowButtons.appendChild(saveContractBtn);
+
+    const removeContractBtn = document.createElement("button");
+    removeContractBtn.className = "prop-btn";
+    removeContractBtn.textContent = "Delete";
+    removeContractBtn.style.cssText = "font-size:10px;padding:3px 6px;";
+    removeContractBtn.onclick = () => {
+      if (!selectedContractComponentId) return;
+      const next = readContractEntries().filter((entry) => Number(entry.component_id || 0) !== selectedContractComponentId);
+      writeContractEntries(next);
+      contractSchemaDraft = "";
+      refresh();
+    };
+    rowButtons.appendChild(removeContractBtn);
+    editorRow.appendChild(rowButtons);
+
+    contractSection.appendChild(editorRow);
+
+    const contractResult = document.createElement("div");
+    contractResult.style.cssText = "display:flex;flex-direction:column;gap:4px;max-height:170px;overflow:auto;";
+
+    const runContractTests = () => {
+      const contracts = readContractEntries();
+      const variableTypeByName = new Map<string, string>();
+      for (const collection of collections) {
+        for (const variable of collection.variables || []) {
+          const name = String(variable.name || "").trim();
+          if (!name || variableTypeByName.has(name)) continue;
+          variableTypeByName.set(name, String(variable.value_type || ""));
+        }
+      }
+
+      const issues: VariableContractIssue[] = [];
+      for (const contract of contracts) {
+        for (const required of contract.required || []) {
+          const actualType = variableTypeByName.get(required.name) || null;
+          if (!actualType) {
+            issues.push({
+              componentName: contract.component_name || `Component #${contract.component_id}`,
+              variableName: required.name,
+              expectedType: required.value_type,
+              actualType: null,
+              kind: "missing",
+            });
+            continue;
+          }
+          if (actualType !== required.value_type) {
+            issues.push({
+              componentName: contract.component_name || `Component #${contract.component_id}`,
+              variableName: required.name,
+              expectedType: required.value_type,
+              actualType,
+              kind: "type-mismatch",
+            });
+          }
+        }
+      }
+
+      contractResult.innerHTML = "";
+      const summary = document.createElement("div");
+      summary.style.cssText = `font-size:10px;padding:5px 6px;border-radius:4px;border:1px solid ${issues.length > 0 ? "rgba(248,113,113,0.35)" : "rgba(74,222,128,0.35)"};background:${issues.length > 0 ? "rgba(127,29,29,0.24)" : "rgba(22,101,52,0.25)"};color:${issues.length > 0 ? "#fecaca" : "#86efac"};`;
+      summary.textContent = issues.length > 0
+        ? `Contracts ${contracts.length}개 검사 완료 · 이슈 ${issues.length}개`
+        : `Contracts ${contracts.length}개 검사 완료 · 누락/타입불일치 없음`;
+      contractResult.appendChild(summary);
+
+      for (const issue of issues.slice(0, 30)) {
+        const row = document.createElement("div");
+        row.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:6px;background:rgba(15,23,42,0.5);border:1px solid rgba(248,113,113,0.28);border-radius:4px;padding:4px 6px;";
+
+        const text = document.createElement("div");
+        text.style.cssText = "flex:1;font-size:10px;color:#fecaca;line-height:1.35;";
+        text.textContent = issue.kind === "missing"
+          ? `${issue.componentName}: ${issue.variableName}:${issue.expectedType} missing`
+          : `${issue.componentName}: ${issue.variableName} expected ${issue.expectedType}, got ${issue.actualType}`;
+        row.appendChild(text);
+
+        if (issue.kind === "missing") {
+          const fixBtn = document.createElement("button");
+          fixBtn.className = "prop-btn";
+          fixBtn.textContent = "Create";
+          fixBtn.style.cssText = "font-size:10px;padding:2px 6px;";
+          fixBtn.onclick = () => {
+            if (!selectedCollectionId) return;
+            editor.engine.push_undo();
+            editor.engine.create_variable(BigInt(selectedCollectionId), issue.variableName, issue.expectedType);
+            refresh();
+          };
+          row.appendChild(fixBtn);
+        }
+
+        contractResult.appendChild(row);
+      }
+    };
+
+    contractRunBtn.onclick = runContractTests;
+    runContractTests();
+
+    contractSection.appendChild(contractResult);
+    container.appendChild(contractSection);
 
     // Variables table
     const varsSection = document.createElement("div");

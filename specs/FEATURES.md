@@ -38,6 +38,7 @@
 - [x] **Layers Panel View Modes**: stack↔grid toggle for faster scanning in large docs, with density options (Compact/Cozy) and persisted preference (localStorage). Grid mode shows flat layer cards with kind badges; stack mode keeps hierarchical drag reorder/workflow.
 - [x] **Properties Panel**: full node editing
 - [x] **Auto Layout Safe Area Insets (2026-04-18)**: Auto layout section에 `Safe Area Insets` 카드 추가(iOS/Android/Reset 프리셋). 선택한 Frame/Group/Instance/Slot의 layout padding을 모바일 safe area 값으로 one-click 적용하고, Hug/Fill 축 + inset 동시 사용 시 `Conflict check` 경고를 표시해 clipping 위험을 빠르게 점검.
+- [x] **Variable Contract Tests (2026-04-18)**: Variables 패널에 `Variable Contract Tests` 섹션 추가. 컴포넌트별 required variable schema를 `name:type` 목록으로 저장/삭제하고, `Run`으로 전체 contract를 일괄 검사해 missing/type-mismatch를 리포트한다. missing 항목은 선택 collection에 즉시 `Create` quick-fix 가능.
   - Position (X/Y), Size (W/H), Rotation
   - Instance detach preview modal (Detach button / context menu / ⌘⌥B): impact summary + changed layer/property list + selective detach toggle for nested instances before apply
   - Corner radius (Rect/Frame only)
