@@ -1377,6 +1377,38 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
     };
     graphActions.appendChild(breakCyclesBtn);
 
+    const collapseChainsBtn = document.createElement("button");
+    collapseChainsBtn.style.cssText = "background:#082f49;border:1px solid #38bdf8;border-radius:4px;color:#bae6fd;font-size:10px;padding:2px 7px;cursor:pointer;";
+    collapseChainsBtn.textContent = "Collapse all chains";
+    collapseChainsBtn.onclick = () => {
+      const collapsePlan = new Map<string, { source: VariableGraphNode; modeId: number; terminal: string }>();
+      for (const chain of graph.chains) {
+        if (chain.path.length < 3) continue;
+        if (chain.terminal === chain.path[1]) continue;
+        const source = graph.nodes.get(chain.startFrom);
+        if (!source) continue;
+        const key = `${source.key}:${chain.modeId}`;
+        if (!collapsePlan.has(key)) {
+          collapsePlan.set(key, { source, modeId: chain.modeId, terminal: chain.terminal });
+        }
+      }
+      if (collapsePlan.size === 0) return;
+      editor.engine.push_undo();
+      for (const plan of collapsePlan.values()) {
+        const target = graph.nodes.get(plan.terminal);
+        if (!target) continue;
+        editor.engine.set_variable_value(
+          BigInt(plan.source.collectionId),
+          BigInt(plan.source.variableId),
+          BigInt(plan.modeId),
+          JSON.stringify({ String: `{${target.collectionName}/${target.variableName}}` })
+        );
+      }
+      editor.engine.apply_variables();
+      refresh();
+    };
+    graphActions.appendChild(collapseChainsBtn);
+
     const copyReportBtn = document.createElement("button");
     copyReportBtn.style.cssText = "background:#0c4a6e;border:1px solid #38bdf8;border-radius:4px;color:#bae6fd;font-size:10px;padding:2px 7px;cursor:pointer;";
     copyReportBtn.textContent = "Copy report";

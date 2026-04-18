@@ -2753,6 +2753,12 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] `Copy report` 액션으로 unresolved/cycle 요약을 클립보드로 내보내 디버깅/리뷰 공유 흐름 강화
 - 구현: `packages/app/src/ui/variables-panel.ts`
 
+### Variable Alias Graph Inspector v3 (2026-04-18)
+- [x] Graph header bulk action에 `Collapse all chains` 추가
+- [x] 3-hop 이상 alias chain을 source/mode 단위로 dedupe한 뒤 terminal 변수로 one-click retarget
+- [x] 일괄 collapse는 단일 undo + `apply_variables()`로 동작해 기존 unresolved/cycle bulk fix와 동일한 롤백 흐름 유지
+- 구현: `packages/app/src/ui/variables-panel.ts`
+
 ### Variable Scope Audit (Collection/Page/Frame) (2026-04-14)
 - [x] Variables 패널에 `Variable Scope Audit` 카드 추가, scope(`Collection / Page / Frame`) 기준으로 변수 사용 범위 누수를 점검
 - [x] `Page` 모드: 동일 변수의 usage가 여러 page로 퍼진 경우 leak로 리포트
