@@ -1790,10 +1790,18 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Variable Token Cleanup Queue — 미사용/중복 token 후보를 queue로 적재하고 일괄 rename/merge 플로우 제공 (임팩트 중상, 난이도 중상)
 - Focus Ring Preset Contrast Report — 프리셋별 hover/press/focus 대비 점수표와 위험 상태 배지를 제공해 릴리즈 전 a11y 검수를 빠르게 수행 (임팩트 중, 난이도 중)
 - Overlay Escape Intent Hints — CloseOverlay/Back 액션이 없는 hotspot에 캔버스 경고 배지를 표시하고 권장 액션 템플릿을 제안 (임팩트 중상, 난이도 중)
 - Variable Token Merge Dry-Run Diff — merge 전에 영향을 받는 노드/스타일/프로토타입 경로를 diff 카드로 미리보기 (임팩트 상, 난이도 중상)
+
+## 완료된 기능 (추가 — Variable Token Cleanup Queue, 2026-04-19)
+- Variables Inspector에 `Variable Token Cleanup Queue` 카드 추가
+- `Queue top candidates`로 dead/low-usage/duplicate token 후보를 queue로 적재
+- queue에서 rename draft를 조정한 뒤 `Apply queued rename`으로 일괄 rename 수행
+- duplicate merge target이 있는 항목은 `Apply queued merge`로 usage 재바인딩 후 잔여 usage 0인 source token 자동 삭제
+- queue 상태는 localStorage(`opensketch-variable-token-cleanup-queue-v1`)에 저장되어 세션 간 유지
+- 구현: `packages/app/src/ui/variables-panel.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Prototype Focus Scope Preview, 2026-04-19)
 - Prototype viewer에서 `OpenOverlay` 타깃 frame을 감지하면 focus scope preview 마스크를 자동 렌더

@@ -45,6 +45,19 @@ const VARIABLE_TIMELINE_STORAGE_KEY = "opensketch-variable-diff-timeline-v1";
 const VARIABLE_MODE_DIFF_SNAPSHOTS_KEY = "opensketch-variable-mode-diff-snapshots-v1";
 const VARIABLE_MODE_DRIFT_RECIPES_KEY = "opensketch-variable-mode-drift-recipes-v1";
 const VARIABLE_CONTRACT_TESTS_KEY = "opensketch-variable-contract-tests-v1";
+const VARIABLE_CLEANUP_QUEUE_KEY = "opensketch-variable-token-cleanup-queue-v1";
+
+interface VariableCleanupQueueItem {
+  id: string;
+  collection_id: number;
+  variable_id: number;
+  variable_name: string;
+  value_type: string;
+  usage_count: number;
+  reason: "dead" | "low" | "duplicate";
+  target_variable_id?: number;
+  rename_to?: string;
+}
 
 interface VariableModeDriftRecipe {
   id: string;
@@ -143,6 +156,26 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
       localStorage.setItem(VARIABLE_MODE_DRIFT_RECIPES_KEY, JSON.stringify(recipes.slice(0, 30)));
     } catch {
       // ignore storage quota errors
+    }
+  };
+
+  const readCleanupQueue = (): VariableCleanupQueueItem[] => {
+    try {
+      const raw = localStorage.getItem(VARIABLE_CLEANUP_QUEUE_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      return parsed as VariableCleanupQueueItem[];
+    } catch {
+      return [];
+    }
+  };
+
+  const writeCleanupQueue = (queue: VariableCleanupQueueItem[]) => {
+    try {
+      localStorage.setItem(VARIABLE_CLEANUP_QUEUE_KEY, JSON.stringify(queue.slice(0, 80)));
+    } catch {
+      // ignore storage errors
     }
   };
 
@@ -875,6 +908,206 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
       }
       inspector.appendChild(usageList);
     }
+
+    const cleanupQueueCard = document.createElement("div");
+    cleanupQueueCard.style.cssText = "margin-bottom:8px;background:#111827;border:1px solid #334155;border-radius:6px;padding:6px;";
+    const cleanupHeader = document.createElement("div");
+    cleanupHeader.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;";
+    const cleanupTitle = document.createElement("div");
+    cleanupTitle.style.cssText = "font-size:10px;font-weight:700;color:#93c5fd;text-transform:uppercase;letter-spacing:0.5px;";
+    cleanupTitle.textContent = "Variable Token Cleanup Queue";
+    cleanupHeader.appendChild(cleanupTitle);
+
+    const queueSeedBtn = document.createElement("button");
+    queueSeedBtn.style.cssText = "background:#1d4ed8;border:1px solid #2563eb;border-radius:4px;color:#dbeafe;font-size:10px;padding:2px 7px;cursor:pointer;";
+    queueSeedBtn.textContent = "Queue top candidates";
+    cleanupHeader.appendChild(queueSeedBtn);
+    cleanupQueueCard.appendChild(cleanupHeader);
+
+    const duplicateBuckets = new Map<string, Array<{ variable: VarVariable; usageCount: number }>>();
+    for (const v of col.variables) {
+      const signature = `${v.value_type}:${JSON.stringify(v.values_by_mode || {})}`;
+      let usages: Array<{ node_id?: number }> = [];
+      try {
+        usages = JSON.parse((editor.engine as any).get_variable_usages?.(BigInt(col.id), BigInt(v.id)) || "[]");
+      } catch {
+        usages = [];
+      }
+      const usageCount = usages.filter((entry) => Number(entry?.node_id || 0) > 0).length;
+      const list = duplicateBuckets.get(signature) || [];
+      list.push({ variable: v, usageCount });
+      duplicateBuckets.set(signature, list);
+    }
+    const duplicateTargetById = new Map<number, number>();
+    duplicateBuckets.forEach((bucket) => {
+      if (bucket.length < 2) return;
+      bucket.sort((a, b) => b.usageCount - a.usageCount || a.variable.name.localeCompare(b.variable.name));
+      const canonical = bucket[0].variable.id;
+      for (const row of bucket.slice(1)) duplicateTargetById.set(row.variable.id, canonical);
+    });
+
+    let allQueue = readCleanupQueue();
+    const queueForCollection = allQueue.filter((entry) => entry.collection_id === col.id);
+
+    queueSeedBtn.onclick = () => {
+      const map = new Map<number, VariableCleanupQueueItem>();
+      for (const existing of queueForCollection) map.set(existing.variable_id, existing);
+      for (const row of usagePriorityRows.slice(0, 14)) {
+        const reason: VariableCleanupQueueItem["reason"] = row.usageCount === 0 ? "dead" : "low";
+        map.set(row.variable.id, {
+          id: `q-${Date.now()}-${row.variable.id}`,
+          collection_id: col.id,
+          variable_id: row.variable.id,
+          variable_name: row.variable.name,
+          value_type: row.variable.value_type,
+          usage_count: row.usageCount,
+          reason,
+          rename_to: `${row.variable.name}-deprecated`,
+        });
+      }
+      duplicateTargetById.forEach((targetId, variableId) => {
+        const v = col.variables.find((it) => it.id === variableId);
+        if (!v) return;
+        let usages: Array<{ node_id?: number }> = [];
+        try {
+          usages = JSON.parse((editor.engine as any).get_variable_usages?.(BigInt(col.id), BigInt(variableId)) || "[]");
+        } catch {
+          usages = [];
+        }
+        const usageCount = usages.filter((entry) => Number(entry?.node_id || 0) > 0).length;
+        map.set(variableId, {
+          id: `q-${Date.now()}-${variableId}`,
+          collection_id: col.id,
+          variable_id: variableId,
+          variable_name: v.name,
+          value_type: v.value_type,
+          usage_count: usageCount,
+          reason: "duplicate",
+          target_variable_id: targetId,
+          rename_to: `${v.name}-merged`,
+        });
+      });
+      const merged = [...allQueue.filter((entry) => entry.collection_id !== col.id), ...Array.from(map.values())];
+      writeCleanupQueue(merged);
+      refresh();
+    };
+
+    const queueMeta = document.createElement("div");
+    queueMeta.style.cssText = "font-size:10px;color:#93c5fd;margin-bottom:6px;";
+    queueMeta.textContent = queueForCollection.length > 0
+      ? `Queued ${queueForCollection.length} token(s) · rename/merge ready`
+      : "Queue is empty. Add dead/low-usage/duplicate candidates first.";
+    cleanupQueueCard.appendChild(queueMeta);
+
+    if (queueForCollection.length > 0) {
+      const queueList = document.createElement("div");
+      queueList.style.cssText = "display:flex;flex-direction:column;gap:4px;max-height:120px;overflow:auto;margin-bottom:6px;";
+      for (const item of queueForCollection.slice(0, 18)) {
+        const row = document.createElement("div");
+        row.style.cssText = "font-size:10px;color:#cbd5e1;background:#0f172a;border:1px solid #334155;border-radius:4px;padding:4px 6px;display:flex;flex-direction:column;gap:4px;";
+        const meta = document.createElement("div");
+        const targetName = item.target_variable_id ? (col.variables.find((v) => v.id === item.target_variable_id)?.name || `#${item.target_variable_id}`) : "-";
+        meta.textContent = `${item.variable_name} · ${item.reason} · use ${item.usage_count} · merge→ ${targetName}`;
+        row.appendChild(meta);
+
+        const renameInput = document.createElement("input");
+        renameInput.type = "text";
+        renameInput.value = item.rename_to || `${item.variable_name}-deprecated`;
+        renameInput.style.cssText = "width:100%;background:#0b1220;border:1px solid #334155;border-radius:4px;color:#cbd5e1;font-size:10px;padding:2px 4px;";
+        renameInput.addEventListener("change", () => {
+          const queue = readCleanupQueue();
+          const idx = queue.findIndex((q) => q.id === item.id);
+          if (idx >= 0) {
+            queue[idx].rename_to = renameInput.value.trim() || queue[idx].variable_name;
+            writeCleanupQueue(queue);
+          }
+        });
+        row.appendChild(renameInput);
+        queueList.appendChild(row);
+      }
+      cleanupQueueCard.appendChild(queueList);
+
+      const queueActions = document.createElement("div");
+      queueActions.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;";
+
+      const renameQueueBtn = document.createElement("button");
+      renameQueueBtn.style.cssText = "background:#082f49;border:1px solid #0ea5e9;border-radius:4px;color:#bae6fd;font-size:10px;padding:2px 7px;cursor:pointer;";
+      renameQueueBtn.textContent = "Apply queued rename";
+      renameQueueBtn.onclick = () => {
+        const latest = readCleanupQueue().filter((entry) => entry.collection_id === col.id);
+        const plan = latest.filter((entry) => (entry.rename_to || "").trim().length > 0);
+        if (plan.length === 0) return;
+        editor.engine.push_undo();
+        let changed = 0;
+        for (const entry of plan) {
+          const name = (entry.rename_to || "").trim();
+          if (!name || name === entry.variable_name) continue;
+          if (editor.engine.rename_variable(BigInt(col.id), BigInt(entry.variable_id), name)) changed += 1;
+        }
+        if (changed > 0) editor.engine.apply_variables();
+        refresh();
+      };
+      queueActions.appendChild(renameQueueBtn);
+
+      const mergeQueueBtn = document.createElement("button");
+      mergeQueueBtn.style.cssText = "background:#052e16;border:1px solid #16a34a;border-radius:4px;color:#bbf7d0;font-size:10px;padding:2px 7px;cursor:pointer;";
+      mergeQueueBtn.textContent = "Apply queued merge";
+      mergeQueueBtn.onclick = () => {
+        const latest = readCleanupQueue().filter((entry) => entry.collection_id === col.id);
+        const plan = latest.filter((entry) => Number(entry.target_variable_id || 0) > 0 && Number(entry.target_variable_id) !== entry.variable_id);
+        if (plan.length === 0) return;
+        editor.engine.push_undo();
+        let rebound = 0;
+        let deleted = 0;
+        for (const entry of plan) {
+          let usages: any[] = [];
+          try {
+            usages = JSON.parse((editor.engine as any).get_variable_usages?.(BigInt(col.id), BigInt(entry.variable_id)) || "[]");
+          } catch {
+            usages = [];
+          }
+          for (const use of usages) {
+            const nodeId = Number(use?.node_id ?? use?.nodeId ?? 0);
+            const prop = String(use?.property ?? use?.prop ?? use?.binding_property ?? "").trim();
+            if (!(nodeId > 0) || !prop) continue;
+            try {
+              editor.engine.bind_variable(BigInt(nodeId), prop, BigInt(col.id), BigInt(entry.target_variable_id || 0));
+              rebound += 1;
+            } catch {
+              // ignore bind failures per usage
+            }
+          }
+          let remaining: any[] = [];
+          try {
+            remaining = JSON.parse((editor.engine as any).get_variable_usages?.(BigInt(col.id), BigInt(entry.variable_id)) || "[]");
+          } catch {
+            remaining = [];
+          }
+          const left = remaining.filter((u) => Number(u?.node_id ?? u?.nodeId ?? 0) > 0).length;
+          if (left === 0 && editor.engine.delete_variable(BigInt(col.id), BigInt(entry.variable_id))) {
+            deleted += 1;
+          }
+        }
+        if (rebound > 0 || deleted > 0) editor.engine.apply_variables();
+        allQueue = readCleanupQueue().filter((entry) => !(entry.collection_id === col.id && plan.some((p) => p.id === entry.id)));
+        writeCleanupQueue(allQueue);
+        refresh();
+      };
+      queueActions.appendChild(mergeQueueBtn);
+
+      const clearQueueBtn = document.createElement("button");
+      clearQueueBtn.style.cssText = "background:#3f1d1d;border:1px solid #7f1d1d;border-radius:4px;color:#fecaca;font-size:10px;padding:2px 7px;cursor:pointer;";
+      clearQueueBtn.textContent = "Clear queue";
+      clearQueueBtn.onclick = () => {
+        writeCleanupQueue(readCleanupQueue().filter((entry) => entry.collection_id !== col.id));
+        refresh();
+      };
+      queueActions.appendChild(clearQueueBtn);
+
+      cleanupQueueCard.appendChild(queueActions);
+    }
+
+    inspector.appendChild(cleanupQueueCard);
 
     if (brokenBindings.length > 0) {
       const list = document.createElement("div");
