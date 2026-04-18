@@ -2775,6 +2775,13 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Mid stage에서 이전/다음 keyframe onion marker를 강조해 타이밍 간격 점검 지원
 - 구현: `packages/app/src/ui/properties-panel.ts`
 
+### Prototype Scroll Lock Regions + Scroll Leak Lint (2026-04-18)
+- [x] Flow Lint 이슈 타입에 `scroll-leak` 추가: `OpenOverlay` 대상에 스크롤 잠금 region이 없으면 누수로 리포트
+- [x] lint summary/필터 chip/rank 컬렉션에 `scroll-leak` 반영
+- [x] `Fix: lock background scroll` one-click 액션으로 frame↔overlay pair를 잠금 region으로 즉시 등록
+- [x] scroll lock region 데이터는 localStorage(`opensketch-prototype-scroll-lock-regions-v1`)로 저장/복원
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+
 ### Interaction Timeline Scrubber (2026-04-12)
 - [x] Prototype Viewer 우측에 `Interaction Timeline` 패널 추가 (scrub slider + 최근 이벤트 리스트)
 - [x] Navigate/Back/Scroll 이벤트를 타임라인으로 누적해 순서/끊김을 시각 점검

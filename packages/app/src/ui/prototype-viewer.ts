@@ -18,6 +18,7 @@ const INTERACTIVE_PREVIEW_EVENT = "opensketch:interactive-preview-state";
 const PROTOTYPE_FLOW_ENTRY_PRESETS_KEY = "opensketch-proto-flow-entry-presets-v1";
 const PROTOTYPE_KEYBOARD_ORDER_KEY = "opensketch-proto-keyboard-order-v1";
 const PROTOTYPE_REDUCED_MOTION_KEY = "opensketch-prototype-reduced-motion-v1";
+const PROTOTYPE_SCROLL_LOCK_REGIONS_KEY = "opensketch-prototype-scroll-lock-regions-v1";
 
 type FlowEntryPreset = { frameId: number; label: string; pageId?: number };
 
@@ -68,6 +69,34 @@ function readFlowPresetBucket(presets: Record<string, FlowEntryPreset[]>, flowId
   if (Array.isArray(keyed)) return keyed;
   const legacy = presets[String(flowId)];
   return Array.isArray(legacy) ? legacy.map((row) => ({ ...row, pageId })) : [];
+}
+
+type ScrollLockRegionMap = Record<string, true>;
+
+function makeScrollLockRegionKey(frameId: number, overlayId: number): string {
+  return `${Math.max(0, Math.floor(frameId))}:${Math.max(0, Math.floor(overlayId))}`;
+}
+
+function loadScrollLockRegions(): ScrollLockRegionMap {
+  try {
+    const raw = localStorage.getItem(PROTOTYPE_SCROLL_LOCK_REGIONS_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    if (!parsed || typeof parsed !== "object") return {};
+    const out: ScrollLockRegionMap = {};
+    for (const key of Object.keys(parsed as Record<string, any>)) {
+      if (!/^\d+:\d+$/.test(key)) continue;
+      if ((parsed as Record<string, any>)[key]) out[key] = true;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+function saveScrollLockRegions(regions: ScrollLockRegionMap) {
+  try {
+    localStorage.setItem(PROTOTYPE_SCROLL_LOCK_REGIONS_KEY, JSON.stringify(regions));
+  } catch {}
 }
 
 
@@ -182,8 +211,8 @@ export function createPrototypeViewer(editor: Editor): {
   let flowStartFrameSel: HTMLSelectElement | null = null;
   let flowStartInfo: HTMLDivElement | null = null;
   const flowPresetCursor = new Map<string, number>();
-  type FlowLintIssueType = "unreachable" | "dead-end" | "cycle" | "cycle-trap" | "overlay-leak" | "orphan-close" | "a11y-missing-label" | "a11y-focus-gap" | "a11y-focus-trap" | "a11y-low-contrast" | "a11y-motion";
-  type FlowLintIssue = { type: FlowLintIssueType; frameId: number; frameName: string; detail: string };
+  type FlowLintIssueType = "unreachable" | "dead-end" | "cycle" | "cycle-trap" | "overlay-leak" | "orphan-close" | "scroll-leak" | "a11y-missing-label" | "a11y-focus-gap" | "a11y-focus-trap" | "a11y-low-contrast" | "a11y-motion";
+  type FlowLintIssue = { type: FlowLintIssueType; frameId: number; frameName: string; detail: string; overlayId?: number };
   type FocusTrapSimIssue = {
     frameId: number;
     frameName: string;
@@ -247,6 +276,7 @@ export function createPrototypeViewer(editor: Editor): {
   const interactiveVisualState = new Map<number, "hover" | "press" | "focus">();
   let keyboardOrderMap = loadKeyboardOrderMap();
   let reducedMotionPreview = localStorage.getItem(PROTOTYPE_REDUCED_MOTION_KEY) === "1";
+  let scrollLockRegions = loadScrollLockRegions();
   const coverageFrameVisits = new Map<number, number>();
   const coverageHotspotHits = new Map<number, Set<string>>();
 
@@ -1696,6 +1726,7 @@ export function createPrototypeViewer(editor: Editor): {
     const backByFrame = new Map<number, number>();
     const overlaysOpenByFrame = new Map<number, number>();
     const overlaysCloseByFrame = new Map<number, number>();
+    const overlayTargetsByFrame = new Map<number, Set<number>>();
     const interactionRowsByFrame = new Map<number, any[]>();
     let allInteractionRows: any[] = [];
     try {
@@ -1709,7 +1740,15 @@ export function createPrototypeViewer(editor: Editor): {
         for (const inter of interactions) {
           const action = String(inter?.action || "");
           if (action === "Back") backByFrame.set(from, (backByFrame.get(from) || 0) + 1);
-          if (action === "OpenOverlay") overlaysOpenByFrame.set(from, (overlaysOpenByFrame.get(from) || 0) + 1);
+          if (action === "OpenOverlay") {
+            overlaysOpenByFrame.set(from, (overlaysOpenByFrame.get(from) || 0) + 1);
+            const targetOverlayId = Number(inter?.target_node_id || 0);
+            if (targetOverlayId > 0) {
+              const bucket = overlayTargetsByFrame.get(from) || new Set<number>();
+              bucket.add(targetOverlayId);
+              overlayTargetsByFrame.set(from, bucket);
+            }
+          }
           if (action === "CloseOverlay") overlaysCloseByFrame.set(from, (overlaysCloseByFrame.get(from) || 0) + 1);
         }
       }
@@ -1864,6 +1903,21 @@ export function createPrototypeViewer(editor: Editor): {
         issues.push({ type: "overlay-leak", frameId: node.id, frameName: node.name, detail: `Opens overlay ${openCount}x but never closes it` });
       } else if (closeCount > 0 && openCount === 0) {
         issues.push({ type: "orphan-close", frameId: node.id, frameName: node.name, detail: `CloseOverlay ${closeCount}x without local OpenOverlay trigger` });
+      }
+
+      const overlayTargets = overlayTargetsByFrame.get(node.id);
+      if (overlayTargets && overlayTargets.size > 0) {
+        for (const overlayId of overlayTargets) {
+          const lockKey = makeScrollLockRegionKey(node.id, overlayId);
+          if (scrollLockRegions[lockKey]) continue;
+          issues.push({
+            type: "scroll-leak",
+            frameId: node.id,
+            frameName: node.name,
+            detail: `Overlay #${overlayId} opens without scroll lock region`,
+            overlayId,
+          });
+        }
       }
     }
 
@@ -2049,12 +2103,13 @@ export function createPrototypeViewer(editor: Editor): {
     const cycleTrapCount = issues.filter((i) => i.type === "cycle-trap").length;
     const overlayLeakCount = issues.filter((i) => i.type === "overlay-leak").length;
     const orphanCloseCount = issues.filter((i) => i.type === "orphan-close").length;
+    const scrollLeakCount = issues.filter((i) => i.type === "scroll-leak").length;
     const missingLabelCount = issues.filter((i) => i.type === "a11y-missing-label").length;
     const focusGapCount = issues.filter((i) => i.type === "a11y-focus-gap").length;
     const focusTrapCount = issues.filter((i) => i.type === "a11y-focus-trap").length;
     const lowContrastCount = issues.filter((i) => i.type === "a11y-low-contrast").length;
     const motionGuardrailCount = issues.filter((i) => i.type === "a11y-motion").length;
-    flowLintInfo.textContent = `Start #${startFrameId} · Dead-end ${deadEndCount} · Unreachable ${unreachableCount} · Cycles ${cycleCount}/${cycleTrapCount} · Overlay ${overlayLeakCount}/${orphanCloseCount} · A11y ${missingLabelCount}/${focusGapCount}/${focusTrapCount}/${lowContrastCount}/${motionGuardrailCount}`;
+    flowLintInfo.textContent = `Start #${startFrameId} · Dead-end ${deadEndCount} · Unreachable ${unreachableCount} · Cycles ${cycleCount}/${cycleTrapCount} · Overlay ${overlayLeakCount}/${orphanCloseCount}/Scroll ${scrollLeakCount} · A11y ${missingLabelCount}/${focusGapCount}/${focusTrapCount}/${lowContrastCount}/${motionGuardrailCount}`;
 
     flowLintList.innerHTML = "";
     if (issues.length === 0) {
@@ -2077,10 +2132,11 @@ export function createPrototypeViewer(editor: Editor): {
       "unreachable": 7,
       "cycle": 8,
       "overlay-leak": 9,
-      "orphan-close": 10,
+      "scroll-leak": 10,
+      "orphan-close": 11,
     };
     const sortedIssues = [...issues].sort((a, b) => (rank[a.type] - rank[b.type]) || a.frameName.localeCompare(b.frameName));
-    const issueTypes: FlowLintIssueType[] = ["a11y-missing-label", "a11y-focus-gap", "a11y-focus-trap", "a11y-low-contrast", "a11y-motion", "dead-end", "unreachable", "cycle-trap", "cycle", "overlay-leak", "orphan-close"];
+    const issueTypes: FlowLintIssueType[] = ["a11y-missing-label", "a11y-focus-gap", "a11y-focus-trap", "a11y-low-contrast", "a11y-motion", "dead-end", "unreachable", "cycle-trap", "cycle", "overlay-leak", "scroll-leak", "orphan-close"];
     if (flowLintFilterTypes.size === 0) {
       for (const t of issueTypes) flowLintFilterTypes.add(t);
     }
@@ -2133,7 +2189,9 @@ export function createPrototypeViewer(editor: Editor): {
                       ? "#ef4444"
                       : issue.type === "overlay-leak"
                         ? "#fb7185"
-                        : "#22d3ee";
+                        : issue.type === "scroll-leak"
+                          ? "#38bdf8"
+                          : "#22d3ee";
       row.style.cssText = `display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;text-align:left;background:rgba(15,23,42,0.55);border:1px solid rgba(148,163,184,0.25);border-left:3px solid ${color};border-radius:6px;color:#e2e8f0;padding:4px 6px;cursor:pointer;`;
       row.dataset.lintNavIndex = String(issueIndex);
       row.innerHTML = `<span style="font-size:10px;font-weight:600;color:${color};text-transform:uppercase;">${issue.type}</span><span style="font-size:10px;">${issue.frameName} (#${issue.frameId})</span><span style="font-size:9px;color:#94a3b8;">${issue.detail}</span>`;
@@ -2141,6 +2199,19 @@ export function createPrototypeViewer(editor: Editor): {
         flowLintNavIndex = issueIndex;
         navigateTo(issue.frameId, "Instant", 0, "linear");
       };
+      if (issue.type === "scroll-leak" && issue.overlayId && issue.overlayId > 0) {
+        const fixBtn = document.createElement("button");
+        fixBtn.style.cssText = "margin-top:4px;background:#0c4a6e;border:1px solid #38bdf8;border-radius:4px;color:#bae6fd;font-size:9px;padding:2px 6px;cursor:pointer;";
+        fixBtn.textContent = "Fix: lock background scroll";
+        fixBtn.onclick = (ev) => {
+          ev.stopPropagation();
+          const key = makeScrollLockRegionKey(issue.frameId, issue.overlayId || 0);
+          scrollLockRegions = { ...scrollLockRegions, [key]: true };
+          saveScrollLockRegions(scrollLockRegions);
+          renderFlowLint();
+        };
+        row.appendChild(fixBtn);
+      }
       flowLintList.appendChild(row);
     }
 

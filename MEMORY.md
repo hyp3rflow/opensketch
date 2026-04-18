@@ -1790,9 +1790,16 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Prototype Scroll Lock Regions — overlay/side-sheet 오픈 시 배경 스크롤 잠금 영역을 지정하고 누수 스크롤을 lint + one-click fix (임팩트 중상, 난이도 중)
 - Auto Layout Safe Area Insets — 모바일 프레임 상단/하단 safe area preset(iOS/Android) 적용 + hug/fill과 충돌 감지 (임팩트 중상, 난이도 중상)
 - Variable Contract Tests — 컴포넌트별 required variable schema를 저장하고 누락/타입불일치를 릴리즈 전 일괄 검사 (임팩트 상, 난이도 중)
+
+## 완료된 기능 (추가 — Prototype Scroll Lock Regions + Scroll Leak Lint, 2026-04-18)
+- Prototype Flow Lint에 `scroll-leak` 이슈 타입 추가: OpenOverlay 타깃에 scroll lock region이 없으면 누수 리포트
+- lint summary/필터/rank에 scroll-leak 집계를 반영
+- 이슈 row에 `Fix: lock background scroll` one-click 액션 추가 (frame↔overlay pair 즉시 등록)
+- scroll lock region 저장소(localStorage): `opensketch-prototype-scroll-lock-regions-v1`
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Constraint Conflict Linter, 2026-04-18)
 - Properties 패널 `Constraints` 섹션에 `Constraint Conflict Linter` 카드 추가
