@@ -236,6 +236,9 @@ export function createPrototypeViewer(editor: Editor): {
   let focusTrapSimInfo: HTMLDivElement | null = null;
   let focusTrapSimList: HTMLDivElement | null = null;
   let focusTrapSimIssues: FocusTrapSimIssue[] = [];
+  let overlayStackWrap: HTMLDivElement | null = null;
+  let overlayStackInfo: HTMLDivElement | null = null;
+  let overlayStackList: HTMLDivElement | null = null;
   let condDebugInfo: HTMLDivElement | null = null;
   let condDebugList: HTMLDivElement | null = null;
   let flowLintSnapshot: { startFrameId: number | null; issues: FlowLintIssue[]; } | null = null;
@@ -1685,6 +1688,105 @@ export function createPrototypeViewer(editor: Editor): {
     return changed;
   }
 
+  function collectOverlayStackRows(snapshotInput?: { nodes: Array<{ id: number; name: string; x: number; y: number; width: number; height: number }>; edges: Array<{ from: number; to: number; action: string; sourceNodeId: number; interactionIndex: number; conditional: boolean; branchActive: boolean | null; conditionSummary: string }>; }) {
+    const snapshot = snapshotInput || buildFlowGraphSnapshot();
+    if (!snapshot) return [] as Array<{ frameId: number; frameName: string; open: number; close: number; stackDelta: number; orphan: boolean }>;
+    const frameById = new Map(snapshot.nodes.map((n) => [n.id, n]));
+    const rows: Array<{ frameId: number; frameName: string; open: number; close: number; stackDelta: number; orphan: boolean }> = [];
+    for (const frame of snapshot.nodes) {
+      let open = 0;
+      let close = 0;
+      for (const edge of snapshot.edges) {
+        if (edge.from !== frame.id) continue;
+        if (edge.action === "OpenOverlay") open += 1;
+        if (edge.action === "CloseOverlay" || edge.action === "Back") close += 1;
+      }
+      if (open === 0 && close === 0) continue;
+      rows.push({
+        frameId: frame.id,
+        frameName: frame.name,
+        open,
+        close,
+        stackDelta: open - close,
+        orphan: close > open,
+      });
+    }
+    rows.sort((a, b) => {
+      const severityA = a.orphan ? 2 : a.stackDelta > 0 ? 1 : 0;
+      const severityB = b.orphan ? 2 : b.stackDelta > 0 ? 1 : 0;
+      if (severityA !== severityB) return severityB - severityA;
+      return b.stackDelta - a.stackDelta;
+    });
+    return rows;
+  }
+
+  function quickFixOrphanOverlayRows(): number {
+    const rows = collectOverlayStackRows(flowMinimapSnapshot || undefined);
+    let changed = 0;
+    for (const row of rows) {
+      if (!row.orphan) continue;
+      const frame = flowMinimapSnapshot?.nodes.find((n) => n.id === row.frameId);
+      if (!frame) continue;
+      const openEdge = (flowMinimapSnapshot?.edges || []).find((e) => e.from === row.frameId && e.action === "OpenOverlay" && e.to > 0);
+      if (!openEdge) continue;
+      const lockKey = makeScrollLockRegionKey(row.frameId, openEdge.to);
+      try {
+        editor.engine.set_scroll_lock_region(lockKey, Number(frame.x || 0), Number(frame.y || 0), Number(frame.width || 0), Number(frame.height || 0));
+        changed += 1;
+      } catch {}
+    }
+    return changed;
+  }
+
+  function renderOverlayStackInspector() {
+    if (!overlayStackInfo || !overlayStackList) return;
+    const rows = collectOverlayStackRows(flowMinimapSnapshot || undefined);
+    if (rows.length === 0) {
+      overlayStackInfo.textContent = "No overlay stack events in current flow.";
+      overlayStackList.innerHTML = "";
+      return;
+    }
+    const orphanCount = rows.filter((r) => r.orphan).length;
+    overlayStackInfo.textContent = `Frames ${rows.length} · Orphan ${orphanCount}`;
+    overlayStackList.innerHTML = "";
+    for (const row of rows.slice(0, 10)) {
+      const card = document.createElement("div");
+      card.style.cssText = `display:flex;flex-direction:column;gap:4px;border:1px solid ${row.orphan ? "rgba(248,113,113,0.45)" : "rgba(148,163,184,0.3)"};border-radius:6px;padding:6px;background:rgba(15,23,42,0.45);`;
+      const title = document.createElement("div");
+      title.style.cssText = "font-size:10px;color:#e2e8f0;line-height:1.35;";
+      title.textContent = `${row.frameName} (#${row.frameId})`;
+      card.appendChild(title);
+      const meta = document.createElement("div");
+      meta.style.cssText = "font-size:9px;color:#93c5fd;";
+      meta.textContent = `Open ${row.open} · Close ${row.close} · Δ ${row.stackDelta > 0 ? "+" : ""}${row.stackDelta}`;
+      card.appendChild(meta);
+      const btnRow = document.createElement("div");
+      btnRow.style.cssText = "display:flex;gap:4px;";
+      const jumpBtn = document.createElement("button");
+      jumpBtn.className = "prop-btn";
+      jumpBtn.textContent = "Jump";
+      jumpBtn.style.cssText = "flex:1;font-size:10px;padding:3px 6px;";
+      jumpBtn.onclick = () => navigateTo(row.frameId, "Instant", 0, "linear");
+      btnRow.appendChild(jumpBtn);
+      if (row.orphan) {
+        const fixBtn = document.createElement("button");
+        fixBtn.className = "prop-btn";
+        fixBtn.textContent = "Fix orphan";
+        fixBtn.style.cssText = "flex:1;font-size:10px;padding:3px 6px;color:#fca5a5;border-color:rgba(248,113,113,0.5);";
+        fixBtn.onclick = () => {
+          const applied = quickFixOrphanOverlayRows();
+          fixBtn.textContent = applied > 0 ? `Fixed ${applied}` : "No-op";
+          window.setTimeout(() => { fixBtn.textContent = "Fix orphan"; }, 1100);
+          renderFlowLint();
+          renderOverlayStackInspector();
+        };
+        btnRow.appendChild(fixBtn);
+      }
+      card.appendChild(btnRow);
+      overlayStackList.appendChild(card);
+    }
+  }
+
   function renderFlowLint() {
     if (!flowLintInfo || !flowLintList) return;
     const snapshot = flowMinimapSnapshot;
@@ -1695,6 +1797,7 @@ export function createPrototypeViewer(editor: Editor): {
       flowLintRenderedIssues = [];
       flowLintNavIndex = -1;
       renderFocusTrapSimulator();
+      renderOverlayStackInspector();
       return;
     }
 
@@ -2118,6 +2221,7 @@ export function createPrototypeViewer(editor: Editor): {
       ok.textContent = "No issues found.";
       flowLintList.appendChild(ok);
       renderFocusTrapSimulator();
+      renderOverlayStackInspector();
       return;
     }
 
@@ -2222,6 +2326,7 @@ export function createPrototypeViewer(editor: Editor): {
       flowLintList.appendChild(more);
     }
     renderFocusTrapSimulator();
+    renderOverlayStackInspector();
   }
 
   function captureSessionSnapshot() {
@@ -2969,8 +3074,35 @@ export function createPrototypeViewer(editor: Editor): {
     focusTrapSimWrap.appendChild(focusTrapSimList);
     overlay.appendChild(focusTrapSimWrap);
 
+    overlayStackWrap = document.createElement("div");
+    overlayStackWrap.style.cssText = "position:absolute;left:14px;top:842px;width:220px;max-height:200px;overflow:auto;background:rgba(15,23,42,0.92);border:1px solid rgba(248,113,113,0.35);border-radius:10px;padding:8px;z-index:4;display:flex;flex-direction:column;gap:6px;";
+    const overlayStackHead = document.createElement("div");
+    overlayStackHead.style.cssText = "font-size:11px;font-weight:600;color:#fecaca;";
+    overlayStackHead.textContent = "Overlay Stack Inspector";
+    overlayStackWrap.appendChild(overlayStackHead);
+    overlayStackInfo = document.createElement("div");
+    overlayStackInfo.style.cssText = "font-size:10px;color:#fca5a5;line-height:1.35;";
+    overlayStackInfo.textContent = "Analyzing overlay open/close stack…";
+    overlayStackWrap.appendChild(overlayStackInfo);
+    const overlayStackBtn = document.createElement("button");
+    overlayStackBtn.className = "prop-btn";
+    overlayStackBtn.textContent = "Fix orphan overlays";
+    overlayStackBtn.style.cssText = "width:100%;font-size:10px;padding:3px 6px;color:#fca5a5;border-color:rgba(248,113,113,0.5);";
+    overlayStackBtn.onclick = () => {
+      const changed = quickFixOrphanOverlayRows();
+      overlayStackBtn.textContent = changed > 0 ? `Fixed ${changed}` : "No-op";
+      window.setTimeout(() => { overlayStackBtn.textContent = "Fix orphan overlays"; }, 1100);
+      renderFlowLint();
+      renderOverlayStackInspector();
+    };
+    overlayStackWrap.appendChild(overlayStackBtn);
+    overlayStackList = document.createElement("div");
+    overlayStackList.style.cssText = "display:flex;flex-direction:column;gap:4px;";
+    overlayStackWrap.appendChild(overlayStackList);
+    overlay.appendChild(overlayStackWrap);
+
     const condDebugWrap = document.createElement("div");
-    condDebugWrap.style.cssText = "position:absolute;left:14px;top:842px;width:220px;max-height:220px;overflow:auto;background:rgba(15,23,42,0.92);border:1px solid rgba(248,113,113,0.35);border-radius:10px;padding:8px;z-index:4;display:flex;flex-direction:column;gap:6px;";
+    condDebugWrap.style.cssText = "position:absolute;left:14px;top:1050px;width:220px;max-height:220px;overflow:auto;background:rgba(15,23,42,0.92);border:1px solid rgba(248,113,113,0.35);border-radius:10px;padding:8px;z-index:4;display:flex;flex-direction:column;gap:6px;";
     const condDebugHead = document.createElement("div");
     condDebugHead.style.cssText = "font-size:11px;font-weight:600;color:#fecaca;";
     condDebugHead.textContent = "Conditional Branch Debugger";
@@ -2985,7 +3117,7 @@ export function createPrototypeViewer(editor: Editor): {
     overlay.appendChild(condDebugWrap);
 
     keyboardOrderWrap = document.createElement("div");
-    keyboardOrderWrap.style.cssText = "position:absolute;left:14px;top:1068px;width:220px;max-height:220px;overflow:auto;background:rgba(15,23,42,0.92);border:1px solid rgba(148,163,184,0.3);border-radius:10px;padding:8px;z-index:4;display:flex;flex-direction:column;gap:6px;";
+    keyboardOrderWrap.style.cssText = "position:absolute;left:14px;top:1276px;width:220px;max-height:220px;overflow:auto;background:rgba(15,23,42,0.92);border:1px solid rgba(148,163,184,0.3);border-radius:10px;padding:8px;z-index:4;display:flex;flex-direction:column;gap:6px;";
     const kbHead = document.createElement("div");
     kbHead.style.cssText = "font-size:11px;font-weight:600;color:#cbd5e1;";
     kbHead.textContent = "Keyboard Nav Order";

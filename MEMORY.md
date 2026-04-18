@@ -1790,11 +1790,17 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Prototype Overlay Stack Inspector — 중첩 overlay의 open/close stack을 타임라인으로 시각화하고 orphan overlay를 one-click 정리 (임팩트 중상, 난이도 중상)
 - Variable Mode Diff Snapshot — mode 간 변수값 diff를 스냅샷으로 저장/비교하고 변경량 리포트 export (임팩트 중, 난이도 중)
 - Focus Ring Preset Manager — prototype keyboard focus ring 스타일(컬러/두께/radius) 프리셋 저장·적용 및 flow별 override 지원 (임팩트 중, 난이도 중)
 - Overlay Escape Route Map — frame별 Esc/Back/CloseOverlay 탈출 경로를 그래프로 시각화하고 trap branch를 quick-fix로 정리 (임팩트 중상, 난이도 중상)
 - Variable Usage Heatmap — 캔버스/컴포넌트 단위 변수 사용 밀도를 히트맵으로 표시하고 dead token 정리 우선순위 제안 (임팩트 중, 난이도 중상)
+
+## 완료된 기능 (추가 — Prototype Overlay Stack Inspector, 2026-04-19)
+- Prototype viewer 좌측에 `Overlay Stack Inspector` 패널 추가
+- frame별 OpenOverlay/CloseOverlay/Back 이벤트를 집계해 `Open/Close/Δ` 스택 메타로 표시하고 orphan close(`close > open`)를 우선 강조
+- `Fix orphan overlays` 액션으로 orphan frame의 첫 overlay target에 scroll-lock region을 자동 생성해 누수 정리 시작점을 one-click 제공
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Auto Layout Keyboard Nudge Controls, 2026-04-18)
 - Alt+Arrow(Shift 포함)로 auto-layout 자식의 keyboard reorder를 직접 지원 (기존 Cmd/Ctrl+Alt+Arrow 경로 유지)
