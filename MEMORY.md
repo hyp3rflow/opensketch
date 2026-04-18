@@ -1790,11 +1790,19 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Overlay Escape Route Map — frame별 Esc/Back/CloseOverlay 탈출 경로를 그래프로 시각화하고 trap branch를 quick-fix로 정리 (임팩트 중상, 난이도 중상)
 - Variable Usage Heatmap — 캔버스/컴포넌트 단위 변수 사용 밀도를 히트맵으로 표시하고 dead token 정리 우선순위 제안 (임팩트 중, 난이도 중상)
 - Focus Ring Contrast Guard — 배경 대비가 낮은 ring preset을 자동 감지하고 색상 대체안을 one-click 제안 (임팩트 중, 난이도 중)
 - Prototype Focus Scope Preview — overlay open 시 탭 가능 hotspot 범위를 반투명 마스크로 시각화해 trap 누락을 즉시 확인 (임팩트 중, 난이도 중)
 - Variable Token Cleanup Queue — 미사용/중복 token 후보를 queue로 적재하고 일괄 rename/merge 플로우 제공 (임팩트 중상, 난이도 중상)
+
+## 완료된 기능 (추가 — Overlay Escape Route Map + Focus Trap Fix Coverage, 2026-04-19)
+- Prototype viewer 좌측에 `Overlay Escape Route Map` 패널 추가
+- frame → overlay OpenOverlay 브랜치별 escape 경로(Back/CloseOverlay/NavigateTo)를 그래프형 요약으로 표시
+- trap branch(escape 경로 없음) 카드에 `Fix trap` one-click 액션 제공
+- 상단 `Fix trap branches`로 trap branch 일괄 정리(기존 focus trap quick fix 재사용)
+- Focus Trap Simulator quick-fix 보강: close 누락뿐 아니라 leak/loop 케이스도 함께 수정
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Focus Ring Preset Manager, 2026-04-19)
 - Prototype viewer top bar에 `Ring` 프리셋 selector + `Save` 액션 추가

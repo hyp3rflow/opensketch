@@ -2914,6 +2914,10 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
   - `Run simulation`: overlay별 trap risk(닫기 경로 누락 / 외부 누수)를 리스트업
   - row 액션: `Jump`(해당 frame으로 이동), `Fix`(해당 overlay에만 OnPress+CloseOverlay 주입)
   - `Fix all`: 기존 quick fix를 패널에서 즉시 실행
+- [x] **Focus Trap Simulator fix coverage (v5, 2026-04-19)**
+  - Tab simulation 누수 판정 보강: 같은 hotspot node에 CloseOverlay/Back이 이미 있으면 외부 NavigateTo를 누수로 보지 않음
+  - 개별 `Fix`/`Fix all`이 missing close 뿐 아니라 leak/loop 위험도 함께 처리
+  - leak 노드엔 CloseOverlay fallback을 주입하고, loop/close-missing은 overlay의 마지막 keyboard hotspot에 close path를 생성
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
 
 ### Sticky Scroll Sections for Prototype (2026-04-12)

@@ -280,6 +280,9 @@ export function createPrototypeViewer(editor: Editor): {
   let overlayStackWrap: HTMLDivElement | null = null;
   let overlayStackInfo: HTMLDivElement | null = null;
   let overlayStackList: HTMLDivElement | null = null;
+  let escapeRouteWrap: HTMLDivElement | null = null;
+  let escapeRouteInfo: HTMLDivElement | null = null;
+  let escapeRouteList: HTMLDivElement | null = null;
   let condDebugInfo: HTMLDivElement | null = null;
   let condDebugList: HTMLDivElement | null = null;
   let flowLintSnapshot: { startFrameId: number | null; issues: FlowLintIssue[]; } | null = null;
@@ -1503,11 +1506,20 @@ export function createPrototypeViewer(editor: Editor): {
 
       for (const overlayId of overlayTargets) {
         const focusables = listFocusableHotspots(overlayId);
-        const keyboardInteractions = focusables.map((item) => item.interaction);
-        const hasClosePath = keyboardInteractions.some((inter) => {
-          const action = String(inter?.action || "");
+        const hasClosePath = focusables.some((item) => {
+          const action = String(item.interaction?.action || "");
           return action === "CloseOverlay" || action === "Back";
         });
+        const nodeHasClosePath = new Map<number, boolean>();
+        for (const item of focusables) {
+          if (nodeHasClosePath.has(item.nodeId)) continue;
+          const hasClose = focusables.some((other) => {
+            if (other.nodeId !== item.nodeId) return false;
+            const action = String(other.interaction?.action || "");
+            return action === "CloseOverlay" || action === "Back";
+          });
+          nodeHasClosePath.set(item.nodeId, hasClose);
+        }
 
         let simulatedTabSteps = 0;
         let leaksOutside = false;
@@ -1516,7 +1528,8 @@ export function createPrototypeViewer(editor: Editor): {
           const maxSteps = Math.max(6, focusables.length * 2);
           for (let step = 0; step < maxSteps; step += 1) {
             simulatedTabSteps += 1;
-            const interaction = focusables[step % focusables.length]?.interaction;
+            const focusable = focusables[step % focusables.length];
+            const interaction = focusable?.interaction;
             if (!interaction) continue;
             const action = String(interaction?.action || "");
             const target = Number(interaction?.target_node_id || 0);
@@ -1524,7 +1537,7 @@ export function createPrototypeViewer(editor: Editor): {
               trappedInLoop = false;
               break;
             }
-            if (action === "NavigateTo" && target > 0 && target !== frame.id && target !== overlayId) {
+            if (action === "NavigateTo" && target > 0 && target !== frame.id && target !== overlayId && !nodeHasClosePath.get(focusable.nodeId)) {
               leaksOutside = true;
               break;
             }
@@ -1539,7 +1552,7 @@ export function createPrototypeViewer(editor: Editor): {
           frameName: frame.name,
           overlayId,
           overlayName: overlayNode?.name || `Overlay #${overlayId}`,
-          keyboardHotspots: keyboardInteractions.length,
+          keyboardHotspots: focusables.length,
           missingClosePath: !hasClosePath,
           leaksOutside,
           trappedInLoop,
@@ -1552,50 +1565,48 @@ export function createPrototypeViewer(editor: Editor): {
   }
 
   function applyFocusTrapFix(issue: FocusTrapSimIssue): boolean {
-    const snapshot = buildFlowGraphSnapshot();
-    if (!snapshot) return false;
-    const frameById = new Map(snapshot.nodes.map((n) => [n.id, n]));
-    let allInter: any[] = [];
-    try {
-      allInter = JSON.parse(editor.engine.get_all_interactions() || "[]") || [];
-    } catch {
-      return false;
-    }
-
-    const nodeCache = new Map<number, any>();
-    const getNode = (id: number) => {
-      if (nodeCache.has(id)) return nodeCache.get(id);
+    const addCloseInteractionIfNeeded = (nodeId: number): boolean => {
+      if (!nodeId || nodeId <= 0) return false;
       try {
-        const raw = editor.engine.get_node_json(BigInt(id));
-        const node = raw ? JSON.parse(raw) : null;
-        nodeCache.set(id, node);
-        return node;
+        const allInter: any[] = JSON.parse(editor.engine.get_all_interactions() || "[]") || [];
+        const row = allInter.find((r) => Number(r?.id || 0) === nodeId);
+        const interactions: any[] = Array.isArray(row?.interactions) ? row.interactions : [];
+        const hasClose = interactions.some((inter) => {
+          const trigger = String(inter?.trigger || "");
+          const action = String(inter?.action || "");
+          return (trigger === "OnClick" || trigger === "OnPress") && (action === "CloseOverlay" || action === "Back");
+        });
+        if (hasClose) return false;
+        editor.engine.add_interaction(BigInt(nodeId), "OnPress", "CloseOverlay", BigInt(0), BigInt(0), "Instant", 0, "ease_in_out");
+        return true;
       } catch {
-        nodeCache.set(id, null);
-        return null;
+        return false;
       }
     };
 
-    const frame = frameById.get(issue.overlayId);
-    if (!frame) return false;
-    const overlayRows = allInter.filter((row) => {
-      const node = getNode(Number(row?.id || 0));
-      if (!node) return false;
-      const nx = Number(node?.x || 0);
-      const ny = Number(node?.y || 0);
-      const nw = Number(node?.width || 0);
-      const nh = Number(node?.height || 0);
-      return nx >= frame.x && ny >= frame.y && (nx + nw) <= (frame.x + frame.width) && (ny + nh) <= (frame.y + frame.height);
-    });
-    const first = overlayRows[0];
-    const sourceNodeId = Number(first?.id || issue.overlayId || 0);
-    if (!sourceNodeId) return false;
-    try {
-      editor.engine.add_interaction(BigInt(sourceNodeId), "OnPress", "CloseOverlay", BigInt(0), BigInt(0), "Instant", 0, "ease_in_out");
-      return true;
-    } catch {
-      return false;
+    const focusables = listFocusableHotspots(issue.overlayId);
+    let changed = false;
+
+    if (issue.leaksOutside) {
+      const leakingNodeIds = new Set<number>();
+      for (const item of focusables) {
+        const action = String(item.interaction?.action || "");
+        const target = Number(item.interaction?.target_node_id || 0);
+        if (action === "NavigateTo" && target > 0 && target !== issue.frameId && target !== issue.overlayId) {
+          leakingNodeIds.add(item.nodeId);
+        }
+      }
+      for (const nodeId of leakingNodeIds) {
+        changed = addCloseInteractionIfNeeded(nodeId) || changed;
+      }
     }
+
+    if (issue.missingClosePath || issue.trappedInLoop) {
+      const fallbackNodeId = Number(focusables[focusables.length - 1]?.nodeId || focusables[0]?.nodeId || issue.overlayId || 0);
+      changed = addCloseInteractionIfNeeded(fallbackNodeId) || changed;
+    }
+
+    return changed;
   }
 
   function renderFocusTrapSimulator() {
@@ -1657,86 +1668,16 @@ export function createPrototypeViewer(editor: Editor): {
   }
 
   function quickFixFocusTrapIssues(): number {
-    const snapshot = buildFlowGraphSnapshot();
-    if (!snapshot) return 0;
-    const frameById = new Map(snapshot.nodes.map((n) => [n.id, n]));
+    const issues = collectFocusTrapSimulationIssues(flowMinimapSnapshot || undefined);
+    if (issues.length === 0) return 0;
+
+    const seen = new Set<string>();
     let changed = 0;
-    let allInter: any[] = [];
-    try {
-      allInter = JSON.parse(editor.engine.get_all_interactions() || "[]") || [];
-    } catch {
-      return 0;
-    }
-
-    const nodeCache = new Map<number, any>();
-    const getNode = (id: number) => {
-      if (nodeCache.has(id)) return nodeCache.get(id);
-      try {
-        const raw = editor.engine.get_node_json(BigInt(id));
-        const node = raw ? JSON.parse(raw) : null;
-        nodeCache.set(id, node);
-        return node;
-      } catch {
-        nodeCache.set(id, null);
-        return null;
-      }
-    };
-
-    const getRowsInFrame = (frameId: number) => {
-      const frame = frameById.get(frameId);
-      if (!frame) return [] as any[];
-      return allInter.filter((row) => {
-        const node = getNode(Number(row?.id || 0));
-        if (!node) return false;
-        const nx = Number(node?.x || 0);
-        const ny = Number(node?.y || 0);
-        const nw = Number(node?.width || 0);
-        const nh = Number(node?.height || 0);
-        return nx >= frame.x && ny >= frame.y && (nx + nw) <= (frame.x + frame.width) && (ny + nh) <= (frame.y + frame.height);
-      });
-    };
-
-    for (const frame of snapshot.nodes) {
-      const frameRows = getRowsInFrame(frame.id);
-      const overlayTargets = new Set<number>();
-      for (const row of frameRows) {
-        const interactions: any[] = Array.isArray(row?.interactions) ? row.interactions : [];
-        for (const inter of interactions) {
-          if (String(inter?.action || "") === "OpenOverlay") {
-            const target = Number(inter?.target_node_id || 0);
-            if (target > 0) overlayTargets.add(target);
-          }
-        }
-      }
-      for (const overlayId of overlayTargets) {
-        const overlayRows = getRowsInFrame(overlayId);
-        const hasClose = overlayRows.some((row) => {
-          const interactions: any[] = Array.isArray(row?.interactions) ? row.interactions : [];
-          return interactions.some((inter) => {
-            const trigger = String(inter?.trigger || "");
-            const action = String(inter?.action || "");
-            return (trigger === "OnClick" || trigger === "OnPress") && (action === "CloseOverlay" || action === "Back");
-          });
-        });
-        if (hasClose) continue;
-
-        const first = overlayRows[0];
-        const sourceNodeId = Number(first?.id || overlayId || 0);
-        if (!sourceNodeId) continue;
-        try {
-          editor.engine.add_interaction(
-            BigInt(sourceNodeId),
-            "OnPress",
-            "CloseOverlay",
-            BigInt(0),
-            BigInt(0),
-            "Instant",
-            0,
-            "ease_in_out"
-          );
-          changed += 1;
-        } catch {}
-      }
+    for (const issue of issues) {
+      const key = `${issue.frameId}:${issue.overlayId}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      if (applyFocusTrapFix(issue)) changed += 1;
     }
 
     if (changed > 0) {
@@ -1836,11 +1777,111 @@ export function createPrototypeViewer(editor: Editor): {
           window.setTimeout(() => { fixBtn.textContent = "Fix orphan"; }, 1100);
           renderFlowLint();
           renderOverlayStackInspector();
+          renderEscapeRouteMap();
         };
         btnRow.appendChild(fixBtn);
       }
       card.appendChild(btnRow);
       overlayStackList.appendChild(card);
+    }
+  }
+
+  function collectEscapeRouteRows(snapshotInput?: { nodes: Array<{ id: number; name: string; x: number; y: number; width: number; height: number }>; edges: Array<{ from: number; to: number; action: string; sourceNodeId: number; interactionIndex: number; conditional: boolean; branchActive: boolean | null; conditionSummary: string }>; }) {
+    const snapshot = snapshotInput || flowMinimapSnapshot;
+    if (!snapshot) return [] as Array<{ frameId: number; frameName: string; overlayId: number; overlayName: string; routeSummary: string; trapped: boolean }>;
+    const frameById = new Map(snapshot.nodes.map((n) => [n.id, n]));
+    const rows: Array<{ frameId: number; frameName: string; overlayId: number; overlayName: string; routeSummary: string; trapped: boolean }> = [];
+
+    for (const edge of snapshot.edges) {
+      if (edge.action !== "OpenOverlay" || edge.to <= 0) continue;
+      const frame = frameById.get(edge.from);
+      const overlay = frameById.get(edge.to);
+      if (!frame || !overlay) continue;
+      const exits = snapshot.edges.filter((next) => next.from === edge.to && (next.action === "CloseOverlay" || next.action === "Back" || next.action === "NavigateTo"));
+      const escapeExits = exits.filter((next) => next.action === "CloseOverlay" || next.action === "Back");
+      const routeSummary = exits.length > 0
+        ? exits.slice(0, 3).map((next) => `${next.action}${next.to > 0 ? `→#${next.to}` : ""}`).join(" · ")
+        : "No exits";
+      rows.push({
+        frameId: frame.id,
+        frameName: frame.name,
+        overlayId: overlay.id,
+        overlayName: overlay.name,
+        routeSummary,
+        trapped: escapeExits.length === 0,
+      });
+    }
+
+    rows.sort((a, b) => {
+      if (a.trapped !== b.trapped) return a.trapped ? -1 : 1;
+      return a.frameId - b.frameId;
+    });
+    return rows;
+  }
+
+  function renderEscapeRouteMap() {
+    if (!escapeRouteInfo || !escapeRouteList) return;
+    const rows = collectEscapeRouteRows(flowMinimapSnapshot || undefined);
+    if (rows.length === 0) {
+      escapeRouteInfo.textContent = "No OpenOverlay routes in current flow.";
+      escapeRouteList.innerHTML = "";
+      return;
+    }
+    const trapCount = rows.filter((row) => row.trapped).length;
+    escapeRouteInfo.textContent = `Routes ${rows.length} · Trap branch ${trapCount}`;
+    escapeRouteList.innerHTML = "";
+
+    for (const row of rows.slice(0, 10)) {
+      const card = document.createElement("div");
+      card.style.cssText = `display:flex;flex-direction:column;gap:4px;border:1px solid ${row.trapped ? "rgba(248,113,113,0.45)" : "rgba(148,163,184,0.3)"};border-radius:6px;padding:6px;background:rgba(15,23,42,0.45);`;
+      const title = document.createElement("div");
+      title.style.cssText = "font-size:10px;color:#e2e8f0;line-height:1.35;";
+      title.textContent = `${row.frameName} → ${row.overlayName}`;
+      card.appendChild(title);
+
+      const meta = document.createElement("div");
+      meta.style.cssText = "font-size:9px;color:#93c5fd;";
+      meta.textContent = row.routeSummary;
+      card.appendChild(meta);
+
+      const btnRow = document.createElement("div");
+      btnRow.style.cssText = "display:flex;gap:4px;";
+      const jumpBtn = document.createElement("button");
+      jumpBtn.className = "prop-btn";
+      jumpBtn.textContent = "Jump";
+      jumpBtn.style.cssText = "flex:1;font-size:10px;padding:3px 6px;";
+      jumpBtn.onclick = () => navigateTo(row.frameId, "Instant", 0, "linear");
+      btnRow.appendChild(jumpBtn);
+
+      if (row.trapped) {
+        const fixBtn = document.createElement("button");
+        fixBtn.className = "prop-btn";
+        fixBtn.textContent = "Fix trap";
+        fixBtn.style.cssText = "flex:1;font-size:10px;padding:3px 6px;color:#fca5a5;border-color:rgba(248,113,113,0.5);";
+        fixBtn.onclick = () => {
+          const changed = applyFocusTrapFix({
+            frameId: row.frameId,
+            frameName: row.frameName,
+            overlayId: row.overlayId,
+            overlayName: row.overlayName,
+            keyboardHotspots: listFocusableHotspots(row.overlayId).length,
+            missingClosePath: true,
+            leaksOutside: false,
+            trappedInLoop: true,
+            simulatedTabSteps: 0,
+          });
+          fixBtn.textContent = changed ? "Fixed" : "No-op";
+          window.setTimeout(() => { fixBtn.textContent = "Fix trap"; }, 1100);
+          if (changed) {
+            editor.requestRender();
+            renderFlowLint();
+            renderEscapeRouteMap();
+          }
+        };
+        btnRow.appendChild(fixBtn);
+      }
+      card.appendChild(btnRow);
+      escapeRouteList.appendChild(card);
     }
   }
 
@@ -1855,6 +1896,7 @@ export function createPrototypeViewer(editor: Editor): {
       flowLintNavIndex = -1;
       renderFocusTrapSimulator();
       renderOverlayStackInspector();
+      renderEscapeRouteMap();
       return;
     }
 
@@ -2279,6 +2321,7 @@ export function createPrototypeViewer(editor: Editor): {
       flowLintList.appendChild(ok);
       renderFocusTrapSimulator();
       renderOverlayStackInspector();
+      renderEscapeRouteMap();
       return;
     }
 
@@ -2384,6 +2427,7 @@ export function createPrototypeViewer(editor: Editor): {
     }
     renderFocusTrapSimulator();
     renderOverlayStackInspector();
+    renderEscapeRouteMap();
   }
 
   function captureSessionSnapshot() {
@@ -3223,8 +3267,35 @@ export function createPrototypeViewer(editor: Editor): {
     overlayStackWrap.appendChild(overlayStackList);
     overlay.appendChild(overlayStackWrap);
 
+    escapeRouteWrap = document.createElement("div");
+    escapeRouteWrap.style.cssText = "position:absolute;left:14px;top:1050px;width:220px;max-height:200px;overflow:auto;background:rgba(15,23,42,0.92);border:1px solid rgba(248,113,113,0.35);border-radius:10px;padding:8px;z-index:4;display:flex;flex-direction:column;gap:6px;";
+    const escapeRouteHead = document.createElement("div");
+    escapeRouteHead.style.cssText = "font-size:11px;font-weight:600;color:#fecaca;";
+    escapeRouteHead.textContent = "Overlay Escape Route Map";
+    escapeRouteWrap.appendChild(escapeRouteHead);
+    escapeRouteInfo = document.createElement("div");
+    escapeRouteInfo.style.cssText = "font-size:10px;color:#fca5a5;line-height:1.35;";
+    escapeRouteInfo.textContent = "Analyzing escape routes…";
+    escapeRouteWrap.appendChild(escapeRouteInfo);
+    const escapeRouteFixBtn = document.createElement("button");
+    escapeRouteFixBtn.className = "prop-btn";
+    escapeRouteFixBtn.textContent = "Fix trap branches";
+    escapeRouteFixBtn.style.cssText = "width:100%;font-size:10px;padding:3px 6px;color:#fca5a5;border-color:rgba(248,113,113,0.5);";
+    escapeRouteFixBtn.onclick = () => {
+      const changed = quickFixFocusTrapIssues();
+      escapeRouteFixBtn.textContent = changed > 0 ? `Fixed ${changed}` : "No-op";
+      window.setTimeout(() => { escapeRouteFixBtn.textContent = "Fix trap branches"; }, 1100);
+      renderFlowLint();
+      renderEscapeRouteMap();
+    };
+    escapeRouteWrap.appendChild(escapeRouteFixBtn);
+    escapeRouteList = document.createElement("div");
+    escapeRouteList.style.cssText = "display:flex;flex-direction:column;gap:4px;";
+    escapeRouteWrap.appendChild(escapeRouteList);
+    overlay.appendChild(escapeRouteWrap);
+
     const condDebugWrap = document.createElement("div");
-    condDebugWrap.style.cssText = "position:absolute;left:14px;top:1050px;width:220px;max-height:220px;overflow:auto;background:rgba(15,23,42,0.92);border:1px solid rgba(248,113,113,0.35);border-radius:10px;padding:8px;z-index:4;display:flex;flex-direction:column;gap:6px;";
+    condDebugWrap.style.cssText = "position:absolute;left:14px;top:1258px;width:220px;max-height:220px;overflow:auto;background:rgba(15,23,42,0.92);border:1px solid rgba(248,113,113,0.35);border-radius:10px;padding:8px;z-index:4;display:flex;flex-direction:column;gap:6px;";
     const condDebugHead = document.createElement("div");
     condDebugHead.style.cssText = "font-size:11px;font-weight:600;color:#fecaca;";
     condDebugHead.textContent = "Conditional Branch Debugger";
