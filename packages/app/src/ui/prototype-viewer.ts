@@ -6120,7 +6120,6 @@ export function createPrototypeViewer(editor: Editor): {
 
     const frameName = `Frame #${frameId}`;
     const customCount = nextOrder.filter((entry) => entry.includes("::")).length;
-    keyboardOrderInfo.textContent = `${frameName} · ${items.length} keyboard hotspot(s) · custom ${customCount}`;
     keyboardOrderList.innerHTML = "";
 
     if (!items.length) {
@@ -6130,6 +6129,35 @@ export function createPrototypeViewer(editor: Editor): {
       keyboardOrderList.appendChild(empty);
       return;
     }
+
+    const getNodeCenter = (item: { node: any }) => {
+      const x = Number(item.node?.x || 0);
+      const y = Number(item.node?.y || 0);
+      const w = Number(item.node?.width || 0);
+      const h = Number(item.node?.height || 0);
+      return { x: x + w / 2, y: y + h / 2 };
+    };
+    const frameBounds = getFrameBounds(frameId) || { x: 0, y: 0, width: 800, height: 600 };
+    const frameDiag = Math.max(1, Math.hypot(Number(frameBounds.width || 0), Number(frameBounds.height || 0)));
+    const jumpRiskByKey = new Map<string, { score: number; severe: boolean; fromNodeId: number | null }>();
+    let severeJumpCount = 0;
+    for (let i = 0; i < items.length; i += 1) {
+      const item = items[i];
+      if (i === 0) {
+        jumpRiskByKey.set(item.key, { score: 0, severe: false, fromNodeId: null });
+        continue;
+      }
+      const prev = items[i - 1];
+      const a = getNodeCenter(prev);
+      const b = getNodeCenter(item);
+      const dist = Math.hypot(b.x - a.x, b.y - a.y);
+      const normalized = Math.max(0, Math.min(1, dist / frameDiag));
+      const severe = normalized >= 0.42;
+      if (severe) severeJumpCount += 1;
+      jumpRiskByKey.set(item.key, { score: normalized, severe, fromNodeId: prev.nodeId });
+    }
+
+    keyboardOrderInfo.textContent = `${frameName} · ${items.length} keyboard hotspot(s) · custom ${customCount} · jumps ${severeJumpCount}`;
 
     const persistOrder = (nextKeys: string[]) => {
       keyboardOrderMap[key] = nextKeys.slice(0, 400);
@@ -6178,7 +6206,7 @@ export function createPrototypeViewer(editor: Editor): {
       const row = document.createElement("div");
       row.dataset.orderKey = item.key;
       row.draggable = true;
-      row.style.cssText = "display:grid;grid-template-columns:auto auto 1fr auto auto;gap:4px;align-items:center;padding:3px 5px;border:1px solid #334155;border-radius:5px;background:#0f172a;";
+      row.style.cssText = "display:grid;grid-template-columns:auto auto 1fr auto auto auto;gap:4px;align-items:center;padding:3px 5px;border:1px solid #334155;border-radius:5px;background:#0f172a;";
       row.ondragstart = (ev) => {
         dragKey = item.key;
         dropKey = item.key;
@@ -6238,6 +6266,20 @@ export function createPrototypeViewer(editor: Editor): {
         renderCurrentView();
       };
 
+      const risk = jumpRiskByKey.get(item.key) || { score: 0, severe: false, fromNodeId: null };
+      const riskBadge = document.createElement("span");
+      const heatHue = Math.round(120 - risk.score * 120);
+      const bgAlpha = risk.severe ? 0.34 : 0.18;
+      riskBadge.style.cssText = `font-size:8px;padding:1px 4px;border-radius:999px;border:1px solid hsl(${heatHue} 92% 55% / 0.6);background:hsl(${heatHue} 88% 46% / ${bgAlpha});color:#e2e8f0;min-width:34px;text-align:center;`;
+      riskBadge.textContent = `${Math.round(risk.score * 100)}%`;
+      riskBadge.title = risk.fromNodeId
+        ? `Tab jump heat from #${risk.fromNodeId} → #${item.nodeId}`
+        : "Start of tab order";
+      if (risk.severe && risk.fromNodeId) {
+        row.style.borderColor = "rgba(248,113,113,0.75)";
+        label.title = `${label.title}\nDiscontinuous jump from #${risk.fromNodeId} (heat ${Math.round(risk.score * 100)}%)`;
+      }
+
       const up = document.createElement("button");
       up.className = "prop-btn";
       up.style.cssText = "font-size:9px;padding:2px 4px;";
@@ -6259,7 +6301,7 @@ export function createPrototypeViewer(editor: Editor): {
         [keys[idx + 1], keys[idx]] = [keys[idx], keys[idx + 1]];
         persistOrder(keys);
       };
-      row.append(num, drag, label, up, down);
+      row.append(num, drag, label, riskBadge, up, down);
       keyboardOrderList.appendChild(row);
     });
   }

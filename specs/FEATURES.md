@@ -3044,3 +3044,10 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] 선택된 Frame(없으면 전체 Frame) 기준으로 누락 폰트 텍스트를 스캔해 fallback 렌더 차이(평균/최대 Δ%)를 카드로 집계
 - [x] frame row에 `missing count`, `avg/max delta`, `sample(font→fallback)`를 표시해 프레임별 우선순위 정리 지원
 - 구현: `packages/app/src/ui/properties-panel.ts`
+
+### Prototype Tab Order Heatmap (2026-04-19)
+- [x] Prototype Viewer `Keyboard Order` 리스트에 Tab 이동 거리 기반 heat badge(0~100%) 추가
+- [x] frame diagonal 정규화 점수로 hotspot 간 점프 강도를 계산하고 row별 색상으로 시각화
+- [x] 점프 강도 42% 이상을 `discontinuous jump`로 판단해 row 강조 + 툴팁 경고 제공
+- [x] 패널 summary에 `jumps N` 집계를 추가해 불연속 이동 위험을 빠르게 확인
+- 구현: `packages/app/src/ui/prototype-viewer.ts`

@@ -1795,6 +1795,14 @@
 - Conditional Overlay Exit Sampler — 조건 분기별 Esc/Back 복귀 성공 케이스를 샘플링 리포트 (임팩트 중, 난이도 중)
 - Prototype Overlay Guard Preset Pack — overlay lint/fix 정책을 Strict/Balanced/Legacy 프리셋으로 전환 (임팩트 중, 난이도 중)
 
+## 완료된 기능 (추가 — Prototype Tab Order Heatmap, 2026-04-19)
+- Prototype Viewer `Keyboard Order` 리스트에 Tab 이동 거리 기반 heat badge(0~100%) 추가
+- frame diagonal 정규화 점수로 hotspot 간 점프 강도를 계산하고 row별 색상으로 시각화
+- 점프 강도 42% 이상을 불연속(discontinuous) jump로 판단해 row 강조 + 툴팁 경고 제공
+- 패널 summary에 `jumps N` 집계를 추가해 위험 프레임을 빠르게 식별
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
+
 ## 완료된 기능 (추가 — Text Token Fallback Diff Inspector, 2026-04-19)
 - Properties panel Text > Font fallback inspector에 `Frame Diff` 버튼 추가
 - 선택된 Frame(없으면 전체 Frame) 내부 Text 레이어를 순회하며 누락 폰트 fallback 차이를 Δ%로 측정
