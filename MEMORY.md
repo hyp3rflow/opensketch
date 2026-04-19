@@ -1790,11 +1790,17 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Text Token Fallback Diff Inspector — 폰트/토큰 미존재 시 fallback 렌더 차이를 프레임별 diff로 시각화 (임팩트 중, 난이도 중상)
 - Smart Guide Priority Ruleset Editor — edge/center/grid snap 우선순위를 프리셋으로 저장하고 프로젝트별 적용 (임팩트 중, 난이도 중)
 - Overlay Stack Route Coverage Matrix — OpenOverlay source별 depth/close-path 커버리지 매트릭스 제공 (임팩트 중상, 난이도 중)
 - Conditional Overlay Exit Sampler — 조건 분기별 Esc/Back 복귀 성공 케이스를 샘플링 리포트 (임팩트 중, 난이도 중)
 - Prototype Overlay Guard Preset Pack — overlay lint/fix 정책을 Strict/Balanced/Legacy 프리셋으로 전환 (임팩트 중, 난이도 중)
+
+## 완료된 기능 (추가 — Text Token Fallback Diff Inspector, 2026-04-19)
+- Properties panel Text > Font fallback inspector에 `Frame Diff` 버튼 추가
+- 선택된 Frame(없으면 전체 Frame) 내부 Text 레이어를 순회하며 누락 폰트 fallback 차이를 Δ%로 측정
+- 프레임별 `missing count / avg Δ / max Δ / sample(font→fallback)` 카드 리포트 제공으로 우선 수정 대상 빠르게 식별
+- 구현: `packages/app/src/ui/properties-panel.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Prototype Overlay Stack Stress Tester, 2026-04-19)
 - Overlay Stack Inspector 카드에 `Stress: D1-5` 배치 시뮬레이션을 추가해 OpenOverlay 체인 depth 1~5를 자동 검증

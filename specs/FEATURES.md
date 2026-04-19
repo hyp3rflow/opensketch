@@ -3020,9 +3020,20 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Flow Lint 요약/필터/정렬/이슈 색상에 신규 규칙 반영
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
 
+### Overlay Escape Key Route Inspector v2 (2026-04-19)
+- [x] Esc/Back 경로 시뮬레이션 결과에 `reason`(loop/missing/depth-limit/wrong-target 등) 태그를 추가해 실패 원인 분류를 명확화
+- [x] Escape Route Map 경고 문구와 Flow Lint `overlay-key-route` detail에 reason을 함께 노출해 누락 경로 디버깅 속도 개선
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+
 ### Prototype Return Trace Replay (2026-04-19)
 - [x] Prototype Focus Return Map 카드에 OpenOverlay→Overlay active→Close/Back→Return target 4-step 타임라인 추가
 - [x] route별 `Replay` 버튼으로 step-by-step 이동 재생(프레임→오버레이→복귀) 지원
 - [x] 재생 종료 시 계산된 return target(origin hotspot 우선, 없으면 fallback)을 selection 하이라이트
 - [x] return candidate 표기를 기존 close path 메타와 통합해 누락 시나리오를 즉시 검증 가능
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
+
+### Text Token Fallback Diff Inspector (2026-04-19)
+- [x] Text 레이어 Font fallback inspector에 `Frame Diff` 액션 추가
+- [x] 선택된 Frame(없으면 전체 Frame) 기준으로 누락 폰트 텍스트를 스캔해 fallback 렌더 차이(평균/최대 Δ%)를 카드로 집계
+- [x] frame row에 `missing count`, `avg/max delta`, `sample(font→fallback)`를 표시해 프레임별 우선순위 정리 지원
+- 구현: `packages/app/src/ui/properties-panel.ts`

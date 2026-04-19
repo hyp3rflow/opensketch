@@ -12123,6 +12123,10 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       inspectBtn.className = "prop-btn";
       inspectBtn.textContent = "Inspect Fallback";
       inspectBtn.style.cssText = "padding:4px 8px; font-size:11px;";
+      const frameDiffBtn = document.createElement("button");
+      frameDiffBtn.className = "prop-btn";
+      frameDiffBtn.textContent = "Frame Diff";
+      frameDiffBtn.style.cssText = "padding:4px 8px; font-size:11px;";
       const replaceSelect = document.createElement("select");
       replaceSelect.className = "prop-input";
       replaceSelect.style.cssText = "flex:1;";
@@ -12138,6 +12142,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       replaceBtn.textContent = "Replace Missing";
       replaceBtn.style.cssText = "padding:4px 8px; font-size:11px;";
       inspectorTop.appendChild(inspectBtn);
+      inspectorTop.appendChild(frameDiffBtn);
       inspectorTop.appendChild(replaceSelect);
       inspectorTop.appendChild(replaceBtn);
       inspectorSection.appendChild(inspectorTop);
@@ -12176,6 +12181,99 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         return rows;
       };
 
+      const measureFallbackDeltaPct = (family: string, fallback: string, weight: number, style: string) => {
+        const ctx = getMeasureContext();
+        if (!ctx) return 0;
+        const requested = measureTextWidth(ctx, `"${family.replaceAll('"', '')}", ${fallback}`, weight, style);
+        const rendered = measureTextWidth(ctx, fallback, weight, style);
+        if (!Number.isFinite(requested) || requested <= 0) return 0;
+        return Math.abs(rendered - requested) / requested * 100;
+      };
+
+      const collectFrameTextFallbackDiffs = () => {
+        const sceneRaw = editor.engine.export_scene?.();
+        if (!sceneRaw) return [] as Array<{ frameId: number; frameName: string; missingCount: number; avgDelta: number; maxDelta: number; sample: string }>;
+        let sceneObj: any = null;
+        try { sceneObj = JSON.parse(sceneRaw); } catch { return []; }
+        const nodeMap = new Map<number, any>();
+        const walk = (value: any) => {
+          if (!value) return;
+          if (Array.isArray(value)) {
+            for (const item of value) walk(item);
+            return;
+          }
+          if (typeof value !== "object") return;
+          const nodeId = Number(value.id || 0);
+          if (nodeId > 0 && value.kind && typeof value.kind === "object") {
+            nodeMap.set(nodeId, value);
+          }
+          for (const key of Object.keys(value)) {
+            if (key === "parent") continue;
+            walk((value as any)[key]);
+          }
+        };
+        walk(sceneObj);
+
+        const selectedIds = Array.isArray(ids) ? ids.map(Number).filter((v) => v > 0) : [Number(id || 0)].filter((v) => v > 0);
+        const selectedFrameIds = selectedIds.filter((sid) => {
+          const node = nodeMap.get(sid);
+          return !!node?.kind?.Frame;
+        });
+        const frameIds = selectedFrameIds.length > 0
+          ? selectedFrameIds
+          : Array.from(nodeMap.values()).filter((n) => n?.kind?.Frame).map((n) => Number(n.id || 0)).filter((v) => v > 0);
+
+        const out: Array<{ frameId: number; frameName: string; missingCount: number; avgDelta: number; maxDelta: number; sample: string }> = [];
+        for (const frameId of frameIds) {
+          const frameNode = nodeMap.get(frameId);
+          if (!frameNode) continue;
+          const queue: number[] = Array.isArray(frameNode.children) ? frameNode.children.map((v: any) => Number(v)).filter((v: number) => v > 0) : [];
+          const seen = new Set<number>();
+          const deltas: number[] = [];
+          let sample = "";
+          while (queue.length > 0) {
+            const nid = Number(queue.shift() || 0);
+            if (!nid || seen.has(nid)) continue;
+            seen.add(nid);
+            const node = nodeMap.get(nid);
+            if (!node) continue;
+            if (Array.isArray(node.children)) {
+              for (const child of node.children) {
+                const childId = Number(child || 0);
+                if (childId > 0) queue.push(childId);
+              }
+            }
+            if (!node?.kind?.Text) continue;
+            const td = node.kind.Text;
+            const family = String(td.font_family || "Inter");
+            const weight = Number(td.font_weight ?? 400) || 400;
+            const style = String(td.font_style || "normal");
+            if (isFontFamilyAvailable(family, weight, style)) continue;
+            const fallback = inferFallbackFamily(family, weight, style);
+            const delta = measureFallbackDeltaPct(family, fallback, weight, style);
+            deltas.push(delta);
+            if (!sample) sample = `${family}→${fallback}`;
+          }
+          if (deltas.length === 0) continue;
+          const total = deltas.reduce((sum, v) => sum + v, 0);
+          out.push({
+            frameId,
+            frameName: String(frameNode.name || `Frame ${frameId}`),
+            missingCount: deltas.length,
+            avgDelta: total / deltas.length,
+            maxDelta: Math.max(...deltas),
+            sample,
+          });
+        }
+
+        out.sort((a, b) => {
+          if (b.maxDelta !== a.maxDelta) return b.maxDelta - a.maxDelta;
+          if (b.missingCount !== a.missingCount) return b.missingCount - a.missingCount;
+          return a.frameId - b.frameId;
+        });
+        return out;
+      };
+
       inspectBtn.addEventListener("click", () => {
         const rows = getSelectedTextNodes();
         if (rows.length === 0) {
@@ -12191,6 +12289,22 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             return `<div style=\"margin-bottom:4px;\"><strong>${r.name}</strong> — ${r.family} (${status})<br/><span style=\"color:#8f96a3\">${detail}</span></div>`;
           })
           .join("");
+      });
+
+      frameDiffBtn.addEventListener("click", () => {
+        const rows = collectFrameTextFallbackDiffs();
+        if (rows.length === 0) {
+          inspectReport.textContent = "No frame-level fallback diff found. (Select a frame or include missing font text layers)";
+          return;
+        }
+        inspectReport.innerHTML = rows.slice(0, 8).map((r) => {
+          const severity = r.maxDelta >= 8 ? "#fda4af" : r.maxDelta >= 4 ? "#fdba74" : "#93c5fd";
+          return `<div style="margin-bottom:6px;border:1px solid rgba(255,255,255,0.08);border-radius:5px;padding:5px;">
+            <div><strong>${r.frameName}</strong> <span style="color:#8f96a3">#${r.frameId}</span></div>
+            <div style="color:${severity};">missing ${r.missingCount} · avg Δ${r.avgDelta.toFixed(1)}% · max Δ${r.maxDelta.toFixed(1)}%</div>
+            <div style="color:#8f96a3;">sample: ${r.sample}</div>
+          </div>`;
+        }).join("");
       });
 
       replaceBtn.addEventListener("click", async () => {
