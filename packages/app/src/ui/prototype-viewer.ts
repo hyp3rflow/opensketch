@@ -259,10 +259,14 @@ export function createPrototypeViewer(editor: Editor): {
     overlayName: string;
     keyboardHotspots: number;
     missingClosePath: boolean;
+    noKeyboardHotspots: boolean;
     leaksOutside: boolean;
     trappedInLoop: boolean;
+    shiftTabTrapped: boolean;
     simulatedTabSteps: number;
+    simulatedShiftTabSteps: number;
     tabTrace: string[];
+    shiftTabTrace: string[];
   };
   let flowLintWrap: HTMLDivElement | null = null;
   let keyboardOrderWrap: HTMLDivElement | null = null;
@@ -1557,10 +1561,14 @@ export function createPrototypeViewer(editor: Editor): {
           nodeHasClosePath.set(item.nodeId, hasClose);
         }
 
+        const noKeyboardHotspots = focusables.length === 0;
         let simulatedTabSteps = 0;
+        let simulatedShiftTabSteps = 0;
         let leaksOutside = false;
         let trappedInLoop = false;
+        let shiftTabTrapped = false;
         const tabTrace: string[] = [];
+        const shiftTabTrace: string[] = [];
         if (focusables.length > 0) {
           const maxSteps = Math.max(6, focusables.length * 2);
           for (let step = 0; step < maxSteps; step += 1) {
@@ -1583,9 +1591,27 @@ export function createPrototypeViewer(editor: Editor): {
             }
             if (step === maxSteps - 1) trappedInLoop = true;
           }
+
+          for (let step = 0; step < maxSteps; step += 1) {
+            simulatedShiftTabSteps += 1;
+            const idx = (focusables.length - 1 - (step % focusables.length) + focusables.length) % focusables.length;
+            const focusable = focusables[idx];
+            const interaction = focusable?.interaction;
+            if (!interaction) continue;
+            const action = String(interaction?.action || "");
+            const target = Number(interaction?.target_node_id || 0);
+            const nodeLabel = String(focusable?.node?.name || `Node #${focusable?.nodeId || 0}`);
+            const targetLabel = target > 0 ? ` → #${target}` : "";
+            shiftTabTrace.push(`Shift+Tab ${step + 1}: ${nodeLabel} · ${action}${targetLabel}`);
+            if (action === "CloseOverlay" || action === "Back") {
+              shiftTabTrapped = false;
+              break;
+            }
+            if (step === maxSteps - 1) shiftTabTrapped = true;
+          }
         }
 
-        if (hasClosePath && !leaksOutside && !trappedInLoop) continue;
+        if (hasClosePath && !noKeyboardHotspots && !leaksOutside && !trappedInLoop && !shiftTabTrapped) continue;
         const overlayNode = frameById.get(overlayId);
         issues.push({
           frameId: frame.id,
@@ -1594,10 +1620,14 @@ export function createPrototypeViewer(editor: Editor): {
           overlayName: overlayNode?.name || `Overlay #${overlayId}`,
           keyboardHotspots: focusables.length,
           missingClosePath: !hasClosePath,
+          noKeyboardHotspots,
           leaksOutside,
           trappedInLoop,
+          shiftTabTrapped,
           simulatedTabSteps,
+          simulatedShiftTabSteps,
           tabTrace: tabTrace.slice(0, 4),
+          shiftTabTrace: shiftTabTrace.slice(0, 4),
         });
       }
     }
@@ -1642,7 +1672,7 @@ export function createPrototypeViewer(editor: Editor): {
       }
     }
 
-    if (issue.missingClosePath || issue.trappedInLoop) {
+    if (issue.missingClosePath || issue.noKeyboardHotspots || issue.trappedInLoop || issue.shiftTabTrapped) {
       const fallbackNodeId = Number(focusables[focusables.length - 1]?.nodeId || focusables[0]?.nodeId || issue.overlayId || 0);
       changed = addCloseInteractionIfNeeded(fallbackNodeId) || changed;
     }
@@ -1668,21 +1698,29 @@ export function createPrototypeViewer(editor: Editor): {
       const label = document.createElement("div");
       label.style.cssText = "font-size:10px;color:#fee2e2;line-height:1.35;";
       const parts = [];
+      if (issue.noKeyboardHotspots) parts.push("no keyboard hotspots");
       if (issue.missingClosePath) parts.push("missing close path");
       if (issue.leaksOutside) parts.push("escapes outside");
       if (issue.trappedInLoop) parts.push("tab loop without close");
+      if (issue.shiftTabTrapped) parts.push("shift+tab loop without close");
       label.textContent = `${issue.frameName} → ${issue.overlayName} (${parts.join(" + ") || "risk"})`;
       row.appendChild(label);
 
       const meta = document.createElement("div");
       meta.style.cssText = "font-size:9px;color:#fecaca;";
-      meta.textContent = `Keyboard hotspots: ${issue.keyboardHotspots} · Simulated tabs: ${issue.simulatedTabSteps}`;
+      meta.textContent = `Keyboard hotspots: ${issue.keyboardHotspots} · Tab/Shift+Tab: ${issue.simulatedTabSteps}/${issue.simulatedShiftTabSteps}`;
       row.appendChild(meta);
 
       if (issue.tabTrace.length > 0) {
         const trace = document.createElement("div");
         trace.style.cssText = "font-size:9px;color:#fda4af;line-height:1.35;white-space:pre-wrap;";
         trace.textContent = issue.tabTrace.join("\n");
+        row.appendChild(trace);
+      }
+      if (issue.shiftTabTrace.length > 0) {
+        const trace = document.createElement("div");
+        trace.style.cssText = "font-size:9px;color:#fecdd3;line-height:1.35;white-space:pre-wrap;";
+        trace.textContent = issue.shiftTabTrace.join("\n");
         row.appendChild(trace);
       }
 
@@ -4813,6 +4851,30 @@ export function createPrototypeViewer(editor: Editor): {
     ].join("|");
   }
 
+  function shouldShowEscapeIntentHint(nodeId: number, interaction: any, frameId: number | null = currentFrameId): boolean {
+    if (!frameId || !hasIncomingOpenOverlay(frameId)) return false;
+    const trigger = String(interaction?.trigger || "");
+    const action = String(interaction?.action || "");
+    if (trigger !== "OnClick" && trigger !== "OnPress") return false;
+    if (action === "CloseOverlay" || action === "Back") return false;
+    try {
+      const rows: any[] = JSON.parse(editor.engine.get_all_interactions() || "[]") || [];
+      const row = rows.find((r) => Number(r?.id || 0) === Number(nodeId));
+      const list = Array.isArray(row?.interactions) ? row.interactions : [];
+      return !list.some((item) => {
+        const t = String(item?.trigger || "");
+        const a = String(item?.action || "");
+        return (t === "OnClick" || t === "OnPress") && (a === "CloseOverlay" || a === "Back");
+      });
+    } catch {
+      return false;
+    }
+  }
+
+  function getEscapeIntentTemplate(): string {
+    return "권장: OnPress → CloseOverlay (Instant)";
+  }
+
   function drawInteractionHotspotPath(ctx: CanvasRenderingContext2D, node: any, interaction: any, frameBounds: { x: number; y: number }, totalScale: number) {
     const nx = Number(node?.x || 0);
     const ny = Number(node?.y || 0);
@@ -4998,6 +5060,31 @@ export function createPrototypeViewer(editor: Editor): {
           ctx.beginPath();
           drawInteractionHotspotPath(ctx, node, interaction, frameBounds, totalScale);
           ctx.stroke();
+
+          if (shouldShowEscapeIntentHint(Number(nwi.id), interaction, currentFrameId)) {
+            ctx.save();
+            ctx.setLineDash([]);
+            ctx.fillStyle = "rgba(127,29,29,0.95)";
+            ctx.strokeStyle = "rgba(252,165,165,0.95)";
+            ctx.lineWidth = 1;
+            const bx = x + Math.max(0, w - 72);
+            const by = y + 4;
+            if ((ctx as any).roundRect) {
+              ctx.beginPath();
+              (ctx as any).roundRect(bx, by, 68, 14, 6);
+              ctx.fill();
+              ctx.stroke();
+            } else {
+              ctx.fillRect(bx, by, 68, 14);
+              ctx.strokeRect(bx, by, 68, 14);
+            }
+            ctx.fillStyle = "#fee2e2";
+            ctx.font = "9px sans-serif";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText("ESCAPE?", bx + 34, by + 7.5);
+            ctx.restore();
+          }
 
           const rank = orderRank.get(covKey);
           if (rank) {
@@ -5576,7 +5663,10 @@ export function createPrototypeViewer(editor: Editor): {
         focusedHotspotInter = item.interaction;
         hoveredHotspotNodeId = item.nodeId;
         hoveredHotspotSig = item.sig;
-        hoveredHotspotLabel = item.interaction?.accessibility_label || nodeName;
+        const baseLabel = item.interaction?.accessibility_label || nodeName;
+        hoveredHotspotLabel = shouldShowEscapeIntentHint(item.nodeId, item.interaction, currentFrameId)
+          ? `${baseLabel} · ${getEscapeIntentTemplate()}`
+          : baseLabel;
         setFocusedInteractiveInstance(item.nodeId);
         renderCurrentView();
       };
@@ -5632,7 +5722,10 @@ export function createPrototypeViewer(editor: Editor): {
     focusedHotspotNodeId = next.nodeId;
     focusedHotspotInter = next.interaction;
     hoveredHotspotNodeId = next.nodeId;
-    hoveredHotspotLabel = next.interaction?.accessibility_label || next.node?.name || "";
+    const baseLabel = next.interaction?.accessibility_label || next.node?.name || "";
+    hoveredHotspotLabel = shouldShowEscapeIntentHint(next.nodeId, next.interaction, currentFrameId)
+      ? `${baseLabel} · ${getEscapeIntentTemplate()}`
+      : baseLabel;
     hoveredHotspotSig = interactionSignature(next.interaction);
     setFocusedInteractiveInstance(next.nodeId);
     renderCurrentView();
@@ -5645,7 +5738,11 @@ export function createPrototypeViewer(editor: Editor): {
     // Hovered hotspot region hint (for label + stronger highlight)
     const hoverAny = findInteractionAtPoint(e.clientX, e.clientY, "OnHover") || findInteractionAtPoint(e.clientX, e.clientY, "OnClick");
     const nextHotId = hoverAny ? Number(hoverAny.node?.id || 0) : 0;
-    const nextHotLabel = hoverAny?.interaction?.accessibility_label || hoverAny?.node?.name || "";
+    const baseHotLabel = hoverAny?.interaction?.accessibility_label || hoverAny?.node?.name || "";
+    const withHint = hoverAny && shouldShowEscapeIntentHint(nextHotId, hoverAny.interaction, currentFrameId)
+      ? `${baseHotLabel} · ${getEscapeIntentTemplate()}`
+      : baseHotLabel;
+    const nextHotLabel = withHint;
     const nextHotSig = hoverAny ? interactionSignature(hoverAny.interaction) : "";
     if ((nextHotId || null) !== hoveredHotspotNodeId || nextHotLabel !== hoveredHotspotLabel || nextHotSig !== hoveredHotspotSig) {
       hoveredHotspotNodeId = nextHotId > 0 ? nextHotId : null;
