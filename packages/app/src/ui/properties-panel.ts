@@ -33,8 +33,8 @@ type ConstraintSetPreset = {
     align_content?: string;
     grid_columns?: number;
   };
-  selfConstraints: { horizontal: string; vertical: string };
-  childConstraints: Array<{ index: number; horizontal: string; vertical: string }>;
+  selfConstraints: { horizontal: string; vertical: string; sizing_h: string; sizing_v: string };
+  childConstraints: Array<{ index: number; horizontal: string; vertical: string; sizing_h: string; sizing_v: string }>;
 };
 
 type PrototypeRingStyle = { color: string; width: number; radius: number };
@@ -5415,12 +5415,16 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           editor.engine.set_grid_columns(BigInt(targetId), Math.max(1, Math.round(preset.layout.grid_columns)));
         }
         editor.engine.set_constraints(BigInt(targetId), preset.selfConstraints.horizontal, preset.selfConstraints.vertical);
+        editor.engine.set_sizing_h(BigInt(targetId), preset.selfConstraints.sizing_h || "fixed");
+        editor.engine.set_sizing_v(BigInt(targetId), preset.selfConstraints.sizing_v || "fixed");
 
         const childIds: number[] = Array.isArray(targetNode.children) ? targetNode.children : [];
         for (const childPreset of preset.childConstraints) {
           const childId = childIds[childPreset.index];
           if (!childId) continue;
           editor.engine.set_constraints(BigInt(childId), childPreset.horizontal, childPreset.vertical);
+          editor.engine.set_sizing_h(BigInt(childId), childPreset.sizing_h || "fixed");
+          editor.engine.set_sizing_v(BigInt(childId), childPreset.sizing_v || "fixed");
         }
       };
 
@@ -5440,9 +5444,17 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
         const name = nameInput.value.trim() || `${node.name || "Frame"} preset`;
         const layout = JSON.parse(editor.engine.get_layout(BigInt(id)) || "{}");
         const selfConstraints = JSON.parse(editor.engine.get_constraints(BigInt(id)) || '{"horizontal":"left","vertical":"top"}');
+        const selfSizing = JSON.parse(editor.engine.get_sizing(BigInt(id)) || '{"horizontal":"fixed","vertical":"fixed"}');
         const childConstraints = (node.children || []).map((cid: number, idx: number) => {
           const c = JSON.parse(editor.engine.get_constraints(BigInt(cid)) || '{"horizontal":"left","vertical":"top"}');
-          return { index: idx, horizontal: c.horizontal || "left", vertical: c.vertical || "top" };
+          const s = JSON.parse(editor.engine.get_sizing(BigInt(cid)) || '{"horizontal":"fixed","vertical":"fixed"}');
+          return {
+            index: idx,
+            horizontal: c.horizontal || "left",
+            vertical: c.vertical || "top",
+            sizing_h: s.horizontal || "fixed",
+            sizing_v: s.vertical || "fixed",
+          };
         });
 
         const next: ConstraintSetPreset = {
@@ -5466,6 +5478,8 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           selfConstraints: {
             horizontal: selfConstraints.horizontal || "left",
             vertical: selfConstraints.vertical || "top",
+            sizing_h: selfSizing.horizontal || "fixed",
+            sizing_v: selfSizing.vertical || "fixed",
           },
           childConstraints,
         };
@@ -5495,7 +5509,7 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           n.textContent = preset.name;
           const meta = document.createElement("div");
           meta.style.cssText = "font-size:9px;color:#666;";
-          meta.textContent = `${preset.layout.mode}${preset.layout.direction ? ` · ${preset.layout.direction}` : ""} · gap ${preset.layout.gap ?? 0}`;
+          meta.textContent = `${preset.layout.mode}${preset.layout.direction ? ` · ${preset.layout.direction}` : ""} · gap ${preset.layout.gap ?? 0} · self ${preset.selfConstraints.sizing_h || "fixed"}/${preset.selfConstraints.sizing_v || "fixed"}`;
           label.appendChild(n);
           label.appendChild(meta);
           row.appendChild(label);

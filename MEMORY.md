@@ -1790,10 +1790,17 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Auto Layout Constraint Preset Library — 자주 쓰는 constraints+sizing 조합을 preset으로 저장/적용 (임팩트 중, 난이도 중)
 - Prototype Overlay Stack Stress Tester — 다중 overlay depth(1~5)를 자동 재생해 close/back 누락 케이스를 배치 검증 (임팩트 중상, 난이도 중)
 - Text Token Fallback Diff Inspector — 폰트/토큰 미존재 시 fallback 렌더 차이를 프레임별 diff로 시각화 (임팩트 중, 난이도 중상)
 - Smart Guide Priority Ruleset Editor — edge/center/grid snap 우선순위를 프리셋으로 저장하고 프로젝트별 적용 (임팩트 중, 난이도 중)
+
+## 완료된 기능 (추가 — Auto Layout Constraint Preset Library, 2026-04-19)
+- Properties panel `Constraint Set Presets`가 Frame/Group 본체 + 자식 인덱스별 constraints뿐 아니라 sizing(Fixed/Hug/Fill)까지 함께 저장/적용하도록 확장
+- Apply 시 self/child `set_sizing_h`/`set_sizing_v`를 함께 반영해 반응형 레이아웃 의도를 preset 하나로 재사용 가능
+- 기존 preset 데이터에 sizing 정보가 없으면 `fixed/fixed` 기본값으로 안전하게 fallback
+- preset 목록 메타에 self sizing(`h/v`)을 노출해 적용 전 상태를 빠르게 확인
+- 구현: `packages/app/src/ui/properties-panel.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Variable Cleanup Impact Budget Guard, 2026-04-19)
 - Variables Inspector `Variable Token Cleanup Queue`에 `Cleanup Impact Budget` 카드 추가
