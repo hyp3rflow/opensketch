@@ -3069,3 +3069,11 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] 점프 강도 42% 이상을 `discontinuous jump`로 판단해 row 강조 + 툴팁 경고 제공
 - [x] 패널 summary에 `jumps N` 집계를 추가해 불연속 이동 위험을 빠르게 확인
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
+
+### Prototype Overlay Guard Preset Pack (2026-04-20)
+- [x] Flow Lint에 `Overlay Guard` 프리셋 셀렉터 추가 (`Strict / Balanced / Legacy`)
+- [x] Strict: `conditional-only` + `sim diverges`까지 포함해 overlay-key-route 경고를 가장 보수적으로 수집
+- [x] Balanced(기본): 필수 close/esc/back 결손 + simulation drift 중심으로 리포트
+- [x] Legacy: 기존 호환 모드로 `overlay-depth-budget`, `scroll-leak`, conditional 경고를 비활성화
+- [x] 프리셋별 note를 패널에 노출하고 선택값을 localStorage로 저장해 세션 재진입 시 유지
+- 구현: `packages/app/src/ui/prototype-viewer.ts`

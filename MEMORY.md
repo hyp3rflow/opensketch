@@ -1790,10 +1790,18 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Prototype Overlay Guard Preset Pack — overlay lint/fix 정책을 Strict/Balanced/Legacy 프리셋으로 전환 (임팩트 중, 난이도 중)
 - Overlay Return Focus Confidence Meter — CloseOverlay/Back 후 복귀 focus target 신뢰도(0~100) + low-confidence 경고 배지 제공 (임팩트 중, 난이도 중)
 - Overlay Exit Recipe Library — 자주 쓰는 Esc/Back/Close 조합을 recipe로 저장하고 one-click 적용 (임팩트 중, 난이도 중)
 - Overlay Branch Replay Timeline — 조건부 interaction 분기 재생 타임라인으로 branch별 성공/실패 경로 비교 (임팩트 중상, 난이도 중상)
+
+## 완료된 기능 (추가 — Prototype Overlay Guard Preset Pack, 2026-04-20)
+- Flow Lint 상단에 `Overlay Guard` 프리셋 셀렉터 추가: Strict / Balanced / Legacy 전환 지원
+- Strict: conditional-only + simulation drift까지 모두 overlay-key-route 경고로 포함
+- Balanced(기본): 필수 경로(no close/back, missing Esc/Back) + simulation drift 중심으로 리포트
+- Legacy: 기존 호환 모드로 overlay-depth-budget/scroll-leak/conditional 드리프트 경고를 제외
+- preset별 설명(note)을 패널에 노출하고 선택값을 localStorage(`opensketch-prototype-overlay-guard-preset-v1`)에 저장
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Conditional Overlay Exit Sampler, 2026-04-20)
 - Escape Route Map에 조건부 OpenOverlay 분기 샘플러를 추가해 `success/total` 및 `active` 분기 수를 route별로 표시

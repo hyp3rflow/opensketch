@@ -22,10 +22,52 @@ const PROTOTYPE_FLOW_ENTRY_PRESETS_KEY = "opensketch-proto-flow-entry-presets-v1
 const PROTOTYPE_KEYBOARD_ORDER_KEY = "opensketch-proto-keyboard-order-v1";
 const PROTOTYPE_REDUCED_MOTION_KEY = "opensketch-prototype-reduced-motion-v1";
 const PROTOTYPE_SCROLL_LOCK_REGIONS_KEY = "opensketch-prototype-scroll-lock-regions-v1";
+const PROTOTYPE_OVERLAY_GUARD_PRESET_KEY = "opensketch-prototype-overlay-guard-preset-v1";
 
 type FlowEntryPreset = { frameId: number; label: string; pageId?: number };
 type RingPresetSafetyBucket = "safe" | "watch" | "risky";
 type RingGuardPolicy = "off" | "warn" | "enforce-safe";
+type OverlayGuardPresetId = "strict" | "balanced" | "legacy";
+
+type OverlayGuardPresetConfig = {
+  id: OverlayGuardPresetId;
+  label: string;
+  note: string;
+  detectConditionalOnly: boolean;
+  detectSimulationDrift: boolean;
+  includeDepthBudget: boolean;
+  includeScrollLeak: boolean;
+};
+
+const OVERLAY_GUARD_PRESETS: OverlayGuardPresetConfig[] = [
+  {
+    id: "strict",
+    label: "Strict",
+    note: "조건부/시뮬레이션 드리프트까지 모두 경고",
+    detectConditionalOnly: true,
+    detectSimulationDrift: true,
+    includeDepthBudget: true,
+    includeScrollLeak: true,
+  },
+  {
+    id: "balanced",
+    label: "Balanced",
+    note: "실무 기본값: 필수 탈출 경로 중심",
+    detectConditionalOnly: false,
+    detectSimulationDrift: true,
+    includeDepthBudget: true,
+    includeScrollLeak: true,
+  },
+  {
+    id: "legacy",
+    label: "Legacy",
+    note: "기존 호환 모드: 기본 overlay 누수만 점검",
+    detectConditionalOnly: false,
+    detectSimulationDrift: false,
+    includeDepthBudget: false,
+    includeScrollLeak: false,
+  },
+];
 
 const DEFAULT_RING_PRESET: PrototypeRingPreset = {
   id: "default",
@@ -101,6 +143,28 @@ function loadScrollLockRegions(): ScrollLockRegionMap {
 function saveScrollLockRegions(regions: ScrollLockRegionMap) {
   try {
     localStorage.setItem(PROTOTYPE_SCROLL_LOCK_REGIONS_KEY, JSON.stringify(regions));
+  } catch {}
+}
+
+function resolveOverlayGuardPreset(id: string | null | undefined): OverlayGuardPresetConfig {
+  const raw = String(id || "").toLowerCase() as OverlayGuardPresetId;
+  return OVERLAY_GUARD_PRESETS.find((preset) => preset.id === raw)
+    || OVERLAY_GUARD_PRESETS.find((preset) => preset.id === "balanced")
+    || OVERLAY_GUARD_PRESETS[0]!;
+}
+
+function loadOverlayGuardPresetId(): OverlayGuardPresetId {
+  try {
+    const raw = localStorage.getItem(PROTOTYPE_OVERLAY_GUARD_PRESET_KEY);
+    return resolveOverlayGuardPreset(raw).id;
+  } catch {
+    return "balanced";
+  }
+}
+
+function saveOverlayGuardPresetId(id: OverlayGuardPresetId) {
+  try {
+    localStorage.setItem(PROTOTYPE_OVERLAY_GUARD_PRESET_KEY, resolveOverlayGuardPreset(id).id);
   } catch {}
 }
 
@@ -308,6 +372,8 @@ export function createPrototypeViewer(editor: Editor): {
     shiftTabTrace: string[];
   };
   let flowLintWrap: HTMLDivElement | null = null;
+  let flowLintPresetSel: HTMLSelectElement | null = null;
+  let flowLintPresetInfo: HTMLDivElement | null = null;
   let keyboardOrderWrap: HTMLDivElement | null = null;
   let keyboardOrderInfo: HTMLDivElement | null = null;
   let keyboardOrderList: HTMLDivElement | null = null;
@@ -373,6 +439,7 @@ export function createPrototypeViewer(editor: Editor): {
   let ringReleaseMode = localStorage.getItem(PROTOTYPE_RING_RELEASE_MODE_KEY) === "1";
   let ringGuardPolicies = loadRingGuardPolicies();
   let scrollLockRegions = loadScrollLockRegions();
+  let overlayGuardPresetId: OverlayGuardPresetId = loadOverlayGuardPresetId();
   const coverageFrameVisits = new Map<number, number>();
   const coverageHotspotHits = new Map<number, Set<string>>();
 
@@ -2646,6 +2713,9 @@ export function createPrototypeViewer(editor: Editor): {
     }
 
     const issues: FlowLintIssue[] = [];
+    const overlayGuardPreset = resolveOverlayGuardPreset(overlayGuardPresetId);
+    if (flowLintPresetSel) flowLintPresetSel.value = overlayGuardPreset.id;
+    if (flowLintPresetInfo) flowLintPresetInfo.textContent = overlayGuardPreset.note;
 
     const backByFrame = new Map<number, number>();
     const overlaysOpenByFrame = new Map<number, number>();
@@ -2820,7 +2890,7 @@ export function createPrototypeViewer(editor: Editor): {
       }
 
       const depthBudget = overlayDepthBudgetByFrame.get(node.id);
-      if (depthBudget) {
+      if (depthBudget && overlayGuardPreset.includeDepthBudget) {
         const offenderLabel = depthBudget.offenders.slice(0, 3).map((id) => `#${id}`).join(", ");
         const pathLabel = depthBudget.pathSample.length > 0 ? depthBudget.pathSample.map((id) => `#${id}`).join(" → ") : "";
         issues.push({
@@ -2837,37 +2907,48 @@ export function createPrototypeViewer(editor: Editor): {
 
       const overlayTargets = overlayTargetsByFrame.get(node.id);
       if (overlayTargets && overlayTargets.size > 0) {
-        for (const overlayId of overlayTargets) {
-          const lockKey = makeScrollLockRegionKey(node.id, overlayId);
-          if (!scrollLockRegions[lockKey]) {
-            issues.push({
-              type: "scroll-leak",
-              frameId: node.id,
-              frameName: node.name,
-              detail: `Overlay #${overlayId} opens without scroll lock region`,
-              overlayId,
-            });
+        if (overlayGuardPreset.includeScrollLeak) {
+          for (const overlayId of overlayTargets) {
+            const lockKey = makeScrollLockRegionKey(node.id, overlayId);
+            if (!scrollLockRegions[lockKey]) {
+              issues.push({
+                type: "scroll-leak",
+                frameId: node.id,
+                frameName: node.name,
+                detail: `Overlay #${overlayId} opens without scroll lock region`,
+                overlayId,
+              });
+            }
           }
         }
 
-        const keyRouteRows = collectEscapeRouteRows(snapshot).filter((row) => row.frameId === node.id);
-        for (const route of keyRouteRows) {
-          if (!route.trapped && !route.missingEsc && !route.missingBack && !route.escConditionalOnly && !route.backConditionalOnly && !route.escSimBroken && !route.backSimBroken) continue;
-          const parts: string[] = [];
-          if (route.trapped) parts.push("no close/back exit");
-          if (route.missingEsc) parts.push("Esc route missing");
-          if (route.missingBack) parts.push("Back route missing");
-          if (route.escConditionalOnly) parts.push("Esc conditional-only");
-          if (route.backConditionalOnly) parts.push("Back conditional-only");
-          if (route.escSimBroken) parts.push("Esc sim diverges");
-          if (route.backSimBroken) parts.push("Back sim diverges");
-          issues.push({
-            type: "overlay-key-route",
-            frameId: node.id,
-            frameName: node.name,
-            overlayId: route.overlayId,
-            detail: `${route.overlayName}: ${parts.join(" + ")}`,
-          });
+        if (overlayGuardPreset.id !== "legacy") {
+          const keyRouteRows = collectEscapeRouteRows(snapshot).filter((row) => row.frameId === node.id);
+          for (const route of keyRouteRows) {
+            const hasRequiredFail = route.trapped || route.missingEsc || route.missingBack;
+            const hasConditionalFail = route.escConditionalOnly || route.backConditionalOnly;
+            const hasSimFail = route.escSimBroken || route.backSimBroken;
+            if (!hasRequiredFail
+              && !(overlayGuardPreset.detectConditionalOnly && hasConditionalFail)
+              && !(overlayGuardPreset.detectSimulationDrift && hasSimFail)) {
+              continue;
+            }
+            const parts: string[] = [];
+            if (route.trapped) parts.push("no close/back exit");
+            if (route.missingEsc) parts.push("Esc route missing");
+            if (route.missingBack) parts.push("Back route missing");
+            if (overlayGuardPreset.detectConditionalOnly && route.escConditionalOnly) parts.push("Esc conditional-only");
+            if (overlayGuardPreset.detectConditionalOnly && route.backConditionalOnly) parts.push("Back conditional-only");
+            if (overlayGuardPreset.detectSimulationDrift && route.escSimBroken) parts.push("Esc sim diverges");
+            if (overlayGuardPreset.detectSimulationDrift && route.backSimBroken) parts.push("Back sim diverges");
+            issues.push({
+              type: "overlay-key-route",
+              frameId: node.id,
+              frameName: node.name,
+              overlayId: route.overlayId,
+              detail: `${route.overlayName}: ${parts.join(" + ")}`,
+            });
+          }
         }
       }
     }
@@ -3059,7 +3140,7 @@ export function createPrototypeViewer(editor: Editor): {
     const focusTrapCount = issues.filter((i) => i.type === "a11y-focus-trap").length;
     const lowContrastCount = issues.filter((i) => i.type === "a11y-low-contrast").length;
     const motionGuardrailCount = issues.filter((i) => i.type === "a11y-motion").length;
-    flowLintInfo.textContent = `Start #${startFrameId} · Dead-end ${deadEndCount} · Unreachable ${unreachableCount} · Cycles ${cycleCount}/${cycleTrapCount} · Overlay ${overlayLeakCount}/${overlayKeyRouteCount}/${overlayDepthBudgetCount}/${orphanCloseCount}/Scroll ${scrollLeakCount} · A11y ${missingLabelCount}/${focusGapCount}/${focusTrapCount}/${lowContrastCount}/${motionGuardrailCount}`;
+    flowLintInfo.textContent = `Preset ${overlayGuardPreset.label} · Start #${startFrameId} · Dead-end ${deadEndCount} · Unreachable ${unreachableCount} · Cycles ${cycleCount}/${cycleTrapCount} · Overlay ${overlayLeakCount}/${overlayKeyRouteCount}/${overlayDepthBudgetCount}/${orphanCloseCount}/Scroll ${scrollLeakCount} · A11y ${missingLabelCount}/${focusGapCount}/${focusTrapCount}/${lowContrastCount}/${motionGuardrailCount}`;
 
     flowLintList.innerHTML = "";
     if (issues.length === 0) {
@@ -4101,6 +4182,39 @@ export function createPrototypeViewer(editor: Editor): {
     flowLintHead.style.cssText = "font-size:11px;font-weight:600;color:#cbd5e1;";
     flowLintHead.textContent = "Flow Lint";
     flowLintWrap.appendChild(flowLintHead);
+
+    const flowLintPresetRow = document.createElement("div");
+    flowLintPresetRow.style.cssText = "display:flex;gap:6px;align-items:center;";
+    const flowLintPresetLabel = document.createElement("span");
+    flowLintPresetLabel.style.cssText = "font-size:10px;color:#cbd5e1;white-space:nowrap;";
+    flowLintPresetLabel.textContent = "Overlay Guard";
+    flowLintPresetRow.appendChild(flowLintPresetLabel);
+    flowLintPresetSel = document.createElement("select");
+    flowLintPresetSel.style.cssText = "flex:1;background:#0f172a;color:#f8fafc;border:1px solid rgba(148,163,184,0.35);border-radius:6px;padding:3px 6px;font-size:10px;";
+    for (const preset of OVERLAY_GUARD_PRESETS) {
+      const opt = document.createElement("option");
+      opt.value = preset.id;
+      opt.textContent = preset.label;
+      flowLintPresetSel.appendChild(opt);
+    }
+    flowLintPresetSel.value = overlayGuardPresetId;
+    flowLintPresetSel.onchange = () => {
+      const next = resolveOverlayGuardPreset(flowLintPresetSel?.value).id;
+      overlayGuardPresetId = next;
+      saveOverlayGuardPresetId(next);
+      if (flowLintPresetSel) flowLintPresetSel.value = next;
+      const resolved = resolveOverlayGuardPreset(next);
+      if (flowLintPresetInfo) flowLintPresetInfo.textContent = resolved.note;
+      renderFlowLint();
+    };
+    flowLintPresetRow.appendChild(flowLintPresetSel);
+    flowLintWrap.appendChild(flowLintPresetRow);
+
+    flowLintPresetInfo = document.createElement("div");
+    flowLintPresetInfo.style.cssText = "font-size:9px;color:#94a3b8;line-height:1.35;";
+    flowLintPresetInfo.textContent = resolveOverlayGuardPreset(overlayGuardPresetId).note;
+    flowLintWrap.appendChild(flowLintPresetInfo);
+
     flowLintInfo = document.createElement("div");
     flowLintInfo.style.cssText = "font-size:10px;color:#94a3b8;line-height:1.35;";
     flowLintInfo.textContent = "Analyzing flow graph…";
