@@ -70,6 +70,22 @@ interface VariableMergeDryRunItem {
   usageSamples: string[];
 }
 
+interface VariableCleanupImpactFrameItem {
+  frameId: number;
+  frameName: string;
+  impactCount: number;
+  styleCount: number;
+  prototypeCount: number;
+  severity: "ok" | "warn" | "critical";
+}
+
+interface VariableCleanupImpactBudget {
+  totalImpacts: number;
+  totalFrames: number;
+  severity: "ok" | "warn" | "critical";
+  frames: VariableCleanupImpactFrameItem[];
+}
+
 interface VariableModeDriftRecipe {
   id: string;
   name: string;
@@ -171,6 +187,89 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
       });
     }
     return result.sort((a, b) => (b.nodeCount + b.styleCount + b.prototypeCount) - (a.nodeCount + a.styleCount + a.prototypeCount));
+  };
+
+  const buildCleanupImpactBudget = (collectionId: number, plan: VariableCleanupQueueItem[]): VariableCleanupImpactBudget => {
+    const nodeCache = new Map<number, any | null>();
+    const readNode = (nodeId: number): any | null => {
+      if (nodeCache.has(nodeId)) return nodeCache.get(nodeId) ?? null;
+      let node: any = null;
+      try {
+        node = JSON.parse(editor.engine.get_node_json(BigInt(nodeId)) || "null");
+      } catch {
+        node = null;
+      }
+      nodeCache.set(nodeId, node);
+      return node;
+    };
+
+    const findTopFrame = (nodeId: number): { id: number; name: string } => {
+      let current = readNode(nodeId);
+      let lastFrame: { id: number; name: string } | null = null;
+      let guard = 0;
+      while (current && guard < 80) {
+        if (String(current.kind || "") === "Frame") {
+          const id = Number(current.id || 0);
+          const name = String(current.name || "").trim() || `Frame ${id}`;
+          lastFrame = { id, name };
+        }
+        const parentId = Number(current.parent || 0);
+        if (!parentId) break;
+        current = readNode(parentId);
+        guard += 1;
+      }
+      return lastFrame || { id: 0, name: "Canvas Root" };
+    };
+
+    const frameMap = new Map<number, VariableCleanupImpactFrameItem>();
+    for (const entry of plan) {
+      let usages: Array<{ node_id?: number; property?: string }> = [];
+      try {
+        usages = JSON.parse((editor.engine as any).get_variable_usages?.(BigInt(collectionId), BigInt(entry.variable_id)) || "[]");
+      } catch {
+        usages = [];
+      }
+
+      for (const usage of usages) {
+        const nodeId = Number(usage?.node_id ?? 0);
+        if (!(nodeId > 0)) continue;
+        const frame = findTopFrame(nodeId);
+        const key = frame.id;
+        const prev = frameMap.get(key) || {
+          frameId: frame.id,
+          frameName: frame.name,
+          impactCount: 0,
+          styleCount: 0,
+          prototypeCount: 0,
+          severity: "ok" as const,
+        };
+        prev.impactCount += 1;
+        const prop = String(usage?.property || "").toLowerCase();
+        if (prop.includes("style") || prop.includes("token")) prev.styleCount += 1;
+        if (prop.includes("prototype") || prop.includes("interaction") || prop.includes("overlay") || prop.includes("flow")) prev.prototypeCount += 1;
+        frameMap.set(key, prev);
+      }
+    }
+
+    const frames = Array.from(frameMap.values()).map((row) => {
+      let severity: "ok" | "warn" | "critical" = "ok";
+      if (row.impactCount >= 20 || row.prototypeCount >= 6) severity = "critical";
+      else if (row.impactCount >= 8 || row.prototypeCount >= 2) severity = "warn";
+      return { ...row, severity };
+    }).sort((a, b) => b.impactCount - a.impactCount || b.prototypeCount - a.prototypeCount);
+
+    const severity: "ok" | "warn" | "critical" = frames.some((f) => f.severity === "critical")
+      ? "critical"
+      : frames.some((f) => f.severity === "warn")
+        ? "warn"
+        : "ok";
+
+    return {
+      totalImpacts: frames.reduce((sum, row) => sum + row.impactCount, 0),
+      totalFrames: frames.length,
+      severity,
+      frames,
+    };
   };
 
   const hasTypedValue = (valueType: string, value: VarPrimitive | undefined): boolean => {
@@ -1081,6 +1180,39 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
       }
       cleanupQueueCard.appendChild(dryRunCard);
 
+      const budgetPlan = queueForCollection.filter((entry) => {
+        const hasRename = (entry.rename_to || "").trim().length > 0 && (entry.rename_to || "").trim() !== entry.variable_name;
+        const hasMerge = Number(entry.target_variable_id || 0) > 0 && Number(entry.target_variable_id) !== entry.variable_id;
+        return hasRename || hasMerge;
+      });
+      const impactBudget = buildCleanupImpactBudget(col.id, budgetPlan);
+      const budgetCard = document.createElement("div");
+      budgetCard.style.cssText = "margin-bottom:6px;background:#0b1324;border:1px solid #334155;border-radius:4px;padding:6px;display:flex;flex-direction:column;gap:4px;";
+      const budgetTitle = document.createElement("div");
+      const severityLabel = impactBudget.severity === "critical" ? "CRITICAL" : impactBudget.severity === "warn" ? "WARN" : "OK";
+      const severityColor = impactBudget.severity === "critical" ? "#fca5a5" : impactBudget.severity === "warn" ? "#fde68a" : "#86efac";
+      budgetTitle.style.cssText = `font-size:10px;font-weight:700;color:${severityColor};`;
+      budgetTitle.textContent = `Cleanup Impact Budget · ${severityLabel} · frames ${impactBudget.totalFrames} · bindings ${impactBudget.totalImpacts}`;
+      budgetCard.appendChild(budgetTitle);
+      const budgetHint = document.createElement("div");
+      budgetHint.style.cssText = "font-size:10px;color:#93c5fd;";
+      budgetHint.textContent = impactBudget.severity === "critical"
+        ? "critical frame 영향이 감지되어 실행이 잠깁니다. queue를 분할하거나 target을 조정하세요."
+        : impactBudget.severity === "warn"
+          ? "warn frame 영향이 있습니다. 상위 frame 샘플을 먼저 확인하세요."
+          : "budget 안전 범위입니다.";
+      budgetCard.appendChild(budgetHint);
+      if (impactBudget.frames.length > 0) {
+        impactBudget.frames.slice(0, 5).forEach((row) => {
+          const line = document.createElement("div");
+          const rowColor = row.severity === "critical" ? "#fca5a5" : row.severity === "warn" ? "#fde68a" : "#cbd5e1";
+          line.style.cssText = `font-size:10px;color:${rowColor};line-height:1.35;`;
+          line.textContent = `${row.frameName} · impact ${row.impactCount} · style ${row.styleCount} · prototype ${row.prototypeCount} · ${row.severity}`;
+          budgetCard.appendChild(line);
+        });
+      }
+      cleanupQueueCard.appendChild(budgetCard);
+
       const queueList = document.createElement("div");
       queueList.style.cssText = "display:flex;flex-direction:column;gap:4px;max-height:120px;overflow:auto;margin-bottom:6px;";
       for (const item of queueForCollection.slice(0, 18)) {
@@ -1118,6 +1250,11 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
         const latest = readCleanupQueue().filter((entry) => entry.collection_id === col.id);
         const plan = latest.filter((entry) => (entry.rename_to || "").trim().length > 0);
         if (plan.length === 0) return;
+        const budget = buildCleanupImpactBudget(col.id, plan);
+        if (budget.severity === "critical") {
+          alert("Cleanup Impact Budget가 critical입니다. queue를 분할한 뒤 다시 시도하세요.");
+          return;
+        }
         editor.engine.push_undo();
         let changed = 0;
         for (const entry of plan) {
@@ -1137,6 +1274,11 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
         const latest = readCleanupQueue().filter((entry) => entry.collection_id === col.id);
         const plan = latest.filter((entry) => Number(entry.target_variable_id || 0) > 0 && Number(entry.target_variable_id) !== entry.variable_id);
         if (plan.length === 0) return;
+        const budget = buildCleanupImpactBudget(col.id, plan);
+        if (budget.severity === "critical") {
+          alert("Cleanup Impact Budget가 critical입니다. queue를 분할한 뒤 다시 시도하세요.");
+          return;
+        }
         editor.engine.push_undo();
         let rebound = 0;
         let deleted = 0;
@@ -1175,6 +1317,17 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
         refresh();
       };
       queueActions.appendChild(mergeQueueBtn);
+
+      if (impactBudget.severity === "critical") {
+        renameQueueBtn.disabled = true;
+        mergeQueueBtn.disabled = true;
+        renameQueueBtn.style.opacity = "0.5";
+        mergeQueueBtn.style.opacity = "0.5";
+        renameQueueBtn.style.cursor = "not-allowed";
+        mergeQueueBtn.style.cursor = "not-allowed";
+        renameQueueBtn.title = "Cleanup Impact Budget critical";
+        mergeQueueBtn.title = "Cleanup Impact Budget critical";
+      }
 
       const clearQueueBtn = document.createElement("button");
       clearQueueBtn.style.cssText = "background:#3f1d1d;border:1px solid #7f1d1d;border-radius:4px;color:#fecaca;font-size:10px;padding:2px 7px;cursor:pointer;";
