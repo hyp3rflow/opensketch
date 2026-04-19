@@ -47,6 +47,7 @@
 - [x] **Overlay Escape Intent Hints (2026-04-19)**: Prototype overlay 컨텍스트에서 `OnClick/OnPress` hotspot이 `CloseOverlay/Back` 경로를 갖지 않으면 캔버스에 `ESCAPE?` 경고 배지를 표시한다. hotspot hover/키보드 순회 라벨에는 `권장: OnPress → CloseOverlay (Instant)` 템플릿을 함께 노출해 누락된 닫힘 액션을 즉시 보완할 수 있다.
 - [x] **Prototype Overlay Stack Stress Tester (2026-04-19)**: Overlay Stack Inspector에 `Stress: D1-5` 시뮬레이션을 추가해 OpenOverlay 체인을 depth 1~5로 자동 재생한다. 체인 중 `CloseOverlay/Back` exit가 없는 overlay를 찾으면 `D{depth} fail (#id no Close/Back)` 경고를 표시하고, 안전한 경우 `D1-5 pass`로 보고한다.
 - [x] **Overlay Stack Depth Budget Guard (2026-04-20)**: Flow Lint에 `overlay-depth-budget` 이슈를 연결해 frame별 overlay 체인의 최대 depth를 budget(기본 3)과 비교한다. 이슈 detail에 flatten 후보/경로 샘플을 함께 표시하고, `Fix: flatten path` one-click 액션으로 deepest overlay chain을 순차 flatten(단일 undo)할 수 있다.
+- [x] **Overlay Depth Budget Auto-Rewrite Planner (2026-04-20)**: `overlay-depth-budget` 이슈에 frame→overlay 체인 기반 재작성 계획을 자동 제안한다. Planner는 over-budget 구간의 merge 후보(연속 pair), flatten 후보, 예상 영향 노드 수(distinct interaction source nodes)를 함께 계산해 lint detail/카드에 노출한다.
 - [x] **Overlay Return Focus Confidence Meter (2026-04-20)**: Prototype Viewer `Focus Return Map`에서 overlay별 복귀 타겟 신뢰도를 0~100 점수로 표시하고 high/medium/low 등급 미터를 제공한다. CloseOverlay/Back 경로 존재/개수, opener ambiguity, return target keyboard-focusable 여부를 점수에 반영하며 low-confidence route는 경고 사유를 카드에 노출한다.
 - [x] **Keyboard Trigger Coverage Heatmap (2026-04-19)**: Prototype viewer hotspot 오버레이에서 `OnClick` 대비 `OnPress`가 부족한 노드를 radial heatmap으로 표시한다. severity(`clickCount - pressCount`)를 반경/강도로 반영해 키보드 트리거 누락 영역을 프레임 단위로 빠르게 스캔할 수 있고, Flow Coverage 카드에 `Kbd gaps`/`severity` 요약 수치를 함께 제공한다.
 - [x] **Ring Preset Auto-Guard Rules (2026-04-19)**: Prototype Viewer `Start Point Manager`에 `Release mode` + flow별 guard 정책(`Guard off`/`Warn`/`Auto Safe`)을 추가했다. ring preset safety bucket(Safe/Watch/Risky)을 기준으로 릴리즈 모드에서 Safe 미만 preset을 감시하고, `Auto Safe` 정책은 runtime ring을 Default Safe preset으로 자동 정규화한다. hotspot 오버레이 하단에 guard 상태 배지(`warning only`/`auto-normalized`)를 표시한다.
@@ -2863,6 +2864,13 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] depth 초과 경로 샘플(`#A → #B → #C`)과 deepest offender를 함께 기록해 one-click flatten 제안 대상을 더 안정적으로 고정
 - [x] one-click 액션 `Suggest: flatten overlay` 추가: 후보 overlay를 선택 후 `flatten_selection()` 실행
 - [x] lint summary/filter chip/rank 컬러 체계에 `overlay-depth-budget` 집계 통합
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+
+### Overlay Depth Budget Auto-Rewrite Planner (2026-04-20)
+- [x] `overlay-depth-budget` 이슈에 Auto-Rewrite Planner를 연결해 depth 초과 frame→overlay 체인을 계획 형태로 제안
+- [x] 계획 항목: 체인 경로(`Rewrite plan`), merge 후보(연속 over-budget overlay pair), flatten 후보, 예상 영향 노드 수
+- [x] 예상 영향도는 체인에 연결된 interaction source node의 distinct count로 계산해 lint detail(`est impact N node(s)`)에 반영
+- [x] lint 카드 본문에도 planner 라인을 노출해 quick-fix 전에 merge/flatten 우선순위를 바로 검토 가능
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
 
 ### Prototype Viewer Issue Navigator Strip (2026-04-12)

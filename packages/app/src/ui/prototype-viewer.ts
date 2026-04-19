@@ -354,7 +354,7 @@ export function createPrototypeViewer(editor: Editor): {
   const flowPresetCursor = new Map<string, number>();
   const FLOW_OVERLAY_DEPTH_BUDGET = 3;
   type FlowLintIssueType = "unreachable" | "dead-end" | "cycle" | "cycle-trap" | "overlay-leak" | "overlay-key-route" | "overlay-depth-budget" | "orphan-close" | "scroll-leak" | "a11y-missing-label" | "a11y-focus-gap" | "a11y-focus-trap" | "a11y-low-contrast" | "a11y-motion";
-  type FlowLintIssue = { type: FlowLintIssueType; frameId: number; frameName: string; detail: string; overlayId?: number; overlayPath?: number[]; overlayOffenders?: number[]; overlayBudget?: number };
+  type FlowLintIssue = { type: FlowLintIssueType; frameId: number; frameName: string; detail: string; overlayId?: number; overlayPath?: number[]; overlayOffenders?: number[]; overlayBudget?: number; overlayRewritePlan?: string[]; overlayImpactNodeCount?: number };
   type FocusTrapSimIssue = {
     frameId: number;
     frameName: string;
@@ -2048,6 +2048,43 @@ export function createPrototypeViewer(editor: Editor): {
     return rows;
   }
 
+  function buildOverlayDepthRewritePlan(snapshot: { nodes: Array<{ id: number; name: string; x: number; y: number; width: number; height: number }>; edges: Array<{ from: number; to: number; action: string; sourceNodeId: number; interactionIndex: number; conditional: boolean; branchActive: boolean | null; conditionSummary: string }>; }, frameId: number, row: { maxDepth: number; offenders: number[]; pathSample: number[] }, budget: number) {
+    const nodeNameById = new Map(snapshot.nodes.map((n) => [n.id, n.name]));
+    const uniqueChain = Array.from(new Set((row.pathSample || []).filter((id) => id > 0)));
+    const overBudgetChain = uniqueChain.slice(Math.max(0, budget));
+    const offenderIds = Array.from(new Set((row.offenders || []).filter((id) => id > 0)));
+    const flattenCandidates = overBudgetChain.length > 0 ? overBudgetChain : offenderIds;
+
+    const mergeCandidates: Array<[number, number]> = [];
+    for (let i = 0; i < overBudgetChain.length - 1; i += 1) {
+      mergeCandidates.push([overBudgetChain[i], overBudgetChain[i + 1]]);
+    }
+
+    const impactNodeSet = new Set<number>();
+    const chainSet = new Set<number>([frameId, ...uniqueChain]);
+    for (const edge of snapshot.edges) {
+      if (chainSet.has(edge.from) || chainSet.has(edge.to)) {
+        if (edge.sourceNodeId > 0) impactNodeSet.add(edge.sourceNodeId);
+      }
+    }
+
+    const chainLabel = uniqueChain.map((id) => `#${id}`).join(" → ");
+    const flattenLabel = flattenCandidates.map((id) => `#${id}`).join(", ");
+    const mergeLabel = mergeCandidates.slice(0, 3).map(([from, to]) => `#${from}+ #${to}`).join(", ");
+
+    const lines: string[] = [];
+    lines.push(`Rewrite plan: #${frameId}${chainLabel ? ` → ${chainLabel}` : ""}`);
+    if (mergeCandidates.length > 0) {
+      lines.push(`- Merge candidate: ${mergeLabel}${mergeCandidates.length > 3 ? " …" : ""}`);
+    }
+    if (flattenCandidates.length > 0) {
+      lines.push(`- Flatten candidate: ${flattenLabel}`);
+    }
+    lines.push(`- Est. impact nodes: ${impactNodeSet.size}`);
+
+    return { lines, impactNodeCount: impactNodeSet.size, flattenCandidates, mergeCandidates };
+  }
+
   function collectOverlayRouteCoverageRows(snapshotInput?: { nodes: Array<{ id: number; name: string; x: number; y: number; width: number; height: number }>; edges: Array<{ from: number; to: number; action: string; sourceNodeId: number; interactionIndex: number; conditional: boolean; branchActive: boolean | null; conditionSummary: string }>; }) {
     const snapshot = snapshotInput || flowMinimapSnapshot;
     if (!snapshot) return [] as Array<{ frameId: number; frameName: string; overlayId: number; overlayName: string; openCount: number; maxDepth: number; closeCovered: boolean; conditionalOnly: boolean }>;
@@ -2922,6 +2959,11 @@ export function createPrototypeViewer(editor: Editor): {
       if (depthBudget && overlayGuardPreset.includeDepthBudget) {
         const offenderLabel = depthBudget.offenders.slice(0, 3).map((id) => `#${id}`).join(", ");
         const pathLabel = depthBudget.pathSample.length > 0 ? depthBudget.pathSample.map((id) => `#${id}`).join(" → ") : "";
+        const rewritePlan = buildOverlayDepthRewritePlan(snapshot, node.id, {
+          maxDepth: depthBudget.maxDepth,
+          offenders: depthBudget.offenders,
+          pathSample: depthBudget.pathSample,
+        }, FLOW_OVERLAY_DEPTH_BUDGET);
         issues.push({
           type: "overlay-depth-budget",
           frameId: node.id,
@@ -2930,7 +2972,9 @@ export function createPrototypeViewer(editor: Editor): {
           overlayPath: depthBudget.pathSample,
           overlayOffenders: depthBudget.offenders,
           overlayBudget: FLOW_OVERLAY_DEPTH_BUDGET,
-          detail: `Overlay depth ${depthBudget.maxDepth} exceeds budget(${FLOW_OVERLAY_DEPTH_BUDGET})${offenderLabel ? ` · flatten candidate ${offenderLabel}` : ""}${pathLabel ? ` · path ${pathLabel}` : ""}`,
+          overlayRewritePlan: rewritePlan.lines,
+          overlayImpactNodeCount: rewritePlan.impactNodeCount,
+          detail: `Overlay depth ${depthBudget.maxDepth} exceeds budget(${FLOW_OVERLAY_DEPTH_BUDGET})${offenderLabel ? ` · flatten candidate ${offenderLabel}` : ""}${pathLabel ? ` · path ${pathLabel}` : ""}${rewritePlan.impactNodeCount > 0 ? ` · est impact ${rewritePlan.impactNodeCount} node(s)` : ""}`,
         });
       }
 
@@ -3283,6 +3327,12 @@ export function createPrototypeViewer(editor: Editor): {
         row.appendChild(fixBtn);
       }
       if (issue.type === "overlay-depth-budget" && issue.overlayId && issue.overlayId > 0) {
+        if (issue.overlayRewritePlan && issue.overlayRewritePlan.length > 0) {
+          const planMeta = document.createElement("div");
+          planMeta.style.cssText = "margin-top:4px;font-size:9px;line-height:1.35;color:#c4b5fd;white-space:normal;";
+          planMeta.innerHTML = issue.overlayRewritePlan.map((line) => `<div>${line}</div>`).join("");
+          row.appendChild(planMeta);
+        }
         const flattenTargets = Array.from(new Set([...(issue.overlayPath || []), issue.overlayId].filter((id): id is number => Number(id) > 0)));
         const fixBtn = document.createElement("button");
         fixBtn.style.cssText = "margin-top:4px;background:#4c1d95;border:1px solid #a78bfa;border-radius:4px;color:#ede9fe;font-size:9px;padding:2px 6px;cursor:pointer;";
