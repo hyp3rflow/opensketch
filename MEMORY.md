@@ -1790,10 +1790,16 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Ring Preset Auto-Guard Rules — 릴리즈 모드에서 Safe 미만 preset 사용 시 자동 guard/경고 정책을 flow별로 설정 (임팩트 중, 난이도 중)
 - Prototype Return Trace Replay — OpenOverlay→CloseOverlay 체인을 step-by-step 재생해 포커스 복귀 대상/순서를 타임라인으로 검증 (임팩트 중, 난이도 중)
 - Variable Cleanup Impact Budget — queue rename/merge 실행 전 frame별 영향도 budget(critical/warn)을 계산해 과도 변경 차단 (임팩트 중, 난이도 중상)
 - Auto Layout Constraint Preset Library — 자주 쓰는 constraints+sizing 조합을 preset으로 저장/적용 (임팩트 중, 난이도 중)
+
+## 완료된 기능 (추가 — Ring Preset Auto-Guard Rules, 2026-04-19)
+- Prototype Viewer `Start Point Manager`에 `Release mode` 토글 + flow별 guard 정책(`Guard off`/`Warn`/`Auto Safe`)을 추가
+- Safe bucket 미만(Watch/Risky) preset을 릴리즈 모드에서 자동 감시하고, `Auto Safe` 정책일 때는 runtime ring을 Default Safe preset으로 강제 정규화
+- hotspot overlay 하단에 guard 상태 배지(`warning only`/`auto-normalized`)를 렌더링해 현재 flow의 ring 안전 정책 적용 여부를 즉시 확인
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Keyboard Trigger Coverage Heatmap, 2026-04-19)
 - Prototype viewer hotspot 오버레이에 keyboard trigger 누락(OnClick 대비 OnPress 부족) 영역을 radial heatmap으로 시각화

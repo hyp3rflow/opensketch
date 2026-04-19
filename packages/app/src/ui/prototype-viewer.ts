@@ -15,6 +15,8 @@ type PrototypeRingPreset = {
 const PROTOTYPE_RING_PRESET_KEY = "opensketch-prototype-ring-presets-v1";
 const PROTOTYPE_RING_ACTIVE_PRESET_KEY = "opensketch-prototype-ring-active-preset-id";
 const PROTOTYPE_RING_FLOW_OVERRIDE_KEY = "opensketch-prototype-ring-flow-overrides-v1";
+const PROTOTYPE_RING_RELEASE_MODE_KEY = "opensketch-prototype-ring-release-mode-v1";
+const PROTOTYPE_RING_GUARD_POLICY_KEY = "opensketch-prototype-ring-guard-policy-v1";
 const INTERACTIVE_PREVIEW_EVENT = "opensketch:interactive-preview-state";
 const PROTOTYPE_FLOW_ENTRY_PRESETS_KEY = "opensketch-proto-flow-entry-presets-v1";
 const PROTOTYPE_KEYBOARD_ORDER_KEY = "opensketch-proto-keyboard-order-v1";
@@ -22,6 +24,8 @@ const PROTOTYPE_REDUCED_MOTION_KEY = "opensketch-prototype-reduced-motion-v1";
 const PROTOTYPE_SCROLL_LOCK_REGIONS_KEY = "opensketch-prototype-scroll-lock-regions-v1";
 
 type FlowEntryPreset = { frameId: number; label: string; pageId?: number };
+type RingPresetSafetyBucket = "safe" | "watch" | "risky";
+type RingGuardPolicy = "off" | "warn" | "enforce-safe";
 
 const DEFAULT_RING_PRESET: PrototypeRingPreset = {
   id: "default",
@@ -204,6 +208,40 @@ function saveRingFlowOverrides(map: Record<string, string>) {
   } catch {}
 }
 
+function classifyRingPresetSafety(preset: PrototypeRingPreset): RingPresetSafetyBucket {
+  const widths = [preset.hover.width, preset.press.width, preset.focus.width].map((v) => Number(v) || 0);
+  const radii = [preset.hover.radius, preset.press.radius, preset.focus.radius].map((v) => Number(v) || 0);
+  const maxWidth = Math.max(...widths, 0);
+  const maxRadius = Math.max(...radii, 0);
+  if (maxWidth <= 4 && maxRadius <= 12) return "safe";
+  if (maxWidth <= 6 && maxRadius <= 18) return "watch";
+  return "risky";
+}
+
+function loadRingGuardPolicies(): Record<string, RingGuardPolicy> {
+  try {
+    const raw = localStorage.getItem(PROTOTYPE_RING_GUARD_POLICY_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    if (!parsed || typeof parsed !== "object") return {};
+    const out: Record<string, RingGuardPolicy> = {};
+    for (const [k, v] of Object.entries(parsed)) {
+      const flowId = Number(k);
+      if (!flowId || flowId <= 0) continue;
+      const policy = String(v || "off") as RingGuardPolicy;
+      if (policy === "off" || policy === "warn" || policy === "enforce-safe") out[String(flowId)] = policy;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+function saveRingGuardPolicies(map: Record<string, RingGuardPolicy>) {
+  try {
+    localStorage.setItem(PROTOTYPE_RING_GUARD_POLICY_KEY, JSON.stringify(map));
+  } catch {}
+}
+
 function loadActivePrototypeRingPreset(flowId?: number | null): PrototypeRingPreset {
   const presets = loadPrototypeRingPresets();
   const flowOverrides = loadRingFlowOverrides();
@@ -331,6 +369,8 @@ export function createPrototypeViewer(editor: Editor): {
   const interactiveVisualState = new Map<number, "hover" | "press" | "focus">();
   let keyboardOrderMap = loadKeyboardOrderMap();
   let reducedMotionPreview = localStorage.getItem(PROTOTYPE_REDUCED_MOTION_KEY) === "1";
+  let ringReleaseMode = localStorage.getItem(PROTOTYPE_RING_RELEASE_MODE_KEY) === "1";
+  let ringGuardPolicies = loadRingGuardPolicies();
   let scrollLockRegions = loadScrollLockRegions();
   const coverageFrameVisits = new Map<number, number>();
   const coverageHotspotHits = new Map<number, Set<string>>();
@@ -435,6 +475,16 @@ export function createPrototypeViewer(editor: Editor): {
     } catch {
       return null;
     }
+  }
+
+  function resolveRingPresetForFlow(flowId: number | null): { preset: PrototypeRingPreset; bucket: RingPresetSafetyBucket; policy: RingGuardPolicy; forcedSafe: boolean } {
+    const base = loadActivePrototypeRingPreset(flowId);
+    const bucket = classifyRingPresetSafety(base);
+    const policy: RingGuardPolicy = flowId && flowId > 0 ? (ringGuardPolicies[String(flowId)] || "off") : "off";
+    if (!ringReleaseMode || policy !== "enforce-safe" || bucket === "safe") {
+      return { preset: base, bucket, policy, forcedSafe: false };
+    }
+    return { preset: { ...DEFAULT_RING_PRESET }, bucket, policy, forcedSafe: true };
   }
 
   function buildShareState(): PrototypeShareState {
@@ -1093,11 +1143,20 @@ export function createPrototypeViewer(editor: Editor): {
     }
     if (selectedFlow) flowStartFrameSel.value = String(selectedFlow.start_frame_id || 0);
 
+    const guardPolicySel = flowStartWrap.querySelector('[data-role="ring-guard-policy"]') as HTMLSelectElement | null;
+    const releaseCheck = flowStartWrap.querySelector('[data-role="ring-release-check"]') as HTMLInputElement | null;
+    if (releaseCheck) releaseCheck.checked = ringReleaseMode;
+    if (guardPolicySel) {
+      guardPolicySel.disabled = !selectedFlowId;
+      guardPolicySel.value = selectedFlowId ? (ringGuardPolicies[String(selectedFlowId)] || "off") : "off";
+    }
+
     if (!selectedFlow) {
       flowStartInfo.textContent = "No flows yet. Add a flow in Prototype settings.";
     } else {
       const frameName = frames.find((f) => f.id === selectedFlow.start_frame_id)?.name || "None";
-      flowStartInfo.textContent = `Flow #${selectedFlow.id} · Page #${pageId} · Start: ${frameName}`;
+      const guardPolicy = ringGuardPolicies[String(selectedFlow.id)] || "off";
+      flowStartInfo.textContent = `Flow #${selectedFlow.id} · Page #${pageId} · Start: ${frameName} · Guard: ${ringReleaseMode ? guardPolicy : "preview"}`;
     }
 
     const presetList = flowStartWrap.querySelector('[data-role="flow-entry-presets"]') as HTMLDivElement | null;
@@ -1879,9 +1938,17 @@ export function createPrototypeViewer(editor: Editor): {
 
   function collectEscapeRouteRows(snapshotInput?: { nodes: Array<{ id: number; name: string; x: number; y: number; width: number; height: number }>; edges: Array<{ from: number; to: number; action: string; sourceNodeId: number; interactionIndex: number; conditional: boolean; branchActive: boolean | null; conditionSummary: string }>; }) {
     const snapshot = snapshotInput || flowMinimapSnapshot;
-    if (!snapshot) return [] as Array<{ frameId: number; frameName: string; overlayId: number; overlayName: string; routeSummary: string; trapped: boolean }>;
+    if (!snapshot) return [] as Array<{ frameId: number; frameName: string; overlayId: number; overlayName: string; routeSummary: string; escRouteSummary: string; backRouteSummary: string; trapped: boolean; missingEsc: boolean; missingBack: boolean }>;
     const frameById = new Map(snapshot.nodes.map((n) => [n.id, n]));
-    const rows: Array<{ frameId: number; frameName: string; overlayId: number; overlayName: string; routeSummary: string; trapped: boolean }> = [];
+    const rows: Array<{ frameId: number; frameName: string; overlayId: number; overlayName: string; routeSummary: string; escRouteSummary: string; backRouteSummary: string; trapped: boolean; missingEsc: boolean; missingBack: boolean }> = [];
+
+    const summarize = (edge: { action: string; to: number } | null, openerFrameId: number) => {
+      if (!edge) return "missing";
+      if (edge.action === "CloseOverlay") return `CloseOverlay → #${openerFrameId}`;
+      if (edge.action === "Back") return edge.to > 0 ? `Back → #${edge.to}` : `Back → #${openerFrameId}`;
+      if (edge.action === "NavigateTo") return edge.to > 0 ? `NavigateTo → #${edge.to}` : "NavigateTo";
+      return `${edge.action}${edge.to > 0 ? ` → #${edge.to}` : ""}`;
+    };
 
     for (const edge of snapshot.edges) {
       if (edge.action !== "OpenOverlay" || edge.to <= 0) continue;
@@ -1890,6 +1957,8 @@ export function createPrototypeViewer(editor: Editor): {
       if (!frame || !overlay) continue;
       const exits = snapshot.edges.filter((next) => next.from === edge.to && (next.action === "CloseOverlay" || next.action === "Back" || next.action === "NavigateTo"));
       const escapeExits = exits.filter((next) => next.action === "CloseOverlay" || next.action === "Back");
+      const escRoute = exits.find((next) => next.action === "CloseOverlay") || exits.find((next) => next.action === "Back") || null;
+      const backRoute = exits.find((next) => next.action === "Back") || exits.find((next) => next.action === "CloseOverlay") || null;
       const routeSummary = exits.length > 0
         ? exits.slice(0, 3).map((next) => `${next.action}${next.to > 0 ? `→#${next.to}` : ""}`).join(" · ")
         : "No exits";
@@ -1899,12 +1968,18 @@ export function createPrototypeViewer(editor: Editor): {
         overlayId: overlay.id,
         overlayName: overlay.name,
         routeSummary,
+        escRouteSummary: summarize(escRoute, frame.id),
+        backRouteSummary: summarize(backRoute, frame.id),
         trapped: escapeExits.length === 0,
+        missingEsc: !escRoute,
+        missingBack: !exits.some((next) => next.action === "Back"),
       });
     }
 
     rows.sort((a, b) => {
-      if (a.trapped !== b.trapped) return a.trapped ? -1 : 1;
+      const scoreA = (a.trapped ? 4 : 0) + (a.missingEsc ? 2 : 0) + (a.missingBack ? 1 : 0);
+      const scoreB = (b.trapped ? 4 : 0) + (b.missingEsc ? 2 : 0) + (b.missingBack ? 1 : 0);
+      if (scoreA !== scoreB) return scoreB - scoreA;
       return a.frameId - b.frameId;
     });
     return rows;
@@ -1919,21 +1994,39 @@ export function createPrototypeViewer(editor: Editor): {
       return;
     }
     const trapCount = rows.filter((row) => row.trapped).length;
-    escapeRouteInfo.textContent = `Routes ${rows.length} · Trap branch ${trapCount}`;
+    const warnCount = rows.filter((row) => row.missingEsc || row.missingBack).length;
+    escapeRouteInfo.textContent = `Routes ${rows.length} · Trap ${trapCount} · Missing key route ${warnCount}`;
     escapeRouteList.innerHTML = "";
 
     for (const row of rows.slice(0, 10)) {
+      const warn = row.trapped || row.missingEsc || row.missingBack;
       const card = document.createElement("div");
-      card.style.cssText = `display:flex;flex-direction:column;gap:4px;border:1px solid ${row.trapped ? "rgba(248,113,113,0.45)" : "rgba(148,163,184,0.3)"};border-radius:6px;padding:6px;background:rgba(15,23,42,0.45);`;
+      card.style.cssText = `display:flex;flex-direction:column;gap:4px;border:1px solid ${warn ? "rgba(248,113,113,0.45)" : "rgba(148,163,184,0.3)"};border-radius:6px;padding:6px;background:rgba(15,23,42,0.45);`;
       const title = document.createElement("div");
       title.style.cssText = "font-size:10px;color:#e2e8f0;line-height:1.35;";
       title.textContent = `${row.frameName} → ${row.overlayName}`;
       card.appendChild(title);
 
       const meta = document.createElement("div");
-      meta.style.cssText = "font-size:9px;color:#93c5fd;";
-      meta.textContent = row.routeSummary;
+      meta.style.cssText = "font-size:9px;color:#93c5fd;line-height:1.35;";
+      meta.textContent = `Esc: ${row.escRouteSummary} | Back: ${row.backRouteSummary}`;
       card.appendChild(meta);
+
+      const summary = document.createElement("div");
+      summary.style.cssText = "font-size:9px;color:#cbd5e1;line-height:1.35;";
+      summary.textContent = row.routeSummary;
+      card.appendChild(summary);
+
+      if (warn) {
+        const warnText = document.createElement("div");
+        warnText.style.cssText = "font-size:9px;color:#fca5a5;line-height:1.35;";
+        const parts = [] as string[];
+        if (row.trapped) parts.push("no CloseOverlay/Back exit");
+        if (row.missingEsc) parts.push("Esc route missing");
+        if (row.missingBack) parts.push("Back route missing");
+        warnText.textContent = `⚠ ${parts.join(" · ")}`;
+        card.appendChild(warnText);
+      }
 
       const btnRow = document.createElement("div");
       btnRow.style.cssText = "display:flex;gap:4px;";
@@ -1944,10 +2037,10 @@ export function createPrototypeViewer(editor: Editor): {
       jumpBtn.onclick = () => navigateTo(row.frameId, "Instant", 0, "linear");
       btnRow.appendChild(jumpBtn);
 
-      if (row.trapped) {
+      if (row.trapped || row.missingEsc || row.missingBack) {
         const fixBtn = document.createElement("button");
         fixBtn.className = "prop-btn";
-        fixBtn.textContent = "Fix trap";
+        fixBtn.textContent = "Fix route";
         fixBtn.style.cssText = "flex:1;font-size:10px;padding:3px 6px;color:#fca5a5;border-color:rgba(248,113,113,0.5);";
         fixBtn.onclick = () => {
           const changed = applyFocusTrapFix({
@@ -1957,12 +2050,17 @@ export function createPrototypeViewer(editor: Editor): {
             overlayName: row.overlayName,
             keyboardHotspots: listFocusableHotspots(row.overlayId).length,
             missingClosePath: true,
+            noKeyboardHotspots: false,
             leaksOutside: false,
-            trappedInLoop: true,
+            trappedInLoop: row.trapped,
+            shiftTabTrapped: false,
             simulatedTabSteps: 0,
+            simulatedShiftTabSteps: 0,
+            tabTrace: [],
+            shiftTabTrace: [],
           });
           fixBtn.textContent = changed ? "Fixed" : "No-op";
-          window.setTimeout(() => { fixBtn.textContent = "Fix trap"; }, 1100);
+          window.setTimeout(() => { fixBtn.textContent = "Fix route"; }, 1100);
           if (changed) {
             editor.requestRender();
             renderFlowLint();
@@ -3110,8 +3208,8 @@ export function createPrototypeViewer(editor: Editor): {
         const pressRatio = contrastRatio(parseColorToRgb(preset.press.color) || frameBg, frameBg);
         const focusRatio = contrastRatio(parseColorToRgb(preset.focus.color) || frameBg, frameBg);
         const minRatio = Math.min(hoverRatio, pressRatio, focusRatio);
-        const badge = minRatio >= 3 ? "Safe" : (minRatio >= 2.3 ? "Warn" : "Risk");
-        const badgeColor = badge === "Safe" ? "#22c55e" : (badge === "Warn" ? "#f59e0b" : "#ef4444");
+        const badge = minRatio >= 3 ? "Safe" : (minRatio >= 2.3 ? "Watch" : "Risky");
+        const badgeColor = badge === "Safe" ? "#22c55e" : (badge === "Watch" ? "#f59e0b" : "#ef4444");
 
         const title = document.createElement("div");
         title.style.cssText = "display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:10px;color:#e2e8f0;";
@@ -3386,6 +3484,54 @@ export function createPrototypeViewer(editor: Editor): {
     flowStartInfo.style.cssText = "font-size:10px;color:#94a3b8;line-height:1.35;";
     flowStartWrap.appendChild(flowStartInfo);
 
+    const ringGuardRow = document.createElement("div");
+    ringGuardRow.style.cssText = "display:flex;gap:6px;align-items:center;";
+    const ringReleaseLabel = document.createElement("label");
+    ringReleaseLabel.style.cssText = "display:flex;align-items:center;gap:4px;font-size:10px;color:#fef08a;";
+    const ringReleaseCheck = document.createElement("input");
+    ringReleaseCheck.type = "checkbox";
+    ringReleaseCheck.dataset.role = "ring-release-check";
+    ringReleaseCheck.checked = ringReleaseMode;
+    ringReleaseLabel.appendChild(ringReleaseCheck);
+    ringReleaseLabel.appendChild(document.createTextNode("Release mode"));
+    const ringPolicySel = document.createElement("select");
+    ringPolicySel.dataset.role = "ring-guard-policy";
+    ringPolicySel.style.cssText = "flex:1;background:#0f172a;color:#fde68a;border:1px solid rgba(250,204,21,0.32);border-radius:6px;padding:3px 6px;font-size:10px;";
+    for (const [value, label] of [["off", "Guard off"], ["warn", "Warn"], ["enforce-safe", "Auto Safe"]]) {
+      const opt = document.createElement("option");
+      opt.value = value;
+      opt.textContent = label;
+      ringPolicySel.appendChild(opt);
+    }
+    ringGuardRow.appendChild(ringReleaseLabel);
+    ringGuardRow.appendChild(ringPolicySel);
+    flowStartWrap.appendChild(ringGuardRow);
+
+    const syncRingGuardControls = () => {
+      const flowId = Number(flowStartFlowSel?.value || 0);
+      ringReleaseCheck.checked = ringReleaseMode;
+      ringPolicySel.disabled = !flowId;
+      ringPolicySel.value = flowId > 0 ? (ringGuardPolicies[String(flowId)] || "off") : "off";
+    };
+
+    ringReleaseCheck.addEventListener("change", () => {
+      ringReleaseMode = !!ringReleaseCheck.checked;
+      try { localStorage.setItem(PROTOTYPE_RING_RELEASE_MODE_KEY, ringReleaseMode ? "1" : "0"); } catch {}
+      renderFlowStartManager();
+      renderCurrentView();
+    });
+
+    ringPolicySel.addEventListener("change", () => {
+      const flowId = Number(flowStartFlowSel?.value || 0);
+      if (!flowId) return;
+      const next = ringPolicySel.value as RingGuardPolicy;
+      ringGuardPolicies[String(flowId)] = next;
+      saveRingGuardPolicies(ringGuardPolicies);
+      renderFlowStartManager();
+      renderCurrentView();
+    });
+    syncRingGuardControls();
+
     const presetBtnRow = document.createElement("div");
     presetBtnRow.style.cssText = "display:flex;gap:6px;";
     const savePresetBtn = document.createElement("button");
@@ -3559,7 +3705,7 @@ export function createPrototypeViewer(editor: Editor): {
     escapeRouteWrap.style.cssText = "position:absolute;left:14px;top:1050px;width:220px;max-height:200px;overflow:auto;background:rgba(15,23,42,0.92);border:1px solid rgba(248,113,113,0.35);border-radius:10px;padding:8px;z-index:4;display:flex;flex-direction:column;gap:6px;";
     const escapeRouteHead = document.createElement("div");
     escapeRouteHead.style.cssText = "font-size:11px;font-weight:600;color:#fecaca;";
-    escapeRouteHead.textContent = "Overlay Escape Route Map";
+    escapeRouteHead.textContent = "Overlay Escape Key Route Inspector";
     escapeRouteWrap.appendChild(escapeRouteHead);
     escapeRouteInfo = document.createElement("div");
     escapeRouteInfo.style.cssText = "font-size:10px;color:#fca5a5;line-height:1.35;";
@@ -5120,7 +5266,9 @@ export function createPrototypeViewer(editor: Editor): {
     const orderedFocusable = listFocusableHotspots(currentFrameId);
     const orderRank = new Map<string, number>();
     orderedFocusable.forEach((item, idx) => orderRank.set(item.key, idx + 1));
-    const ringPreset = loadActivePrototypeRingPreset(detectFlowIdForFrame(currentFrameId));
+    const flowId = detectFlowIdForFrame(currentFrameId);
+    const ringGuard = resolveRingPresetForFlow(flowId);
+    const ringPreset = ringGuard.preset;
 
     ctx.save();
     for (const nwi of nodesWithInter) {
@@ -5298,6 +5446,25 @@ export function createPrototypeViewer(editor: Editor): {
           ctx.fillText("👆 " + gestureLabel, x + 4, y + 14);
         }
       }
+    }
+    if (ringReleaseMode && flowId && flowId > 0 && ringGuard.bucket !== "safe" && ringGuard.policy !== "off") {
+      const msg = ringGuard.forcedSafe
+        ? `Release guard: ${ringGuard.bucket} preset auto-normalized to Safe`
+        : `Release guard: ${ringGuard.bucket} preset (warning only)`;
+      ctx.save();
+      ctx.setLineDash([]);
+      ctx.font = "10px sans-serif";
+      const padX = 6;
+      const padY = 4;
+      const w = ctx.measureText(msg).width + padX * 2;
+      const h = 16;
+      const x = 10;
+      const y = Math.max(34, (viewCanvas?.height || 0) - h - 10);
+      ctx.fillStyle = ringGuard.forcedSafe ? "rgba(185,28,28,0.92)" : "rgba(180,83,9,0.9)";
+      ctx.fillRect(x, y, w, h);
+      ctx.fillStyle = "#fef2f2";
+      ctx.fillText(msg, x + padX, y + h - padY);
+      ctx.restore();
     }
     ctx.restore();
   }
