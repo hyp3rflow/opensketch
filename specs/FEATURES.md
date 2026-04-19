@@ -3005,3 +3005,20 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] alias 토큰 여부를 함께 표시해 삭제/병합 전 영향도 파악 속도 개선
 - [x] summary에 `dead N / total candidates N` 집계를 표시해 정리 범위를 즉시 확인
 - 구현: `packages/app/src/ui/variables-panel.ts`
+
+### Overlay Escape Key Route Inspector (2026-04-19)
+- [x] Prototype Viewer `Escape Route Map`에 overlay별 `Esc sim` / `Back sim` 경로 시뮬레이션 텍스트 추가
+- [x] OpenOverlay 기준으로 Esc/Back 우선 경로를 최대 4 step 추적해 루프/누락 시 `⚠` 경고 표기
+- [x] Flow Lint에 `overlay-key-route` 규칙 추가
+  - no close/back exit
+  - Esc route missing
+  - Back route missing
+- [x] Flow Lint 요약/필터/정렬/이슈 색상에 신규 규칙 반영
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+
+### Prototype Return Trace Replay (2026-04-19)
+- [x] Prototype Focus Return Map 카드에 OpenOverlay→Overlay active→Close/Back→Return target 4-step 타임라인 추가
+- [x] route별 `Replay` 버튼으로 step-by-step 이동 재생(프레임→오버레이→복귀) 지원
+- [x] 재생 종료 시 계산된 return target(origin hotspot 우선, 없으면 fallback)을 selection 하이라이트
+- [x] return candidate 표기를 기존 close path 메타와 통합해 누락 시나리오를 즉시 검증 가능
+- 구현: `packages/app/src/ui/prototype-viewer.ts`

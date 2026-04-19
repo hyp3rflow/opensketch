@@ -288,7 +288,7 @@ export function createPrototypeViewer(editor: Editor): {
   let flowStartFrameSel: HTMLSelectElement | null = null;
   let flowStartInfo: HTMLDivElement | null = null;
   const flowPresetCursor = new Map<string, number>();
-  type FlowLintIssueType = "unreachable" | "dead-end" | "cycle" | "cycle-trap" | "overlay-leak" | "orphan-close" | "scroll-leak" | "a11y-missing-label" | "a11y-focus-gap" | "a11y-focus-trap" | "a11y-low-contrast" | "a11y-motion";
+  type FlowLintIssueType = "unreachable" | "dead-end" | "cycle" | "cycle-trap" | "overlay-leak" | "overlay-key-route" | "orphan-close" | "scroll-leak" | "a11y-missing-label" | "a11y-focus-gap" | "a11y-focus-trap" | "a11y-low-contrast" | "a11y-motion";
   type FlowLintIssue = { type: FlowLintIssueType; frameId: number; frameName: string; detail: string; overlayId?: number };
   type FocusTrapSimIssue = {
     frameId: number;
@@ -1938,9 +1938,9 @@ export function createPrototypeViewer(editor: Editor): {
 
   function collectEscapeRouteRows(snapshotInput?: { nodes: Array<{ id: number; name: string; x: number; y: number; width: number; height: number }>; edges: Array<{ from: number; to: number; action: string; sourceNodeId: number; interactionIndex: number; conditional: boolean; branchActive: boolean | null; conditionSummary: string }>; }) {
     const snapshot = snapshotInput || flowMinimapSnapshot;
-    if (!snapshot) return [] as Array<{ frameId: number; frameName: string; overlayId: number; overlayName: string; routeSummary: string; escRouteSummary: string; backRouteSummary: string; trapped: boolean; missingEsc: boolean; missingBack: boolean }>;
+    if (!snapshot) return [] as Array<{ frameId: number; frameName: string; overlayId: number; overlayName: string; routeSummary: string; escRouteSummary: string; backRouteSummary: string; escSimSummary: string; backSimSummary: string; trapped: boolean; missingEsc: boolean; missingBack: boolean }>;
     const frameById = new Map(snapshot.nodes.map((n) => [n.id, n]));
-    const rows: Array<{ frameId: number; frameName: string; overlayId: number; overlayName: string; routeSummary: string; escRouteSummary: string; backRouteSummary: string; trapped: boolean; missingEsc: boolean; missingBack: boolean }> = [];
+    const rows: Array<{ frameId: number; frameName: string; overlayId: number; overlayName: string; routeSummary: string; escRouteSummary: string; backRouteSummary: string; escSimSummary: string; backSimSummary: string; trapped: boolean; missingEsc: boolean; missingBack: boolean }> = [];
 
     const summarize = (edge: { action: string; to: number } | null, openerFrameId: number) => {
       if (!edge) return "missing";
@@ -1948,6 +1948,47 @@ export function createPrototypeViewer(editor: Editor): {
       if (edge.action === "Back") return edge.to > 0 ? `Back → #${edge.to}` : `Back → #${openerFrameId}`;
       if (edge.action === "NavigateTo") return edge.to > 0 ? `NavigateTo → #${edge.to}` : "NavigateTo";
       return `${edge.action}${edge.to > 0 ? ` → #${edge.to}` : ""}`;
+    };
+
+    const simulateKeyRoute = (mode: "esc" | "back", openerFrameId: number, overlayId: number) => {
+      const trace: string[] = [];
+      let cursor = overlayId;
+      const seen = new Set<number>();
+      for (let step = 0; step < 4; step += 1) {
+        if (seen.has(cursor)) {
+          trace.push(`#${cursor} loop`);
+          break;
+        }
+        seen.add(cursor);
+        const exits = snapshot.edges.filter((next) => next.from === cursor && (next.action === "CloseOverlay" || next.action === "Back" || next.action === "NavigateTo"));
+        const primary = mode === "esc"
+          ? (exits.find((next) => next.action === "CloseOverlay") || exits.find((next) => next.action === "Back") || null)
+          : (exits.find((next) => next.action === "Back") || exits.find((next) => next.action === "CloseOverlay") || null);
+        if (!primary) {
+          trace.push(`#${cursor} missing`);
+          break;
+        }
+        if (primary.action === "CloseOverlay") {
+          trace.push(`#${cursor} CloseOverlay→#${openerFrameId}`);
+          if (openerFrameId === cursor) break;
+          cursor = openerFrameId;
+          if (cursor === openerFrameId) break;
+          continue;
+        }
+        if (primary.action === "Back") {
+          const target = primary.to > 0 ? primary.to : openerFrameId;
+          trace.push(`#${cursor} Back→#${target}`);
+          cursor = target;
+          if (cursor === openerFrameId) break;
+          continue;
+        }
+        const target = primary.to > 0 ? primary.to : openerFrameId;
+        trace.push(`#${cursor} NavigateTo→#${target}`);
+        cursor = target;
+        if (cursor === openerFrameId) break;
+      }
+      const reachedOrigin = cursor === openerFrameId;
+      return reachedOrigin ? trace.join(" | ") : `${trace.join(" | ")} ⚠`;
     };
 
     for (const edge of snapshot.edges) {
@@ -1970,6 +2011,8 @@ export function createPrototypeViewer(editor: Editor): {
         routeSummary,
         escRouteSummary: summarize(escRoute, frame.id),
         backRouteSummary: summarize(backRoute, frame.id),
+        escSimSummary: simulateKeyRoute("esc", frame.id, overlay.id),
+        backSimSummary: simulateKeyRoute("back", frame.id, overlay.id),
         trapped: escapeExits.length === 0,
         missingEsc: !escRoute,
         missingBack: !exits.some((next) => next.action === "Back"),
@@ -2016,6 +2059,16 @@ export function createPrototypeViewer(editor: Editor): {
       summary.style.cssText = "font-size:9px;color:#cbd5e1;line-height:1.35;";
       summary.textContent = row.routeSummary;
       card.appendChild(summary);
+
+      const simMeta = document.createElement("div");
+      simMeta.style.cssText = "font-size:9px;color:#a5b4fc;line-height:1.35;";
+      simMeta.textContent = `Esc sim: ${row.escSimSummary}`;
+      card.appendChild(simMeta);
+
+      const backSimMeta = document.createElement("div");
+      backSimMeta.style.cssText = "font-size:9px;color:#a5b4fc;line-height:1.35;";
+      backSimMeta.textContent = `Back sim: ${row.backSimSummary}`;
+      card.appendChild(backSimMeta);
 
       if (warn) {
         const warnText = document.createElement("div");
@@ -2076,7 +2129,7 @@ export function createPrototypeViewer(editor: Editor): {
 
   function collectFocusReturnRows(snapshotInput?: { nodes: Array<{ id: number; name: string; x: number; y: number; width: number; height: number }>; edges: Array<{ from: number; to: number; action: string; sourceNodeId: number; interactionIndex: number; conditional: boolean; branchActive: boolean | null; conditionSummary: string }>; }) {
     const snapshot = snapshotInput || flowMinimapSnapshot;
-    if (!snapshot) return [] as Array<{ frameId: number; frameName: string; overlayId: number; overlayName: string; originNodeIds: number[]; originLabel: string; closeCount: number; fallbackNodeId: number | null; fallbackLabel: string }>;
+    if (!snapshot) return [] as Array<{ frameId: number; frameName: string; overlayId: number; overlayName: string; originNodeIds: number[]; originLabel: string; closeCount: number; fallbackNodeId: number | null; fallbackLabel: string; returnNodeId: number | null; returnLabel: string; timeline: string[]; }>;
     const frameById = new Map(snapshot.nodes.map((n) => [n.id, n]));
     const openerMap = new Map<string, Set<number>>();
 
@@ -2089,7 +2142,7 @@ export function createPrototypeViewer(editor: Editor): {
       openerMap.set(key, bucket);
     }
 
-    const rows: Array<{ frameId: number; frameName: string; overlayId: number; overlayName: string; originNodeIds: number[]; originLabel: string; closeCount: number; fallbackNodeId: number | null; fallbackLabel: string }> = [];
+    const rows: Array<{ frameId: number; frameName: string; overlayId: number; overlayName: string; originNodeIds: number[]; originLabel: string; closeCount: number; fallbackNodeId: number | null; fallbackLabel: string; returnNodeId: number | null; returnLabel: string; timeline: string[]; }> = [];
     for (const [key, originSet] of openerMap.entries()) {
       const [frameRaw, overlayRaw] = key.split(":");
       const frameId = Number(frameRaw || 0);
@@ -2109,6 +2162,18 @@ export function createPrototypeViewer(editor: Editor): {
       const fallbackLabel = fallback
         ? `${String(fallback.node?.name || `Node #${fallbackNodeId}`)} (#${fallbackNodeId})`
         : `${frame.name} frame root`;
+      const returnNodeId = originNodeIds[0] || (fallbackNodeId && fallbackNodeId > 0 ? fallbackNodeId : null);
+      const returnLabel = returnNodeId && originNodeIds.includes(returnNodeId)
+        ? `origin hotspot #${returnNodeId}`
+        : `fallback ${fallbackLabel}`;
+      const timeline = [
+        `1) OpenOverlay: ${frame.name} (#${frameId}) → ${overlay.name} (#${overlayId})`,
+        `2) Overlay active: ${overlay.name}`,
+        closeCount > 0
+          ? `3) Close/Back ${closeCount}회 감지`
+          : "3) Close/Back 없음 (manual return 필요)",
+        `4) Return target: ${returnLabel}`,
+      ];
 
       rows.push({
         frameId,
@@ -2120,6 +2185,9 @@ export function createPrototypeViewer(editor: Editor): {
         closeCount,
         fallbackNodeId: fallbackNodeId && fallbackNodeId > 0 ? fallbackNodeId : null,
         fallbackLabel,
+        returnNodeId,
+        returnLabel,
+        timeline,
       });
     }
 
@@ -2161,9 +2229,14 @@ export function createPrototypeViewer(editor: Editor): {
       const returnMeta = document.createElement("div");
       returnMeta.style.cssText = `font-size:9px;line-height:1.35;color:${missing ? "#fdba74" : "#86efac"};`;
       returnMeta.textContent = row.closeCount > 0
-        ? `Close path ${row.closeCount}개 · return candidate ready`
+        ? `Close path ${row.closeCount}개 · return target: ${row.returnLabel}`
         : `Close path 없음 · fallback 권장: ${row.fallbackLabel}`;
       card.appendChild(returnMeta);
+
+      const timelineMeta = document.createElement("div");
+      timelineMeta.style.cssText = "font-size:9px;color:#cbd5e1;line-height:1.35;white-space:pre-line;";
+      timelineMeta.textContent = row.timeline.join("\n");
+      card.appendChild(timelineMeta);
 
       if (row.originNodeIds.length === 0) {
         const note = document.createElement("div");
@@ -2186,6 +2259,33 @@ export function createPrototypeViewer(editor: Editor): {
       jumpOverlayBtn.style.cssText = "flex:1;font-size:10px;padding:3px 6px;";
       jumpOverlayBtn.onclick = () => navigateTo(row.overlayId, "Instant", 0, "linear");
       btnRow.appendChild(jumpOverlayBtn);
+      const replayBtn = document.createElement("button");
+      replayBtn.className = "prop-btn";
+      replayBtn.textContent = "Replay";
+      replayBtn.style.cssText = "flex:1;font-size:10px;padding:3px 6px;";
+      replayBtn.onclick = () => {
+        navigateTo(row.frameId, "Instant", 0, "linear");
+        let step = 0;
+        const steps = row.timeline;
+        returnMeta.textContent = steps[0] || "";
+        const timer = window.setInterval(() => {
+          step += 1;
+          if (step >= steps.length) {
+            window.clearInterval(timer);
+            returnMeta.textContent = row.closeCount > 0
+              ? `Close path ${row.closeCount}개 · return target: ${row.returnLabel}`
+              : `Close path 없음 · fallback 권장: ${row.fallbackLabel}`;
+            if (row.returnNodeId && row.returnNodeId > 0) {
+              try { editor.setSelection([row.returnNodeId]); } catch {}
+            }
+            return;
+          }
+          returnMeta.textContent = steps[step] || "";
+          if (step === 1) navigateTo(row.overlayId, "Instant", 0, "linear");
+          if (step === steps.length - 1) navigateTo(row.frameId, "Instant", 0, "linear");
+        }, 380);
+      };
+      btnRow.appendChild(replayBtn);
       card.appendChild(btnRow);
 
       focusReturnList.appendChild(card);
@@ -2398,13 +2498,30 @@ export function createPrototypeViewer(editor: Editor): {
       if (overlayTargets && overlayTargets.size > 0) {
         for (const overlayId of overlayTargets) {
           const lockKey = makeScrollLockRegionKey(node.id, overlayId);
-          if (scrollLockRegions[lockKey]) continue;
+          if (!scrollLockRegions[lockKey]) {
+            issues.push({
+              type: "scroll-leak",
+              frameId: node.id,
+              frameName: node.name,
+              detail: `Overlay #${overlayId} opens without scroll lock region`,
+              overlayId,
+            });
+          }
+        }
+
+        const keyRouteRows = collectEscapeRouteRows(snapshot).filter((row) => row.frameId === node.id);
+        for (const route of keyRouteRows) {
+          if (!route.trapped && !route.missingEsc && !route.missingBack) continue;
+          const parts: string[] = [];
+          if (route.trapped) parts.push("no close/back exit");
+          if (route.missingEsc) parts.push("Esc route missing");
+          if (route.missingBack) parts.push("Back route missing");
           issues.push({
-            type: "scroll-leak",
+            type: "overlay-key-route",
             frameId: node.id,
             frameName: node.name,
-            detail: `Overlay #${overlayId} opens without scroll lock region`,
-            overlayId,
+            overlayId: route.overlayId,
+            detail: `${route.overlayName}: ${parts.join(" + ")}`,
           });
         }
       }
@@ -2589,13 +2706,14 @@ export function createPrototypeViewer(editor: Editor): {
     const cycleTrapCount = issues.filter((i) => i.type === "cycle-trap").length;
     const overlayLeakCount = issues.filter((i) => i.type === "overlay-leak").length;
     const orphanCloseCount = issues.filter((i) => i.type === "orphan-close").length;
+    const overlayKeyRouteCount = issues.filter((i) => i.type === "overlay-key-route").length;
     const scrollLeakCount = issues.filter((i) => i.type === "scroll-leak").length;
     const missingLabelCount = issues.filter((i) => i.type === "a11y-missing-label").length;
     const focusGapCount = issues.filter((i) => i.type === "a11y-focus-gap").length;
     const focusTrapCount = issues.filter((i) => i.type === "a11y-focus-trap").length;
     const lowContrastCount = issues.filter((i) => i.type === "a11y-low-contrast").length;
     const motionGuardrailCount = issues.filter((i) => i.type === "a11y-motion").length;
-    flowLintInfo.textContent = `Start #${startFrameId} · Dead-end ${deadEndCount} · Unreachable ${unreachableCount} · Cycles ${cycleCount}/${cycleTrapCount} · Overlay ${overlayLeakCount}/${orphanCloseCount}/Scroll ${scrollLeakCount} · A11y ${missingLabelCount}/${focusGapCount}/${focusTrapCount}/${lowContrastCount}/${motionGuardrailCount}`;
+    flowLintInfo.textContent = `Start #${startFrameId} · Dead-end ${deadEndCount} · Unreachable ${unreachableCount} · Cycles ${cycleCount}/${cycleTrapCount} · Overlay ${overlayLeakCount}/${overlayKeyRouteCount}/${orphanCloseCount}/Scroll ${scrollLeakCount} · A11y ${missingLabelCount}/${focusGapCount}/${focusTrapCount}/${lowContrastCount}/${motionGuardrailCount}`;
 
     flowLintList.innerHTML = "";
     if (issues.length === 0) {
@@ -2621,11 +2739,12 @@ export function createPrototypeViewer(editor: Editor): {
       "unreachable": 7,
       "cycle": 8,
       "overlay-leak": 9,
-      "scroll-leak": 10,
-      "orphan-close": 11,
+      "overlay-key-route": 10,
+      "scroll-leak": 11,
+      "orphan-close": 12,
     };
     const sortedIssues = [...issues].sort((a, b) => (rank[a.type] - rank[b.type]) || a.frameName.localeCompare(b.frameName));
-    const issueTypes: FlowLintIssueType[] = ["a11y-missing-label", "a11y-focus-gap", "a11y-focus-trap", "a11y-low-contrast", "a11y-motion", "dead-end", "unreachable", "cycle-trap", "cycle", "overlay-leak", "scroll-leak", "orphan-close"];
+    const issueTypes: FlowLintIssueType[] = ["a11y-missing-label", "a11y-focus-gap", "a11y-focus-trap", "a11y-low-contrast", "a11y-motion", "dead-end", "unreachable", "cycle-trap", "cycle", "overlay-leak", "overlay-key-route", "scroll-leak", "orphan-close"];
     if (flowLintFilterTypes.size === 0) {
       for (const t of issueTypes) flowLintFilterTypes.add(t);
     }
@@ -2678,9 +2797,11 @@ export function createPrototypeViewer(editor: Editor): {
                       ? "#ef4444"
                       : issue.type === "overlay-leak"
                         ? "#fb7185"
-                        : issue.type === "scroll-leak"
-                          ? "#38bdf8"
-                          : "#22d3ee";
+                        : issue.type === "overlay-key-route"
+                          ? "#f97316"
+                          : issue.type === "scroll-leak"
+                            ? "#38bdf8"
+                            : "#22d3ee";
       row.style.cssText = `display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;text-align:left;background:rgba(15,23,42,0.55);border:1px solid rgba(148,163,184,0.25);border-left:3px solid ${color};border-radius:6px;color:#e2e8f0;padding:4px 6px;cursor:pointer;`;
       row.dataset.lintNavIndex = String(issueIndex);
       row.innerHTML = `<span style="font-size:10px;font-weight:600;color:${color};text-transform:uppercase;">${issue.type}</span><span style="font-size:10px;">${issue.frameName} (#${issue.frameId})</span><span style="font-size:9px;color:#94a3b8;">${issue.detail}</span>`;
