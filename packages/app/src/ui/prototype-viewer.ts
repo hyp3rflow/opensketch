@@ -288,8 +288,9 @@ export function createPrototypeViewer(editor: Editor): {
   let flowStartFrameSel: HTMLSelectElement | null = null;
   let flowStartInfo: HTMLDivElement | null = null;
   const flowPresetCursor = new Map<string, number>();
+  const FLOW_OVERLAY_DEPTH_BUDGET = 3;
   type FlowLintIssueType = "unreachable" | "dead-end" | "cycle" | "cycle-trap" | "overlay-leak" | "overlay-key-route" | "overlay-depth-budget" | "orphan-close" | "scroll-leak" | "a11y-missing-label" | "a11y-focus-gap" | "a11y-focus-trap" | "a11y-low-contrast" | "a11y-motion";
-  type FlowLintIssue = { type: FlowLintIssueType; frameId: number; frameName: string; detail: string; overlayId?: number };
+  type FlowLintIssue = { type: FlowLintIssueType; frameId: number; frameName: string; detail: string; overlayId?: number; overlayPath?: number[]; overlayOffenders?: number[]; overlayBudget?: number };
   type FocusTrapSimIssue = {
     frameId: number;
     frameName: string;
@@ -2705,7 +2706,7 @@ export function createPrototypeViewer(editor: Editor): {
       }
     }
 
-    const overlayDepthBudgetRows = collectOverlayDepthBudgetRows(snapshot, 3);
+    const overlayDepthBudgetRows = collectOverlayDepthBudgetRows(snapshot, FLOW_OVERLAY_DEPTH_BUDGET);
     const overlayDepthBudgetByFrame = new Map<number, { maxDepth: number; offenders: number[]; deepestOffenderId: number | null; pathSample: number[] }>();
     for (const row of overlayDepthBudgetRows) {
       overlayDepthBudgetByFrame.set(row.frameId, {
@@ -2735,7 +2736,10 @@ export function createPrototypeViewer(editor: Editor): {
           frameId: node.id,
           frameName: node.name,
           overlayId: depthBudget.deepestOffenderId || depthBudget.offenders[0],
-          detail: `Overlay depth ${depthBudget.maxDepth} exceeds budget(3)${offenderLabel ? ` · flatten candidate ${offenderLabel}` : ""}${pathLabel ? ` · path ${pathLabel}` : ""}`,
+          overlayPath: depthBudget.pathSample,
+          overlayOffenders: depthBudget.offenders,
+          overlayBudget: FLOW_OVERLAY_DEPTH_BUDGET,
+          detail: `Overlay depth ${depthBudget.maxDepth} exceeds budget(${FLOW_OVERLAY_DEPTH_BUDGET})${offenderLabel ? ` · flatten candidate ${offenderLabel}` : ""}${pathLabel ? ` · path ${pathLabel}` : ""}`,
         });
       }
 
@@ -3076,15 +3080,19 @@ export function createPrototypeViewer(editor: Editor): {
         row.appendChild(fixBtn);
       }
       if (issue.type === "overlay-depth-budget" && issue.overlayId && issue.overlayId > 0) {
+        const flattenTargets = Array.from(new Set([...(issue.overlayPath || []), issue.overlayId].filter((id): id is number => Number(id) > 0)));
         const fixBtn = document.createElement("button");
         fixBtn.style.cssText = "margin-top:4px;background:#4c1d95;border:1px solid #a78bfa;border-radius:4px;color:#ede9fe;font-size:9px;padding:2px 6px;cursor:pointer;";
-        fixBtn.textContent = "Suggest: flatten overlay";
+        fixBtn.textContent = flattenTargets.length > 1 ? `Fix: flatten path (${flattenTargets.length})` : "Fix: flatten overlay";
         fixBtn.onclick = (ev) => {
           ev.stopPropagation();
           try {
             editor.engine.push_undo();
-            editor.engine.set_selection(new BigUint64Array([BigInt(issue.overlayId || 0)]));
-            const changed = Number(editor.engine.flatten_selection() || 0);
+            let changed = 0;
+            for (const targetId of flattenTargets) {
+              editor.engine.set_selection(new BigUint64Array([BigInt(targetId)]));
+              changed += Number(editor.engine.flatten_selection() || 0);
+            }
             editor.requestRender();
             renderFlowLint();
             fixBtn.textContent = changed > 0 ? `Flattened ${changed}` : "No-op";
@@ -3092,7 +3100,7 @@ export function createPrototypeViewer(editor: Editor): {
             fixBtn.textContent = "No-op";
           }
           setTimeout(() => {
-            fixBtn.textContent = "Suggest: flatten overlay";
+            fixBtn.textContent = flattenTargets.length > 1 ? `Fix: flatten path (${flattenTargets.length})` : "Fix: flatten overlay";
           }, 1200);
         };
         row.appendChild(fixBtn);
