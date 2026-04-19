@@ -29,6 +29,7 @@
 - [x] Drop shadow rendering (multi-pass Canvas shadow API, per-node multiple shadows)
 - [x] Layer blur (CSS filter blur via Canvas API)
 - [x] Backdrop blur (frosted glass effect — blurs content behind node)
+- [x] Per-corner radius render parity (2026-04-19): Canvas rounded rect path가 corner_radii(TL/TR/BR/BL) + corner smoothing(squircle)을 함께 반영, SVG export도 비대칭 corner 조합 시 path로 동일한 곡률을 내보냄
 
 ### UI Panels
 - [x] **Left Panel** with tab navigation (Layers / Design)

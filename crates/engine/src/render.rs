@@ -1,11 +1,11 @@
-use std::cell::Cell;
-use wasm_bindgen::JsValue;
-use web_sys::CanvasRenderingContext2d;
-use wasm_bindgen::JsCast;
-use crate::node::{Node, NodeKind, TextSizing, TextAlign, FontStyle, PathPoint};
+use crate::node::{FontStyle, Node, NodeKind, PathPoint, TextAlign, TextSizing};
 use crate::scene::Scene;
 use crate::transform::Transform;
 use crate::types::{Color, ColorSpace};
+use std::cell::Cell;
+use wasm_bindgen::JsCast;
+use wasm_bindgen::JsValue;
+use web_sys::CanvasRenderingContext2d;
 
 /// Axis-aligned bounding box in scene coordinates for viewport culling
 #[derive(Clone, Copy)]
@@ -48,8 +48,10 @@ impl Renderer {
         let zoom = self.viewport.a; // uniform scale
         if zoom <= 0.0 {
             return ViewportBounds {
-                min_x: f64::NEG_INFINITY, min_y: f64::NEG_INFINITY,
-                max_x: f64::INFINITY, max_y: f64::INFINITY,
+                min_x: f64::NEG_INFINITY,
+                min_y: f64::NEG_INFINITY,
+                max_x: f64::INFINITY,
+                max_y: f64::INFINITY,
             };
         }
         let inv_zoom = 1.0 / zoom;
@@ -58,7 +60,12 @@ impl Renderer {
         let min_y = -self.viewport.ty * inv_zoom - margin;
         let max_x = (self.canvas_width - self.viewport.tx) * inv_zoom + margin;
         let max_y = (self.canvas_height - self.viewport.ty) * inv_zoom + margin;
-        ViewportBounds { min_x, min_y, max_x, max_y }
+        ViewportBounds {
+            min_x,
+            min_y,
+            max_x,
+            max_y,
+        }
     }
 
     /// Check if a node's AABB intersects the viewport bounds.
@@ -75,16 +82,28 @@ impl Renderer {
     }
 
     /// Build CSS font string from text properties
-    fn build_font_string(font_size: f64, font_family: &str, font_weight: u16, font_style: &FontStyle) -> String {
+    fn build_font_string(
+        font_size: f64,
+        font_family: &str,
+        font_weight: u16,
+        font_style: &FontStyle,
+    ) -> String {
         let style_str = match font_style {
             FontStyle::Italic => "italic ",
             FontStyle::Normal => "",
         };
-        format!("{}{} {}px {}, system-ui, sans-serif", style_str, font_weight, font_size, font_family)
+        format!(
+            "{}{} {}px {}, system-ui, sans-serif",
+            style_str, font_weight, font_size, font_family
+        )
     }
 
     /// Word-wrap text into lines fitting within max_width. If max_width is None, no wrapping.
-    fn wrap_text(ctx: &CanvasRenderingContext2d, text: &str, max_width: Option<f64>) -> Vec<String> {
+    fn wrap_text(
+        ctx: &CanvasRenderingContext2d,
+        text: &str,
+        max_width: Option<f64>,
+    ) -> Vec<String> {
         let mut lines = Vec::new();
         for paragraph in text.split('\n') {
             if paragraph.is_empty() {
@@ -131,21 +150,46 @@ impl Renderer {
     pub fn measure_text_nodes(&self, ctx: &CanvasRenderingContext2d, scene: &mut Scene) {
         let ids: Vec<u64> = scene.all_node_ids();
         for id in ids {
-            let (content, font_size, font_family, line_height, font_weight, font_style, is_fit, node_width) = {
+            let (
+                content,
+                font_size,
+                font_family,
+                line_height,
+                font_weight,
+                font_style,
+                is_fit,
+                node_width,
+            ) = {
                 let node = match scene.get_node(id) {
                     Some(n) => n,
                     None => continue,
                 };
                 match &node.kind {
-                    NodeKind::Text { content, font_size, font_family, line_height, font_weight, font_style, text_transform, .. } => {
-                        (text_transform.apply(content), *font_size, font_family.clone(), *line_height, *font_weight, font_style.clone(),
-                         node.text_sizing == TextSizing::Fit, node.width)
-                    }
+                    NodeKind::Text {
+                        content,
+                        font_size,
+                        font_family,
+                        line_height,
+                        font_weight,
+                        font_style,
+                        text_transform,
+                        ..
+                    } => (
+                        text_transform.apply(content),
+                        *font_size,
+                        font_family.clone(),
+                        *line_height,
+                        *font_weight,
+                        font_style.clone(),
+                        node.text_sizing == TextSizing::Fit,
+                        node.width,
+                    ),
                     _ => continue,
                 }
             };
 
-            let font_str = Self::build_font_string(font_size, &font_family, font_weight, &font_style);
+            let font_str =
+                Self::build_font_string(font_size, &font_family, font_weight, &font_style);
             ctx.set_font(&font_str);
 
             let max_width = if !is_fit { Some(node_width) } else { None };
@@ -156,7 +200,11 @@ impl Renderer {
             let font_height = if let Ok(m) = ctx.measure_text("Mg") {
                 let fa = m.font_bounding_box_ascent();
                 let fd = m.font_bounding_box_descent();
-                if fa > 0.0 { fa + fd } else { font_size }
+                if fa > 0.0 {
+                    fa + fd
+                } else {
+                    font_size
+                }
             } else {
                 font_size
             };
@@ -185,7 +233,12 @@ impl Renderer {
         }
     }
 
-    pub fn render(&mut self, ctx: &CanvasRenderingContext2d, scene: &Scene, _editing_node: Option<u64>) {
+    pub fn render(
+        &mut self,
+        ctx: &CanvasRenderingContext2d,
+        scene: &Scene,
+        _editing_node: Option<u64>,
+    ) {
         self.last_rendered_count.set(0);
         self.last_culled_count.set(0);
         let vp = self.get_viewport_bounds();
@@ -200,10 +253,14 @@ impl Renderer {
 
         ctx.save();
         ctx.transform(
-            self.viewport.a, self.viewport.b,
-            self.viewport.c, self.viewport.d,
-            self.viewport.tx, self.viewport.ty,
-        ).ok();
+            self.viewport.a,
+            self.viewport.b,
+            self.viewport.c,
+            self.viewport.d,
+            self.viewport.tx,
+            self.viewport.ty,
+        )
+        .ok();
 
         self.current_vp = Some(vp);
         self.render_children(ctx, &scene.get_root_children(), scene);
@@ -225,8 +282,17 @@ impl Renderer {
                 let lw = 1.5 / self.viewport.a;
                 ctx.set_stroke_style_str("#4a4af5");
                 ctx.set_line_width(lw);
-                ctx.set_line_dash(&js_sys::Array::of2(&JsValue::from(4.0 / self.viewport.a), &JsValue::from(3.0 / self.viewport.a))).ok();
-                ctx.stroke_rect(node.x - 2.0 / self.viewport.a, node.y - 2.0 / self.viewport.a, node.width + 4.0 / self.viewport.a, node.height + 4.0 / self.viewport.a);
+                ctx.set_line_dash(&js_sys::Array::of2(
+                    &JsValue::from(4.0 / self.viewport.a),
+                    &JsValue::from(3.0 / self.viewport.a),
+                ))
+                .ok();
+                ctx.stroke_rect(
+                    node.x - 2.0 / self.viewport.a,
+                    node.y - 2.0 / self.viewport.a,
+                    node.width + 4.0 / self.viewport.a,
+                    node.height + 4.0 / self.viewport.a,
+                );
                 ctx.set_line_dash(&js_sys::Array::new()).ok();
             }
         }
@@ -238,7 +304,9 @@ impl Renderer {
         let mut mask_active = false;
         for &child_id in children {
             if let Some(node) = scene.get_node(child_id) {
-                if !scene.is_effectively_visible(child_id) { continue; }
+                if !scene.is_effectively_visible(child_id) {
+                    continue;
+                }
                 // Viewport culling: skip nodes entirely outside visible viewport
                 if let Some(ref vp) = self.current_vp {
                     if !node.is_mask && !Self::is_node_visible_in_viewport(node, vp) {
@@ -246,9 +314,12 @@ impl Renderer {
                         continue;
                     }
                 }
-                self.last_rendered_count.set(self.last_rendered_count.get() + 1);
+                self.last_rendered_count
+                    .set(self.last_rendered_count.get() + 1);
                 if node.is_mask {
-                    if mask_active { ctx.restore(); }
+                    if mask_active {
+                        ctx.restore();
+                    }
                     self.render_node(ctx, node, scene);
                     ctx.save();
                     self.build_clip_path(ctx, node);
@@ -259,22 +330,53 @@ impl Renderer {
                 }
             }
         }
-        if mask_active { ctx.restore(); }
+        if mask_active {
+            ctx.restore();
+        }
     }
 
     fn build_clip_path(&self, ctx: &CanvasRenderingContext2d, node: &Node) {
         ctx.begin_path();
         match &node.kind {
-            NodeKind::Rect | NodeKind::Frame | NodeKind::Section | NodeKind::Instance(_) | NodeKind::Image { .. } | NodeKind::Video { .. } => {
+            NodeKind::Rect
+            | NodeKind::Frame
+            | NodeKind::Section
+            | NodeKind::Instance(_)
+            | NodeKind::Image { .. }
+            | NodeKind::Video { .. } => {
                 if node.corner_radius > 0.0 {
-                    let r = node.corner_radius.min(node.width / 2.0).min(node.height / 2.0);
+                    let r = node
+                        .corner_radius
+                        .min(node.width / 2.0)
+                        .min(node.height / 2.0);
                     ctx.move_to(node.x + r, node.y);
                     ctx.line_to(node.x + node.width - r, node.y);
-                    ctx.arc_to(node.x + node.width, node.y, node.x + node.width, node.y + r, r).ok();
+                    ctx.arc_to(
+                        node.x + node.width,
+                        node.y,
+                        node.x + node.width,
+                        node.y + r,
+                        r,
+                    )
+                    .ok();
                     ctx.line_to(node.x + node.width, node.y + node.height - r);
-                    ctx.arc_to(node.x + node.width, node.y + node.height, node.x + node.width - r, node.y + node.height, r).ok();
+                    ctx.arc_to(
+                        node.x + node.width,
+                        node.y + node.height,
+                        node.x + node.width - r,
+                        node.y + node.height,
+                        r,
+                    )
+                    .ok();
                     ctx.line_to(node.x + r, node.y + node.height);
-                    ctx.arc_to(node.x, node.y + node.height, node.x, node.y + node.height - r, r).ok();
+                    ctx.arc_to(
+                        node.x,
+                        node.y + node.height,
+                        node.x,
+                        node.y + node.height - r,
+                        r,
+                    )
+                    .ok();
                     ctx.line_to(node.x, node.y + r);
                     ctx.arc_to(node.x, node.y, node.x + r, node.y, r).ok();
                     ctx.close_path();
@@ -291,7 +393,8 @@ impl Renderer {
                     node.rotation,
                     0.0,
                     std::f64::consts::TAU,
-                ).ok();
+                )
+                .ok();
             }
             NodeKind::Path { ref points, closed } => {
                 if !points.is_empty() {
@@ -300,15 +403,27 @@ impl Renderer {
                         let prev = &points[i - 1];
                         let curr = &points[i];
                         if prev.has_handle_out() || curr.has_handle_in() {
-                            ctx.bezier_curve_to(prev.handle_out_x, prev.handle_out_y, curr.handle_in_x, curr.handle_in_y, curr.x, curr.y);
+                            ctx.bezier_curve_to(
+                                prev.handle_out_x,
+                                prev.handle_out_y,
+                                curr.handle_in_x,
+                                curr.handle_in_y,
+                                curr.x,
+                                curr.y,
+                            );
                         } else {
                             ctx.line_to(curr.x, curr.y);
                         }
                     }
-                    if *closed { ctx.close_path(); }
+                    if *closed {
+                        ctx.close_path();
+                    }
                 }
             }
-            NodeKind::Star { points, inner_radius } => {
+            NodeKind::Star {
+                points,
+                inner_radius,
+            } => {
                 let cx = node.x + node.width / 2.0;
                 let cy = node.y + node.height / 2.0;
                 let rx = node.width / 2.0;
@@ -318,10 +433,18 @@ impl Renderer {
                 let start_angle = -std::f64::consts::FRAC_PI_2;
                 for i in 0..(n * 2) {
                     let angle = start_angle + angle_step * i as f64;
-                    let (r_x, r_y) = if i % 2 == 0 { (rx, ry) } else { (rx * inner_radius, ry * inner_radius) };
+                    let (r_x, r_y) = if i % 2 == 0 {
+                        (rx, ry)
+                    } else {
+                        (rx * inner_radius, ry * inner_radius)
+                    };
                     let px = cx + angle.cos() * r_x;
                     let py = cy + angle.sin() * r_y;
-                    if i == 0 { ctx.move_to(px, py); } else { ctx.line_to(px, py); }
+                    if i == 0 {
+                        ctx.move_to(px, py);
+                    } else {
+                        ctx.line_to(px, py);
+                    }
                 }
                 ctx.close_path();
             }
@@ -337,7 +460,11 @@ impl Renderer {
                     let angle = start_angle + angle_step * i as f64;
                     let px = cx + angle.cos() * rx;
                     let py = cy + angle.sin() * ry;
-                    if i == 0 { ctx.move_to(px, py); } else { ctx.line_to(px, py); }
+                    if i == 0 {
+                        ctx.move_to(px, py);
+                    } else {
+                        ctx.line_to(px, py);
+                    }
                 }
                 ctx.close_path();
             }
@@ -392,7 +519,9 @@ impl Renderer {
         ctx.save();
         ctx.set_global_alpha(node.opacity);
         // Use first fill color or a gray fallback
-        let color = node.fills.first()
+        let color = node
+            .fills
+            .first()
             .map(|f| f.color().to_css())
             .unwrap_or_else(|| "#cccccc".to_string());
         ctx.set_fill_style_str(&color);
@@ -402,14 +531,19 @@ impl Renderer {
 
     fn render_node(&self, ctx: &CanvasRenderingContext2d, node: &Node, scene: &Scene) {
         // Slice nodes are not rendered on canvas (TS draws overlay)
-        if matches!(node.kind, NodeKind::Slice) { return; }
+        if matches!(node.kind, NodeKind::Slice) {
+            return;
+        }
 
         // LOD: simplify rendering at low zoom levels
         let lod = self.lod_level(node);
         if lod >= 2 && node.width > 0.0 && node.height > 0.0 {
             self.render_lod_box(ctx, node);
             // Still render children for frames/groups at lod 2
-            if matches!(node.kind, NodeKind::Frame | NodeKind::Group | NodeKind::Section) {
+            if matches!(
+                node.kind,
+                NodeKind::Frame | NodeKind::Group | NodeKind::Section
+            ) {
                 ctx.save();
                 ctx.set_global_alpha(node.opacity);
                 self.render_children(ctx, &node.children, scene);
@@ -419,7 +553,10 @@ impl Renderer {
         }
         if lod >= 1 {
             // At lod 1, replace text nodes with simple colored boxes
-            if matches!(node.kind, NodeKind::Text { .. } | NodeKind::StickyNote { .. } | NodeKind::Callout { .. }) {
+            if matches!(
+                node.kind,
+                NodeKind::Text { .. } | NodeKind::StickyNote { .. } | NodeKind::Callout { .. }
+            ) {
                 self.render_lod_box(ctx, node);
                 return;
             }
@@ -430,7 +567,8 @@ impl Renderer {
 
         // Blend mode
         if node.blend_mode != crate::node::BlendMode::Normal {
-            ctx.set_global_composite_operation(node.blend_mode.to_css()).ok();
+            ctx.set_global_composite_operation(node.blend_mode.to_css())
+                .ok();
         }
 
         // Layer blur + bitmap filters
@@ -453,7 +591,13 @@ impl Renderer {
         // Drop shadows (outer only): render each visible shadow by drawing the node shape with shadow settings
         // Canvas API only supports one shadow at a time, so we draw multiple passes
         for shadow in &node.shadows {
-            if shadow.inset || !shadow.visible || (shadow.blur == 0.0 && shadow.offset_x == 0.0 && shadow.offset_y == 0.0 && shadow.spread == 0.0) {
+            if shadow.inset
+                || !shadow.visible
+                || (shadow.blur == 0.0
+                    && shadow.offset_x == 0.0
+                    && shadow.offset_y == 0.0
+                    && shadow.spread == 0.0)
+            {
                 continue;
             }
             ctx.save();
@@ -467,10 +611,24 @@ impl Renderer {
             ctx.save();
             ctx.translate(-far, 0.0).ok();
             match &node.kind {
-                NodeKind::Rect | NodeKind::Frame | NodeKind::Section | NodeKind::Instance(_) | NodeKind::Image { .. } | NodeKind::Video { .. } => {
+                NodeKind::Rect
+                | NodeKind::Frame
+                | NodeKind::Section
+                | NodeKind::Instance(_)
+                | NodeKind::Image { .. }
+                | NodeKind::Video { .. } => {
                     ctx.set_fill_style_str("rgba(0,0,0,1)");
                     if node.corner_radius > 0.0 {
-                        self.draw_rounded_rect_smooth(ctx, node.x + far, node.y, node.width, node.height, node.corner_radius, node.corner_smoothing);
+                        self.draw_node_rounded_rect_smooth(
+                            ctx,
+                            node,
+                            node.x + far,
+                            node.y,
+                            node.width,
+                            node.height,
+                            node.corner_radius,
+                            node.corner_smoothing,
+                        );
                     } else {
                         ctx.begin_path();
                         ctx.rect(node.x + far, node.y, node.width, node.height);
@@ -488,7 +646,8 @@ impl Renderer {
                         node.rotation,
                         0.0,
                         std::f64::consts::TAU,
-                    ).ok();
+                    )
+                    .ok();
                     ctx.fill();
                 }
                 NodeKind::Path { ref points, closed } => {
@@ -501,12 +660,21 @@ impl Renderer {
                             let prev = &points[i - 1];
                             let curr = &points[i];
                             if prev.has_handle_out() || curr.has_handle_in() {
-                                ctx.bezier_curve_to(prev.handle_out_x + far, prev.handle_out_y, curr.handle_in_x + far, curr.handle_in_y, curr.x + far, curr.y);
+                                ctx.bezier_curve_to(
+                                    prev.handle_out_x + far,
+                                    prev.handle_out_y,
+                                    curr.handle_in_x + far,
+                                    curr.handle_in_y,
+                                    curr.x + far,
+                                    curr.y,
+                                );
                             } else {
                                 ctx.line_to(curr.x + far, curr.y);
                             }
                         }
-                        if *closed { ctx.close_path(); }
+                        if *closed {
+                            ctx.close_path();
+                        }
                         ctx.stroke();
                     }
                 }
@@ -527,7 +695,8 @@ impl Renderer {
                 ctx.clip();
                 ctx.set_filter(&format!("blur({}px)", node.backdrop_blur));
                 // Draw the current canvas content back into the clipped+blurred region
-                ctx.draw_image_with_html_canvas_element(&canvas_el, 0.0, 0.0).ok();
+                ctx.draw_image_with_html_canvas_element(&canvas_el, 0.0, 0.0)
+                    .ok();
                 ctx.set_filter("none");
                 ctx.restore();
             }
@@ -536,40 +705,157 @@ impl Renderer {
         match &node.kind {
             NodeKind::Rect => self.render_rect(ctx, node),
             NodeKind::Ellipse => self.render_ellipse(ctx, node),
-            NodeKind::Text { content, font_size, font_family, line_height, text_align, font_weight, font_style, text_decoration, letter_spacing, paragraph_spacing, list_style, indent_level, text_transform, text_indent, .. } => self.render_text(ctx, node, scene, content, *font_size, font_family, *line_height, text_align, *font_weight, font_style, text_decoration, *letter_spacing, *paragraph_spacing, list_style, *indent_level, text_transform, *text_indent),
+            NodeKind::Text {
+                content,
+                font_size,
+                font_family,
+                line_height,
+                text_align,
+                font_weight,
+                font_style,
+                text_decoration,
+                letter_spacing,
+                paragraph_spacing,
+                list_style,
+                indent_level,
+                text_transform,
+                text_indent,
+                ..
+            } => self.render_text(
+                ctx,
+                node,
+                scene,
+                content,
+                *font_size,
+                font_family,
+                *line_height,
+                text_align,
+                *font_weight,
+                font_style,
+                text_decoration,
+                *letter_spacing,
+                *paragraph_spacing,
+                list_style,
+                *indent_level,
+                text_transform,
+                *text_indent,
+            ),
             NodeKind::Frame => self.render_frame(ctx, node, scene),
-            NodeKind::Group => { self.render_children(ctx, &node.children, scene); }
+            NodeKind::Group => {
+                self.render_children(ctx, &node.children, scene);
+            }
             NodeKind::Slot { .. } => self.render_slot(ctx, node),
             NodeKind::Instance(_) => self.render_instance(ctx, node, scene),
             NodeKind::Path { ref points, closed } => self.render_path(ctx, node, points, *closed),
             NodeKind::VectorNetwork(ref vn) => self.render_vector_network(ctx, node, vn),
             NodeKind::Image { .. } => self.render_image_placeholder(ctx, node),
             NodeKind::Video { .. } => self.render_video_placeholder(ctx, node),
-            NodeKind::Star { points, inner_radius } => self.render_star(ctx, node, *points, *inner_radius),
+            NodeKind::Star {
+                points,
+                inner_radius,
+            } => self.render_star(ctx, node, *points, *inner_radius),
             NodeKind::Polygon { sides } => self.render_polygon(ctx, node, *sides),
             NodeKind::Section => self.render_section(ctx, node, scene),
-            NodeKind::StickyNote { ref content, font_size, ref theme, ref votes } => self.render_sticky_note(ctx, node, content, *font_size, theme, votes),
-            NodeKind::Table { rows, cols, ref cells, ref col_widths, ref row_heights } => {
+            NodeKind::StickyNote {
+                ref content,
+                font_size,
+                ref theme,
+                ref votes,
+            } => self.render_sticky_note(ctx, node, content, *font_size, theme, votes),
+            NodeKind::Table {
+                rows,
+                cols,
+                ref cells,
+                ref col_widths,
+                ref row_heights,
+            } => {
                 self.render_table(ctx, node, *rows, *cols, cells, col_widths, row_heights);
             }
             NodeKind::Slice => {} // Slice nodes are rendered as overlays in TS
-            NodeKind::Connector { start_node_id, end_node_id, start_x, end_x, start_y, end_y, ref path_type, ref end_arrow, ref start_arrow, arrow_size, .. } => {
-                self.render_connector(ctx, node, scene, *start_node_id, *end_node_id, *start_x, *start_y, *end_x, *end_y, path_type, end_arrow, start_arrow, *arrow_size);
+            NodeKind::Connector {
+                start_node_id,
+                end_node_id,
+                start_x,
+                end_x,
+                start_y,
+                end_y,
+                ref path_type,
+                ref end_arrow,
+                ref start_arrow,
+                arrow_size,
+                ..
+            } => {
+                self.render_connector(
+                    ctx,
+                    node,
+                    scene,
+                    *start_node_id,
+                    *end_node_id,
+                    *start_x,
+                    *start_y,
+                    *end_x,
+                    *end_y,
+                    path_type,
+                    end_arrow,
+                    start_arrow,
+                    *arrow_size,
+                );
             }
-            NodeKind::Chart { ref chart_type, ref data, ref config } => {
+            NodeKind::Chart {
+                ref chart_type,
+                ref data,
+                ref config,
+            } => {
                 self.render_chart(ctx, node, chart_type, data, config);
             }
-            NodeKind::RepeatGrid { columns, rows, column_gap, row_gap, ref overrides } => {
-                self.render_repeat_grid(ctx, node, scene, *columns, *rows, *column_gap, *row_gap, overrides);
+            NodeKind::RepeatGrid {
+                columns,
+                rows,
+                column_gap,
+                row_gap,
+                ref overrides,
+            } => {
+                self.render_repeat_grid(
+                    ctx,
+                    node,
+                    scene,
+                    *columns,
+                    *rows,
+                    *column_gap,
+                    *row_gap,
+                    overrides,
+                );
             }
-            NodeKind::Callout { ref content, font_size, tail_x, tail_y, tail_width, ref theme } => {
-                self.render_callout(ctx, node, content, *font_size, *tail_x, *tail_y, *tail_width, theme);
+            NodeKind::Callout {
+                ref content,
+                font_size,
+                tail_x,
+                tail_y,
+                tail_width,
+                ref theme,
+            } => {
+                self.render_callout(
+                    ctx,
+                    node,
+                    content,
+                    *font_size,
+                    *tail_x,
+                    *tail_y,
+                    *tail_width,
+                    theme,
+                );
             }
         }
 
         // Inner (inset) shadows: clip to node shape, draw inverted shadow
         for shadow in &node.shadows {
-            if !shadow.inset || !shadow.visible || (shadow.blur == 0.0 && shadow.offset_x == 0.0 && shadow.offset_y == 0.0 && shadow.spread == 0.0) {
+            if !shadow.inset
+                || !shadow.visible
+                || (shadow.blur == 0.0
+                    && shadow.offset_x == 0.0
+                    && shadow.offset_y == 0.0
+                    && shadow.spread == 0.0)
+            {
                 continue;
             }
             ctx.save();
@@ -582,13 +868,25 @@ impl Renderer {
                         node.y + node.height / 2.0,
                         node.width / 2.0,
                         node.height / 2.0,
-                        0.0, 0.0, std::f64::consts::TAU,
-                    ).ok();
+                        0.0,
+                        0.0,
+                        std::f64::consts::TAU,
+                    )
+                    .ok();
                     ctx.clip();
                 }
                 _ => {
                     if node.corner_radius > 0.0 {
-                        self.draw_rounded_rect_smooth(ctx, node.x, node.y, node.width, node.height, node.corner_radius, node.corner_smoothing);
+                        self.draw_node_rounded_rect_smooth(
+                            ctx,
+                            node,
+                            node.x,
+                            node.y,
+                            node.width,
+                            node.height,
+                            node.corner_radius,
+                            node.corner_smoothing,
+                        );
                     } else {
                         ctx.begin_path();
                         ctx.rect(node.x, node.y, node.width, node.height);
@@ -602,7 +900,10 @@ impl Renderer {
             ctx.set_shadow_offset_y(shadow.offset_y);
             ctx.set_fill_style_str("rgba(0,0,0,1)");
             // Draw rects outside each edge — shadows cast inward through the clip
-            let m = (shadow.blur + shadow.spread) * 2.0 + shadow.offset_x.abs() + shadow.offset_y.abs() + 100.0;
+            let m = (shadow.blur + shadow.spread) * 2.0
+                + shadow.offset_x.abs()
+                + shadow.offset_y.abs()
+                + 100.0;
             ctx.fill_rect(node.x - m, node.y - m, node.width + m * 2.0, m); // top
             ctx.fill_rect(node.x - m, node.y + node.height, node.width + m * 2.0, m); // bottom
             ctx.fill_rect(node.x - m, node.y, m, node.height); // left
@@ -616,15 +917,33 @@ impl Renderer {
     fn render_rect(&self, ctx: &CanvasRenderingContext2d, node: &Node) {
         if node.rotation != 0.0 {
             ctx.save();
-            ctx.translate(node.x + node.width / 2.0, node.y + node.height / 2.0).ok();
+            ctx.translate(node.x + node.width / 2.0, node.y + node.height / 2.0)
+                .ok();
             ctx.rotate(node.rotation).ok();
             let x = -node.width / 2.0;
             let y = -node.height / 2.0;
-            self.draw_rounded_rect_smooth(ctx, x, y, node.width, node.height, node.corner_radius, node.corner_smoothing);
+            self.draw_rounded_rect_smooth(
+                ctx,
+                x,
+                y,
+                node.width,
+                node.height,
+                node.corner_radius,
+                node.corner_smoothing,
+            );
             self.apply_fill_stroke(ctx, node);
             ctx.restore();
         } else {
-            self.draw_rounded_rect_smooth(ctx, node.x, node.y, node.width, node.height, node.corner_radius, node.corner_smoothing);
+            self.draw_node_rounded_rect_smooth(
+                ctx,
+                node,
+                node.x,
+                node.y,
+                node.width,
+                node.height,
+                node.corner_radius,
+                node.corner_smoothing,
+            );
             self.apply_fill_stroke(ctx, node);
         }
     }
@@ -639,11 +958,31 @@ impl Renderer {
             node.rotation,
             0.0,
             std::f64::consts::TAU,
-        ).ok();
+        )
+        .ok();
         self.apply_fill_stroke(ctx, node);
     }
 
-    fn render_text(&self, ctx: &CanvasRenderingContext2d, node: &Node, scene: &Scene, content: &str, font_size: f64, font_family: &str, line_height: f64, text_align: &TextAlign, font_weight: u16, font_style: &FontStyle, text_decoration: &crate::node::TextDecoration, letter_spacing: f64, paragraph_spacing: f64, list_style: &crate::node::ListStyle, indent_level: u8, text_transform: &crate::node::TextTransform, text_indent: f64) {
+    fn render_text(
+        &self,
+        ctx: &CanvasRenderingContext2d,
+        node: &Node,
+        scene: &Scene,
+        content: &str,
+        font_size: f64,
+        font_family: &str,
+        line_height: f64,
+        text_align: &TextAlign,
+        font_weight: u16,
+        font_style: &FontStyle,
+        text_decoration: &crate::node::TextDecoration,
+        letter_spacing: f64,
+        paragraph_spacing: f64,
+        list_style: &crate::node::ListStyle,
+        indent_level: u8,
+        text_transform: &crate::node::TextTransform,
+        text_indent: f64,
+    ) {
         // Apply text transform
         let display_content = text_transform.apply(content);
         let content = &display_content;
@@ -652,7 +991,18 @@ impl Renderer {
         if let Some(path_id) = node.text_path_id {
             if let Some(path_node) = scene.get_node(path_id) {
                 if let NodeKind::Path { ref points, closed } = path_node.kind {
-                    self.render_text_on_path(ctx, node, content, font_size, font_family, font_weight, font_style, letter_spacing, points, closed);
+                    self.render_text_on_path(
+                        ctx,
+                        node,
+                        content,
+                        font_size,
+                        font_family,
+                        font_weight,
+                        font_style,
+                        letter_spacing,
+                        points,
+                        closed,
+                    );
                     return;
                 }
             }
@@ -686,13 +1036,21 @@ impl Renderer {
             let (font_ascent, font_descent) = if let Ok(m) = ctx.measure_text("Mg") {
                 let fa = m.font_bounding_box_ascent();
                 let fd = m.font_bounding_box_descent();
-                if fa > 0.0 { (fa, fd) } else { (font_size * 0.8, font_size * 0.2) }
+                if fa > 0.0 {
+                    (fa, fd)
+                } else {
+                    (font_size * 0.8, font_size * 0.2)
+                }
             } else {
                 (font_size * 0.8, font_size * 0.2)
             };
             let font_height = font_ascent + font_descent;
 
-            let max_width = if node.text_sizing == TextSizing::Fixed { Some(node.width) } else { None };
+            let max_width = if node.text_sizing == TextSizing::Fixed {
+                Some(node.width)
+            } else {
+                None
+            };
             let lines = Self::wrap_text(ctx, content, max_width);
             let line_h = (font_size * line_height).max(font_height);
             let zoom = self.viewport.a;
@@ -719,8 +1077,16 @@ impl Renderer {
                 let _ = temp_lines_count;
             }
 
-            let has_underline = matches!(text_decoration, crate::node::TextDecoration::Underline | crate::node::TextDecoration::UnderlineStrikethrough);
-            let has_strikethrough = matches!(text_decoration, crate::node::TextDecoration::Strikethrough | crate::node::TextDecoration::UnderlineStrikethrough);
+            let has_underline = matches!(
+                text_decoration,
+                crate::node::TextDecoration::Underline
+                    | crate::node::TextDecoration::UnderlineStrikethrough
+            );
+            let has_strikethrough = matches!(
+                text_decoration,
+                crate::node::TextDecoration::Strikethrough
+                    | crate::node::TextDecoration::UnderlineStrikethrough
+            );
 
             let mut cumulative_extra_spacing = 0.0;
 
@@ -734,24 +1100,30 @@ impl Renderer {
                 }
 
                 // Baseline = top of line + half_leading + font_ascent
-                let raw_y = node.y + half_leading + font_ascent + line_h * i as f64 + cumulative_extra_spacing;
+                let raw_y = node.y
+                    + half_leading
+                    + font_ascent
+                    + line_h * i as f64
+                    + cumulative_extra_spacing;
                 let snapped_y = (raw_y * zoom).round() / zoom;
 
                 // Indent offset
                 let indent_px = indent_level as f64 * font_size * 1.5;
                 // First-line text indent
-                let first_line_indent = if i == 0 || (para_idx > 0 && lines_in_para == 1) { text_indent } else { 0.0 };
+                let first_line_indent = if i == 0 || (para_idx > 0 && lines_in_para == 1) {
+                    text_indent
+                } else {
+                    0.0
+                };
 
                 // List prefix
                 let list_prefix = match list_style {
                     crate::node::ListStyle::None => String::new(),
-                    crate::node::ListStyle::Bullet => {
-                        match indent_level {
-                            0 => "• ".to_string(),
-                            1 => "◦ ".to_string(),
-                            _ => "▪ ".to_string(),
-                        }
-                    }
+                    crate::node::ListStyle::Bullet => match indent_level {
+                        0 => "• ".to_string(),
+                        1 => "◦ ".to_string(),
+                        _ => "▪ ".to_string(),
+                    },
                     crate::node::ListStyle::Numbered => {
                         // Use paragraph index for numbering (1-based)
                         format!("{}. ", para_idx + 1)
@@ -764,7 +1136,9 @@ impl Renderer {
                 // Only show prefix on first line of each paragraph
                 let show_prefix = lines_in_para == 1 && *list_style != crate::node::ListStyle::None;
                 let prefix_width = if show_prefix {
-                    ctx.measure_text(&list_prefix).map(|m| m.width()).unwrap_or(0.0)
+                    ctx.measure_text(&list_prefix)
+                        .map(|m| m.width())
+                        .unwrap_or(0.0)
                 } else {
                     0.0
                 };
@@ -792,7 +1166,8 @@ impl Renderer {
                     ctx.fill_text(&list_prefix, x, snapped_y).ok();
                     ctx.fill_text(line, x + prefix_width, snapped_y).ok();
                 } else {
-                    let text_x = if *list_style != crate::node::ListStyle::None && indent_level > 0 {
+                    let text_x = if *list_style != crate::node::ListStyle::None && indent_level > 0
+                    {
                         x + prefix_width.max(font_size) // hanging indent for wrapped lines
                     } else {
                         x
@@ -835,10 +1210,26 @@ impl Renderer {
         }
     }
 
-    fn render_text_on_path(&self, ctx: &CanvasRenderingContext2d, node: &Node, content: &str, font_size: f64, font_family: &str, font_weight: u16, font_style: &FontStyle, letter_spacing: f64, points: &[crate::node::PathPoint], closed: bool) {
-        if content.is_empty() || points.len() < 2 { return; }
+    fn render_text_on_path(
+        &self,
+        ctx: &CanvasRenderingContext2d,
+        node: &Node,
+        content: &str,
+        font_size: f64,
+        font_family: &str,
+        font_weight: u16,
+        font_style: &FontStyle,
+        letter_spacing: f64,
+        points: &[crate::node::PathPoint],
+        closed: bool,
+    ) {
+        if content.is_empty() || points.len() < 2 {
+            return;
+        }
 
-        let fill_css = node.visible_fills().last()
+        let fill_css = node
+            .visible_fills()
+            .last()
             .map(|f| f.color().to_css())
             .unwrap_or_else(|| "rgba(0,0,0,1)".to_string());
         ctx.set_fill_style_str(&fill_css);
@@ -849,9 +1240,15 @@ impl Renderer {
 
         // Measure each character width
         let chars: Vec<char> = content.chars().collect();
-        let widths: Vec<f64> = chars.iter().map(|c| {
-            ctx.measure_text(&c.to_string()).map(|m| m.width()).unwrap_or(font_size * 0.6).max(0.0)
-        }).collect();
+        let widths: Vec<f64> = chars
+            .iter()
+            .map(|c| {
+                ctx.measure_text(&c.to_string())
+                    .map(|m| m.width())
+                    .unwrap_or(font_size * 0.6)
+                    .max(0.0)
+            })
+            .collect();
 
         // Get positions along path (with path letter spacing + optional flipped direction)
         let samples = crate::path_utils::text_positions_on_path(
@@ -867,13 +1264,20 @@ impl Renderer {
 
         // Render each character rotated along the path tangent
         for (i, sample) in samples.iter().enumerate() {
-            if i >= chars.len() { break; }
+            if i >= chars.len() {
+                break;
+            }
             ctx.save();
             let nx = -sample.angle.sin();
             let ny = sample.angle.cos();
-            ctx.translate(sample.x + nx * baseline_offset, sample.y + ny * baseline_offset).ok();
+            ctx.translate(
+                sample.x + nx * baseline_offset,
+                sample.y + ny * baseline_offset,
+            )
+            .ok();
             ctx.rotate(sample.angle).ok();
-            ctx.fill_text(&chars[i].to_string(), 0.0, -font_size * 0.15).ok();
+            ctx.fill_text(&chars[i].to_string(), 0.0, -font_size * 0.15)
+                .ok();
             ctx.restore();
         }
 
@@ -890,12 +1294,23 @@ impl Renderer {
                 ctx.set_line_width(stroke.width * 2.0);
                 self.apply_stroke_options(ctx, stroke);
                 if node.corner_radius > 0.0 {
-                    self.draw_rounded_rect_smooth(ctx, node.x, node.y, node.width, node.height, node.corner_radius, node.corner_smoothing);
+                    self.draw_node_rounded_rect_smooth(
+                        ctx,
+                        node,
+                        node.x,
+                        node.y,
+                        node.width,
+                        node.height,
+                        node.corner_radius,
+                        node.corner_smoothing,
+                    );
                     ctx.stroke();
                 } else {
                     ctx.stroke_rect(node.x, node.y, node.width, node.height);
                 }
-                if !stroke.dash_array.is_empty() { ctx.set_line_dash(&js_sys::Array::new()).ok(); }
+                if !stroke.dash_array.is_empty() {
+                    ctx.set_line_dash(&js_sys::Array::new()).ok();
+                }
                 ctx.restore();
             }
         }
@@ -906,7 +1321,16 @@ impl Renderer {
             self.apply_fill_stack_paint(ctx, fill, node);
             self.apply_single_fill_style(ctx, fill, node);
             if node.corner_radius > 0.0 {
-                self.draw_rounded_rect_smooth(ctx, node.x, node.y, node.width, node.height, node.corner_radius, node.corner_smoothing);
+                self.draw_node_rounded_rect_smooth(
+                    ctx,
+                    node,
+                    node.x,
+                    node.y,
+                    node.width,
+                    node.height,
+                    node.corner_radius,
+                    node.corner_smoothing,
+                );
                 ctx.fill();
             } else {
                 ctx.fill_rect(node.x, node.y, node.width, node.height);
@@ -920,12 +1344,25 @@ impl Renderer {
                 self.apply_stroke_stack_paint(ctx, stroke, node);
                 ctx.set_stroke_style_str(&stroke.color.to_css());
                 self.apply_stroke_options(ctx, stroke);
-                let w = if stroke.align == crate::node::StrokeAlign::Inside { stroke.width * 2.0 } else { stroke.width };
+                let w = if stroke.align == crate::node::StrokeAlign::Inside {
+                    stroke.width * 2.0
+                } else {
+                    stroke.width
+                };
                 ctx.set_line_width(w);
                 if stroke.align == crate::node::StrokeAlign::Inside {
                     ctx.save();
                     if node.corner_radius > 0.0 {
-                        self.draw_rounded_rect_smooth(ctx, node.x, node.y, node.width, node.height, node.corner_radius, node.corner_smoothing);
+                        self.draw_node_rounded_rect_smooth(
+                            ctx,
+                            node,
+                            node.x,
+                            node.y,
+                            node.width,
+                            node.height,
+                            node.corner_radius,
+                            node.corner_smoothing,
+                        );
                     } else {
                         ctx.begin_path();
                         ctx.rect(node.x, node.y, node.width, node.height);
@@ -933,7 +1370,16 @@ impl Renderer {
                     ctx.clip();
                 }
                 if node.corner_radius > 0.0 {
-                    self.draw_rounded_rect_smooth(ctx, node.x, node.y, node.width, node.height, node.corner_radius, node.corner_smoothing);
+                    self.draw_node_rounded_rect_smooth(
+                        ctx,
+                        node,
+                        node.x,
+                        node.y,
+                        node.width,
+                        node.height,
+                        node.corner_radius,
+                        node.corner_smoothing,
+                    );
                     ctx.stroke();
                 } else {
                     ctx.stroke_rect(node.x, node.y, node.width, node.height);
@@ -941,12 +1387,15 @@ impl Renderer {
                 if stroke.align == crate::node::StrokeAlign::Inside {
                     ctx.restore();
                 }
-                if !stroke.dash_array.is_empty() { ctx.set_line_dash(&js_sys::Array::new()).ok(); }
+                if !stroke.dash_array.is_empty() {
+                    ctx.set_line_dash(&js_sys::Array::new()).ok();
+                }
                 ctx.restore();
             }
         }
         // Only show label if parent doesn't have layout (avoids clutter in nested layouts)
-        let parent_has_layout = node.parent
+        let parent_has_layout = node
+            .parent
             .and_then(|pid| scene.get_node(pid))
             .map(|p| p.layout.mode != crate::node::LayoutMode::None)
             .unwrap_or(false);
@@ -973,7 +1422,8 @@ impl Renderer {
                 ctx.set_font(&format!("600 {}px Inter, system-ui, sans-serif", fs));
                 ctx.set_text_baseline("middle");
                 ctx.set_fill_style_str("#1a1a1a");
-                ctx.fill_text(&node.notes.len().to_string(), cx - fs * 0.25, cy).ok();
+                ctx.fill_text(&node.notes.len().to_string(), cx - fs * 0.25, cy)
+                    .ok();
             }
         }
         // Resource link indicator (small blue link dot, top-left corner)
@@ -999,7 +1449,8 @@ impl Renderer {
                 ctx.set_text_baseline("middle");
                 ctx.set_text_align("center");
                 ctx.set_fill_style_str("#fff");
-                ctx.fill_text(&node.resource_links.len().to_string(), cx, cy + r * 2.0).ok();
+                ctx.fill_text(&node.resource_links.len().to_string(), cx, cy + r * 2.0)
+                    .ok();
                 ctx.set_text_align("start");
             }
         }
@@ -1030,7 +1481,16 @@ impl Renderer {
             ctx.save();
             ctx.begin_path();
             if node.corner_radius > 0.0 {
-                self.draw_rounded_rect_smooth(ctx, node.x, node.y, node.width, node.height, node.corner_radius, node.corner_smoothing);
+                self.draw_node_rounded_rect_smooth(
+                    ctx,
+                    node,
+                    node.x,
+                    node.y,
+                    node.width,
+                    node.height,
+                    node.corner_radius,
+                    node.corner_smoothing,
+                );
             } else {
                 ctx.rect(node.x, node.y, node.width, node.height);
             }
@@ -1041,8 +1501,16 @@ impl Renderer {
         let has_scroll = node.overflow.scrolls();
         if has_scroll {
             ctx.save();
-            let tx = if node.overflow.scrolls_x() { node.scroll_x } else { 0.0 };
-            let ty = if node.overflow.scrolls_y() { node.scroll_y } else { 0.0 };
+            let tx = if node.overflow.scrolls_x() {
+                node.scroll_x
+            } else {
+                0.0
+            };
+            let ty = if node.overflow.scrolls_y() {
+                node.scroll_y
+            } else {
+                0.0
+            };
             ctx.translate(tx, ty).ok();
         }
 
@@ -1076,7 +1544,11 @@ impl Renderer {
         ctx.set_stroke_style_str("rgba(168, 85, 247, 0.5)");
         ctx.set_line_width(lw);
         let dash = 4.0 / self.viewport.a;
-        ctx.set_line_dash(&js_sys::Array::of2(&JsValue::from(dash), &JsValue::from(dash))).ok();
+        ctx.set_line_dash(&js_sys::Array::of2(
+            &JsValue::from(dash),
+            &JsValue::from(dash),
+        ))
+        .ok();
         ctx.stroke_rect(node.x, node.y, node.width, node.height);
         ctx.set_line_dash(&js_sys::Array::new()).ok();
 
@@ -1085,8 +1557,17 @@ impl Renderer {
         ctx.set_fill_style_str("rgba(168, 85, 247, 0.6)");
         ctx.set_font(&format!("{}px Inter, system-ui, sans-serif", font_size));
         ctx.set_text_baseline("top");
-        let label = if let NodeKind::Slot { ref slot_name } = node.kind { slot_name.clone() } else { "slot".to_string() };
-        ctx.fill_text(&label, node.x + 4.0 / self.viewport.a, node.y + 4.0 / self.viewport.a).ok();
+        let label = if let NodeKind::Slot { ref slot_name } = node.kind {
+            slot_name.clone()
+        } else {
+            "slot".to_string()
+        };
+        ctx.fill_text(
+            &label,
+            node.x + 4.0 / self.viewport.a,
+            node.y + 4.0 / self.viewport.a,
+        )
+        .ok();
     }
 
     fn render_instance(&self, ctx: &CanvasRenderingContext2d, node: &Node, scene: &Scene) {
@@ -1095,8 +1576,12 @@ impl Renderer {
             self.apply_single_fill_style(ctx, fill, node);
             if node.corner_radius > 0.0 {
                 ctx.begin_path();
-                let r = node.corner_radius.min(node.width / 2.0).min(node.height / 2.0);
-                ctx.round_rect_with_f64(node.x, node.y, node.width, node.height, r).ok();
+                let r = node
+                    .corner_radius
+                    .min(node.width / 2.0)
+                    .min(node.height / 2.0);
+                ctx.round_rect_with_f64(node.x, node.y, node.width, node.height, r)
+                    .ok();
                 ctx.fill();
             } else {
                 ctx.fill_rect(node.x, node.y, node.width, node.height);
@@ -1107,10 +1592,13 @@ impl Renderer {
             ctx.set_line_width(stroke.width);
             self.apply_stroke_options(ctx, stroke);
             ctx.stroke_rect(node.x, node.y, node.width, node.height);
-            if !stroke.dash_array.is_empty() { ctx.set_line_dash(&js_sys::Array::new()).ok(); }
+            if !stroke.dash_array.is_empty() {
+                ctx.set_line_dash(&js_sys::Array::new()).ok();
+            }
         }
         // Instance label (skip if parent has layout)
-        let parent_has_layout = node.parent
+        let parent_has_layout = node
+            .parent
             .and_then(|pid| scene.get_node(pid))
             .map(|p| p.layout.mode != crate::node::LayoutMode::None)
             .unwrap_or(false);
@@ -1136,7 +1624,8 @@ impl Renderer {
                 ctx.set_font(&format!("600 {}px Inter, system-ui, sans-serif", fs));
                 ctx.set_text_baseline("middle");
                 ctx.set_fill_style_str("#1a1a1a");
-                ctx.fill_text(&node.notes.len().to_string(), cx - fs * 0.25, cy).ok();
+                ctx.fill_text(&node.notes.len().to_string(), cx - fs * 0.25, cy)
+                    .ok();
             }
         }
         // Resource link indicator (blue dot, top-left)
@@ -1168,7 +1657,16 @@ impl Renderer {
             ctx.set_fill_style_str("rgba(40,40,40,1)");
         }
         if node.corner_radius > 0.0 {
-            self.draw_rounded_rect_smooth(ctx, node.x, node.y, node.width, node.height, node.corner_radius, node.corner_smoothing);
+            self.draw_node_rounded_rect_smooth(
+                ctx,
+                node,
+                node.x,
+                node.y,
+                node.width,
+                node.height,
+                node.corner_radius,
+                node.corner_smoothing,
+            );
             ctx.fill();
         } else {
             ctx.fill_rect(node.x, node.y, node.width, node.height);
@@ -1189,7 +1687,14 @@ impl Renderer {
         ctx.stroke();
         // Sun circle
         ctx.begin_path();
-        ctx.arc(cx - icon_size * 0.5, cy - icon_size * 0.4, icon_size * 0.2, 0.0, std::f64::consts::TAU).ok();
+        ctx.arc(
+            cx - icon_size * 0.5,
+            cy - icon_size * 0.4,
+            icon_size * 0.2,
+            0.0,
+            std::f64::consts::TAU,
+        )
+        .ok();
         ctx.stroke();
 
         // Frame label
@@ -1205,7 +1710,16 @@ impl Renderer {
         // Dark placeholder rect — actual poster/video drawn by TS overlay
         ctx.set_fill_style_str("rgba(30,30,30,1)");
         if node.corner_radius > 0.0 {
-            self.draw_rounded_rect_smooth(ctx, node.x, node.y, node.width, node.height, node.corner_radius, node.corner_smoothing);
+            self.draw_node_rounded_rect_smooth(
+                ctx,
+                node,
+                node.x,
+                node.y,
+                node.width,
+                node.height,
+                node.corner_radius,
+                node.corner_smoothing,
+            );
             ctx.fill();
         } else {
             ctx.fill_rect(node.x, node.y, node.width, node.height);
@@ -1238,8 +1752,16 @@ impl Renderer {
         ctx.fill_text(&node.name, node.x, node.y - gap).ok();
     }
 
-    fn render_path(&self, ctx: &CanvasRenderingContext2d, node: &Node, points: &[PathPoint], closed: bool) {
-        if points.is_empty() { return; }
+    fn render_path(
+        &self,
+        ctx: &CanvasRenderingContext2d,
+        node: &Node,
+        points: &[PathPoint],
+        closed: bool,
+    ) {
+        if points.is_empty() {
+            return;
+        }
 
         // Check for variable-width stroke
         let has_variable = points.iter().any(|p| p.stroke_width > 0.0);
@@ -1251,9 +1773,12 @@ impl Renderer {
             let curr = &points[i];
             if prev.has_handle_out() || curr.has_handle_in() {
                 ctx.bezier_curve_to(
-                    prev.handle_out_x, prev.handle_out_y,
-                    curr.handle_in_x, curr.handle_in_y,
-                    curr.x, curr.y,
+                    prev.handle_out_x,
+                    prev.handle_out_y,
+                    curr.handle_in_x,
+                    curr.handle_in_y,
+                    curr.x,
+                    curr.y,
                 );
             } else {
                 ctx.line_to(curr.x, curr.y);
@@ -1264,9 +1789,12 @@ impl Renderer {
             let first = &points[0];
             if last.has_handle_out() || first.has_handle_in() {
                 ctx.bezier_curve_to(
-                    last.handle_out_x, last.handle_out_y,
-                    first.handle_in_x, first.handle_in_y,
-                    first.x, first.y,
+                    last.handle_out_x,
+                    last.handle_out_y,
+                    first.handle_in_x,
+                    first.handle_in_y,
+                    first.x,
+                    first.y,
                 );
             } else {
                 ctx.close_path();
@@ -1281,14 +1809,23 @@ impl Renderer {
             }
             // Render variable-width stroke as filled outline
             let default_width = node.first_stroke().map(|s| s.width).unwrap_or(2.0);
-            let stroke_color = node.first_stroke().map(|s| s.color.to_css()).unwrap_or_else(|| "rgba(255,255,255,1)".to_string());
+            let stroke_color = node
+                .first_stroke()
+                .map(|s| s.color.to_css())
+                .unwrap_or_else(|| "rgba(255,255,255,1)".to_string());
             Self::render_variable_width_stroke(ctx, points, closed, default_width, &stroke_color);
         } else {
             self.apply_fill_stroke_path(ctx, node, points, closed);
         }
     }
 
-    fn apply_fill_stroke_path(&self, ctx: &CanvasRenderingContext2d, node: &Node, points: &[PathPoint], closed: bool) {
+    fn apply_fill_stroke_path(
+        &self,
+        ctx: &CanvasRenderingContext2d,
+        node: &Node,
+        points: &[PathPoint],
+        closed: bool,
+    ) {
         if closed {
             self.apply_fill_stroke(ctx, node);
             return;
@@ -1317,7 +1854,10 @@ impl Renderer {
                     ctx.stroke();
                 }
             }
-            if points.len() >= 2 && (!matches!(stroke.arrow_start, crate::node::ArrowStyle::None) || !matches!(stroke.arrow_end, crate::node::ArrowStyle::None)) {
+            if points.len() >= 2
+                && (!matches!(stroke.arrow_start, crate::node::ArrowStyle::None)
+                    || !matches!(stroke.arrow_end, crate::node::ArrowStyle::None))
+            {
                 let sampled = Self::sample_open_path_points(points, 16);
                 if sampled.len() >= 2 {
                     let stroke_color = stroke.color.to_css();
@@ -1328,11 +1868,29 @@ impl Renderer {
                     let (ex, ey) = sampled[sampled.len() - 1];
                     if !matches!(stroke.arrow_end, crate::node::ArrowStyle::None) {
                         let angle = (ey - py).atan2(ex - px);
-                        self.draw_arrowhead_styled(ctx, ex, ey, angle, arrow_size, &stroke_color, &stroke.arrow_end, stroke.width);
+                        self.draw_arrowhead_styled(
+                            ctx,
+                            ex,
+                            ey,
+                            angle,
+                            arrow_size,
+                            &stroke_color,
+                            &stroke.arrow_end,
+                            stroke.width,
+                        );
                     }
                     if !matches!(stroke.arrow_start, crate::node::ArrowStyle::None) {
                         let angle = (sy - sny).atan2(sx - snx);
-                        self.draw_arrowhead_styled(ctx, sx, sy, angle, arrow_size, &stroke_color, &stroke.arrow_start, stroke.width);
+                        self.draw_arrowhead_styled(
+                            ctx,
+                            sx,
+                            sy,
+                            angle,
+                            arrow_size,
+                            &stroke_color,
+                            &stroke.arrow_start,
+                            stroke.width,
+                        );
                     }
                 }
             }
@@ -1343,7 +1901,12 @@ impl Renderer {
         }
     }
 
-    fn build_open_path(&self, ctx: &CanvasRenderingContext2d, points: &[PathPoint], normal_offset: f64) {
+    fn build_open_path(
+        &self,
+        ctx: &CanvasRenderingContext2d,
+        points: &[PathPoint],
+        normal_offset: f64,
+    ) {
         let samples = Self::sample_open_path_points(points, 16);
         if samples.is_empty() {
             return;
@@ -1372,15 +1935,23 @@ impl Renderer {
             let p0 = &points[i];
             let p1 = &points[i + 1];
             let is_curve = p0.has_handle_out() || p1.has_handle_in();
-            let steps = if is_curve { segments_per_curve.max(1) } else { 1 };
+            let steps = if is_curve {
+                segments_per_curve.max(1)
+            } else {
+                1
+            };
             for s in 0..steps {
                 let t = s as f64 / steps as f64;
                 let (x, y) = if is_curve {
                     cubic_bezier_point(
-                        p0.x, p0.y,
-                        p0.handle_out_x, p0.handle_out_y,
-                        p1.handle_in_x, p1.handle_in_y,
-                        p1.x, p1.y,
+                        p0.x,
+                        p0.y,
+                        p0.handle_out_x,
+                        p0.handle_out_y,
+                        p1.handle_in_x,
+                        p1.handle_in_y,
+                        p1.x,
+                        p1.y,
                         t,
                     )
                 } else {
@@ -1408,12 +1979,18 @@ impl Renderer {
                     samples[samples.len() - 1].1 - samples[samples.len() - 2].1,
                 )
             } else {
-                (samples[i + 1].0 - samples[i - 1].0, samples[i + 1].1 - samples[i - 1].1)
+                (
+                    samples[i + 1].0 - samples[i - 1].0,
+                    samples[i + 1].1 - samples[i - 1].1,
+                )
             };
             let len = (tx * tx + ty * ty).sqrt().max(1e-9);
             let nx = -ty / len;
             let ny = tx / len;
-            out.push((samples[i].0 + nx * normal_offset, samples[i].1 + ny * normal_offset));
+            out.push((
+                samples[i].0 + nx * normal_offset,
+                samples[i].1 + ny * normal_offset,
+            ));
         }
         out
     }
@@ -1426,7 +2003,9 @@ impl Renderer {
         default_width: f64,
         stroke_color: &str,
     ) {
-        if points.len() < 2 { return; }
+        if points.len() < 2 {
+            return;
+        }
 
         // 1. Flatten path to polyline with interpolated widths
         let segments_per_curve = 16;
@@ -1434,10 +2013,18 @@ impl Renderer {
 
         // Helper: get effective width at a point
         let ew = |p: &PathPoint| -> f64 {
-            if p.stroke_width > 0.0 { p.stroke_width } else { default_width }
+            if p.stroke_width > 0.0 {
+                p.stroke_width
+            } else {
+                default_width
+            }
         };
 
-        let num_segs = if closed { points.len() } else { points.len() - 1 };
+        let num_segs = if closed {
+            points.len()
+        } else {
+            points.len() - 1
+        };
         for seg in 0..num_segs {
             let i0 = seg;
             let i1 = (seg + 1) % points.len();
@@ -1451,7 +2038,17 @@ impl Renderer {
             for s in 0..steps {
                 let t = s as f64 / steps as f64;
                 let (x, y) = if is_curve {
-                    cubic_bezier_point(p0.x, p0.y, p0.handle_out_x, p0.handle_out_y, p1.handle_in_x, p1.handle_in_y, p1.x, p1.y, t)
+                    cubic_bezier_point(
+                        p0.x,
+                        p0.y,
+                        p0.handle_out_x,
+                        p0.handle_out_y,
+                        p1.handle_in_x,
+                        p1.handle_in_y,
+                        p1.x,
+                        p1.y,
+                        t,
+                    )
                 } else {
                     (p0.x + (p1.x - p0.x) * t, p0.y + (p1.y - p0.y) * t)
                 };
@@ -1464,7 +2061,9 @@ impl Renderer {
         let lp = &points[last_idx];
         samples.push((lp.x, lp.y, ew(lp) / 2.0));
 
-        if samples.len() < 2 { return; }
+        if samples.len() < 2 {
+            return;
+        }
 
         // 2. Compute normals and build left/right outlines
         let n = samples.len();
@@ -1476,9 +2075,15 @@ impl Renderer {
             let (tx, ty) = if i == 0 {
                 (samples[1].0 - samples[0].0, samples[1].1 - samples[0].1)
             } else if i == n - 1 {
-                (samples[n-1].0 - samples[n-2].0, samples[n-1].1 - samples[n-2].1)
+                (
+                    samples[n - 1].0 - samples[n - 2].0,
+                    samples[n - 1].1 - samples[n - 2].1,
+                )
             } else {
-                (samples[i+1].0 - samples[i-1].0, samples[i+1].1 - samples[i-1].1)
+                (
+                    samples[i + 1].0 - samples[i - 1].0,
+                    samples[i + 1].1 - samples[i - 1].1,
+                )
             };
             let len = (tx * tx + ty * ty).sqrt().max(1e-10);
             let nx = -ty / len;
@@ -1503,7 +2108,12 @@ impl Renderer {
         ctx.fill();
     }
 
-    fn render_vector_network(&self, ctx: &CanvasRenderingContext2d, node: &Node, vn: &crate::vector_network::VectorNetwork) {
+    fn render_vector_network(
+        &self,
+        ctx: &CanvasRenderingContext2d,
+        node: &Node,
+        vn: &crate::vector_network::VectorNetwork,
+    ) {
         // Render filled regions
         for region in &vn.regions {
             ctx.begin_path();
@@ -1570,7 +2180,13 @@ impl Renderer {
         }
     }
 
-    fn render_star(&self, ctx: &CanvasRenderingContext2d, node: &Node, points: u32, inner_radius: f64) {
+    fn render_star(
+        &self,
+        ctx: &CanvasRenderingContext2d,
+        node: &Node,
+        points: u32,
+        inner_radius: f64,
+    ) {
         let cx = node.x + node.width / 2.0;
         let cy = node.y + node.height / 2.0;
         let rx = node.width / 2.0;
@@ -1582,10 +2198,18 @@ impl Renderer {
         ctx.begin_path();
         for i in 0..(n * 2) {
             let angle = start_angle + angle_step * i as f64;
-            let (r_x, r_y) = if i % 2 == 0 { (rx, ry) } else { (rx * inner_radius, ry * inner_radius) };
+            let (r_x, r_y) = if i % 2 == 0 {
+                (rx, ry)
+            } else {
+                (rx * inner_radius, ry * inner_radius)
+            };
             let px = cx + angle.cos() * r_x;
             let py = cy + angle.sin() * r_y;
-            if i == 0 { ctx.move_to(px, py); } else { ctx.line_to(px, py); }
+            if i == 0 {
+                ctx.move_to(px, py);
+            } else {
+                ctx.line_to(px, py);
+            }
         }
         ctx.close_path();
         self.apply_fill_stroke(ctx, node);
@@ -1605,14 +2229,29 @@ impl Renderer {
             let angle = start_angle + angle_step * i as f64;
             let px = cx + angle.cos() * rx;
             let py = cy + angle.sin() * ry;
-            if i == 0 { ctx.move_to(px, py); } else { ctx.line_to(px, py); }
+            if i == 0 {
+                ctx.move_to(px, py);
+            } else {
+                ctx.line_to(px, py);
+            }
         }
         ctx.close_path();
         self.apply_fill_stroke(ctx, node);
     }
 
-    fn render_table(&self, ctx: &CanvasRenderingContext2d, node: &Node, rows: u32, cols: u32, cells: &[crate::node::TableCell], col_widths: &[f64], row_heights: &[f64]) {
-        if rows == 0 || cols == 0 { return; }
+    fn render_table(
+        &self,
+        ctx: &CanvasRenderingContext2d,
+        node: &Node,
+        rows: u32,
+        cols: u32,
+        cells: &[crate::node::TableCell],
+        col_widths: &[f64],
+        row_heights: &[f64],
+    ) {
+        if rows == 0 || cols == 0 {
+            return;
+        }
 
         // Compute cell positions
         let default_cw = node.width / cols as f64;
@@ -1622,9 +2261,13 @@ impl Renderer {
 
         // Cumulative positions
         let mut col_x: Vec<f64> = vec![0.0; cols as usize + 1];
-        for c in 0..cols as usize { col_x[c + 1] = col_x[c] + cw(c); }
+        for c in 0..cols as usize {
+            col_x[c + 1] = col_x[c] + cw(c);
+        }
         let mut row_y: Vec<f64> = vec![0.0; rows as usize + 1];
-        for r in 0..rows as usize { row_y[r + 1] = row_y[r] + rh(r); }
+        for r in 0..rows as usize {
+            row_y[r + 1] = row_y[r] + rh(r);
+        }
 
         // Background
         for fill in node.visible_fills() {
@@ -1637,15 +2280,22 @@ impl Renderer {
             if let Some(color) = &cell.fill {
                 let cx = node.x + col_x.get(cell.col as usize).copied().unwrap_or(0.0);
                 let cy = node.y + row_y.get(cell.row as usize).copied().unwrap_or(0.0);
-                let cw_span: f64 = (cell.col..cell.col + cell.col_span).map(|c| col_widths.get(c as usize).copied().unwrap_or(default_cw)).sum();
-                let ch_span: f64 = (cell.row..cell.row + cell.row_span).map(|r| row_heights.get(r as usize).copied().unwrap_or(default_rh)).sum();
+                let cw_span: f64 = (cell.col..cell.col + cell.col_span)
+                    .map(|c| col_widths.get(c as usize).copied().unwrap_or(default_cw))
+                    .sum();
+                let ch_span: f64 = (cell.row..cell.row + cell.row_span)
+                    .map(|r| row_heights.get(r as usize).copied().unwrap_or(default_rh))
+                    .sum();
                 ctx.set_fill_style_str(&color.to_css());
                 ctx.fill_rect(cx, cy, cw_span, ch_span);
             }
         }
 
         // Grid lines
-        let stroke_color = node.first_stroke().map(|s| s.color.to_css()).unwrap_or_else(|| "rgba(255,255,255,0.3)".to_string());
+        let stroke_color = node
+            .first_stroke()
+            .map(|s| s.color.to_css())
+            .unwrap_or_else(|| "rgba(255,255,255,0.3)".to_string());
         let stroke_width = node.first_stroke().map(|s| s.width).unwrap_or(1.0);
         ctx.set_stroke_style_str(&stroke_color);
         ctx.set_line_width(stroke_width);
@@ -1671,19 +2321,33 @@ impl Renderer {
         let font_size = 12.0;
         ctx.set_font(&format!("{}px Inter, system-ui, sans-serif", font_size));
         ctx.set_text_baseline("middle");
-        let text_color = node.visible_fills().last().map(|f| {
-            let c = f.color();
-            // Use contrasting text color
-            if (c.r as u16 + c.g as u16 + c.b as u16) > 384 { "rgba(0,0,0,0.85)".to_string() } else { "rgba(255,255,255,0.85)".to_string() }
-        }).unwrap_or_else(|| "rgba(255,255,255,0.85)".to_string());
+        let text_color = node
+            .visible_fills()
+            .last()
+            .map(|f| {
+                let c = f.color();
+                // Use contrasting text color
+                if (c.r as u16 + c.g as u16 + c.b as u16) > 384 {
+                    "rgba(0,0,0,0.85)".to_string()
+                } else {
+                    "rgba(255,255,255,0.85)".to_string()
+                }
+            })
+            .unwrap_or_else(|| "rgba(255,255,255,0.85)".to_string());
         ctx.set_fill_style_str(&text_color);
 
         for cell in cells {
-            if cell.content.is_empty() { continue; }
+            if cell.content.is_empty() {
+                continue;
+            }
             let cx = node.x + col_x.get(cell.col as usize).copied().unwrap_or(0.0);
             let cy = node.y + row_y.get(cell.row as usize).copied().unwrap_or(0.0);
-            let cw_span: f64 = (cell.col..cell.col + cell.col_span).map(|c| col_widths.get(c as usize).copied().unwrap_or(default_cw)).sum();
-            let ch_span: f64 = (cell.row..cell.row + cell.row_span).map(|r| row_heights.get(r as usize).copied().unwrap_or(default_rh)).sum();
+            let cw_span: f64 = (cell.col..cell.col + cell.col_span)
+                .map(|c| col_widths.get(c as usize).copied().unwrap_or(default_cw))
+                .sum();
+            let ch_span: f64 = (cell.row..cell.row + cell.row_span)
+                .map(|r| row_heights.get(r as usize).copied().unwrap_or(default_rh))
+                .sum();
             let padding = 6.0;
 
             // Simple word-wrap inside each cell
@@ -1692,12 +2356,22 @@ impl Renderer {
             for para in cell.content.split('\n') {
                 let mut cur = String::new();
                 for word in para.split_whitespace() {
-                    let candidate = if cur.is_empty() { word.to_string() } else { format!("{} {}", cur, word) };
-                    let fits = ctx.measure_text(&candidate).ok().map(|m| m.width() <= max_w).unwrap_or(true);
+                    let candidate = if cur.is_empty() {
+                        word.to_string()
+                    } else {
+                        format!("{} {}", cur, word)
+                    };
+                    let fits = ctx
+                        .measure_text(&candidate)
+                        .ok()
+                        .map(|m| m.width() <= max_w)
+                        .unwrap_or(true);
                     if fits {
                         cur = candidate;
                     } else {
-                        if !cur.is_empty() { lines.push(cur); }
+                        if !cur.is_empty() {
+                            lines.push(cur);
+                        }
                         cur = word.to_string();
                     }
                 }
@@ -1717,13 +2391,24 @@ impl Renderer {
 
             for line in lines {
                 let text_x = match cell.text_align {
-                    crate::node::TableCellAlign::Left => { ctx.set_text_align("left"); cx + padding }
-                    crate::node::TableCellAlign::Center => { ctx.set_text_align("center"); cx + cw_span / 2.0 }
-                    crate::node::TableCellAlign::Right => { ctx.set_text_align("right"); cx + cw_span - padding }
+                    crate::node::TableCellAlign::Left => {
+                        ctx.set_text_align("left");
+                        cx + padding
+                    }
+                    crate::node::TableCellAlign::Center => {
+                        ctx.set_text_align("center");
+                        cx + cw_span / 2.0
+                    }
+                    crate::node::TableCellAlign::Right => {
+                        ctx.set_text_align("right");
+                        cx + cw_span - padding
+                    }
                 };
                 ctx.fill_text(&line, text_x, y).ok();
                 y += line_h;
-                if y > cy + ch_span - 2.0 { break; }
+                if y > cy + ch_span - 2.0 {
+                    break;
+                }
             }
         }
         ctx.set_text_align("start");
@@ -1737,14 +2422,18 @@ impl Renderer {
         let mut max_y = f64::MIN;
         for &cid in &node.children {
             if let Some(c) = scene.get_node(cid) {
-                if !c.visible { continue; }
+                if !c.visible {
+                    continue;
+                }
                 min_x = min_x.min(c.x);
                 min_y = min_y.min(c.y);
                 max_x = max_x.max(c.x + c.width);
                 max_y = max_y.max(c.y + c.height);
             }
         }
-        if min_x >= max_x || min_y >= max_y { return; }
+        if min_x >= max_x || min_y >= max_y {
+            return;
+        }
 
         let content_w = max_x - min_x;
         let content_h = max_y - min_y;
@@ -1784,7 +2473,15 @@ impl Renderer {
         }
     }
 
-    fn render_sticky_note(&self, ctx: &CanvasRenderingContext2d, node: &Node, content: &str, font_size: f64, theme: &str, votes: &[crate::node::StickyVote]) {
+    fn render_sticky_note(
+        &self,
+        ctx: &CanvasRenderingContext2d,
+        node: &Node,
+        content: &str,
+        font_size: f64,
+        theme: &str,
+        votes: &[crate::node::StickyVote],
+    ) {
         let (bg, text_color, border) = match theme {
             "green" => ("#c6f6d5", "#1a4731", "#9ae6b4"),
             "blue" => ("#bee3f8", "#1a365d", "#90cdf4"),
@@ -1805,14 +2502,32 @@ impl Renderer {
         let r = 4.0;
         // Background
         ctx.set_fill_style_str(bg);
-        self.draw_rounded_rect_smooth(ctx, node.x, node.y, node.width, node.height, r, node.corner_smoothing);
+        self.draw_node_rounded_rect_smooth(
+            ctx,
+            node,
+            node.x,
+            node.y,
+            node.width,
+            node.height,
+            r,
+            node.corner_smoothing,
+        );
         ctx.fill();
         ctx.restore();
 
         // Border
         ctx.set_stroke_style_str(border);
         ctx.set_line_width(1.0);
-        self.draw_rounded_rect_smooth(ctx, node.x, node.y, node.width, node.height, r, node.corner_smoothing);
+        self.draw_node_rounded_rect_smooth(
+            ctx,
+            node,
+            node.x,
+            node.y,
+            node.width,
+            node.height,
+            r,
+            node.corner_smoothing,
+        );
         ctx.stroke();
 
         // Folded corner
@@ -1843,7 +2558,11 @@ impl Renderer {
             }
             let mut line = String::new();
             for word in words {
-                let test = if line.is_empty() { word.to_string() } else { format!("{} {}", line, word) };
+                let test = if line.is_empty() {
+                    word.to_string()
+                } else {
+                    format!("{} {}", line, word)
+                };
                 let tw = ctx.measure_text(&test).map(|m| m.width()).unwrap_or(0.0);
                 if tw > max_w && !line.is_empty() {
                     ctx.fill_text(&line, node.x + padding, y).ok();
@@ -1866,13 +2585,22 @@ impl Renderer {
                 let dot_y = node.y + node.height - 16.0;
                 let dot_x = node.x + padding;
                 let dot_r = 5.0;
-                let colors = ["#e53e3e", "#dd6b20", "#d69e2e", "#38a169", "#3182ce", "#805ad5"];
+                let colors = [
+                    "#e53e3e", "#dd6b20", "#d69e2e", "#38a169", "#3182ce", "#805ad5",
+                ];
                 let mut dx = 0.0;
                 for (i, vote) in votes.iter().enumerate() {
                     let color = colors[i % colors.len()];
                     for _ in 0..vote.count.min(5) {
                         ctx.begin_path();
-                        ctx.arc(dot_x + dx + dot_r, dot_y, dot_r, 0.0, std::f64::consts::PI * 2.0).ok();
+                        ctx.arc(
+                            dot_x + dx + dot_r,
+                            dot_y,
+                            dot_r,
+                            0.0,
+                            std::f64::consts::PI * 2.0,
+                        )
+                        .ok();
                         ctx.set_fill_style_str(color);
                         ctx.fill();
                         dx += dot_r * 2.5;
@@ -1888,17 +2616,37 @@ impl Renderer {
         // Background: use node.fills if non-empty, otherwise default
         if !node.fills.is_empty() {
             for fill in &node.fills {
-                if !fill.visible { continue; }
+                if !fill.visible {
+                    continue;
+                }
                 ctx.save();
                 self.apply_fill_stack_paint(ctx, fill, node);
                 self.apply_single_fill_style(ctx, fill, node);
-                self.draw_rounded_rect_smooth(ctx, node.x, node.y, node.width, node.height, r, node.corner_smoothing);
+                self.draw_node_rounded_rect_smooth(
+                    ctx,
+                    node,
+                    node.x,
+                    node.y,
+                    node.width,
+                    node.height,
+                    r,
+                    node.corner_smoothing,
+                );
                 ctx.fill();
                 ctx.restore();
             }
         } else {
             ctx.set_fill_style_str("rgba(26, 26, 46, 0.6)");
-            self.draw_rounded_rect_smooth(ctx, node.x, node.y, node.width, node.height, r, node.corner_smoothing);
+            self.draw_node_rounded_rect_smooth(
+                ctx,
+                node,
+                node.x,
+                node.y,
+                node.width,
+                node.height,
+                r,
+                node.corner_smoothing,
+            );
             ctx.fill();
         }
 
@@ -1906,20 +2654,36 @@ impl Renderer {
         let lw = 1.0 / self.viewport.a;
         ctx.set_stroke_style_str("rgba(255,255,255,0.08)");
         ctx.set_line_width(lw);
-        self.draw_rounded_rect_smooth(ctx, node.x, node.y, node.width, node.height, r, node.corner_smoothing);
+        self.draw_node_rounded_rect_smooth(
+            ctx,
+            node,
+            node.x,
+            node.y,
+            node.width,
+            node.height,
+            r,
+            node.corner_smoothing,
+        );
         ctx.stroke();
 
         // Title label above the section
         let base_font_size = node.section_title_font_size.unwrap_or(14.0);
         let font_size = (base_font_size / self.viewport.a).min(base_font_size);
         let gap = (6.0 / self.viewport.a).min(6.0);
-        let title_color = node.section_title_color.as_deref().unwrap_or("rgba(255,255,255,0.7)");
+        let title_color = node
+            .section_title_color
+            .as_deref()
+            .unwrap_or("rgba(255,255,255,0.7)");
         ctx.set_fill_style_str(title_color);
         ctx.set_font(&format!("600 {}px Inter, system-ui, sans-serif", font_size));
         ctx.set_text_baseline("bottom");
 
         // Collapse/expand icon
-        let icon = if node.section_collapsed { "\u{25B6} " } else { "\u{25BC} " };
+        let icon = if node.section_collapsed {
+            "\u{25B6} "
+        } else {
+            "\u{25BC} "
+        };
         let title = format!("{}{}", icon, node.name);
         ctx.fill_text(&title, node.x, node.y - gap).ok();
 
@@ -1929,7 +2693,16 @@ impl Renderer {
             if needs_clip {
                 ctx.save();
                 ctx.begin_path();
-                self.draw_rounded_rect_smooth(ctx, node.x, node.y, node.width, node.height, r, node.corner_smoothing);
+                self.draw_node_rounded_rect_smooth(
+                    ctx,
+                    node,
+                    node.x,
+                    node.y,
+                    node.width,
+                    node.height,
+                    r,
+                    node.corner_smoothing,
+                );
                 ctx.clip();
             }
             self.render_children(ctx, &node.children, scene);
@@ -1939,11 +2712,22 @@ impl Renderer {
         }
     }
 
-    fn render_connector(&self, ctx: &CanvasRenderingContext2d, node: &Node, scene: &Scene,
-        start_node_id: u64, end_node_id: u64,
-        mut sx: f64, mut sy: f64, mut ex: f64, mut ey: f64,
-        path_type: &str, end_arrow: &crate::node::ArrowStyle, start_arrow: &crate::node::ArrowStyle, arrow_size_mult: f64)
-    {
+    fn render_connector(
+        &self,
+        ctx: &CanvasRenderingContext2d,
+        node: &Node,
+        scene: &Scene,
+        start_node_id: u64,
+        end_node_id: u64,
+        mut sx: f64,
+        mut sy: f64,
+        mut ex: f64,
+        mut ey: f64,
+        path_type: &str,
+        end_arrow: &crate::node::ArrowStyle,
+        start_arrow: &crate::node::ArrowStyle,
+        arrow_size_mult: f64,
+    ) {
         // Resolve endpoints from connected nodes
         if start_node_id != 0 {
             if let Some(n) = scene.get_node(start_node_id) {
@@ -1962,17 +2746,20 @@ impl Renderer {
         if start_node_id != 0 {
             if let Some(n) = scene.get_node(start_node_id) {
                 let (cx, cy) = Self::clip_to_rect(sx, sy, ex, ey, n.x, n.y, n.width, n.height);
-                sx = cx; sy = cy;
+                sx = cx;
+                sy = cy;
             }
         }
         if end_node_id != 0 {
             if let Some(n) = scene.get_node(end_node_id) {
                 let (cx, cy) = Self::clip_to_rect(ex, ey, sx, sy, n.x, n.y, n.width, n.height);
-                ex = cx; ey = cy;
+                ex = cx;
+                ey = cy;
             }
         }
 
-        let stroke_color = node.first_stroke()
+        let stroke_color = node
+            .first_stroke()
             .map(|s| s.color.to_css())
             .unwrap_or_else(|| "rgba(255,255,255,0.8)".to_string());
         let stroke_width = node.first_stroke().map(|s| s.width).unwrap_or(2.0);
@@ -1986,7 +2773,9 @@ impl Renderer {
         if let Some(ref stroke) = node.first_stroke() {
             if !stroke.dash_array.is_empty() {
                 let arr = js_sys::Array::new();
-                for &v in &stroke.dash_array { arr.push(&JsValue::from(v)); }
+                for &v in &stroke.dash_array {
+                    arr.push(&JsValue::from(v));
+                }
                 ctx.set_line_dash(&arr).ok();
                 ctx.set_line_dash_offset(stroke.dash_offset);
             }
@@ -2022,7 +2811,16 @@ impl Renderer {
             } else {
                 (ey - sy).atan2(ex - sx)
             };
-            self.draw_arrowhead_styled(ctx, ex, ey, angle, arrow_size, &stroke_color, end_arrow, stroke_width);
+            self.draw_arrowhead_styled(
+                ctx,
+                ex,
+                ey,
+                angle,
+                arrow_size,
+                &stroke_color,
+                end_arrow,
+                stroke_width,
+            );
         }
         if start_arrow.is_visible() {
             let angle = if path_type == "curved" {
@@ -2032,14 +2830,33 @@ impl Renderer {
             } else {
                 (sy - ey).atan2(sx - ex)
             };
-            self.draw_arrowhead_styled(ctx, sx, sy, angle, arrow_size, &stroke_color, start_arrow, stroke_width);
+            self.draw_arrowhead_styled(
+                ctx,
+                sx,
+                sy,
+                angle,
+                arrow_size,
+                &stroke_color,
+                start_arrow,
+                stroke_width,
+            );
         }
     }
 
-    fn draw_arrowhead_styled(&self, ctx: &CanvasRenderingContext2d, x: f64, y: f64, angle: f64, size: f64, color: &str, style: &crate::node::ArrowStyle, stroke_width: f64) {
+    fn draw_arrowhead_styled(
+        &self,
+        ctx: &CanvasRenderingContext2d,
+        x: f64,
+        y: f64,
+        angle: f64,
+        size: f64,
+        color: &str,
+        style: &crate::node::ArrowStyle,
+        stroke_width: f64,
+    ) {
         use crate::node::ArrowStyle;
         match style {
-            ArrowStyle::None => {},
+            ArrowStyle::None => {}
             ArrowStyle::Arrow => {
                 // Filled triangle
                 let a1 = angle - std::f64::consts::FRAC_PI_6;
@@ -2051,7 +2868,7 @@ impl Renderer {
                 ctx.close_path();
                 ctx.set_fill_style_str(color);
                 ctx.fill();
-            },
+            }
             ArrowStyle::OpenArrow => {
                 // Open V shape (no fill, just stroke)
                 let a1 = angle - std::f64::consts::FRAC_PI_6;
@@ -2063,26 +2880,32 @@ impl Renderer {
                 ctx.set_stroke_style_str(color);
                 ctx.set_line_width(stroke_width);
                 ctx.stroke();
-            },
+            }
             ArrowStyle::Diamond => {
                 // Rotated square (diamond)
                 let hs = size * 0.5;
                 ctx.begin_path();
                 ctx.move_to(x + hs * angle.cos(), y + hs * angle.sin());
-                ctx.line_to(x + hs * (angle + std::f64::consts::FRAC_PI_2).cos(), y + hs * (angle + std::f64::consts::FRAC_PI_2).sin());
+                ctx.line_to(
+                    x + hs * (angle + std::f64::consts::FRAC_PI_2).cos(),
+                    y + hs * (angle + std::f64::consts::FRAC_PI_2).sin(),
+                );
                 ctx.line_to(x - hs * angle.cos(), y - hs * angle.sin());
-                ctx.line_to(x + hs * (angle - std::f64::consts::FRAC_PI_2).cos(), y + hs * (angle - std::f64::consts::FRAC_PI_2).sin());
+                ctx.line_to(
+                    x + hs * (angle - std::f64::consts::FRAC_PI_2).cos(),
+                    y + hs * (angle - std::f64::consts::FRAC_PI_2).sin(),
+                );
                 ctx.close_path();
                 ctx.set_fill_style_str(color);
                 ctx.fill();
-            },
+            }
             ArrowStyle::Circle => {
                 let r = size * 0.35;
                 ctx.begin_path();
                 ctx.arc(x, y, r, 0.0, std::f64::consts::TAU).ok();
                 ctx.set_fill_style_str(color);
                 ctx.fill();
-            },
+            }
             ArrowStyle::Square => {
                 let hs = size * 0.35;
                 // Axis-aligned square centered at (x,y)
@@ -2091,23 +2914,40 @@ impl Renderer {
                 let sin_a = angle.sin();
                 // Rotated square
                 for i in 0..4 {
-                    let corner_angle = angle + std::f64::consts::FRAC_PI_4 + (i as f64) * std::f64::consts::FRAC_PI_2;
+                    let corner_angle = angle
+                        + std::f64::consts::FRAC_PI_4
+                        + (i as f64) * std::f64::consts::FRAC_PI_2;
                     let cx = x + hs * 1.414 * corner_angle.cos();
                     let cy = y + hs * 1.414 * corner_angle.sin();
-                    if i == 0 { ctx.move_to(cx, cy); } else { ctx.line_to(cx, cy); }
+                    if i == 0 {
+                        ctx.move_to(cx, cy);
+                    } else {
+                        ctx.line_to(cx, cy);
+                    }
                 }
                 ctx.close_path();
                 ctx.set_fill_style_str(color);
                 ctx.fill();
-            },
+            }
         }
     }
 
     /// Clip a line from center to target through a rectangle edge
-    fn clip_to_rect(cx: f64, cy: f64, tx: f64, ty: f64, rx: f64, ry: f64, rw: f64, rh: f64) -> (f64, f64) {
+    fn clip_to_rect(
+        cx: f64,
+        cy: f64,
+        tx: f64,
+        ty: f64,
+        rx: f64,
+        ry: f64,
+        rw: f64,
+        rh: f64,
+    ) -> (f64, f64) {
         let dx = tx - cx;
         let dy = ty - cy;
-        if dx.abs() < 0.001 && dy.abs() < 0.001 { return (cx, cy); }
+        if dx.abs() < 0.001 && dy.abs() < 0.001 {
+            return (cx, cy);
+        }
 
         let hw = rw / 2.0;
         let hh = rh / 2.0;
@@ -2116,23 +2956,39 @@ impl Renderer {
         // Check each edge
         if dx.abs() > 0.001 {
             let t1 = hw / dx.abs();
-            if t1 > 0.0 { t = t.min(t1); }
+            if t1 > 0.0 {
+                t = t.min(t1);
+            }
         }
         if dy.abs() > 0.001 {
             let t2 = hh / dy.abs();
-            if t2 > 0.0 { t = t.min(t2); }
+            if t2 > 0.0 {
+                t = t.min(t2);
+            }
         }
-        if t == f64::INFINITY { return (cx, cy); }
+        if t == f64::INFINITY {
+            return (cx, cy);
+        }
         (cx + dx * t, cy + dy * t)
     }
 
-    fn apply_repeat_grid_overrides(&self, mut node: Node, row: u32, col: u32, path: &str, overrides: &std::collections::HashMap<String, String>) -> Node {
+    fn apply_repeat_grid_overrides(
+        &self,
+        mut node: Node,
+        row: u32,
+        col: u32,
+        path: &str,
+        overrides: &std::collections::HashMap<String, String>,
+    ) -> Node {
         let prefix = format!("{},{}:{}:", row, col, path);
         for (key, value) in overrides.iter() {
-            if !key.starts_with(&prefix) { continue; }
+            if !key.starts_with(&prefix) {
+                continue;
+            }
             let field = &key[prefix.len()..];
             match (&mut node.kind, field) {
-                (NodeKind::Text { content, .. }, "text") | (NodeKind::Text { content, .. }, "text_content") => {
+                (NodeKind::Text { content, .. }, "text")
+                | (NodeKind::Text { content, .. }, "text_content") => {
                     *content = value.clone();
                 }
                 (NodeKind::Image { src, .. }, "src") => {
@@ -2147,7 +3003,16 @@ impl Renderer {
         node
     }
 
-    fn render_repeat_grid_node(&self, ctx: &CanvasRenderingContext2d, scene: &Scene, node_id: u64, row: u32, col: u32, path: &str, overrides: &std::collections::HashMap<String, String>) {
+    fn render_repeat_grid_node(
+        &self,
+        ctx: &CanvasRenderingContext2d,
+        scene: &Scene,
+        node_id: u64,
+        row: u32,
+        col: u32,
+        path: &str,
+        overrides: &std::collections::HashMap<String, String>,
+    ) {
         let node = match scene.get_node(node_id) {
             Some(n) => n.clone(),
             None => return,
@@ -2160,9 +3025,21 @@ impl Renderer {
         }
     }
 
-    fn render_repeat_grid(&self, ctx: &CanvasRenderingContext2d, node: &Node, scene: &Scene, columns: u32, rows: u32, column_gap: f64, row_gap: f64, overrides: &std::collections::HashMap<String, String>) {
+    fn render_repeat_grid(
+        &self,
+        ctx: &CanvasRenderingContext2d,
+        node: &Node,
+        scene: &Scene,
+        columns: u32,
+        rows: u32,
+        column_gap: f64,
+        row_gap: f64,
+        overrides: &std::collections::HashMap<String, String>,
+    ) {
         // RepeatGrid renders by drawing the first child (master cell) at each grid position.
-        if node.children.is_empty() { return; }
+        if node.children.is_empty() {
+            return;
+        }
         let master_id = node.children[0];
         let master = match scene.get_node(master_id) {
             Some(m) => m,
@@ -2178,14 +3055,25 @@ impl Renderer {
                 let offset_x = c as f64 * (cell_w + column_gap);
                 let offset_y = r as f64 * (cell_h + row_gap);
                 ctx.save();
-                ctx.translate(offset_x + base_x - master.x, offset_y + base_y - master.y).ok();
+                ctx.translate(offset_x + base_x - master.x, offset_y + base_y - master.y)
+                    .ok();
                 self.render_repeat_grid_node(ctx, scene, master_id, r, c, "0", overrides);
                 ctx.restore();
             }
         }
     }
 
-    fn render_callout(&self, ctx: &CanvasRenderingContext2d, node: &Node, content: &str, font_size: f64, tail_x: f64, tail_y: f64, tail_width: f64, theme: &str) {
+    fn render_callout(
+        &self,
+        ctx: &CanvasRenderingContext2d,
+        node: &Node,
+        content: &str,
+        font_size: f64,
+        tail_x: f64,
+        tail_y: f64,
+        tail_width: f64,
+        theme: &str,
+    ) {
         let x = node.x;
         let y = node.y;
         let w = node.width;
@@ -2195,10 +3083,10 @@ impl Renderer {
         // Theme colors
         let (bg_color, border_color, text_color) = match theme {
             "yellow" => ("#FFF9C4", "#F9A825", "#5D4037"),
-            "red"    => ("#FFCDD2", "#E53935", "#B71C1C"),
-            "green"  => ("#C8E6C9", "#43A047", "#1B5E20"),
-            "gray"   => ("#F5F5F5", "#9E9E9E", "#424242"),
-            _        => ("#BBDEFB", "#1E88E5", "#0D47A1"), // blue default
+            "red" => ("#FFCDD2", "#E53935", "#B71C1C"),
+            "green" => ("#C8E6C9", "#43A047", "#1B5E20"),
+            "gray" => ("#F5F5F5", "#9E9E9E", "#424242"),
+            _ => ("#BBDEFB", "#1E88E5", "#0D47A1"), // blue default
         };
 
         // Determine tail base: find closest edge center to tail point
@@ -2260,12 +3148,19 @@ impl Renderer {
         // Render text content
         if !content.is_empty() {
             let fill_css = if node.visible_fills().count() > 0 {
-                node.visible_fills().last().map(|f| f.color().to_css()).unwrap_or_else(|| text_color.to_string())
+                node.visible_fills()
+                    .last()
+                    .map(|f| f.color().to_css())
+                    .unwrap_or_else(|| text_color.to_string())
             } else {
                 text_color.to_string()
             };
             // Use node fill for text color, or theme text color
-            let actual_text_color = if node.visible_fills().count() > 0 { text_color.to_string() } else { text_color.to_string() };
+            let actual_text_color = if node.visible_fills().count() > 0 {
+                text_color.to_string()
+            } else {
+                text_color.to_string()
+            };
             ctx.set_fill_style_str(&actual_text_color);
             let font_str = format!("{}px Inter, system-ui, sans-serif", font_size);
             ctx.set_font(&font_str);
@@ -2293,15 +3188,25 @@ impl Renderer {
                     current_line = test;
                 }
             }
-            if !current_line.is_empty() { lines.push(current_line); }
+            if !current_line.is_empty() {
+                lines.push(current_line);
+            }
 
             for (i, line) in lines.iter().enumerate() {
-                ctx.fill_text(line, x + padding, y + padding + i as f64 * line_h).ok();
+                ctx.fill_text(line, x + padding, y + padding + i as f64 * line_h)
+                    .ok();
             }
         }
     }
 
-    fn render_chart(&self, ctx: &CanvasRenderingContext2d, node: &Node, chart_type: &crate::node::ChartType, data: &[crate::node::ChartDataPoint], config: &crate::node::ChartConfig) {
+    fn render_chart(
+        &self,
+        ctx: &CanvasRenderingContext2d,
+        node: &Node,
+        chart_type: &crate::node::ChartType,
+        data: &[crate::node::ChartDataPoint],
+        config: &crate::node::ChartConfig,
+    ) {
         use crate::node::ChartType;
         let x = node.x;
         let y = node.y;
@@ -2348,12 +3253,18 @@ impl Renderer {
             ctx.fill_text(&config.title, x + padding, y + padding).ok();
         }
 
-        let max_val = data.iter().map(|d| d.value).fold(f64::NEG_INFINITY, f64::max).max(0.001);
+        let max_val = data
+            .iter()
+            .map(|d| d.value)
+            .fold(f64::NEG_INFINITY, f64::max)
+            .max(0.001);
 
         match chart_type {
             ChartType::Bar => {
                 let gap = 4.0;
-                let bar_w = ((chart_w - gap * (data.len() as f64 - 1.0).max(0.0)) / data.len() as f64).max(2.0);
+                let bar_w = ((chart_w - gap * (data.len() as f64 - 1.0).max(0.0))
+                    / data.len() as f64)
+                    .max(2.0);
                 for (i, dp) in data.iter().enumerate() {
                     let color = config.color_for(i, &dp.color);
                     let bar_h = (dp.value / max_val) * chart_h;
@@ -2369,12 +3280,17 @@ impl Renderer {
                         ctx.set_font(&format!("{}px Inter, system-ui, sans-serif", fs));
                         ctx.set_text_baseline("top");
                         ctx.set_text_align("center");
-                        ctx.fill_text(&dp.label, bx + bar_w / 2.0, chart_y + chart_h + 3.0).ok();
+                        ctx.fill_text(&dp.label, bx + bar_w / 2.0, chart_y + chart_h + 3.0)
+                            .ok();
                     }
                 }
             }
             ChartType::Line | ChartType::Area => {
-                let step = if data.len() > 1 { chart_w / (data.len() - 1) as f64 } else { chart_w };
+                let step = if data.len() > 1 {
+                    chart_w / (data.len() - 1) as f64
+                } else {
+                    chart_w
+                };
                 if *chart_type == ChartType::Area {
                     ctx.begin_path();
                     ctx.move_to(chart_x, chart_y + chart_h);
@@ -2395,7 +3311,11 @@ impl Renderer {
                 for (i, dp) in data.iter().enumerate() {
                     let px = chart_x + i as f64 * step;
                     let py = chart_y + chart_h - (dp.value / max_val) * chart_h;
-                    if i == 0 { ctx.move_to(px, py); } else { ctx.line_to(px, py); }
+                    if i == 0 {
+                        ctx.move_to(px, py);
+                    } else {
+                        ctx.line_to(px, py);
+                    }
                 }
                 let line_color = config.color_for(0, &None);
                 ctx.set_stroke_style_str(&line_color);
@@ -2423,9 +3343,15 @@ impl Renderer {
                 let cx = chart_x + chart_w / 2.0;
                 let cy = chart_y + chart_h / 2.0;
                 let radius = chart_w.min(chart_h) / 2.0 - 4.0;
-                let inner_r = if *chart_type == ChartType::Donut { radius * 0.55 } else { 0.0 };
+                let inner_r = if *chart_type == ChartType::Donut {
+                    radius * 0.55
+                } else {
+                    0.0
+                };
                 let total: f64 = data.iter().map(|d| d.value).sum();
-                if total <= 0.0 { return; }
+                if total <= 0.0 {
+                    return;
+                }
                 let mut start_angle = -std::f64::consts::FRAC_PI_2;
                 for (i, dp) in data.iter().enumerate() {
                     let sweep = (dp.value / total) * std::f64::consts::TAU;
@@ -2434,7 +3360,8 @@ impl Renderer {
                     ctx.begin_path();
                     ctx.arc(cx, cy, radius, start_angle, end_angle).ok();
                     if inner_r > 0.0 {
-                        ctx.arc_with_anticlockwise(cx, cy, inner_r, end_angle, start_angle, true).ok();
+                        ctx.arc_with_anticlockwise(cx, cy, inner_r, end_angle, start_angle, true)
+                            .ok();
                     } else {
                         ctx.line_to(cx, cy);
                     }
@@ -2472,9 +3399,14 @@ impl Renderer {
                 ctx.fill_rect(lx, ly - 4.0, 8.0, 8.0);
                 ctx.set_fill_style_str("rgba(255,255,255,0.7)");
                 ctx.fill_text(&dp.label, lx + 11.0, ly).ok();
-                let tw = ctx.measure_text(&dp.label).map(|m| m.width()).unwrap_or(30.0);
+                let tw = ctx
+                    .measure_text(&dp.label)
+                    .map(|m| m.width())
+                    .unwrap_or(30.0);
                 lx += 11.0 + tw + 10.0;
-                if lx > x + w - padding { break; }
+                if lx > x + w - padding {
+                    break;
+                }
             }
         }
         ctx.set_text_align("start");
@@ -2526,7 +3458,8 @@ impl Renderer {
             let arc_cx = bx + badge_size * 0.5;
             let arc_cy = ly;
             let arc_r = badge_size * 0.16;
-            ctx.arc(arc_cx, arc_cy, arc_r, std::f64::consts::PI, 0.0).ok();
+            ctx.arc(arc_cx, arc_cy, arc_r, std::f64::consts::PI, 0.0)
+                .ok();
             ctx.stroke(); // lock shackle
         }
     }
@@ -2540,76 +3473,176 @@ impl Renderer {
         ctx.restore();
     }
 
-    fn draw_rounded_rect(&self, ctx: &CanvasRenderingContext2d, x: f64, y: f64, w: f64, h: f64, r: f64) {
+    fn draw_rounded_rect(
+        &self,
+        ctx: &CanvasRenderingContext2d,
+        x: f64,
+        y: f64,
+        w: f64,
+        h: f64,
+        r: f64,
+    ) {
         self.draw_rounded_rect_smooth(ctx, x, y, w, h, r, 0.0);
     }
 
-    fn draw_rounded_rect_smooth(&self, ctx: &CanvasRenderingContext2d, x: f64, y: f64, w: f64, h: f64, r: f64, smoothing: f64) {
-        let r = r.min(w / 2.0).min(h / 2.0);
-        if r <= 0.0 {
+    fn draw_rounded_rect_smooth(
+        &self,
+        ctx: &CanvasRenderingContext2d,
+        x: f64,
+        y: f64,
+        w: f64,
+        h: f64,
+        r: f64,
+        smoothing: f64,
+    ) {
+        self.draw_rounded_rect_smooth_corners(ctx, x, y, w, h, r, r, r, r, smoothing);
+    }
+
+    fn draw_rounded_rect_smooth_corners(
+        &self,
+        ctx: &CanvasRenderingContext2d,
+        x: f64,
+        y: f64,
+        w: f64,
+        h: f64,
+        top_left: f64,
+        top_right: f64,
+        bottom_right: f64,
+        bottom_left: f64,
+        smoothing: f64,
+    ) {
+        let max_r = (w / 2.0).min(h / 2.0).max(0.0);
+        let tl = top_left.max(0.0).min(max_r);
+        let tr = top_right.max(0.0).min(max_r);
+        let br = bottom_right.max(0.0).min(max_r);
+        let bl = bottom_left.max(0.0).min(max_r);
+
+        if tl <= 0.0 && tr <= 0.0 && br <= 0.0 && bl <= 0.0 {
             ctx.begin_path();
             ctx.rect(x, y, w, h);
             return;
         }
-        let s = smoothing.max(0.0).min(1.0);
-        if s < 0.001 {
-            // Standard arc_to rounded rect
-            ctx.begin_path();
-            ctx.move_to(x + r, y);
-            ctx.line_to(x + w - r, y);
-            ctx.arc_to(x + w, y, x + w, y + r, r).ok();
-            ctx.line_to(x + w, y + h - r);
-            ctx.arc_to(x + w, y + h, x + w - r, y + h, r).ok();
-            ctx.line_to(x + r, y + h);
-            ctx.arc_to(x, y + h, x, y + h - r, r).ok();
-            ctx.line_to(x, y + r);
-            ctx.arc_to(x, y, x + r, y, r).ok();
-            ctx.close_path();
-        } else {
-            // Squircle (iOS-style superellipse corner smoothing) via cubic bezier
-            // Based on Figma's corner smoothing approach
-            // k = bezier handle length factor: circular arc ≈ 0.5523, full squircle ≈ 1.0
-            let k_arc = 0.5523;
-            let k = k_arc + s * (1.0 - k_arc); // lerp from circular to squircle
-            let hr = r * k; // handle distance from corner
 
+        let s = smoothing.clamp(0.0, 1.0);
+        if s < 0.001 {
             ctx.begin_path();
-            // Top edge, starting from top-left corner end
-            ctx.move_to(x + r, y);
-            ctx.line_to(x + w - r, y);
-            // Top-right corner
-            ctx.bezier_curve_to(x + w - r + hr, y, x + w, y + r - hr, x + w, y + r);
-            // Right edge
-            ctx.line_to(x + w, y + h - r);
-            // Bottom-right corner
-            ctx.bezier_curve_to(x + w, y + h - r + hr, x + w - r + hr, y + h, x + w - r, y + h);
-            // Bottom edge
-            ctx.line_to(x + r, y + h);
-            // Bottom-left corner
-            ctx.bezier_curve_to(x + r - hr, y + h, x, y + h - r + hr, x, y + h - r);
-            // Left edge
-            ctx.line_to(x, y + r);
-            // Top-left corner
-            ctx.bezier_curve_to(x, y + r - hr, x + r - hr, y, x + r, y);
+            ctx.move_to(x + tl, y);
+            ctx.line_to(x + w - tr, y);
+            if tr > 0.0 {
+                ctx.arc_to(x + w, y, x + w, y + tr, tr).ok();
+            }
+            ctx.line_to(x + w, y + h - br);
+            if br > 0.0 {
+                ctx.arc_to(x + w, y + h, x + w - br, y + h, br).ok();
+            }
+            ctx.line_to(x + bl, y + h);
+            if bl > 0.0 {
+                ctx.arc_to(x, y + h, x, y + h - bl, bl).ok();
+            }
+            ctx.line_to(x, y + tl);
+            if tl > 0.0 {
+                ctx.arc_to(x, y, x + tl, y, tl).ok();
+            }
             ctx.close_path();
+            return;
+        }
+
+        let k_arc = 0.5523;
+        let k = k_arc + s * (1.0 - k_arc);
+        let htl = tl * k;
+        let htr = tr * k;
+        let hbr = br * k;
+        let hbl = bl * k;
+
+        ctx.begin_path();
+        ctx.move_to(x + tl, y);
+        ctx.line_to(x + w - tr, y);
+        if tr > 0.0 {
+            ctx.bezier_curve_to(x + w - tr + htr, y, x + w, y + tr - htr, x + w, y + tr);
+        }
+        ctx.line_to(x + w, y + h - br);
+        if br > 0.0 {
+            ctx.bezier_curve_to(
+                x + w,
+                y + h - br + hbr,
+                x + w - br + hbr,
+                y + h,
+                x + w - br,
+                y + h,
+            );
+        }
+        ctx.line_to(x + bl, y + h);
+        if bl > 0.0 {
+            ctx.bezier_curve_to(x + bl - hbl, y + h, x, y + h - bl + hbl, x, y + h - bl);
+        }
+        ctx.line_to(x, y + tl);
+        if tl > 0.0 {
+            ctx.bezier_curve_to(x, y + tl - htl, x + tl - htl, y, x + tl, y);
+        }
+        ctx.close_path();
+    }
+
+    fn draw_node_rounded_rect_smooth(
+        &self,
+        ctx: &CanvasRenderingContext2d,
+        node: &Node,
+        x: f64,
+        y: f64,
+        w: f64,
+        h: f64,
+        fallback_r: f64,
+        smoothing: f64,
+    ) {
+        if let Some(radii) = &node.corner_radii {
+            self.draw_rounded_rect_smooth_corners(
+                ctx,
+                x,
+                y,
+                w,
+                h,
+                radii.top_left,
+                radii.top_right,
+                radii.bottom_right,
+                radii.bottom_left,
+                smoothing,
+            );
+        } else {
+            self.draw_rounded_rect_smooth(ctx, x, y, w, h, fallback_r, smoothing);
         }
     }
 
-    fn apply_fill_stack_paint(&self, ctx: &CanvasRenderingContext2d, fill: &crate::node::Fill, node: &Node) {
+    fn apply_fill_stack_paint(
+        &self,
+        ctx: &CanvasRenderingContext2d,
+        fill: &crate::node::Fill,
+        node: &Node,
+    ) {
         ctx.set_global_alpha((node.opacity * fill.opacity).clamp(0.0, 1.0));
         if fill.blend_mode != crate::node::BlendMode::Normal {
-            ctx.set_global_composite_operation(fill.blend_mode.to_css()).ok();
+            ctx.set_global_composite_operation(fill.blend_mode.to_css())
+                .ok();
         }
     }
 
-    fn apply_stroke_stack_paint(&self, ctx: &CanvasRenderingContext2d, stroke: &crate::node::Stroke, node: &Node) {
+    fn apply_stroke_stack_paint(
+        &self,
+        ctx: &CanvasRenderingContext2d,
+        stroke: &crate::node::Stroke,
+        node: &Node,
+    ) {
         ctx.set_global_alpha((node.opacity * stroke.opacity).clamp(0.0, 1.0));
         if stroke.blend_mode != crate::node::BlendMode::Normal {
-            ctx.set_global_composite_operation(stroke.blend_mode.to_css()).ok();
+            ctx.set_global_composite_operation(stroke.blend_mode.to_css())
+                .ok();
         }
     }
 
-    fn apply_single_fill_style(&self, ctx: &CanvasRenderingContext2d, fill: &crate::node::Fill, node: &Node) {
+    fn apply_single_fill_style(
+        &self,
+        ctx: &CanvasRenderingContext2d,
+        fill: &crate::node::Fill,
+        node: &Node,
+    ) {
         match &fill.fill_type {
             crate::node::FillType::Solid { color } => {
                 if color.color_space != crate::types::ColorSpace::SRGB {
@@ -2618,7 +3651,13 @@ impl Renderer {
                     ctx.set_fill_style_str(&color.to_css());
                 }
             }
-            crate::node::FillType::LinearGradient { start_x, start_y, end_x, end_y, stops } => {
+            crate::node::FillType::LinearGradient {
+                start_x,
+                start_y,
+                end_x,
+                end_y,
+                stops,
+            } => {
                 let grad = ctx.create_linear_gradient(
                     node.x + start_x * node.width,
                     node.y + start_y * node.height,
@@ -2626,27 +3665,47 @@ impl Renderer {
                     node.y + end_y * node.height,
                 );
                 for stop in stops {
-                    grad.add_color_stop(stop.offset as f32, &stop.color.to_css()).ok();
+                    grad.add_color_stop(stop.offset as f32, &stop.color.to_css())
+                        .ok();
                 }
                 ctx.set_fill_style(&grad);
             }
-            crate::node::FillType::RadialGradient { center_x, center_y, radius, stops } => {
+            crate::node::FillType::RadialGradient {
+                center_x,
+                center_y,
+                radius,
+                stops,
+            } => {
                 let cx = node.x + center_x * node.width;
                 let cy = node.y + center_y * node.height;
                 let r = radius * node.width.max(node.height);
                 if let Ok(grad) = ctx.create_radial_gradient(cx, cy, 0.0, cx, cy, r) {
                     for stop in stops {
-                        grad.add_color_stop(stop.offset as f32, &stop.color.to_css()).ok();
+                        grad.add_color_stop(stop.offset as f32, &stop.color.to_css())
+                            .ok();
                     }
                     ctx.set_fill_style(&grad);
                 }
             }
-            crate::node::FillType::Pattern { src, scale, rotation, pattern_type, tile_width, tile_height } => {
+            crate::node::FillType::Pattern {
+                src,
+                scale,
+                rotation,
+                pattern_type,
+                tile_width,
+                tile_height,
+            } => {
                 // Pattern fills are rendered via JS createPattern — here we set a placeholder.
                 let _ = (src, scale, rotation, pattern_type, tile_width, tile_height);
                 ctx.set_fill_style_str("rgba(200,200,200,0.5)");
             }
-            crate::node::FillType::NoiseFill { scale, color1, color2, intensity, seed } => {
+            crate::node::FillType::NoiseFill {
+                scale,
+                color1,
+                color2,
+                intensity,
+                seed,
+            } => {
                 // Render noise fill as a grid of small rectangles with pseudo-random colors
                 // Uses a simple hash-based noise for WASM compatibility
                 let cell_size = (*scale).max(2.0);
@@ -2657,7 +3716,11 @@ impl Renderer {
                 let (cols, rows, cs) = if cols * rows > max_cells {
                     let factor = ((cols * rows) as f64 / max_cells as f64).sqrt();
                     let new_cs = cell_size * factor;
-                    ((node.width / new_cs).ceil() as u32, (node.height / new_cs).ceil() as u32, new_cs)
+                    (
+                        (node.width / new_cs).ceil() as u32,
+                        (node.height / new_cs).ceil() as u32,
+                        new_cs,
+                    )
                 } else {
                     (cols, rows, cell_size)
                 };
@@ -2681,7 +3744,13 @@ impl Renderer {
                 ctx.restore();
                 return; // Already filled
             }
-            crate::node::FillType::DotPattern { dot_radius, spacing, color, bg_color, angle } => {
+            crate::node::FillType::DotPattern {
+                dot_radius,
+                spacing,
+                color,
+                bg_color,
+                angle,
+            } => {
                 // Fill background
                 ctx.set_fill_style_str(&bg_color.to_css());
                 ctx.fill_rect(node.x, node.y, node.width, node.height);
@@ -2717,7 +3786,14 @@ impl Renderer {
                 ctx.restore();
                 return;
             }
-            crate::node::FillType::CrosshatchFill { spacing, line_width, color, bg_color, angle, density } => {
+            crate::node::FillType::CrosshatchFill {
+                spacing,
+                line_width,
+                color,
+                bg_color,
+                angle,
+                density,
+            } => {
                 // Fill background
                 ctx.set_fill_style_str(&bg_color.to_css());
                 ctx.fill_rect(node.x, node.y, node.width, node.height);
@@ -2756,9 +3832,16 @@ impl Renderer {
                 ctx.restore();
                 return;
             }
-            crate::node::FillType::ConicGradient { center_x, center_y, angle, stops } => {
+            crate::node::FillType::ConicGradient {
+                center_x,
+                center_y,
+                angle,
+                stops,
+            } => {
                 // Render conic gradient by drawing many arc segments
-                if stops.is_empty() { return; }
+                if stops.is_empty() {
+                    return;
+                }
                 let cx = node.x + center_x * node.width;
                 let cy = node.y + center_y * node.height;
                 let r = (node.width * node.width + node.height * node.height).sqrt();
@@ -2781,7 +3864,10 @@ impl Renderer {
                     let a0 = start_angle_rad + t0 * std::f64::consts::TAU;
                     let a1 = start_angle_rad + t1 * std::f64::consts::TAU;
 
-                    ctx.set_fill_style_str(&format!("rgba({},{},{},{})", color.r, color.g, color.b, color.a));
+                    ctx.set_fill_style_str(&format!(
+                        "rgba({},{},{},{})",
+                        color.r, color.g, color.b, color.a
+                    ));
                     ctx.begin_path();
                     ctx.move_to(cx, cy);
                     ctx.arc(cx, cy, r, a0, a1).ok();
@@ -2795,7 +3881,9 @@ impl Renderer {
             crate::node::FillType::GradientMesh { ref mesh } => {
                 // Render gradient mesh via tessellation: for each cell in the grid,
                 // subdivide into small triangles with bilinearly interpolated colors.
-                if mesh.rows < 2 || mesh.cols < 2 { return; }
+                if mesh.rows < 2 || mesh.cols < 2 {
+                    return;
+                }
                 ctx.save();
                 ctx.begin_path();
                 ctx.rect(node.x, node.y, node.width, node.height);
@@ -2805,10 +3893,22 @@ impl Renderer {
                 for r in 0..(mesh.rows - 1) {
                     for c in 0..(mesh.cols - 1) {
                         // Get 4 corners of this cell
-                        let tl = match mesh.get_point(r, c) { Some(p) => p, None => continue };
-                        let tr = match mesh.get_point(r, c + 1) { Some(p) => p, None => continue };
-                        let bl = match mesh.get_point(r + 1, c) { Some(p) => p, None => continue };
-                        let br = match mesh.get_point(r + 1, c + 1) { Some(p) => p, None => continue };
+                        let tl = match mesh.get_point(r, c) {
+                            Some(p) => p,
+                            None => continue,
+                        };
+                        let tr = match mesh.get_point(r, c + 1) {
+                            Some(p) => p,
+                            None => continue,
+                        };
+                        let bl = match mesh.get_point(r + 1, c) {
+                            Some(p) => p,
+                            None => continue,
+                        };
+                        let br = match mesh.get_point(r + 1, c + 1) {
+                            Some(p) => p,
+                            None => continue,
+                        };
 
                         for sy in 0..subdivs {
                             for sx in 0..subdivs {
@@ -2833,13 +3933,19 @@ impl Renderer {
                                 let um = (u0 + u1) / 2.0;
                                 let vm = (v0 + v1) / 2.0;
                                 let lerp_color = |u: f64, v: f64| -> (u8, u8, u8, f64) {
-                                    let top_r = tl.color.r as f64 * (1.0 - u) + tr.color.r as f64 * u;
-                                    let top_g = tl.color.g as f64 * (1.0 - u) + tr.color.g as f64 * u;
-                                    let top_b = tl.color.b as f64 * (1.0 - u) + tr.color.b as f64 * u;
+                                    let top_r =
+                                        tl.color.r as f64 * (1.0 - u) + tr.color.r as f64 * u;
+                                    let top_g =
+                                        tl.color.g as f64 * (1.0 - u) + tr.color.g as f64 * u;
+                                    let top_b =
+                                        tl.color.b as f64 * (1.0 - u) + tr.color.b as f64 * u;
                                     let top_a = tl.color.a * (1.0 - u) + tr.color.a * u;
-                                    let bot_r = bl.color.r as f64 * (1.0 - u) + br.color.r as f64 * u;
-                                    let bot_g = bl.color.g as f64 * (1.0 - u) + br.color.g as f64 * u;
-                                    let bot_b = bl.color.b as f64 * (1.0 - u) + br.color.b as f64 * u;
+                                    let bot_r =
+                                        bl.color.r as f64 * (1.0 - u) + br.color.r as f64 * u;
+                                    let bot_g =
+                                        bl.color.g as f64 * (1.0 - u) + br.color.g as f64 * u;
+                                    let bot_b =
+                                        bl.color.b as f64 * (1.0 - u) + br.color.b as f64 * u;
                                     let bot_a = bl.color.a * (1.0 - u) + br.color.a * u;
                                     (
                                         (top_r * (1.0 - v) + bot_r * v) as u8,
@@ -2859,7 +3965,10 @@ impl Renderer {
                                 let px3 = node.x + lerp_x(u0, v1) * node.width;
                                 let py3 = node.y + lerp_y(u0, v1) * node.height;
 
-                                ctx.set_fill_style_str(&format!("rgba({},{},{},{})", cr, cg, cb, ca));
+                                ctx.set_fill_style_str(&format!(
+                                    "rgba({},{},{},{})",
+                                    cr, cg, cb, ca
+                                ));
                                 ctx.begin_path();
                                 ctx.move_to(px0, py0);
                                 ctx.line_to(px1, py1);
@@ -2886,7 +3995,9 @@ impl Renderer {
 
     fn apply_fill_stroke(&self, ctx: &CanvasRenderingContext2d, node: &Node) {
         // Outside strokes first (drawn behind fills)
-        let has_outside = node.visible_strokes().any(|s| s.align == crate::node::StrokeAlign::Outside);
+        let has_outside = node
+            .visible_strokes()
+            .any(|s| s.align == crate::node::StrokeAlign::Outside);
         if has_outside {
             for stroke in node.visible_strokes() {
                 if stroke.align == crate::node::StrokeAlign::Outside {
@@ -2974,7 +4085,11 @@ impl Renderer {
             let arr = js_sys::Array::new();
             let dash_values: Vec<f64> = if stroke.dash_corner_compensation {
                 let comp = (stroke.width * 0.5).max(0.0);
-                stroke.dash_array.iter().map(|d| (d - comp).max(1.0)).collect()
+                stroke
+                    .dash_array
+                    .iter()
+                    .map(|d| (d - comp).max(1.0))
+                    .collect()
             } else {
                 stroke.dash_array.clone()
             };
@@ -3000,7 +4115,10 @@ impl Renderer {
 
     /// Simple hash-based pseudo-random noise for procedural fills
     /// Interpolate a color from gradient stops at position t (0.0–1.0)
-    fn interpolate_gradient_stops(stops: &[crate::node::GradientStop], t: f64) -> crate::types::Color {
+    fn interpolate_gradient_stops(
+        stops: &[crate::node::GradientStop],
+        t: f64,
+    ) -> crate::types::Color {
         if stops.is_empty() {
             return crate::types::Color::white();
         }
@@ -3015,19 +4133,29 @@ impl Renderer {
                 let prev = &stops[i - 1];
                 let curr = &stops[i];
                 let range = curr.offset - prev.offset;
-                let frac = if range > 0.0 { (t - prev.offset) / range } else { 0.0 };
+                let frac = if range > 0.0 {
+                    (t - prev.offset) / range
+                } else {
+                    0.0
+                };
                 return crate::types::Color {
-                    r: (prev.color.r as f64 + (curr.color.r as f64 - prev.color.r as f64) * frac) as u8,
-                    g: (prev.color.g as f64 + (curr.color.g as f64 - prev.color.g as f64) * frac) as u8,
-                    b: (prev.color.b as f64 + (curr.color.b as f64 - prev.color.b as f64) * frac) as u8,
-                    a: prev.color.a + (curr.color.a - prev.color.a) * frac, color_space: ColorSpace::default() };
+                    r: (prev.color.r as f64 + (curr.color.r as f64 - prev.color.r as f64) * frac)
+                        as u8,
+                    g: (prev.color.g as f64 + (curr.color.g as f64 - prev.color.g as f64) * frac)
+                        as u8,
+                    b: (prev.color.b as f64 + (curr.color.b as f64 - prev.color.b as f64) * frac)
+                        as u8,
+                    a: prev.color.a + (curr.color.a - prev.color.a) * frac,
+                    color_space: ColorSpace::default(),
+                };
             }
         }
         stops[stops.len() - 1].color
     }
 
     fn noise_hash(x: u32, y: u32, seed: u32) -> u8 {
-        let mut h = seed.wrapping_mul(374761393)
+        let mut h = seed
+            .wrapping_mul(374761393)
             .wrapping_add(x.wrapping_mul(668265263))
             .wrapping_add(y.wrapping_mul(2654435761));
         h = (h ^ (h >> 13)).wrapping_mul(1274126177);
@@ -3035,16 +4163,30 @@ impl Renderer {
         (h & 0xFF) as u8
     }
 
-    fn draw_background_pattern(&self, ctx: &CanvasRenderingContext2d, bg: &crate::scene::CanvasBackground) {
-        if bg.pattern == "none" || bg.opacity <= 0.0 { return; }
+    fn draw_background_pattern(
+        &self,
+        ctx: &CanvasRenderingContext2d,
+        bg: &crate::scene::CanvasBackground,
+    ) {
+        if bg.pattern == "none" || bg.opacity <= 0.0 {
+            return;
+        }
 
         let zoom = self.viewport.a;
-        if zoom < 0.15 { return; }
+        if zoom < 0.15 {
+            return;
+        }
 
         let spacing = bg.spacing;
-        let step = if zoom > 2.0 { (spacing / 5.0).max(5.0) } else { spacing };
+        let step = if zoom > 2.0 {
+            (spacing / 5.0).max(5.0)
+        } else {
+            spacing
+        };
         let screen_step = step * zoom;
-        if screen_step < 4.0 { return; } // too dense to render
+        if screen_step < 4.0 {
+            return;
+        } // too dense to render
 
         // Parse pattern color
         let hex = &bg.pattern_color;
@@ -3155,7 +4297,12 @@ impl Renderer {
     }
 
     /// Draw background pattern inside a frame's bounds (in scene coordinates)
-    fn draw_frame_bg_pattern(&self, ctx: &CanvasRenderingContext2d, node: &Node, pat: &crate::node::FrameBackgroundPattern) {
+    fn draw_frame_bg_pattern(
+        &self,
+        ctx: &CanvasRenderingContext2d,
+        node: &Node,
+        pat: &crate::node::FrameBackgroundPattern,
+    ) {
         let zoom = self.viewport.a;
         let spacing = pat.spacing;
         let opacity = pat.opacity;
@@ -3168,14 +4315,25 @@ impl Renderer {
                 u8::from_str_radix(&h[2..4], 16).unwrap_or(255),
                 u8::from_str_radix(&h[4..6], 16).unwrap_or(255),
             )
-        } else { (255, 255, 255) };
+        } else {
+            (255, 255, 255)
+        };
         let color_str = format!("rgba({},{},{},{})", pr, pg, pb, opacity);
 
         ctx.save();
         // Clip to frame
         ctx.begin_path();
         if node.corner_radius > 0.0 {
-            self.draw_rounded_rect_smooth(ctx, node.x, node.y, node.width, node.height, node.corner_radius, node.corner_smoothing);
+            self.draw_node_rounded_rect_smooth(
+                ctx,
+                node,
+                node.x,
+                node.y,
+                node.width,
+                node.height,
+                node.corner_radius,
+                node.corner_smoothing,
+            );
         } else {
             ctx.rect(node.x, node.y, node.width, node.height);
         }
@@ -3283,7 +4441,17 @@ impl Renderer {
 }
 
 /// Evaluate a cubic bezier at parameter t
-fn cubic_bezier_point(x0: f64, y0: f64, x1: f64, y1: f64, x2: f64, y2: f64, x3: f64, y3: f64, t: f64) -> (f64, f64) {
+fn cubic_bezier_point(
+    x0: f64,
+    y0: f64,
+    x1: f64,
+    y1: f64,
+    x2: f64,
+    y2: f64,
+    x3: f64,
+    y3: f64,
+    t: f64,
+) -> (f64, f64) {
     let u = 1.0 - t;
     let uu = u * u;
     let tt = t * t;
