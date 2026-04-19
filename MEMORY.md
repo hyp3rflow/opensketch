@@ -1790,10 +1790,16 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Variable Token Merge Dry-Run Diff — merge 전에 영향을 받는 노드/스타일/프로토타입 경로를 diff 카드로 미리보기 (임팩트 상, 난이도 중상)
 - Prototype Focus Return Map — overlay 닫힘 시 포커스가 돌아갈 origin hotspot 후보를 시각화하고 누락 시 fallback 노드 추천 (임팩트 중상, 난이도 중)
 - Keyboard Trigger Coverage Heatmap — OnClick/OnPress hotspot 중 keyboard trigger 누락 영역을 frame heatmap으로 집계 (임팩트 중, 난이도 중)
 - Ring Preset Auto-Guard Rules — 릴리즈 모드에서 Safe 미만 preset 사용 시 자동 guard/경고 정책을 flow별로 설정 (임팩트 중, 난이도 중)
+
+## 완료된 기능 (추가 — Variable Token Merge Dry-Run Diff, 2026-04-19)
+- Variables Inspector `Variable Token Cleanup Queue`에 `Merge Dry-Run Diff` 프리뷰 카드 추가
+- queue 기반 source→target merge plan별 영향도를 node/style/prototype-path 카운트로 집계해 실행 전 diff 확인 지원
+- 각 merge row에 usage 샘플(노드명/속성)을 노출해 어떤 바인딩이 이동되는지 빠르게 검증 가능
+- 구현: `packages/app/src/ui/variables-panel.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Overlay Escape Intent Hints, 2026-04-19)
 - Prototype overlay 컨텍스트에서 `OnClick/OnPress` hotspot이 `CloseOverlay/Back`을 가지지 않으면 캔버스에 `ESCAPE?` 경고 배지를 렌더

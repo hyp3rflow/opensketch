@@ -59,6 +59,17 @@ interface VariableCleanupQueueItem {
   rename_to?: string;
 }
 
+interface VariableMergeDryRunItem {
+  fromId: number;
+  fromName: string;
+  toId: number;
+  toName: string;
+  nodeCount: number;
+  styleCount: number;
+  prototypeCount: number;
+  usageSamples: string[];
+}
+
 interface VariableModeDriftRecipe {
   id: string;
   name: string;
@@ -119,6 +130,47 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
     if (valueType === "String") return value.String ?? "";
     if (valueType === "Boolean") return String(value.Boolean ?? false);
     return JSON.stringify(value);
+  };
+
+  const buildMergeDryRun = (collectionId: number, plan: VariableCleanupQueueItem[], variables: VarVariable[]): VariableMergeDryRunItem[] => {
+    const result: VariableMergeDryRunItem[] = [];
+    for (const entry of plan) {
+      const toId = Number(entry.target_variable_id || 0);
+      if (!(toId > 0) || toId === entry.variable_id) continue;
+      let usages: Array<{ node_id?: number; node_name?: string; property?: string }> = [];
+      try {
+        usages = JSON.parse((editor.engine as any).get_variable_usages?.(BigInt(collectionId), BigInt(entry.variable_id)) || "[]");
+      } catch {
+        usages = [];
+      }
+      let nodeCount = 0;
+      let styleCount = 0;
+      let prototypeCount = 0;
+      const samples: string[] = [];
+      for (const u of usages) {
+        const nodeId = Number(u?.node_id ?? 0);
+        const prop = String(u?.property || "").toLowerCase();
+        if (nodeId > 0) nodeCount += 1;
+        if (prop.includes("style") || prop.includes("token")) styleCount += 1;
+        if (prop.includes("prototype") || prop.includes("interaction") || prop.includes("overlay") || prop.includes("flow")) prototypeCount += 1;
+        if (samples.length < 4) {
+          const label = u?.node_name ? `${u.node_name}` : (nodeId > 0 ? `Node ${nodeId}` : "Unknown");
+          samples.push(`${label} · ${u?.property || "property"}`);
+        }
+      }
+      const toName = variables.find((v) => v.id === toId)?.name || `#${toId}`;
+      result.push({
+        fromId: entry.variable_id,
+        fromName: entry.variable_name,
+        toId,
+        toName,
+        nodeCount,
+        styleCount,
+        prototypeCount,
+        usageSamples: samples,
+      });
+    }
+    return result.sort((a, b) => (b.nodeCount + b.styleCount + b.prototypeCount) - (a.nodeCount + a.styleCount + a.prototypeCount));
   };
 
   const hasTypedValue = (valueType: string, value: VarPrimitive | undefined): boolean => {
@@ -1000,6 +1052,35 @@ export function setupVariablesPanel(container: HTMLElement, editor: Editor) {
     cleanupQueueCard.appendChild(queueMeta);
 
     if (queueForCollection.length > 0) {
+      const latestMergePlan = queueForCollection.filter((entry) => Number(entry.target_variable_id || 0) > 0 && Number(entry.target_variable_id) !== entry.variable_id);
+      const mergeDryRunRows = buildMergeDryRun(col.id, latestMergePlan, col.variables);
+      const dryRunCard = document.createElement("div");
+      dryRunCard.style.cssText = "margin-bottom:6px;background:#0b1220;border:1px solid #1e3a8a;border-radius:4px;padding:6px;display:flex;flex-direction:column;gap:4px;";
+      const dryRunTitle = document.createElement("div");
+      dryRunTitle.style.cssText = "font-size:10px;color:#bfdbfe;font-weight:600;";
+      const totalNodeImpacts = mergeDryRunRows.reduce((sum, row) => sum + row.nodeCount, 0);
+      const totalStyleImpacts = mergeDryRunRows.reduce((sum, row) => sum + row.styleCount, 0);
+      const totalPrototypeImpacts = mergeDryRunRows.reduce((sum, row) => sum + row.prototypeCount, 0);
+      dryRunTitle.textContent = mergeDryRunRows.length > 0
+        ? `Merge Dry-Run Diff · nodes ${totalNodeImpacts} · styles ${totalStyleImpacts} · prototype paths ${totalPrototypeImpacts}`
+        : "Merge Dry-Run Diff · merge 대상이 없습니다";
+      dryRunCard.appendChild(dryRunTitle);
+      if (mergeDryRunRows.length > 0) {
+        mergeDryRunRows.slice(0, 6).forEach((row) => {
+          const line = document.createElement("div");
+          line.style.cssText = "font-size:10px;color:#cbd5e1;line-height:1.35;";
+          line.textContent = `${row.fromName} → ${row.toName} · node ${row.nodeCount} / style ${row.styleCount} / prototype ${row.prototypeCount}`;
+          dryRunCard.appendChild(line);
+          row.usageSamples.slice(0, 2).forEach((sample) => {
+            const sampleLine = document.createElement("div");
+            sampleLine.style.cssText = "font-size:10px;color:#93c5fd;padding-left:8px;";
+            sampleLine.textContent = `- ${sample}`;
+            dryRunCard.appendChild(sampleLine);
+          });
+        });
+      }
+      cleanupQueueCard.appendChild(dryRunCard);
+
       const queueList = document.createElement("div");
       queueList.style.cssText = "display:flex;flex-direction:column;gap:4px;max-height:120px;overflow:auto;margin-bottom:6px;";
       for (const item of queueForCollection.slice(0, 18)) {
