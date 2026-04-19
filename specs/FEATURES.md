@@ -2845,11 +2845,14 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
   - `orphan-close`: reachable frame에서 CloseOverlay만 있는 경우
 - [x] lint summary에 overlay 이슈 카운트(`Overlay leak/orphan`)를 함께 표시
 - [x] 기존 lint issue 리스트/점프 워크플로우와 동일하게 클릭 네비게이션 지원
+- [x] **Route Coverage Matrix (2026-04-20)**: Overlay Stack Inspector 상단에 OpenOverlay source별 `max depth / open count / close-path 상태` 매트릭스를 추가하고, 상태를 `OK / Conditional / Missing`으로 구분해 Esc/Back 복귀 안정성을 빠르게 점검
+- [x] 패널 summary에 `Route coverage %`를 함께 노출해 close-path가 확실한 source 비율을 한눈에 확인
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
 
 ### Overlay Stack Depth Budget Guard (2026-04-20)
 - [x] Flow Lint 이슈 타입에 `overlay-depth-budget` 추가: OpenOverlay 체인 최대 depth가 budget(기본 3)을 초과하면 경고
 - [x] lint detail에 초과 depth와 flatten 후보 overlay id를 노출해 과도한 overlay nesting을 즉시 식별
+- [x] depth 초과 경로 샘플(`#A → #B → #C`)과 deepest offender를 함께 기록해 one-click flatten 제안 대상을 더 안정적으로 고정
 - [x] one-click 액션 `Suggest: flatten overlay` 추가: 후보 overlay를 선택 후 `flatten_selection()` 실행
 - [x] lint summary/filter chip/rank 컬러 체계에 `overlay-depth-budget` 집계 통합
 - 구현: `packages/app/src/ui/prototype-viewer.ts`

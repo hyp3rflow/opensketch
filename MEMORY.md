@@ -1790,9 +1790,17 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Overlay Stack Route Coverage Matrix — OpenOverlay source별 depth/close-path 커버리지 매트릭스 제공 (임팩트 중상, 난이도 중)
 - Conditional Overlay Exit Sampler — 조건 분기별 Esc/Back 복귀 성공 케이스를 샘플링 리포트 (임팩트 중, 난이도 중)
 - Prototype Overlay Guard Preset Pack — overlay lint/fix 정책을 Strict/Balanced/Legacy 프리셋으로 전환 (임팩트 중, 난이도 중)
+- Overlay Return Focus Confidence Meter — CloseOverlay/Back 후 복귀 focus target 신뢰도(0~100) + low-confidence 경고 배지 제공 (임팩트 중, 난이도 중)
+- Overlay Exit Recipe Library — 자주 쓰는 Esc/Back/Close 조합을 recipe로 저장하고 one-click 적용 (임팩트 중, 난이도 중)
+- Overlay Branch Replay Timeline — 조건부 interaction 분기 재생 타임라인으로 branch별 성공/실패 경로 비교 (임팩트 중상, 난이도 중상)
+
+## 완료된 기능 (추가 — Overlay Stack Route Coverage Matrix, 2026-04-20)
+- Overlay Stack Inspector 상단에 `Route Coverage Matrix` 추가: OpenOverlay source별 `max depth / open count / close-path 상태`를 1행 요약으로 표시
+- close-path 상태를 `OK / Conditional / Missing`으로 분류하고, 패널 summary에 전체 Route coverage(%)를 노출해 위험 overlay source를 즉시 식별
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Overlay Stack Depth Budget Guard, 2026-04-20)
 - Flow Lint에 `overlay-depth-budget` 이슈 타입 추가: OpenOverlay 체인 max depth가 budget(3)을 초과하면 경고

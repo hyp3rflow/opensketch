@@ -1929,9 +1929,8 @@ export function createPrototypeViewer(editor: Editor): {
 
   function collectOverlayDepthBudgetRows(snapshotInput?: { nodes: Array<{ id: number; name: string; x: number; y: number; width: number; height: number }>; edges: Array<{ from: number; to: number; action: string; sourceNodeId: number; interactionIndex: number; conditional: boolean; branchActive: boolean | null; conditionSummary: string }>; }, budget = 3) {
     const snapshot = snapshotInput || flowMinimapSnapshot;
-    if (!snapshot) return [] as Array<{ frameId: number; frameName: string; maxDepth: number; offenders: number[] }>;
+    if (!snapshot) return [] as Array<{ frameId: number; frameName: string; maxDepth: number; offenders: number[]; deepestOffenderId: number | null; pathSample: number[] }>;
 
-    const frameById = new Map(snapshot.nodes.map((n) => [n.id, n]));
     const openBySource = new Map<number, number[]>();
     for (const edge of snapshot.edges) {
       if (edge.action !== "OpenOverlay" || edge.to <= 0) continue;
@@ -1940,23 +1939,29 @@ export function createPrototypeViewer(editor: Editor): {
       openBySource.set(edge.from, bucket);
     }
 
-    const rows: Array<{ frameId: number; frameName: string; maxDepth: number; offenders: number[] }> = [];
+    const rows: Array<{ frameId: number; frameName: string; maxDepth: number; offenders: number[]; deepestOffenderId: number | null; pathSample: number[] }> = [];
     for (const frame of snapshot.nodes) {
-      const queue: Array<{ nodeId: number; depth: number }> = (openBySource.get(frame.id) || []).map((overlayId) => ({ nodeId: overlayId, depth: 1 }));
+      const queue: Array<{ nodeId: number; depth: number; path: number[] }> = (openBySource.get(frame.id) || []).map((overlayId) => ({ nodeId: overlayId, depth: 1, path: [overlayId] }));
       if (queue.length === 0) continue;
       const seen = new Set<string>();
       let maxDepth = 0;
       const offenders = new Set<number>();
+      let deepestOffenderId: number | null = null;
+      let deepestPath: number[] = [];
       while (queue.length > 0) {
         const current = queue.shift()!;
         const key = `${current.nodeId}:${current.depth}`;
         if (seen.has(key)) continue;
         seen.add(key);
-        maxDepth = Math.max(maxDepth, current.depth);
+        if (current.depth > maxDepth) {
+          maxDepth = current.depth;
+          deepestOffenderId = current.nodeId;
+          deepestPath = current.path;
+        }
         if (current.depth > budget) offenders.add(current.nodeId);
         if (current.depth >= budget + 3) continue;
         for (const nextOverlayId of openBySource.get(current.nodeId) || []) {
-          queue.push({ nodeId: nextOverlayId, depth: current.depth + 1 });
+          queue.push({ nodeId: nextOverlayId, depth: current.depth + 1, path: [...current.path, nextOverlayId] });
         }
       }
       if (maxDepth > budget) {
@@ -1965,11 +1970,75 @@ export function createPrototypeViewer(editor: Editor): {
           frameName: frame.name,
           maxDepth,
           offenders: Array.from(offenders),
+          deepestOffenderId,
+          pathSample: deepestPath,
         });
       }
     }
 
     rows.sort((a, b) => b.maxDepth - a.maxDepth || a.frameName.localeCompare(b.frameName));
+    return rows;
+  }
+
+  function collectOverlayRouteCoverageRows(snapshotInput?: { nodes: Array<{ id: number; name: string; x: number; y: number; width: number; height: number }>; edges: Array<{ from: number; to: number; action: string; sourceNodeId: number; interactionIndex: number; conditional: boolean; branchActive: boolean | null; conditionSummary: string }>; }) {
+    const snapshot = snapshotInput || flowMinimapSnapshot;
+    if (!snapshot) return [] as Array<{ frameId: number; frameName: string; overlayId: number; overlayName: string; openCount: number; maxDepth: number; closeCovered: boolean; conditionalOnly: boolean }>;
+
+    const frameById = new Map(snapshot.nodes.map((n) => [n.id, n]));
+    const openBySource = new Map<number, number[]>();
+    const openEdgeMap = new Map<string, typeof snapshot.edges>();
+    for (const edge of snapshot.edges) {
+      if (edge.action === "OpenOverlay" && edge.to > 0) {
+        const bucket = openBySource.get(edge.from) || [];
+        bucket.push(edge.to);
+        openBySource.set(edge.from, bucket);
+        const key = `${edge.from}:${edge.to}`;
+        const edgeBucket = openEdgeMap.get(key) || [];
+        edgeBucket.push(edge);
+        openEdgeMap.set(key, edgeBucket);
+      }
+    }
+
+    const calcDepthFromOverlay = (overlayId: number) => {
+      const queue: Array<{ id: number; depth: number }> = [{ id: overlayId, depth: 1 }];
+      const seen = new Set<string>();
+      let maxDepth = 0;
+      while (queue.length > 0) {
+        const cur = queue.shift()!;
+        const key = `${cur.id}:${cur.depth}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        maxDepth = Math.max(maxDepth, cur.depth);
+        if (cur.depth >= 6) continue;
+        for (const next of openBySource.get(cur.id) || []) queue.push({ id: next, depth: cur.depth + 1 });
+      }
+      return maxDepth;
+    };
+
+    const rows: Array<{ frameId: number; frameName: string; overlayId: number; overlayName: string; openCount: number; maxDepth: number; closeCovered: boolean; conditionalOnly: boolean }> = [];
+    for (const [key, openEdges] of openEdgeMap.entries()) {
+      const [frameRaw, overlayRaw] = key.split(":");
+      const frameId = Number(frameRaw || 0);
+      const overlayId = Number(overlayRaw || 0);
+      const frame = frameById.get(frameId);
+      const overlay = frameById.get(overlayId);
+      if (!frame || !overlay) continue;
+      const exits = snapshot.edges.filter((edge) => edge.from === overlayId && (edge.action === "CloseOverlay" || edge.action === "Back" || edge.action === "NavigateTo"));
+      const closeCovered = exits.some((edge) => edge.action === "CloseOverlay" || edge.action === "Back" || (edge.action === "NavigateTo" && edge.to === frameId));
+      const conditionalOnly = exits.length > 0 && exits.every((edge) => !!edge.conditional || edge.branchActive === false);
+      rows.push({
+        frameId,
+        frameName: frame.name,
+        overlayId,
+        overlayName: overlay.name,
+        openCount: openEdges.length,
+        maxDepth: calcDepthFromOverlay(overlayId),
+        closeCovered,
+        conditionalOnly,
+      });
+    }
+
+    rows.sort((a, b) => b.maxDepth - a.maxDepth || Number(a.closeCovered) - Number(b.closeCovered) || b.openCount - a.openCount);
     return rows;
   }
 
@@ -1982,8 +2051,30 @@ export function createPrototypeViewer(editor: Editor): {
       return;
     }
     const orphanCount = rows.filter((r) => r.orphan).length;
-    overlayStackInfo.textContent = `Frames ${rows.length} · Orphan ${orphanCount}`;
+    const coverageRows = collectOverlayRouteCoverageRows(flowMinimapSnapshot || undefined);
+    const coverageHit = coverageRows.filter((row) => row.closeCovered && !row.conditionalOnly).length;
+    const coveragePct = coverageRows.length > 0 ? Math.round((coverageHit / coverageRows.length) * 100) : 100;
+    overlayStackInfo.textContent = `Frames ${rows.length} · Orphan ${orphanCount} · Route coverage ${coveragePct}%`;
     overlayStackList.innerHTML = "";
+
+    if (coverageRows.length > 0) {
+      const matrix = document.createElement("div");
+      matrix.style.cssText = "display:flex;flex-direction:column;gap:4px;margin-bottom:6px;padding:6px;border:1px solid rgba(148,163,184,0.28);border-radius:6px;background:rgba(15,23,42,0.35);";
+      const matrixTitle = document.createElement("div");
+      matrixTitle.style.cssText = "font-size:10px;color:#bfdbfe;font-weight:600;";
+      matrixTitle.textContent = "Route Coverage Matrix";
+      matrix.appendChild(matrixTitle);
+      for (const row of coverageRows.slice(0, 5)) {
+        const item = document.createElement("div");
+        const risk = row.closeCovered && !row.conditionalOnly ? "OK" : (row.conditionalOnly ? "Conditional" : "Missing");
+        const riskColor = risk === "OK" ? "#86efac" : risk === "Conditional" ? "#facc15" : "#fca5a5";
+        item.style.cssText = "display:flex;justify-content:space-between;gap:6px;font-size:9px;color:#cbd5e1;";
+        item.innerHTML = `<span>${row.frameName}→${row.overlayName}</span><span style=\"color:${riskColor};\">D${row.maxDepth} · Open ${row.openCount} · ${risk}</span>`;
+        matrix.appendChild(item);
+      }
+      overlayStackList.appendChild(matrix);
+    }
+
     for (const row of rows.slice(0, 10)) {
       const card = document.createElement("div");
       card.style.cssText = `display:flex;flex-direction:column;gap:4px;border:1px solid ${row.orphan ? "rgba(248,113,113,0.45)" : "rgba(148,163,184,0.3)"};border-radius:6px;padding:6px;background:rgba(15,23,42,0.45);`;
@@ -2615,9 +2706,14 @@ export function createPrototypeViewer(editor: Editor): {
     }
 
     const overlayDepthBudgetRows = collectOverlayDepthBudgetRows(snapshot, 3);
-    const overlayDepthBudgetByFrame = new Map<number, { maxDepth: number; offenders: number[] }>();
+    const overlayDepthBudgetByFrame = new Map<number, { maxDepth: number; offenders: number[]; deepestOffenderId: number | null; pathSample: number[] }>();
     for (const row of overlayDepthBudgetRows) {
-      overlayDepthBudgetByFrame.set(row.frameId, { maxDepth: row.maxDepth, offenders: row.offenders });
+      overlayDepthBudgetByFrame.set(row.frameId, {
+        maxDepth: row.maxDepth,
+        offenders: row.offenders,
+        deepestOffenderId: row.deepestOffenderId,
+        pathSample: row.pathSample,
+      });
     }
 
     for (const node of snapshot.nodes) {
@@ -2633,12 +2729,13 @@ export function createPrototypeViewer(editor: Editor): {
       const depthBudget = overlayDepthBudgetByFrame.get(node.id);
       if (depthBudget) {
         const offenderLabel = depthBudget.offenders.slice(0, 3).map((id) => `#${id}`).join(", ");
+        const pathLabel = depthBudget.pathSample.length > 0 ? depthBudget.pathSample.map((id) => `#${id}`).join(" → ") : "";
         issues.push({
           type: "overlay-depth-budget",
           frameId: node.id,
           frameName: node.name,
-          overlayId: depthBudget.offenders[0],
-          detail: `Overlay depth ${depthBudget.maxDepth} exceeds budget(3)${offenderLabel ? ` · flatten candidate ${offenderLabel}` : ""}`,
+          overlayId: depthBudget.deepestOffenderId || depthBudget.offenders[0],
+          detail: `Overlay depth ${depthBudget.maxDepth} exceeds budget(3)${offenderLabel ? ` · flatten candidate ${offenderLabel}` : ""}${pathLabel ? ` · path ${pathLabel}` : ""}`,
         });
       }
 
