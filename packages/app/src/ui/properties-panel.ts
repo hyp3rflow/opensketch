@@ -14724,6 +14724,9 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
 
           let hasTextChild = false;
           let hasNonTextChild = false;
+          let textChildCount = 0;
+          let nonTextChildCount = 0;
+          let multilineTextCount = 0;
           try {
             const nodeJson = editor.engine.get_node(BigInt(id));
             const node = nodeJson ? JSON.parse(nodeJson) : null;
@@ -14733,9 +14736,20 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
               if (!childJson) continue;
               const child = JSON.parse(childJson);
               const kind = typeof child?.kind === "string" ? child.kind : String(child?.kind || "");
-              if (kind === "Text") hasTextChild = true;
-              else hasNonTextChild = true;
-              if (hasTextChild && hasNonTextChild) break;
+              if (kind === "Text") {
+                hasTextChild = true;
+                textChildCount += 1;
+                const textValue = String(child?.text || "");
+                const explicitLineCount = textValue ? textValue.split("\n").length : 1;
+                const lineHeight = Number(child?.line_height || 0);
+                const height = Number(child?.height || 0);
+                const fontSize = Number(child?.font_size || 0);
+                const inferredLineCount = lineHeight > 0 ? Math.max(1, Math.round(height / lineHeight)) : (fontSize > 0 ? Math.max(1, Math.round(height / (fontSize * 1.2))) : 1);
+                if (explicitLineCount > 1 || inferredLineCount > 1) multilineTextCount += 1;
+              } else {
+                hasNonTextChild = true;
+                nonTextChildCount += 1;
+              }
             }
           } catch {
             // no-op (best-effort inspector)
@@ -14754,10 +14768,38 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             : "Baseline alignment works in Row direction. Use quick action below to switch + apply.";
           baselineCard.appendChild(baselineHint);
 
+          const recommendedBaseline = multilineTextCount > 0 ? "first-baseline" : "last-baseline";
+          const recommendationReason = multilineTextCount > 0
+            ? "Multi-line text found → First baseline keeps headings aligned."
+            : "Single-line dominant → Last baseline keeps icon/caption bottoms aligned.";
+
           const baselineStats = document.createElement("div");
           baselineStats.style.cssText = "font-size:10px;color:#64748b;";
-          baselineStats.textContent = `Text ${hasTextChild ? "✓" : "✗"} · Non-text ${hasNonTextChild ? "✓" : "✗"}`;
+          baselineStats.textContent = `Text ${hasTextChild ? "✓" : "✗"}(${textChildCount}) · Non-text ${hasNonTextChild ? "✓" : "✗"}(${nonTextChildCount}) · Multi-line ${multilineTextCount}`;
           baselineCard.appendChild(baselineStats);
+
+          const recommendationRow = document.createElement("div");
+          recommendationRow.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:6px;background:#0f172a;border:1px solid #334155;border-radius:5px;padding:4px 6px;";
+
+          const recommendationText = document.createElement("div");
+          recommendationText.style.cssText = "font-size:10px;color:#cbd5e1;line-height:1.35;";
+          recommendationText.textContent = `Recommended: ${recommendedBaseline === "first-baseline" ? "First baseline" : "Last baseline"} — ${recommendationReason}`;
+          recommendationRow.appendChild(recommendationText);
+
+          const applyRecommendationBtn = document.createElement("button");
+          applyRecommendationBtn.style.cssText = "padding:3px 7px;border:1px solid #0ea5e9;border-radius:5px;background:#0ea5e920;color:#7dd3fc;font-size:10px;cursor:pointer;white-space:nowrap;";
+          applyRecommendationBtn.textContent = "Apply";
+          applyRecommendationBtn.disabled = !hasTextChild;
+          if (!hasTextChild) applyRecommendationBtn.style.opacity = "0.5";
+          applyRecommendationBtn.onclick = () => {
+            editor.engine.push_undo();
+            if (dir !== "row") editor.engine.set_layout_direction(BigInt(id), "row");
+            editor.engine.set_align_items(BigInt(id), recommendedBaseline);
+            editor.requestRender();
+            refresh(ids);
+          };
+          recommendationRow.appendChild(applyRecommendationBtn);
+          baselineCard.appendChild(recommendationRow);
 
           const baselineBtns = document.createElement("div");
           baselineBtns.style.cssText = "display:flex;gap:4px;flex-wrap:wrap;";
