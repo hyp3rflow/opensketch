@@ -1790,9 +1790,19 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Prototype Focus Return Map — overlay 닫힘 시 포커스가 돌아갈 origin hotspot 후보를 시각화하고 누락 시 fallback 노드 추천 (임팩트 중상, 난이도 중)
 - Keyboard Trigger Coverage Heatmap — OnClick/OnPress hotspot 중 keyboard trigger 누락 영역을 frame heatmap으로 집계 (임팩트 중, 난이도 중)
 - Ring Preset Auto-Guard Rules — 릴리즈 모드에서 Safe 미만 preset 사용 시 자동 guard/경고 정책을 flow별로 설정 (임팩트 중, 난이도 중)
+- Prototype Return Trace Replay — OpenOverlay→CloseOverlay 체인을 step-by-step 재생해 포커스 복귀 대상/순서를 타임라인으로 검증 (임팩트 중, 난이도 중)
+- Variable Cleanup Impact Budget — queue rename/merge 실행 전 frame별 영향도 budget(critical/warn)을 계산해 과도 변경 차단 (임팩트 중, 난이도 중상)
+- Auto Layout Constraint Preset Library — 자주 쓰는 constraints+sizing 조합을 preset으로 저장/적용 (임팩트 중, 난이도 중)
+
+## 완료된 기능 (추가 — Prototype Focus Return Map, 2026-04-19)
+- Prototype viewer 좌측에 `Prototype Focus Return Map` 패널 추가
+- `OpenOverlay` 브랜치별 opener hotspot(sourceNodeId) 후보를 route 카드로 시각화
+- overlay에 `CloseOverlay/Back` 경로가 없거나 opener가 누락된 경우 fallback 복귀 노드(원본 frame 첫 keyboard hotspot 또는 frame root) 자동 추천
+- `Jump frame`/`Jump overlay` 액션으로 return map 검수 루프를 즉시 이동
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Variable Token Merge Dry-Run Diff, 2026-04-19)
 - Variables Inspector `Variable Token Cleanup Queue`에 `Merge Dry-Run Diff` 프리뷰 카드 추가

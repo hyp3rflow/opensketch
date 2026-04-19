@@ -288,6 +288,9 @@ export function createPrototypeViewer(editor: Editor): {
   let escapeRouteWrap: HTMLDivElement | null = null;
   let escapeRouteInfo: HTMLDivElement | null = null;
   let escapeRouteList: HTMLDivElement | null = null;
+  let focusReturnWrap: HTMLDivElement | null = null;
+  let focusReturnInfo: HTMLDivElement | null = null;
+  let focusReturnList: HTMLDivElement | null = null;
   let condDebugInfo: HTMLDivElement | null = null;
   let condDebugList: HTMLDivElement | null = null;
   let flowLintSnapshot: { startFrameId: number | null; issues: FlowLintIssue[]; } | null = null;
@@ -1973,6 +1976,124 @@ export function createPrototypeViewer(editor: Editor): {
     }
   }
 
+  function collectFocusReturnRows(snapshotInput?: { nodes: Array<{ id: number; name: string; x: number; y: number; width: number; height: number }>; edges: Array<{ from: number; to: number; action: string; sourceNodeId: number; interactionIndex: number; conditional: boolean; branchActive: boolean | null; conditionSummary: string }>; }) {
+    const snapshot = snapshotInput || flowMinimapSnapshot;
+    if (!snapshot) return [] as Array<{ frameId: number; frameName: string; overlayId: number; overlayName: string; originNodeIds: number[]; originLabel: string; closeCount: number; fallbackNodeId: number | null; fallbackLabel: string }>;
+    const frameById = new Map(snapshot.nodes.map((n) => [n.id, n]));
+    const openerMap = new Map<string, Set<number>>();
+
+    for (const edge of snapshot.edges) {
+      if (edge.action !== "OpenOverlay" || edge.to <= 0) continue;
+      const key = `${edge.from}:${edge.to}`;
+      const bucket = openerMap.get(key) || new Set<number>();
+      const sourceNodeId = Number(edge.sourceNodeId || 0);
+      if (sourceNodeId > 0) bucket.add(sourceNodeId);
+      openerMap.set(key, bucket);
+    }
+
+    const rows: Array<{ frameId: number; frameName: string; overlayId: number; overlayName: string; originNodeIds: number[]; originLabel: string; closeCount: number; fallbackNodeId: number | null; fallbackLabel: string }> = [];
+    for (const [key, originSet] of openerMap.entries()) {
+      const [frameRaw, overlayRaw] = key.split(":");
+      const frameId = Number(frameRaw || 0);
+      const overlayId = Number(overlayRaw || 0);
+      if (!frameId || !overlayId) continue;
+      const frame = frameById.get(frameId);
+      const overlay = frameById.get(overlayId);
+      if (!frame || !overlay) continue;
+
+      const originNodeIds = Array.from(originSet.values()).filter((id) => id > 0);
+      const originLabel = originNodeIds.length > 0
+        ? originNodeIds.slice(0, 2).map((id) => `#${id}`).join(", ") + (originNodeIds.length > 2 ? ` +${originNodeIds.length - 2}` : "")
+        : "missing opener hotspot";
+      const closeCount = snapshot.edges.filter((edge) => edge.from === overlayId && (edge.action === "CloseOverlay" || edge.action === "Back")).length;
+      const fallback = listFocusableHotspots(frameId).find((item) => item.nodeId > 0) || null;
+      const fallbackNodeId = fallback ? Number(fallback.nodeId || 0) : null;
+      const fallbackLabel = fallback
+        ? `${String(fallback.node?.name || `Node #${fallbackNodeId}`)} (#${fallbackNodeId})`
+        : `${frame.name} frame root`;
+
+      rows.push({
+        frameId,
+        frameName: frame.name,
+        overlayId,
+        overlayName: overlay.name,
+        originNodeIds,
+        originLabel,
+        closeCount,
+        fallbackNodeId: fallbackNodeId && fallbackNodeId > 0 ? fallbackNodeId : null,
+        fallbackLabel,
+      });
+    }
+
+    rows.sort((a, b) => {
+      const scoreA = (a.closeCount === 0 ? 2 : 0) + (a.originNodeIds.length === 0 ? 1 : 0);
+      const scoreB = (b.closeCount === 0 ? 2 : 0) + (b.originNodeIds.length === 0 ? 1 : 0);
+      if (scoreA !== scoreB) return scoreB - scoreA;
+      return a.frameId - b.frameId;
+    });
+    return rows;
+  }
+
+  function renderFocusReturnMap() {
+    if (!focusReturnInfo || !focusReturnList) return;
+    const rows = collectFocusReturnRows(flowMinimapSnapshot || undefined);
+    if (rows.length === 0) {
+      focusReturnInfo.textContent = "No OpenOverlay origin candidates in current flow.";
+      focusReturnList.innerHTML = "";
+      return;
+    }
+    const missingCount = rows.filter((row) => row.originNodeIds.length === 0 || row.closeCount === 0).length;
+    focusReturnInfo.textContent = `Routes ${rows.length} · Missing return map ${missingCount}`;
+    focusReturnList.innerHTML = "";
+
+    for (const row of rows.slice(0, 10)) {
+      const missing = row.originNodeIds.length === 0 || row.closeCount === 0;
+      const card = document.createElement("div");
+      card.style.cssText = `display:flex;flex-direction:column;gap:4px;border:1px solid ${missing ? "rgba(251,146,60,0.45)" : "rgba(148,163,184,0.3)"};border-radius:6px;padding:6px;background:rgba(15,23,42,0.45);`;
+      const title = document.createElement("div");
+      title.style.cssText = "font-size:10px;color:#e2e8f0;line-height:1.35;";
+      title.textContent = `${row.frameName} → ${row.overlayName}`;
+      card.appendChild(title);
+
+      const originMeta = document.createElement("div");
+      originMeta.style.cssText = "font-size:9px;color:#93c5fd;line-height:1.35;";
+      originMeta.textContent = `Origin hotspot: ${row.originLabel}`;
+      card.appendChild(originMeta);
+
+      const returnMeta = document.createElement("div");
+      returnMeta.style.cssText = `font-size:9px;line-height:1.35;color:${missing ? "#fdba74" : "#86efac"};`;
+      returnMeta.textContent = row.closeCount > 0
+        ? `Close path ${row.closeCount}개 · return candidate ready`
+        : `Close path 없음 · fallback 권장: ${row.fallbackLabel}`;
+      card.appendChild(returnMeta);
+
+      if (row.originNodeIds.length === 0) {
+        const note = document.createElement("div");
+        note.style.cssText = "font-size:9px;color:#fdba74;line-height:1.35;";
+        note.textContent = `Opener가 누락됨. fallback 추천: ${row.fallbackLabel}`;
+        card.appendChild(note);
+      }
+
+      const btnRow = document.createElement("div");
+      btnRow.style.cssText = "display:flex;gap:4px;";
+      const jumpFrameBtn = document.createElement("button");
+      jumpFrameBtn.className = "prop-btn";
+      jumpFrameBtn.textContent = "Jump frame";
+      jumpFrameBtn.style.cssText = "flex:1;font-size:10px;padding:3px 6px;";
+      jumpFrameBtn.onclick = () => navigateTo(row.frameId, "Instant", 0, "linear");
+      btnRow.appendChild(jumpFrameBtn);
+      const jumpOverlayBtn = document.createElement("button");
+      jumpOverlayBtn.className = "prop-btn";
+      jumpOverlayBtn.textContent = "Jump overlay";
+      jumpOverlayBtn.style.cssText = "flex:1;font-size:10px;padding:3px 6px;";
+      jumpOverlayBtn.onclick = () => navigateTo(row.overlayId, "Instant", 0, "linear");
+      btnRow.appendChild(jumpOverlayBtn);
+      card.appendChild(btnRow);
+
+      focusReturnList.appendChild(card);
+    }
+  }
+
   function renderFlowLint() {
     if (!flowLintInfo || !flowLintList) return;
     const snapshot = flowMinimapSnapshot;
@@ -1985,6 +2106,7 @@ export function createPrototypeViewer(editor: Editor): {
       renderFocusTrapSimulator();
       renderOverlayStackInspector();
       renderEscapeRouteMap();
+      renderFocusReturnMap();
       return;
     }
 
@@ -2410,6 +2532,7 @@ export function createPrototypeViewer(editor: Editor): {
       renderFocusTrapSimulator();
       renderOverlayStackInspector();
       renderEscapeRouteMap();
+      renderFocusReturnMap();
       return;
     }
 
@@ -2516,6 +2639,7 @@ export function createPrototypeViewer(editor: Editor): {
     renderFocusTrapSimulator();
     renderOverlayStackInspector();
     renderEscapeRouteMap();
+    renderFocusReturnMap();
   }
 
   function captureSessionSnapshot() {
@@ -3455,8 +3579,23 @@ export function createPrototypeViewer(editor: Editor): {
     escapeRouteWrap.appendChild(escapeRouteList);
     overlay.appendChild(escapeRouteWrap);
 
+    focusReturnWrap = document.createElement("div");
+    focusReturnWrap.style.cssText = "position:absolute;left:14px;top:1258px;width:220px;max-height:200px;overflow:auto;background:rgba(15,23,42,0.92);border:1px solid rgba(251,146,60,0.35);border-radius:10px;padding:8px;z-index:4;display:flex;flex-direction:column;gap:6px;";
+    const focusReturnHead = document.createElement("div");
+    focusReturnHead.style.cssText = "font-size:11px;font-weight:600;color:#fdba74;";
+    focusReturnHead.textContent = "Prototype Focus Return Map";
+    focusReturnWrap.appendChild(focusReturnHead);
+    focusReturnInfo = document.createElement("div");
+    focusReturnInfo.style.cssText = "font-size:10px;color:#fdba74;line-height:1.35;";
+    focusReturnInfo.textContent = "Analyzing overlay close return candidates…";
+    focusReturnWrap.appendChild(focusReturnInfo);
+    focusReturnList = document.createElement("div");
+    focusReturnList.style.cssText = "display:flex;flex-direction:column;gap:4px;";
+    focusReturnWrap.appendChild(focusReturnList);
+    overlay.appendChild(focusReturnWrap);
+
     const condDebugWrap = document.createElement("div");
-    condDebugWrap.style.cssText = "position:absolute;left:14px;top:1258px;width:220px;max-height:220px;overflow:auto;background:rgba(15,23,42,0.92);border:1px solid rgba(248,113,113,0.35);border-radius:10px;padding:8px;z-index:4;display:flex;flex-direction:column;gap:6px;";
+    condDebugWrap.style.cssText = "position:absolute;left:14px;top:1920px;width:220px;max-height:220px;overflow:auto;background:rgba(15,23,42,0.92);border:1px solid rgba(248,113,113,0.35);border-radius:10px;padding:8px;z-index:4;display:flex;flex-direction:column;gap:6px;";
     const condDebugHead = document.createElement("div");
     condDebugHead.style.cssText = "font-size:11px;font-weight:600;color:#fecaca;";
     condDebugHead.textContent = "Conditional Branch Debugger";
@@ -3471,7 +3610,7 @@ export function createPrototypeViewer(editor: Editor): {
     overlay.appendChild(condDebugWrap);
 
     keyboardOrderWrap = document.createElement("div");
-    keyboardOrderWrap.style.cssText = "position:absolute;left:14px;top:1276px;width:220px;max-height:220px;overflow:auto;background:rgba(15,23,42,0.92);border:1px solid rgba(148,163,184,0.3);border-radius:10px;padding:8px;z-index:4;display:flex;flex-direction:column;gap:6px;";
+    keyboardOrderWrap.style.cssText = "position:absolute;left:14px;top:1484px;width:220px;max-height:220px;overflow:auto;background:rgba(15,23,42,0.92);border:1px solid rgba(148,163,184,0.3);border-radius:10px;padding:8px;z-index:4;display:flex;flex-direction:column;gap:6px;";
     const kbHead = document.createElement("div");
     kbHead.style.cssText = "font-size:11px;font-weight:600;color:#cbd5e1;";
     kbHead.textContent = "Keyboard Nav Order";
@@ -3500,7 +3639,7 @@ export function createPrototypeViewer(editor: Editor): {
     overlay.appendChild(keyboardOrderWrap);
 
     coverageWrap = document.createElement("div");
-    coverageWrap.style.cssText = "position:absolute;left:14px;top:1294px;width:220px;max-height:200px;overflow:auto;background:rgba(15,23,42,0.92);border:1px solid rgba(148,163,184,0.3);border-radius:10px;padding:8px;z-index:4;display:flex;flex-direction:column;gap:6px;";
+    coverageWrap.style.cssText = "position:absolute;left:14px;top:1712px;width:220px;max-height:200px;overflow:auto;background:rgba(15,23,42,0.92);border:1px solid rgba(148,163,184,0.3);border-radius:10px;padding:8px;z-index:4;display:flex;flex-direction:column;gap:6px;";
     const coverageHead = document.createElement("div");
     coverageHead.style.cssText = "font-size:11px;font-weight:600;color:#cbd5e1;";
     coverageHead.textContent = "Flow Coverage";

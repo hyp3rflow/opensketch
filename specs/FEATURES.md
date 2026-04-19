@@ -2809,6 +2809,13 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] `CloseOverlay/Back` escape 경로가 없으면 `escape missing` 경고 배지 + 붉은 톤 강조로 누락을 즉시 식별
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
 
+### Prototype Focus Return Map (2026-04-19)
+- [x] Prototype viewer 좌측 패널에 `Prototype Focus Return Map` 카드 추가
+- [x] `OpenOverlay` 브랜치별 opener hotspot(`sourceNodeId`) 후보를 묶어서 시각화
+- [x] overlay에 `CloseOverlay/Back` 경로가 비어 있거나 opener hotspot이 누락된 경우 fallback 복귀 후보(원본 frame의 첫 keyboard hotspot 또는 frame root)를 추천
+- [x] `Jump frame`/`Jump overlay` 버튼으로 return map 검증 루프를 즉시 이동
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+
 ### Interaction Timeline Scrubber (2026-04-12)
 - [x] Prototype Viewer 우측에 `Interaction Timeline` 패널 추가 (scrub slider + 최근 이벤트 리스트)
 - [x] Navigate/Back/Scroll 이벤트를 타임라인으로 누적해 순서/끊김을 시각 점검
