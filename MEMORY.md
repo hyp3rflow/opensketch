@@ -1790,10 +1790,17 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Smart Guide Priority Ruleset Editor — edge/center/grid snap 우선순위를 프리셋으로 저장하고 프로젝트별 적용 (임팩트 중, 난이도 중)
 - Overlay Stack Route Coverage Matrix — OpenOverlay source별 depth/close-path 커버리지 매트릭스 제공 (임팩트 중상, 난이도 중)
 - Conditional Overlay Exit Sampler — 조건 분기별 Esc/Back 복귀 성공 케이스를 샘플링 리포트 (임팩트 중, 난이도 중)
 - Prototype Overlay Guard Preset Pack — overlay lint/fix 정책을 Strict/Balanced/Legacy 프리셋으로 전환 (임팩트 중, 난이도 중)
+
+## 완료된 기능 (추가 — Overlay Stack Depth Budget Guard, 2026-04-20)
+- Flow Lint에 `overlay-depth-budget` 이슈 타입 추가: OpenOverlay 체인 max depth가 budget(3)을 초과하면 경고
+- lint detail에 초과 depth + flatten 후보 overlay id를 표시해 위험 체인을 즉시 확인
+- `Suggest: flatten overlay` one-click 액션으로 후보 overlay 선택 후 `flatten_selection()` 실행
+- lint summary/filter chip/rank 색상 체계에 depth budget 집계를 통합
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Motion Preset Safety Buckets, 2026-04-20)
 - Interactions > Smart Animate Preset Sequencer에 Safety Bucket(Safe/Watch/Risky) 분류 배지 추가

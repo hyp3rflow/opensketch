@@ -2847,6 +2847,13 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] 기존 lint issue 리스트/점프 워크플로우와 동일하게 클릭 네비게이션 지원
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
 
+### Overlay Stack Depth Budget Guard (2026-04-20)
+- [x] Flow Lint 이슈 타입에 `overlay-depth-budget` 추가: OpenOverlay 체인 최대 depth가 budget(기본 3)을 초과하면 경고
+- [x] lint detail에 초과 depth와 flatten 후보 overlay id를 노출해 과도한 overlay nesting을 즉시 식별
+- [x] one-click 액션 `Suggest: flatten overlay` 추가: 후보 overlay를 선택 후 `flatten_selection()` 실행
+- [x] lint summary/filter chip/rank 컬러 체계에 `overlay-depth-budget` 집계 통합
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+
 ### Prototype Viewer Issue Navigator Strip (2026-04-12)
 - [x] Flow Lint 패널에 issue type 필터 chip strip 추가 (dead-end/unreachable/cycle-trap/cycle/overlay-leak/orphan-close)
 - [x] 선택된 chip 상태에 따라 lint 이슈 리스트를 즉시 필터링하고 `+ N more` 카운트도 필터 결과 기준으로 표시

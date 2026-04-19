@@ -288,7 +288,7 @@ export function createPrototypeViewer(editor: Editor): {
   let flowStartFrameSel: HTMLSelectElement | null = null;
   let flowStartInfo: HTMLDivElement | null = null;
   const flowPresetCursor = new Map<string, number>();
-  type FlowLintIssueType = "unreachable" | "dead-end" | "cycle" | "cycle-trap" | "overlay-leak" | "overlay-key-route" | "orphan-close" | "scroll-leak" | "a11y-missing-label" | "a11y-focus-gap" | "a11y-focus-trap" | "a11y-low-contrast" | "a11y-motion";
+  type FlowLintIssueType = "unreachable" | "dead-end" | "cycle" | "cycle-trap" | "overlay-leak" | "overlay-key-route" | "overlay-depth-budget" | "orphan-close" | "scroll-leak" | "a11y-missing-label" | "a11y-focus-gap" | "a11y-focus-trap" | "a11y-low-contrast" | "a11y-motion";
   type FlowLintIssue = { type: FlowLintIssueType; frameId: number; frameName: string; detail: string; overlayId?: number };
   type FocusTrapSimIssue = {
     frameId: number;
@@ -1927,6 +1927,52 @@ export function createPrototypeViewer(editor: Editor): {
     return { summary: "D1-5 pass", failDepth: 0 };
   }
 
+  function collectOverlayDepthBudgetRows(snapshotInput?: { nodes: Array<{ id: number; name: string; x: number; y: number; width: number; height: number }>; edges: Array<{ from: number; to: number; action: string; sourceNodeId: number; interactionIndex: number; conditional: boolean; branchActive: boolean | null; conditionSummary: string }>; }, budget = 3) {
+    const snapshot = snapshotInput || flowMinimapSnapshot;
+    if (!snapshot) return [] as Array<{ frameId: number; frameName: string; maxDepth: number; offenders: number[] }>;
+
+    const frameById = new Map(snapshot.nodes.map((n) => [n.id, n]));
+    const openBySource = new Map<number, number[]>();
+    for (const edge of snapshot.edges) {
+      if (edge.action !== "OpenOverlay" || edge.to <= 0) continue;
+      const bucket = openBySource.get(edge.from) || [];
+      bucket.push(edge.to);
+      openBySource.set(edge.from, bucket);
+    }
+
+    const rows: Array<{ frameId: number; frameName: string; maxDepth: number; offenders: number[] }> = [];
+    for (const frame of snapshot.nodes) {
+      const queue: Array<{ nodeId: number; depth: number }> = (openBySource.get(frame.id) || []).map((overlayId) => ({ nodeId: overlayId, depth: 1 }));
+      if (queue.length === 0) continue;
+      const seen = new Set<string>();
+      let maxDepth = 0;
+      const offenders = new Set<number>();
+      while (queue.length > 0) {
+        const current = queue.shift()!;
+        const key = `${current.nodeId}:${current.depth}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        maxDepth = Math.max(maxDepth, current.depth);
+        if (current.depth > budget) offenders.add(current.nodeId);
+        if (current.depth >= budget + 3) continue;
+        for (const nextOverlayId of openBySource.get(current.nodeId) || []) {
+          queue.push({ nodeId: nextOverlayId, depth: current.depth + 1 });
+        }
+      }
+      if (maxDepth > budget) {
+        rows.push({
+          frameId: frame.id,
+          frameName: frame.name,
+          maxDepth,
+          offenders: Array.from(offenders),
+        });
+      }
+    }
+
+    rows.sort((a, b) => b.maxDepth - a.maxDepth || a.frameName.localeCompare(b.frameName));
+    return rows;
+  }
+
   function renderOverlayStackInspector() {
     if (!overlayStackInfo || !overlayStackList) return;
     const rows = collectOverlayStackRows(flowMinimapSnapshot || undefined);
@@ -2568,6 +2614,12 @@ export function createPrototypeViewer(editor: Editor): {
       }
     }
 
+    const overlayDepthBudgetRows = collectOverlayDepthBudgetRows(snapshot, 3);
+    const overlayDepthBudgetByFrame = new Map<number, { maxDepth: number; offenders: number[] }>();
+    for (const row of overlayDepthBudgetRows) {
+      overlayDepthBudgetByFrame.set(row.frameId, { maxDepth: row.maxDepth, offenders: row.offenders });
+    }
+
     for (const node of snapshot.nodes) {
       if (!visited.has(node.id)) continue;
       const openCount = overlaysOpenByFrame.get(node.id) || 0;
@@ -2576,6 +2628,18 @@ export function createPrototypeViewer(editor: Editor): {
         issues.push({ type: "overlay-leak", frameId: node.id, frameName: node.name, detail: `Opens overlay ${openCount}x but never closes it` });
       } else if (closeCount > 0 && openCount === 0) {
         issues.push({ type: "orphan-close", frameId: node.id, frameName: node.name, detail: `CloseOverlay ${closeCount}x without local OpenOverlay trigger` });
+      }
+
+      const depthBudget = overlayDepthBudgetByFrame.get(node.id);
+      if (depthBudget) {
+        const offenderLabel = depthBudget.offenders.slice(0, 3).map((id) => `#${id}`).join(", ");
+        issues.push({
+          type: "overlay-depth-budget",
+          frameId: node.id,
+          frameName: node.name,
+          overlayId: depthBudget.offenders[0],
+          detail: `Overlay depth ${depthBudget.maxDepth} exceeds budget(3)${offenderLabel ? ` · flatten candidate ${offenderLabel}` : ""}`,
+        });
       }
 
       const overlayTargets = overlayTargetsByFrame.get(node.id);
@@ -2795,13 +2859,14 @@ export function createPrototypeViewer(editor: Editor): {
     const overlayLeakCount = issues.filter((i) => i.type === "overlay-leak").length;
     const orphanCloseCount = issues.filter((i) => i.type === "orphan-close").length;
     const overlayKeyRouteCount = issues.filter((i) => i.type === "overlay-key-route").length;
+    const overlayDepthBudgetCount = issues.filter((i) => i.type === "overlay-depth-budget").length;
     const scrollLeakCount = issues.filter((i) => i.type === "scroll-leak").length;
     const missingLabelCount = issues.filter((i) => i.type === "a11y-missing-label").length;
     const focusGapCount = issues.filter((i) => i.type === "a11y-focus-gap").length;
     const focusTrapCount = issues.filter((i) => i.type === "a11y-focus-trap").length;
     const lowContrastCount = issues.filter((i) => i.type === "a11y-low-contrast").length;
     const motionGuardrailCount = issues.filter((i) => i.type === "a11y-motion").length;
-    flowLintInfo.textContent = `Start #${startFrameId} · Dead-end ${deadEndCount} · Unreachable ${unreachableCount} · Cycles ${cycleCount}/${cycleTrapCount} · Overlay ${overlayLeakCount}/${overlayKeyRouteCount}/${orphanCloseCount}/Scroll ${scrollLeakCount} · A11y ${missingLabelCount}/${focusGapCount}/${focusTrapCount}/${lowContrastCount}/${motionGuardrailCount}`;
+    flowLintInfo.textContent = `Start #${startFrameId} · Dead-end ${deadEndCount} · Unreachable ${unreachableCount} · Cycles ${cycleCount}/${cycleTrapCount} · Overlay ${overlayLeakCount}/${overlayKeyRouteCount}/${overlayDepthBudgetCount}/${orphanCloseCount}/Scroll ${scrollLeakCount} · A11y ${missingLabelCount}/${focusGapCount}/${focusTrapCount}/${lowContrastCount}/${motionGuardrailCount}`;
 
     flowLintList.innerHTML = "";
     if (issues.length === 0) {
@@ -2828,11 +2893,12 @@ export function createPrototypeViewer(editor: Editor): {
       "cycle": 8,
       "overlay-leak": 9,
       "overlay-key-route": 10,
-      "scroll-leak": 11,
-      "orphan-close": 12,
+      "overlay-depth-budget": 11,
+      "scroll-leak": 12,
+      "orphan-close": 13,
     };
     const sortedIssues = [...issues].sort((a, b) => (rank[a.type] - rank[b.type]) || a.frameName.localeCompare(b.frameName));
-    const issueTypes: FlowLintIssueType[] = ["a11y-missing-label", "a11y-focus-gap", "a11y-focus-trap", "a11y-low-contrast", "a11y-motion", "dead-end", "unreachable", "cycle-trap", "cycle", "overlay-leak", "overlay-key-route", "scroll-leak", "orphan-close"];
+    const issueTypes: FlowLintIssueType[] = ["a11y-missing-label", "a11y-focus-gap", "a11y-focus-trap", "a11y-low-contrast", "a11y-motion", "dead-end", "unreachable", "cycle-trap", "cycle", "overlay-leak", "overlay-key-route", "overlay-depth-budget", "scroll-leak", "orphan-close"];
     if (flowLintFilterTypes.size === 0) {
       for (const t of issueTypes) flowLintFilterTypes.add(t);
     }
@@ -2887,9 +2953,11 @@ export function createPrototypeViewer(editor: Editor): {
                         ? "#fb7185"
                         : issue.type === "overlay-key-route"
                           ? "#f97316"
-                          : issue.type === "scroll-leak"
-                            ? "#38bdf8"
-                            : "#22d3ee";
+                          : issue.type === "overlay-depth-budget"
+                            ? "#fb7185"
+                            : issue.type === "scroll-leak"
+                              ? "#38bdf8"
+                              : "#22d3ee";
       row.style.cssText = `display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;text-align:left;background:rgba(15,23,42,0.55);border:1px solid rgba(148,163,184,0.25);border-left:3px solid ${color};border-radius:6px;color:#e2e8f0;padding:4px 6px;cursor:pointer;`;
       row.dataset.lintNavIndex = String(issueIndex);
       row.innerHTML = `<span style="font-size:10px;font-weight:600;color:${color};text-transform:uppercase;">${issue.type}</span><span style="font-size:10px;">${issue.frameName} (#${issue.frameId})</span><span style="font-size:9px;color:#94a3b8;">${issue.detail}</span>`;
@@ -2907,6 +2975,28 @@ export function createPrototypeViewer(editor: Editor): {
           scrollLockRegions = { ...scrollLockRegions, [key]: true };
           saveScrollLockRegions(scrollLockRegions);
           renderFlowLint();
+        };
+        row.appendChild(fixBtn);
+      }
+      if (issue.type === "overlay-depth-budget" && issue.overlayId && issue.overlayId > 0) {
+        const fixBtn = document.createElement("button");
+        fixBtn.style.cssText = "margin-top:4px;background:#4c1d95;border:1px solid #a78bfa;border-radius:4px;color:#ede9fe;font-size:9px;padding:2px 6px;cursor:pointer;";
+        fixBtn.textContent = "Suggest: flatten overlay";
+        fixBtn.onclick = (ev) => {
+          ev.stopPropagation();
+          try {
+            editor.engine.push_undo();
+            editor.engine.set_selection(new BigUint64Array([BigInt(issue.overlayId || 0)]));
+            const changed = Number(editor.engine.flatten_selection() || 0);
+            editor.requestRender();
+            renderFlowLint();
+            fixBtn.textContent = changed > 0 ? `Flattened ${changed}` : "No-op";
+          } catch {
+            fixBtn.textContent = "No-op";
+          }
+          setTimeout(() => {
+            fixBtn.textContent = "Suggest: flatten overlay";
+          }, 1200);
         };
         row.appendChild(fixBtn);
       }
