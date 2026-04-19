@@ -417,6 +417,50 @@ function saveSmartAnimateSequencePresets(presets: SmartAnimateSequencePreset[]):
   localStorage.setItem(SMART_ANIMATE_SEQUENCE_PRESET_KEY, JSON.stringify(presets.slice(0, 60)));
 }
 
+type MotionSafetyBucket = "safe" | "watch" | "risky";
+
+function classifyMotionSafetyBucket(step: SmartAnimateSequenceStep): MotionSafetyBucket {
+  const transition = String(step.transition || "").toLowerCase();
+  const easing = String(step.easing || "").toLowerCase();
+  const durationMs = Number(step.durationMs || 0);
+  const isAggressiveEasing = ["elastic", "bounce", "back", "spring"].some((token) => easing.includes(token));
+  const isHardMotion = transition === "smart-animate" || transition === "slide-in" || transition === "slide-out" || transition === "push";
+
+  if (durationMs >= 900 || (isAggressiveEasing && durationMs >= 480)) return "risky";
+  if (isHardMotion || durationMs >= 480 || isAggressiveEasing) return "watch";
+  return "safe";
+}
+
+function classifyPresetSafetyBucket(preset: SmartAnimateSequencePreset): MotionSafetyBucket {
+  let hasWatch = false;
+  for (const step of preset.steps) {
+    const bucket = classifyMotionSafetyBucket(step);
+    if (bucket === "risky") return "risky";
+    if (bucket === "watch") hasWatch = true;
+  }
+  return hasWatch ? "watch" : "safe";
+}
+
+function normalizeStepBySafetyBucket(step: SmartAnimateSequenceStep, bucket: MotionSafetyBucket): SmartAnimateSequenceStep {
+  if (bucket === "safe") {
+    const transition = step.transition === "instant" ? "instant" : "dissolve";
+    return normalizeSmartAnimateStep({ ...step, transition, durationMs: Math.min(Math.max(step.durationMs, 120), 260), easing: "ease_out" });
+  }
+  if (bucket === "watch") {
+    const transition = step.transition === "instant" ? "dissolve" : step.transition;
+    const easing = ["elastic", "bounce", "back", "spring"].some((token) => String(step.easing || "").toLowerCase().includes(token)) ? "ease_in_out" : step.easing;
+    return normalizeSmartAnimateStep({ ...step, transition, durationMs: Math.min(Math.max(step.durationMs, 180), 420), easing });
+  }
+  return normalizeSmartAnimateStep({ ...step, durationMs: Math.min(Math.max(step.durationMs, 240), 700), easing: "ease_in_out" });
+}
+
+function normalizePresetSafetyBucket(preset: SmartAnimateSequencePreset, targetBucket: MotionSafetyBucket): SmartAnimateSequencePreset {
+  return {
+    ...preset,
+    steps: preset.steps.map((step) => normalizeStepBySafetyBucket(step, targetBucket)),
+  };
+}
+
 type SmartAnimateDiffPreset = {
   id: "transform" | "opacity" | "fill" | "text";
   label: string;
@@ -9301,11 +9345,16 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           seqTitle.style.cssText = "font-size:10px;color:#c4b5fd;font-weight:600;";
           seqTitle.textContent = "Smart Animate Preset Sequencer";
           seqHead.appendChild(seqTitle);
+
+          const bucketBadge = document.createElement("span");
+          bucketBadge.style.cssText = "font-size:9px;padding:2px 6px;border-radius:999px;border:1px solid #374151;color:#cbd5e1;background:#111827;";
+          bucketBadge.textContent = "Bucket: -";
+          seqHead.appendChild(bucketBadge);
           seqWrap.appendChild(seqHead);
 
           const seqHint = document.createElement("div");
           seqHint.style.cssText = "font-size:9px;color:#7c8698;margin-top:4px;line-height:1.35;";
-          seqHint.textContent = "Save enter/exit transition chains and apply in order to this node's interactions.";
+          seqHint.textContent = "Save enter/exit transition chains, classify as Safe/Watch/Risky, and apply in order to interactions.";
           seqWrap.appendChild(seqHint);
 
           const presets = loadSmartAnimateSequencePresets();
@@ -9321,7 +9370,8 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           for (const p of presets) {
             const opt = document.createElement("option");
             opt.value = p.id;
-            opt.textContent = `${p.name} (${p.steps.length} steps · ${p.applyMode === "loop" ? "loop" : "clamp"})`;
+            const bucket = classifyPresetSafetyBucket(p);
+            opt.textContent = `${p.name} [${bucket}] (${p.steps.length} steps · ${p.applyMode === "loop" ? "loop" : "clamp"})`;
             seqSelect.appendChild(opt);
           }
           selectRow.appendChild(seqSelect);
@@ -9348,6 +9398,22 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           deleteSeqBtn.title = "Delete selected preset";
           deleteSeqBtn.disabled = presets.length === 0;
           selectRow.appendChild(deleteSeqBtn);
+
+          const normalizeSafeBtn = document.createElement("button");
+          normalizeSafeBtn.className = "prop-btn";
+          normalizeSafeBtn.style.fontSize = "10px";
+          normalizeSafeBtn.textContent = "Normalize→Safe";
+          normalizeSafeBtn.title = "Normalize selected preset steps to Safe bucket";
+          normalizeSafeBtn.disabled = presets.length === 0;
+          selectRow.appendChild(normalizeSafeBtn);
+
+          const normalizeWatchBtn = document.createElement("button");
+          normalizeWatchBtn.className = "prop-btn";
+          normalizeWatchBtn.style.fontSize = "10px";
+          normalizeWatchBtn.textContent = "Normalize→Watch";
+          normalizeWatchBtn.title = "Normalize selected preset steps to Watch bucket";
+          normalizeWatchBtn.disabled = presets.length === 0;
+          selectRow.appendChild(normalizeWatchBtn);
 
           seqWrap.appendChild(selectRow);
 
@@ -9467,12 +9533,33 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             const selected = loadSmartAnimateSequencePresets().find((p) => p.id === seqSelect.value);
             if (!selected) {
               selectedPresetMeta.textContent = "Pick a saved preset to preview enter/exit chain.";
+              bucketBadge.textContent = "Bucket: -";
+              bucketBadge.style.borderColor = "#374151";
+              bucketBadge.style.color = "#cbd5e1";
+              bucketBadge.style.background = "#111827";
               return;
             }
             const enterCount = selected.steps.filter((s) => s.phase === "enter").length;
             const exitCount = selected.steps.filter((s) => s.phase === "exit").length;
             const firstStep = selected.steps[0];
-            selectedPresetMeta.textContent = `Enter ${enterCount} · Exit ${exitCount} · ${selected.applyMode === "loop" ? "loop" : "clamp"}${firstStep ? ` · starts: ${firstStep.phase}/${firstStep.transition}/${firstStep.durationMs}ms` : ""}`;
+            const bucket = classifyPresetSafetyBucket(selected);
+            selectedPresetMeta.textContent = `Bucket ${bucket.toUpperCase()} · Enter ${enterCount} · Exit ${exitCount} · ${selected.applyMode === "loop" ? "loop" : "clamp"}${firstStep ? ` · starts: ${firstStep.phase}/${firstStep.transition}/${firstStep.durationMs}ms` : ""}`;
+            if (bucket === "safe") {
+              bucketBadge.textContent = "Bucket: Safe";
+              bucketBadge.style.borderColor = "#065f46";
+              bucketBadge.style.color = "#86efac";
+              bucketBadge.style.background = "rgba(6,95,70,0.2)";
+            } else if (bucket === "watch") {
+              bucketBadge.textContent = "Bucket: Watch";
+              bucketBadge.style.borderColor = "#92400e";
+              bucketBadge.style.color = "#fcd34d";
+              bucketBadge.style.background = "rgba(146,64,14,0.22)";
+            } else {
+              bucketBadge.textContent = "Bucket: Risky";
+              bucketBadge.style.borderColor = "#7f1d1d";
+              bucketBadge.style.color = "#fca5a5";
+              bucketBadge.style.background = "rgba(127,29,29,0.24)";
+            }
           };
 
           seqSelect.onchange = () => {
@@ -9504,6 +9591,22 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             saveSmartAnimateSequencePresets(remaining);
             refresh(ids);
           };
+
+          const normalizeSelectedPreset = (targetBucket: MotionSafetyBucket) => {
+            const selected = loadSmartAnimateSequencePresets().find((p) => p.id === seqSelect.value);
+            if (!selected) {
+              alert("Select a preset first.");
+              return;
+            }
+            const nextPresets = loadSmartAnimateSequencePresets().map((p) => (
+              p.id === selected.id ? normalizePresetSafetyBucket(p, targetBucket) : p
+            ));
+            saveSmartAnimateSequencePresets(nextPresets);
+            refresh(ids);
+          };
+
+          normalizeSafeBtn.onclick = () => normalizeSelectedPreset("safe");
+          normalizeWatchBtn.onclick = () => normalizeSelectedPreset("watch");
 
           saveChainBtn.onclick = () => {
             if (draftSteps.length === 0) {

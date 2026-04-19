@@ -1795,6 +1795,14 @@
 - Conditional Overlay Exit Sampler — 조건 분기별 Esc/Back 복귀 성공 케이스를 샘플링 리포트 (임팩트 중, 난이도 중)
 - Prototype Overlay Guard Preset Pack — overlay lint/fix 정책을 Strict/Balanced/Legacy 프리셋으로 전환 (임팩트 중, 난이도 중)
 
+## 완료된 기능 (추가 — Motion Preset Safety Buckets, 2026-04-20)
+- Interactions > Smart Animate Preset Sequencer에 Safety Bucket(Safe/Watch/Risky) 분류 배지 추가
+- preset 드롭다운/메타에 bucket 정보를 노출해 모션 리스크를 즉시 확인 가능
+- `Normalize→Safe`, `Normalize→Watch` one-click 액션으로 선택 preset step(duration/transition/easing) 자동 정규화
+- 분류 기준: long duration(>=900ms), aggressive easing(elastic/bounce/back/spring)+긴 duration(>=480ms), hard transition(smart-animate/slide/push)
+- 구현: `packages/app/src/ui/properties-panel.ts`
+- specs 반영: `specs/FEATURES.md`
+
 ## 완료된 기능 (추가 — Prototype Tab Order Heatmap, 2026-04-19)
 - Prototype Viewer `Keyboard Order` 리스트에 Tab 이동 거리 기반 heat badge(0~100%) 추가
 - frame diagonal 정규화 점수로 hotspot 간 점프 강도를 계산하고 row별 색상으로 시각화

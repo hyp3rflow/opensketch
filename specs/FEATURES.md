@@ -434,6 +434,7 @@
   - Smart Animate Preset Sequencer (2026-04-12): Interactions 카드에 enter/exit 단계 체인 draft(+Step) 작성과 `Save chain` preset 저장을 추가. 저장된 chain을 `Apply chain`으로 현재 노드의 prototype interactions에 순차 적용해 enter 계열(Navigate/OpenOverlay/ScrollTo/SwapVariant/SetVariable)과 exit 계열(Back/CloseOverlay) transition/duration/easing을 일괄 세팅
   - Smart Animate Preset Sequencer v2 (2026-04-12): 시퀀스 preset에 apply mode(`clamp`/`loop`)를 추가해 interaction 수가 step 수를 초과할 때 마지막 step 고정 또는 반복 순환을 선택 가능. preset 드롭다운 메타와 apply 결과 알림에 mode를 표시해 체인 적용 의도를 명확화
   - Smart Animate Preset Sequencer v3 (2026-04-12): 저장 preset 관리 UX 보강(`Load`로 draft 복원, `Delete`로 정리, selected preset 메타 preview). 체인 반복 튜닝/재사용 사이클을 interaction 카드 내에서 닫아 편집 왕복을 줄임.
+  - Smart Animate Preset Sequencer v4 (2026-04-20): Motion Preset Safety Buckets(Safe/Watch/Risky) 분류를 preset 메타에 추가하고, 선택 preset을 `Normalize→Safe`/`Normalize→Watch`로 one-click 정규화 지원. duration/easing/transition을 버킷 기준으로 자동 클램프해 과도한 모션 조합을 빠르게 안정화.
   - Toolbar: Flow Diagram button next to prototype play button (i18n tooltip: en/ko/ja)
 
 ### Styles Library (Shared Color & Text Styles)
