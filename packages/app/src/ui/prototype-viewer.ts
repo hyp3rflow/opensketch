@@ -1984,9 +1984,9 @@ export function createPrototypeViewer(editor: Editor): {
 
   function collectEscapeRouteRows(snapshotInput?: { nodes: Array<{ id: number; name: string; x: number; y: number; width: number; height: number }>; edges: Array<{ from: number; to: number; action: string; sourceNodeId: number; interactionIndex: number; conditional: boolean; branchActive: boolean | null; conditionSummary: string }>; }) {
     const snapshot = snapshotInput || flowMinimapSnapshot;
-    if (!snapshot) return [] as Array<{ frameId: number; frameName: string; overlayId: number; overlayName: string; routeSummary: string; escRouteSummary: string; backRouteSummary: string; escSimSummary: string; backSimSummary: string; escSimBroken: boolean; backSimBroken: boolean; trapped: boolean; missingEsc: boolean; missingBack: boolean }>;
+    if (!snapshot) return [] as Array<{ frameId: number; frameName: string; overlayId: number; overlayName: string; routeSummary: string; escRouteSummary: string; backRouteSummary: string; escSimSummary: string; backSimSummary: string; escSimBroken: boolean; backSimBroken: boolean; trapped: boolean; missingEsc: boolean; missingBack: boolean; escConditionalOnly: boolean; backConditionalOnly: boolean; openCount: number }>;
     const frameById = new Map(snapshot.nodes.map((n) => [n.id, n]));
-    const rows: Array<{ frameId: number; frameName: string; overlayId: number; overlayName: string; routeSummary: string; escRouteSummary: string; backRouteSummary: string; escSimSummary: string; backSimSummary: string; escSimBroken: boolean; backSimBroken: boolean; trapped: boolean; missingEsc: boolean; missingBack: boolean }> = [];
+    const rows: Array<{ frameId: number; frameName: string; overlayId: number; overlayName: string; routeSummary: string; escRouteSummary: string; backRouteSummary: string; escSimSummary: string; backSimSummary: string; escSimBroken: boolean; backSimBroken: boolean; trapped: boolean; missingEsc: boolean; missingBack: boolean; escConditionalOnly: boolean; backConditionalOnly: boolean; openCount: number }> = [];
 
     const summarize = (edge: { action: string; to: number } | null, openerFrameId: number) => {
       if (!edge) return "missing";
@@ -2040,20 +2040,44 @@ export function createPrototypeViewer(editor: Editor): {
       };
     };
 
+    const overlayOpenMap = new Map<string, typeof snapshot.edges>();
     for (const edge of snapshot.edges) {
       if (edge.action !== "OpenOverlay" || edge.to <= 0) continue;
-      const frame = frameById.get(edge.from);
-      const overlay = frameById.get(edge.to);
+      const key = `${edge.from}:${edge.to}`;
+      const bucket = overlayOpenMap.get(key) || [];
+      bucket.push(edge);
+      overlayOpenMap.set(key, bucket);
+    }
+
+    for (const [key, openEdges] of overlayOpenMap.entries()) {
+      const [frameRaw, overlayRaw] = key.split(":");
+      const frameId = Number(frameRaw || 0);
+      const overlayId = Number(overlayRaw || 0);
+      if (!frameId || !overlayId) continue;
+      const frame = frameById.get(frameId);
+      const overlay = frameById.get(overlayId);
       if (!frame || !overlay) continue;
-      const exits = snapshot.edges.filter((next) => next.from === edge.to && (next.action === "CloseOverlay" || next.action === "Back" || next.action === "NavigateTo"));
+      const exits = snapshot.edges.filter((next) => next.from === overlayId && (next.action === "CloseOverlay" || next.action === "Back" || next.action === "NavigateTo"));
       const escapeExits = exits.filter((next) => next.action === "CloseOverlay" || next.action === "Back");
-      const escRoute = exits.find((next) => next.action === "CloseOverlay") || exits.find((next) => next.action === "Back") || null;
-      const backRoute = exits.find((next) => next.action === "Back") || exits.find((next) => next.action === "CloseOverlay") || null;
+      const escRoute = exits.find((next) => next.action === "CloseOverlay" && !next.conditional)
+        || exits.find((next) => next.action === "Back" && !next.conditional)
+        || exits.find((next) => next.action === "CloseOverlay")
+        || exits.find((next) => next.action === "Back")
+        || null;
+      const backRoute = exits.find((next) => next.action === "Back" && !next.conditional)
+        || exits.find((next) => next.action === "CloseOverlay" && !next.conditional)
+        || exits.find((next) => next.action === "Back")
+        || exits.find((next) => next.action === "CloseOverlay")
+        || null;
       const routeSummary = exits.length > 0
-        ? exits.slice(0, 3).map((next) => `${next.action}${next.to > 0 ? `→#${next.to}` : ""}`).join(" · ")
+        ? exits.slice(0, 3).map((next) => `${next.action}${next.to > 0 ? `→#${next.to}` : ""}${next.conditional ? "(if)" : ""}`).join(" · ")
         : "No exits";
       const escSim = simulateKeyRoute("esc", frame.id, overlay.id);
       const backSim = simulateKeyRoute("back", frame.id, overlay.id);
+      const hasEscRoute = exits.some((next) => next.action === "CloseOverlay" || next.action === "Back");
+      const hasBackRoute = exits.some((next) => next.action === "Back");
+      const hasUnconditionalEsc = exits.some((next) => (next.action === "CloseOverlay" || next.action === "Back") && !next.conditional);
+      const hasUnconditionalBack = exits.some((next) => next.action === "Back" && !next.conditional);
       rows.push({
         frameId: frame.id,
         frameName: frame.name,
@@ -2067,14 +2091,17 @@ export function createPrototypeViewer(editor: Editor): {
         escSimBroken: escSim.broken,
         backSimBroken: backSim.broken,
         trapped: escapeExits.length === 0,
-        missingEsc: !escRoute,
-        missingBack: !exits.some((next) => next.action === "Back"),
+        missingEsc: !hasEscRoute,
+        missingBack: !hasBackRoute,
+        escConditionalOnly: hasEscRoute && !hasUnconditionalEsc,
+        backConditionalOnly: hasBackRoute && !hasUnconditionalBack,
+        openCount: openEdges.length,
       });
     }
 
     rows.sort((a, b) => {
-      const scoreA = (a.trapped ? 4 : 0) + (a.missingEsc ? 2 : 0) + (a.missingBack ? 1 : 0) + (a.escSimBroken ? 1 : 0) + (a.backSimBroken ? 1 : 0);
-      const scoreB = (b.trapped ? 4 : 0) + (b.missingEsc ? 2 : 0) + (b.missingBack ? 1 : 0) + (b.escSimBroken ? 1 : 0) + (b.backSimBroken ? 1 : 0);
+      const scoreA = (a.trapped ? 4 : 0) + (a.missingEsc ? 2 : 0) + (a.missingBack ? 1 : 0) + (a.escConditionalOnly ? 1 : 0) + (a.backConditionalOnly ? 1 : 0) + (a.escSimBroken ? 1 : 0) + (a.backSimBroken ? 1 : 0);
+      const scoreB = (b.trapped ? 4 : 0) + (b.missingEsc ? 2 : 0) + (b.missingBack ? 1 : 0) + (b.escConditionalOnly ? 1 : 0) + (b.backConditionalOnly ? 1 : 0) + (b.escSimBroken ? 1 : 0) + (b.backSimBroken ? 1 : 0);
       if (scoreA !== scoreB) return scoreB - scoreA;
       return a.frameId - b.frameId;
     });
@@ -2090,17 +2117,17 @@ export function createPrototypeViewer(editor: Editor): {
       return;
     }
     const trapCount = rows.filter((row) => row.trapped).length;
-    const warnCount = rows.filter((row) => row.missingEsc || row.missingBack || row.escSimBroken || row.backSimBroken).length;
+    const warnCount = rows.filter((row) => row.missingEsc || row.missingBack || row.escConditionalOnly || row.backConditionalOnly || row.escSimBroken || row.backSimBroken).length;
     escapeRouteInfo.textContent = `Routes ${rows.length} · Trap ${trapCount} · Missing key route ${warnCount}`;
     escapeRouteList.innerHTML = "";
 
     for (const row of rows.slice(0, 10)) {
-      const warn = row.trapped || row.missingEsc || row.missingBack || row.escSimBroken || row.backSimBroken;
+      const warn = row.trapped || row.missingEsc || row.missingBack || row.escConditionalOnly || row.backConditionalOnly || row.escSimBroken || row.backSimBroken;
       const card = document.createElement("div");
       card.style.cssText = `display:flex;flex-direction:column;gap:4px;border:1px solid ${warn ? "rgba(248,113,113,0.45)" : "rgba(148,163,184,0.3)"};border-radius:6px;padding:6px;background:rgba(15,23,42,0.45);`;
       const title = document.createElement("div");
       title.style.cssText = "font-size:10px;color:#e2e8f0;line-height:1.35;";
-      title.textContent = `${row.frameName} → ${row.overlayName}`;
+      title.textContent = `${row.frameName} → ${row.overlayName} · Open ${row.openCount}x`;
       card.appendChild(title);
 
       const meta = document.createElement("div");
@@ -2130,6 +2157,8 @@ export function createPrototypeViewer(editor: Editor): {
         if (row.trapped) parts.push("no CloseOverlay/Back exit");
         if (row.missingEsc) parts.push("Esc route missing");
         if (row.missingBack) parts.push("Back route missing");
+        if (row.escConditionalOnly) parts.push("Esc route is conditional-only");
+        if (row.backConditionalOnly) parts.push("Back route is conditional-only");
         if (row.escSimBroken) parts.push("Esc simulation not returning");
         if (row.backSimBroken) parts.push("Back simulation not returning");
         warnText.textContent = `⚠ ${parts.join(" · ")}`;
@@ -2145,7 +2174,7 @@ export function createPrototypeViewer(editor: Editor): {
       jumpBtn.onclick = () => navigateTo(row.frameId, "Instant", 0, "linear");
       btnRow.appendChild(jumpBtn);
 
-      if (row.trapped || row.missingEsc || row.missingBack || row.escSimBroken || row.backSimBroken) {
+      if (row.trapped || row.missingEsc || row.missingBack || row.escConditionalOnly || row.backConditionalOnly || row.escSimBroken || row.backSimBroken) {
         const fixBtn = document.createElement("button");
         fixBtn.className = "prop-btn";
         fixBtn.textContent = "Fix route";
@@ -2566,11 +2595,13 @@ export function createPrototypeViewer(editor: Editor): {
 
         const keyRouteRows = collectEscapeRouteRows(snapshot).filter((row) => row.frameId === node.id);
         for (const route of keyRouteRows) {
-          if (!route.trapped && !route.missingEsc && !route.missingBack && !route.escSimBroken && !route.backSimBroken) continue;
+          if (!route.trapped && !route.missingEsc && !route.missingBack && !route.escConditionalOnly && !route.backConditionalOnly && !route.escSimBroken && !route.backSimBroken) continue;
           const parts: string[] = [];
           if (route.trapped) parts.push("no close/back exit");
           if (route.missingEsc) parts.push("Esc route missing");
           if (route.missingBack) parts.push("Back route missing");
+          if (route.escConditionalOnly) parts.push("Esc conditional-only");
+          if (route.backConditionalOnly) parts.push("Back conditional-only");
           if (route.escSimBroken) parts.push("Esc sim diverges");
           if (route.backSimBroken) parts.push("Back sim diverges");
           issues.push({

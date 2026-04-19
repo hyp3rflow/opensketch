@@ -3025,6 +3025,13 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Escape Route Map 경고 문구와 Flow Lint `overlay-key-route` detail에 reason을 함께 노출해 누락 경로 디버깅 속도 개선
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
 
+### Overlay Escape Key Route Inspector v3 (2026-04-19)
+- [x] Escape Route Map 집계를 `OpenOverlay` 엣지 단건 기준에서 `frame→overlay` 페어 기준으로 dedupe해 중복 route 카드/경고를 제거
+- [x] route 카드 제목에 `Open Nx` 호출 빈도를 표기해 overlay 진입 집중도를 빠르게 파악
+- [x] Esc/Back 경고 규칙 확장: 경로가 존재해도 `conditional-only`면 별도 경고로 분리
+- [x] Flow Lint `overlay-key-route` detail에 `Esc conditional-only` / `Back conditional-only` 원인 추가
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+
 ### Prototype Return Trace Replay (2026-04-19)
 - [x] Prototype Focus Return Map 카드에 OpenOverlay→Overlay active→Close/Back→Return target 4-step 타임라인 추가
 - [x] route별 `Replay` 버튼으로 step-by-step 이동 재생(프레임→오버레이→복귀) 지원
