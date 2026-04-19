@@ -2189,9 +2189,9 @@ export function createPrototypeViewer(editor: Editor): {
 
   function collectEscapeRouteRows(snapshotInput?: { nodes: Array<{ id: number; name: string; x: number; y: number; width: number; height: number }>; edges: Array<{ from: number; to: number; action: string; sourceNodeId: number; interactionIndex: number; conditional: boolean; branchActive: boolean | null; conditionSummary: string }>; }) {
     const snapshot = snapshotInput || flowMinimapSnapshot;
-    if (!snapshot) return [] as Array<{ frameId: number; frameName: string; overlayId: number; overlayName: string; routeSummary: string; escRouteSummary: string; backRouteSummary: string; escSimSummary: string; backSimSummary: string; escSimBroken: boolean; backSimBroken: boolean; trapped: boolean; missingEsc: boolean; missingBack: boolean; escConditionalOnly: boolean; backConditionalOnly: boolean; openCount: number; conditionalSamples: number; conditionalActive: number; conditionalSuccess: number; conditionalFail: number; conditionalSummary: string }>;
+    if (!snapshot) return [] as Array<{ frameId: number; frameName: string; overlayId: number; overlayName: string; routeSummary: string; escRouteSummary: string; backRouteSummary: string; escSimSummary: string; backSimSummary: string; escSimBroken: boolean; backSimBroken: boolean; trapped: boolean; missingEsc: boolean; missingBack: boolean; escConditionalOnly: boolean; backConditionalOnly: boolean; openCount: number; conditionalSamples: number; conditionalActive: number; conditionalSuccess: number; conditionalFail: number; conditionalEscMiss: number; conditionalBackMiss: number; conditionalMissSamples: number; conditionalSummary: string }>;
     const frameById = new Map(snapshot.nodes.map((n) => [n.id, n]));
-    const rows: Array<{ frameId: number; frameName: string; overlayId: number; overlayName: string; routeSummary: string; escRouteSummary: string; backRouteSummary: string; escSimSummary: string; backSimSummary: string; escSimBroken: boolean; backSimBroken: boolean; trapped: boolean; missingEsc: boolean; missingBack: boolean; escConditionalOnly: boolean; backConditionalOnly: boolean; openCount: number; conditionalSamples: number; conditionalActive: number; conditionalSuccess: number; conditionalFail: number; conditionalSummary: string }> = [];
+    const rows: Array<{ frameId: number; frameName: string; overlayId: number; overlayName: string; routeSummary: string; escRouteSummary: string; backRouteSummary: string; escSimSummary: string; backSimSummary: string; escSimBroken: boolean; backSimBroken: boolean; trapped: boolean; missingEsc: boolean; missingBack: boolean; escConditionalOnly: boolean; backConditionalOnly: boolean; openCount: number; conditionalSamples: number; conditionalActive: number; conditionalSuccess: number; conditionalFail: number; conditionalEscMiss: number; conditionalBackMiss: number; conditionalMissSamples: number; conditionalSummary: string }> = [];
 
     const summarize = (edge: { action: string; to: number } | null, openerFrameId: number) => {
       if (!edge) return "missing";
@@ -2283,13 +2283,27 @@ export function createPrototypeViewer(editor: Editor): {
       const hasBackRoute = exits.some((next) => next.action === "Back");
       const hasUnconditionalEsc = exits.some((next) => (next.action === "CloseOverlay" || next.action === "Back") && !next.conditional);
       const hasUnconditionalBack = exits.some((next) => next.action === "Back" && !next.conditional);
-      const conditionalSamples = openEdges.filter((edge) => edge.conditional).length;
-      const conditionalActive = openEdges.filter((edge) => edge.conditional && edge.branchActive === true).length;
-      const conditionalOutcomeSafe = hasUnconditionalEsc && hasUnconditionalBack && !escSim.broken && !backSim.broken;
-      const conditionalSuccess = conditionalSamples > 0 ? (conditionalOutcomeSafe ? conditionalActive : 0) : 0;
+      const conditionalEdges = openEdges.filter((edge) => edge.conditional);
+      const conditionalSamples = conditionalEdges.length;
+      const conditionalActive = conditionalEdges.filter((edge) => edge.branchActive === true).length;
+      let conditionalEscMiss = 0;
+      let conditionalBackMiss = 0;
+      let conditionalMissSamples = 0;
+      for (const branch of conditionalEdges) {
+        const availableExits = exits.filter((next) => !next.conditional || next.branchActive === true);
+        const escReachable = availableExits.some((next) => next.action === "CloseOverlay" || next.action === "Back");
+        const backReachable = availableExits.some((next) => next.action === "Back");
+        const missEsc = !escReachable;
+        const missBack = !backReachable;
+        if (missEsc) conditionalEscMiss += 1;
+        if (missBack) conditionalBackMiss += 1;
+        if (missEsc || missBack) conditionalMissSamples += 1;
+      }
+      const conditionalOutcomeSafe = hasUnconditionalEsc && hasUnconditionalBack && !escSim.broken && !backSim.broken && conditionalMissSamples === 0;
+      const conditionalSuccess = conditionalSamples > 0 ? (conditionalOutcomeSafe ? conditionalActive : Math.max(0, conditionalActive - conditionalMissSamples)) : 0;
       const conditionalFail = Math.max(0, conditionalSamples - conditionalSuccess);
       const conditionalSummary = conditionalSamples > 0
-        ? `Conditional sampler: success ${conditionalSuccess}/${conditionalSamples} · active ${conditionalActive}`
+        ? `Conditional sampler: success ${conditionalSuccess}/${conditionalSamples} · Esc miss ${conditionalEscMiss} · Back miss ${conditionalBackMiss} · active ${conditionalActive}`
         : "Conditional sampler: no conditional open branches";
       rows.push({
         frameId: frame.id,
@@ -2313,13 +2327,16 @@ export function createPrototypeViewer(editor: Editor): {
         conditionalActive,
         conditionalSuccess,
         conditionalFail,
+        conditionalEscMiss,
+        conditionalBackMiss,
+        conditionalMissSamples,
         conditionalSummary,
       });
     }
 
     rows.sort((a, b) => {
-      const scoreA = (a.trapped ? 4 : 0) + (a.missingEsc ? 2 : 0) + (a.missingBack ? 1 : 0) + (a.escConditionalOnly ? 1 : 0) + (a.backConditionalOnly ? 1 : 0) + (a.escSimBroken ? 1 : 0) + (a.backSimBroken ? 1 : 0);
-      const scoreB = (b.trapped ? 4 : 0) + (b.missingEsc ? 2 : 0) + (b.missingBack ? 1 : 0) + (b.escConditionalOnly ? 1 : 0) + (b.backConditionalOnly ? 1 : 0) + (b.escSimBroken ? 1 : 0) + (b.backSimBroken ? 1 : 0);
+      const scoreA = (a.trapped ? 4 : 0) + (a.missingEsc ? 2 : 0) + (a.missingBack ? 1 : 0) + (a.escConditionalOnly ? 1 : 0) + (a.backConditionalOnly ? 1 : 0) + (a.escSimBroken ? 1 : 0) + (a.backSimBroken ? 1 : 0) + (a.conditionalMissSamples > 0 ? 2 : 0);
+      const scoreB = (b.trapped ? 4 : 0) + (b.missingEsc ? 2 : 0) + (b.missingBack ? 1 : 0) + (b.escConditionalOnly ? 1 : 0) + (b.backConditionalOnly ? 1 : 0) + (b.escSimBroken ? 1 : 0) + (b.backSimBroken ? 1 : 0) + (b.conditionalMissSamples > 0 ? 2 : 0);
       if (scoreA !== scoreB) return scoreB - scoreA;
       return a.frameId - b.frameId;
     });
@@ -2335,14 +2352,14 @@ export function createPrototypeViewer(editor: Editor): {
       return;
     }
     const trapCount = rows.filter((row) => row.trapped).length;
-    const warnCount = rows.filter((row) => row.missingEsc || row.missingBack || row.escConditionalOnly || row.backConditionalOnly || row.escSimBroken || row.backSimBroken).length;
+    const warnCount = rows.filter((row) => row.missingEsc || row.missingBack || row.escConditionalOnly || row.backConditionalOnly || row.escSimBroken || row.backSimBroken || row.conditionalMissSamples > 0).length;
     const conditionalSampleCount = rows.reduce((acc, row) => acc + row.conditionalSamples, 0);
     const conditionalFailCount = rows.reduce((acc, row) => acc + row.conditionalFail, 0);
     escapeRouteInfo.textContent = `Routes ${rows.length} · Trap ${trapCount} · Missing key route ${warnCount} · Conditional fail ${conditionalFailCount}/${conditionalSampleCount}`;
     escapeRouteList.innerHTML = "";
 
     for (const row of rows.slice(0, 10)) {
-      const warn = row.trapped || row.missingEsc || row.missingBack || row.escConditionalOnly || row.backConditionalOnly || row.escSimBroken || row.backSimBroken;
+      const warn = row.trapped || row.missingEsc || row.missingBack || row.escConditionalOnly || row.backConditionalOnly || row.escSimBroken || row.backSimBroken || row.conditionalMissSamples > 0;
       const card = document.createElement("div");
       card.style.cssText = `display:flex;flex-direction:column;gap:4px;border:1px solid ${warn ? "rgba(248,113,113,0.45)" : "rgba(148,163,184,0.3)"};border-radius:6px;padding:6px;background:rgba(15,23,42,0.45);`;
       const title = document.createElement("div");
@@ -2387,6 +2404,7 @@ export function createPrototypeViewer(editor: Editor): {
         if (row.escSimBroken) parts.push("Esc simulation not returning");
         if (row.backSimBroken) parts.push("Back simulation not returning");
         if (row.conditionalFail > 0) parts.push(`conditional sampler fail ${row.conditionalFail}/${row.conditionalSamples}`);
+        if (row.conditionalMissSamples > 0) parts.push(`conditional route miss (Esc ${row.conditionalEscMiss} / Back ${row.conditionalBackMiss})`);
         warnText.textContent = `⚠ ${parts.join(" · ")}`;
         card.appendChild(warnText);
       }
@@ -2400,7 +2418,7 @@ export function createPrototypeViewer(editor: Editor): {
       jumpBtn.onclick = () => navigateTo(row.frameId, "Instant", 0, "linear");
       btnRow.appendChild(jumpBtn);
 
-      if (row.trapped || row.missingEsc || row.missingBack || row.escConditionalOnly || row.backConditionalOnly || row.escSimBroken || row.backSimBroken) {
+      if (row.trapped || row.missingEsc || row.missingBack || row.escConditionalOnly || row.backConditionalOnly || row.escSimBroken || row.backSimBroken || row.conditionalMissSamples > 0) {
         const fixBtn = document.createElement("button");
         fixBtn.className = "prop-btn";
         fixBtn.textContent = "Fix route";
@@ -2439,7 +2457,7 @@ export function createPrototypeViewer(editor: Editor): {
 
   function collectFocusReturnRows(snapshotInput?: { nodes: Array<{ id: number; name: string; x: number; y: number; width: number; height: number }>; edges: Array<{ from: number; to: number; action: string; sourceNodeId: number; interactionIndex: number; conditional: boolean; branchActive: boolean | null; conditionSummary: string }>; }) {
     const snapshot = snapshotInput || flowMinimapSnapshot;
-    if (!snapshot) return [] as Array<{ frameId: number; frameName: string; overlayId: number; overlayName: string; originNodeIds: number[]; originLabel: string; closeCount: number; fallbackNodeId: number | null; fallbackLabel: string; returnNodeId: number | null; returnLabel: string; confidenceScore: number; confidenceLevel: "high" | "medium" | "low"; lowConfidence: boolean; confidenceReasons: string[]; timeline: string[]; }>;
+    if (!snapshot) return [] as Array<{ frameId: number; frameName: string; overlayId: number; overlayName: string; originNodeIds: number[]; originLabel: string; closeCount: number; closeOverlayCount: number; backCount: number; fallbackNodeId: number | null; fallbackLabel: string; returnNodeId: number | null; returnLabel: string; confidenceScore: number; confidenceLevel: "high" | "medium" | "low"; lowConfidence: boolean; confidenceReasons: string[]; timeline: string[]; }>;
     const frameById = new Map(snapshot.nodes.map((n) => [n.id, n]));
     const openerMap = new Map<string, Set<number>>();
 
@@ -2452,7 +2470,7 @@ export function createPrototypeViewer(editor: Editor): {
       openerMap.set(key, bucket);
     }
 
-    const rows: Array<{ frameId: number; frameName: string; overlayId: number; overlayName: string; originNodeIds: number[]; originLabel: string; closeCount: number; fallbackNodeId: number | null; fallbackLabel: string; returnNodeId: number | null; returnLabel: string; confidenceScore: number; confidenceLevel: "high" | "medium" | "low"; lowConfidence: boolean; confidenceReasons: string[]; timeline: string[]; }> = [];
+    const rows: Array<{ frameId: number; frameName: string; overlayId: number; overlayName: string; originNodeIds: number[]; originLabel: string; closeCount: number; closeOverlayCount: number; backCount: number; fallbackNodeId: number | null; fallbackLabel: string; returnNodeId: number | null; returnLabel: string; confidenceScore: number; confidenceLevel: "high" | "medium" | "low"; lowConfidence: boolean; confidenceReasons: string[]; timeline: string[]; }> = [];
     for (const [key, originSet] of openerMap.entries()) {
       const [frameRaw, overlayRaw] = key.split(":");
       const frameId = Number(frameRaw || 0);
@@ -2466,7 +2484,9 @@ export function createPrototypeViewer(editor: Editor): {
       const originLabel = originNodeIds.length > 0
         ? originNodeIds.slice(0, 2).map((id) => `#${id}`).join(", ") + (originNodeIds.length > 2 ? ` +${originNodeIds.length - 2}` : "")
         : "missing opener hotspot";
-      const closeCount = snapshot.edges.filter((edge) => edge.from === overlayId && (edge.action === "CloseOverlay" || edge.action === "Back")).length;
+      const closeOverlayCount = snapshot.edges.filter((edge) => edge.from === overlayId && edge.action === "CloseOverlay").length;
+      const backCount = snapshot.edges.filter((edge) => edge.from === overlayId && edge.action === "Back").length;
+      const closeCount = closeOverlayCount + backCount;
       const fallback = listFocusableHotspots(frameId).find((item) => item.nodeId > 0) || null;
       const fallbackNodeId = fallback ? Number(fallback.nodeId || 0) : null;
       const fallbackLabel = fallback
@@ -2486,12 +2506,19 @@ export function createPrototypeViewer(editor: Editor): {
       } else {
         confidenceReasons.push("opener hotspot missing");
       }
-      if (closeCount > 0) {
-        confidenceScore += 20;
-        confidenceReasons.push(`close/back path ${closeCount}개`);
+      if (closeOverlayCount > 0) {
+        confidenceScore += 12;
+        confidenceReasons.push(`CloseOverlay path ${closeOverlayCount}개`);
       } else {
-        confidenceScore -= 14;
-        confidenceReasons.push("close/back path missing");
+        confidenceScore -= 8;
+        confidenceReasons.push("CloseOverlay path missing");
+      }
+      if (backCount > 0) {
+        confidenceScore += 12;
+        confidenceReasons.push(`Back path ${backCount}개`);
+      } else {
+        confidenceScore -= 8;
+        confidenceReasons.push("Back path missing");
       }
       if (originNodeIds.length === 1) {
         confidenceScore += 14;
@@ -2536,6 +2563,8 @@ export function createPrototypeViewer(editor: Editor): {
         originNodeIds,
         originLabel,
         closeCount,
+        closeOverlayCount,
+        backCount,
         fallbackNodeId: fallbackNodeId && fallbackNodeId > 0 ? fallbackNodeId : null,
         fallbackLabel,
         returnNodeId,
@@ -2589,8 +2618,8 @@ export function createPrototypeViewer(editor: Editor): {
       const returnMeta = document.createElement("div");
       returnMeta.style.cssText = `font-size:9px;line-height:1.35;color:${missing ? "#fdba74" : "#86efac"};`;
       returnMeta.textContent = row.closeCount > 0
-        ? `Close path ${row.closeCount}개 · return target: ${row.returnLabel}`
-        : `Close path 없음 · fallback 권장: ${row.fallbackLabel}`;
+        ? `CloseOverlay ${row.closeOverlayCount} · Back ${row.backCount} · return target: ${row.returnLabel}`
+        : `Close/Back path 없음 · fallback 권장: ${row.fallbackLabel}`;
       card.appendChild(returnMeta);
 
       const meterWrap = document.createElement("div");
@@ -2654,8 +2683,8 @@ export function createPrototypeViewer(editor: Editor): {
           if (step >= steps.length) {
             window.clearInterval(timer);
             returnMeta.textContent = row.closeCount > 0
-              ? `Close path ${row.closeCount}개 · return target: ${row.returnLabel}`
-              : `Close path 없음 · fallback 권장: ${row.fallbackLabel}`;
+              ? `CloseOverlay ${row.closeOverlayCount} · Back ${row.backCount} · return target: ${row.returnLabel}`
+              : `Close/Back path 없음 · fallback 권장: ${row.fallbackLabel}`;
             if (row.returnNodeId && row.returnNodeId > 0) {
               try { editor.setSelection([row.returnNodeId]); } catch {}
             }
@@ -2926,7 +2955,7 @@ export function createPrototypeViewer(editor: Editor): {
           const keyRouteRows = collectEscapeRouteRows(snapshot).filter((row) => row.frameId === node.id);
           for (const route of keyRouteRows) {
             const hasRequiredFail = route.trapped || route.missingEsc || route.missingBack;
-            const hasConditionalFail = route.escConditionalOnly || route.backConditionalOnly;
+            const hasConditionalFail = route.escConditionalOnly || route.backConditionalOnly || route.conditionalMissSamples > 0;
             const hasSimFail = route.escSimBroken || route.backSimBroken;
             if (!hasRequiredFail
               && !(overlayGuardPreset.detectConditionalOnly && hasConditionalFail)
@@ -2939,6 +2968,7 @@ export function createPrototypeViewer(editor: Editor): {
             if (route.missingBack) parts.push("Back route missing");
             if (overlayGuardPreset.detectConditionalOnly && route.escConditionalOnly) parts.push("Esc conditional-only");
             if (overlayGuardPreset.detectConditionalOnly && route.backConditionalOnly) parts.push("Back conditional-only");
+            if (overlayGuardPreset.detectConditionalOnly && route.conditionalMissSamples > 0) parts.push(`conditional route miss Esc ${route.conditionalEscMiss}/Back ${route.conditionalBackMiss}`);
             if (overlayGuardPreset.detectSimulationDrift && route.escSimBroken) parts.push("Esc sim diverges");
             if (overlayGuardPreset.detectSimulationDrift && route.backSimBroken) parts.push("Back sim diverges");
             issues.push({

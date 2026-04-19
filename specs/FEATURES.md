@@ -47,6 +47,7 @@
 - [x] **Overlay Escape Intent Hints (2026-04-19)**: Prototype overlay 컨텍스트에서 `OnClick/OnPress` hotspot이 `CloseOverlay/Back` 경로를 갖지 않으면 캔버스에 `ESCAPE?` 경고 배지를 표시한다. hotspot hover/키보드 순회 라벨에는 `권장: OnPress → CloseOverlay (Instant)` 템플릿을 함께 노출해 누락된 닫힘 액션을 즉시 보완할 수 있다.
 - [x] **Prototype Overlay Stack Stress Tester (2026-04-19)**: Overlay Stack Inspector에 `Stress: D1-5` 시뮬레이션을 추가해 OpenOverlay 체인을 depth 1~5로 자동 재생한다. 체인 중 `CloseOverlay/Back` exit가 없는 overlay를 찾으면 `D{depth} fail (#id no Close/Back)` 경고를 표시하고, 안전한 경우 `D1-5 pass`로 보고한다.
 - [x] **Overlay Stack Depth Budget Guard (2026-04-20)**: Flow Lint에 `overlay-depth-budget` 이슈를 연결해 frame별 overlay 체인의 최대 depth를 budget(기본 3)과 비교한다. 이슈 detail에 flatten 후보/경로 샘플을 함께 표시하고, `Fix: flatten path` one-click 액션으로 deepest overlay chain을 순차 flatten(단일 undo)할 수 있다.
+- [x] **Overlay Return Focus Confidence Meter (2026-04-20)**: Prototype Viewer `Focus Return Map`에서 overlay별 복귀 타겟 신뢰도를 0~100 점수로 표시하고 high/medium/low 등급 미터를 제공한다. CloseOverlay/Back 경로 존재/개수, opener ambiguity, return target keyboard-focusable 여부를 점수에 반영하며 low-confidence route는 경고 사유를 카드에 노출한다.
 - [x] **Keyboard Trigger Coverage Heatmap (2026-04-19)**: Prototype viewer hotspot 오버레이에서 `OnClick` 대비 `OnPress`가 부족한 노드를 radial heatmap으로 표시한다. severity(`clickCount - pressCount`)를 반경/강도로 반영해 키보드 트리거 누락 영역을 프레임 단위로 빠르게 스캔할 수 있고, Flow Coverage 카드에 `Kbd gaps`/`severity` 요약 수치를 함께 제공한다.
 - [x] **Ring Preset Auto-Guard Rules (2026-04-19)**: Prototype Viewer `Start Point Manager`에 `Release mode` + flow별 guard 정책(`Guard off`/`Warn`/`Auto Safe`)을 추가했다. ring preset safety bucket(Safe/Watch/Risky)을 기준으로 릴리즈 모드에서 Safe 미만 preset을 감시하고, `Auto Safe` 정책은 runtime ring을 Default Safe preset으로 자동 정규화한다. hotspot 오버레이 하단에 guard 상태 배지(`warning only`/`auto-normalized`)를 표시한다.
   - Position (X/Y), Size (W/H), Rotation
@@ -3077,3 +3078,9 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Legacy: 기존 호환 모드로 `overlay-depth-budget`, `scroll-leak`, conditional 경고를 비활성화
 - [x] 프리셋별 note를 패널에 노출하고 선택값을 localStorage로 저장해 세션 재진입 시 유지
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
+### Overlay Return Focus Confidence Meter (2026-04-20)
+
+- Prototype Viewer `Focus Return Map`에 route별 `Return confidence` 점수(0~100)와 high/medium/low 미터를 추가했다.
+- 점수 산식은 opener hotspot 존재 여부, CloseOverlay/Back 경로 개수, opener ambiguity, return target keyboard-focusable 여부를 반영한다.
+- `CloseOverlay X · Back Y` 메타를 카드에 표시해 닫기 경로의 복귀 안정성을 즉시 확인할 수 있다.
+- low-confidence route는 `⚠ Low-confidence return target` 경고와 사유(opener missing / Back path missing / not keyboard-focusable 등)를 함께 노출한다.

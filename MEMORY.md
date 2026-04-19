@@ -1790,9 +1790,16 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Overlay Return Focus Confidence Meter — CloseOverlay/Back 후 복귀 focus target 신뢰도(0~100) + low-confidence 경고 배지 제공 (임팩트 중, 난이도 중)
 - Overlay Exit Recipe Library — 자주 쓰는 Esc/Back/Close 조합을 recipe로 저장하고 one-click 적용 (임팩트 중, 난이도 중)
 - Overlay Branch Replay Timeline — 조건부 interaction 분기 재생 타임라인으로 branch별 성공/실패 경로 비교 (임팩트 중상, 난이도 중상)
+
+## 완료된 기능 (추가 — Overlay Return Focus Confidence Meter, 2026-04-20)
+- Prototype Viewer `Focus Return Map`에 route별 `Return confidence` 점수(0~100) + high/medium/low 미터 추가
+- 점수 산식에 opener hotspot 유무, CloseOverlay/Back 경로 개수, opener ambiguity, return target keyboard-focusable 여부 반영
+- route 카드 메타를 `CloseOverlay X · Back Y`로 분리해 복귀 경로 안정성 확인 속도 개선
+- low-confidence route는 경고 사유를 카드에 노출 (`⚠ Low-confidence return target`)
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Prototype Overlay Guard Preset Pack, 2026-04-20)
 - Flow Lint 상단에 `Overlay Guard` 프리셋 셀렉터 추가: Strict / Balanced / Legacy 전환 지원
