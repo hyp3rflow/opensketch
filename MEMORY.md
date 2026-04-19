@@ -1796,6 +1796,13 @@
 - Variable Cleanup Impact Budget — queue rename/merge 실행 전 frame별 영향도 budget(critical/warn)을 계산해 과도 변경 차단 (임팩트 중, 난이도 중상)
 - Auto Layout Constraint Preset Library — 자주 쓰는 constraints+sizing 조합을 preset으로 저장/적용 (임팩트 중, 난이도 중)
 
+## 완료된 기능 (추가 — Prototype Focus Trap Lint Parity + One-click Fix, 2026-04-19)
+- Flow Lint `a11y-focus-trap` 판정을 기존 단순 close-path 체크에서 Tab/Shift+Tab 시뮬레이션 결과 기반으로 통일
+- 이슈 detail에 overlay별 리스크 원인(no keyboard hotspot / missing close / outside escape / tab loop)을 직접 노출
+- Flow Lint 카드에 `Fix: add close path` 버튼 추가, 즉시 quick-fix 적용 후 lint 재실행
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
+
 ## 완료된 기능 (추가 — Prototype Focus Return Map, 2026-04-19)
 - Prototype viewer 좌측에 `Prototype Focus Return Map` 패널 추가
 - `OpenOverlay` 브랜치별 opener hotspot(sourceNodeId) 후보를 route 카드로 시각화

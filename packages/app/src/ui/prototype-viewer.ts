@@ -2182,27 +2182,6 @@ export function createPrototypeViewer(editor: Editor): {
       }
     };
 
-    const frameInteractionCache = new Map<number, any[]>();
-    const getFrameInteractions = (frameId: number) => {
-      if (frameInteractionCache.has(frameId)) return frameInteractionCache.get(frameId) || [];
-      const frame = frameById.get(frameId);
-      if (!frame) return [];
-      const collected: any[] = [];
-      for (const row of allInteractionRows) {
-        const node = getNodeForRow(row);
-        if (!node) continue;
-        const nx = Number(node?.x || 0);
-        const ny = Number(node?.y || 0);
-        const nw = Number(node?.width || 0);
-        const nh = Number(node?.height || 0);
-        const inFrame = nx >= frame.x && ny >= frame.y && (nx + nw) <= (frame.x + frame.width) && (ny + nh) <= (frame.y + frame.height);
-        if (!inFrame) continue;
-        const interactions: any[] = Array.isArray(row?.interactions) ? row.interactions : [];
-        for (const inter of interactions) collected.push(inter);
-      }
-      frameInteractionCache.set(frameId, collected);
-      return collected;
-    };
 
     for (const node of snapshot.nodes) {
       const outs = adjacency.get(node.id) || [];
@@ -2358,6 +2337,13 @@ export function createPrototypeViewer(editor: Editor): {
       return easing.includes("elastic") || easing.includes("bounce") || easing.includes("back") || easing.includes("spring");
     };
 
+    const focusTrapIssuesByFrame = new Map<number, FocusTrapSimIssue[]>();
+    for (const trapIssue of collectFocusTrapSimulationIssues(snapshot)) {
+      const bucket = focusTrapIssuesByFrame.get(trapIssue.frameId) || [];
+      bucket.push(trapIssue);
+      focusTrapIssuesByFrame.set(trapIssue.frameId, bucket);
+    }
+
     for (const frame of snapshot.nodes) {
       if (!visited.has(frame.id)) continue;
       const frameNodesWithKeyboardInteractions: Array<{ nodeId: number; count: number; missingLabels: number }> = [];
@@ -2440,30 +2426,20 @@ export function createPrototypeViewer(editor: Editor): {
       }
 
       if (overlayTargets.size > 0) {
-        let trapRiskCount = 0;
-        for (const overlayId of overlayTargets) {
-          const overlayInteractions = getFrameInteractions(overlayId);
-          const keyboardActions = overlayInteractions.filter((inter) => {
-            const trig = String(inter?.trigger || "");
-            return trig === "OnClick" || trig === "OnPress";
-          });
-          const hasClosePath = keyboardActions.some((inter) => {
-            const action = String(inter?.action || "");
-            return action === "CloseOverlay" || action === "Back";
-          });
-          const leaksOutside = keyboardActions.some((inter) => {
-            const action = String(inter?.action || "");
-            const target = Number(inter?.target_node_id || 0);
-            return action === "NavigateTo" && target > 0 && target !== frame.id && target !== overlayId;
-          });
-          if (!hasClosePath || leaksOutside) trapRiskCount += 1;
-        }
-        if (trapRiskCount > 0) {
+        const trapIssues = (focusTrapIssuesByFrame.get(frame.id) || []).filter((row) => overlayTargets.has(row.overlayId));
+        for (const trapIssue of trapIssues) {
+          const parts: string[] = [];
+          if (trapIssue.noKeyboardHotspots) parts.push("no keyboard hotspots");
+          if (trapIssue.missingClosePath) parts.push("missing close path");
+          if (trapIssue.leaksOutside) parts.push("escapes outside");
+          if (trapIssue.trappedInLoop) parts.push("tab loop without close");
+          if (trapIssue.shiftTabTrapped) parts.push("shift+tab loop without close");
           issues.push({
             type: "a11y-focus-trap",
             frameId: frame.id,
             frameName: frame.name,
-            detail: `${trapRiskCount} overlay target(s) are missing keyboard trap close path`,
+            overlayId: trapIssue.overlayId,
+            detail: `${trapIssue.overlayName}: ${parts.join(" + ") || "focus-trap risk"}`,
           });
         }
       }
@@ -2624,6 +2600,33 @@ export function createPrototypeViewer(editor: Editor): {
           scrollLockRegions = { ...scrollLockRegions, [key]: true };
           saveScrollLockRegions(scrollLockRegions);
           renderFlowLint();
+        };
+        row.appendChild(fixBtn);
+      }
+      if (issue.type === "a11y-focus-trap" && issue.overlayId && issue.overlayId > 0) {
+        const fixBtn = document.createElement("button");
+        fixBtn.style.cssText = "margin-top:4px;background:#7c2d12;border:1px solid #fb923c;border-radius:4px;color:#ffedd5;font-size:9px;padding:2px 6px;cursor:pointer;";
+        fixBtn.textContent = "Fix: add close path";
+        fixBtn.onclick = (ev) => {
+          ev.stopPropagation();
+          const issueRow = collectFocusTrapSimulationIssues(flowMinimapSnapshot || undefined).find((row) => row.frameId === issue.frameId && row.overlayId === issue.overlayId);
+          if (!issueRow) {
+            fixBtn.textContent = "No-op";
+            setTimeout(() => {
+              fixBtn.textContent = "Fix: add close path";
+            }, 1000);
+            return;
+          }
+          editor.engine.push_undo();
+          const ok = applyFocusTrapFix(issueRow);
+          fixBtn.textContent = ok ? "Fixed" : "No-op";
+          if (ok) {
+            editor.requestRender();
+            renderFlowLint();
+          }
+          setTimeout(() => {
+            fixBtn.textContent = "Fix: add close path";
+          }, 1000);
         };
         row.appendChild(fixBtn);
       }
