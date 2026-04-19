@@ -1886,6 +1886,47 @@ export function createPrototypeViewer(editor: Editor): {
     return changed;
   }
 
+  function simulateOverlayStackStress(frameId: number, snapshotInput?: { nodes: Array<{ id: number; name: string; x: number; y: number; width: number; height: number }>; edges: Array<{ from: number; to: number; action: string; sourceNodeId: number; interactionIndex: number; conditional: boolean; branchActive: boolean | null; conditionSummary: string }>; }) {
+    const snapshot = snapshotInput || flowMinimapSnapshot;
+    if (!snapshot) return { summary: "No flow snapshot", failDepth: 0 };
+
+    const openBySource = new Map<number, number[]>();
+    for (const edge of snapshot.edges) {
+      if (edge.action !== "OpenOverlay" || edge.to <= 0) continue;
+      const bucket = openBySource.get(edge.from) || [];
+      bucket.push(edge.to);
+      openBySource.set(edge.from, bucket);
+    }
+
+    const queue: Array<{ nodeId: number; depth: number }> = (openBySource.get(frameId) || []).map((overlayId) => ({ nodeId: overlayId, depth: 1 }));
+    const seen = new Set<string>();
+    let failDepth = 0;
+    let failLabel = "";
+
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      const key = `${current.nodeId}:${current.depth}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      const exits = snapshot.edges.filter((edge) => edge.from === current.nodeId && (edge.action === "CloseOverlay" || edge.action === "Back"));
+      if (exits.length === 0) {
+        failDepth = current.depth;
+        failLabel = `#${current.nodeId}`;
+        break;
+      }
+
+      if (current.depth >= 5) continue;
+      const nested = openBySource.get(current.nodeId) || [];
+      for (const nextOverlayId of nested) queue.push({ nodeId: nextOverlayId, depth: current.depth + 1 });
+    }
+
+    if (failDepth > 0) {
+      return { summary: `D${failDepth} fail (${failLabel} no Close/Back)`, failDepth };
+    }
+    return { summary: "D1-5 pass", failDepth: 0 };
+  }
+
   function renderOverlayStackInspector() {
     if (!overlayStackInfo || !overlayStackList) return;
     const rows = collectOverlayStackRows(flowMinimapSnapshot || undefined);
@@ -1908,6 +1949,11 @@ export function createPrototypeViewer(editor: Editor): {
       meta.style.cssText = "font-size:9px;color:#93c5fd;";
       meta.textContent = `Open ${row.open} · Close ${row.close} · Δ ${row.stackDelta > 0 ? "+" : ""}${row.stackDelta}`;
       card.appendChild(meta);
+      const stress = simulateOverlayStackStress(row.frameId, flowMinimapSnapshot || undefined);
+      const stressMeta = document.createElement("div");
+      stressMeta.style.cssText = `font-size:9px;line-height:1.35;color:${stress.failDepth > 0 ? "#fca5a5" : "#86efac"};`;
+      stressMeta.textContent = `Stress: ${stress.summary}`;
+      card.appendChild(stressMeta);
       const btnRow = document.createElement("div");
       btnRow.style.cssText = "display:flex;gap:4px;";
       const jumpBtn = document.createElement("button");
@@ -1938,9 +1984,9 @@ export function createPrototypeViewer(editor: Editor): {
 
   function collectEscapeRouteRows(snapshotInput?: { nodes: Array<{ id: number; name: string; x: number; y: number; width: number; height: number }>; edges: Array<{ from: number; to: number; action: string; sourceNodeId: number; interactionIndex: number; conditional: boolean; branchActive: boolean | null; conditionSummary: string }>; }) {
     const snapshot = snapshotInput || flowMinimapSnapshot;
-    if (!snapshot) return [] as Array<{ frameId: number; frameName: string; overlayId: number; overlayName: string; routeSummary: string; escRouteSummary: string; backRouteSummary: string; escSimSummary: string; backSimSummary: string; trapped: boolean; missingEsc: boolean; missingBack: boolean }>;
+    if (!snapshot) return [] as Array<{ frameId: number; frameName: string; overlayId: number; overlayName: string; routeSummary: string; escRouteSummary: string; backRouteSummary: string; escSimSummary: string; backSimSummary: string; escSimBroken: boolean; backSimBroken: boolean; trapped: boolean; missingEsc: boolean; missingBack: boolean }>;
     const frameById = new Map(snapshot.nodes.map((n) => [n.id, n]));
-    const rows: Array<{ frameId: number; frameName: string; overlayId: number; overlayName: string; routeSummary: string; escRouteSummary: string; backRouteSummary: string; escSimSummary: string; backSimSummary: string; trapped: boolean; missingEsc: boolean; missingBack: boolean }> = [];
+    const rows: Array<{ frameId: number; frameName: string; overlayId: number; overlayName: string; routeSummary: string; escRouteSummary: string; backRouteSummary: string; escSimSummary: string; backSimSummary: string; escSimBroken: boolean; backSimBroken: boolean; trapped: boolean; missingEsc: boolean; missingBack: boolean }> = [];
 
     const summarize = (edge: { action: string; to: number } | null, openerFrameId: number) => {
       if (!edge) return "missing";
@@ -1988,7 +2034,10 @@ export function createPrototypeViewer(editor: Editor): {
         if (cursor === openerFrameId) break;
       }
       const reachedOrigin = cursor === openerFrameId;
-      return reachedOrigin ? trace.join(" | ") : `${trace.join(" | ")} ⚠`;
+      return {
+        summary: reachedOrigin ? trace.join(" | ") : `${trace.join(" | ")} ⚠`,
+        broken: !reachedOrigin,
+      };
     };
 
     for (const edge of snapshot.edges) {
@@ -2003,6 +2052,8 @@ export function createPrototypeViewer(editor: Editor): {
       const routeSummary = exits.length > 0
         ? exits.slice(0, 3).map((next) => `${next.action}${next.to > 0 ? `→#${next.to}` : ""}`).join(" · ")
         : "No exits";
+      const escSim = simulateKeyRoute("esc", frame.id, overlay.id);
+      const backSim = simulateKeyRoute("back", frame.id, overlay.id);
       rows.push({
         frameId: frame.id,
         frameName: frame.name,
@@ -2011,8 +2062,10 @@ export function createPrototypeViewer(editor: Editor): {
         routeSummary,
         escRouteSummary: summarize(escRoute, frame.id),
         backRouteSummary: summarize(backRoute, frame.id),
-        escSimSummary: simulateKeyRoute("esc", frame.id, overlay.id),
-        backSimSummary: simulateKeyRoute("back", frame.id, overlay.id),
+        escSimSummary: escSim.summary,
+        backSimSummary: backSim.summary,
+        escSimBroken: escSim.broken,
+        backSimBroken: backSim.broken,
         trapped: escapeExits.length === 0,
         missingEsc: !escRoute,
         missingBack: !exits.some((next) => next.action === "Back"),
@@ -2020,8 +2073,8 @@ export function createPrototypeViewer(editor: Editor): {
     }
 
     rows.sort((a, b) => {
-      const scoreA = (a.trapped ? 4 : 0) + (a.missingEsc ? 2 : 0) + (a.missingBack ? 1 : 0);
-      const scoreB = (b.trapped ? 4 : 0) + (b.missingEsc ? 2 : 0) + (b.missingBack ? 1 : 0);
+      const scoreA = (a.trapped ? 4 : 0) + (a.missingEsc ? 2 : 0) + (a.missingBack ? 1 : 0) + (a.escSimBroken ? 1 : 0) + (a.backSimBroken ? 1 : 0);
+      const scoreB = (b.trapped ? 4 : 0) + (b.missingEsc ? 2 : 0) + (b.missingBack ? 1 : 0) + (b.escSimBroken ? 1 : 0) + (b.backSimBroken ? 1 : 0);
       if (scoreA !== scoreB) return scoreB - scoreA;
       return a.frameId - b.frameId;
     });
@@ -2037,12 +2090,12 @@ export function createPrototypeViewer(editor: Editor): {
       return;
     }
     const trapCount = rows.filter((row) => row.trapped).length;
-    const warnCount = rows.filter((row) => row.missingEsc || row.missingBack).length;
+    const warnCount = rows.filter((row) => row.missingEsc || row.missingBack || row.escSimBroken || row.backSimBroken).length;
     escapeRouteInfo.textContent = `Routes ${rows.length} · Trap ${trapCount} · Missing key route ${warnCount}`;
     escapeRouteList.innerHTML = "";
 
     for (const row of rows.slice(0, 10)) {
-      const warn = row.trapped || row.missingEsc || row.missingBack;
+      const warn = row.trapped || row.missingEsc || row.missingBack || row.escSimBroken || row.backSimBroken;
       const card = document.createElement("div");
       card.style.cssText = `display:flex;flex-direction:column;gap:4px;border:1px solid ${warn ? "rgba(248,113,113,0.45)" : "rgba(148,163,184,0.3)"};border-radius:6px;padding:6px;background:rgba(15,23,42,0.45);`;
       const title = document.createElement("div");
@@ -2077,6 +2130,8 @@ export function createPrototypeViewer(editor: Editor): {
         if (row.trapped) parts.push("no CloseOverlay/Back exit");
         if (row.missingEsc) parts.push("Esc route missing");
         if (row.missingBack) parts.push("Back route missing");
+        if (row.escSimBroken) parts.push("Esc simulation not returning");
+        if (row.backSimBroken) parts.push("Back simulation not returning");
         warnText.textContent = `⚠ ${parts.join(" · ")}`;
         card.appendChild(warnText);
       }
@@ -2090,7 +2145,7 @@ export function createPrototypeViewer(editor: Editor): {
       jumpBtn.onclick = () => navigateTo(row.frameId, "Instant", 0, "linear");
       btnRow.appendChild(jumpBtn);
 
-      if (row.trapped || row.missingEsc || row.missingBack) {
+      if (row.trapped || row.missingEsc || row.missingBack || row.escSimBroken || row.backSimBroken) {
         const fixBtn = document.createElement("button");
         fixBtn.className = "prop-btn";
         fixBtn.textContent = "Fix route";
@@ -2511,11 +2566,13 @@ export function createPrototypeViewer(editor: Editor): {
 
         const keyRouteRows = collectEscapeRouteRows(snapshot).filter((row) => row.frameId === node.id);
         for (const route of keyRouteRows) {
-          if (!route.trapped && !route.missingEsc && !route.missingBack) continue;
+          if (!route.trapped && !route.missingEsc && !route.missingBack && !route.escSimBroken && !route.backSimBroken) continue;
           const parts: string[] = [];
           if (route.trapped) parts.push("no close/back exit");
           if (route.missingEsc) parts.push("Esc route missing");
           if (route.missingBack) parts.push("Back route missing");
+          if (route.escSimBroken) parts.push("Esc sim diverges");
+          if (route.backSimBroken) parts.push("Back sim diverges");
           issues.push({
             type: "overlay-key-route",
             frameId: node.id,

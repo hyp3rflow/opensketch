@@ -1790,9 +1790,18 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Prototype Overlay Stack Stress Tester — 다중 overlay depth(1~5)를 자동 재생해 close/back 누락 케이스를 배치 검증 (임팩트 중상, 난이도 중)
 - Text Token Fallback Diff Inspector — 폰트/토큰 미존재 시 fallback 렌더 차이를 프레임별 diff로 시각화 (임팩트 중, 난이도 중상)
 - Smart Guide Priority Ruleset Editor — edge/center/grid snap 우선순위를 프리셋으로 저장하고 프로젝트별 적용 (임팩트 중, 난이도 중)
+- Overlay Stack Route Coverage Matrix — OpenOverlay source별 depth/close-path 커버리지 매트릭스 제공 (임팩트 중상, 난이도 중)
+- Conditional Overlay Exit Sampler — 조건 분기별 Esc/Back 복귀 성공 케이스를 샘플링 리포트 (임팩트 중, 난이도 중)
+- Prototype Overlay Guard Preset Pack — overlay lint/fix 정책을 Strict/Balanced/Legacy 프리셋으로 전환 (임팩트 중, 난이도 중)
+
+## 완료된 기능 (추가 — Prototype Overlay Stack Stress Tester, 2026-04-19)
+- Overlay Stack Inspector 카드에 `Stress: D1-5` 배치 시뮬레이션을 추가해 OpenOverlay 체인 depth 1~5를 자동 검증
+- 체인 중 CloseOverlay/Back exit가 없는 overlay를 발견하면 `D{depth} fail (#id no Close/Back)` 경고로 즉시 표시
+- 정상 케이스는 `D1-5 pass`로 표시해 overlay stack 안전 여부를 카드 단위로 빠르게 스캔 가능
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Auto Layout Constraint Preset Library, 2026-04-19)
 - Properties panel `Constraint Set Presets`가 Frame/Group 본체 + 자식 인덱스별 constraints뿐 아니라 sizing(Fixed/Hug/Fill)까지 함께 저장/적용하도록 확장
