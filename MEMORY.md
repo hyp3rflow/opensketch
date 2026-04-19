@@ -1790,8 +1790,19 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Overlay Exit Recipe Library — 자주 쓰는 Esc/Back/Close 조합을 recipe로 저장하고 one-click 적용 (임팩트 중, 난이도 중)
-- Overlay Branch Replay Timeline — 조건부 interaction 분기 재생 타임라인으로 branch별 성공/실패 경로 비교 (임팩트 중상, 난이도 중상)
+- Flow Lint Quick-fix Batch Runner — 동일 타입 lint 이슈를 프레임 범위 단위로 일괄 fix/undo하는 배치 실행기 (임팩트 중상, 난이도 중)
+- Overlay Route Risk Scoreboard — overlay별 key-route/depth/latency 이슈를 가중치 점수로 합산해 위험도 순위 보드 제공 (임팩트 중상, 난이도 중)
+- Flow Lint Scope Runner (Selection/Page/Flow) — lint 실행 범위를 선택 영역·현재 페이지·현재 flow로 제한하는 스코프 실행기 (임팩트 중, 난이도 중)
+- Overlay Exit Path Auto-Suggest — Esc/Back 누락 overlay에 대해 CloseOverlay/Back 후보 타깃을 one-click 제안 (임팩트 중상, 난이도 중상)
+- Lint Snapshot Diff Report — Flow Lint 실행 간 이슈 증감(신규/해결/회귀) 비교 리포트 + copy export (임팩트 중, 난이도 중)
+
+## 완료된 기능 (추가 — Overlay Exit Latency Budget Lint, 2026-04-20)
+- Flow Lint에 `overlay-exit-latency` 이슈 타입 추가
+- Escape Route Map 시뮬레이션 결과에서 overlay별 Esc/Back 복귀 도달 step 수를 측정(성공 경로 기준)
+- 복귀 step이 latency budget(기본 2 step)을 초과하면 경고 생성, detail에 `Esc N / Back N` 표시
+- Flow Lint 요약/필터/정렬 우선순위/이슈 컬러에 신규 규칙 반영
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Overlay Return Focus Confidence Meter, 2026-04-20)
 - Prototype Viewer `Focus Return Map`에 route별 `Return confidence` 점수(0~100) + high/medium/low 미터 추가

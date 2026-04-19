@@ -353,7 +353,8 @@ export function createPrototypeViewer(editor: Editor): {
   let flowStartInfo: HTMLDivElement | null = null;
   const flowPresetCursor = new Map<string, number>();
   const FLOW_OVERLAY_DEPTH_BUDGET = 3;
-  type FlowLintIssueType = "unreachable" | "dead-end" | "cycle" | "cycle-trap" | "overlay-leak" | "overlay-key-route" | "overlay-depth-budget" | "orphan-close" | "scroll-leak" | "a11y-missing-label" | "a11y-focus-gap" | "a11y-focus-trap" | "a11y-low-contrast" | "a11y-motion";
+  const FLOW_OVERLAY_EXIT_LATENCY_BUDGET = 2;
+  type FlowLintIssueType = "unreachable" | "dead-end" | "cycle" | "cycle-trap" | "overlay-leak" | "overlay-key-route" | "overlay-depth-budget" | "overlay-exit-latency" | "orphan-close" | "scroll-leak" | "a11y-missing-label" | "a11y-focus-gap" | "a11y-focus-trap" | "a11y-low-contrast" | "a11y-motion";
   type FlowLintIssue = { type: FlowLintIssueType; frameId: number; frameName: string; detail: string; overlayId?: number; overlayPath?: number[]; overlayOffenders?: number[]; overlayBudget?: number; overlayRewritePlan?: string[]; overlayImpactNodeCount?: number };
   type FocusTrapSimIssue = {
     frameId: number;
@@ -2226,9 +2227,9 @@ export function createPrototypeViewer(editor: Editor): {
 
   function collectEscapeRouteRows(snapshotInput?: { nodes: Array<{ id: number; name: string; x: number; y: number; width: number; height: number }>; edges: Array<{ from: number; to: number; action: string; sourceNodeId: number; interactionIndex: number; conditional: boolean; branchActive: boolean | null; conditionSummary: string }>; }) {
     const snapshot = snapshotInput || flowMinimapSnapshot;
-    if (!snapshot) return [] as Array<{ frameId: number; frameName: string; overlayId: number; overlayName: string; routeSummary: string; escRouteSummary: string; backRouteSummary: string; escSimSummary: string; backSimSummary: string; escSimBroken: boolean; backSimBroken: boolean; trapped: boolean; missingEsc: boolean; missingBack: boolean; escConditionalOnly: boolean; backConditionalOnly: boolean; openCount: number; conditionalSamples: number; conditionalActive: number; conditionalSuccess: number; conditionalFail: number; conditionalEscMiss: number; conditionalBackMiss: number; conditionalMissSamples: number; conditionalSummary: string }>;
+    if (!snapshot) return [] as Array<{ frameId: number; frameName: string; overlayId: number; overlayName: string; routeSummary: string; escRouteSummary: string; backRouteSummary: string; escSimSummary: string; backSimSummary: string; escSimBroken: boolean; backSimBroken: boolean; escSteps: number | null; backSteps: number | null; trapped: boolean; missingEsc: boolean; missingBack: boolean; escConditionalOnly: boolean; backConditionalOnly: boolean; openCount: number; conditionalSamples: number; conditionalActive: number; conditionalSuccess: number; conditionalFail: number; conditionalEscMiss: number; conditionalBackMiss: number; conditionalMissSamples: number; conditionalSummary: string }>;
     const frameById = new Map(snapshot.nodes.map((n) => [n.id, n]));
-    const rows: Array<{ frameId: number; frameName: string; overlayId: number; overlayName: string; routeSummary: string; escRouteSummary: string; backRouteSummary: string; escSimSummary: string; backSimSummary: string; escSimBroken: boolean; backSimBroken: boolean; trapped: boolean; missingEsc: boolean; missingBack: boolean; escConditionalOnly: boolean; backConditionalOnly: boolean; openCount: number; conditionalSamples: number; conditionalActive: number; conditionalSuccess: number; conditionalFail: number; conditionalEscMiss: number; conditionalBackMiss: number; conditionalMissSamples: number; conditionalSummary: string }> = [];
+    const rows: Array<{ frameId: number; frameName: string; overlayId: number; overlayName: string; routeSummary: string; escRouteSummary: string; backRouteSummary: string; escSimSummary: string; backSimSummary: string; escSimBroken: boolean; backSimBroken: boolean; escSteps: number | null; backSteps: number | null; trapped: boolean; missingEsc: boolean; missingBack: boolean; escConditionalOnly: boolean; backConditionalOnly: boolean; openCount: number; conditionalSamples: number; conditionalActive: number; conditionalSuccess: number; conditionalFail: number; conditionalEscMiss: number; conditionalBackMiss: number; conditionalMissSamples: number; conditionalSummary: string }> = [];
 
     const summarize = (edge: { action: string; to: number } | null, openerFrameId: number) => {
       if (!edge) return "missing";
@@ -2241,6 +2242,7 @@ export function createPrototypeViewer(editor: Editor): {
     const simulateKeyRoute = (mode: "esc" | "back", openerFrameId: number, overlayId: number) => {
       const trace: string[] = [];
       let cursor = overlayId;
+      let stepsToOrigin: number | null = null;
       const seen = new Set<number>();
       for (let step = 0; step < 4; step += 1) {
         if (seen.has(cursor)) {
@@ -2258,27 +2260,33 @@ export function createPrototypeViewer(editor: Editor): {
         }
         if (primary.action === "CloseOverlay") {
           trace.push(`#${cursor} CloseOverlay→#${openerFrameId}`);
-          if (openerFrameId === cursor) break;
           cursor = openerFrameId;
-          if (cursor === openerFrameId) break;
-          continue;
+          stepsToOrigin = step + 1;
+          break;
         }
         if (primary.action === "Back") {
           const target = primary.to > 0 ? primary.to : openerFrameId;
           trace.push(`#${cursor} Back→#${target}`);
           cursor = target;
-          if (cursor === openerFrameId) break;
+          if (cursor === openerFrameId) {
+            stepsToOrigin = step + 1;
+            break;
+          }
           continue;
         }
         const target = primary.to > 0 ? primary.to : openerFrameId;
         trace.push(`#${cursor} NavigateTo→#${target}`);
         cursor = target;
-        if (cursor === openerFrameId) break;
+        if (cursor === openerFrameId) {
+          stepsToOrigin = step + 1;
+          break;
+        }
       }
       const reachedOrigin = cursor === openerFrameId;
       return {
         summary: reachedOrigin ? trace.join(" | ") : `${trace.join(" | ")} ⚠`,
         broken: !reachedOrigin,
+        steps: reachedOrigin ? stepsToOrigin : null,
       };
     };
 
@@ -2354,6 +2362,8 @@ export function createPrototypeViewer(editor: Editor): {
         backSimSummary: backSim.summary,
         escSimBroken: escSim.broken,
         backSimBroken: backSim.broken,
+        escSteps: escSim.steps,
+        backSteps: backSim.steps,
         trapped: escapeExits.length === 0,
         missingEsc: !hasEscRoute,
         missingBack: !hasBackRoute,
@@ -3001,9 +3011,14 @@ export function createPrototypeViewer(editor: Editor): {
             const hasRequiredFail = route.trapped || route.missingEsc || route.missingBack;
             const hasConditionalFail = route.escConditionalOnly || route.backConditionalOnly || route.conditionalMissSamples > 0;
             const hasSimFail = route.escSimBroken || route.backSimBroken;
+            const escSteps = route.escSteps;
+            const backSteps = route.backSteps;
+            const maxSteps = Math.max(escSteps || 0, backSteps || 0);
+            const hasLatencyFail = maxSteps > FLOW_OVERLAY_EXIT_LATENCY_BUDGET;
             if (!hasRequiredFail
               && !(overlayGuardPreset.detectConditionalOnly && hasConditionalFail)
-              && !(overlayGuardPreset.detectSimulationDrift && hasSimFail)) {
+              && !(overlayGuardPreset.detectSimulationDrift && hasSimFail)
+              && !hasLatencyFail) {
               continue;
             }
             const parts: string[] = [];
@@ -3015,13 +3030,27 @@ export function createPrototypeViewer(editor: Editor): {
             if (overlayGuardPreset.detectConditionalOnly && route.conditionalMissSamples > 0) parts.push(`conditional route miss Esc ${route.conditionalEscMiss}/Back ${route.conditionalBackMiss}`);
             if (overlayGuardPreset.detectSimulationDrift && route.escSimBroken) parts.push("Esc sim diverges");
             if (overlayGuardPreset.detectSimulationDrift && route.backSimBroken) parts.push("Back sim diverges");
-            issues.push({
-              type: "overlay-key-route",
-              frameId: node.id,
-              frameName: node.name,
-              overlayId: route.overlayId,
-              detail: `${route.overlayName}: ${parts.join(" + ")}`,
-            });
+            if (hasRequiredFail
+              || (overlayGuardPreset.detectConditionalOnly && hasConditionalFail)
+              || (overlayGuardPreset.detectSimulationDrift && hasSimFail)) {
+              issues.push({
+                type: "overlay-key-route",
+                frameId: node.id,
+                frameName: node.name,
+                overlayId: route.overlayId,
+                detail: `${route.overlayName}: ${parts.join(" + ")}`,
+              });
+            }
+
+            if (hasLatencyFail) {
+              issues.push({
+                type: "overlay-exit-latency",
+                frameId: node.id,
+                frameName: node.name,
+                overlayId: route.overlayId,
+                detail: `${route.overlayName}: Esc ${escSteps ?? "-"} step(s) / Back ${backSteps ?? "-"} step(s) exceed latency budget(${FLOW_OVERLAY_EXIT_LATENCY_BUDGET})`,
+              });
+            }
           }
         }
       }
@@ -3208,13 +3237,14 @@ export function createPrototypeViewer(editor: Editor): {
     const orphanCloseCount = issues.filter((i) => i.type === "orphan-close").length;
     const overlayKeyRouteCount = issues.filter((i) => i.type === "overlay-key-route").length;
     const overlayDepthBudgetCount = issues.filter((i) => i.type === "overlay-depth-budget").length;
+    const overlayExitLatencyCount = issues.filter((i) => i.type === "overlay-exit-latency").length;
     const scrollLeakCount = issues.filter((i) => i.type === "scroll-leak").length;
     const missingLabelCount = issues.filter((i) => i.type === "a11y-missing-label").length;
     const focusGapCount = issues.filter((i) => i.type === "a11y-focus-gap").length;
     const focusTrapCount = issues.filter((i) => i.type === "a11y-focus-trap").length;
     const lowContrastCount = issues.filter((i) => i.type === "a11y-low-contrast").length;
     const motionGuardrailCount = issues.filter((i) => i.type === "a11y-motion").length;
-    flowLintInfo.textContent = `Preset ${overlayGuardPreset.label} · Start #${startFrameId} · Dead-end ${deadEndCount} · Unreachable ${unreachableCount} · Cycles ${cycleCount}/${cycleTrapCount} · Overlay ${overlayLeakCount}/${overlayKeyRouteCount}/${overlayDepthBudgetCount}/${orphanCloseCount}/Scroll ${scrollLeakCount} · A11y ${missingLabelCount}/${focusGapCount}/${focusTrapCount}/${lowContrastCount}/${motionGuardrailCount}`;
+    flowLintInfo.textContent = `Preset ${overlayGuardPreset.label} · Start #${startFrameId} · Dead-end ${deadEndCount} · Unreachable ${unreachableCount} · Cycles ${cycleCount}/${cycleTrapCount} · Overlay ${overlayLeakCount}/${overlayKeyRouteCount}/${overlayDepthBudgetCount}/${overlayExitLatencyCount}/${orphanCloseCount}/Scroll ${scrollLeakCount} · A11y ${missingLabelCount}/${focusGapCount}/${focusTrapCount}/${lowContrastCount}/${motionGuardrailCount}`;
 
     flowLintList.innerHTML = "";
     if (issues.length === 0) {
@@ -3242,11 +3272,12 @@ export function createPrototypeViewer(editor: Editor): {
       "overlay-leak": 9,
       "overlay-key-route": 10,
       "overlay-depth-budget": 11,
-      "scroll-leak": 12,
-      "orphan-close": 13,
+      "overlay-exit-latency": 12,
+      "scroll-leak": 13,
+      "orphan-close": 14,
     };
     const sortedIssues = [...issues].sort((a, b) => (rank[a.type] - rank[b.type]) || a.frameName.localeCompare(b.frameName));
-    const issueTypes: FlowLintIssueType[] = ["a11y-missing-label", "a11y-focus-gap", "a11y-focus-trap", "a11y-low-contrast", "a11y-motion", "dead-end", "unreachable", "cycle-trap", "cycle", "overlay-leak", "overlay-key-route", "overlay-depth-budget", "scroll-leak", "orphan-close"];
+    const issueTypes: FlowLintIssueType[] = ["a11y-missing-label", "a11y-focus-gap", "a11y-focus-trap", "a11y-low-contrast", "a11y-motion", "dead-end", "unreachable", "cycle-trap", "cycle", "overlay-leak", "overlay-key-route", "overlay-depth-budget", "overlay-exit-latency", "scroll-leak", "orphan-close"];
     if (flowLintFilterTypes.size === 0) {
       for (const t of issueTypes) flowLintFilterTypes.add(t);
     }
@@ -3303,9 +3334,11 @@ export function createPrototypeViewer(editor: Editor): {
                           ? "#f97316"
                           : issue.type === "overlay-depth-budget"
                             ? "#fb7185"
-                            : issue.type === "scroll-leak"
-                              ? "#38bdf8"
-                              : "#22d3ee";
+                            : issue.type === "overlay-exit-latency"
+                              ? "#f59e0b"
+                              : issue.type === "scroll-leak"
+                                ? "#38bdf8"
+                                : "#22d3ee";
       row.style.cssText = `display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;text-align:left;background:rgba(15,23,42,0.55);border:1px solid rgba(148,163,184,0.25);border-left:3px solid ${color};border-radius:6px;color:#e2e8f0;padding:4px 6px;cursor:pointer;`;
       row.dataset.lintNavIndex = String(issueIndex);
       row.innerHTML = `<span style="font-size:10px;font-weight:600;color:${color};text-transform:uppercase;">${issue.type}</span><span style="font-size:10px;">${issue.frameName} (#${issue.frameId})</span><span style="font-size:9px;color:#94a3b8;">${issue.detail}</span>`;

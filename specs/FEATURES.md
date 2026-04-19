@@ -3092,3 +3092,10 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - 점수 산식은 opener hotspot 존재 여부, CloseOverlay/Back 경로 개수, opener ambiguity, return target keyboard-focusable 여부를 반영한다.
 - `CloseOverlay X · Back Y` 메타를 카드에 표시해 닫기 경로의 복귀 안정성을 즉시 확인할 수 있다.
 - low-confidence route는 `⚠ Low-confidence return target` 경고와 사유(opener missing / Back path missing / not keyboard-focusable 등)를 함께 노출한다.
+
+### Overlay Exit Latency Budget Lint (2026-04-20)
+- [x] Flow Lint에 `overlay-exit-latency` 규칙 추가
+- [x] `Escape Route Map` 시뮬레이션에서 overlay별 Esc/Back 복귀 도달 step 수를 측정
+- [x] 복귀 step이 latency budget(기본 2 step)을 초과하면 경고를 생성하고 detail에 `Esc N / Back N`을 함께 표시
+- [x] Flow Lint 요약/필터/정렬/색상 체계에 신규 규칙 반영
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
