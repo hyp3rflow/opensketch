@@ -2826,6 +2826,12 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] `Jump frame`/`Jump overlay` 버튼으로 return map 검증 루프를 즉시 이동
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
 
+### Conditional Overlay Exit Sampler (2026-04-20)
+- [x] Escape Route Map에 조건부 OpenOverlay 분기 샘플러를 추가해 route별 `success/total` 및 `active` 분기 수를 표시
+- [x] 성공 판정 기준을 `Esc/Back` 무조건 경로 존재 + esc/back 시뮬레이션 복귀 성공으로 통일
+- [x] 패널 summary에 `Conditional fail N/M` 집계를 추가하고, route 경고 상세에 sampler fail 원인을 병기
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+
 ### Interaction Timeline Scrubber (2026-04-12)
 - [x] Prototype Viewer 우측에 `Interaction Timeline` 패널 추가 (scrub slider + 최근 이벤트 리스트)
 - [x] Navigate/Back/Scroll 이벤트를 타임라인으로 누적해 순서/끊김을 시각 점검

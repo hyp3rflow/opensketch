@@ -2122,9 +2122,9 @@ export function createPrototypeViewer(editor: Editor): {
 
   function collectEscapeRouteRows(snapshotInput?: { nodes: Array<{ id: number; name: string; x: number; y: number; width: number; height: number }>; edges: Array<{ from: number; to: number; action: string; sourceNodeId: number; interactionIndex: number; conditional: boolean; branchActive: boolean | null; conditionSummary: string }>; }) {
     const snapshot = snapshotInput || flowMinimapSnapshot;
-    if (!snapshot) return [] as Array<{ frameId: number; frameName: string; overlayId: number; overlayName: string; routeSummary: string; escRouteSummary: string; backRouteSummary: string; escSimSummary: string; backSimSummary: string; escSimBroken: boolean; backSimBroken: boolean; trapped: boolean; missingEsc: boolean; missingBack: boolean; escConditionalOnly: boolean; backConditionalOnly: boolean; openCount: number }>;
+    if (!snapshot) return [] as Array<{ frameId: number; frameName: string; overlayId: number; overlayName: string; routeSummary: string; escRouteSummary: string; backRouteSummary: string; escSimSummary: string; backSimSummary: string; escSimBroken: boolean; backSimBroken: boolean; trapped: boolean; missingEsc: boolean; missingBack: boolean; escConditionalOnly: boolean; backConditionalOnly: boolean; openCount: number; conditionalSamples: number; conditionalActive: number; conditionalSuccess: number; conditionalFail: number; conditionalSummary: string }>;
     const frameById = new Map(snapshot.nodes.map((n) => [n.id, n]));
-    const rows: Array<{ frameId: number; frameName: string; overlayId: number; overlayName: string; routeSummary: string; escRouteSummary: string; backRouteSummary: string; escSimSummary: string; backSimSummary: string; escSimBroken: boolean; backSimBroken: boolean; trapped: boolean; missingEsc: boolean; missingBack: boolean; escConditionalOnly: boolean; backConditionalOnly: boolean; openCount: number }> = [];
+    const rows: Array<{ frameId: number; frameName: string; overlayId: number; overlayName: string; routeSummary: string; escRouteSummary: string; backRouteSummary: string; escSimSummary: string; backSimSummary: string; escSimBroken: boolean; backSimBroken: boolean; trapped: boolean; missingEsc: boolean; missingBack: boolean; escConditionalOnly: boolean; backConditionalOnly: boolean; openCount: number; conditionalSamples: number; conditionalActive: number; conditionalSuccess: number; conditionalFail: number; conditionalSummary: string }> = [];
 
     const summarize = (edge: { action: string; to: number } | null, openerFrameId: number) => {
       if (!edge) return "missing";
@@ -2216,6 +2216,14 @@ export function createPrototypeViewer(editor: Editor): {
       const hasBackRoute = exits.some((next) => next.action === "Back");
       const hasUnconditionalEsc = exits.some((next) => (next.action === "CloseOverlay" || next.action === "Back") && !next.conditional);
       const hasUnconditionalBack = exits.some((next) => next.action === "Back" && !next.conditional);
+      const conditionalSamples = openEdges.filter((edge) => edge.conditional).length;
+      const conditionalActive = openEdges.filter((edge) => edge.conditional && edge.branchActive === true).length;
+      const conditionalOutcomeSafe = hasUnconditionalEsc && hasUnconditionalBack && !escSim.broken && !backSim.broken;
+      const conditionalSuccess = conditionalSamples > 0 ? (conditionalOutcomeSafe ? conditionalActive : 0) : 0;
+      const conditionalFail = Math.max(0, conditionalSamples - conditionalSuccess);
+      const conditionalSummary = conditionalSamples > 0
+        ? `Conditional sampler: success ${conditionalSuccess}/${conditionalSamples} · active ${conditionalActive}`
+        : "Conditional sampler: no conditional open branches";
       rows.push({
         frameId: frame.id,
         frameName: frame.name,
@@ -2234,6 +2242,11 @@ export function createPrototypeViewer(editor: Editor): {
         escConditionalOnly: hasEscRoute && !hasUnconditionalEsc,
         backConditionalOnly: hasBackRoute && !hasUnconditionalBack,
         openCount: openEdges.length,
+        conditionalSamples,
+        conditionalActive,
+        conditionalSuccess,
+        conditionalFail,
+        conditionalSummary,
       });
     }
 
@@ -2256,7 +2269,9 @@ export function createPrototypeViewer(editor: Editor): {
     }
     const trapCount = rows.filter((row) => row.trapped).length;
     const warnCount = rows.filter((row) => row.missingEsc || row.missingBack || row.escConditionalOnly || row.backConditionalOnly || row.escSimBroken || row.backSimBroken).length;
-    escapeRouteInfo.textContent = `Routes ${rows.length} · Trap ${trapCount} · Missing key route ${warnCount}`;
+    const conditionalSampleCount = rows.reduce((acc, row) => acc + row.conditionalSamples, 0);
+    const conditionalFailCount = rows.reduce((acc, row) => acc + row.conditionalFail, 0);
+    escapeRouteInfo.textContent = `Routes ${rows.length} · Trap ${trapCount} · Missing key route ${warnCount} · Conditional fail ${conditionalFailCount}/${conditionalSampleCount}`;
     escapeRouteList.innerHTML = "";
 
     for (const row of rows.slice(0, 10)) {
@@ -2288,6 +2303,11 @@ export function createPrototypeViewer(editor: Editor): {
       backSimMeta.textContent = `Back sim: ${row.backSimSummary}`;
       card.appendChild(backSimMeta);
 
+      const conditionalMeta = document.createElement("div");
+      conditionalMeta.style.cssText = `font-size:9px;line-height:1.35;color:${row.conditionalFail > 0 ? "#fca5a5" : "#86efac"};`;
+      conditionalMeta.textContent = row.conditionalSummary;
+      card.appendChild(conditionalMeta);
+
       if (warn) {
         const warnText = document.createElement("div");
         warnText.style.cssText = "font-size:9px;color:#fca5a5;line-height:1.35;";
@@ -2299,6 +2319,7 @@ export function createPrototypeViewer(editor: Editor): {
         if (row.backConditionalOnly) parts.push("Back route is conditional-only");
         if (row.escSimBroken) parts.push("Esc simulation not returning");
         if (row.backSimBroken) parts.push("Back simulation not returning");
+        if (row.conditionalFail > 0) parts.push(`conditional sampler fail ${row.conditionalFail}/${row.conditionalSamples}`);
         warnText.textContent = `⚠ ${parts.join(" · ")}`;
         card.appendChild(warnText);
       }
@@ -2351,7 +2372,7 @@ export function createPrototypeViewer(editor: Editor): {
 
   function collectFocusReturnRows(snapshotInput?: { nodes: Array<{ id: number; name: string; x: number; y: number; width: number; height: number }>; edges: Array<{ from: number; to: number; action: string; sourceNodeId: number; interactionIndex: number; conditional: boolean; branchActive: boolean | null; conditionSummary: string }>; }) {
     const snapshot = snapshotInput || flowMinimapSnapshot;
-    if (!snapshot) return [] as Array<{ frameId: number; frameName: string; overlayId: number; overlayName: string; originNodeIds: number[]; originLabel: string; closeCount: number; fallbackNodeId: number | null; fallbackLabel: string; returnNodeId: number | null; returnLabel: string; timeline: string[]; }>;
+    if (!snapshot) return [] as Array<{ frameId: number; frameName: string; overlayId: number; overlayName: string; originNodeIds: number[]; originLabel: string; closeCount: number; fallbackNodeId: number | null; fallbackLabel: string; returnNodeId: number | null; returnLabel: string; confidenceScore: number; confidenceLevel: "high" | "medium" | "low"; lowConfidence: boolean; confidenceReasons: string[]; timeline: string[]; }>;
     const frameById = new Map(snapshot.nodes.map((n) => [n.id, n]));
     const openerMap = new Map<string, Set<number>>();
 
@@ -2364,7 +2385,7 @@ export function createPrototypeViewer(editor: Editor): {
       openerMap.set(key, bucket);
     }
 
-    const rows: Array<{ frameId: number; frameName: string; overlayId: number; overlayName: string; originNodeIds: number[]; originLabel: string; closeCount: number; fallbackNodeId: number | null; fallbackLabel: string; returnNodeId: number | null; returnLabel: string; timeline: string[]; }> = [];
+    const rows: Array<{ frameId: number; frameName: string; overlayId: number; overlayName: string; originNodeIds: number[]; originLabel: string; closeCount: number; fallbackNodeId: number | null; fallbackLabel: string; returnNodeId: number | null; returnLabel: string; confidenceScore: number; confidenceLevel: "high" | "medium" | "low"; lowConfidence: boolean; confidenceReasons: string[]; timeline: string[]; }> = [];
     for (const [key, originSet] of openerMap.entries()) {
       const [frameRaw, overlayRaw] = key.split(":");
       const frameId = Number(frameRaw || 0);
@@ -2388,6 +2409,48 @@ export function createPrototypeViewer(editor: Editor): {
       const returnLabel = returnNodeId && originNodeIds.includes(returnNodeId)
         ? `origin hotspot #${returnNodeId}`
         : `fallback ${fallbackLabel}`;
+
+      const frameFocusableSet = new Set(listFocusableHotspots(frameId).map((item) => Number(item.nodeId || 0)).filter((id) => id > 0));
+      const confidenceReasons: string[] = [];
+      let confidenceScore = 20;
+      if (originNodeIds.length > 0) {
+        confidenceScore += 34;
+        confidenceReasons.push("opener hotspot detected");
+      } else {
+        confidenceReasons.push("opener hotspot missing");
+      }
+      if (closeCount > 0) {
+        confidenceScore += 20;
+        confidenceReasons.push(`close/back path ${closeCount}개`);
+      } else {
+        confidenceScore -= 14;
+        confidenceReasons.push("close/back path missing");
+      }
+      if (originNodeIds.length === 1) {
+        confidenceScore += 14;
+        confidenceReasons.push("single opener target");
+      } else if (originNodeIds.length > 1) {
+        confidenceScore += 6;
+        confidenceReasons.push(`multiple opener targets (${originNodeIds.length})`);
+      }
+      if (returnNodeId && frameFocusableSet.has(returnNodeId)) {
+        confidenceScore += 12;
+        confidenceReasons.push("return target is keyboard-focusable");
+      } else if (returnNodeId) {
+        confidenceScore -= 8;
+        confidenceReasons.push("return target not keyboard-focusable");
+      } else {
+        confidenceScore -= 10;
+        confidenceReasons.push("return target unresolved");
+      }
+      if (closeCount >= 4) {
+        confidenceScore -= 6;
+        confidenceReasons.push("many close/back paths can be ambiguous");
+      }
+      const normalizedScore = Math.max(0, Math.min(100, Math.round(confidenceScore)));
+      const confidenceLevel: "high" | "medium" | "low" = normalizedScore >= 75 ? "high" : normalizedScore >= 55 ? "medium" : "low";
+      const lowConfidence = confidenceLevel === "low";
+
       const timeline = [
         `1) OpenOverlay: ${frame.name} (#${frameId}) → ${overlay.name} (#${overlayId})`,
         `2) Overlay active: ${overlay.name}`,
@@ -2395,6 +2458,7 @@ export function createPrototypeViewer(editor: Editor): {
           ? `3) Close/Back ${closeCount}회 감지`
           : "3) Close/Back 없음 (manual return 필요)",
         `4) Return target: ${returnLabel}`,
+        `5) Confidence: ${normalizedScore}% (${confidenceLevel})`,
       ];
 
       rows.push({
@@ -2409,14 +2473,19 @@ export function createPrototypeViewer(editor: Editor): {
         fallbackLabel,
         returnNodeId,
         returnLabel,
+        confidenceScore: normalizedScore,
+        confidenceLevel,
+        lowConfidence,
+        confidenceReasons,
         timeline,
       });
     }
 
     rows.sort((a, b) => {
-      const scoreA = (a.closeCount === 0 ? 2 : 0) + (a.originNodeIds.length === 0 ? 1 : 0);
-      const scoreB = (b.closeCount === 0 ? 2 : 0) + (b.originNodeIds.length === 0 ? 1 : 0);
+      const scoreA = (a.lowConfidence ? 3 : 0) + (a.closeCount === 0 ? 2 : 0) + (a.originNodeIds.length === 0 ? 1 : 0);
+      const scoreB = (b.lowConfidence ? 3 : 0) + (b.closeCount === 0 ? 2 : 0) + (b.originNodeIds.length === 0 ? 1 : 0);
       if (scoreA !== scoreB) return scoreB - scoreA;
+      if (a.confidenceScore !== b.confidenceScore) return a.confidenceScore - b.confidenceScore;
       return a.frameId - b.frameId;
     });
     return rows;
@@ -2431,13 +2500,15 @@ export function createPrototypeViewer(editor: Editor): {
       return;
     }
     const missingCount = rows.filter((row) => row.originNodeIds.length === 0 || row.closeCount === 0).length;
-    focusReturnInfo.textContent = `Routes ${rows.length} · Missing return map ${missingCount}`;
+    const lowConfidenceCount = rows.filter((row) => row.lowConfidence).length;
+    focusReturnInfo.textContent = `Routes ${rows.length} · Missing return map ${missingCount} · Low confidence ${lowConfidenceCount}`;
     focusReturnList.innerHTML = "";
 
     for (const row of rows.slice(0, 10)) {
       const missing = row.originNodeIds.length === 0 || row.closeCount === 0;
+      const warn = missing || row.lowConfidence;
       const card = document.createElement("div");
-      card.style.cssText = `display:flex;flex-direction:column;gap:4px;border:1px solid ${missing ? "rgba(251,146,60,0.45)" : "rgba(148,163,184,0.3)"};border-radius:6px;padding:6px;background:rgba(15,23,42,0.45);`;
+      card.style.cssText = `display:flex;flex-direction:column;gap:4px;border:1px solid ${warn ? "rgba(251,146,60,0.45)" : "rgba(148,163,184,0.3)"};border-radius:6px;padding:6px;background:rgba(15,23,42,0.45);`;
       const title = document.createElement("div");
       title.style.cssText = "font-size:10px;color:#e2e8f0;line-height:1.35;";
       title.textContent = `${row.frameName} → ${row.overlayName}`;
@@ -2455,6 +2526,20 @@ export function createPrototypeViewer(editor: Editor): {
         : `Close path 없음 · fallback 권장: ${row.fallbackLabel}`;
       card.appendChild(returnMeta);
 
+      const meterWrap = document.createElement("div");
+      meterWrap.style.cssText = "display:flex;flex-direction:column;gap:3px;";
+      const meterMeta = document.createElement("div");
+      meterMeta.style.cssText = `font-size:9px;line-height:1.35;color:${row.lowConfidence ? "#fca5a5" : row.confidenceLevel === "high" ? "#86efac" : "#fde68a"};`;
+      meterMeta.textContent = `Return confidence ${row.confidenceScore}% (${row.confidenceLevel})`;
+      meterWrap.appendChild(meterMeta);
+      const meterBar = document.createElement("div");
+      meterBar.style.cssText = "height:4px;border-radius:999px;background:rgba(148,163,184,0.3);overflow:hidden;";
+      const meterFill = document.createElement("div");
+      meterFill.style.cssText = `height:100%;width:${row.confidenceScore}%;background:${row.confidenceLevel === "high" ? "#22c55e" : row.confidenceLevel === "medium" ? "#f59e0b" : "#ef4444"};`;
+      meterBar.appendChild(meterFill);
+      meterWrap.appendChild(meterBar);
+      card.appendChild(meterWrap);
+
       const timelineMeta = document.createElement("div");
       timelineMeta.style.cssText = "font-size:9px;color:#cbd5e1;line-height:1.35;white-space:pre-line;";
       timelineMeta.textContent = row.timeline.join("\n");
@@ -2465,6 +2550,13 @@ export function createPrototypeViewer(editor: Editor): {
         note.style.cssText = "font-size:9px;color:#fdba74;line-height:1.35;";
         note.textContent = `Opener가 누락됨. fallback 추천: ${row.fallbackLabel}`;
         card.appendChild(note);
+      }
+
+      if (row.lowConfidence) {
+        const lowNote = document.createElement("div");
+        lowNote.style.cssText = "font-size:9px;color:#fca5a5;line-height:1.35;";
+        lowNote.textContent = `⚠ Low-confidence return target — ${row.confidenceReasons.slice(0, 3).join(" · ")}`;
+        card.appendChild(lowNote);
       }
 
       const btnRow = document.createElement("div");

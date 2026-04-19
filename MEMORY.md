@@ -1790,11 +1790,17 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Conditional Overlay Exit Sampler — 조건 분기별 Esc/Back 복귀 성공 케이스를 샘플링 리포트 (임팩트 중, 난이도 중)
 - Prototype Overlay Guard Preset Pack — overlay lint/fix 정책을 Strict/Balanced/Legacy 프리셋으로 전환 (임팩트 중, 난이도 중)
 - Overlay Return Focus Confidence Meter — CloseOverlay/Back 후 복귀 focus target 신뢰도(0~100) + low-confidence 경고 배지 제공 (임팩트 중, 난이도 중)
 - Overlay Exit Recipe Library — 자주 쓰는 Esc/Back/Close 조합을 recipe로 저장하고 one-click 적용 (임팩트 중, 난이도 중)
 - Overlay Branch Replay Timeline — 조건부 interaction 분기 재생 타임라인으로 branch별 성공/실패 경로 비교 (임팩트 중상, 난이도 중상)
+
+## 완료된 기능 (추가 — Conditional Overlay Exit Sampler, 2026-04-20)
+- Escape Route Map에 조건부 OpenOverlay 분기 샘플러를 추가해 `success/total` 및 `active` 분기 수를 route별로 표시
+- 성공 판정은 `Esc/Back` 무조건 경로 존재 + 시뮬레이션 복귀 성공(esc/back 모두) 기준으로 계산
+- 패널 요약에 `Conditional fail N/M` 집계를 추가하고, 카드 경고에 `conditional sampler fail` 원인을 함께 표기
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Overlay Stack Route Coverage Matrix, 2026-04-20)
 - Overlay Stack Inspector 상단에 `Route Coverage Matrix` 추가: OpenOverlay source별 `max depth / open count / close-path 상태`를 1행 요약으로 표시
