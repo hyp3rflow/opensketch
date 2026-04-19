@@ -5179,6 +5179,24 @@ export function createPrototypeViewer(editor: Editor): {
         ctx.strokeStyle = "rgba(250, 204, 21, 0.9)";
       }
       const interactionList = Array.isArray(nwi.interactions) ? nwi.interactions : [];
+      const nodeClickCount = interactionList.filter((it: any) => it?.trigger === "OnClick").length;
+      const nodePressCount = interactionList.filter((it: any) => it?.trigger === "OnPress").length;
+      const keyboardGapSeverity = Math.max(0, nodeClickCount - nodePressCount);
+      if (keyboardGapSeverity > 0) {
+        const cx = x + w * 0.5;
+        const cy = y + h * 0.5;
+        const radius = Math.max(18, Math.min(96, Math.max(w, h) * (0.3 + keyboardGapSeverity * 0.08)));
+        const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
+        grad.addColorStop(0, "rgba(248,113,113,0.34)");
+        grad.addColorStop(0.55, "rgba(248,113,113,0.16)");
+        grad.addColorStop(1, "rgba(248,113,113,0)");
+        ctx.save();
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
       if (interactionList.length === 0) {
         ctx.strokeRect(x, y, w, h);
       } else {
@@ -5575,6 +5593,34 @@ export function createPrototypeViewer(editor: Editor): {
     return out;
   }
 
+  function getKeyboardTriggerGaps(frameId: number | null = currentFrameId): Array<{ nodeId: number; x: number; y: number; width: number; height: number; clickCount: number; pressCount: number; severity: number }> {
+    if (!frameId || frameId <= 0) return [];
+    const fb = getFrameBounds(frameId);
+    const bounds = fb || { x: 0, y: 0, width: 800, height: 600 };
+    const allInterJson = editor.engine.get_all_interactions();
+    const nodesWithInter: any[] = JSON.parse(allInterJson || "[]");
+    const rows: Array<{ nodeId: number; x: number; y: number; width: number; height: number; clickCount: number; pressCount: number; severity: number }> = [];
+    for (const nwi of nodesWithInter) {
+      const raw = editor.engine.get_node_json(BigInt(Number(nwi.id)));
+      if (!raw) continue;
+      const node = JSON.parse(raw);
+      const nx = Number(node?.x || 0);
+      const ny = Number(node?.y || 0);
+      const nw = Number(node?.width || 0);
+      const nh = Number(node?.height || 0);
+      const insideFrame = nx + nw >= bounds.x && ny + nh >= bounds.y && nx <= bounds.x + bounds.width && ny <= bounds.y + bounds.height;
+      if (!insideFrame) continue;
+      const interactions = Array.isArray(nwi.interactions) ? nwi.interactions : [];
+      const clickCount = interactions.filter((it: any) => it?.trigger === "OnClick").length;
+      const pressCount = interactions.filter((it: any) => it?.trigger === "OnPress").length;
+      if (clickCount <= 0) continue;
+      const severity = Math.max(0, clickCount - pressCount);
+      if (severity <= 0) continue;
+      rows.push({ nodeId: Number(nwi.id), x: nx, y: ny, width: nw, height: nh, clickCount, pressCount, severity });
+    }
+    return rows;
+  }
+
   function trackCoverageFrameVisit(frameId: number | null) {
     if (!frameId || frameId <= 0) return;
     coverageFrameVisits.set(frameId, (coverageFrameVisits.get(frameId) || 0) + 1);
@@ -5629,9 +5675,12 @@ export function createPrototypeViewer(editor: Editor): {
       visitedHotspots += row.items.length - row.unvisited.length;
       missingHotspots += row.unvisited.length;
     }
+    const triggerGaps = getKeyboardTriggerGaps(currentFrameId);
+    const triggerGapCount = triggerGaps.length;
+    const triggerGapSeverity = triggerGaps.reduce((sum, row) => sum + row.severity, 0);
     coverageInfo.textContent = totalFrames
-      ? `Visited ${totalFrames} frame(s) · Hotspots ${visitedHotspots}/${totalHotspots} · Missing ${missingHotspots}`
-      : "No coverage yet. Navigate prototype to collect session coverage.";
+      ? `Visited ${totalFrames} frame(s) · Hotspots ${visitedHotspots}/${totalHotspots} · Missing ${missingHotspots} · Kbd gaps ${triggerGapCount} (sev ${triggerGapSeverity})`
+      : `No coverage yet. Navigate prototype to collect session coverage.${triggerGapCount ? ` Current frame kbd gaps: ${triggerGapCount}` : ""}`;
     coverageList.innerHTML = "";
     if (!totalFrames) return;
 

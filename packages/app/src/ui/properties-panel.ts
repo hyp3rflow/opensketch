@@ -14751,28 +14751,34 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
           const canUseBaseline = dir === "row";
           baselineHint.textContent = canUseBaseline
             ? "First/Last baseline aligns text naturally in horizontal auto-layout."
-            : "Baseline alignment works in Row direction. Switch direction to Row to apply.";
+            : "Baseline alignment works in Row direction. Use quick action below to switch + apply.";
           baselineCard.appendChild(baselineHint);
+
+          const baselineStats = document.createElement("div");
+          baselineStats.style.cssText = "font-size:10px;color:#64748b;";
+          baselineStats.textContent = `Text ${hasTextChild ? "✓" : "✗"} · Non-text ${hasNonTextChild ? "✓" : "✗"}`;
+          baselineCard.appendChild(baselineStats);
 
           const baselineBtns = document.createElement("div");
           baselineBtns.style.cssText = "display:flex;gap:4px;flex-wrap:wrap;";
           const baselineActions = [
-            { value: "first-baseline", label: "First baseline" },
-            { value: "last-baseline", label: "Last baseline" },
-            { value: "center", label: "Center" },
+            { value: "first-baseline", label: "First baseline", needsRow: true },
+            { value: "last-baseline", label: "Last baseline", needsRow: true },
+            { value: "center", label: "Center", needsRow: false },
           ];
 
           baselineActions.forEach((action) => {
             const btn = document.createElement("button");
             const active = curAlign === action.value;
+            const disabled = action.needsRow && !canUseBaseline;
             btn.style.cssText = `
               padding:3px 8px;border:1px solid ${active ? "#4f46e5" : "#3a3a3a"};
               border-radius:5px;background:${active ? "#4f46e520" : "#2a2a2a"};
-              color:${active ? "#818cf8" : "#94a3b8"};font-size:10px;cursor:${canUseBaseline ? "pointer" : "not-allowed"};
-              opacity:${canUseBaseline ? "1" : "0.55"};
+              color:${active ? "#818cf8" : "#94a3b8"};font-size:10px;cursor:${disabled ? "not-allowed" : "pointer"};
+              opacity:${disabled ? "0.55" : "1"};
             `;
             btn.textContent = action.label;
-            btn.disabled = !canUseBaseline;
+            btn.disabled = disabled;
             btn.onclick = () => {
               editor.engine.push_undo();
               editor.engine.set_align_items(BigInt(id), action.value);
@@ -14781,6 +14787,20 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
             };
             baselineBtns.appendChild(btn);
           });
+
+          if (!canUseBaseline) {
+            const rowQuickBtn = document.createElement("button");
+            rowQuickBtn.style.cssText = "padding:3px 8px;border:1px solid #0ea5e9;border-radius:5px;background:#0ea5e920;color:#7dd3fc;font-size:10px;cursor:pointer;";
+            rowQuickBtn.textContent = "Switch to Row + First baseline";
+            rowQuickBtn.onclick = () => {
+              editor.engine.push_undo();
+              editor.engine.set_layout_direction(BigInt(id), "row");
+              editor.engine.set_align_items(BigInt(id), "first-baseline");
+              editor.requestRender();
+              refresh(ids);
+            };
+            baselineBtns.appendChild(rowQuickBtn);
+          }
 
           baselineCard.appendChild(baselineBtns);
           layoutSection.appendChild(baselineCard);

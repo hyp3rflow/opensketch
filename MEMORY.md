@@ -1790,11 +1790,17 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Keyboard Trigger Coverage Heatmap — OnClick/OnPress hotspot 중 keyboard trigger 누락 영역을 frame heatmap으로 집계 (임팩트 중, 난이도 중)
 - Ring Preset Auto-Guard Rules — 릴리즈 모드에서 Safe 미만 preset 사용 시 자동 guard/경고 정책을 flow별로 설정 (임팩트 중, 난이도 중)
 - Prototype Return Trace Replay — OpenOverlay→CloseOverlay 체인을 step-by-step 재생해 포커스 복귀 대상/순서를 타임라인으로 검증 (임팩트 중, 난이도 중)
 - Variable Cleanup Impact Budget — queue rename/merge 실행 전 frame별 영향도 budget(critical/warn)을 계산해 과도 변경 차단 (임팩트 중, 난이도 중상)
 - Auto Layout Constraint Preset Library — 자주 쓰는 constraints+sizing 조합을 preset으로 저장/적용 (임팩트 중, 난이도 중)
+
+## 완료된 기능 (추가 — Keyboard Trigger Coverage Heatmap, 2026-04-19)
+- Prototype viewer hotspot 오버레이에 keyboard trigger 누락(OnClick 대비 OnPress 부족) 영역을 radial heatmap으로 시각화
+- 누락 severity를 `clickCount - pressCount`로 계산해 hotspot 중심 강도(반경/투명도)에 반영
+- Flow Coverage 카드 요약에 `Kbd gaps`/`severity` 지표를 추가해 현재 프레임의 키보드 트리거 리스크를 즉시 확인
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Prototype Focus Trap Lint Parity + One-click Fix, 2026-04-19)
 - Flow Lint `a11y-focus-trap` 판정을 기존 단순 close-path 체크에서 Tab/Shift+Tab 시뮬레이션 결과 기반으로 통일

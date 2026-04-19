@@ -42,6 +42,7 @@
 - [x] **Variable Token Cleanup Queue (2026-04-19)**: Variables Inspector에 `Variable Token Cleanup Queue` 카드 추가. `Queue top candidates`로 dead/low-usage/duplicate token 후보를 큐에 적재하고, `Apply queued rename`으로 일괄 rename, `Apply queued merge`로 duplicate source usage를 target token으로 재바인딩한 뒤 잔여 usage가 0이면 source를 자동 삭제한다. queue 상태는 localStorage(`opensketch-variable-token-cleanup-queue-v1`)에 유지된다.
 - [x] **Variable Token Merge Dry-Run Diff (2026-04-19)**: Cleanup Queue에 `Merge Dry-Run Diff` 프리뷰 카드를 추가해 merge 실행 전 영향도를 즉시 확인한다. 큐 기반 merge plan에서 source→target pair별로 영향을 받는 node/style/prototype-path 카운트를 집계하고, 샘플 usage 경로(노드명·속성)를 함께 노출해 실수 merge를 줄인다.
 - [x] **Overlay Escape Intent Hints (2026-04-19)**: Prototype overlay 컨텍스트에서 `OnClick/OnPress` hotspot이 `CloseOverlay/Back` 경로를 갖지 않으면 캔버스에 `ESCAPE?` 경고 배지를 표시한다. hotspot hover/키보드 순회 라벨에는 `권장: OnPress → CloseOverlay (Instant)` 템플릿을 함께 노출해 누락된 닫힘 액션을 즉시 보완할 수 있다.
+- [x] **Keyboard Trigger Coverage Heatmap (2026-04-19)**: Prototype viewer hotspot 오버레이에서 `OnClick` 대비 `OnPress`가 부족한 노드를 radial heatmap으로 표시한다. severity(`clickCount - pressCount`)를 반경/강도로 반영해 키보드 트리거 누락 영역을 프레임 단위로 빠르게 스캔할 수 있고, Flow Coverage 카드에 `Kbd gaps`/`severity` 요약 수치를 함께 제공한다.
   - Position (X/Y), Size (W/H), Rotation
   - Instance detach preview modal (Detach button / context menu / ⌘⌥B): impact summary + changed layer/property list + selective detach toggle for nested instances before apply
   - Corner radius (Rect/Frame only)
@@ -87,7 +88,7 @@
 - [x] Font family support (14 fonts)
 - [x] Font Fallback Inspector: Properties > Text에서 `Inspect Fallback`으로 선택된 Text 레이어의 요청 폰트 로드 여부를 점검하고, 미로드 시 추정 fallback(`system-ui/sans-serif/serif/monospace`) 및 추천 대체 폰트를 리포트. `Replace Missing`으로 미로드 레이어 일괄 치환 가능
 - [x] Text Truncation & Overflow Inspector (2026-04-13): Fixed text box에서 텍스트 메트릭 기반 Required W/H를 계산해 가로/세로 overflow를 감지하고, Properties 패널에서 `Resize box to fit` / `Switch to Fit sizing` / `Fix height only` / `Set overflow: Ellipsis` one-click 수정을 제공. Auto Layout 부모 감지 시 영향 경고 힌트 표시
-- [x] Auto Layout Baseline Alignment Controls (2026-04-14): Flex(Row) 컨테이너의 Alignment 영역에 `Baseline` 카드(First baseline / Last baseline / Center quick actions)를 추가. children 분석으로 text+icon 혼합 여부를 감지해 상태 힌트를 보여주고, Row가 아닌 경우 baseline 액션을 비활성화해 오동작을 방지.
+- [x] Auto Layout Baseline Alignment Controls (2026-04-19): Flex(Row) 컨테이너의 Alignment 영역에 `Baseline` 카드(First baseline / Last baseline / Center quick actions)를 제공하고, Row가 아닐 때는 `Switch to Row + First baseline` one-click 전환 액션을 추가. children 분석 결과(Text/Non-text 존재 여부)를 배지로 노출해 혼합 행 판단을 빠르게 돕고, baseline 전용 액션은 비활성화해 오동작을 방지.
 - [x] Enter to commit, Escape to cancel
 - [x] Default text fill: black
 - [x] Text transform: None/Uppercase/Lowercase/Capitalize (visual + SVG export + CSS codegen)
