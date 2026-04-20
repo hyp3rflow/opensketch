@@ -3163,6 +3163,7 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] `Fix: suggest exit path` one-click 액션이 최고 점수 후보에 `OnPress + CloseOverlay|Back` 경로를 자동 주입
 - [x] quick-fix 버튼 tooltip에 상위 후보(최대 3개)를 표시해 적용 전 타깃 검토 가능
 - [x] 이슈 카드 하단에 후보 chip(`#id CloseOverlay|Back`)을 노출하고, 각 chip 클릭으로 해당 타깃에 one-click 적용 가능
+- [x] Escape Route Map 경고 카드에도 `Suggest exit` 버튼 + 추천 후보 메타를 추가해 lint 패널 이동 없이 바로 CloseOverlay/Back 경로를 주입 가능
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
 
 ### Flow Lint Owner Tagging (2026-04-20)

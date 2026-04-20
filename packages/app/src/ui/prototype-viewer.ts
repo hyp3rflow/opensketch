@@ -2795,6 +2795,7 @@ export function createPrototypeViewer(editor: Editor): {
       conditionalMeta.textContent = row.conditionalSummary;
       card.appendChild(conditionalMeta);
 
+      const overlaySuggestions = warn ? getOverlayExitSuggestions(row.frameId, row.overlayId) : [];
       if (warn) {
         const warnText = document.createElement("div");
         warnText.style.cssText = "font-size:9px;color:#fca5a5;line-height:1.35;";
@@ -2810,6 +2811,13 @@ export function createPrototypeViewer(editor: Editor): {
         if (row.conditionalMissSamples > 0) parts.push(`conditional route miss (Esc ${row.conditionalEscMiss} / Back ${row.conditionalBackMiss})`);
         warnText.textContent = `⚠ ${parts.join(" · ")}`;
         card.appendChild(warnText);
+
+        if (overlaySuggestions.length > 0) {
+          const suggestMeta = document.createElement("div");
+          suggestMeta.style.cssText = "font-size:9px;color:#fdba74;line-height:1.35;";
+          suggestMeta.textContent = `Suggested: ${overlaySuggestions.map((s) => `#${s.nodeId} ${s.action}`).join(" / ")}`;
+          card.appendChild(suggestMeta);
+        }
       }
 
       const btnRow = document.createElement("div");
@@ -2822,6 +2830,24 @@ export function createPrototypeViewer(editor: Editor): {
       btnRow.appendChild(jumpBtn);
 
       if (row.trapped || row.missingEsc || row.missingBack || row.escConditionalOnly || row.backConditionalOnly || row.escSimBroken || row.backSimBroken || row.conditionalMissSamples > 0) {
+        const suggestBtn = document.createElement("button");
+        suggestBtn.className = "prop-btn";
+        suggestBtn.textContent = "Suggest exit";
+        suggestBtn.style.cssText = "flex:1;font-size:10px;padding:3px 6px;color:#fdba74;border-color:rgba(251,146,60,0.55);";
+        if (overlaySuggestions.length > 0) suggestBtn.title = overlaySuggestions[0].label;
+        suggestBtn.onclick = () => {
+          editor.engine.push_undo();
+          const result = suggestOverlayExitPathFix(row.frameId, row.overlayId, overlaySuggestions[0]);
+          suggestBtn.textContent = result.changed ? `Added #${result.targetNodeId}` : "No-op";
+          window.setTimeout(() => { suggestBtn.textContent = "Suggest exit"; }, 1100);
+          if (result.changed) {
+            editor.requestRender();
+            renderFlowLint();
+            renderEscapeRouteMap();
+          }
+        };
+        btnRow.appendChild(suggestBtn);
+
         const fixBtn = document.createElement("button");
         fixBtn.className = "prop-btn";
         fixBtn.textContent = "Fix route";
