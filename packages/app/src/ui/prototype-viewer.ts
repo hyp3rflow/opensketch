@@ -382,7 +382,7 @@ function loadFlowLintOwnerTags(): FlowLintOwnerTagMap {
     const parsed = raw ? JSON.parse(raw) : {};
     if (!parsed || typeof parsed !== "object") return {};
     const out: FlowLintOwnerTagMap = {};
-    const validTypes = ["a11y-missing-label", "a11y-focus-gap", "a11y-focus-trap", "a11y-low-contrast", "a11y-motion", "dead-end", "unreachable", "cycle-trap", "cycle", "overlay-leak", "overlay-key-route", "overlay-depth-budget", "overlay-exit-latency", "scroll-leak", "orphan-close"];
+    const validTypes = ["a11y-missing-label", "a11y-focus-gap", "a11y-focus-trap", "a11y-low-contrast", "a11y-motion", "dead-end", "unreachable", "cycle-trap", "cycle", "overlay-leak", "overlay-cross-page-leak", "overlay-key-route", "overlay-depth-budget", "overlay-exit-latency", "scroll-leak", "orphan-close"];
     for (const type of validTypes) {
       const tag = normalizeOwnerTag((parsed as Record<string, unknown>)[type]);
       if (tag) out[type] = tag;
@@ -728,7 +728,7 @@ export function createPrototypeViewer(editor: Editor): {
   let flowStartFrameSel: HTMLSelectElement | null = null;
   let flowStartInfo: HTMLDivElement | null = null;
   const flowPresetCursor = new Map<string, number>();
-  type FlowLintIssueType = "unreachable" | "dead-end" | "cycle" | "cycle-trap" | "overlay-leak" | "overlay-key-route" | "overlay-depth-budget" | "overlay-exit-latency" | "orphan-close" | "scroll-leak" | "a11y-missing-label" | "a11y-focus-gap" | "a11y-focus-trap" | "a11y-low-contrast" | "a11y-motion";
+  type FlowLintIssueType = "unreachable" | "dead-end" | "cycle" | "cycle-trap" | "overlay-leak" | "overlay-cross-page-leak" | "overlay-key-route" | "overlay-depth-budget" | "overlay-exit-latency" | "orphan-close" | "scroll-leak" | "a11y-missing-label" | "a11y-focus-gap" | "a11y-focus-trap" | "a11y-low-contrast" | "a11y-motion";
   type OverlayExitSuggestion = { nodeId: number; action: "CloseOverlay" | "Back"; score: number; label: string };
   type FlowLintRunScope = "selection" | "page" | "flow";
   type FlowLintIssue = { type: FlowLintIssueType; frameId: number; frameName: string; detail: string; overlayId?: number; overlayPath?: number[]; overlayOffenders?: number[]; overlayBudget?: number; overlayRewritePlan?: string[]; overlayImpactNodeCount?: number; overlayExitSuggestions?: string[]; overlayExitSuggestionCandidates?: OverlayExitSuggestion[] };
@@ -4057,6 +4057,17 @@ export function createPrototypeViewer(editor: Editor): {
     if (flowLintScopeSel) flowLintScopeSel.value = lintScope;
     const activePageId = Number(selectedFlow?.page_id || editor.engine.get_active_page_id?.() || 0);
     const pageFrameIds = new Set<number>(listFramesForPage(activePageId).map((row) => Number(row.id)).filter((id) => Number.isFinite(id) && id > 0));
+    const framePageById = new Map<number, number>();
+    try {
+      const layers: any[] = JSON.parse(editor.engine.get_layer_list() || "[]") || [];
+      for (const layer of layers) {
+        const id = Number(layer?.id || 0);
+        const pageId = Number(layer?.page_id || 0);
+        if (id > 0 && pageId > 0 && String(layer?.kind || "") === "Frame") {
+          framePageById.set(id, pageId);
+        }
+      }
+    } catch {}
 
     const selectedNodeIds = new Set<number>();
     try {
@@ -4242,29 +4253,52 @@ export function createPrototypeViewer(editor: Editor): {
     const overlaysOpenByFrame = new Map<number, number>();
     const overlaysCloseByFrame = new Map<number, number>();
     const overlayTargetsByFrame = new Map<number, Set<number>>();
+    const crossPageOverlayTargetsByFrame = new Map<number, Array<{ overlayId: number; targetPageId: number }>>();
     const interactionRowsByFrame = new Map<number, any[]>();
     let allInteractionRows: any[] = [];
     try {
       const allInter: any[] = JSON.parse(editor.engine.get_all_interactions() || "[]") || [];
       allInteractionRows = allInter;
       for (const row of allInter) {
-        const from = Number(row?.id || 0);
+        const sourceNodeId = Number(row?.id || 0);
+        if (!sourceNodeId || sourceNodeId <= 0) continue;
+        let sourceFrameId = sourceNodeId;
+        if (!frameById.has(sourceFrameId)) {
+          try {
+            sourceFrameId = Number(editor.engine.find_parent_frame(BigInt(sourceNodeId)) || 0);
+          } catch {
+            sourceFrameId = 0;
+          }
+        }
+        if (!sourceFrameId || !frameById.has(sourceFrameId)) continue;
+
         const interactions: any[] = Array.isArray(row?.interactions) ? row.interactions : [];
-        interactionRowsByFrame.set(from, interactions);
-        if (!shouldInspectFrame(from)) continue;
+        const prevRows = interactionRowsByFrame.get(sourceFrameId) || [];
+        interactionRowsByFrame.set(sourceFrameId, prevRows.concat(interactions));
+        if (!shouldInspectFrame(sourceFrameId)) continue;
         for (const inter of interactions) {
           const action = String(inter?.action || "");
-          if (action === "Back") backByFrame.set(from, (backByFrame.get(from) || 0) + 1);
+          if (action === "Back") backByFrame.set(sourceFrameId, (backByFrame.get(sourceFrameId) || 0) + 1);
           if (action === "OpenOverlay") {
-            overlaysOpenByFrame.set(from, (overlaysOpenByFrame.get(from) || 0) + 1);
+            overlaysOpenByFrame.set(sourceFrameId, (overlaysOpenByFrame.get(sourceFrameId) || 0) + 1);
             const targetOverlayId = Number(inter?.target_node_id || 0);
             if (targetOverlayId > 0) {
-              const bucket = overlayTargetsByFrame.get(from) || new Set<number>();
+              const bucket = overlayTargetsByFrame.get(sourceFrameId) || new Set<number>();
               bucket.add(targetOverlayId);
-              overlayTargetsByFrame.set(from, bucket);
+              overlayTargetsByFrame.set(sourceFrameId, bucket);
+              if (lintScope === "page") {
+                const targetPageId = Number(framePageById.get(targetOverlayId) || 0);
+                if (targetPageId > 0 && targetPageId !== activePageId) {
+                  const leakRows = crossPageOverlayTargetsByFrame.get(sourceFrameId) || [];
+                  if (!leakRows.some((item) => item.overlayId === targetOverlayId && item.targetPageId === targetPageId)) {
+                    leakRows.push({ overlayId: targetOverlayId, targetPageId });
+                    crossPageOverlayTargetsByFrame.set(sourceFrameId, leakRows);
+                  }
+                }
+              }
             }
           }
-          if (action === "CloseOverlay") overlaysCloseByFrame.set(from, (overlaysCloseByFrame.get(from) || 0) + 1);
+          if (action === "CloseOverlay") overlaysCloseByFrame.set(sourceFrameId, (overlaysCloseByFrame.get(sourceFrameId) || 0) + 1);
         }
       }
     } catch {}
@@ -4409,6 +4443,18 @@ export function createPrototypeViewer(editor: Editor): {
         issues.push({ type: "overlay-leak", frameId: node.id, frameName: node.name, detail: `Opens overlay ${openCount}x but never closes it` });
       } else if (closeCount > 0 && openCount === 0) {
         issues.push({ type: "orphan-close", frameId: node.id, frameName: node.name, detail: `CloseOverlay ${closeCount}x without local OpenOverlay trigger` });
+      }
+      if (lintScope === "page") {
+        const crossPageRows = crossPageOverlayTargetsByFrame.get(node.id) || [];
+        for (const leak of crossPageRows) {
+          issues.push({
+            type: "overlay-cross-page-leak",
+            frameId: node.id,
+            frameName: node.name,
+            overlayId: leak.overlayId,
+            detail: `OpenOverlay targets #${leak.overlayId} on page #${leak.targetPageId} (current page #${activePageId})`,
+          });
+        }
       }
 
       const depthBudget = overlayDepthBudgetByFrame.get(node.id);
@@ -4687,6 +4733,7 @@ export function createPrototypeViewer(editor: Editor): {
     const cycleCount = issues.filter((i) => i.type === "cycle").length;
     const cycleTrapCount = issues.filter((i) => i.type === "cycle-trap").length;
     const overlayLeakCount = issues.filter((i) => i.type === "overlay-leak").length;
+    const overlayCrossPageLeakCount = issues.filter((i) => i.type === "overlay-cross-page-leak").length;
     const orphanCloseCount = issues.filter((i) => i.type === "orphan-close").length;
     const overlayKeyRouteCount = issues.filter((i) => i.type === "overlay-key-route").length;
     const overlayDepthBudgetCount = issues.filter((i) => i.type === "overlay-depth-budget").length;
@@ -4703,7 +4750,7 @@ export function createPrototypeViewer(editor: Editor): {
       : lintScope === "page"
         ? `${scopedFrameIds.size} frame(s) on page`
         : `${scopedFrameIds.size} reachable frame(s)`;
-    flowLintInfo.textContent = `Scope ${scopeLabel} (${scopeMeta}) · Guard ${overlayGuardPreset.label} · Severity ${severityProfile.label} · Start #${startFrameId} · Dead-end ${deadEndCount} · Unreachable ${unreachableCount} · Cycles ${cycleCount}/${cycleTrapCount} · Overlay ${overlayLeakCount}/${overlayKeyRouteCount}/${overlayDepthBudgetCount}/${overlayExitLatencyCount}/${orphanCloseCount}/Scroll ${scrollLeakCount} · A11y ${missingLabelCount}/${focusGapCount}/${focusTrapCount}/${lowContrastCount}/${motionGuardrailCount}`;
+    flowLintInfo.textContent = `Scope ${scopeLabel} (${scopeMeta}) · Guard ${overlayGuardPreset.label} · Severity ${severityProfile.label} · Start #${startFrameId} · Dead-end ${deadEndCount} · Unreachable ${unreachableCount} · Cycles ${cycleCount}/${cycleTrapCount} · Overlay ${overlayLeakCount}/${overlayCrossPageLeakCount}/${overlayKeyRouteCount}/${overlayDepthBudgetCount}/${overlayExitLatencyCount}/${orphanCloseCount}/Scroll ${scrollLeakCount} · A11y ${missingLabelCount}/${focusGapCount}/${focusTrapCount}/${lowContrastCount}/${motionGuardrailCount}`;
     renderFlowLintDiffReport(lintScope, `${overlayGuardPreset.label}/${severityProfile.label}`);
 
     flowLintList.innerHTML = "";
@@ -4737,11 +4784,12 @@ export function createPrototypeViewer(editor: Editor): {
       "unreachable": 7,
       "cycle": 8,
       "overlay-leak": 9,
-      "overlay-key-route": 10,
-      "overlay-depth-budget": 11,
-      "overlay-exit-latency": 12,
-      "scroll-leak": 13,
-      "orphan-close": 14,
+      "overlay-cross-page-leak": 10,
+      "overlay-key-route": 11,
+      "overlay-depth-budget": 12,
+      "overlay-exit-latency": 13,
+      "scroll-leak": 14,
+      "orphan-close": 15,
     };
     const now = Date.now();
     const liveSlaKeys = new Set<string>();
@@ -4782,7 +4830,7 @@ export function createPrototypeViewer(editor: Editor): {
       if (flowLintOwnerSlaSortMode === "sla-desc") return startedAtA - startedAtB || rankDelta;
       return startedAtB - startedAtA || rankDelta;
     });
-    const issueTypes: FlowLintIssueType[] = ["a11y-missing-label", "a11y-focus-gap", "a11y-focus-trap", "a11y-low-contrast", "a11y-motion", "dead-end", "unreachable", "cycle-trap", "cycle", "overlay-leak", "overlay-key-route", "overlay-depth-budget", "overlay-exit-latency", "scroll-leak", "orphan-close"];
+    const issueTypes: FlowLintIssueType[] = ["a11y-missing-label", "a11y-focus-gap", "a11y-focus-trap", "a11y-low-contrast", "a11y-motion", "dead-end", "unreachable", "cycle-trap", "cycle", "overlay-leak", "overlay-cross-page-leak", "overlay-key-route", "overlay-depth-budget", "overlay-exit-latency", "scroll-leak", "orphan-close"];
     if (flowLintFilterTypes.size === 0) {
       for (const t of issueTypes) flowLintFilterTypes.add(t);
     }
@@ -4942,8 +4990,10 @@ export function createPrototypeViewer(editor: Editor): {
                       ? "#ef4444"
                       : issue.type === "overlay-leak"
                         ? "#fb7185"
-                        : issue.type === "overlay-key-route"
-                          ? "#f97316"
+                        : issue.type === "overlay-cross-page-leak"
+                          ? "#e879f9"
+                          : issue.type === "overlay-key-route"
+                            ? "#f97316"
                           : issue.type === "overlay-depth-budget"
                             ? "#fb7185"
                             : issue.type === "overlay-exit-latency"
