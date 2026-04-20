@@ -3197,6 +3197,13 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] SLA 정렬 모드는 localStorage(`opensketch-flow-lint-owner-sla-sort-v1`)에 저장되어 재진입 후 복원
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
 
+### Flow Lint Digest Composer (2026-04-21)
+- [x] Flow Lint Owner 섹션에 `Copy Digest Slack` / `Copy Digest Discord` 버튼을 추가해 공유용 요약 텍스트를 one-click 복사
+- [x] digest는 owner 기준으로 이슈를 그룹화하고, owner별 타입 카운트 + 대표 이슈(최대 3개) + 나머지 개수를 함께 포함
+- [x] digest 메타에 scope/profile/total issue 수를 포함해 lint 실행 컨텍스트를 그대로 전달
+- [x] owner 태그가 없는 이슈는 `@unassigned` 버킷으로 자동 집계
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+
 ### Overlay Escape Replay Test Cases (2026-04-20)
 - [x] Overlay Escape Key Route Inspector에 `Generate replay` / `Copy cases` 액션을 추가해 Esc/Back 회귀 케이스를 자동 생성
 - [x] 케이스는 Esc/Back 각각 expected pass/fail, expected steps, route summary, snapshot label(PASS/FAIL) 메타를 포함

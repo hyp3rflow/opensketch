@@ -3597,6 +3597,49 @@ export function createPrototypeViewer(editor: Editor): {
     return lines.join("\n");
   }
 
+  function buildFlowLintOwnerDigest(channel: "slack" | "discord", lintScope: FlowLintRunScope, presetLabel: string): string {
+    const issues = flowLintSnapshot?.issues || [];
+    const grouped = new Map<string, FlowLintIssue[]>();
+    for (const issue of issues) {
+      const owner = flowLintOwnerTags[issue.type] || "@unassigned";
+      const list = grouped.get(owner) || [];
+      list.push(issue);
+      grouped.set(owner, list);
+    }
+    const rows = Array.from(grouped.entries())
+      .sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]));
+    const nowLabel = new Date().toLocaleString();
+    const title = channel === "slack" ? "*Flow Lint Digest*" : "**Flow Lint Digest**";
+    const bullet = channel === "slack" ? "•" : "-";
+    const lines = [
+      `${title} (${nowLabel})`,
+      `${bullet} scope: ${lintScope}`,
+      `${bullet} profile: ${presetLabel}`,
+      `${bullet} issue count: ${issues.length}`,
+      "",
+    ];
+    if (rows.length === 0) {
+      lines.push(`${bullet} No issues.`);
+      return lines.join("\n");
+    }
+    for (const [owner, ownerIssues] of rows) {
+      const countByType = new Map<FlowLintIssueType, number>();
+      for (const issue of ownerIssues) countByType.set(issue.type, (countByType.get(issue.type) || 0) + 1);
+      const typeSummary = Array.from(countByType.entries())
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+        .map(([type, count]) => `${type} ${count}`)
+        .join(", ");
+      lines.push(`${owner} — ${ownerIssues.length} issue(s)`);
+      lines.push(`${bullet} ${typeSummary}`);
+      for (const issue of ownerIssues.slice(0, 3)) {
+        lines.push(`${bullet} ${issue.type} · ${issue.frameName} (#${issue.frameId})${issue.overlayId ? ` · overlay #${issue.overlayId}` : ""}`);
+      }
+      if (ownerIssues.length > 3) lines.push(`${bullet} +${ownerIssues.length - 3} more`);
+      lines.push("");
+    }
+    return lines.join("\n").trim();
+  }
+
   function renderFlowLintDiffReport(lintScope: FlowLintRunScope, presetLabel: string) {
     if (!flowLintDiffInfo || !flowLintDiffList || !flowLintSnapshot) return;
     const currentIssues = flowLintSnapshot.issues || [];
@@ -3630,6 +3673,7 @@ export function createPrototypeViewer(editor: Editor): {
     const newRows: string[] = [];
     const resolvedRows: string[] = [];
     const regressionRows: string[] = [];
+
     const anchors = new Set<string>([...currentByAnchor.keys(), ...baselineByAnchor.keys()]);
     for (const anchor of anchors) {
       const curr = currentByAnchor.get(anchor) || [];
@@ -5916,6 +5960,50 @@ export function createPrototypeViewer(editor: Editor): {
     };
     flowLintOwnerBtnRow.appendChild(flowLintOwnerSlaResetBtn);
     flowLintOwnerRow.appendChild(flowLintOwnerBtnRow);
+
+    const flowLintDigestRow = document.createElement("div");
+    flowLintDigestRow.style.cssText = "display:flex;gap:4px;";
+    const flowLintDigestSlackBtn = document.createElement("button");
+    flowLintDigestSlackBtn.className = "prop-btn";
+    flowLintDigestSlackBtn.style.cssText = "flex:1;font-size:9px;padding:2px 6px;";
+    flowLintDigestSlackBtn.textContent = "Copy Digest Slack";
+    flowLintDigestSlackBtn.onclick = async () => {
+      const lintScope = resolveFlowLintScope(flowLintScopeSel?.value);
+      const presetLabel = `${resolveOverlayGuardPreset(flowLintPresetSel?.value).label}/${resolveFlowLintSeverityProfile(flowLintSeveritySel?.value).label}`;
+      const payload = buildFlowLintOwnerDigest("slack", lintScope, presetLabel);
+      try {
+        await navigator.clipboard.writeText(payload);
+        flowLintDigestSlackBtn.textContent = "Copied Slack";
+      } catch {
+        flowLintDigestSlackBtn.textContent = "Copy failed";
+      }
+      window.setTimeout(() => {
+        flowLintDigestSlackBtn.textContent = "Copy Digest Slack";
+      }, 1000);
+    };
+    flowLintDigestRow.appendChild(flowLintDigestSlackBtn);
+
+    const flowLintDigestDiscordBtn = document.createElement("button");
+    flowLintDigestDiscordBtn.className = "prop-btn";
+    flowLintDigestDiscordBtn.style.cssText = "flex:1;font-size:9px;padding:2px 6px;";
+    flowLintDigestDiscordBtn.textContent = "Copy Digest Discord";
+    flowLintDigestDiscordBtn.onclick = async () => {
+      const lintScope = resolveFlowLintScope(flowLintScopeSel?.value);
+      const presetLabel = `${resolveOverlayGuardPreset(flowLintPresetSel?.value).label}/${resolveFlowLintSeverityProfile(flowLintSeveritySel?.value).label}`;
+      const payload = buildFlowLintOwnerDigest("discord", lintScope, presetLabel);
+      try {
+        await navigator.clipboard.writeText(payload);
+        flowLintDigestDiscordBtn.textContent = "Copied Discord";
+      } catch {
+        flowLintDigestDiscordBtn.textContent = "Copy failed";
+      }
+      window.setTimeout(() => {
+        flowLintDigestDiscordBtn.textContent = "Copy Digest Discord";
+      }, 1000);
+    };
+    flowLintDigestRow.appendChild(flowLintDigestDiscordBtn);
+    flowLintOwnerRow.appendChild(flowLintDigestRow);
+
     flowLintWrap.appendChild(flowLintOwnerRow);
 
     const flowLintExportRow = document.createElement("div");

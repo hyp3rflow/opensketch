@@ -1790,10 +1790,17 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Flow Lint Digest Composer — owner별 이슈를 묶어 Slack/Discord 공유용 digest 텍스트 자동 생성 (임팩트 중, 난이도 중)
 - Flow Lint Snapshot History Timeline — lint 실행 스냅샷(최대 N개) 타임라인 저장/선택 비교 + run notes 메모 (임팩트 중, 난이도 중)
 - Owner SLA Escalation Rules — SLA 임계값별(24h/48h/72h) 색상/정렬 가중치 + escalation only 필터 (임팩트 중상, 난이도 중상)
 - Flow Lint Digest Delivery Presets — Discord/Slack 템플릿 프리셋 + owner mention 매핑 저장 (임팩트 중, 난이도 중)
+
+## 완료된 기능 (추가 — Flow Lint Digest Composer, 2026-04-21)
+- Flow Lint Owner 영역에 `Copy Digest Slack` / `Copy Digest Discord` 버튼 추가
+- owner 태그 기준으로 이슈를 그룹화해 owner별 타입 카운트 + 대표 이슈(최대 3개) + 잔여 개수를 자동 요약
+- digest 헤더에 scope/profile/issue count 메타를 포함해 공유 시 실행 컨텍스트 보존
+- owner 미지정 이슈는 `@unassigned` 버킷으로 자동 집계
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Overlay Exit Suggestion A/B Presets, 2026-04-21)
 - Overlay Exit 추천 점수 프리셋을 `Conservative / Balanced / Aggressive` 3종으로 분리하고 가중치(클릭성/라벨/안정성/거리/조건부 패널티)를 preset별로 적용
