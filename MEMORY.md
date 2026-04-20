@@ -1790,9 +1790,15 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Flow Lint Snapshot History Timeline — lint 실행 스냅샷(최대 N개) 타임라인 저장/선택 비교 + run notes 메모 (임팩트 중, 난이도 중)
 - Owner SLA Escalation Rules — SLA 임계값별(24h/48h/72h) 색상/정렬 가중치 + escalation only 필터 (임팩트 중상, 난이도 중상)
 - Flow Lint Digest Delivery Presets — Discord/Slack 템플릿 프리셋 + owner mention 매핑 저장 (임팩트 중, 난이도 중)
+
+## 완료된 기능 (추가 — Flow Lint Snapshot History Timeline, 2026-04-21)
+- Flow Lint `Lint Snapshot Diff`에 run note 입력 + 히스토리 타임라인(최대 20개)을 추가
+- Capture 시 baseline과 함께 `scope/profile/issues/note` 스냅샷을 localStorage(`opensketch-flow-lint-history-v1`)에 누적 저장
+- 히스토리 항목 `Use` 버튼으로 과거 run을 baseline으로 복원해 현재 lint run과 즉시 비교
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Flow Lint Digest Composer, 2026-04-21)
 - Flow Lint Owner 영역에 `Copy Digest Slack` / `Copy Digest Discord` 버튼 추가

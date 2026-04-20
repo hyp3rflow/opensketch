@@ -3204,6 +3204,13 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] owner 태그가 없는 이슈는 `@unassigned` 버킷으로 자동 집계
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
 
+### Flow Lint Snapshot History Timeline (2026-04-21)
+- [x] `Lint Snapshot Diff`에 run note 입력 + 히스토리 타임라인(최대 20개)을 추가해 lint 실행 스냅샷을 누적 저장
+- [x] Capture 시 baseline 저장과 함께 `scope/profile/issues/note`를 localStorage(`opensketch-flow-lint-history-v1`)에 기록
+- [x] 타임라인의 `Use` 버튼으로 과거 run을 baseline으로 즉시 복원해 현재 run과 선택 비교 가능
+- [x] 저장된 히스토리는 Prototype Viewer 재진입 후에도 자동 복원
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+
 ### Overlay Escape Replay Test Cases (2026-04-20)
 - [x] Overlay Escape Key Route Inspector에 `Generate replay` / `Copy cases` 액션을 추가해 Esc/Back 회귀 케이스를 자동 생성
 - [x] 케이스는 Esc/Back 각각 expected pass/fail, expected steps, route summary, snapshot label(PASS/FAIL) 메타를 포함

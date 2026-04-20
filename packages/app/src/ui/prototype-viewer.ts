@@ -26,11 +26,14 @@ const PROTOTYPE_OVERLAY_GUARD_PRESET_KEY = "opensketch-prototype-overlay-guard-p
 const PROTOTYPE_FLOW_LINT_SEVERITY_PROFILE_KEY = "opensketch-flow-lint-severity-profile-v1";
 const PROTOTYPE_FLOW_LINT_RISK_TREND_KEY = "opensketch-flow-lint-risk-trend-v1";
 const PROTOTYPE_FLOW_LINT_DIFF_BASELINE_KEY = "opensketch-flow-lint-diff-baseline-v1";
+const PROTOTYPE_FLOW_LINT_HISTORY_KEY = "opensketch-flow-lint-history-v1";
 const PROTOTYPE_FLOW_LINT_OWNER_SLA_KEY = "opensketch-flow-lint-owner-sla-v1";
 const PROTOTYPE_FLOW_LINT_OWNER_SLA_SORT_KEY = "opensketch-flow-lint-owner-sla-sort-v1";
+const PROTOTYPE_FLOW_LINT_SCOPE_PRESETS_KEY = "opensketch-flow-lint-scope-presets-v1";
 const PROTOTYPE_OVERLAY_EXIT_SUGGEST_PRESET_A_KEY = "opensketch-overlay-exit-suggest-preset-a-v1";
 const PROTOTYPE_OVERLAY_EXIT_SUGGEST_PRESET_B_KEY = "opensketch-overlay-exit-suggest-preset-b-v1";
 const FLOW_LINT_RISK_TREND_MAX_RUNS = 12;
+const FLOW_LINT_HISTORY_MAX_RUNS = 20;
 
 type FlowEntryPreset = { frameId: number; label: string; pageId?: number };
 type RingPresetSafetyBucket = "safe" | "watch" | "risky";
@@ -440,6 +443,31 @@ function saveFlowLintOwnerSlaSortMode(mode: FlowLintOwnerSlaSortMode) {
   } catch {}
 }
 
+type FlowLintScopePresetMap = Record<string, FlowLintRunScope>;
+
+function loadFlowLintScopePresets(): FlowLintScopePresetMap {
+  try {
+    const raw = localStorage.getItem(PROTOTYPE_FLOW_LINT_SCOPE_PRESETS_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    if (!parsed || typeof parsed !== "object") return {};
+    const out: FlowLintScopePresetMap = {};
+    for (const [rawFlowId, rawScope] of Object.entries(parsed as Record<string, unknown>)) {
+      const flowId = Number(rawFlowId);
+      if (!Number.isFinite(flowId) || flowId <= 0) continue;
+      out[String(Math.floor(flowId))] = resolveFlowLintScope(String(rawScope || ""));
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+function saveFlowLintScopePresets(presets: FlowLintScopePresetMap) {
+  try {
+    localStorage.setItem(PROTOTYPE_FLOW_LINT_SCOPE_PRESETS_KEY, JSON.stringify(presets));
+  } catch {}
+}
+
 function parseFlowLintOwnerTagsInput(raw: string): FlowLintOwnerTagMap {
   const out: FlowLintOwnerTagMap = {};
   const chunks = String(raw || "").split(/[\n,]+/);
@@ -704,6 +732,8 @@ export function createPrototypeViewer(editor: Editor): {
   let flowLintDiffInfo: HTMLDivElement | null = null;
   let flowLintDiffList: HTMLDivElement | null = null;
   let flowLintDiffCopyBtn: HTMLButtonElement | null = null;
+  let flowLintHistoryNoteInput: HTMLInputElement | null = null;
+  let flowLintHistoryTimeline: HTMLDivElement | null = null;
   let flowLintOwnerSlaSortSel: HTMLSelectElement | null = null;
   let flowLintExportJsonBtn: HTMLButtonElement | null = null;
   let flowLintExportMdBtn: HTMLButtonElement | null = null;
@@ -731,6 +761,7 @@ export function createPrototypeViewer(editor: Editor): {
   let condDebugInfo: HTMLDivElement | null = null;
   let condDebugList: HTMLDivElement | null = null;
   type FlowLintDiffBaselineSnapshot = { at: number; scope: FlowLintRunScope; presetLabel: string; startFrameId: number | null; issues: FlowLintIssue[] };
+  type FlowLintHistorySnapshot = FlowLintDiffBaselineSnapshot & { id: string; note: string };
   function cloneFlowLintIssue(issue: FlowLintIssue): FlowLintIssue {
     return {
       ...issue,
@@ -758,63 +789,93 @@ export function createPrototypeViewer(editor: Editor): {
     } catch {}
   }
 
+  function parseFlowLintSnapshotRecord(parsed: any): FlowLintDiffBaselineSnapshot | null {
+    if (!parsed || typeof parsed !== "object") return null;
+    const at = Number((parsed as any).at || 0);
+    if (!at || !Number.isFinite(at)) return null;
+    const scope = resolveFlowLintScope((parsed as any).scope);
+    const presetLabel = String((parsed as any).presetLabel || "baseline").slice(0, 80);
+    const startFrameIdRaw = Number((parsed as any).startFrameId || 0);
+    const startFrameId = startFrameIdRaw > 0 ? startFrameIdRaw : null;
+    const issuesRaw = Array.isArray((parsed as any).issues) ? (parsed as any).issues : [];
+    const issues: FlowLintIssue[] = [];
+    for (const row of issuesRaw) {
+      if (!row || typeof row !== "object") continue;
+      const type = String((row as any).type || "") as FlowLintIssueType;
+      const frameId = Number((row as any).frameId || 0);
+      const frameName = String((row as any).frameName || "").trim();
+      const detail = String((row as any).detail || "").trim();
+      if (!type || !frameId || !frameName || !detail) continue;
+      issues.push(cloneFlowLintIssue({
+        type,
+        frameId,
+        frameName,
+        detail,
+        overlayId: Number((row as any).overlayId || 0) || undefined,
+        overlayPath: Array.isArray((row as any).overlayPath) ? (row as any).overlayPath.map((v: unknown) => Number(v)).filter((v: number) => Number.isFinite(v)) : undefined,
+        overlayOffenders: Array.isArray((row as any).overlayOffenders) ? (row as any).overlayOffenders.map((v: unknown) => Number(v)).filter((v: number) => Number.isFinite(v)) : undefined,
+        overlayBudget: Number((row as any).overlayBudget || 0) || undefined,
+        overlayRewritePlan: Array.isArray((row as any).overlayRewritePlan) ? (row as any).overlayRewritePlan.map((v: unknown) => String(v)) : undefined,
+        overlayImpactNodeCount: Number((row as any).overlayImpactNodeCount || 0) || undefined,
+        overlayExitSuggestions: Array.isArray((row as any).overlayExitSuggestions) ? (row as any).overlayExitSuggestions.map((v: unknown) => String(v)) : undefined,
+        overlayExitSuggestionCandidates: Array.isArray((row as any).overlayExitSuggestionCandidates)
+          ? (row as any).overlayExitSuggestionCandidates
+            .map((candidate: any) => ({
+              nodeId: Number(candidate?.nodeId || 0),
+              action: candidate?.action === "Back" ? "Back" : "CloseOverlay",
+              score: Number(candidate?.score || 0),
+              label: String(candidate?.label || "").trim(),
+            }))
+            .filter((candidate: OverlayExitSuggestion) => candidate.nodeId > 0 && !!candidate.label)
+          : undefined,
+      }));
+    }
+    return { at, scope, presetLabel, startFrameId, issues };
+  }
+
   function loadFlowLintDiffBaseline(): FlowLintDiffBaselineSnapshot | null {
     try {
       const raw = localStorage.getItem(PROTOTYPE_FLOW_LINT_DIFF_BASELINE_KEY);
       if (!raw) return null;
-      const parsed = JSON.parse(raw) as Partial<FlowLintDiffBaselineSnapshot> | null;
-      if (!parsed || typeof parsed !== "object") return null;
-      const at = Number((parsed as any).at || 0);
-      if (!at || !Number.isFinite(at)) return null;
-      const scope = resolveFlowLintScope((parsed as any).scope);
-      const presetLabel = String((parsed as any).presetLabel || "baseline").slice(0, 80);
-      const startFrameIdRaw = Number((parsed as any).startFrameId || 0);
-      const startFrameId = startFrameIdRaw > 0 ? startFrameIdRaw : null;
-      const issuesRaw = Array.isArray((parsed as any).issues) ? (parsed as any).issues : [];
-      const issues: FlowLintIssue[] = [];
-      for (const row of issuesRaw) {
-        if (!row || typeof row !== "object") continue;
-        const type = String((row as any).type || "") as FlowLintIssueType;
-        const frameId = Number((row as any).frameId || 0);
-        const frameName = String((row as any).frameName || "").trim();
-        const detail = String((row as any).detail || "").trim();
-        if (!type || !frameId || !frameName || !detail) continue;
-        issues.push(cloneFlowLintIssue({
-          type,
-          frameId,
-          frameName,
-          detail,
-          overlayId: Number((row as any).overlayId || 0) || undefined,
-          overlayPath: Array.isArray((row as any).overlayPath) ? (row as any).overlayPath.map((v: unknown) => Number(v)).filter((v: number) => Number.isFinite(v)) : undefined,
-          overlayOffenders: Array.isArray((row as any).overlayOffenders) ? (row as any).overlayOffenders.map((v: unknown) => Number(v)).filter((v: number) => Number.isFinite(v)) : undefined,
-          overlayBudget: Number((row as any).overlayBudget || 0) || undefined,
-          overlayRewritePlan: Array.isArray((row as any).overlayRewritePlan) ? (row as any).overlayRewritePlan.map((v: unknown) => String(v)) : undefined,
-          overlayImpactNodeCount: Number((row as any).overlayImpactNodeCount || 0) || undefined,
-          overlayExitSuggestions: Array.isArray((row as any).overlayExitSuggestions) ? (row as any).overlayExitSuggestions.map((v: unknown) => String(v)) : undefined,
-          overlayExitSuggestionCandidates: Array.isArray((row as any).overlayExitSuggestionCandidates)
-            ? (row as any).overlayExitSuggestionCandidates
-              .map((candidate: any) => ({
-                nodeId: Number(candidate?.nodeId || 0),
-                action: candidate?.action === "Back" ? "Back" : "CloseOverlay",
-                score: Number(candidate?.score || 0),
-                label: String(candidate?.label || "").trim(),
-              }))
-              .filter((candidate: OverlayExitSuggestion) => candidate.nodeId > 0 && !!candidate.label)
-            : undefined,
-        }));
-      }
-      return { at, scope, presetLabel, startFrameId, issues };
+      return parseFlowLintSnapshotRecord(JSON.parse(raw));
     } catch {
       return null;
     }
   }
 
+  function loadFlowLintHistorySnapshots(): FlowLintHistorySnapshot[] {
+    try {
+      const raw = localStorage.getItem(PROTOTYPE_FLOW_LINT_HISTORY_KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+      if (!Array.isArray(parsed)) return [];
+      const rows: FlowLintHistorySnapshot[] = [];
+      for (const row of parsed) {
+        const snap = parseFlowLintSnapshotRecord(row);
+        if (!snap) continue;
+        const id = String((row as any)?.id || `${snap.at}-${Math.random().toString(36).slice(2, 8)}`);
+        const note = String((row as any)?.note || "").trim().slice(0, 120);
+        rows.push({ ...snap, id, note });
+      }
+      return rows.slice(-FLOW_LINT_HISTORY_MAX_RUNS);
+    } catch {
+      return [];
+    }
+  }
+
+  function saveFlowLintHistorySnapshots(rows: FlowLintHistorySnapshot[]) {
+    try {
+      localStorage.setItem(PROTOTYPE_FLOW_LINT_HISTORY_KEY, JSON.stringify(rows.slice(-FLOW_LINT_HISTORY_MAX_RUNS)));
+    } catch {}
+  }
+
   let flowLintSnapshot: { startFrameId: number | null; issues: FlowLintIssue[]; } | null = null;
   let flowLintDiffBaseline: FlowLintDiffBaselineSnapshot | null = loadFlowLintDiffBaseline();
+  let flowLintHistorySnapshots: FlowLintHistorySnapshot[] = loadFlowLintHistorySnapshots();
   let flowLintRiskTrend: FlowLintRiskTrendEntry[] = loadFlowLintRiskTrend();
   let flowLintOwnerTags: FlowLintOwnerTagMap = loadFlowLintOwnerTags();
   let flowLintOwnerSlaMap: FlowLintOwnerSlaMap = loadFlowLintOwnerSlaMap();
   let flowLintOwnerSlaSortMode: FlowLintOwnerSlaSortMode = loadFlowLintOwnerSlaSortMode();
+  let flowLintScopePresets: FlowLintScopePresetMap = loadFlowLintScopePresets();
   let flowLintFilterTypes = new Set<FlowLintIssueType>();
   let flowLintRenderedIssues: FlowLintIssue[] = [];
   let flowLintNavIndex = -1;
@@ -1679,6 +1740,8 @@ export function createPrototypeViewer(editor: Editor): {
         }
       }
     }
+
+    applyFlowLintScopePresetForFlow(selectedFlowId);
   }
 
   function resolveInteractionCondition(inter: any): any | null {
@@ -3504,6 +3567,27 @@ export function createPrototypeViewer(editor: Editor): {
     return "flow";
   }
 
+  function applyFlowLintScopePresetForFlow(flowId: number | null | undefined) {
+    if (!flowLintScopeSel) return;
+    const key = String(Math.max(0, Math.floor(Number(flowId || 0))));
+    const nextScope = key !== "0" ? resolveFlowLintScope(flowLintScopePresets[key]) : "flow";
+    flowLintScopeSel.value = nextScope;
+  }
+
+  function saveFlowLintScopePresetForCurrentFlow() {
+    if (!flowLintScopeSel) return;
+    const flowId = Number(flowStartFlowSel?.value || 0);
+    if (!Number.isFinite(flowId) || flowId <= 0) return;
+    const key = String(Math.floor(flowId));
+    const nextScope = resolveFlowLintScope(flowLintScopeSel.value);
+    if (flowLintScopePresets[key] === nextScope) return;
+    flowLintScopePresets = {
+      ...flowLintScopePresets,
+      [key]: nextScope,
+    };
+    saveFlowLintScopePresets(flowLintScopePresets);
+  }
+
   function makeFlowLintAnchorKey(issue: FlowLintIssue): string {
     return `${issue.type}|${issue.frameId}|${issue.overlayId || 0}`;
   }
@@ -3640,7 +3724,46 @@ export function createPrototypeViewer(editor: Editor): {
     return lines.join("\n").trim();
   }
 
+  function renderFlowLintHistoryTimeline() {
+    if (!flowLintHistoryTimeline) return;
+    flowLintHistoryTimeline.innerHTML = "";
+    if (flowLintHistorySnapshots.length === 0) {
+      const empty = document.createElement("div");
+      empty.style.cssText = "font-size:9px;color:#64748b;";
+      empty.textContent = "No saved runs.";
+      flowLintHistoryTimeline.appendChild(empty);
+      return;
+    }
+    for (const row of [...flowLintHistorySnapshots].reverse()) {
+      const line = document.createElement("div");
+      line.style.cssText = "display:flex;align-items:center;gap:4px;";
+      const useBtn = document.createElement("button");
+      useBtn.className = "prop-btn";
+      useBtn.style.cssText = "font-size:8px;padding:1px 4px;";
+      useBtn.textContent = "Use";
+      useBtn.onclick = () => {
+        flowLintDiffBaseline = {
+          at: row.at,
+          scope: row.scope,
+          presetLabel: row.presetLabel,
+          startFrameId: row.startFrameId,
+          issues: row.issues.map(cloneFlowLintIssue),
+        };
+        saveFlowLintDiffBaseline(flowLintDiffBaseline);
+        renderFlowLint();
+      };
+      const label = document.createElement("div");
+      label.style.cssText = "font-size:9px;color:#93c5fd;line-height:1.25;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
+      const noteLabel = row.note ? ` · ${row.note}` : "";
+      label.textContent = `${new Date(row.at).toLocaleTimeString()} (${row.scope})${noteLabel}`;
+      line.appendChild(useBtn);
+      line.appendChild(label);
+      flowLintHistoryTimeline.appendChild(line);
+    }
+  }
+
   function renderFlowLintDiffReport(lintScope: FlowLintRunScope, presetLabel: string) {
+    renderFlowLintHistoryTimeline();
     if (!flowLintDiffInfo || !flowLintDiffList || !flowLintSnapshot) return;
     const currentIssues = flowLintSnapshot.issues || [];
     if (!flowLintDiffBaseline) {
@@ -5650,6 +5773,7 @@ export function createPrototypeViewer(editor: Editor): {
 
     flowStartFlowSel.addEventListener("change", () => {
       renderFlowStartManager();
+      applyFlowLintScopePresetForFlow(Number(flowStartFlowSel?.value || 0));
       renderFlowLint();
     });
     flowStartFrameSel.addEventListener("change", () => {
@@ -5678,7 +5802,10 @@ export function createPrototypeViewer(editor: Editor): {
     flowLintScopeSel.style.cssText = "flex:1;background:#0f172a;color:#f8fafc;border:1px solid rgba(148,163,184,0.35);border-radius:6px;padding:3px 6px;font-size:10px;";
     flowLintScopeSel.innerHTML = "<option value=\"selection\">Selection</option><option value=\"page\">Page</option><option value=\"flow\">Flow</option>";
     flowLintScopeSel.value = "flow";
-    flowLintScopeSel.onchange = () => renderFlowLint();
+    flowLintScopeSel.onchange = () => {
+      saveFlowLintScopePresetForCurrentFlow();
+      renderFlowLint();
+    };
     flowLintScopeRow.appendChild(flowLintScopeSel);
     flowLintWrap.appendChild(flowLintScopeRow);
 
@@ -5843,14 +5970,24 @@ export function createPrototypeViewer(editor: Editor): {
       if (!flowLintSnapshot) return;
       const lintScope = resolveFlowLintScope(flowLintScopeSel?.value);
       const presetLabel = `${resolveOverlayGuardPreset(flowLintPresetSel?.value).label}/${resolveFlowLintSeverityProfile(flowLintSeveritySel?.value).label}`;
+      const at = Date.now();
       flowLintDiffBaseline = {
-        at: Date.now(),
+        at,
         scope: lintScope,
         presetLabel,
         startFrameId: flowLintSnapshot.startFrameId,
         issues: flowLintSnapshot.issues.map(cloneFlowLintIssue),
       };
       saveFlowLintDiffBaseline(flowLintDiffBaseline);
+      const note = String(flowLintHistoryNoteInput?.value || "").trim().slice(0, 120);
+      const historyRow: FlowLintHistorySnapshot = {
+        id: `${at}-${Math.random().toString(36).slice(2, 8)}`,
+        note,
+        ...flowLintDiffBaseline,
+      };
+      flowLintHistorySnapshots = [...flowLintHistorySnapshots, historyRow].slice(-FLOW_LINT_HISTORY_MAX_RUNS);
+      saveFlowLintHistorySnapshots(flowLintHistorySnapshots);
+      if (flowLintHistoryNoteInput) flowLintHistoryNoteInput.value = "";
       renderFlowLint();
     };
     flowLintDiffBtnRow.appendChild(flowLintDiffCaptureBtn);
@@ -5871,6 +6008,19 @@ export function createPrototypeViewer(editor: Editor): {
     flowLintDiffCopyBtn.disabled = true;
     flowLintDiffBtnRow.appendChild(flowLintDiffCopyBtn);
     flowLintDiffWrap.appendChild(flowLintDiffBtnRow);
+
+    flowLintHistoryNoteInput = document.createElement("input");
+    flowLintHistoryNoteInput.type = "text";
+    flowLintHistoryNoteInput.maxLength = 120;
+    flowLintHistoryNoteInput.placeholder = "Run note (optional)";
+    flowLintHistoryNoteInput.style.cssText = "width:100%;background:#0f172a;color:#e2e8f0;border:1px solid rgba(148,163,184,0.35);border-radius:6px;padding:3px 6px;font-size:9px;";
+    flowLintDiffWrap.appendChild(flowLintHistoryNoteInput);
+
+    flowLintHistoryTimeline = document.createElement("div");
+    flowLintHistoryTimeline.style.cssText = "display:flex;flex-direction:column;gap:3px;max-height:72px;overflow:auto;padding:4px;border:1px solid rgba(148,163,184,0.2);border-radius:6px;background:rgba(15,23,42,0.4);";
+    flowLintDiffWrap.appendChild(flowLintHistoryTimeline);
+    renderFlowLintHistoryTimeline();
+
     flowLintDiffInfo = document.createElement("div");
     flowLintDiffInfo.style.cssText = "font-size:9px;line-height:1.35;color:#93c5fd;";
     flowLintDiffInfo.textContent = "Diff baseline not set.";
@@ -6592,6 +6742,7 @@ export function createPrototypeViewer(editor: Editor): {
     // Build variables debug panel
     buildVarsPanel();
     renderFlowStartManager();
+    applyFlowLintScopePresetForFlow(Number(flowStartFlowSel?.value || 0));
     renderTimelineScrubber();
     lastTransitionPreview = null;
     if (stagePreviewScrubber) stagePreviewScrubber.value = "50";
