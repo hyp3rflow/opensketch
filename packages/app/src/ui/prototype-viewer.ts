@@ -25,6 +25,9 @@ const PROTOTYPE_SCROLL_LOCK_REGIONS_KEY = "opensketch-prototype-scroll-lock-regi
 const PROTOTYPE_OVERLAY_GUARD_PRESET_KEY = "opensketch-prototype-overlay-guard-preset-v1";
 const PROTOTYPE_FLOW_LINT_SEVERITY_PROFILE_KEY = "opensketch-flow-lint-severity-profile-v1";
 const PROTOTYPE_FLOW_LINT_RISK_TREND_KEY = "opensketch-flow-lint-risk-trend-v1";
+const PROTOTYPE_FLOW_LINT_DIFF_BASELINE_KEY = "opensketch-flow-lint-diff-baseline-v1";
+const PROTOTYPE_FLOW_LINT_OWNER_SLA_KEY = "opensketch-flow-lint-owner-sla-v1";
+const PROTOTYPE_FLOW_LINT_OWNER_SLA_SORT_KEY = "opensketch-flow-lint-owner-sla-sort-v1";
 const FLOW_LINT_RISK_TREND_MAX_RUNS = 12;
 
 type FlowEntryPreset = { frameId: number; label: string; pageId?: number };
@@ -298,6 +301,51 @@ function saveFlowLintOwnerTags(tags: FlowLintOwnerTagMap) {
   } catch {}
 }
 
+type FlowLintOwnerSlaMap = Record<string, number>;
+type FlowLintOwnerSlaSortMode = "severity" | "sla-desc" | "sla-asc";
+
+function resolveFlowLintOwnerSlaSortMode(raw: unknown): FlowLintOwnerSlaSortMode {
+  const value = String(raw || "").toLowerCase();
+  return value === "sla-desc" || value === "sla-asc" ? value : "severity";
+}
+
+function loadFlowLintOwnerSlaMap(): FlowLintOwnerSlaMap {
+  try {
+    const raw = localStorage.getItem(PROTOTYPE_FLOW_LINT_OWNER_SLA_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    if (!parsed || typeof parsed !== "object") return {};
+    const out: FlowLintOwnerSlaMap = {};
+    for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+      const at = Number(value || 0);
+      if (!key || !Number.isFinite(at) || at <= 0) continue;
+      out[key] = at;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+function saveFlowLintOwnerSlaMap(map: FlowLintOwnerSlaMap) {
+  try {
+    localStorage.setItem(PROTOTYPE_FLOW_LINT_OWNER_SLA_KEY, JSON.stringify(map));
+  } catch {}
+}
+
+function loadFlowLintOwnerSlaSortMode(): FlowLintOwnerSlaSortMode {
+  try {
+    return resolveFlowLintOwnerSlaSortMode(localStorage.getItem(PROTOTYPE_FLOW_LINT_OWNER_SLA_SORT_KEY));
+  } catch {
+    return "severity";
+  }
+}
+
+function saveFlowLintOwnerSlaSortMode(mode: FlowLintOwnerSlaSortMode) {
+  try {
+    localStorage.setItem(PROTOTYPE_FLOW_LINT_OWNER_SLA_SORT_KEY, resolveFlowLintOwnerSlaSortMode(mode));
+  } catch {}
+}
+
 function parseFlowLintOwnerTagsInput(raw: string): FlowLintOwnerTagMap {
   const out: FlowLintOwnerTagMap = {};
   const chunks = String(raw || "").split(/[\n,]+/);
@@ -559,6 +607,7 @@ export function createPrototypeViewer(editor: Editor): {
   let flowLintDiffInfo: HTMLDivElement | null = null;
   let flowLintDiffList: HTMLDivElement | null = null;
   let flowLintDiffCopyBtn: HTMLButtonElement | null = null;
+  let flowLintOwnerSlaSortSel: HTMLSelectElement | null = null;
   let flowLintExportJsonBtn: HTMLButtonElement | null = null;
   let flowLintExportMdBtn: HTMLButtonElement | null = null;
   let flowLintFilterWrap: HTMLDivElement | null = null;
@@ -584,10 +633,91 @@ export function createPrototypeViewer(editor: Editor): {
   let focusReturnList: HTMLDivElement | null = null;
   let condDebugInfo: HTMLDivElement | null = null;
   let condDebugList: HTMLDivElement | null = null;
+  type FlowLintDiffBaselineSnapshot = { at: number; scope: FlowLintRunScope; presetLabel: string; startFrameId: number | null; issues: FlowLintIssue[] };
+  function cloneFlowLintIssue(issue: FlowLintIssue): FlowLintIssue {
+    return {
+      ...issue,
+      overlayPath: issue.overlayPath ? [...issue.overlayPath] : undefined,
+      overlayOffenders: issue.overlayOffenders ? [...issue.overlayOffenders] : undefined,
+      overlayRewritePlan: issue.overlayRewritePlan ? [...issue.overlayRewritePlan] : undefined,
+      overlayExitSuggestions: issue.overlayExitSuggestions ? [...issue.overlayExitSuggestions] : undefined,
+      overlayExitSuggestionCandidates: issue.overlayExitSuggestionCandidates
+        ? issue.overlayExitSuggestionCandidates.map((candidate) => ({ ...candidate }))
+        : undefined,
+    };
+  }
+
+  function saveFlowLintDiffBaseline(snapshot: FlowLintDiffBaselineSnapshot | null) {
+    try {
+      if (!snapshot) {
+        localStorage.removeItem(PROTOTYPE_FLOW_LINT_DIFF_BASELINE_KEY);
+        return;
+      }
+      const payload = {
+        ...snapshot,
+        issues: snapshot.issues.map(cloneFlowLintIssue),
+      };
+      localStorage.setItem(PROTOTYPE_FLOW_LINT_DIFF_BASELINE_KEY, JSON.stringify(payload));
+    } catch {}
+  }
+
+  function loadFlowLintDiffBaseline(): FlowLintDiffBaselineSnapshot | null {
+    try {
+      const raw = localStorage.getItem(PROTOTYPE_FLOW_LINT_DIFF_BASELINE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as Partial<FlowLintDiffBaselineSnapshot> | null;
+      if (!parsed || typeof parsed !== "object") return null;
+      const at = Number((parsed as any).at || 0);
+      if (!at || !Number.isFinite(at)) return null;
+      const scope = resolveFlowLintScope((parsed as any).scope);
+      const presetLabel = String((parsed as any).presetLabel || "baseline").slice(0, 80);
+      const startFrameIdRaw = Number((parsed as any).startFrameId || 0);
+      const startFrameId = startFrameIdRaw > 0 ? startFrameIdRaw : null;
+      const issuesRaw = Array.isArray((parsed as any).issues) ? (parsed as any).issues : [];
+      const issues: FlowLintIssue[] = [];
+      for (const row of issuesRaw) {
+        if (!row || typeof row !== "object") continue;
+        const type = String((row as any).type || "") as FlowLintIssueType;
+        const frameId = Number((row as any).frameId || 0);
+        const frameName = String((row as any).frameName || "").trim();
+        const detail = String((row as any).detail || "").trim();
+        if (!type || !frameId || !frameName || !detail) continue;
+        issues.push(cloneFlowLintIssue({
+          type,
+          frameId,
+          frameName,
+          detail,
+          overlayId: Number((row as any).overlayId || 0) || undefined,
+          overlayPath: Array.isArray((row as any).overlayPath) ? (row as any).overlayPath.map((v: unknown) => Number(v)).filter((v: number) => Number.isFinite(v)) : undefined,
+          overlayOffenders: Array.isArray((row as any).overlayOffenders) ? (row as any).overlayOffenders.map((v: unknown) => Number(v)).filter((v: number) => Number.isFinite(v)) : undefined,
+          overlayBudget: Number((row as any).overlayBudget || 0) || undefined,
+          overlayRewritePlan: Array.isArray((row as any).overlayRewritePlan) ? (row as any).overlayRewritePlan.map((v: unknown) => String(v)) : undefined,
+          overlayImpactNodeCount: Number((row as any).overlayImpactNodeCount || 0) || undefined,
+          overlayExitSuggestions: Array.isArray((row as any).overlayExitSuggestions) ? (row as any).overlayExitSuggestions.map((v: unknown) => String(v)) : undefined,
+          overlayExitSuggestionCandidates: Array.isArray((row as any).overlayExitSuggestionCandidates)
+            ? (row as any).overlayExitSuggestionCandidates
+              .map((candidate: any) => ({
+                nodeId: Number(candidate?.nodeId || 0),
+                action: candidate?.action === "Back" ? "Back" : "CloseOverlay",
+                score: Number(candidate?.score || 0),
+                label: String(candidate?.label || "").trim(),
+              }))
+              .filter((candidate: OverlayExitSuggestion) => candidate.nodeId > 0 && !!candidate.label)
+            : undefined,
+        }));
+      }
+      return { at, scope, presetLabel, startFrameId, issues };
+    } catch {
+      return null;
+    }
+  }
+
   let flowLintSnapshot: { startFrameId: number | null; issues: FlowLintIssue[]; } | null = null;
-  let flowLintDiffBaseline: { at: number; scope: FlowLintRunScope; presetLabel: string; startFrameId: number | null; issues: FlowLintIssue[] } | null = null;
+  let flowLintDiffBaseline: FlowLintDiffBaselineSnapshot | null = loadFlowLintDiffBaseline();
   let flowLintRiskTrend: FlowLintRiskTrendEntry[] = loadFlowLintRiskTrend();
   let flowLintOwnerTags: FlowLintOwnerTagMap = loadFlowLintOwnerTags();
+  let flowLintOwnerSlaMap: FlowLintOwnerSlaMap = loadFlowLintOwnerSlaMap();
+  let flowLintOwnerSlaSortMode: FlowLintOwnerSlaSortMode = loadFlowLintOwnerSlaSortMode();
   let flowLintFilterTypes = new Set<FlowLintIssueType>();
   let flowLintRenderedIssues: FlowLintIssue[] = [];
   let flowLintNavIndex = -1;
@@ -3271,6 +3401,21 @@ export function createPrototypeViewer(editor: Editor): {
     return `${issue.type}|${issue.frameId}|${issue.overlayId || 0}`;
   }
 
+  function makeFlowLintOwnerSlaKey(issue: FlowLintIssue): string {
+    const detailKey = issue.detail.replace(/\s+/g, " ").trim().slice(0, 120);
+    return `${makeFlowLintAnchorKey(issue)}|${detailKey}`;
+  }
+
+  function formatSlaElapsed(ms: number): string {
+    const totalMin = Math.max(0, Math.floor(ms / 60000));
+    const days = Math.floor(totalMin / (24 * 60));
+    const hours = Math.floor((totalMin % (24 * 60)) / 60);
+    const mins = totalMin % 60;
+    if (days > 0) return `${days}d ${hours}h`;
+    if (hours > 0) return `${hours}h ${mins}m`;
+    return `${mins}m`;
+  }
+
   function formatFlowLintDiffMarkdown(lines: string[]): string {
     return [
       "# Flow Lint Snapshot Diff",
@@ -4166,7 +4311,28 @@ export function createPrototypeViewer(editor: Editor): {
       "scroll-leak": 13,
       "orphan-close": 14,
     };
-    const sortedIssues = [...issues].sort((a, b) => (rank[a.type] - rank[b.type]) || a.frameName.localeCompare(b.frameName));
+    const now = Date.now();
+    const liveSlaKeys = new Set<string>();
+    for (const issue of issues) {
+      const key = makeFlowLintOwnerSlaKey(issue);
+      liveSlaKeys.add(key);
+      if (!flowLintOwnerSlaMap[key]) flowLintOwnerSlaMap[key] = now;
+    }
+    const nextSlaMap: FlowLintOwnerSlaMap = {};
+    for (const key of liveSlaKeys) {
+      nextSlaMap[key] = flowLintOwnerSlaMap[key] || now;
+    }
+    flowLintOwnerSlaMap = nextSlaMap;
+    saveFlowLintOwnerSlaMap(flowLintOwnerSlaMap);
+
+    const sortedIssues = [...issues].sort((a, b) => {
+      const rankDelta = (rank[a.type] - rank[b.type]) || a.frameName.localeCompare(b.frameName);
+      if (flowLintOwnerSlaSortMode === "severity") return rankDelta;
+      const slaA = flowLintOwnerSlaMap[makeFlowLintOwnerSlaKey(a)] || now;
+      const slaB = flowLintOwnerSlaMap[makeFlowLintOwnerSlaKey(b)] || now;
+      if (flowLintOwnerSlaSortMode === "sla-desc") return slaA - slaB || rankDelta;
+      return slaB - slaA || rankDelta;
+    });
     const issueTypes: FlowLintIssueType[] = ["a11y-missing-label", "a11y-focus-gap", "a11y-focus-trap", "a11y-low-contrast", "a11y-motion", "dead-end", "unreachable", "cycle-trap", "cycle", "overlay-leak", "overlay-key-route", "overlay-depth-budget", "overlay-exit-latency", "scroll-leak", "orphan-close"];
     if (flowLintFilterTypes.size === 0) {
       for (const t of issueTypes) flowLintFilterTypes.add(t);
@@ -4334,7 +4500,11 @@ export function createPrototypeViewer(editor: Editor): {
       row.style.cssText = `display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;text-align:left;background:rgba(15,23,42,0.55);border:1px solid rgba(148,163,184,0.25);border-left:3px solid ${color};border-radius:6px;color:#e2e8f0;padding:4px 6px;cursor:pointer;`;
       row.dataset.lintNavIndex = String(issueIndex);
       const ownerTag = flowLintOwnerTags[issue.type] || "";
-      row.innerHTML = `<span style="font-size:10px;font-weight:600;color:${color};text-transform:uppercase;">${issue.type}</span><span style="font-size:10px;">${issue.frameName} (#${issue.frameId})${ownerTag ? ` · <span style=\"color:#67e8f9;\">${ownerTag}</span>` : ""}</span><span style="font-size:9px;color:#94a3b8;">${issue.detail}</span>`;
+      const slaStartedAt = flowLintOwnerSlaMap[makeFlowLintOwnerSlaKey(issue)] || now;
+      const slaElapsed = formatSlaElapsed(now - slaStartedAt);
+      const slaLevel = (now - slaStartedAt) >= 48 * 60 * 60 * 1000 ? "over" : (now - slaStartedAt) >= 24 * 60 * 60 * 1000 ? "watch" : "ok";
+      const slaColor = slaLevel === "over" ? "#fb7185" : slaLevel === "watch" ? "#f59e0b" : "#93c5fd";
+      row.innerHTML = `<span style="font-size:10px;font-weight:600;color:${color};text-transform:uppercase;">${issue.type}</span><span style="font-size:10px;">${issue.frameName} (#${issue.frameId})${ownerTag ? ` · <span style=\"color:#67e8f9;\">${ownerTag}</span>` : ""}${ownerTag ? ` · <span style=\"display:inline-flex;align-items:center;padding:0 5px;border-radius:999px;border:1px solid ${slaColor};color:${slaColor};font-size:9px;\">SLA ${slaElapsed}</span>` : ""}</span><span style="font-size:9px;color:#94a3b8;">${issue.detail}</span>`;
       row.onclick = () => {
         flowLintNavIndex = issueIndex;
         navigateTo(issue.frameId, "Instant", 0, "linear");
@@ -5464,8 +5634,9 @@ export function createPrototypeViewer(editor: Editor): {
         scope: lintScope,
         presetLabel,
         startFrameId: flowLintSnapshot.startFrameId,
-        issues: flowLintSnapshot.issues.map((issue) => ({ ...issue, overlayPath: issue.overlayPath ? [...issue.overlayPath] : undefined, overlayOffenders: issue.overlayOffenders ? [...issue.overlayOffenders] : undefined, overlayRewritePlan: issue.overlayRewritePlan ? [...issue.overlayRewritePlan] : undefined, overlayExitSuggestions: issue.overlayExitSuggestions ? [...issue.overlayExitSuggestions] : undefined })),
+        issues: flowLintSnapshot.issues.map(cloneFlowLintIssue),
       };
+      saveFlowLintDiffBaseline(flowLintDiffBaseline);
       renderFlowLint();
     };
     flowLintDiffBtnRow.appendChild(flowLintDiffCaptureBtn);
@@ -5475,6 +5646,7 @@ export function createPrototypeViewer(editor: Editor): {
     flowLintDiffClearBtn.style.cssText = "font-size:9px;padding:2px 6px;";
     flowLintDiffClearBtn.onclick = () => {
       flowLintDiffBaseline = null;
+      saveFlowLintDiffBaseline(null);
       renderFlowLint();
     };
     flowLintDiffBtnRow.appendChild(flowLintDiffClearBtn);
@@ -5500,6 +5672,34 @@ export function createPrototypeViewer(editor: Editor): {
     flowLintOwnerHead.style.cssText = "font-size:9px;color:#67e8f9;";
     flowLintOwnerHead.textContent = "Owner tags (type:@owner, comma/newline separated)";
     flowLintOwnerRow.appendChild(flowLintOwnerHead);
+    const flowLintOwnerSlaRow = document.createElement("div");
+    flowLintOwnerSlaRow.style.cssText = "display:flex;gap:6px;align-items:center;";
+    const flowLintOwnerSlaLabel = document.createElement("span");
+    flowLintOwnerSlaLabel.style.cssText = "font-size:9px;color:#67e8f9;white-space:nowrap;";
+    flowLintOwnerSlaLabel.textContent = "SLA sort";
+    flowLintOwnerSlaRow.appendChild(flowLintOwnerSlaLabel);
+    flowLintOwnerSlaSortSel = document.createElement("select");
+    flowLintOwnerSlaSortSel.style.cssText = "flex:1;background:#0f172a;color:#f8fafc;border:1px solid rgba(148,163,184,0.35);border-radius:6px;padding:2px 6px;font-size:9px;";
+    const ownerSlaSortOptions: Array<{ value: FlowLintOwnerSlaSortMode; label: string }> = [
+      { value: "severity", label: "Severity" },
+      { value: "sla-desc", label: "SLA 오래된 순" },
+      { value: "sla-asc", label: "SLA 최신 순" },
+    ];
+    for (const optionRow of ownerSlaSortOptions) {
+      const opt = document.createElement("option");
+      opt.value = optionRow.value;
+      opt.textContent = optionRow.label;
+      flowLintOwnerSlaSortSel.appendChild(opt);
+    }
+    flowLintOwnerSlaSortSel.value = flowLintOwnerSlaSortMode;
+    flowLintOwnerSlaSortSel.onchange = () => {
+      flowLintOwnerSlaSortMode = resolveFlowLintOwnerSlaSortMode(flowLintOwnerSlaSortSel?.value);
+      saveFlowLintOwnerSlaSortMode(flowLintOwnerSlaSortMode);
+      if (flowLintOwnerSlaSortSel) flowLintOwnerSlaSortSel.value = flowLintOwnerSlaSortMode;
+      renderFlowLint();
+    };
+    flowLintOwnerSlaRow.appendChild(flowLintOwnerSlaSortSel);
+    flowLintOwnerRow.appendChild(flowLintOwnerSlaRow);
     const flowLintOwnerInput = document.createElement("textarea");
     flowLintOwnerInput.style.cssText = "min-height:44px;max-height:88px;resize:vertical;background:#0f172a;color:#e2e8f0;border:1px solid rgba(148,163,184,0.35);border-radius:6px;padding:4px 6px;font-size:9px;line-height:1.35;";
     flowLintOwnerInput.value = formatFlowLintOwnerTagsInput(flowLintOwnerTags);
@@ -5531,6 +5731,20 @@ export function createPrototypeViewer(editor: Editor): {
       renderFlowLint();
     };
     flowLintOwnerBtnRow.appendChild(flowLintOwnerClearBtn);
+    const flowLintOwnerSlaResetBtn = document.createElement("button");
+    flowLintOwnerSlaResetBtn.className = "prop-btn";
+    flowLintOwnerSlaResetBtn.style.cssText = "font-size:9px;padding:2px 6px;";
+    flowLintOwnerSlaResetBtn.textContent = "Reset SLA";
+    flowLintOwnerSlaResetBtn.onclick = () => {
+      flowLintOwnerSlaMap = {};
+      saveFlowLintOwnerSlaMap(flowLintOwnerSlaMap);
+      flowLintOwnerSlaResetBtn.textContent = "Reset";
+      window.setTimeout(() => {
+        flowLintOwnerSlaResetBtn.textContent = "Reset SLA";
+      }, 900);
+      renderFlowLint();
+    };
+    flowLintOwnerBtnRow.appendChild(flowLintOwnerSlaResetBtn);
     flowLintOwnerRow.appendChild(flowLintOwnerBtnRow);
     flowLintWrap.appendChild(flowLintOwnerRow);
 

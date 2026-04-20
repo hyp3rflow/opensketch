@@ -1790,9 +1790,20 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Flow Lint Owner SLA Timer — 이슈 owner 태그 기준으로 경과 시간(SLA) 배지/정렬 지원 (임팩트 중, 난이도 중)
 - Overlay Exit Suggestion A/B Presets — 추천 점수 가중치 preset(Conservative/Balanced/Aggressive) 전환 + 결과 비교 (임팩트 중, 난이도 중상)
 - Flow Lint Digest Composer — owner별 이슈를 묶어 Slack/Discord 공유용 digest 텍스트 자동 생성 (임팩트 중, 난이도 중)
+- Flow Lint Snapshot History Timeline — lint 실행 스냅샷(최대 N개) 타임라인 저장/선택 비교 + run notes 메모 (임팩트 중, 난이도 중)
+- Owner SLA Escalation Rules — SLA 임계값별(24h/48h/72h) 색상/정렬 가중치 + escalation only 필터 (임팩트 중상, 난이도 중상)
+- Flow Lint Digest Delivery Presets — Discord/Slack 템플릿 프리셋 + owner mention 매핑 저장 (임팩트 중, 난이도 중)
+
+
+## 완료된 기능 (추가 — Flow Lint Owner SLA Timer, 2026-04-20)
+- owner 태그가 지정된 Flow Lint 이슈 카드에 `SLA` 배지를 추가해 경과 시간(분/시간/일) 가시화
+- 이슈별 최초 감지 시각을 localStorage(`opensketch-flow-lint-owner-sla-v1`)에 저장하고, 해결된 이슈 키는 자동 정리
+- Owner 섹션에 `SLA sort`(Severity/오래된 순/최신 순) + `Reset SLA` 액션 추가
+- SLA sort 모드 localStorage(`opensketch-flow-lint-owner-sla-sort-v1`) 저장/복원 지원
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 
 ## 완료된 기능 (추가 — Prototype Risk Trend Sparkline, 2026-04-20)

@@ -3161,6 +3161,7 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Flow Lint 패널에 `Lint Snapshot Diff` 섹션을 추가해 baseline 대비 `신규(New) / 해결(Resolved) / 회귀(Regressed)`를 요약
 - [x] `Capture` 버튼으로 현재 lint 결과를 baseline으로 고정하고, 이후 실행 결과와 anchor(type+frame+overlay) 단위로 증감 비교
 - [x] `Clear`로 baseline 초기화, `Copy diff`로 Markdown 리포트(요약 + bucket별 목록) 클립보드 복사 지원
+- [x] baseline은 localStorage(`opensketch-flow-lint-diff-baseline-v1`)에 저장되어 Prototype Viewer 재진입 후에도 diff 비교 컨텍스트 유지
 - [x] baseline이 없을 때 가이드 문구를 노출하고 copy 동작을 비활성화해 오동작 방지
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
 
@@ -3180,6 +3181,14 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] owner 태그 설정은 localStorage(`opensketch-flow-lint-owner-tags-v1`)에 저장되어 세션 재진입 후에도 유지
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
 
+
+### Flow Lint Owner SLA Timer (2026-04-20)
+- [x] owner 태그가 지정된 Flow Lint 이슈에 `SLA Xm/Xh/Xd` 배지를 표시해 경과 시간을 카드에서 즉시 확인 가능
+- [x] 이슈별 최초 감지 시각을 localStorage(`opensketch-flow-lint-owner-sla-v1`)에 저장하고, 이슈가 해결되면 자동 정리
+- [x] Owner 섹션에 `SLA sort`(`Severity / SLA 오래된 순 / SLA 최신 순`) 옵션을 추가해 triage 정렬 기준 전환 지원
+- [x] `Reset SLA` 버튼으로 누적된 SLA 타이머를 즉시 초기화 가능
+- [x] SLA 정렬 모드는 localStorage(`opensketch-flow-lint-owner-sla-sort-v1`)에 저장되어 재진입 후 복원
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
 
 ### Overlay Escape Replay Test Cases (2026-04-20)
 - [x] Overlay Escape Key Route Inspector에 `Generate replay` / `Copy cases` 액션을 추가해 Esc/Back 회귀 케이스를 자동 생성
