@@ -97,6 +97,6 @@ export const icons = {
   grid: s('<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>'),
   // Component Playground (play + diamond)
   playground: s('<path d="M12 2l10 10-10 10L2 12z" fill="none"/><polygon points="10,8 10,16 16,12" fill="currentColor" stroke="none"/>'),
-  annotationBrush: s('<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/><circle cx="19" cy="19" r="2" fill="none" stroke-dasharray="2 1"/>'),
+  annotationBrushAlt: s('<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/><circle cx="19" cy="19" r="2" fill="none" stroke-dasharray="2 1"/>'),
   measure: s('<path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.4 2.4 0 0 1 0-3.4l2.6-2.6a2.4 2.4 0 0 1 3.4 0z"/><path d="M14.5 12.5 12 10"/><path d="M11.5 9.5 9 7"/><path d="M8.5 6.5 6 4"/><path d="M17.5 15.5 15 13"/>'),
 };

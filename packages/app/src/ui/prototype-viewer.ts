@@ -232,6 +232,61 @@ function saveFlowLintSeverityProfileId(id: FlowLintSeverityProfileId) {
   } catch {}
 }
 
+type FlowLintOwnerTagMap = Record<string, string>;
+
+function normalizeOwnerTag(raw: unknown): string {
+  const base = String(raw || "").trim().replace(/\s+/g, "");
+  if (!base) return "";
+  return base.startsWith("@") ? base : `@${base}`;
+}
+
+function loadFlowLintOwnerTags(): FlowLintOwnerTagMap {
+  try {
+    const raw = localStorage.getItem("opensketch-flow-lint-owner-tags-v1");
+    const parsed = raw ? JSON.parse(raw) : {};
+    if (!parsed || typeof parsed !== "object") return {};
+    const out: FlowLintOwnerTagMap = {};
+    const validTypes = ["a11y-missing-label", "a11y-focus-gap", "a11y-focus-trap", "a11y-low-contrast", "a11y-motion", "dead-end", "unreachable", "cycle-trap", "cycle", "overlay-leak", "overlay-key-route", "overlay-depth-budget", "overlay-exit-latency", "scroll-leak", "orphan-close"];
+    for (const type of validTypes) {
+      const tag = normalizeOwnerTag((parsed as Record<string, unknown>)[type]);
+      if (tag) out[type] = tag;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+function saveFlowLintOwnerTags(tags: FlowLintOwnerTagMap) {
+  try {
+    localStorage.setItem("opensketch-flow-lint-owner-tags-v1", JSON.stringify(tags));
+  } catch {}
+}
+
+function parseFlowLintOwnerTagsInput(raw: string): FlowLintOwnerTagMap {
+  const out: FlowLintOwnerTagMap = {};
+  const chunks = String(raw || "").split(/[\n,]+/);
+  for (const chunk of chunks) {
+    const line = chunk.trim();
+    if (!line) continue;
+    const match = line.match(/^([a-z0-9\-]+)\s*[:=]\s*(.+)$/i);
+    if (!match) continue;
+    const type = match[1];
+    const tag = normalizeOwnerTag(match[2]);
+    if (!tag) continue;
+    out[type] = tag;
+  }
+  return out;
+}
+
+function formatFlowLintOwnerTagsInput(tags: FlowLintOwnerTagMap): string {
+  return Object.entries(tags)
+    .filter(([, tag]) => Boolean(tag))
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([type, tag]) => `${type}:${tag}`)
+    .join(", ");
+}
+
 type KeyboardOrderMap = Record<string, string[]>;
 
 function hotspotOrderKey(nodeId: number, sig: string): string {
@@ -416,8 +471,9 @@ export function createPrototypeViewer(editor: Editor): {
   let flowStartInfo: HTMLDivElement | null = null;
   const flowPresetCursor = new Map<string, number>();
   type FlowLintIssueType = "unreachable" | "dead-end" | "cycle" | "cycle-trap" | "overlay-leak" | "overlay-key-route" | "overlay-depth-budget" | "overlay-exit-latency" | "orphan-close" | "scroll-leak" | "a11y-missing-label" | "a11y-focus-gap" | "a11y-focus-trap" | "a11y-low-contrast" | "a11y-motion";
+  type OverlayExitSuggestion = { nodeId: number; action: "CloseOverlay" | "Back"; score: number; label: string };
   type FlowLintRunScope = "selection" | "page" | "flow";
-  type FlowLintIssue = { type: FlowLintIssueType; frameId: number; frameName: string; detail: string; overlayId?: number; overlayPath?: number[]; overlayOffenders?: number[]; overlayBudget?: number; overlayRewritePlan?: string[]; overlayImpactNodeCount?: number; overlayExitSuggestions?: string[] };
+  type FlowLintIssue = { type: FlowLintIssueType; frameId: number; frameName: string; detail: string; overlayId?: number; overlayPath?: number[]; overlayOffenders?: number[]; overlayBudget?: number; overlayRewritePlan?: string[]; overlayImpactNodeCount?: number; overlayExitSuggestions?: string[]; overlayExitSuggestionCandidates?: OverlayExitSuggestion[] };
   type FocusTrapSimIssue = {
     frameId: number;
     frameName: string;
@@ -478,6 +534,7 @@ export function createPrototypeViewer(editor: Editor): {
   let condDebugList: HTMLDivElement | null = null;
   let flowLintSnapshot: { startFrameId: number | null; issues: FlowLintIssue[]; } | null = null;
   let flowLintDiffBaseline: { at: number; scope: FlowLintRunScope; presetLabel: string; startFrameId: number | null; issues: FlowLintIssue[] } | null = null;
+  let flowLintOwnerTags: FlowLintOwnerTagMap = loadFlowLintOwnerTags();
   let flowLintFilterTypes = new Set<FlowLintIssueType>();
   let flowLintRenderedIssues: FlowLintIssue[] = [];
   let flowLintNavIndex = -1;
@@ -1890,7 +1947,7 @@ export function createPrototypeViewer(editor: Editor): {
     return changed;
   }
 
-  function getOverlayExitSuggestions(frameId: number, overlayId: number): Array<{ nodeId: number; action: "CloseOverlay" | "Back"; score: number; label: string }> {
+  function getOverlayExitSuggestions(frameId: number, overlayId: number): OverlayExitSuggestion[] {
     const focusables = listFocusableHotspots(overlayId);
     const byNode = new Map<number, { node: any; interactions: any[] }>();
     for (const row of focusables) {
@@ -1923,7 +1980,7 @@ export function createPrototypeViewer(editor: Editor): {
     const closeAnchorY = overlayBounds ? (overlayBounds.y + 16) : 0;
     const overlayDiag = overlayBounds ? Math.max(1, Math.hypot(overlayBounds.width, overlayBounds.height)) : 1;
 
-    const suggestions: Array<{ nodeId: number; action: "CloseOverlay" | "Back"; score: number; label: string }> = [];
+    const suggestions: OverlayExitSuggestion[] = [];
     for (const [nodeId, bucket] of byNode.entries()) {
       const interactions = bucket.interactions;
       const hasClose = interactions.some((inter) => {
@@ -1977,7 +2034,7 @@ export function createPrototypeViewer(editor: Editor): {
     return suggestions.slice(0, 3);
   }
 
-  function suggestOverlayExitPathFix(frameId: number, overlayId: number): { changed: boolean; targetNodeId: number } {
+  function suggestOverlayExitPathFix(frameId: number, overlayId: number, preferred?: OverlayExitSuggestion): { changed: boolean; targetNodeId: number } {
     const addExitInteractionIfNeeded = (nodeId: number, action: "CloseOverlay" | "Back"): boolean => {
       if (!nodeId || nodeId <= 0) return false;
       try {
@@ -1998,7 +2055,7 @@ export function createPrototypeViewer(editor: Editor): {
     };
 
     const suggestions = getOverlayExitSuggestions(frameId, overlayId);
-    const primary = suggestions[0];
+    const primary = preferred || suggestions[0];
     const fallbackNodeId = Number(primary?.nodeId || overlayId || frameId || 0);
     const action = primary?.action || "CloseOverlay";
     return { changed: addExitInteractionIfNeeded(fallbackNodeId, action), targetNodeId: fallbackNodeId };
@@ -3093,6 +3150,7 @@ export function createPrototypeViewer(editor: Editor): {
       topOverlayRisk,
       issues: issues.map((issue) => ({
         type: issue.type,
+        ownerTag: flowLintOwnerTags[issue.type] || null,
         frameId: issue.frameId,
         frameName: issue.frameName,
         overlayId: issue.overlayId || null,
@@ -3124,7 +3182,7 @@ export function createPrototypeViewer(editor: Editor): {
       "",
       "## Issues",
       ...(payload.issues.length > 0
-        ? payload.issues.map((issue) => `- ${issue.type} · ${issue.frameName} (#${issue.frameId})${issue.overlayId ? ` · overlay #${issue.overlayId}` : ""} · ${issue.detail}`)
+        ? payload.issues.map((issue) => `- ${issue.type}${issue.ownerTag ? ` ${issue.ownerTag}` : ""} · ${issue.frameName} (#${issue.frameId})${issue.overlayId ? ` · overlay #${issue.overlayId}` : ""} · ${issue.detail}`)
         : ["- none"]),
     ];
     return lines.join("\n");
@@ -3636,7 +3694,8 @@ export function createPrototypeViewer(editor: Editor): {
             if (hasRequiredFail
               || (overlayGuardPreset.detectConditionalOnly && hasConditionalFail)
               || (overlayGuardPreset.detectSimulationDrift && hasSimFail)) {
-              const exitSuggestions = getOverlayExitSuggestions(node.id, route.overlayId).map((item) => item.label);
+              const exitSuggestionCandidates = getOverlayExitSuggestions(node.id, route.overlayId);
+              const exitSuggestions = exitSuggestionCandidates.map((item) => item.label);
               const suggestLabel = exitSuggestions.length > 0 ? ` · suggest ${exitSuggestions.slice(0, 2).join(", ")}` : "";
               issues.push({
                 type: "overlay-key-route",
@@ -3645,6 +3704,7 @@ export function createPrototypeViewer(editor: Editor): {
                 overlayId: route.overlayId,
                 detail: `${route.overlayName}: ${parts.join(" + ")}${suggestLabel}`,
                 overlayExitSuggestions: exitSuggestions,
+                overlayExitSuggestionCandidates: exitSuggestionCandidates,
               });
             }
 
@@ -4063,7 +4123,8 @@ export function createPrototypeViewer(editor: Editor): {
                                 : "#22d3ee";
       row.style.cssText = `display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;text-align:left;background:rgba(15,23,42,0.55);border:1px solid rgba(148,163,184,0.25);border-left:3px solid ${color};border-radius:6px;color:#e2e8f0;padding:4px 6px;cursor:pointer;`;
       row.dataset.lintNavIndex = String(issueIndex);
-      row.innerHTML = `<span style="font-size:10px;font-weight:600;color:${color};text-transform:uppercase;">${issue.type}</span><span style="font-size:10px;">${issue.frameName} (#${issue.frameId})</span><span style="font-size:9px;color:#94a3b8;">${issue.detail}</span>`;
+      const ownerTag = flowLintOwnerTags[issue.type] || "";
+      row.innerHTML = `<span style="font-size:10px;font-weight:600;color:${color};text-transform:uppercase;">${issue.type}</span><span style="font-size:10px;">${issue.frameName} (#${issue.frameId})${ownerTag ? ` · <span style=\"color:#67e8f9;\">${ownerTag}</span>` : ""}</span><span style="font-size:9px;color:#94a3b8;">${issue.detail}</span>`;
       row.onclick = () => {
         flowLintNavIndex = issueIndex;
         navigateTo(issue.frameId, "Instant", 0, "linear");
@@ -4102,6 +4163,33 @@ export function createPrototypeViewer(editor: Editor): {
           }, 1000);
         };
         row.appendChild(suggestBtn);
+
+        const suggestionCandidates = Array.isArray(issue.overlayExitSuggestionCandidates) ? issue.overlayExitSuggestionCandidates.slice(0, 3) : [];
+        if (suggestionCandidates.length > 0) {
+          const candidateWrap = document.createElement("div");
+          candidateWrap.style.cssText = "margin-top:4px;display:flex;flex-wrap:wrap;gap:4px;";
+          for (const candidate of suggestionCandidates) {
+            const candidateBtn = document.createElement("button");
+            candidateBtn.style.cssText = "background:rgba(124,45,18,0.45);border:1px solid rgba(251,146,60,0.7);border-radius:999px;color:#fed7aa;font-size:9px;padding:1px 6px;cursor:pointer;";
+            candidateBtn.textContent = `#${candidate.nodeId} ${candidate.action}`;
+            candidateBtn.title = candidate.label;
+            candidateBtn.onclick = (ev) => {
+              ev.stopPropagation();
+              editor.engine.push_undo();
+              const result = suggestOverlayExitPathFix(issue.frameId, issue.overlayId || 0, candidate);
+              candidateBtn.textContent = result.changed ? `Added #${result.targetNodeId}` : "No-op";
+              if (result.changed) {
+                editor.requestRender();
+                renderFlowLint();
+              }
+              setTimeout(() => {
+                candidateBtn.textContent = `#${candidate.nodeId} ${candidate.action}`;
+              }, 1000);
+            };
+            candidateWrap.appendChild(candidateBtn);
+          }
+          row.appendChild(candidateWrap);
+        }
       }
       if (issue.type === "overlay-depth-budget" && issue.overlayId && issue.overlayId > 0) {
         if (issue.overlayRewritePlan && issue.overlayRewritePlan.length > 0) {
@@ -5188,6 +5276,46 @@ export function createPrototypeViewer(editor: Editor): {
     flowLintDiffList.style.cssText = "display:flex;flex-direction:column;gap:4px;";
     flowLintDiffWrap.appendChild(flowLintDiffList);
     flowLintWrap.appendChild(flowLintDiffWrap);
+
+    const flowLintOwnerRow = document.createElement("div");
+    flowLintOwnerRow.style.cssText = "display:flex;flex-direction:column;gap:4px;padding:5px;border:1px solid rgba(103,232,249,0.25);border-radius:7px;background:rgba(8,47,73,0.2);";
+    const flowLintOwnerHead = document.createElement("div");
+    flowLintOwnerHead.style.cssText = "font-size:9px;color:#67e8f9;";
+    flowLintOwnerHead.textContent = "Owner tags (type:@owner, comma/newline separated)";
+    flowLintOwnerRow.appendChild(flowLintOwnerHead);
+    const flowLintOwnerInput = document.createElement("textarea");
+    flowLintOwnerInput.style.cssText = "min-height:44px;max-height:88px;resize:vertical;background:#0f172a;color:#e2e8f0;border:1px solid rgba(148,163,184,0.35);border-radius:6px;padding:4px 6px;font-size:9px;line-height:1.35;";
+    flowLintOwnerInput.value = formatFlowLintOwnerTagsInput(flowLintOwnerTags);
+    flowLintOwnerRow.appendChild(flowLintOwnerInput);
+    const flowLintOwnerBtnRow = document.createElement("div");
+    flowLintOwnerBtnRow.style.cssText = "display:flex;gap:4px;";
+    const flowLintOwnerApplyBtn = document.createElement("button");
+    flowLintOwnerApplyBtn.className = "prop-btn";
+    flowLintOwnerApplyBtn.style.cssText = "font-size:9px;padding:2px 6px;";
+    flowLintOwnerApplyBtn.textContent = "Apply owners";
+    flowLintOwnerApplyBtn.onclick = () => {
+      flowLintOwnerTags = parseFlowLintOwnerTagsInput(flowLintOwnerInput.value || "");
+      saveFlowLintOwnerTags(flowLintOwnerTags);
+      flowLintOwnerApplyBtn.textContent = "Saved";
+      window.setTimeout(() => {
+        flowLintOwnerApplyBtn.textContent = "Apply owners";
+      }, 900);
+      renderFlowLint();
+    };
+    flowLintOwnerBtnRow.appendChild(flowLintOwnerApplyBtn);
+    const flowLintOwnerClearBtn = document.createElement("button");
+    flowLintOwnerClearBtn.className = "prop-btn";
+    flowLintOwnerClearBtn.style.cssText = "font-size:9px;padding:2px 6px;";
+    flowLintOwnerClearBtn.textContent = "Clear";
+    flowLintOwnerClearBtn.onclick = () => {
+      flowLintOwnerTags = {};
+      saveFlowLintOwnerTags(flowLintOwnerTags);
+      flowLintOwnerInput.value = "";
+      renderFlowLint();
+    };
+    flowLintOwnerBtnRow.appendChild(flowLintOwnerClearBtn);
+    flowLintOwnerRow.appendChild(flowLintOwnerBtnRow);
+    flowLintWrap.appendChild(flowLintOwnerRow);
 
     const flowLintExportRow = document.createElement("div");
     flowLintExportRow.style.cssText = "display:flex;gap:4px;";

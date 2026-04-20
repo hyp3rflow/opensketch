@@ -3162,4 +3162,12 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] 후보 점수 산식: trigger 품질(OnPress/OnClick), 접근성 라벨 유무, 노드명 키워드(close/back/dismiss), 위치 힌트를 합산
 - [x] `Fix: suggest exit path` one-click 액션이 최고 점수 후보에 `OnPress + CloseOverlay|Back` 경로를 자동 주입
 - [x] quick-fix 버튼 tooltip에 상위 후보(최대 3개)를 표시해 적용 전 타깃 검토 가능
+- [x] 이슈 카드 하단에 후보 chip(`#id CloseOverlay|Back`)을 노출하고, 각 chip 클릭으로 해당 타깃에 one-click 적용 가능
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+
+### Flow Lint Owner Tagging (2026-04-20)
+- [x] Flow Lint 패널에 owner tagging 입력(`type:@owner`)을 추가해 이슈 타입별 담당자 태그를 저장/적용
+- [x] 저장된 owner 태그를 이슈 카드 헤더에 `@owner`로 표시해 triage 시 담당자를 즉시 확인 가능
+- [x] CI JSON/Markdown export `issues[]`에 `ownerTag` 필드를 포함하고, Markdown 이슈 라인에도 `@owner`를 자동 부착
+- [x] owner 태그 설정은 localStorage(`opensketch-flow-lint-owner-tags-v1`)에 저장되어 세션 재진입 후에도 유지
 - 구현: `packages/app/src/ui/prototype-viewer.ts`

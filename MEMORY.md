@@ -1790,10 +1790,20 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Flow Lint Owner Tagging — 이슈 타입별 담당자(owner) 태그를 설정해 카드/내보내기에 `@owner`를 자동 부착 (임팩트 중, 난이도 중)
 - Overlay Escape Replay Test Cases — Esc/Back 경로를 자동 재생하는 회귀 테스트 케이스 생성기(성공/실패 스냅샷 포함) (임팩트 중상, 난이도 중상)
 - Prototype Risk Trend Sparkline — 최근 lint 실행 N회 기준 risk score 추세 스파크라인 및 급증 경고 (임팩트 중, 난이도 중)
+- Flow Lint Owner SLA Timer — 이슈 owner 태그 기준으로 경과 시간(SLA) 배지/정렬 지원 (임팩트 중, 난이도 중)
+- Overlay Exit Suggestion A/B Presets — 추천 점수 가중치 preset(Conservative/Balanced/Aggressive) 전환 + 결과 비교 (임팩트 중, 난이도 중상)
+- Flow Lint Digest Composer — owner별 이슈를 묶어 Slack/Discord 공유용 digest 텍스트 자동 생성 (임팩트 중, 난이도 중)
 
+
+## 완료된 기능 (추가 — Flow Lint Owner Tagging, 2026-04-20)
+- Flow Lint 패널에 owner tagging 입력(`type:@owner`) 추가, Apply/Clear로 타입별 담당자 태그를 저장/갱신
+- 저장된 owner 태그를 Flow Lint 이슈 카드 헤더에 `@owner`로 표시해 triage 우선 담당자 식별 속도 개선
+- CI export(JSON/Markdown) 이슈 항목에 `ownerTag`를 포함하고 Markdown 라인에도 자동 부착
+- owner 설정은 localStorage(`opensketch-flow-lint-owner-tags-v1`)에 저장되어 재진입 후 복원
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Flow Lint CI Export (JSON/Markdown), 2026-04-20)
 - Flow Lint 패널에 `Copy CI JSON` / `Copy CI MD` 버튼 추가
