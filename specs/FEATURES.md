@@ -3099,3 +3099,11 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] 복귀 step이 latency budget(기본 2 step)을 초과하면 경고를 생성하고 detail에 `Esc N / Back N`을 함께 표시
 - [x] Flow Lint 요약/필터/정렬/색상 체계에 신규 규칙 반영
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
+
+
+### Flow Lint Quick-fix Batch Runner (2026-04-20)
+- [x] Flow Lint 패널에 `Batch quick-fix` 실행기 추가 (이슈 타입 + 범위: Current/All frames)
+- [x] 지원 타입: `a11y-focus-trap`, `overlay-depth-budget`, `scroll-leak`
+- [x] 동일 타입 lint 이슈를 선택 범위에서 일괄 수정하고 undo 스냅샷 1회로 롤백 가능
+- [x] 배치 타입 셀렉터에 `type (count)` 메타를 표시하고 대상이 없으면 실행 버튼 비활성화
+- 구현: `packages/app/src/ui/prototype-viewer.ts`

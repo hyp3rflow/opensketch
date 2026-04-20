@@ -1790,11 +1790,18 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Flow Lint Quick-fix Batch Runner — 동일 타입 lint 이슈를 프레임 범위 단위로 일괄 fix/undo하는 배치 실행기 (임팩트 중상, 난이도 중)
 - Overlay Route Risk Scoreboard — overlay별 key-route/depth/latency 이슈를 가중치 점수로 합산해 위험도 순위 보드 제공 (임팩트 중상, 난이도 중)
 - Flow Lint Scope Runner (Selection/Page/Flow) — lint 실행 범위를 선택 영역·현재 페이지·현재 flow로 제한하는 스코프 실행기 (임팩트 중, 난이도 중)
 - Overlay Exit Path Auto-Suggest — Esc/Back 누락 overlay에 대해 CloseOverlay/Back 후보 타깃을 one-click 제안 (임팩트 중상, 난이도 중상)
 - Lint Snapshot Diff Report — Flow Lint 실행 간 이슈 증감(신규/해결/회귀) 비교 리포트 + copy export (임팩트 중, 난이도 중)
+
+## 완료된 기능 (추가 — Flow Lint Quick-fix Batch Runner, 2026-04-20)
+- Flow Lint 패널에 `Batch quick-fix` 실행기 추가 (이슈 타입 + 범위: Current/All frames)
+- 지원 타입: `a11y-focus-trap`, `overlay-depth-budget`, `scroll-leak`
+- 동일 타입 이슈를 프레임 범위 단위로 일괄 수정하고 undo 스냅샷 1회로 롤백 가능
+- 배치 셀렉터에 타입별 이슈 카운트 표시, 대상 이슈가 없으면 실행 버튼 비활성화
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Overlay Exit Latency Budget Lint, 2026-04-20)
 - Flow Lint에 `overlay-exit-latency` 이슈 타입 추가

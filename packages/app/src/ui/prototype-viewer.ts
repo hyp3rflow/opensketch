@@ -384,6 +384,9 @@ export function createPrototypeViewer(editor: Editor): {
   let flowLintInfo: HTMLDivElement | null = null;
   let flowLintFilterWrap: HTMLDivElement | null = null;
   let flowLintList: HTMLDivElement | null = null;
+  let flowLintBatchTypeSel: HTMLSelectElement | null = null;
+  let flowLintBatchScopeSel: HTMLSelectElement | null = null;
+  let flowLintBatchRunBtn: HTMLButtonElement | null = null;
   let focusTrapSimWrap: HTMLDivElement | null = null;
   let focusTrapSimInfo: HTMLDivElement | null = null;
   let focusTrapSimList: HTMLDivElement | null = null;
@@ -1955,6 +1958,90 @@ export function createPrototypeViewer(editor: Editor): {
     return changed;
   }
 
+  const FLOW_LINT_BATCH_FIXABLE_TYPES: FlowLintIssueType[] = ["a11y-focus-trap", "overlay-depth-budget", "scroll-leak"];
+
+  function runFlowLintBatchQuickFix(issueType: FlowLintIssueType, scope: "current-frame" | "all-frames"): number {
+    const issues = (flowLintSnapshot?.issues || []).filter((issue) => issue.type === issueType);
+    const scopedIssues = scope === "current-frame" && currentFrameId && currentFrameId > 0
+      ? issues.filter((issue) => issue.frameId === currentFrameId)
+      : issues;
+    if (scopedIssues.length === 0) return 0;
+
+    let changed = 0;
+    let touched = false;
+
+    if (issueType === "a11y-focus-trap") {
+      const trapIssues = collectFocusTrapSimulationIssues(flowMinimapSnapshot || undefined);
+      const scopedTrap = trapIssues.filter((row) => scopedIssues.some((issue) => issue.frameId === row.frameId && issue.overlayId === row.overlayId));
+      const seen = new Set<string>();
+      for (const row of scopedTrap) {
+        const key = `${row.frameId}:${row.overlayId}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        if (!touched) {
+          editor.engine.push_undo();
+          touched = true;
+        }
+        if (applyFocusTrapFix(row)) changed += 1;
+      }
+      return changed;
+    }
+
+    if (!touched) {
+      editor.engine.push_undo();
+      touched = true;
+    }
+
+    if (issueType === "scroll-leak") {
+      const seen = new Set<string>();
+      for (const issue of scopedIssues) {
+        if (!issue.overlayId || issue.overlayId <= 0) continue;
+        const key = `${issue.frameId}:${issue.overlayId}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const frame = flowMinimapSnapshot?.nodes.find((n) => n.id === issue.frameId);
+        if (!frame) continue;
+        const lockKey = makeScrollLockRegionKey(issue.frameId, issue.overlayId);
+        try {
+          editor.engine.set_scroll_lock_region(lockKey, Number(frame.x || 0), Number(frame.y || 0), Number(frame.width || 0), Number(frame.height || 0));
+          scrollLockRegions = { ...scrollLockRegions, [lockKey]: true };
+          changed += 1;
+        } catch {}
+      }
+      if (changed > 0) saveScrollLockRegions(scrollLockRegions);
+      return changed;
+    }
+
+    if (issueType === "overlay-depth-budget") {
+      const seen = new Set<number>();
+      const prevSelectionRaw = editor.engine.get_selection_json();
+      let prevSelection: number[] = [];
+      try {
+        const parsed = JSON.parse(prevSelectionRaw || "[]");
+        if (Array.isArray(parsed)) {
+          prevSelection = parsed.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0);
+        }
+      } catch {}
+      try {
+        for (const issue of scopedIssues) {
+          const flattenTargets = Array.from(new Set([...(issue.overlayPath || []), issue.overlayId].filter((id): id is number => Number(id) > 0)));
+          for (const targetId of flattenTargets) {
+            if (seen.has(targetId)) continue;
+            seen.add(targetId);
+            editor.engine.set_selection(new BigUint64Array([BigInt(targetId)]));
+            changed += Number(editor.engine.flatten_selection() || 0);
+          }
+        }
+      } finally {
+        if (prevSelection.length > 0) editor.engine.set_selection(new BigUint64Array(prevSelection.map((id) => BigInt(id))));
+        else editor.engine.clear_selection();
+      }
+      return changed;
+    }
+
+    return 0;
+  }
+
   function simulateOverlayStackStress(frameId: number, snapshotInput?: { nodes: Array<{ id: number; name: string; x: number; y: number; width: number; height: number }>; edges: Array<{ from: number; to: number; action: string; sourceNodeId: number; interactionIndex: number; conditional: boolean; branchActive: boolean | null; conditionSummary: string }>; }) {
     const snapshot = snapshotInput || flowMinimapSnapshot;
     if (!snapshot) return { summary: "No flow snapshot", failDepth: 0 };
@@ -3252,6 +3339,10 @@ export function createPrototypeViewer(editor: Editor): {
       ok.style.cssText = "font-size:10px;color:#86efac;";
       ok.textContent = "No issues found.";
       flowLintList.appendChild(ok);
+      if (flowLintBatchRunBtn) {
+        flowLintBatchRunBtn.disabled = true;
+        flowLintBatchRunBtn.style.opacity = "0.55";
+      }
       renderFocusTrapSimulator();
       renderOverlayStackInspector();
       renderEscapeRouteMap();
@@ -3304,6 +3395,26 @@ export function createPrototypeViewer(editor: Editor): {
     }
 
     const filteredIssues = sortedIssues.filter((i) => flowLintFilterTypes.has(i.type));
+
+    if (flowLintBatchTypeSel) {
+      const prevType = flowLintBatchTypeSel.value;
+      flowLintBatchTypeSel.innerHTML = "";
+      for (const t of FLOW_LINT_BATCH_FIXABLE_TYPES) {
+        const count = filteredIssues.filter((issue) => issue.type === t).length;
+        const opt = document.createElement("option");
+        opt.value = t;
+        opt.textContent = `${t} (${count})`;
+        flowLintBatchTypeSel.appendChild(opt);
+      }
+      if (FLOW_LINT_BATCH_FIXABLE_TYPES.includes(prevType as FlowLintIssueType)) flowLintBatchTypeSel.value = prevType;
+      const selectedType = (flowLintBatchTypeSel.value || FLOW_LINT_BATCH_FIXABLE_TYPES[0]) as FlowLintIssueType;
+      const hasSelectedIssues = filteredIssues.some((issue) => issue.type === selectedType);
+      if (flowLintBatchRunBtn) {
+        flowLintBatchRunBtn.disabled = !hasSelectedIssues;
+        flowLintBatchRunBtn.style.opacity = hasSelectedIssues ? "1" : "0.55";
+      }
+    }
+
     const visibleIssues = filteredIssues.slice(0, 14);
     flowLintRenderedIssues = visibleIssues;
     flowLintNavIndex = Math.min(flowLintNavIndex, flowLintRenderedIssues.length - 1);
@@ -4335,6 +4446,41 @@ export function createPrototypeViewer(editor: Editor): {
     flowLintFilterWrap = document.createElement("div");
     flowLintFilterWrap.style.cssText = "display:flex;flex-wrap:wrap;gap:4px;";
     flowLintWrap.appendChild(flowLintFilterWrap);
+
+    const flowLintBatchRow = document.createElement("div");
+    flowLintBatchRow.style.cssText = "display:flex;gap:4px;";
+    flowLintBatchTypeSel = document.createElement("select");
+    flowLintBatchTypeSel.style.cssText = "flex:1;background:#0f172a;color:#f8fafc;border:1px solid rgba(148,163,184,0.35);border-radius:6px;padding:3px 6px;font-size:10px;";
+    for (const type of FLOW_LINT_BATCH_FIXABLE_TYPES) {
+      const opt = document.createElement("option");
+      opt.value = type;
+      opt.textContent = type;
+      flowLintBatchTypeSel.appendChild(opt);
+    }
+    flowLintBatchRow.appendChild(flowLintBatchTypeSel);
+
+    flowLintBatchScopeSel = document.createElement("select");
+    flowLintBatchScopeSel.style.cssText = "width:86px;background:#0f172a;color:#f8fafc;border:1px solid rgba(148,163,184,0.35);border-radius:6px;padding:3px 6px;font-size:10px;";
+    flowLintBatchScopeSel.innerHTML = "<option value=\"current-frame\">Current</option><option value=\"all-frames\">All frames</option>";
+    flowLintBatchRow.appendChild(flowLintBatchScopeSel);
+    flowLintWrap.appendChild(flowLintBatchRow);
+
+    flowLintBatchRunBtn = document.createElement("button");
+    flowLintBatchRunBtn.className = "prop-btn";
+    flowLintBatchRunBtn.textContent = "Batch quick-fix";
+    flowLintBatchRunBtn.style.cssText = "width:100%;font-size:10px;padding:3px 6px;";
+    flowLintBatchRunBtn.onclick = () => {
+      const issueType = (flowLintBatchTypeSel?.value || "a11y-focus-trap") as FlowLintIssueType;
+      const scope = (flowLintBatchScopeSel?.value === "all-frames" ? "all-frames" : "current-frame") as "current-frame" | "all-frames";
+      const changed = runFlowLintBatchQuickFix(issueType, scope);
+      if (changed > 0) editor.requestRender();
+      flowLintBatchRunBtn!.textContent = changed > 0 ? `Fixed ${changed}` : "No-op";
+      window.setTimeout(() => {
+        if (flowLintBatchRunBtn) flowLintBatchRunBtn.textContent = "Batch quick-fix";
+      }, 1200);
+      renderFlowLint();
+    };
+    flowLintWrap.appendChild(flowLintBatchRunBtn);
 
     const focusTrapFixBtn = document.createElement("button");
     focusTrapFixBtn.className = "prop-btn";
