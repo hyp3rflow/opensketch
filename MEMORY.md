@@ -1792,6 +1792,9 @@
 ## 다음 할 것
 - Owner SLA Escalation Rules — SLA 임계값별(24h/48h/72h) 색상/정렬 가중치 + escalation only 필터 (임팩트 중상, 난이도 중상)
 - Flow Lint Digest Delivery Presets — Discord/Slack 템플릿 프리셋 + owner mention 매핑 저장 (임팩트 중, 난이도 중)
+- Flow Lint Snapshot Pin/Lock — 중요한 baseline/run을 pin 처리해 자동 trim(최대 20개) 대상에서 제외 (임팩트 중, 난이도 중)
+- Flow Lint Delta Heatmap — frame별 이슈 증감량(New/Resolved/Regressed)을 미니 heatmap으로 시각화 (임팩트 중, 난이도 중상)
+- Flow Lint Compare to Any Run — 히스토리에서 A/B run 선택 후 서로 직접 diff하는 compare 모드 추가 (임팩트 중상, 난이도 중상)
 
 ## 완료된 기능 (추가 — Flow Lint Snapshot History Timeline, 2026-04-21)
 - Flow Lint `Lint Snapshot Diff`에 run note 입력 + 히스토리 타임라인(최대 20개)을 추가
