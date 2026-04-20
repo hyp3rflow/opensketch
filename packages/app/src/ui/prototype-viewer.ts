@@ -763,6 +763,8 @@ export function createPrototypeViewer(editor: Editor): {
   let flowLintWrap: HTMLDivElement | null = null;
   let flowLintPresetSel: HTMLSelectElement | null = null;
   let flowLintScopeSel: HTMLSelectElement | null = null;
+  let flowLintScopePreviewInfo: HTMLDivElement | null = null;
+  let flowLintScopePreviewList: HTMLDivElement | null = null;
   let flowLintSeveritySel: HTMLSelectElement | null = null;
   let flowLintExitPresetASel: HTMLSelectElement | null = null;
   let flowLintExitPresetBSel: HTMLSelectElement | null = null;
@@ -4014,6 +4016,8 @@ export function createPrototypeViewer(editor: Editor): {
       flowLintSnapshot = { startFrameId: null, issues: [] };
       flowLintRenderedIssues = [];
       flowLintNavIndex = -1;
+      if (flowLintScopePreviewInfo) flowLintScopePreviewInfo.textContent = "Preview unavailable: no frames.";
+      if (flowLintScopePreviewList) flowLintScopePreviewList.innerHTML = "";
       if (flowLintDiffInfo) flowLintDiffInfo.textContent = "No frames to diff.";
       if (flowLintDiffList) flowLintDiffList.innerHTML = "";
       if (flowLintDiffCopyBtn) flowLintDiffCopyBtn.disabled = true;
@@ -4139,6 +4143,47 @@ export function createPrototypeViewer(editor: Editor): {
     }
 
     const shouldInspectFrame = (frameId: number) => scopedFrameIds.has(frameId);
+
+    const previewFrameIds = [...scopedFrameIds].slice(0, 6);
+    const previewFrameLabels = previewFrameIds
+      .map((id) => {
+        const frame = frameById.get(id);
+        if (!frame) return null;
+        return `#${id} ${frame.name || "Untitled"}`;
+      })
+      .filter((label): label is string => !!label);
+    const previewOverflow = Math.max(0, scopedFrameIds.size - previewFrameLabels.length);
+    if (flowLintScopePreviewInfo) {
+      const scopeLabel = lintScope === "selection" ? "Selection" : lintScope === "page" ? "Page" : "Flow";
+      const sourceMeta = lintScope === "selection"
+        ? `${selectedNodeIds.size} selected node(s)`
+        : lintScope === "page"
+          ? `page #${activePageId || "-"}`
+          : `start #${startFrameId}`;
+      flowLintScopePreviewInfo.textContent = `${scopeLabel} preview: ${scopedFrameIds.size} frame(s) · source ${sourceMeta}`;
+    }
+    if (flowLintScopePreviewList) {
+      flowLintScopePreviewList.innerHTML = "";
+      if (previewFrameLabels.length === 0) {
+        const empty = document.createElement("div");
+        empty.style.cssText = "font-size:9px;color:#64748b;";
+        empty.textContent = "No target frames in current scope.";
+        flowLintScopePreviewList.appendChild(empty);
+      } else {
+        for (const label of previewFrameLabels) {
+          const chip = document.createElement("div");
+          chip.style.cssText = "font-size:9px;color:#bfdbfe;border:1px solid rgba(125,211,252,0.25);border-radius:6px;padding:2px 5px;background:rgba(12,74,110,0.2);";
+          chip.textContent = label;
+          flowLintScopePreviewList.appendChild(chip);
+        }
+        if (previewOverflow > 0) {
+          const more = document.createElement("div");
+          more.style.cssText = "font-size:9px;color:#94a3b8;";
+          more.textContent = `+${previewOverflow} more frame(s)`;
+          flowLintScopePreviewList.appendChild(more);
+        }
+      }
+    }
 
     const issues: FlowLintIssue[] = [];
     const overlayGuardPreset = resolveOverlayGuardPreset(overlayGuardPresetId);
@@ -5901,6 +5946,21 @@ export function createPrototypeViewer(editor: Editor): {
     };
     flowLintScopeRow.appendChild(flowLintScopeSel);
     flowLintWrap.appendChild(flowLintScopeRow);
+
+    const flowLintScopePreviewWrap = document.createElement("div");
+    flowLintScopePreviewWrap.style.cssText = "display:flex;flex-direction:column;gap:4px;padding:5px;border-radius:7px;border:1px solid rgba(125,211,252,0.28);background:rgba(12,74,110,0.14);";
+    const flowLintScopePreviewHead = document.createElement("div");
+    flowLintScopePreviewHead.style.cssText = "font-size:9px;font-weight:600;color:#bfdbfe;text-transform:uppercase;letter-spacing:0.04em;";
+    flowLintScopePreviewHead.textContent = "Scope Route Preview";
+    flowLintScopePreviewWrap.appendChild(flowLintScopePreviewHead);
+    flowLintScopePreviewInfo = document.createElement("div");
+    flowLintScopePreviewInfo.style.cssText = "font-size:9px;line-height:1.35;color:#93c5fd;";
+    flowLintScopePreviewInfo.textContent = "Selection/page/flow 대상 frame 계산 중…";
+    flowLintScopePreviewWrap.appendChild(flowLintScopePreviewInfo);
+    flowLintScopePreviewList = document.createElement("div");
+    flowLintScopePreviewList.style.cssText = "display:flex;flex-direction:column;gap:3px;";
+    flowLintScopePreviewWrap.appendChild(flowLintScopePreviewList);
+    flowLintWrap.appendChild(flowLintScopePreviewWrap);
 
     const flowLintPresetRow = document.createElement("div");
     flowLintPresetRow.style.cssText = "display:flex;gap:6px;align-items:center;";

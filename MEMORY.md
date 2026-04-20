@@ -1790,11 +1790,18 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Selection Scope Route Preview — Selection scope 실행 전 대상 frame 리스트/카운트를 미리 보여주는 preview 패널 (임팩트 중, 난이도 중)
 - Page Scope Cross-Page Leak Guard — page scope lint에서 타 페이지 overlay target을 leak 이슈로 분리 감지 (임팩트 중상, 난이도 중상)
 - Flow Lint Scope Preset Quick Slots — flow별 scope preset(Selection/Page/Flow) 3슬롯 저장/원클릭 전환 + 현재 슬롯 배지 표시 (임팩트 중, 난이도 중)
 - Flow Lint Scope Drift Alert — 마지막 실행 scope와 현재 scope가 다를 때 lint 실행 전 drift 경고 + one-click revert 제공 (임팩트 중, 난이도 중)
 - Flow Lint Scope Preset Cleanup — 삭제된 flow/page preset stale key 정리 툴과 usage 카운트 표시 (임팩트 중하, 난이도 중)
+
+## 완료된 기능 (추가 — Selection Scope Route Preview, 2026-04-21)
+- Flow Lint 패널에 `Scope Route Preview` 카드 추가
+- Selection/Page/Flow scope 실행 전 대상 frame 수와 source 메타(선택 노드 수 / page id / start frame) 표시
+- 대상 frame 상위 6개를 chip으로 노출하고 나머지는 `+N more`로 축약 표시
+- scope 결과가 비어있거나 frame이 없을 때 preview 상태 메시지 제공
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Flow Lint Scope Preset Memory, 2026-04-21)
 - Flow Lint Scope를 flow별(localStorage)로 저장하고 Prototype Viewer 재진입 시 자동 복원되도록 연결
