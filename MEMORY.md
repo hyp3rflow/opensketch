@@ -1790,11 +1790,18 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Flow Lint CI Export (JSON/Markdown) — lint 결과를 CI 아티팩트 형식(JSON/MD)으로 내보내고 PR 코멘트에 붙일 수 있는 요약 생성 (임팩트 중, 난이도 중)
 - Flow Lint Owner Tagging — 이슈 타입별 담당자(owner) 태그를 설정해 카드/내보내기에 `@owner`를 자동 부착 (임팩트 중, 난이도 중)
 - Overlay Escape Replay Test Cases — Esc/Back 경로를 자동 재생하는 회귀 테스트 케이스 생성기(성공/실패 스냅샷 포함) (임팩트 중상, 난이도 중상)
 - Prototype Risk Trend Sparkline — 최근 lint 실행 N회 기준 risk score 추세 스파크라인 및 급증 경고 (임팩트 중, 난이도 중)
 
+
+## 완료된 기능 (추가 — Flow Lint CI Export (JSON/Markdown), 2026-04-20)
+- Flow Lint 패널에 `Copy CI JSON` / `Copy CI MD` 버튼 추가
+- JSON payload: generatedAt, scope, profile, startFrameId, issueCount, issueTypeCounts, topOverlayRisk, issues
+- Markdown payload: PR 코멘트용 요약(Counts/Top Overlay Risk/Issues) 자동 생성
+- 프레임이 없는 상태에서는 export 버튼 비활성화
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Overlay Close Target Confidence Ranker, 2026-04-20)
 - `overlay-key-route` 추천 엔진의 후보 점수 산식을 route 안정성 + 거리(anchor proximity) + 조건부 분기 페널티 기반으로 확장

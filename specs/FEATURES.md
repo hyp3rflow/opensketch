@@ -3130,9 +3130,18 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Flow Lint 패널에 `Overlay Route Risk` 보드를 추가해 overlay별 route 위험도를 점수화 후 내림차순 랭킹 제공
 - [x] 집계 대상: `overlay-key-route`, `overlay-depth-budget`, `overlay-exit-latency`
 - [x] 가중치 스코어(기본 + 초과 penalty)로 overlay별 합산 점수 계산, key/depth/latency 카운트와 함께 카드 표시
+- [x] 점수 요약은 Top N이 아닌 전체 overlay risk row를 기준으로 집계하고, 리스트는 상위 6개만 노출해 요약 정확도 유지
+- [x] 카드에 위험 순위(#1~)와 severity(critical/watch/low) 메타를 표시해 우선순위 판단 속도 개선
 - [x] 상위 위험 overlay 카드 클릭 시 해당 overlay를 발생시킨 frame으로 즉시 네비게이션
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
 
+
+### Flow Lint CI Export (JSON/Markdown) (2026-04-20)
+- [x] Flow Lint 패널에 `Copy CI JSON` / `Copy CI MD` 버튼을 추가해 실행 결과를 CI 아티팩트용 포맷으로 즉시 복사
+- [x] JSON export payload: generatedAt, scope, profile, startFrameId, issueCount, issueTypeCounts, topOverlayRisk, issues
+- [x] Markdown export는 PR 코멘트에 바로 붙일 수 있도록 요약(Counts/Top Overlay Risk/Issues) 구조로 생성
+- [x] 프레임이 없는 상태에서는 export 버튼 비활성화
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
 
 ### Overlay Close Target Confidence Ranker (2026-04-20)
 - [x] `overlay-key-route` 추천 엔진에 route 안정성(escape simulation) 점수를 반영해 후보 신뢰도를 가중

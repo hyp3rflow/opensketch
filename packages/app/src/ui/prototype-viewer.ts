@@ -454,6 +454,8 @@ export function createPrototypeViewer(editor: Editor): {
   let flowLintDiffInfo: HTMLDivElement | null = null;
   let flowLintDiffList: HTMLDivElement | null = null;
   let flowLintDiffCopyBtn: HTMLButtonElement | null = null;
+  let flowLintExportJsonBtn: HTMLButtonElement | null = null;
+  let flowLintExportMdBtn: HTMLButtonElement | null = null;
   let flowLintFilterWrap: HTMLDivElement | null = null;
   let flowLintList: HTMLDivElement | null = null;
   let flowLintBatchTypeSel: HTMLSelectElement | null = null;
@@ -3062,6 +3064,72 @@ export function createPrototypeViewer(editor: Editor): {
     ].join("\n");
   }
 
+  function buildFlowLintExportPayload(lintScope: FlowLintRunScope, presetLabel: string) {
+    const issues = flowLintSnapshot?.issues || [];
+    const startFrameId = flowLintSnapshot?.startFrameId || null;
+    const issueTypeCounts: Record<string, number> = {};
+    for (const issue of issues) issueTypeCounts[issue.type] = (issueTypeCounts[issue.type] || 0) + 1;
+    const byOverlay = new Map<number, { overlayId: number; overlayName: string; frameName: string; score: number }>();
+    for (const issue of issues) {
+      const overlayId = issue.overlayId || 0;
+      if (overlayId <= 0) continue;
+      const overlayNameMatch = issue.detail.match(/overlay\s+([^·]+)/i);
+      const overlayName = overlayNameMatch?.[1]?.trim() || `#${overlayId}`;
+      const frameName = issue.frameName;
+      const row = byOverlay.get(overlayId) || { overlayId, overlayName, frameName, score: 0 };
+      if (issue.type === "overlay-key-route") row.score += 65;
+      else if (issue.type === "overlay-depth-budget") row.score += 42;
+      else if (issue.type === "overlay-exit-latency") row.score += 28;
+      byOverlay.set(overlayId, row);
+    }
+    const topOverlayRisk = Array.from(byOverlay.values()).sort((a, b) => b.score - a.score).slice(0, 5);
+    return {
+      generatedAt: new Date().toISOString(),
+      scope: lintScope,
+      presetLabel,
+      startFrameId,
+      issueCount: issues.length,
+      issueTypeCounts,
+      topOverlayRisk,
+      issues: issues.map((issue) => ({
+        type: issue.type,
+        frameId: issue.frameId,
+        frameName: issue.frameName,
+        overlayId: issue.overlayId || null,
+        overlayBudget: issue.overlayBudget || null,
+        detail: issue.detail,
+      })),
+    };
+  }
+
+  function formatFlowLintExportMarkdown(payload: ReturnType<typeof buildFlowLintExportPayload>): string {
+    const lines = [
+      "# Flow Lint CI Export",
+      "",
+      `- generatedAt: ${payload.generatedAt}`,
+      `- scope: ${payload.scope}`,
+      `- profile: ${payload.presetLabel}`,
+      `- startFrameId: ${payload.startFrameId ?? "none"}`,
+      `- issueCount: ${payload.issueCount}`,
+      "",
+      "## Issue Counts",
+      ...(Object.entries(payload.issueTypeCounts).length > 0
+        ? Object.entries(payload.issueTypeCounts).sort((a, b) => b[1] - a[1]).map(([type, count]) => `- ${type}: ${count}`)
+        : ["- none"]),
+      "",
+      "## Top Overlay Risk",
+      ...(payload.topOverlayRisk.length > 0
+        ? payload.topOverlayRisk.map((row, idx) => `- #${idx + 1} ${row.overlayName} (#${row.overlayId}) · score ${Math.round(row.score)} · frame ${row.frameName}`)
+        : ["- none"]),
+      "",
+      "## Issues",
+      ...(payload.issues.length > 0
+        ? payload.issues.map((issue) => `- ${issue.type} · ${issue.frameName} (#${issue.frameId})${issue.overlayId ? ` · overlay #${issue.overlayId}` : ""} · ${issue.detail}`)
+        : ["- none"]),
+    ];
+    return lines.join("\n");
+  }
+
   function renderFlowLintDiffReport(lintScope: FlowLintRunScope, presetLabel: string) {
     if (!flowLintDiffInfo || !flowLintDiffList || !flowLintSnapshot) return;
     const currentIssues = flowLintSnapshot.issues || [];
@@ -3196,6 +3264,8 @@ export function createPrototypeViewer(editor: Editor): {
       if (flowLintDiffInfo) flowLintDiffInfo.textContent = "No frames to diff.";
       if (flowLintDiffList) flowLintDiffList.innerHTML = "";
       if (flowLintDiffCopyBtn) flowLintDiffCopyBtn.disabled = true;
+      if (flowLintExportJsonBtn) flowLintExportJsonBtn.disabled = true;
+      if (flowLintExportMdBtn) flowLintExportMdBtn.disabled = true;
       renderFocusTrapSimulator();
       renderOverlayStackInspector();
       renderEscapeRouteMap();
@@ -3702,6 +3772,8 @@ export function createPrototypeViewer(editor: Editor): {
     }
 
     flowLintSnapshot = { startFrameId, issues };
+    if (flowLintExportJsonBtn) flowLintExportJsonBtn.disabled = false;
+    if (flowLintExportMdBtn) flowLintExportMdBtn.disabled = false;
 
     const deadEndCount = issues.filter((i) => i.type === "dead-end").length;
     const unreachableCount = issues.filter((i) => i.type === "unreachable").length;
@@ -3838,27 +3910,27 @@ export function createPrototypeViewer(editor: Editor): {
       }
     }
     const rankedOverlayRiskRows = Array.from(overlayRiskRows.values())
-      .sort((a, b) => (b.score - a.score) || (b.keyRouteCount - a.keyRouteCount) || (b.depthCount - a.depthCount) || (b.latencyCount - a.latencyCount) || a.overlayName.localeCompare(b.overlayName))
-      .slice(0, 6);
+      .sort((a, b) => (b.score - a.score) || (b.keyRouteCount - a.keyRouteCount) || (b.depthCount - a.depthCount) || (b.latencyCount - a.latencyCount) || a.overlayName.localeCompare(b.overlayName));
     const totalOverlayRiskScore = rankedOverlayRiskRows.reduce((sum, row) => sum + row.score, 0);
     const totalOverlayRiskCount = rankedOverlayRiskRows.reduce((sum, row) => sum + row.keyRouteCount + row.depthCount + row.latencyCount, 0);
+    const visibleOverlayRiskRows = rankedOverlayRiskRows.slice(0, 6);
     flowLintRiskInfo.textContent = rankedOverlayRiskRows.length > 0
       ? `Overlay route risk ${Math.round(totalOverlayRiskScore)}pt · ${rankedOverlayRiskRows.length} overlays · issues ${totalOverlayRiskCount}`
       : "Overlay risk scoreboard: no route/depth/latency issues.";
     flowLintRiskList.innerHTML = "";
-    if (rankedOverlayRiskRows.length === 0) {
+    if (visibleOverlayRiskRows.length === 0) {
       const ok = document.createElement("div");
       ok.style.cssText = "font-size:9px;color:#86efac;";
       ok.textContent = "No overlay risk rows.";
       flowLintRiskList.appendChild(ok);
     } else {
-      for (const row of rankedOverlayRiskRows) {
+      for (const [riskIndex, row] of visibleOverlayRiskRows.entries()) {
         const card = document.createElement("button");
         const severity = row.score >= 130 ? "critical" : row.score >= 80 ? "watch" : "low";
         const accent = severity === "critical" ? "#fb7185" : severity === "watch" ? "#f59e0b" : "#38bdf8";
         card.style.cssText = `display:flex;justify-content:space-between;align-items:flex-start;gap:6px;width:100%;text-align:left;background:rgba(15,23,42,0.55);border:1px solid rgba(148,163,184,0.25);border-left:3px solid ${accent};border-radius:6px;color:#e2e8f0;padding:4px 6px;cursor:pointer;`;
-        card.innerHTML = `<span style="display:flex;flex-direction:column;gap:1px;"><span style="font-size:10px;font-weight:600;color:${accent};">${row.overlayName} (#${row.overlayId})</span><span style="font-size:9px;color:#94a3b8;">${row.frameName} · key ${row.keyRouteCount} · depth ${row.depthCount} · latency ${row.latencyCount}</span></span><span style="font-size:11px;font-weight:700;color:${accent};">${Math.round(row.score)}</span>`;
-        card.title = `depth excess ${row.peakDepthExcess}, max latency ${row.peakLatencySteps} step(s)`;
+        card.innerHTML = `<span style="display:flex;flex-direction:column;gap:1px;"><span style="font-size:10px;font-weight:600;color:${accent};">#${riskIndex + 1} · ${row.overlayName} (#${row.overlayId})</span><span style="font-size:9px;color:#94a3b8;">${row.frameName} · key ${row.keyRouteCount} · depth ${row.depthCount} · latency ${row.latencyCount}</span></span><span style="font-size:11px;font-weight:700;color:${accent};">${Math.round(row.score)}</span>`;
+        card.title = `severity ${severity} · depth excess ${row.peakDepthExcess} · max latency ${row.peakLatencySteps} step(s)`;
         card.onclick = () => {
           const targetFrameId = sortedIssues.find((issue) => issue.overlayId === row.overlayId)?.frameId;
           if (targetFrameId) navigateTo(targetFrameId, "Instant", 0, "linear");
@@ -5049,6 +5121,48 @@ export function createPrototypeViewer(editor: Editor): {
     flowLintDiffList.style.cssText = "display:flex;flex-direction:column;gap:4px;";
     flowLintDiffWrap.appendChild(flowLintDiffList);
     flowLintWrap.appendChild(flowLintDiffWrap);
+
+    const flowLintExportRow = document.createElement("div");
+    flowLintExportRow.style.cssText = "display:flex;gap:4px;";
+    flowLintExportJsonBtn = document.createElement("button");
+    flowLintExportJsonBtn.className = "prop-btn";
+    flowLintExportJsonBtn.textContent = "Copy CI JSON";
+    flowLintExportJsonBtn.style.cssText = "flex:1;font-size:9px;padding:2px 6px;";
+    flowLintExportJsonBtn.onclick = async () => {
+      const lintScope = resolveFlowLintScope(flowLintScopeSel?.value);
+      const presetLabel = `${resolveOverlayGuardPreset(flowLintPresetSel?.value).label}/${resolveFlowLintSeverityProfile(flowLintSeveritySel?.value).label}`;
+      const payload = buildFlowLintExportPayload(lintScope, presetLabel);
+      try {
+        await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+        if (flowLintExportJsonBtn) flowLintExportJsonBtn.textContent = "Copied JSON";
+      } catch {
+        if (flowLintExportJsonBtn) flowLintExportJsonBtn.textContent = "Copy failed";
+      }
+      window.setTimeout(() => {
+        if (flowLintExportJsonBtn) flowLintExportJsonBtn.textContent = "Copy CI JSON";
+      }, 1000);
+    };
+    flowLintExportRow.appendChild(flowLintExportJsonBtn);
+    flowLintExportMdBtn = document.createElement("button");
+    flowLintExportMdBtn.className = "prop-btn";
+    flowLintExportMdBtn.textContent = "Copy CI MD";
+    flowLintExportMdBtn.style.cssText = "flex:1;font-size:9px;padding:2px 6px;";
+    flowLintExportMdBtn.onclick = async () => {
+      const lintScope = resolveFlowLintScope(flowLintScopeSel?.value);
+      const presetLabel = `${resolveOverlayGuardPreset(flowLintPresetSel?.value).label}/${resolveFlowLintSeverityProfile(flowLintSeveritySel?.value).label}`;
+      const payload = buildFlowLintExportPayload(lintScope, presetLabel);
+      try {
+        await navigator.clipboard.writeText(formatFlowLintExportMarkdown(payload));
+        if (flowLintExportMdBtn) flowLintExportMdBtn.textContent = "Copied MD";
+      } catch {
+        if (flowLintExportMdBtn) flowLintExportMdBtn.textContent = "Copy failed";
+      }
+      window.setTimeout(() => {
+        if (flowLintExportMdBtn) flowLintExportMdBtn.textContent = "Copy CI MD";
+      }, 1000);
+    };
+    flowLintExportRow.appendChild(flowLintExportMdBtn);
+    flowLintWrap.appendChild(flowLintExportRow);
 
     flowLintFilterWrap = document.createElement("div");
     flowLintFilterWrap.style.cssText = "display:flex;flex-wrap:wrap;gap:4px;";
