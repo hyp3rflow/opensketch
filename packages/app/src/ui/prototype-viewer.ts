@@ -1819,6 +1819,31 @@ export function createPrototypeViewer(editor: Editor): {
     return changed;
   }
 
+  function suggestOverlayExitPathFix(frameId: number, overlayId: number): { changed: boolean; targetNodeId: number } {
+    const addCloseInteractionIfNeeded = (nodeId: number): boolean => {
+      if (!nodeId || nodeId <= 0) return false;
+      try {
+        const allInter: any[] = JSON.parse(editor.engine.get_all_interactions() || "[]") || [];
+        const row = allInter.find((r) => Number(r?.id || 0) === nodeId);
+        const interactions: any[] = Array.isArray(row?.interactions) ? row.interactions : [];
+        const hasClose = interactions.some((inter) => {
+          const trigger = String(inter?.trigger || "");
+          const action = String(inter?.action || "");
+          return (trigger === "OnClick" || trigger === "OnPress") && (action === "CloseOverlay" || action === "Back");
+        });
+        if (hasClose) return false;
+        editor.engine.add_interaction(BigInt(nodeId), "OnPress", "CloseOverlay", BigInt(0), BigInt(0), "Instant", 0, "ease_in_out");
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
+    const focusables = listFocusableHotspots(overlayId);
+    const fallbackNodeId = Number(focusables[focusables.length - 1]?.nodeId || focusables[0]?.nodeId || overlayId || frameId || 0);
+    return { changed: addCloseInteractionIfNeeded(fallbackNodeId), targetNodeId: fallbackNodeId };
+  }
+
   function renderFocusTrapSimulator() {
     if (!focusTrapSimInfo || !focusTrapSimList) return;
     focusTrapSimIssues = collectFocusTrapSimulationIssues(flowMinimapSnapshot || undefined);
@@ -1963,7 +1988,7 @@ export function createPrototypeViewer(editor: Editor): {
     return changed;
   }
 
-  const FLOW_LINT_BATCH_FIXABLE_TYPES: FlowLintIssueType[] = ["a11y-focus-trap", "overlay-depth-budget", "scroll-leak"];
+  const FLOW_LINT_BATCH_FIXABLE_TYPES: FlowLintIssueType[] = ["a11y-focus-trap", "overlay-key-route", "overlay-depth-budget", "scroll-leak"];
 
   function getFlowLintScopedIssues(issueType: FlowLintIssueType, scope: "current-frame" | "all-frames") {
     const issues = (flowLintSnapshot?.issues || []).filter((issue) => issue.type === issueType);
@@ -2017,6 +2042,25 @@ export function createPrototypeViewer(editor: Editor): {
         } catch {}
       }
       if (changed > 0) saveScrollLockRegions(scrollLockRegions);
+      return changed;
+    }
+
+    if (issueType === "overlay-key-route") {
+      const seen = new Set<string>();
+      const candidates: Array<{ frameId: number; overlayId: number }> = [];
+      for (const issue of scopedIssues) {
+        if (!issue.overlayId || issue.overlayId <= 0) continue;
+        const key = `${issue.frameId}:${issue.overlayId}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        candidates.push({ frameId: issue.frameId, overlayId: issue.overlayId });
+      }
+      if (candidates.length === 0) return 0;
+      editor.engine.push_undo();
+      for (const candidate of candidates) {
+        const applied = suggestOverlayExitPathFix(candidate.frameId, candidate.overlayId);
+        if (applied.changed) changed += 1;
+      }
       return changed;
     }
 
@@ -3598,6 +3642,25 @@ export function createPrototypeViewer(editor: Editor): {
           renderFlowLint();
         };
         row.appendChild(fixBtn);
+      }
+      if (issue.type === "overlay-key-route" && issue.overlayId && issue.overlayId > 0) {
+        const suggestBtn = document.createElement("button");
+        suggestBtn.style.cssText = "margin-top:4px;background:#7c2d12;border:1px solid #fb923c;border-radius:4px;color:#ffedd5;font-size:9px;padding:2px 6px;cursor:pointer;";
+        suggestBtn.textContent = "Fix: suggest exit path";
+        suggestBtn.onclick = (ev) => {
+          ev.stopPropagation();
+          editor.engine.push_undo();
+          const result = suggestOverlayExitPathFix(issue.frameId, issue.overlayId || 0);
+          suggestBtn.textContent = result.changed ? `Added #${result.targetNodeId}` : "No-op";
+          if (result.changed) {
+            editor.requestRender();
+            renderFlowLint();
+          }
+          setTimeout(() => {
+            suggestBtn.textContent = "Fix: suggest exit path";
+          }, 1000);
+        };
+        row.appendChild(suggestBtn);
       }
       if (issue.type === "overlay-depth-budget" && issue.overlayId && issue.overlayId > 0) {
         if (issue.overlayRewritePlan && issue.overlayRewritePlan.length > 0) {

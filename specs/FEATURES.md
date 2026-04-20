@@ -3103,8 +3103,9 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 
 ### Flow Lint Quick-fix Batch Runner (2026-04-20)
 - [x] Flow Lint 패널에 `Batch quick-fix` 실행기 추가 (이슈 타입 + 범위: Current/All frames)
-- [x] 지원 타입: `a11y-focus-trap`, `overlay-depth-budget`, `scroll-leak`
+- [x] 지원 타입: `a11y-focus-trap`, `overlay-key-route`, `overlay-depth-budget`, `scroll-leak`
 - [x] 동일 타입 lint 이슈를 선택 범위에서 일괄 수정하고 undo 스냅샷 1회로 롤백 가능
+- [x] `overlay-key-route` 이슈에는 `Fix: suggest exit path` one-click 제안을 추가해 overlay 내부 마지막 focusable hotspot(없으면 overlay 자체)에 `OnPress + CloseOverlay`를 자동 주입
 - [x] 배치 타입 셀렉터에 `type (count)` 메타를 표시하고 대상이 없으면 실행 버튼 비활성화
 - [x] Scope(`Current`/`All frames`) 변경 시 선택 scope 기준으로 실행 가능 여부를 즉시 재평가
 - [x] 실제 수정 대상이 없으면 undo 스냅샷을 만들지 않아 no-op 실행 시 히스토리 오염 방지
