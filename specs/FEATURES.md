@@ -3113,10 +3113,10 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 
 ### Flow Lint Scope Runner (Selection/Page/Flow) (2026-04-20)
 - [x] Flow Lint 패널에 `Scope` 셀렉터 추가 (`Selection / Page / Flow`)
-- [x] Selection: 선택된 frame 집합(없으면 current frame fallback)만 lint 실행
+- [x] Selection: 선택된 노드 집합을 기준으로 parent chain 탐색(실패 시 bbox center fallback)으로 대상 frame을 해석하고 lint 실행 (없으면 current frame fallback)
 - [x] Page: active page의 frame 집합만 lint 실행
 - [x] Flow: start frame 기준 reachable frame에 대해 기존 규칙을 유지
-- [x] dead-end/cycle/overlay/a11y 집계를 scope 필터와 동일 엔진에서 재사용하고 summary에 scope 메타를 표시
+- [x] dead-end/cycle/overlay/a11y 집계를 scope 필터와 동일 엔진에서 재사용하고 summary에 scope 메타(selected node/frame counts 포함)를 표시
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
 
 ### Flow Lint Severity Budget Profiles (2026-04-20)

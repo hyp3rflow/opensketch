@@ -3300,16 +3300,78 @@ export function createPrototypeViewer(editor: Editor): {
     if (flowLintScopeSel) flowLintScopeSel.value = lintScope;
     const activePageId = Number(selectedFlow?.page_id || editor.engine.get_active_page_id?.() || 0);
     const pageFrameIds = new Set<number>(listFramesForPage(activePageId).map((row) => Number(row.id)).filter((id) => Number.isFinite(id) && id > 0));
-    let selectionFrameIds = new Set<number>();
+
+    const selectedNodeIds = new Set<number>();
     try {
       const raw = editor.engine.get_selection_json();
       const parsed = JSON.parse(raw || "[]");
       if (Array.isArray(parsed)) {
-        selectionFrameIds = new Set<number>(parsed.map((id) => Number(id)).filter((id) => frameById.has(id)));
+        for (const id of parsed) {
+          const num = Number(id);
+          if (Number.isFinite(num) && num > 0) selectedNodeIds.add(num);
+        }
       }
     } catch {}
+
+    const selectionFrameIds = new Set<number>();
+    const nodeFrameMemo = new Map<number, number | null>();
+    const nodeJsonMemo = new Map<number, any>();
+    const getNodeJson = (id: number) => {
+      if (nodeJsonMemo.has(id)) return nodeJsonMemo.get(id);
+      try {
+        const raw = editor.engine.get_node_json(BigInt(id));
+        const parsed = raw ? JSON.parse(raw) : null;
+        nodeJsonMemo.set(id, parsed);
+        return parsed;
+      } catch {
+        nodeJsonMemo.set(id, null);
+        return null;
+      }
+    };
+    const resolveFrameForNode = (nodeId: number): number | null => {
+      if (nodeFrameMemo.has(nodeId)) return nodeFrameMemo.get(nodeId) || null;
+      if (frameById.has(nodeId)) {
+        nodeFrameMemo.set(nodeId, nodeId);
+        return nodeId;
+      }
+      let cur = nodeId;
+      const chainSeen = new Set<number>();
+      while (cur > 0 && !chainSeen.has(cur)) {
+        chainSeen.add(cur);
+        const node = getNodeJson(cur);
+        const parentId = Number(node?.parent || 0);
+        if (parentId > 0 && frameById.has(parentId)) {
+          nodeFrameMemo.set(nodeId, parentId);
+          return parentId;
+        }
+        cur = parentId;
+      }
+
+      const node = getNodeJson(nodeId);
+      const x = Number(node?.x);
+      const y = Number(node?.y);
+      const w = Number(node?.width);
+      const h = Number(node?.height);
+      if (Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(w) && Number.isFinite(h)) {
+        const cx = x + w * 0.5;
+        const cy = y + h * 0.5;
+        for (const frame of snapshot.nodes) {
+          if (cx >= frame.x && cy >= frame.y && cx <= (frame.x + frame.width) && cy <= (frame.y + frame.height)) {
+            nodeFrameMemo.set(nodeId, frame.id);
+            return frame.id;
+          }
+        }
+      }
+      nodeFrameMemo.set(nodeId, null);
+      return null;
+    };
+
+    for (const selectedId of selectedNodeIds) {
+      const frameId = resolveFrameForNode(selectedId);
+      if (frameId && frameById.has(frameId)) selectionFrameIds.add(frameId);
+    }
     if (selectionFrameIds.size === 0 && currentFrameId && frameById.has(currentFrameId)) {
-      selectionFrameIds = new Set<number>([currentFrameId]);
+      selectionFrameIds.add(currentFrameId);
     }
 
     const scopedFrameIds = new Set<number>();
@@ -3791,7 +3853,12 @@ export function createPrototypeViewer(editor: Editor): {
     const lowContrastCount = issues.filter((i) => i.type === "a11y-low-contrast").length;
     const motionGuardrailCount = issues.filter((i) => i.type === "a11y-motion").length;
     const scopeLabel = lintScope === "selection" ? "Selection" : lintScope === "page" ? "Page" : "Flow";
-    flowLintInfo.textContent = `Scope ${scopeLabel} · Guard ${overlayGuardPreset.label} · Severity ${severityProfile.label} · Start #${startFrameId} · Dead-end ${deadEndCount} · Unreachable ${unreachableCount} · Cycles ${cycleCount}/${cycleTrapCount} · Overlay ${overlayLeakCount}/${overlayKeyRouteCount}/${overlayDepthBudgetCount}/${overlayExitLatencyCount}/${orphanCloseCount}/Scroll ${scrollLeakCount} · A11y ${missingLabelCount}/${focusGapCount}/${focusTrapCount}/${lowContrastCount}/${motionGuardrailCount}`;
+    const scopeMeta = lintScope === "selection"
+      ? `selected ${selectedNodeIds.size} node(s) → ${scopedFrameIds.size} frame(s)`
+      : lintScope === "page"
+        ? `${scopedFrameIds.size} frame(s) on page`
+        : `${scopedFrameIds.size} reachable frame(s)`;
+    flowLintInfo.textContent = `Scope ${scopeLabel} (${scopeMeta}) · Guard ${overlayGuardPreset.label} · Severity ${severityProfile.label} · Start #${startFrameId} · Dead-end ${deadEndCount} · Unreachable ${unreachableCount} · Cycles ${cycleCount}/${cycleTrapCount} · Overlay ${overlayLeakCount}/${overlayKeyRouteCount}/${overlayDepthBudgetCount}/${overlayExitLatencyCount}/${orphanCloseCount}/Scroll ${scrollLeakCount} · A11y ${missingLabelCount}/${focusGapCount}/${focusTrapCount}/${lowContrastCount}/${motionGuardrailCount}`;
     renderFlowLintDiffReport(lintScope, `${overlayGuardPreset.label}/${severityProfile.label}`);
 
     flowLintList.innerHTML = "";
