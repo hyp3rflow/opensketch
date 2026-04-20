@@ -1790,9 +1790,19 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Flow Lint Severity Budget Profiles — 팀별 경고 임계값(overlay depth/latency/motion)을 preset으로 저장·공유하는 프로파일 시스템 (임팩트 중, 난이도 중)
 - Overlay Close Target Confidence Ranker — CloseOverlay 후보를 route 안정성·거리·조건부 분기 수 기준으로 점수화해 추천 순위를 제공 (임팩트 중상, 난이도 중상)
 - Flow Lint CI Export (JSON/Markdown) — lint 결과를 CI 아티팩트 형식(JSON/MD)으로 내보내고 PR 코멘트에 붙일 수 있는 요약 생성 (임팩트 중, 난이도 중)
+- Flow Lint Owner Tagging — 이슈 타입별 담당자(owner) 태그를 설정해 카드/내보내기에 `@owner`를 자동 부착 (임팩트 중, 난이도 중)
+- Overlay Escape Replay Test Cases — Esc/Back 경로를 자동 재생하는 회귀 테스트 케이스 생성기(성공/실패 스냅샷 포함) (임팩트 중상, 난이도 중상)
+- Prototype Risk Trend Sparkline — 최근 lint 실행 N회 기준 risk score 추세 스파크라인 및 급증 경고 (임팩트 중, 난이도 중)
+
+## 완료된 기능 (추가 — Flow Lint Severity Budget Profiles, 2026-04-20)
+- Flow Lint 패널에 `Severity` 셀렉터 추가: Strict / Balanced / Relaxed
+- 프로파일별 임계값을 lint 엔진에 연결: overlay depth budget, overlay exit latency budget, motion guardrail(ms)
+- lint summary/issue detail/overlay risk score 계산이 선택한 Severity 프로파일 기준으로 동작
+- 선택한 프로파일을 localStorage(`opensketch-flow-lint-severity-profile-v1`)에 저장/복원
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Lint Snapshot Diff Report, 2026-04-20)
 - Flow Lint 패널에 `Lint Snapshot Diff` 섹션 추가

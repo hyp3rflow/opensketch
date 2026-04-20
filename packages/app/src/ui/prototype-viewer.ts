@@ -23,11 +23,13 @@ const PROTOTYPE_KEYBOARD_ORDER_KEY = "opensketch-proto-keyboard-order-v1";
 const PROTOTYPE_REDUCED_MOTION_KEY = "opensketch-prototype-reduced-motion-v1";
 const PROTOTYPE_SCROLL_LOCK_REGIONS_KEY = "opensketch-prototype-scroll-lock-regions-v1";
 const PROTOTYPE_OVERLAY_GUARD_PRESET_KEY = "opensketch-prototype-overlay-guard-preset-v1";
+const PROTOTYPE_FLOW_LINT_SEVERITY_PROFILE_KEY = "opensketch-flow-lint-severity-profile-v1";
 
 type FlowEntryPreset = { frameId: number; label: string; pageId?: number };
 type RingPresetSafetyBucket = "safe" | "watch" | "risky";
 type RingGuardPolicy = "off" | "warn" | "enforce-safe";
 type OverlayGuardPresetId = "strict" | "balanced" | "legacy";
+type FlowLintSeverityProfileId = "strict" | "balanced" | "relaxed";
 
 type OverlayGuardPresetConfig = {
   id: OverlayGuardPresetId;
@@ -66,6 +68,46 @@ const OVERLAY_GUARD_PRESETS: OverlayGuardPresetConfig[] = [
     detectSimulationDrift: false,
     includeDepthBudget: false,
     includeScrollLeak: false,
+  },
+];
+
+type FlowLintSeverityProfile = {
+  id: FlowLintSeverityProfileId;
+  label: string;
+  note: string;
+  overlayDepthBudget: number;
+  overlayExitLatencyBudget: number;
+  motionLongDurationMs: number;
+  motionAggressiveDurationMs: number;
+};
+
+const FLOW_LINT_SEVERITY_PROFILES: FlowLintSeverityProfile[] = [
+  {
+    id: "strict",
+    label: "Strict",
+    note: "엄격: depth 2 / latency 1 / motion 700ms",
+    overlayDepthBudget: 2,
+    overlayExitLatencyBudget: 1,
+    motionLongDurationMs: 700,
+    motionAggressiveDurationMs: 360,
+  },
+  {
+    id: "balanced",
+    label: "Balanced",
+    note: "기본: depth 3 / latency 2 / motion 900ms",
+    overlayDepthBudget: 3,
+    overlayExitLatencyBudget: 2,
+    motionLongDurationMs: 900,
+    motionAggressiveDurationMs: 480,
+  },
+  {
+    id: "relaxed",
+    label: "Relaxed",
+    note: "완화: depth 4 / latency 3 / motion 1200ms",
+    overlayDepthBudget: 4,
+    overlayExitLatencyBudget: 3,
+    motionLongDurationMs: 1200,
+    motionAggressiveDurationMs: 650,
   },
 ];
 
@@ -168,6 +210,27 @@ function saveOverlayGuardPresetId(id: OverlayGuardPresetId) {
   } catch {}
 }
 
+function resolveFlowLintSeverityProfile(id: string | null | undefined): FlowLintSeverityProfile {
+  const raw = String(id || "").toLowerCase() as FlowLintSeverityProfileId;
+  return FLOW_LINT_SEVERITY_PROFILES.find((profile) => profile.id === raw)
+    || FLOW_LINT_SEVERITY_PROFILES.find((profile) => profile.id === "balanced")
+    || FLOW_LINT_SEVERITY_PROFILES[0]!;
+}
+
+function loadFlowLintSeverityProfileId(): FlowLintSeverityProfileId {
+  try {
+    const raw = localStorage.getItem(PROTOTYPE_FLOW_LINT_SEVERITY_PROFILE_KEY);
+    return resolveFlowLintSeverityProfile(raw).id;
+  } catch {
+    return "balanced";
+  }
+}
+
+function saveFlowLintSeverityProfileId(id: FlowLintSeverityProfileId) {
+  try {
+    localStorage.setItem(PROTOTYPE_FLOW_LINT_SEVERITY_PROFILE_KEY, resolveFlowLintSeverityProfile(id).id);
+  } catch {}
+}
 
 type KeyboardOrderMap = Record<string, string[]>;
 
@@ -352,8 +415,6 @@ export function createPrototypeViewer(editor: Editor): {
   let flowStartFrameSel: HTMLSelectElement | null = null;
   let flowStartInfo: HTMLDivElement | null = null;
   const flowPresetCursor = new Map<string, number>();
-  const FLOW_OVERLAY_DEPTH_BUDGET = 3;
-  const FLOW_OVERLAY_EXIT_LATENCY_BUDGET = 2;
   type FlowLintIssueType = "unreachable" | "dead-end" | "cycle" | "cycle-trap" | "overlay-leak" | "overlay-key-route" | "overlay-depth-budget" | "overlay-exit-latency" | "orphan-close" | "scroll-leak" | "a11y-missing-label" | "a11y-focus-gap" | "a11y-focus-trap" | "a11y-low-contrast" | "a11y-motion";
   type FlowLintRunScope = "selection" | "page" | "flow";
   type FlowLintIssue = { type: FlowLintIssueType; frameId: number; frameName: string; detail: string; overlayId?: number; overlayPath?: number[]; overlayOffenders?: number[]; overlayBudget?: number; overlayRewritePlan?: string[]; overlayImpactNodeCount?: number; overlayExitSuggestions?: string[] };
@@ -376,7 +437,9 @@ export function createPrototypeViewer(editor: Editor): {
   let flowLintWrap: HTMLDivElement | null = null;
   let flowLintPresetSel: HTMLSelectElement | null = null;
   let flowLintScopeSel: HTMLSelectElement | null = null;
+  let flowLintSeveritySel: HTMLSelectElement | null = null;
   let flowLintPresetInfo: HTMLDivElement | null = null;
+  let flowLintSeverityInfo: HTMLDivElement | null = null;
   let keyboardOrderWrap: HTMLDivElement | null = null;
   let keyboardOrderInfo: HTMLDivElement | null = null;
   let keyboardOrderList: HTMLDivElement | null = null;
@@ -454,6 +517,7 @@ export function createPrototypeViewer(editor: Editor): {
   let ringGuardPolicies = loadRingGuardPolicies();
   let scrollLockRegions = loadScrollLockRegions();
   let overlayGuardPresetId: OverlayGuardPresetId = loadOverlayGuardPresetId();
+  let flowLintSeverityProfileId: FlowLintSeverityProfileId = loadFlowLintSeverityProfileId();
   const coverageFrameVisits = new Map<number, number>();
   const coverageHotspotHits = new Map<number, Set<string>>();
 
@@ -3157,8 +3221,11 @@ export function createPrototypeViewer(editor: Editor): {
 
     const issues: FlowLintIssue[] = [];
     const overlayGuardPreset = resolveOverlayGuardPreset(overlayGuardPresetId);
+    const severityProfile = resolveFlowLintSeverityProfile(flowLintSeverityProfileId);
     if (flowLintPresetSel) flowLintPresetSel.value = overlayGuardPreset.id;
     if (flowLintPresetInfo) flowLintPresetInfo.textContent = overlayGuardPreset.note;
+    if (flowLintSeveritySel) flowLintSeveritySel.value = severityProfile.id;
+    if (flowLintSeverityInfo) flowLintSeverityInfo.textContent = severityProfile.note;
 
     const backByFrame = new Map<number, number>();
     const overlaysOpenByFrame = new Map<number, number>();
@@ -3312,7 +3379,7 @@ export function createPrototypeViewer(editor: Editor): {
       }
     }
 
-    const overlayDepthBudgetRows = collectOverlayDepthBudgetRows(snapshot, FLOW_OVERLAY_DEPTH_BUDGET);
+    const overlayDepthBudgetRows = collectOverlayDepthBudgetRows(snapshot, severityProfile.overlayDepthBudget);
     const overlayDepthBudgetByFrame = new Map<number, { maxDepth: number; offenders: number[]; deepestOffenderId: number | null; pathSample: number[] }>();
     for (const row of overlayDepthBudgetRows) {
       overlayDepthBudgetByFrame.set(row.frameId, {
@@ -3341,7 +3408,7 @@ export function createPrototypeViewer(editor: Editor): {
           maxDepth: depthBudget.maxDepth,
           offenders: depthBudget.offenders,
           pathSample: depthBudget.pathSample,
-        }, FLOW_OVERLAY_DEPTH_BUDGET);
+        }, severityProfile.overlayDepthBudget);
         issues.push({
           type: "overlay-depth-budget",
           frameId: node.id,
@@ -3349,10 +3416,10 @@ export function createPrototypeViewer(editor: Editor): {
           overlayId: depthBudget.deepestOffenderId || depthBudget.offenders[0],
           overlayPath: depthBudget.pathSample,
           overlayOffenders: depthBudget.offenders,
-          overlayBudget: FLOW_OVERLAY_DEPTH_BUDGET,
+          overlayBudget: severityProfile.overlayDepthBudget,
           overlayRewritePlan: rewritePlan.lines,
           overlayImpactNodeCount: rewritePlan.impactNodeCount,
-          detail: `Overlay depth ${depthBudget.maxDepth} exceeds budget(${FLOW_OVERLAY_DEPTH_BUDGET})${offenderLabel ? ` · flatten candidate ${offenderLabel}` : ""}${pathLabel ? ` · path ${pathLabel}` : ""}${rewritePlan.impactNodeCount > 0 ? ` · est impact ${rewritePlan.impactNodeCount} node(s)` : ""}`,
+          detail: `Overlay depth ${depthBudget.maxDepth} exceeds budget(${severityProfile.overlayDepthBudget})${offenderLabel ? ` · flatten candidate ${offenderLabel}` : ""}${pathLabel ? ` · path ${pathLabel}` : ""}${rewritePlan.impactNodeCount > 0 ? ` · est impact ${rewritePlan.impactNodeCount} node(s)` : ""}`,
         });
       }
 
@@ -3382,7 +3449,7 @@ export function createPrototypeViewer(editor: Editor): {
             const escSteps = route.escSteps;
             const backSteps = route.backSteps;
             const maxSteps = Math.max(escSteps || 0, backSteps || 0);
-            const hasLatencyFail = maxSteps > FLOW_OVERLAY_EXIT_LATENCY_BUDGET;
+            const hasLatencyFail = maxSteps > severityProfile.overlayExitLatencyBudget;
             if (!hasRequiredFail
               && !(overlayGuardPreset.detectConditionalOnly && hasConditionalFail)
               && !(overlayGuardPreset.detectSimulationDrift && hasSimFail)
@@ -3419,7 +3486,7 @@ export function createPrototypeViewer(editor: Editor): {
                 frameId: node.id,
                 frameName: node.name,
                 overlayId: route.overlayId,
-                detail: `${route.overlayName}: Esc ${escSteps ?? "-"} step(s) / Back ${backSteps ?? "-"} step(s) exceed latency budget(${FLOW_OVERLAY_EXIT_LATENCY_BUDGET})`,
+                detail: `${route.overlayName}: Esc ${escSteps ?? "-"} step(s) / Back ${backSteps ?? "-"} step(s) exceed latency budget(${severityProfile.overlayExitLatencyBudget})`,
               });
             }
           }
@@ -3499,8 +3566,8 @@ export function createPrototypeViewer(editor: Editor): {
           }
           const isAnimated = transition !== "Instant" && transition !== "None";
           if (isAnimated) {
-            const longDuration = duration >= 900;
-            const aggressiveCombo = duration >= 480 && isAggressiveMotionEasing(easing);
+            const longDuration = duration >= severityProfile.motionLongDurationMs;
+            const aggressiveCombo = duration >= severityProfile.motionAggressiveDurationMs && isAggressiveMotionEasing(easing);
             if (longDuration || aggressiveCombo) motionIssueCount += 1;
           }
           const isKeyboardRelevant = trigger === "OnClick" || trigger === "OnPress";
@@ -3593,7 +3660,7 @@ export function createPrototypeViewer(editor: Editor): {
           type: "a11y-motion",
           frameId: frame.id,
           frameName: frame.name,
-          detail: `${motionIssueCount} interaction(s) exceed motion guardrail (≥900ms or aggressive easing + long duration)`,
+          detail: `${motionIssueCount} interaction(s) exceed motion guardrail (≥${severityProfile.motionLongDurationMs}ms or aggressive easing + ≥${severityProfile.motionAggressiveDurationMs}ms)`,
         });
       }
     }
@@ -3616,8 +3683,8 @@ export function createPrototypeViewer(editor: Editor): {
     const lowContrastCount = issues.filter((i) => i.type === "a11y-low-contrast").length;
     const motionGuardrailCount = issues.filter((i) => i.type === "a11y-motion").length;
     const scopeLabel = lintScope === "selection" ? "Selection" : lintScope === "page" ? "Page" : "Flow";
-    flowLintInfo.textContent = `Scope ${scopeLabel} · Preset ${overlayGuardPreset.label} · Start #${startFrameId} · Dead-end ${deadEndCount} · Unreachable ${unreachableCount} · Cycles ${cycleCount}/${cycleTrapCount} · Overlay ${overlayLeakCount}/${overlayKeyRouteCount}/${overlayDepthBudgetCount}/${overlayExitLatencyCount}/${orphanCloseCount}/Scroll ${scrollLeakCount} · A11y ${missingLabelCount}/${focusGapCount}/${focusTrapCount}/${lowContrastCount}/${motionGuardrailCount}`;
-    renderFlowLintDiffReport(lintScope, overlayGuardPreset.label);
+    flowLintInfo.textContent = `Scope ${scopeLabel} · Guard ${overlayGuardPreset.label} · Severity ${severityProfile.label} · Start #${startFrameId} · Dead-end ${deadEndCount} · Unreachable ${unreachableCount} · Cycles ${cycleCount}/${cycleTrapCount} · Overlay ${overlayLeakCount}/${overlayKeyRouteCount}/${overlayDepthBudgetCount}/${overlayExitLatencyCount}/${orphanCloseCount}/Scroll ${scrollLeakCount} · A11y ${missingLabelCount}/${focusGapCount}/${focusTrapCount}/${lowContrastCount}/${motionGuardrailCount}`;
+    renderFlowLintDiffReport(lintScope, `${overlayGuardPreset.label}/${severityProfile.label}`);
 
     flowLintList.innerHTML = "";
     flowLintRiskList.innerHTML = "";
@@ -3713,7 +3780,7 @@ export function createPrototypeViewer(editor: Editor): {
       } else if (issue.type === "overlay-depth-budget") {
         row.depthCount += 1;
         const maxDepth = Number(issue.detail.match(/Overlay depth\s+(\d+)/i)?.[1] || 0);
-        const budget = Number(issue.overlayBudget || FLOW_OVERLAY_DEPTH_BUDGET || 0);
+        const budget = Number(issue.overlayBudget || severityProfile.overlayDepthBudget || 0);
         const excess = Math.max(0, maxDepth - budget);
         row.peakDepthExcess = Math.max(row.peakDepthExcess, excess);
         row.score += 38 + excess * 12;
@@ -3723,7 +3790,7 @@ export function createPrototypeViewer(editor: Editor): {
         const escSteps = Number(issue.detail.match(/Esc\s+(\d+)/i)?.[1] || 0);
         const backSteps = Number(issue.detail.match(/Back\s+(\d+)/i)?.[1] || 0);
         const maxSteps = Math.max(escSteps, backSteps);
-        const over = Math.max(0, maxSteps - FLOW_OVERLAY_EXIT_LATENCY_BUDGET);
+        const over = Math.max(0, maxSteps - severityProfile.overlayExitLatencyBudget);
         row.peakLatencySteps = Math.max(row.peakLatencySteps, maxSteps);
         row.score += 26 + over * 8;
         row.detail.push(`latency+${over}`);
@@ -4844,6 +4911,38 @@ export function createPrototypeViewer(editor: Editor): {
     flowLintPresetInfo.textContent = resolveOverlayGuardPreset(overlayGuardPresetId).note;
     flowLintWrap.appendChild(flowLintPresetInfo);
 
+    const flowLintSeverityRow = document.createElement("div");
+    flowLintSeverityRow.style.cssText = "display:flex;gap:6px;align-items:center;";
+    const flowLintSeverityLabel = document.createElement("span");
+    flowLintSeverityLabel.style.cssText = "font-size:10px;color:#cbd5e1;white-space:nowrap;";
+    flowLintSeverityLabel.textContent = "Severity";
+    flowLintSeverityRow.appendChild(flowLintSeverityLabel);
+    flowLintSeveritySel = document.createElement("select");
+    flowLintSeveritySel.style.cssText = "flex:1;background:#0f172a;color:#f8fafc;border:1px solid rgba(148,163,184,0.35);border-radius:6px;padding:3px 6px;font-size:10px;";
+    for (const profile of FLOW_LINT_SEVERITY_PROFILES) {
+      const opt = document.createElement("option");
+      opt.value = profile.id;
+      opt.textContent = profile.label;
+      flowLintSeveritySel.appendChild(opt);
+    }
+    flowLintSeveritySel.value = flowLintSeverityProfileId;
+    flowLintSeveritySel.onchange = () => {
+      const next = resolveFlowLintSeverityProfile(flowLintSeveritySel?.value).id;
+      flowLintSeverityProfileId = next;
+      saveFlowLintSeverityProfileId(next);
+      if (flowLintSeveritySel) flowLintSeveritySel.value = next;
+      const resolved = resolveFlowLintSeverityProfile(next);
+      if (flowLintSeverityInfo) flowLintSeverityInfo.textContent = resolved.note;
+      renderFlowLint();
+    };
+    flowLintSeverityRow.appendChild(flowLintSeveritySel);
+    flowLintWrap.appendChild(flowLintSeverityRow);
+
+    flowLintSeverityInfo = document.createElement("div");
+    flowLintSeverityInfo.style.cssText = "font-size:9px;color:#94a3b8;line-height:1.35;";
+    flowLintSeverityInfo.textContent = resolveFlowLintSeverityProfile(flowLintSeverityProfileId).note;
+    flowLintWrap.appendChild(flowLintSeverityInfo);
+
     flowLintInfo = document.createElement("div");
     flowLintInfo.style.cssText = "font-size:10px;color:#94a3b8;line-height:1.35;";
     flowLintInfo.textContent = "Analyzing flow graph…";
@@ -4879,7 +4978,7 @@ export function createPrototypeViewer(editor: Editor): {
     flowLintDiffCaptureBtn.onclick = () => {
       if (!flowLintSnapshot) return;
       const lintScope = resolveFlowLintScope(flowLintScopeSel?.value);
-      const presetLabel = resolveOverlayGuardPreset(flowLintPresetSel?.value).label;
+      const presetLabel = `${resolveOverlayGuardPreset(flowLintPresetSel?.value).label}/${resolveFlowLintSeverityProfile(flowLintSeveritySel?.value).label}`;
       flowLintDiffBaseline = {
         at: Date.now(),
         scope: lintScope,

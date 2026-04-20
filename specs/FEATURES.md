@@ -3119,6 +3119,13 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] dead-end/cycle/overlay/a11y 집계를 scope 필터와 동일 엔진에서 재사용하고 summary에 scope 메타를 표시
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
 
+### Flow Lint Severity Budget Profiles (2026-04-20)
+- [x] Flow Lint 패널에 `Severity` 프로파일 셀렉터를 추가해 Strict/Balanced/Relaxed 임계값을 즉시 전환
+- [x] 프로파일별 설정값을 lint 엔진에 반영: overlay depth budget, overlay exit latency budget, motion guardrail(ms)
+- [x] Flow Lint summary/issue detail/Overlay risk score 계산이 현재 Severity 프로파일 기준으로 동작
+- [x] 선택한 프로파일은 localStorage(`opensketch-flow-lint-severity-profile-v1`)에 저장되어 세션 재진입 시 복원
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+
 ### Overlay Route Risk Scoreboard (2026-04-20)
 - [x] Flow Lint 패널에 `Overlay Route Risk` 보드를 추가해 overlay별 route 위험도를 점수화 후 내림차순 랭킹 제공
 - [x] 집계 대상: `overlay-key-route`, `overlay-depth-budget`, `overlay-exit-latency`
