@@ -3133,6 +3133,14 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] 상위 위험 overlay 카드 클릭 시 해당 overlay를 발생시킨 frame으로 즉시 네비게이션
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
 
+
+### Overlay Close Target Confidence Ranker (2026-04-20)
+- [x] `overlay-key-route` 추천 엔진에 route 안정성(escape simulation) 점수를 반영해 후보 신뢰도를 가중
+- [x] 후보 거리 점수는 overlay close-anchor(우상단) 근접도로 산정해 실사용 close affordance를 우선 추천
+- [x] 조건부 분기 수(후보 interaction + overlay open branch)를 패널티로 적용해 불안정 후보 순위를 자동 하향
+- [x] 추천 라벨에 `stable/watch/risky` + conditional branch count를 함께 표시해 의사결정 맥락 제공
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+
 ### Lint Snapshot Diff Report (2026-04-20)
 - [x] Flow Lint 패널에 `Lint Snapshot Diff` 섹션을 추가해 baseline 대비 `신규(New) / 해결(Resolved) / 회귀(Regressed)`를 요약
 - [x] `Capture` 버튼으로 현재 lint 결과를 baseline으로 고정하고, 이후 실행 결과와 anchor(type+frame+overlay) 단위로 증감 비교

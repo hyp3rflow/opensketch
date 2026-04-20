@@ -1790,11 +1790,18 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Overlay Close Target Confidence Ranker — CloseOverlay 후보를 route 안정성·거리·조건부 분기 수 기준으로 점수화해 추천 순위를 제공 (임팩트 중상, 난이도 중상)
 - Flow Lint CI Export (JSON/Markdown) — lint 결과를 CI 아티팩트 형식(JSON/MD)으로 내보내고 PR 코멘트에 붙일 수 있는 요약 생성 (임팩트 중, 난이도 중)
 - Flow Lint Owner Tagging — 이슈 타입별 담당자(owner) 태그를 설정해 카드/내보내기에 `@owner`를 자동 부착 (임팩트 중, 난이도 중)
 - Overlay Escape Replay Test Cases — Esc/Back 경로를 자동 재생하는 회귀 테스트 케이스 생성기(성공/실패 스냅샷 포함) (임팩트 중상, 난이도 중상)
 - Prototype Risk Trend Sparkline — 최근 lint 실행 N회 기준 risk score 추세 스파크라인 및 급증 경고 (임팩트 중, 난이도 중)
+
+
+## 완료된 기능 (추가 — Overlay Close Target Confidence Ranker, 2026-04-20)
+- `overlay-key-route` 추천 엔진의 후보 점수 산식을 route 안정성 + 거리(anchor proximity) + 조건부 분기 페널티 기반으로 확장
+- route 안정성은 Escape Route 시뮬레이션(`trapped/missing/conditional miss`) 결과를 합산해 stable/watch/risky 레벨로 반영
+- 후보 라벨에 점수 + 안정성 레벨 + conditional branch 수를 표기해 적용 전 판단 근거를 즉시 확인
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Flow Lint Severity Budget Profiles, 2026-04-20)
 - Flow Lint 패널에 `Severity` 셀렉터 추가: Strict / Balanced / Relaxed

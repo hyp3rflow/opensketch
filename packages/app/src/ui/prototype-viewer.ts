@@ -1899,6 +1899,28 @@ export function createPrototypeViewer(editor: Editor): {
       byNode.set(nodeId, bucket);
     }
 
+    const escapeRouteRow = collectEscapeRouteRows(flowMinimapSnapshot || undefined)
+      .find((row) => row.frameId === frameId && row.overlayId === overlayId);
+    const routeStabilityScore = escapeRouteRow
+      ? Math.max(
+          8,
+          42
+          - (escapeRouteRow.trapped ? 20 : 0)
+          - (escapeRouteRow.missingEsc ? 9 : 0)
+          - (escapeRouteRow.missingBack ? 7 : 0)
+          - (escapeRouteRow.escSimBroken ? 7 : 0)
+          - (escapeRouteRow.backSimBroken ? 5 : 0)
+          - Math.min(8, escapeRouteRow.conditionalMissSamples * 3)
+          - Math.min(6, escapeRouteRow.conditionalFail * 2),
+        )
+      : 20;
+    const routeConditionalPenalty = escapeRouteRow ? Math.min(10, escapeRouteRow.conditionalSamples * 2) : 0;
+
+    const overlayBounds = getFrameBounds(overlayId);
+    const closeAnchorX = overlayBounds ? (overlayBounds.x + overlayBounds.width - 16) : 0;
+    const closeAnchorY = overlayBounds ? (overlayBounds.y + 16) : 0;
+    const overlayDiag = overlayBounds ? Math.max(1, Math.hypot(overlayBounds.width, overlayBounds.height)) : 1;
+
     const suggestions: Array<{ nodeId: number; action: "CloseOverlay" | "Back"; score: number; label: string }> = [];
     for (const [nodeId, bucket] of byNode.entries()) {
       const interactions = bucket.interactions;
@@ -1909,26 +1931,40 @@ export function createPrototypeViewer(editor: Editor): {
       });
       if (hasClose) continue;
 
-      let score = 10;
+      let score = 14;
       const hasPress = interactions.some((inter) => String(inter?.trigger || "") === "OnPress");
       const hasClick = interactions.some((inter) => String(inter?.trigger || "") === "OnClick");
       const hasLabel = interactions.some((inter) => String(inter?.accessibility_label || "").trim().length > 0);
+      const conditionalBranchCount = interactions.filter((inter) => hasInteractionCondition(inter)).length;
       const hasBackAction = interactions.some((inter) => String(inter?.action || "") === "Back");
       const nodeName = String(bucket.node?.name || "");
-      if (hasPress) score += 22;
-      if (hasClick) score += 16;
-      if (hasLabel) score += 10;
-      if (/(close|back|done|cancel|dismiss|exit|x|닫기|뒤로|취소)/i.test(nodeName)) score += 14;
-      const action: "CloseOverlay" | "Back" = hasBackAction ? "Back" : "CloseOverlay";
-      const nx = Number(bucket.node?.x || 0);
-      const ny = Number(bucket.node?.y || 0);
-      const fw = getFrameBounds(frameId)?.width || 0;
-      const fh = getFrameBounds(frameId)?.height || 0;
-      if (fw > 0 && fh > 0) {
-        const centerDist = Math.hypot((nx / fw) - 0.5, (ny / fh) - 0.5);
-        score += Math.max(0, 10 - centerDist * 12);
+
+      if (hasPress) score += 14;
+      if (hasClick) score += 10;
+      if (hasLabel) score += 8;
+      if (/(close|back|done|cancel|dismiss|exit|x|닫기|뒤로|취소)/i.test(nodeName)) score += 12;
+      score += routeStabilityScore;
+
+      const nx = Number(bucket.node?.x || 0) + Number(bucket.node?.width || 0) / 2;
+      const ny = Number(bucket.node?.y || 0) + Number(bucket.node?.height || 0) / 2;
+      if (overlayBounds) {
+        const dist = Math.hypot(nx - closeAnchorX, ny - closeAnchorY);
+        const normalized = Math.min(1, dist / overlayDiag);
+        const distanceScore = Math.round((1 - normalized) * 26);
+        score += distanceScore;
       }
-      suggestions.push({ nodeId, action, score, label: `#${nodeId} ${action} (${Math.round(score)}pt)` });
+
+      score -= Math.min(12, conditionalBranchCount * 4);
+      score -= routeConditionalPenalty;
+
+      const action: "CloseOverlay" | "Back" = hasBackAction ? "Back" : "CloseOverlay";
+      const stableLabel = routeStabilityScore >= 34 ? "stable" : routeStabilityScore >= 24 ? "watch" : "risky";
+      suggestions.push({
+        nodeId,
+        action,
+        score,
+        label: `#${nodeId} ${action} (${Math.round(score)}pt · ${stableLabel} · cond ${conditionalBranchCount})`,
+      });
     }
 
     suggestions.sort((a, b) => (b.score - a.score) || (a.nodeId - b.nodeId));
