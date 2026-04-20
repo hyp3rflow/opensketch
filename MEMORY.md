@@ -1790,10 +1790,18 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Prototype Risk Trend Sparkline — 최근 lint 실행 N회 기준 risk score 추세 스파크라인 및 급증 경고 (임팩트 중, 난이도 중)
 - Flow Lint Owner SLA Timer — 이슈 owner 태그 기준으로 경과 시간(SLA) 배지/정렬 지원 (임팩트 중, 난이도 중)
 - Overlay Exit Suggestion A/B Presets — 추천 점수 가중치 preset(Conservative/Balanced/Aggressive) 전환 + 결과 비교 (임팩트 중, 난이도 중상)
 - Flow Lint Digest Composer — owner별 이슈를 묶어 Slack/Discord 공유용 digest 텍스트 자동 생성 (임팩트 중, 난이도 중)
+
+
+## 완료된 기능 (추가 — Prototype Risk Trend Sparkline, 2026-04-20)
+- Flow Lint `Overlay Route Risk` 카드에 최근 lint 실행 N회(최대 12회) 기준 risk score 추세 스파크라인 추가
+- lint 실행마다 score/overlay count/issue count를 localStorage(`opensketch-flow-lint-risk-trend-v1`)에 기록
+- latest score delta와 급증(이전 평균 대비 +35% & +40pt 이상) 경고 표시
+- 프레임 없음 상태에서는 trend 대기 문구 + sparkline 초기화
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 
 ## 완료된 기능 (추가 — Overlay Escape Replay Test Cases, 2026-04-20)

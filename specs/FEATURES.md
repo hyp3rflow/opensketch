@@ -3136,6 +3136,13 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
 
 
+### Prototype Risk Trend Sparkline (2026-04-20)
+- [x] Flow Lint `Overlay Route Risk` 카드에 최근 lint 실행 N회(최대 12회) 기준 risk score 추세 스파크라인을 추가
+- [x] lint 실행마다 total overlay risk score / overlay count / issue count를 localStorage(`opensketch-flow-lint-risk-trend-v1`)에 기록
+- [x] 최신 score 증감(delta)과 함께 surge(이전 평균 대비 +35% & +40pt 이상) 경고를 표시
+- [x] 프레임이 없을 때는 trend를 대기 상태로 표시하고 sparkline을 초기화
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+
 ### Flow Lint CI Export (JSON/Markdown) (2026-04-20)
 - [x] Flow Lint 패널에 `Copy CI JSON` / `Copy CI MD` 버튼을 추가해 실행 결과를 CI 아티팩트용 포맷으로 즉시 복사
 - [x] JSON export payload: generatedAt, scope, profile, startFrameId, issueCount, issueTypeCounts, topOverlayRisk, issues

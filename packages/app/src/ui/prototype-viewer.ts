@@ -24,6 +24,8 @@ const PROTOTYPE_REDUCED_MOTION_KEY = "opensketch-prototype-reduced-motion-v1";
 const PROTOTYPE_SCROLL_LOCK_REGIONS_KEY = "opensketch-prototype-scroll-lock-regions-v1";
 const PROTOTYPE_OVERLAY_GUARD_PRESET_KEY = "opensketch-prototype-overlay-guard-preset-v1";
 const PROTOTYPE_FLOW_LINT_SEVERITY_PROFILE_KEY = "opensketch-flow-lint-severity-profile-v1";
+const PROTOTYPE_FLOW_LINT_RISK_TREND_KEY = "opensketch-flow-lint-risk-trend-v1";
+const FLOW_LINT_RISK_TREND_MAX_RUNS = 12;
 
 type FlowEntryPreset = { frameId: number; label: string; pageId?: number };
 type RingPresetSafetyBucket = "safe" | "watch" | "risky";
@@ -229,6 +231,39 @@ function loadFlowLintSeverityProfileId(): FlowLintSeverityProfileId {
 function saveFlowLintSeverityProfileId(id: FlowLintSeverityProfileId) {
   try {
     localStorage.setItem(PROTOTYPE_FLOW_LINT_SEVERITY_PROFILE_KEY, resolveFlowLintSeverityProfile(id).id);
+  } catch {}
+}
+
+type FlowLintRiskTrendEntry = {
+  at: number;
+  score: number;
+  overlayCount: number;
+  issueCount: number;
+};
+
+function loadFlowLintRiskTrend(): FlowLintRiskTrendEntry[] {
+  try {
+    const raw = localStorage.getItem(PROTOTYPE_FLOW_LINT_RISK_TREND_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(parsed)) return [];
+    const rows: FlowLintRiskTrendEntry[] = [];
+    for (const row of parsed) {
+      const at = Number((row as any)?.at || 0);
+      const score = Math.max(0, Number((row as any)?.score || 0));
+      const overlayCount = Math.max(0, Number((row as any)?.overlayCount || 0));
+      const issueCount = Math.max(0, Number((row as any)?.issueCount || 0));
+      if (!at) continue;
+      rows.push({ at, score, overlayCount, issueCount });
+    }
+    return rows.slice(-FLOW_LINT_RISK_TREND_MAX_RUNS);
+  } catch {
+    return [];
+  }
+}
+
+function saveFlowLintRiskTrend(rows: FlowLintRiskTrendEntry[]) {
+  try {
+    localStorage.setItem(PROTOTYPE_FLOW_LINT_RISK_TREND_KEY, JSON.stringify(rows.slice(-FLOW_LINT_RISK_TREND_MAX_RUNS)));
   } catch {}
 }
 
@@ -517,6 +552,8 @@ export function createPrototypeViewer(editor: Editor): {
   let flowLintInfo: HTMLDivElement | null = null;
   let flowLintRiskWrap: HTMLDivElement | null = null;
   let flowLintRiskInfo: HTMLDivElement | null = null;
+  let flowLintRiskTrendInfo: HTMLDivElement | null = null;
+  let flowLintRiskSparkline: HTMLDivElement | null = null;
   let flowLintRiskList: HTMLDivElement | null = null;
   let flowLintDiffWrap: HTMLDivElement | null = null;
   let flowLintDiffInfo: HTMLDivElement | null = null;
@@ -549,6 +586,7 @@ export function createPrototypeViewer(editor: Editor): {
   let condDebugList: HTMLDivElement | null = null;
   let flowLintSnapshot: { startFrameId: number | null; issues: FlowLintIssue[]; } | null = null;
   let flowLintDiffBaseline: { at: number; scope: FlowLintRunScope; presetLabel: string; startFrameId: number | null; issues: FlowLintIssue[] } | null = null;
+  let flowLintRiskTrend: FlowLintRiskTrendEntry[] = loadFlowLintRiskTrend();
   let flowLintOwnerTags: FlowLintOwnerTagMap = loadFlowLintOwnerTags();
   let flowLintFilterTypes = new Set<FlowLintIssueType>();
   let flowLintRenderedIssues: FlowLintIssue[] = [];
@@ -3427,12 +3465,63 @@ export function createPrototypeViewer(editor: Editor): {
     }
   }
 
+  function renderFlowLintRiskTrend(totalOverlayRiskScore: number, overlayCount: number, issueCount: number) {
+    const now = Date.now();
+    const nextEntry: FlowLintRiskTrendEntry = {
+      at: now,
+      score: Math.max(0, Math.round(totalOverlayRiskScore)),
+      overlayCount: Math.max(0, Math.round(overlayCount)),
+      issueCount: Math.max(0, Math.round(issueCount)),
+    };
+    const prev = flowLintRiskTrend[flowLintRiskTrend.length - 1];
+    if (prev && Math.abs(prev.score - nextEntry.score) < 1 && prev.overlayCount === nextEntry.overlayCount && prev.issueCount === nextEntry.issueCount && (now - prev.at) < 5000) {
+      prev.at = now;
+    } else {
+      flowLintRiskTrend.push(nextEntry);
+      flowLintRiskTrend = flowLintRiskTrend.slice(-FLOW_LINT_RISK_TREND_MAX_RUNS);
+    }
+    saveFlowLintRiskTrend(flowLintRiskTrend);
+
+    if (!flowLintRiskTrendInfo || !flowLintRiskSparkline) return;
+    const rows = flowLintRiskTrend.slice(-FLOW_LINT_RISK_TREND_MAX_RUNS);
+    if (rows.length === 0) {
+      flowLintRiskTrendInfo.textContent = "Trend: no lint runs yet.";
+      flowLintRiskSparkline.innerHTML = "";
+      return;
+    }
+
+    const points = rows.map((row) => row.score);
+    const min = Math.min(...points);
+    const max = Math.max(...points, min + 1);
+    const width = 164;
+    const height = 34;
+    const xs = rows.map((_, i) => rows.length <= 1 ? 0 : (i / (rows.length - 1)) * width);
+    const ys = points.map((score) => {
+      const t = (score - min) / (max - min || 1);
+      return Math.round((height - 4) - t * (height - 8));
+    });
+    const polyline = xs.map((x, i) => `${Math.round(x)},${ys[i]}`).join(" ");
+    const latest = rows[rows.length - 1]!;
+    const prevRows = rows.slice(0, -1);
+    const prevAvg = prevRows.length > 0 ? (prevRows.reduce((sum, row) => sum + row.score, 0) / prevRows.length) : latest.score;
+    const surge = prevRows.length >= 2 && latest.score >= prevAvg * 1.35 && (latest.score - prevAvg) >= 40;
+    const delta = latest.score - (rows[rows.length - 2]?.score ?? latest.score);
+    flowLintRiskTrendInfo.textContent = `Trend (${rows.length} runs): now ${latest.score}pt (${delta >= 0 ? "+" : ""}${Math.round(delta)}). ${surge ? "⚠︎ 급증 감지" : "stable"}`;
+    flowLintRiskTrendInfo.style.color = surge ? "#fca5a5" : "#fda4af";
+    flowLintRiskSparkline.innerHTML = `<svg viewBox=\"0 0 ${width} ${height}\" width=\"100%\" height=\"34\" role=\"img\" aria-label=\"Overlay risk trend sparkline\"><polyline fill=\"none\" stroke=\"${surge ? "#fb7185" : "#f97316"}\" stroke-width=\"2\" points=\"${polyline}\"/><circle cx=\"${Math.round(xs[xs.length - 1] || 0)}\" cy=\"${ys[ys.length - 1] || 0}\" r=\"2.5\" fill=\"${surge ? "#fb7185" : "#fdba74"}\"/></svg>`;
+  }
+
   function renderFlowLint() {
     if (!flowLintInfo || !flowLintList || !flowLintRiskInfo || !flowLintRiskList) return;
     const snapshot = flowMinimapSnapshot;
     if (!snapshot || snapshot.nodes.length === 0) {
       flowLintInfo.textContent = "No frames to lint";
       flowLintRiskInfo.textContent = "Overlay risk scoreboard unavailable";
+      if (flowLintRiskTrendInfo) {
+        flowLintRiskTrendInfo.textContent = "Trend: waiting for lint runs.";
+        flowLintRiskTrendInfo.style.color = "#fda4af";
+      }
+      if (flowLintRiskSparkline) flowLintRiskSparkline.innerHTML = "";
       flowLintRiskList.innerHTML = "";
       flowLintList.innerHTML = "";
       flowLintSnapshot = { startFrameId: null, issues: [] };
@@ -4044,6 +4133,7 @@ export function createPrototypeViewer(editor: Editor): {
     flowLintRiskList.innerHTML = "";
     if (issues.length === 0) {
       flowLintRiskInfo.textContent = "Overlay risk scoreboard: no overlay route risks.";
+      renderFlowLintRiskTrend(0, 0, 0);
       const ok = document.createElement("div");
       ok.style.cssText = "font-size:10px;color:#86efac;";
       ok.textContent = "No issues found.";
@@ -4163,6 +4253,7 @@ export function createPrototypeViewer(editor: Editor): {
     flowLintRiskInfo.textContent = rankedOverlayRiskRows.length > 0
       ? `Overlay route risk ${Math.round(totalOverlayRiskScore)}pt · ${rankedOverlayRiskRows.length} overlays · issues ${totalOverlayRiskCount}`
       : "Overlay risk scoreboard: no route/depth/latency issues.";
+    renderFlowLintRiskTrend(totalOverlayRiskScore, rankedOverlayRiskRows.length, totalOverlayRiskCount);
     flowLintRiskList.innerHTML = "";
     if (visibleOverlayRiskRows.length === 0) {
       const ok = document.createElement("div");
@@ -5340,6 +5431,13 @@ export function createPrototypeViewer(editor: Editor): {
     flowLintRiskInfo.style.cssText = "font-size:9px;line-height:1.35;color:#fda4af;";
     flowLintRiskInfo.textContent = "Overlay risk scoreboard pending…";
     flowLintRiskWrap.appendChild(flowLintRiskInfo);
+    flowLintRiskTrendInfo = document.createElement("div");
+    flowLintRiskTrendInfo.style.cssText = "font-size:9px;line-height:1.35;color:#fda4af;";
+    flowLintRiskTrendInfo.textContent = "Trend: waiting for lint runs.";
+    flowLintRiskWrap.appendChild(flowLintRiskTrendInfo);
+    flowLintRiskSparkline = document.createElement("div");
+    flowLintRiskSparkline.style.cssText = "height:34px;border:1px solid rgba(251,113,133,0.22);border-radius:6px;background:rgba(30,41,59,0.35);padding:2px 4px;";
+    flowLintRiskWrap.appendChild(flowLintRiskSparkline);
     flowLintRiskList = document.createElement("div");
     flowLintRiskList.style.cssText = "display:flex;flex-direction:column;gap:4px;";
     flowLintRiskWrap.appendChild(flowLintRiskList);
