@@ -1790,12 +1790,17 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Overlay Exit Suggestion A/B Presets — 추천 점수 가중치 preset(Conservative/Balanced/Aggressive) 전환 + 결과 비교 (임팩트 중, 난이도 중상)
 - Flow Lint Digest Composer — owner별 이슈를 묶어 Slack/Discord 공유용 digest 텍스트 자동 생성 (임팩트 중, 난이도 중)
 - Flow Lint Snapshot History Timeline — lint 실행 스냅샷(최대 N개) 타임라인 저장/선택 비교 + run notes 메모 (임팩트 중, 난이도 중)
 - Owner SLA Escalation Rules — SLA 임계값별(24h/48h/72h) 색상/정렬 가중치 + escalation only 필터 (임팩트 중상, 난이도 중상)
 - Flow Lint Digest Delivery Presets — Discord/Slack 템플릿 프리셋 + owner mention 매핑 저장 (임팩트 중, 난이도 중)
 
+## 완료된 기능 (추가 — Overlay Exit Suggestion A/B Presets, 2026-04-21)
+- Overlay Exit 추천 점수 프리셋을 `Conservative / Balanced / Aggressive` 3종으로 분리하고 가중치(클릭성/라벨/안정성/거리/조건부 패널티)를 preset별로 적용
+- Flow Lint 패널에 `Exit Suggestion` A/B 셀렉터를 추가해 preset 조합을 저장/복원(localStorage)하고 Escape Route Map 카드에서 추천 결과를 동시 비교
+- `Suggest exit` 및 `overlay-key-route` quick-fix는 A preset 결과를 기준으로 동작하도록 통일해 triage→fix 흐름 일관성 확보
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Flow Lint Owner SLA Timer, 2026-04-20)
 - owner 태그가 지정된 Flow Lint 이슈 카드에 `SLA` 배지를 추가해 경과 시간(분/시간/일) 가시화

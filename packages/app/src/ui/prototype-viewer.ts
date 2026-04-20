@@ -28,6 +28,8 @@ const PROTOTYPE_FLOW_LINT_RISK_TREND_KEY = "opensketch-flow-lint-risk-trend-v1";
 const PROTOTYPE_FLOW_LINT_DIFF_BASELINE_KEY = "opensketch-flow-lint-diff-baseline-v1";
 const PROTOTYPE_FLOW_LINT_OWNER_SLA_KEY = "opensketch-flow-lint-owner-sla-v1";
 const PROTOTYPE_FLOW_LINT_OWNER_SLA_SORT_KEY = "opensketch-flow-lint-owner-sla-sort-v1";
+const PROTOTYPE_OVERLAY_EXIT_SUGGEST_PRESET_A_KEY = "opensketch-overlay-exit-suggest-preset-a-v1";
+const PROTOTYPE_OVERLAY_EXIT_SUGGEST_PRESET_B_KEY = "opensketch-overlay-exit-suggest-preset-b-v1";
 const FLOW_LINT_RISK_TREND_MAX_RUNS = 12;
 
 type FlowEntryPreset = { frameId: number; label: string; pageId?: number };
@@ -35,6 +37,7 @@ type RingPresetSafetyBucket = "safe" | "watch" | "risky";
 type RingGuardPolicy = "off" | "warn" | "enforce-safe";
 type OverlayGuardPresetId = "strict" | "balanced" | "legacy";
 type FlowLintSeverityProfileId = "strict" | "balanced" | "relaxed";
+type OverlayExitSuggestPresetId = "conservative" | "balanced" | "aggressive";
 
 type OverlayGuardPresetConfig = {
   id: OverlayGuardPresetId;
@@ -113,6 +116,62 @@ const FLOW_LINT_SEVERITY_PROFILES: FlowLintSeverityProfile[] = [
     overlayExitLatencyBudget: 3,
     motionLongDurationMs: 1200,
     motionAggressiveDurationMs: 650,
+  },
+];
+
+type OverlayExitSuggestPreset = {
+  id: OverlayExitSuggestPresetId;
+  label: string;
+  note: string;
+  pressWeight: number;
+  clickWeight: number;
+  labelWeight: number;
+  keywordWeight: number;
+  routeStabilityWeight: number;
+  distanceWeight: number;
+  conditionalPenalty: number;
+  routeConditionalPenaltyWeight: number;
+};
+
+const OVERLAY_EXIT_SUGGEST_PRESETS: OverlayExitSuggestPreset[] = [
+  {
+    id: "conservative",
+    label: "Conservative",
+    note: "보수적: 라벨/안정성 가중치↑, 조건부 패널티↑",
+    pressWeight: 12,
+    clickWeight: 8,
+    labelWeight: 10,
+    keywordWeight: 14,
+    routeStabilityWeight: 1.2,
+    distanceWeight: 18,
+    conditionalPenalty: 5,
+    routeConditionalPenaltyWeight: 1.2,
+  },
+  {
+    id: "balanced",
+    label: "Balanced",
+    note: "기본: 클릭성/위치/안정성 균형",
+    pressWeight: 14,
+    clickWeight: 10,
+    labelWeight: 8,
+    keywordWeight: 12,
+    routeStabilityWeight: 1,
+    distanceWeight: 26,
+    conditionalPenalty: 4,
+    routeConditionalPenaltyWeight: 1,
+  },
+  {
+    id: "aggressive",
+    label: "Aggressive",
+    note: "공격적: 위치/클릭성 가중치↑, 조건부 패널티↓",
+    pressWeight: 16,
+    clickWeight: 12,
+    labelWeight: 6,
+    keywordWeight: 10,
+    routeStabilityWeight: 0.82,
+    distanceWeight: 34,
+    conditionalPenalty: 2,
+    routeConditionalPenaltyWeight: 0.7,
   },
 ];
 
@@ -234,6 +293,41 @@ function loadFlowLintSeverityProfileId(): FlowLintSeverityProfileId {
 function saveFlowLintSeverityProfileId(id: FlowLintSeverityProfileId) {
   try {
     localStorage.setItem(PROTOTYPE_FLOW_LINT_SEVERITY_PROFILE_KEY, resolveFlowLintSeverityProfile(id).id);
+  } catch {}
+}
+
+function resolveOverlayExitSuggestPreset(id: string | null | undefined): OverlayExitSuggestPreset {
+  const raw = String(id || "").toLowerCase() as OverlayExitSuggestPresetId;
+  return OVERLAY_EXIT_SUGGEST_PRESETS.find((preset) => preset.id === raw)
+    || OVERLAY_EXIT_SUGGEST_PRESETS.find((preset) => preset.id === "balanced")
+    || OVERLAY_EXIT_SUGGEST_PRESETS[0]!;
+}
+
+function loadOverlayExitSuggestPresetAId(): OverlayExitSuggestPresetId {
+  try {
+    return resolveOverlayExitSuggestPreset(localStorage.getItem(PROTOTYPE_OVERLAY_EXIT_SUGGEST_PRESET_A_KEY)).id;
+  } catch {
+    return "balanced";
+  }
+}
+
+function saveOverlayExitSuggestPresetAId(id: OverlayExitSuggestPresetId) {
+  try {
+    localStorage.setItem(PROTOTYPE_OVERLAY_EXIT_SUGGEST_PRESET_A_KEY, resolveOverlayExitSuggestPreset(id).id);
+  } catch {}
+}
+
+function loadOverlayExitSuggestPresetBId(): OverlayExitSuggestPresetId {
+  try {
+    return resolveOverlayExitSuggestPreset(localStorage.getItem(PROTOTYPE_OVERLAY_EXIT_SUGGEST_PRESET_B_KEY)).id;
+  } catch {
+    return "aggressive";
+  }
+}
+
+function saveOverlayExitSuggestPresetBId(id: OverlayExitSuggestPresetId) {
+  try {
+    localStorage.setItem(PROTOTYPE_OVERLAY_EXIT_SUGGEST_PRESET_B_KEY, resolveOverlayExitSuggestPreset(id).id);
   } catch {}
 }
 
@@ -589,8 +683,11 @@ export function createPrototypeViewer(editor: Editor): {
   let flowLintPresetSel: HTMLSelectElement | null = null;
   let flowLintScopeSel: HTMLSelectElement | null = null;
   let flowLintSeveritySel: HTMLSelectElement | null = null;
+  let flowLintExitPresetASel: HTMLSelectElement | null = null;
+  let flowLintExitPresetBSel: HTMLSelectElement | null = null;
   let flowLintPresetInfo: HTMLDivElement | null = null;
   let flowLintSeverityInfo: HTMLDivElement | null = null;
+  let flowLintExitPresetInfo: HTMLDivElement | null = null;
   let keyboardOrderWrap: HTMLDivElement | null = null;
   let keyboardOrderInfo: HTMLDivElement | null = null;
   let keyboardOrderList: HTMLDivElement | null = null;
@@ -760,6 +857,8 @@ export function createPrototypeViewer(editor: Editor): {
   let scrollLockRegions = loadScrollLockRegions();
   let overlayGuardPresetId: OverlayGuardPresetId = loadOverlayGuardPresetId();
   let flowLintSeverityProfileId: FlowLintSeverityProfileId = loadFlowLintSeverityProfileId();
+  let overlayExitSuggestPresetAId: OverlayExitSuggestPresetId = loadOverlayExitSuggestPresetAId();
+  let overlayExitSuggestPresetBId: OverlayExitSuggestPresetId = loadOverlayExitSuggestPresetBId();
   const coverageFrameVisits = new Map<number, number>();
   const coverageHotspotHits = new Map<number, Set<string>>();
 
@@ -2130,7 +2229,8 @@ export function createPrototypeViewer(editor: Editor): {
     return changed;
   }
 
-  function getOverlayExitSuggestions(frameId: number, overlayId: number): OverlayExitSuggestion[] {
+  function getOverlayExitSuggestions(frameId: number, overlayId: number, presetId?: OverlayExitSuggestPresetId): OverlayExitSuggestion[] {
+    const preset = resolveOverlayExitSuggestPreset(presetId || overlayExitSuggestPresetAId);
     const focusables = listFocusableHotspots(overlayId);
     const byNode = new Map<number, { node: any; interactions: any[] }>();
     for (const row of focusables) {
@@ -2181,23 +2281,23 @@ export function createPrototypeViewer(editor: Editor): {
       const hasBackAction = interactions.some((inter) => String(inter?.action || "") === "Back");
       const nodeName = String(bucket.node?.name || "");
 
-      if (hasPress) score += 14;
-      if (hasClick) score += 10;
-      if (hasLabel) score += 8;
-      if (/(close|back|done|cancel|dismiss|exit|x|닫기|뒤로|취소)/i.test(nodeName)) score += 12;
-      score += routeStabilityScore;
+      if (hasPress) score += preset.pressWeight;
+      if (hasClick) score += preset.clickWeight;
+      if (hasLabel) score += preset.labelWeight;
+      if (/(close|back|done|cancel|dismiss|exit|x|닫기|뒤로|취소)/i.test(nodeName)) score += preset.keywordWeight;
+      score += Math.round(routeStabilityScore * preset.routeStabilityWeight);
 
       const nx = Number(bucket.node?.x || 0) + Number(bucket.node?.width || 0) / 2;
       const ny = Number(bucket.node?.y || 0) + Number(bucket.node?.height || 0) / 2;
       if (overlayBounds) {
         const dist = Math.hypot(nx - closeAnchorX, ny - closeAnchorY);
         const normalized = Math.min(1, dist / overlayDiag);
-        const distanceScore = Math.round((1 - normalized) * 26);
+        const distanceScore = Math.round((1 - normalized) * preset.distanceWeight);
         score += distanceScore;
       }
 
-      score -= Math.min(12, conditionalBranchCount * 4);
-      score -= routeConditionalPenalty;
+      score -= Math.min(12, conditionalBranchCount * preset.conditionalPenalty);
+      score -= Math.round(routeConditionalPenalty * preset.routeConditionalPenaltyWeight);
 
       const action: "CloseOverlay" | "Back" = hasBackAction ? "Back" : "CloseOverlay";
       const stableLabel = routeStabilityScore >= 34 ? "stable" : routeStabilityScore >= 24 ? "watch" : "risky";
@@ -2205,7 +2305,7 @@ export function createPrototypeViewer(editor: Editor): {
         nodeId,
         action,
         score,
-        label: `#${nodeId} ${action} (${Math.round(score)}pt · ${stableLabel} · cond ${conditionalBranchCount})`,
+        label: `#${nodeId} ${action} (${Math.round(score)}pt · ${stableLabel} · cond ${conditionalBranchCount} · ${preset.label})`,
       });
     }
 
@@ -3056,7 +3156,8 @@ export function createPrototypeViewer(editor: Editor): {
       conditionalMeta.textContent = row.conditionalSummary;
       card.appendChild(conditionalMeta);
 
-      const overlaySuggestions = warn ? getOverlayExitSuggestions(row.frameId, row.overlayId) : [];
+      const overlaySuggestionsA = warn ? getOverlayExitSuggestions(row.frameId, row.overlayId, overlayExitSuggestPresetAId) : [];
+      const overlaySuggestionsB = warn ? getOverlayExitSuggestions(row.frameId, row.overlayId, overlayExitSuggestPresetBId) : [];
       if (warn) {
         const warnText = document.createElement("div");
         warnText.style.cssText = "font-size:9px;color:#fca5a5;line-height:1.35;";
@@ -3073,11 +3174,17 @@ export function createPrototypeViewer(editor: Editor): {
         warnText.textContent = `⚠ ${parts.join(" · ")}`;
         card.appendChild(warnText);
 
-        if (overlaySuggestions.length > 0) {
+        if (overlaySuggestionsA.length > 0) {
           const suggestMeta = document.createElement("div");
           suggestMeta.style.cssText = "font-size:9px;color:#fdba74;line-height:1.35;";
-          suggestMeta.textContent = `Suggested: ${overlaySuggestions.map((s) => `#${s.nodeId} ${s.action}`).join(" / ")}`;
+          suggestMeta.textContent = `A(${resolveOverlayExitSuggestPreset(overlayExitSuggestPresetAId).label}): ${overlaySuggestionsA.map((s) => `#${s.nodeId} ${s.action}`).join(" / ")}`;
           card.appendChild(suggestMeta);
+        }
+        if (overlayExitSuggestPresetAId !== overlayExitSuggestPresetBId && overlaySuggestionsB.length > 0) {
+          const suggestCompareMeta = document.createElement("div");
+          suggestCompareMeta.style.cssText = "font-size:9px;color:#c4b5fd;line-height:1.35;";
+          suggestCompareMeta.textContent = `B(${resolveOverlayExitSuggestPreset(overlayExitSuggestPresetBId).label}): ${overlaySuggestionsB.map((s) => `#${s.nodeId} ${s.action}`).join(" / ")}`;
+          card.appendChild(suggestCompareMeta);
         }
       }
 
@@ -3095,10 +3202,10 @@ export function createPrototypeViewer(editor: Editor): {
         suggestBtn.className = "prop-btn";
         suggestBtn.textContent = "Suggest exit";
         suggestBtn.style.cssText = "flex:1;font-size:10px;padding:3px 6px;color:#fdba74;border-color:rgba(251,146,60,0.55);";
-        if (overlaySuggestions.length > 0) suggestBtn.title = overlaySuggestions[0].label;
+        if (overlaySuggestionsA.length > 0) suggestBtn.title = overlaySuggestionsA[0].label;
         suggestBtn.onclick = () => {
           editor.engine.push_undo();
-          const result = suggestOverlayExitPathFix(row.frameId, row.overlayId, overlaySuggestions[0]);
+          const result = suggestOverlayExitPathFix(row.frameId, row.overlayId, overlaySuggestionsA[0]);
           suggestBtn.textContent = result.changed ? `Added #${result.targetNodeId}` : "No-op";
           window.setTimeout(() => { suggestBtn.textContent = "Suggest exit"; }, 1100);
           if (result.changed) {
@@ -3805,6 +3912,15 @@ export function createPrototypeViewer(editor: Editor): {
     if (flowLintPresetInfo) flowLintPresetInfo.textContent = overlayGuardPreset.note;
     if (flowLintSeveritySel) flowLintSeveritySel.value = severityProfile.id;
     if (flowLintSeverityInfo) flowLintSeverityInfo.textContent = severityProfile.note;
+    if (flowLintExitPresetASel) flowLintExitPresetASel.value = resolveOverlayExitSuggestPreset(overlayExitSuggestPresetAId).id;
+    if (flowLintExitPresetBSel) flowLintExitPresetBSel.value = resolveOverlayExitSuggestPreset(overlayExitSuggestPresetBId).id;
+    if (flowLintExitPresetInfo) {
+      const presetA = resolveOverlayExitSuggestPreset(overlayExitSuggestPresetAId);
+      const presetB = resolveOverlayExitSuggestPreset(overlayExitSuggestPresetBId);
+      flowLintExitPresetInfo.textContent = overlayExitSuggestPresetAId === overlayExitSuggestPresetBId
+        ? `A/B 동일 preset: ${presetA.label} · ${presetA.note}`
+        : `A:${presetA.label} vs B:${presetB.label} · 카드에서 추천 결과 비교`;
+    }
 
     const backByFrame = new Map<number, number>();
     const overlaysOpenByFrame = new Map<number, number>();
@@ -4047,9 +4163,9 @@ export function createPrototypeViewer(editor: Editor): {
             if (hasRequiredFail
               || (overlayGuardPreset.detectConditionalOnly && hasConditionalFail)
               || (overlayGuardPreset.detectSimulationDrift && hasSimFail)) {
-              const exitSuggestionCandidates = getOverlayExitSuggestions(node.id, route.overlayId);
+              const exitSuggestionCandidates = getOverlayExitSuggestions(node.id, route.overlayId, overlayExitSuggestPresetAId);
               const exitSuggestions = exitSuggestionCandidates.map((item) => item.label);
-              const suggestLabel = exitSuggestions.length > 0 ? ` · suggest ${exitSuggestions.slice(0, 2).join(", ")}` : "";
+              const suggestLabel = exitSuggestions.length > 0 ? ` · suggest(${resolveOverlayExitSuggestPreset(overlayExitSuggestPresetAId).label}) ${exitSuggestions.slice(0, 2).join(", ")}` : "";
               issues.push({
                 type: "overlay-key-route",
                 frameId: node.id,
@@ -5585,6 +5701,60 @@ export function createPrototypeViewer(editor: Editor): {
     flowLintSeverityInfo.style.cssText = "font-size:9px;color:#94a3b8;line-height:1.35;";
     flowLintSeverityInfo.textContent = resolveFlowLintSeverityProfile(flowLintSeverityProfileId).note;
     flowLintWrap.appendChild(flowLintSeverityInfo);
+
+    const flowLintExitPresetRow = document.createElement("div");
+    flowLintExitPresetRow.style.cssText = "display:flex;gap:6px;align-items:center;";
+    const flowLintExitPresetLabel = document.createElement("span");
+    flowLintExitPresetLabel.style.cssText = "font-size:10px;color:#cbd5e1;white-space:nowrap;";
+    flowLintExitPresetLabel.textContent = "Exit Suggestion";
+    flowLintExitPresetRow.appendChild(flowLintExitPresetLabel);
+    flowLintExitPresetASel = document.createElement("select");
+    flowLintExitPresetASel.style.cssText = "flex:1;background:#0f172a;color:#f8fafc;border:1px solid rgba(148,163,184,0.35);border-radius:6px;padding:3px 6px;font-size:10px;";
+    flowLintExitPresetBSel = document.createElement("select");
+    flowLintExitPresetBSel.style.cssText = "flex:1;background:#0f172a;color:#f8fafc;border:1px solid rgba(148,163,184,0.35);border-radius:6px;padding:3px 6px;font-size:10px;";
+    for (const preset of OVERLAY_EXIT_SUGGEST_PRESETS) {
+      const optA = document.createElement("option");
+      optA.value = preset.id;
+      optA.textContent = `A:${preset.label}`;
+      flowLintExitPresetASel.appendChild(optA);
+      const optB = document.createElement("option");
+      optB.value = preset.id;
+      optB.textContent = `B:${preset.label}`;
+      flowLintExitPresetBSel.appendChild(optB);
+    }
+    flowLintExitPresetASel.value = overlayExitSuggestPresetAId;
+    flowLintExitPresetBSel.value = overlayExitSuggestPresetBId;
+    const updateExitPresetInfo = () => {
+      if (!flowLintExitPresetInfo) return;
+      const a = resolveOverlayExitSuggestPreset(overlayExitSuggestPresetAId);
+      const b = resolveOverlayExitSuggestPreset(overlayExitSuggestPresetBId);
+      flowLintExitPresetInfo.textContent = overlayExitSuggestPresetAId === overlayExitSuggestPresetBId
+        ? `A/B 동일 preset: ${a.label} · ${a.note}`
+        : `A:${a.label} vs B:${b.label} · 카드에서 추천 결과 비교`; 
+    };
+    flowLintExitPresetASel.onchange = () => {
+      overlayExitSuggestPresetAId = resolveOverlayExitSuggestPreset(flowLintExitPresetASel?.value).id;
+      saveOverlayExitSuggestPresetAId(overlayExitSuggestPresetAId);
+      if (flowLintExitPresetASel) flowLintExitPresetASel.value = overlayExitSuggestPresetAId;
+      updateExitPresetInfo();
+      renderFlowLint();
+      renderEscapeRouteMap();
+    };
+    flowLintExitPresetBSel.onchange = () => {
+      overlayExitSuggestPresetBId = resolveOverlayExitSuggestPreset(flowLintExitPresetBSel?.value).id;
+      saveOverlayExitSuggestPresetBId(overlayExitSuggestPresetBId);
+      if (flowLintExitPresetBSel) flowLintExitPresetBSel.value = overlayExitSuggestPresetBId;
+      updateExitPresetInfo();
+      renderEscapeRouteMap();
+    };
+    flowLintExitPresetRow.appendChild(flowLintExitPresetASel);
+    flowLintExitPresetRow.appendChild(flowLintExitPresetBSel);
+    flowLintWrap.appendChild(flowLintExitPresetRow);
+
+    flowLintExitPresetInfo = document.createElement("div");
+    flowLintExitPresetInfo.style.cssText = "font-size:9px;color:#94a3b8;line-height:1.35;";
+    flowLintWrap.appendChild(flowLintExitPresetInfo);
+    updateExitPresetInfo();
 
     flowLintInfo = document.createElement("div");
     flowLintInfo.style.cssText = "font-size:10px;color:#94a3b8;line-height:1.35;";

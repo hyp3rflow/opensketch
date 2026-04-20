@@ -3174,6 +3174,13 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Escape Route Map 경고 카드에도 `Suggest exit` 버튼 + 추천 후보 메타를 추가해 lint 패널 이동 없이 바로 CloseOverlay/Back 경로를 주입 가능
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
 
+### Overlay Exit Suggestion A/B Presets (2026-04-21)
+- [x] Overlay Exit 추천 스코어링을 `Conservative / Balanced / Aggressive` preset으로 분리하고, 클릭성/라벨/안정성/거리/조건부 패널티 가중치를 preset별로 적용
+- [x] Flow Lint 패널에 `Exit Suggestion` A/B 셀렉터를 추가해 preset 조합을 localStorage(`opensketch-overlay-exit-suggest-preset-a-v1`, `...-b-v1`)에 저장/복원
+- [x] Escape Route Map 경고 카드에서 A/B preset 추천 결과를 동시 노출해 후보 타깃 차이를 즉시 비교
+- [x] `Suggest exit` 버튼 및 `overlay-key-route` lint 제안은 A preset 결과를 기준으로 적용해 quick-fix 기준 일관성 유지
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+
 ### Flow Lint Owner Tagging (2026-04-20)
 - [x] Flow Lint 패널에 owner tagging 입력(`type:@owner`)을 추가해 이슈 타입별 담당자 태그를 저장/적용
 - [x] 저장된 owner 태그를 이슈 카드 헤더에 `@owner`로 표시해 triage 시 담당자를 즉시 확인 가능
