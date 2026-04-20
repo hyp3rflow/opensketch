@@ -3211,6 +3211,18 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] 저장된 히스토리는 Prototype Viewer 재진입 후에도 자동 복원
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
 
+### Owner SLA Escalation Rules (2026-04-21)
+- [x] Owner SLA 상태를 24h/48h/72h 임계값 기반 `watch / warn / critical` 3단계로 확장하고 단계별 색상/라벨(`SLA 24h+`, `SLA 48h+`, `SLA 72h+`)을 적용
+- [x] `SLA sort` 옵션에 `Escalation only (24h+)` 모드를 추가해 임계값 이상 이슈만 필터링하고 escalation weight 기준으로 우선 정렬
+- [x] Flow Lint 이슈 카드의 SLA 배지에 단계 라벨 + 경과 시간을 함께 노출해 owner triage 판단 속도 향상
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+
+### Flow Lint Scope Preset Memory (2026-04-21)
+- [x] Flow Lint scope(`Selection/Page/Flow`)를 flow ID별 preset으로 저장하고, scope 셀렉터 변경 시 즉시 localStorage(`opensketch-flow-lint-scope-presets-v1`)에 반영
+- [x] 마지막으로 점검한 flow ID를 localStorage(`opensketch-flow-lint-last-flow-id-v1`)에 저장해 Prototype Viewer 재진입 시 해당 flow를 우선 복원
+- [x] Flow selector 재구성 시 `이전 선택 flow → 저장된 last flow → 첫 flow` 우선순위로 복원하고, 복원된 flow에 맞는 scope preset을 자동 적용
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+
 ### Overlay Escape Replay Test Cases (2026-04-20)
 - [x] Overlay Escape Key Route Inspector에 `Generate replay` / `Copy cases` 액션을 추가해 Esc/Back 회귀 케이스를 자동 생성
 - [x] 케이스는 Esc/Back 각각 expected pass/fail, expected steps, route summary, snapshot label(PASS/FAIL) 메타를 포함

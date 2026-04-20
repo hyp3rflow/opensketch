@@ -30,6 +30,7 @@ const PROTOTYPE_FLOW_LINT_HISTORY_KEY = "opensketch-flow-lint-history-v1";
 const PROTOTYPE_FLOW_LINT_OWNER_SLA_KEY = "opensketch-flow-lint-owner-sla-v1";
 const PROTOTYPE_FLOW_LINT_OWNER_SLA_SORT_KEY = "opensketch-flow-lint-owner-sla-sort-v1";
 const PROTOTYPE_FLOW_LINT_SCOPE_PRESETS_KEY = "opensketch-flow-lint-scope-presets-v1";
+const PROTOTYPE_FLOW_LINT_LAST_FLOW_KEY = "opensketch-flow-lint-last-flow-id-v1";
 const PROTOTYPE_OVERLAY_EXIT_SUGGEST_PRESET_A_KEY = "opensketch-overlay-exit-suggest-preset-a-v1";
 const PROTOTYPE_OVERLAY_EXIT_SUGGEST_PRESET_B_KEY = "opensketch-overlay-exit-suggest-preset-b-v1";
 const FLOW_LINT_RISK_TREND_MAX_RUNS = 12;
@@ -399,11 +400,27 @@ function saveFlowLintOwnerTags(tags: FlowLintOwnerTagMap) {
 }
 
 type FlowLintOwnerSlaMap = Record<string, number>;
-type FlowLintOwnerSlaSortMode = "severity" | "sla-desc" | "sla-asc";
+type FlowLintOwnerSlaSortMode = "severity" | "sla-desc" | "sla-asc" | "escalation-only";
+
+type FlowLintOwnerSlaLevel = "ok" | "watch" | "warn" | "critical";
 
 function resolveFlowLintOwnerSlaSortMode(raw: unknown): FlowLintOwnerSlaSortMode {
   const value = String(raw || "").toLowerCase();
-  return value === "sla-desc" || value === "sla-asc" ? value : "severity";
+  return value === "sla-desc" || value === "sla-asc" || value === "escalation-only" ? value : "severity";
+}
+
+function resolveFlowLintOwnerSlaLevel(elapsedMs: number): FlowLintOwnerSlaLevel {
+  if (elapsedMs >= 72 * 60 * 60 * 1000) return "critical";
+  if (elapsedMs >= 48 * 60 * 60 * 1000) return "warn";
+  if (elapsedMs >= 24 * 60 * 60 * 1000) return "watch";
+  return "ok";
+}
+
+function flowLintOwnerSlaLevelMeta(level: FlowLintOwnerSlaLevel): { label: string; color: string; weight: number } {
+  if (level === "critical") return { label: "SLA 72h+", color: "#ef4444", weight: 4 };
+  if (level === "warn") return { label: "SLA 48h+", color: "#fb7185", weight: 3 };
+  if (level === "watch") return { label: "SLA 24h+", color: "#f59e0b", weight: 2 };
+  return { label: "SLA <24h", color: "#93c5fd", weight: 1 };
 }
 
 function loadFlowLintOwnerSlaMap(): FlowLintOwnerSlaMap {
@@ -465,6 +482,22 @@ function loadFlowLintScopePresets(): FlowLintScopePresetMap {
 function saveFlowLintScopePresets(presets: FlowLintScopePresetMap) {
   try {
     localStorage.setItem(PROTOTYPE_FLOW_LINT_SCOPE_PRESETS_KEY, JSON.stringify(presets));
+  } catch {}
+}
+
+function loadFlowLintLastFlowId(): number {
+  try {
+    const value = Number(localStorage.getItem(PROTOTYPE_FLOW_LINT_LAST_FLOW_KEY) || 0);
+    return Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function saveFlowLintLastFlowId(flowId: number) {
+  try {
+    const next = Number.isFinite(flowId) && flowId > 0 ? String(Math.floor(flowId)) : "0";
+    localStorage.setItem(PROTOTYPE_FLOW_LINT_LAST_FLOW_KEY, next);
   } catch {}
 }
 
@@ -1662,7 +1695,12 @@ export function createPrototypeViewer(editor: Editor): {
     if (!flowStartWrap || !flowStartFlowSel || !flowStartFrameSel || !flowStartInfo) return;
     const flows = listPrototypeFlows();
     const prevFlow = Number(flowStartFlowSel.value || 0);
-    const selectedFlowId = flows.some((f) => f.id === prevFlow) ? prevFlow : Number(flows[0]?.id || 0);
+    const savedFlow = loadFlowLintLastFlowId();
+    const selectedFlowId = flows.some((f) => f.id === prevFlow)
+      ? prevFlow
+      : flows.some((f) => f.id === savedFlow)
+        ? savedFlow
+        : Number(flows[0]?.id || 0);
 
     flowStartFlowSel.innerHTML = "";
     for (const flow of flows) {
@@ -1672,6 +1710,7 @@ export function createPrototypeViewer(editor: Editor): {
       flowStartFlowSel.appendChild(opt);
     }
     flowStartFlowSel.value = selectedFlowId ? String(selectedFlowId) : "";
+    saveFlowLintLastFlowId(selectedFlowId);
 
     const selectedFlow = flows.find((f) => f.id === selectedFlowId) || null;
     const fallbackPageId = Number(editor.engine.get_active_page_id?.() || 0);
@@ -4608,13 +4647,30 @@ export function createPrototypeViewer(editor: Editor): {
     flowLintOwnerSlaMap = nextSlaMap;
     saveFlowLintOwnerSlaMap(flowLintOwnerSlaMap);
 
+    const issueSlaMeta = new Map<string, { startedAt: number; elapsedMs: number; level: FlowLintOwnerSlaLevel; weight: number; label: string; color: string }>();
+    for (const issue of issues) {
+      const issueKey = makeFlowLintOwnerSlaKey(issue);
+      const startedAt = flowLintOwnerSlaMap[issueKey] || now;
+      const elapsedMs = Math.max(0, now - startedAt);
+      const level = resolveFlowLintOwnerSlaLevel(elapsedMs);
+      const levelMeta = flowLintOwnerSlaLevelMeta(level);
+      issueSlaMeta.set(issueKey, { startedAt, elapsedMs, level, weight: levelMeta.weight, label: levelMeta.label, color: levelMeta.color });
+    }
+
     const sortedIssues = [...issues].sort((a, b) => {
       const rankDelta = (rank[a.type] - rank[b.type]) || a.frameName.localeCompare(b.frameName);
+      const slaA = issueSlaMeta.get(makeFlowLintOwnerSlaKey(a));
+      const slaB = issueSlaMeta.get(makeFlowLintOwnerSlaKey(b));
+      const weightDelta = (slaB?.weight || 0) - (slaA?.weight || 0);
       if (flowLintOwnerSlaSortMode === "severity") return rankDelta;
-      const slaA = flowLintOwnerSlaMap[makeFlowLintOwnerSlaKey(a)] || now;
-      const slaB = flowLintOwnerSlaMap[makeFlowLintOwnerSlaKey(b)] || now;
-      if (flowLintOwnerSlaSortMode === "sla-desc") return slaA - slaB || rankDelta;
-      return slaB - slaA || rankDelta;
+      if (flowLintOwnerSlaSortMode === "escalation-only") {
+        if (weightDelta !== 0) return weightDelta;
+        return rankDelta;
+      }
+      const startedAtA = slaA?.startedAt || now;
+      const startedAtB = slaB?.startedAt || now;
+      if (flowLintOwnerSlaSortMode === "sla-desc") return startedAtA - startedAtB || rankDelta;
+      return startedAtB - startedAtA || rankDelta;
     });
     const issueTypes: FlowLintIssueType[] = ["a11y-missing-label", "a11y-focus-gap", "a11y-focus-trap", "a11y-low-contrast", "a11y-motion", "dead-end", "unreachable", "cycle-trap", "cycle", "overlay-leak", "overlay-key-route", "overlay-depth-budget", "overlay-exit-latency", "scroll-leak", "orphan-close"];
     if (flowLintFilterTypes.size === 0) {
@@ -4642,7 +4698,12 @@ export function createPrototypeViewer(editor: Editor): {
       }
     }
 
-    const filteredIssues = sortedIssues.filter((i) => flowLintFilterTypes.has(i.type));
+    const filteredIssues = sortedIssues.filter((i) => {
+      if (!flowLintFilterTypes.has(i.type)) return false;
+      if (flowLintOwnerSlaSortMode !== "escalation-only") return true;
+      const slaMeta = issueSlaMeta.get(makeFlowLintOwnerSlaKey(i));
+      return (slaMeta?.weight || 0) >= 2;
+    });
 
     const overlayNameById = new Map<number, string>(snapshot.nodes.map((node) => [node.id, node.name]));
     const overlayRiskRows = new Map<number, { overlayId: number; overlayName: string; frameName: string; score: number; keyRouteCount: number; depthCount: number; latencyCount: number; peakDepthExcess: number; peakLatencySteps: number; detail: string[] }>();
@@ -4783,11 +4844,11 @@ export function createPrototypeViewer(editor: Editor): {
       row.style.cssText = `display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;text-align:left;background:rgba(15,23,42,0.55);border:1px solid rgba(148,163,184,0.25);border-left:3px solid ${color};border-radius:6px;color:#e2e8f0;padding:4px 6px;cursor:pointer;`;
       row.dataset.lintNavIndex = String(issueIndex);
       const ownerTag = flowLintOwnerTags[issue.type] || "";
-      const slaStartedAt = flowLintOwnerSlaMap[makeFlowLintOwnerSlaKey(issue)] || now;
-      const slaElapsed = formatSlaElapsed(now - slaStartedAt);
-      const slaLevel = (now - slaStartedAt) >= 48 * 60 * 60 * 1000 ? "over" : (now - slaStartedAt) >= 24 * 60 * 60 * 1000 ? "watch" : "ok";
-      const slaColor = slaLevel === "over" ? "#fb7185" : slaLevel === "watch" ? "#f59e0b" : "#93c5fd";
-      row.innerHTML = `<span style="font-size:10px;font-weight:600;color:${color};text-transform:uppercase;">${issue.type}</span><span style="font-size:10px;">${issue.frameName} (#${issue.frameId})${ownerTag ? ` · <span style=\"color:#67e8f9;\">${ownerTag}</span>` : ""}${ownerTag ? ` · <span style=\"display:inline-flex;align-items:center;padding:0 5px;border-radius:999px;border:1px solid ${slaColor};color:${slaColor};font-size:9px;\">SLA ${slaElapsed}</span>` : ""}</span><span style="font-size:9px;color:#94a3b8;">${issue.detail}</span>`;
+      const slaMeta = issueSlaMeta.get(makeFlowLintOwnerSlaKey(issue));
+      const slaElapsed = formatSlaElapsed(slaMeta?.elapsedMs || 0);
+      const slaColor = slaMeta?.color || "#93c5fd";
+      const slaLabel = slaMeta?.label || "SLA <24h";
+      row.innerHTML = `<span style="font-size:10px;font-weight:600;color:${color};text-transform:uppercase;">${issue.type}</span><span style="font-size:10px;">${issue.frameName} (#${issue.frameId})${ownerTag ? ` · <span style=\"color:#67e8f9;\">${ownerTag}</span>` : ""}${ownerTag ? ` · <span style=\"display:inline-flex;align-items:center;padding:0 5px;border-radius:999px;border:1px solid ${slaColor};color:${slaColor};font-size:9px;\">${slaLabel} · ${slaElapsed}</span>` : ""}</span><span style="font-size:9px;color:#94a3b8;">${issue.detail}</span>`;
       row.onclick = () => {
         flowLintNavIndex = issueIndex;
         navigateTo(issue.frameId, "Instant", 0, "linear");
@@ -5772,8 +5833,10 @@ export function createPrototypeViewer(editor: Editor): {
     flowStartWrap.appendChild(presetList);
 
     flowStartFlowSel.addEventListener("change", () => {
+      const flowId = Number(flowStartFlowSel?.value || 0);
+      saveFlowLintLastFlowId(flowId);
       renderFlowStartManager();
-      applyFlowLintScopePresetForFlow(Number(flowStartFlowSel?.value || 0));
+      applyFlowLintScopePresetForFlow(flowId);
       renderFlowLint();
     });
     flowStartFrameSel.addEventListener("change", () => {
@@ -6048,6 +6111,7 @@ export function createPrototypeViewer(editor: Editor): {
       { value: "severity", label: "Severity" },
       { value: "sla-desc", label: "SLA 오래된 순" },
       { value: "sla-asc", label: "SLA 최신 순" },
+      { value: "escalation-only", label: "Escalation only (24h+)" },
     ];
     for (const optionRow of ownerSlaSortOptions) {
       const opt = document.createElement("option");
