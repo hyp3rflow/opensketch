@@ -3107,3 +3107,10 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] 동일 타입 lint 이슈를 선택 범위에서 일괄 수정하고 undo 스냅샷 1회로 롤백 가능
 - [x] 배치 타입 셀렉터에 `type (count)` 메타를 표시하고 대상이 없으면 실행 버튼 비활성화
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
+
+### Overlay Route Risk Scoreboard (2026-04-20)
+- [x] Flow Lint 패널에 `Overlay Route Risk` 보드를 추가해 overlay별 route 위험도를 점수화 후 내림차순 랭킹 제공
+- [x] 집계 대상: `overlay-key-route`, `overlay-depth-budget`, `overlay-exit-latency`
+- [x] 가중치 스코어(기본 + 초과 penalty)로 overlay별 합산 점수 계산, key/depth/latency 카운트와 함께 카드 표시
+- [x] 상위 위험 overlay 카드 클릭 시 해당 overlay를 발생시킨 frame으로 즉시 네비게이션
+- 구현: `packages/app/src/ui/prototype-viewer.ts`

@@ -382,6 +382,9 @@ export function createPrototypeViewer(editor: Editor): {
   let coverageInfo: HTMLDivElement | null = null;
   let coverageList: HTMLDivElement | null = null;
   let flowLintInfo: HTMLDivElement | null = null;
+  let flowLintRiskWrap: HTMLDivElement | null = null;
+  let flowLintRiskInfo: HTMLDivElement | null = null;
+  let flowLintRiskList: HTMLDivElement | null = null;
   let flowLintFilterWrap: HTMLDivElement | null = null;
   let flowLintList: HTMLDivElement | null = null;
   let flowLintBatchTypeSel: HTMLSelectElement | null = null;
@@ -2837,10 +2840,12 @@ export function createPrototypeViewer(editor: Editor): {
   }
 
   function renderFlowLint() {
-    if (!flowLintInfo || !flowLintList) return;
+    if (!flowLintInfo || !flowLintList || !flowLintRiskInfo || !flowLintRiskList) return;
     const snapshot = flowMinimapSnapshot;
     if (!snapshot || snapshot.nodes.length === 0) {
       flowLintInfo.textContent = "No frames to lint";
+      flowLintRiskInfo.textContent = "Overlay risk scoreboard unavailable";
+      flowLintRiskList.innerHTML = "";
       flowLintList.innerHTML = "";
       flowLintSnapshot = { startFrameId: null, issues: [] };
       flowLintRenderedIssues = [];
@@ -3334,7 +3339,9 @@ export function createPrototypeViewer(editor: Editor): {
     flowLintInfo.textContent = `Preset ${overlayGuardPreset.label} · Start #${startFrameId} · Dead-end ${deadEndCount} · Unreachable ${unreachableCount} · Cycles ${cycleCount}/${cycleTrapCount} · Overlay ${overlayLeakCount}/${overlayKeyRouteCount}/${overlayDepthBudgetCount}/${overlayExitLatencyCount}/${orphanCloseCount}/Scroll ${scrollLeakCount} · A11y ${missingLabelCount}/${focusGapCount}/${focusTrapCount}/${lowContrastCount}/${motionGuardrailCount}`;
 
     flowLintList.innerHTML = "";
+    flowLintRiskList.innerHTML = "";
     if (issues.length === 0) {
+      flowLintRiskInfo.textContent = "Overlay risk scoreboard: no overlay route risks.";
       const ok = document.createElement("div");
       ok.style.cssText = "font-size:10px;color:#86efac;";
       ok.textContent = "No issues found.";
@@ -3395,6 +3402,86 @@ export function createPrototypeViewer(editor: Editor): {
     }
 
     const filteredIssues = sortedIssues.filter((i) => flowLintFilterTypes.has(i.type));
+
+    const overlayNameById = new Map<number, string>(snapshot.nodes.map((node) => [node.id, node.name]));
+    const overlayRiskRows = new Map<number, { overlayId: number; overlayName: string; frameName: string; score: number; keyRouteCount: number; depthCount: number; latencyCount: number; peakDepthExcess: number; peakLatencySteps: number; detail: string[] }>();
+    const upsertOverlayRisk = (issue: FlowLintIssue) => {
+      const overlayId = issue.overlayId;
+      if (!overlayId || overlayId <= 0) return;
+      const overlayName = overlayNameById.get(overlayId) || `#${overlayId}`;
+      let row = overlayRiskRows.get(overlayId);
+      if (!row) {
+        row = {
+          overlayId,
+          overlayName,
+          frameName: issue.frameName,
+          score: 0,
+          keyRouteCount: 0,
+          depthCount: 0,
+          latencyCount: 0,
+          peakDepthExcess: 0,
+          peakLatencySteps: 0,
+          detail: [],
+        };
+        overlayRiskRows.set(overlayId, row);
+      }
+      if (issue.type === "overlay-key-route") {
+        row.keyRouteCount += 1;
+        row.score += 65;
+        row.detail.push("key-route");
+      } else if (issue.type === "overlay-depth-budget") {
+        row.depthCount += 1;
+        const maxDepth = Number(issue.detail.match(/Overlay depth\s+(\d+)/i)?.[1] || 0);
+        const budget = Number(issue.overlayBudget || FLOW_OVERLAY_DEPTH_BUDGET || 0);
+        const excess = Math.max(0, maxDepth - budget);
+        row.peakDepthExcess = Math.max(row.peakDepthExcess, excess);
+        row.score += 38 + excess * 12;
+        row.detail.push(`depth+${excess}`);
+      } else if (issue.type === "overlay-exit-latency") {
+        row.latencyCount += 1;
+        const escSteps = Number(issue.detail.match(/Esc\s+(\d+)/i)?.[1] || 0);
+        const backSteps = Number(issue.detail.match(/Back\s+(\d+)/i)?.[1] || 0);
+        const maxSteps = Math.max(escSteps, backSteps);
+        const over = Math.max(0, maxSteps - FLOW_OVERLAY_EXIT_LATENCY_BUDGET);
+        row.peakLatencySteps = Math.max(row.peakLatencySteps, maxSteps);
+        row.score += 26 + over * 8;
+        row.detail.push(`latency+${over}`);
+      }
+    };
+    for (const issue of sortedIssues) {
+      if (issue.type === "overlay-key-route" || issue.type === "overlay-depth-budget" || issue.type === "overlay-exit-latency") {
+        upsertOverlayRisk(issue);
+      }
+    }
+    const rankedOverlayRiskRows = Array.from(overlayRiskRows.values())
+      .sort((a, b) => (b.score - a.score) || (b.keyRouteCount - a.keyRouteCount) || (b.depthCount - a.depthCount) || (b.latencyCount - a.latencyCount) || a.overlayName.localeCompare(b.overlayName))
+      .slice(0, 6);
+    const totalOverlayRiskScore = rankedOverlayRiskRows.reduce((sum, row) => sum + row.score, 0);
+    const totalOverlayRiskCount = rankedOverlayRiskRows.reduce((sum, row) => sum + row.keyRouteCount + row.depthCount + row.latencyCount, 0);
+    flowLintRiskInfo.textContent = rankedOverlayRiskRows.length > 0
+      ? `Overlay route risk ${Math.round(totalOverlayRiskScore)}pt · ${rankedOverlayRiskRows.length} overlays · issues ${totalOverlayRiskCount}`
+      : "Overlay risk scoreboard: no route/depth/latency issues.";
+    flowLintRiskList.innerHTML = "";
+    if (rankedOverlayRiskRows.length === 0) {
+      const ok = document.createElement("div");
+      ok.style.cssText = "font-size:9px;color:#86efac;";
+      ok.textContent = "No overlay risk rows.";
+      flowLintRiskList.appendChild(ok);
+    } else {
+      for (const row of rankedOverlayRiskRows) {
+        const card = document.createElement("button");
+        const severity = row.score >= 130 ? "critical" : row.score >= 80 ? "watch" : "low";
+        const accent = severity === "critical" ? "#fb7185" : severity === "watch" ? "#f59e0b" : "#38bdf8";
+        card.style.cssText = `display:flex;justify-content:space-between;align-items:flex-start;gap:6px;width:100%;text-align:left;background:rgba(15,23,42,0.55);border:1px solid rgba(148,163,184,0.25);border-left:3px solid ${accent};border-radius:6px;color:#e2e8f0;padding:4px 6px;cursor:pointer;`;
+        card.innerHTML = `<span style="display:flex;flex-direction:column;gap:1px;"><span style="font-size:10px;font-weight:600;color:${accent};">${row.overlayName} (#${row.overlayId})</span><span style="font-size:9px;color:#94a3b8;">${row.frameName} · key ${row.keyRouteCount} · depth ${row.depthCount} · latency ${row.latencyCount}</span></span><span style="font-size:11px;font-weight:700;color:${accent};">${Math.round(row.score)}</span>`;
+        card.title = `depth excess ${row.peakDepthExcess}, max latency ${row.peakLatencySteps} step(s)`;
+        card.onclick = () => {
+          const targetFrameId = sortedIssues.find((issue) => issue.overlayId === row.overlayId)?.frameId;
+          if (targetFrameId) navigateTo(targetFrameId, "Instant", 0, "linear");
+        };
+        flowLintRiskList.appendChild(card);
+      }
+    }
 
     if (flowLintBatchTypeSel) {
       const prevType = flowLintBatchTypeSel.value;
@@ -4443,6 +4530,22 @@ export function createPrototypeViewer(editor: Editor): {
     flowLintInfo.style.cssText = "font-size:10px;color:#94a3b8;line-height:1.35;";
     flowLintInfo.textContent = "Analyzing flow graph…";
     flowLintWrap.appendChild(flowLintInfo);
+
+    flowLintRiskWrap = document.createElement("div");
+    flowLintRiskWrap.style.cssText = "display:flex;flex-direction:column;gap:4px;padding:5px;border-radius:7px;border:1px solid rgba(248,113,113,0.28);background:rgba(127,29,29,0.12);";
+    const flowLintRiskHead = document.createElement("div");
+    flowLintRiskHead.style.cssText = "font-size:9px;font-weight:600;color:#fecaca;text-transform:uppercase;letter-spacing:0.04em;";
+    flowLintRiskHead.textContent = "Overlay Route Risk";
+    flowLintRiskWrap.appendChild(flowLintRiskHead);
+    flowLintRiskInfo = document.createElement("div");
+    flowLintRiskInfo.style.cssText = "font-size:9px;line-height:1.35;color:#fda4af;";
+    flowLintRiskInfo.textContent = "Overlay risk scoreboard pending…";
+    flowLintRiskWrap.appendChild(flowLintRiskInfo);
+    flowLintRiskList = document.createElement("div");
+    flowLintRiskList.style.cssText = "display:flex;flex-direction:column;gap:4px;";
+    flowLintRiskWrap.appendChild(flowLintRiskList);
+    flowLintWrap.appendChild(flowLintRiskWrap);
+
     flowLintFilterWrap = document.createElement("div");
     flowLintFilterWrap.style.cssText = "display:flex;flex-wrap:wrap;gap:4px;";
     flowLintWrap.appendChild(flowLintFilterWrap);

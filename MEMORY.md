@@ -1790,10 +1790,16 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Overlay Route Risk Scoreboard — overlay별 key-route/depth/latency 이슈를 가중치 점수로 합산해 위험도 순위 보드 제공 (임팩트 중상, 난이도 중)
 - Flow Lint Scope Runner (Selection/Page/Flow) — lint 실행 범위를 선택 영역·현재 페이지·현재 flow로 제한하는 스코프 실행기 (임팩트 중, 난이도 중)
 - Overlay Exit Path Auto-Suggest — Esc/Back 누락 overlay에 대해 CloseOverlay/Back 후보 타깃을 one-click 제안 (임팩트 중상, 난이도 중상)
 - Lint Snapshot Diff Report — Flow Lint 실행 간 이슈 증감(신규/해결/회귀) 비교 리포트 + copy export (임팩트 중, 난이도 중)
+
+## 완료된 기능 (추가 — Overlay Route Risk Scoreboard, 2026-04-20)
+- Flow Lint 패널에 `Overlay Route Risk` 보드를 추가해 overlay별 위험 점수 랭킹(상위 6개)을 노출
+- `overlay-key-route` / `overlay-depth-budget` / `overlay-exit-latency` 이슈를 가중치 + 초과 penalty로 합산
+- 카드에 key/depth/latency 카운트와 score를 함께 표시하고 클릭 시 해당 frame으로 즉시 이동
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Flow Lint Quick-fix Batch Runner, 2026-04-20)
 - Flow Lint 패널에 `Batch quick-fix` 실행기 추가 (이슈 타입 + 범위: Current/All frames)
