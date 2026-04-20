@@ -3110,6 +3110,14 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] 실제 수정 대상이 없으면 undo 스냅샷을 만들지 않아 no-op 실행 시 히스토리 오염 방지
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
 
+### Flow Lint Scope Runner (Selection/Page/Flow) (2026-04-20)
+- [x] Flow Lint 패널에 `Scope` 셀렉터 추가 (`Selection / Page / Flow`)
+- [x] Selection: 선택된 frame 집합(없으면 current frame fallback)만 lint 실행
+- [x] Page: active page의 frame 집합만 lint 실행
+- [x] Flow: start frame 기준 reachable frame에 대해 기존 규칙을 유지
+- [x] dead-end/cycle/overlay/a11y 집계를 scope 필터와 동일 엔진에서 재사용하고 summary에 scope 메타를 표시
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+
 ### Overlay Route Risk Scoreboard (2026-04-20)
 - [x] Flow Lint 패널에 `Overlay Route Risk` 보드를 추가해 overlay별 route 위험도를 점수화 후 내림차순 랭킹 제공
 - [x] 집계 대상: `overlay-key-route`, `overlay-depth-budget`, `overlay-exit-latency`

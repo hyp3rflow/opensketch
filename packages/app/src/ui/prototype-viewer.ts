@@ -2890,6 +2890,35 @@ export function createPrototypeViewer(editor: Editor): {
       for (const to of next) if (!visited.has(to)) stack.push(to);
     }
 
+    const lintScope = resolveFlowLintScope(flowLintScopeSel?.value);
+    if (flowLintScopeSel) flowLintScopeSel.value = lintScope;
+    const activePageId = Number(selectedFlow?.page_id || editor.engine.get_active_page_id?.() || 0);
+    const pageFrameIds = new Set<number>(listFramesForPage(activePageId).map((row) => Number(row.id)).filter((id) => Number.isFinite(id) && id > 0));
+    let selectionFrameIds = new Set<number>();
+    try {
+      const raw = editor.engine.get_selection_json();
+      const parsed = JSON.parse(raw || "[]");
+      if (Array.isArray(parsed)) {
+        selectionFrameIds = new Set<number>(parsed.map((id) => Number(id)).filter((id) => frameById.has(id)));
+      }
+    } catch {}
+    if (selectionFrameIds.size === 0 && currentFrameId && frameById.has(currentFrameId)) {
+      selectionFrameIds = new Set<number>([currentFrameId]);
+    }
+
+    const scopedFrameIds = new Set<number>();
+    for (const node of snapshot.nodes) {
+      if (lintScope === "flow") {
+        if (visited.has(node.id)) scopedFrameIds.add(node.id);
+      } else if (lintScope === "page") {
+        if (pageFrameIds.size === 0 || pageFrameIds.has(node.id)) scopedFrameIds.add(node.id);
+      } else if (selectionFrameIds.has(node.id)) {
+        scopedFrameIds.add(node.id);
+      }
+    }
+
+    const shouldInspectFrame = (frameId: number) => scopedFrameIds.has(frameId);
+
     const issues: FlowLintIssue[] = [];
     const overlayGuardPreset = resolveOverlayGuardPreset(overlayGuardPresetId);
     if (flowLintPresetSel) flowLintPresetSel.value = overlayGuardPreset.id;
@@ -2908,7 +2937,7 @@ export function createPrototypeViewer(editor: Editor): {
         const from = Number(row?.id || 0);
         const interactions: any[] = Array.isArray(row?.interactions) ? row.interactions : [];
         interactionRowsByFrame.set(from, interactions);
-        if (!visited.has(from)) continue;
+        if (!shouldInspectFrame(from)) continue;
         for (const inter of interactions) {
           const action = String(inter?.action || "");
           if (action === "Back") backByFrame.set(from, (backByFrame.get(from) || 0) + 1);
@@ -2944,8 +2973,9 @@ export function createPrototypeViewer(editor: Editor): {
 
 
     for (const node of snapshot.nodes) {
-      const outs = adjacency.get(node.id) || [];
-      if (!visited.has(node.id)) {
+      if (!shouldInspectFrame(node.id)) continue;
+      const outs = (adjacency.get(node.id) || []).filter((to) => shouldInspectFrame(to));
+      if (lintScope === "flow" && !visited.has(node.id)) {
         issues.push({ type: "unreachable", frameId: node.id, frameName: node.name, detail: "Not reachable from current start frame" });
       } else {
         const hasBack = (backByFrame.get(node.id) || 0) > 0;
@@ -2963,13 +2993,13 @@ export function createPrototypeViewer(editor: Editor): {
       cycleSeen.add(id);
       cycleStack.add(id);
       for (const to of adjacency.get(id) || []) {
-        if (!visited.has(to)) continue;
+        if (!shouldInspectFrame(to)) continue;
         if (!cycleSeen.has(to)) dfsCycle(to);
         else if (cycleStack.has(to)) cycleRoots.add(to);
       }
       cycleStack.delete(id);
     };
-    if (visited.has(startFrameId)) dfsCycle(startFrameId);
+    if (shouldInspectFrame(startFrameId)) dfsCycle(startFrameId);
     for (const cycleId of cycleRoots) {
       const n = frameById.get(cycleId);
       if (!n) continue;
@@ -2991,7 +3021,7 @@ export function createPrototypeViewer(editor: Editor): {
       onStack.add(v);
 
       for (const w of adjacency.get(v) || []) {
-        if (!visited.has(w)) continue;
+        if (!shouldInspectFrame(w)) continue;
         if (!indexMap.has(w)) {
           strongConnect(w);
           lowMap.set(v, Math.min(lowMap.get(v)!, lowMap.get(w)!));
@@ -3012,7 +3042,7 @@ export function createPrototypeViewer(editor: Editor): {
       }
     };
 
-    for (const id of visited) {
+    for (const id of scopedFrameIds) {
       if (!indexMap.has(id)) strongConnect(id);
     }
 
@@ -3058,7 +3088,7 @@ export function createPrototypeViewer(editor: Editor): {
     }
 
     for (const node of snapshot.nodes) {
-      if (!visited.has(node.id)) continue;
+      if (!shouldInspectFrame(node.id)) continue;
       const openCount = overlaysOpenByFrame.get(node.id) || 0;
       const closeCount = overlaysCloseByFrame.get(node.id) || 0;
       if (openCount > 0 && closeCount === 0) {
@@ -3191,7 +3221,7 @@ export function createPrototypeViewer(editor: Editor): {
     }
 
     for (const frame of snapshot.nodes) {
-      if (!visited.has(frame.id)) continue;
+      if (!shouldInspectFrame(frame.id)) continue;
       const frameNodesWithKeyboardInteractions: Array<{ nodeId: number; count: number; missingLabels: number }> = [];
       let frameAnyInteractionCount = 0;
       let keyboardFocusableCount = 0;
@@ -3293,7 +3323,7 @@ export function createPrototypeViewer(editor: Editor): {
       let lowContrastCount = 0;
       const bg = getFrameBg(frame.id);
       for (const n of snapshot.nodes) {
-        if (!visited.has(n.id)) continue;
+        if (!shouldInspectFrame(n.id)) continue;
         const inFrame = n.x >= frame.x && n.y >= frame.y && (n.x + n.width) <= (frame.x + frame.width) && (n.y + n.height) <= (frame.y + frame.height);
         if (!inFrame) continue;
         let rawNode: any = null;
@@ -3346,7 +3376,8 @@ export function createPrototypeViewer(editor: Editor): {
     const focusTrapCount = issues.filter((i) => i.type === "a11y-focus-trap").length;
     const lowContrastCount = issues.filter((i) => i.type === "a11y-low-contrast").length;
     const motionGuardrailCount = issues.filter((i) => i.type === "a11y-motion").length;
-    flowLintInfo.textContent = `Preset ${overlayGuardPreset.label} · Start #${startFrameId} · Dead-end ${deadEndCount} · Unreachable ${unreachableCount} · Cycles ${cycleCount}/${cycleTrapCount} · Overlay ${overlayLeakCount}/${overlayKeyRouteCount}/${overlayDepthBudgetCount}/${overlayExitLatencyCount}/${orphanCloseCount}/Scroll ${scrollLeakCount} · A11y ${missingLabelCount}/${focusGapCount}/${focusTrapCount}/${lowContrastCount}/${motionGuardrailCount}`;
+    const scopeLabel = lintScope === "selection" ? "Selection" : lintScope === "page" ? "Page" : "Flow";
+    flowLintInfo.textContent = `Scope ${scopeLabel} · Preset ${overlayGuardPreset.label} · Start #${startFrameId} · Dead-end ${deadEndCount} · Unreachable ${unreachableCount} · Cycles ${cycleCount}/${cycleTrapCount} · Overlay ${overlayLeakCount}/${overlayKeyRouteCount}/${overlayDepthBudgetCount}/${overlayExitLatencyCount}/${orphanCloseCount}/Scroll ${scrollLeakCount} · A11y ${missingLabelCount}/${focusGapCount}/${focusTrapCount}/${lowContrastCount}/${motionGuardrailCount}`;
 
     flowLintList.innerHTML = "";
     flowLintRiskList.innerHTML = "";
@@ -4504,6 +4535,20 @@ export function createPrototypeViewer(editor: Editor): {
     flowLintHead.style.cssText = "font-size:11px;font-weight:600;color:#cbd5e1;";
     flowLintHead.textContent = "Flow Lint";
     flowLintWrap.appendChild(flowLintHead);
+
+    const flowLintScopeRow = document.createElement("div");
+    flowLintScopeRow.style.cssText = "display:flex;gap:6px;align-items:center;";
+    const flowLintScopeLabel = document.createElement("span");
+    flowLintScopeLabel.style.cssText = "font-size:10px;color:#cbd5e1;white-space:nowrap;";
+    flowLintScopeLabel.textContent = "Scope";
+    flowLintScopeRow.appendChild(flowLintScopeLabel);
+    flowLintScopeSel = document.createElement("select");
+    flowLintScopeSel.style.cssText = "flex:1;background:#0f172a;color:#f8fafc;border:1px solid rgba(148,163,184,0.35);border-radius:6px;padding:3px 6px;font-size:10px;";
+    flowLintScopeSel.innerHTML = "<option value=\"selection\">Selection</option><option value=\"page\">Page</option><option value=\"flow\">Flow</option>";
+    flowLintScopeSel.value = "flow";
+    flowLintScopeSel.onchange = () => renderFlowLint();
+    flowLintScopeRow.appendChild(flowLintScopeSel);
+    flowLintWrap.appendChild(flowLintScopeRow);
 
     const flowLintPresetRow = document.createElement("div");
     flowLintPresetRow.style.cssText = "display:flex;gap:6px;align-items:center;";
