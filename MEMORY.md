@@ -1790,7 +1790,6 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Overlay Exit Path Auto-Suggest — Esc/Back 누락 overlay에 대해 CloseOverlay/Back 후보 타깃을 one-click 제안 (임팩트 중상, 난이도 중상)
 - Lint Snapshot Diff Report — Flow Lint 실행 간 이슈 증감(신규/해결/회귀) 비교 리포트 + copy export (임팩트 중, 난이도 중)
 - Flow Lint Severity Budget Profiles — 팀별 경고 임계값(overlay depth/latency/motion)을 preset으로 저장·공유하는 프로파일 시스템 (임팩트 중, 난이도 중)
 - Overlay Close Target Confidence Ranker — CloseOverlay 후보를 route 안정성·거리·조건부 분기 수 기준으로 점수화해 추천 순위를 제공 (임팩트 중상, 난이도 중상)
@@ -1800,6 +1799,14 @@
 - Flow Lint 패널에 `Scope` 셀렉터 추가: Selection / Page / Flow 실행 범위를 즉시 전환
 - Selection은 선택 프레임(없으면 현재 프레임 fallback), Page는 active page의 frame 집합, Flow는 start frame 기준 reachable frame으로 lint 실행
 - Scope에 맞춰 dead-end/cycle/overlay/a11y 집계를 동일 엔진으로 재사용하고 summary에 `Scope` 메타를 표시
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
+
+## 완료된 기능 (추가 — Overlay Exit Path Auto-Suggest, 2026-04-20)
+- Flow Lint `overlay-key-route` 이슈 detail에 `suggest #node Action (score)` 형태의 후보 타깃(최대 3개) 자동 노출
+- 후보 점수 산식: OnPress/OnClick trigger 품질, accessibility label, 노드명 키워드(close/back/dismiss), 프레임 위치 힌트
+- `Fix: suggest exit path` one-click 시 최고 점수 후보에 `OnPress + CloseOverlay|Back` 경로 자동 주입
+- quick-fix 버튼 tooltip에 상위 후보를 함께 표시해 적용 전 검토 가능
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
 - specs 반영: `specs/FEATURES.md`
 

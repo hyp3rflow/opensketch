@@ -3125,3 +3125,10 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] 가중치 스코어(기본 + 초과 penalty)로 overlay별 합산 점수 계산, key/depth/latency 카운트와 함께 카드 표시
 - [x] 상위 위험 overlay 카드 클릭 시 해당 overlay를 발생시킨 frame으로 즉시 네비게이션
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
+
+### Overlay Exit Path Auto-Suggest (2026-04-20)
+- [x] Flow Lint `overlay-key-route` 이슈 detail에 `CloseOverlay/Back` 후보 타깃을 점수 기반으로 자동 제안
+- [x] 후보 점수 산식: trigger 품질(OnPress/OnClick), 접근성 라벨 유무, 노드명 키워드(close/back/dismiss), 위치 힌트를 합산
+- [x] `Fix: suggest exit path` one-click 액션이 최고 점수 후보에 `OnPress + CloseOverlay|Back` 경로를 자동 주입
+- [x] quick-fix 버튼 tooltip에 상위 후보(최대 3개)를 표시해 적용 전 타깃 검토 가능
+- 구현: `packages/app/src/ui/prototype-viewer.ts`

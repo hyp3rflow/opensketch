@@ -356,7 +356,7 @@ export function createPrototypeViewer(editor: Editor): {
   const FLOW_OVERLAY_EXIT_LATENCY_BUDGET = 2;
   type FlowLintIssueType = "unreachable" | "dead-end" | "cycle" | "cycle-trap" | "overlay-leak" | "overlay-key-route" | "overlay-depth-budget" | "overlay-exit-latency" | "orphan-close" | "scroll-leak" | "a11y-missing-label" | "a11y-focus-gap" | "a11y-focus-trap" | "a11y-low-contrast" | "a11y-motion";
   type FlowLintRunScope = "selection" | "page" | "flow";
-  type FlowLintIssue = { type: FlowLintIssueType; frameId: number; frameName: string; detail: string; overlayId?: number; overlayPath?: number[]; overlayOffenders?: number[]; overlayBudget?: number; overlayRewritePlan?: string[]; overlayImpactNodeCount?: number };
+  type FlowLintIssue = { type: FlowLintIssueType; frameId: number; frameName: string; detail: string; overlayId?: number; overlayPath?: number[]; overlayOffenders?: number[]; overlayBudget?: number; overlayRewritePlan?: string[]; overlayImpactNodeCount?: number; overlayExitSuggestions?: string[] };
   type FocusTrapSimIssue = {
     frameId: number;
     frameName: string;
@@ -1819,8 +1819,59 @@ export function createPrototypeViewer(editor: Editor): {
     return changed;
   }
 
+  function getOverlayExitSuggestions(frameId: number, overlayId: number): Array<{ nodeId: number; action: "CloseOverlay" | "Back"; score: number; label: string }> {
+    const focusables = listFocusableHotspots(overlayId);
+    const byNode = new Map<number, { node: any; interactions: any[] }>();
+    for (const row of focusables) {
+      const nodeId = Number(row.nodeId || 0);
+      if (!nodeId || nodeId <= 0) continue;
+      const bucket = byNode.get(nodeId) || { node: row.node, interactions: [] };
+      bucket.interactions.push(row.interaction || {});
+      byNode.set(nodeId, bucket);
+    }
+
+    const suggestions: Array<{ nodeId: number; action: "CloseOverlay" | "Back"; score: number; label: string }> = [];
+    for (const [nodeId, bucket] of byNode.entries()) {
+      const interactions = bucket.interactions;
+      const hasClose = interactions.some((inter) => {
+        const trigger = String(inter?.trigger || "");
+        const action = String(inter?.action || "");
+        return (trigger === "OnClick" || trigger === "OnPress") && (action === "CloseOverlay" || action === "Back");
+      });
+      if (hasClose) continue;
+
+      let score = 10;
+      const hasPress = interactions.some((inter) => String(inter?.trigger || "") === "OnPress");
+      const hasClick = interactions.some((inter) => String(inter?.trigger || "") === "OnClick");
+      const hasLabel = interactions.some((inter) => String(inter?.accessibility_label || "").trim().length > 0);
+      const hasBackAction = interactions.some((inter) => String(inter?.action || "") === "Back");
+      const nodeName = String(bucket.node?.name || "");
+      if (hasPress) score += 22;
+      if (hasClick) score += 16;
+      if (hasLabel) score += 10;
+      if (/(close|back|done|cancel|dismiss|exit|x|닫기|뒤로|취소)/i.test(nodeName)) score += 14;
+      const action: "CloseOverlay" | "Back" = hasBackAction ? "Back" : "CloseOverlay";
+      const nx = Number(bucket.node?.x || 0);
+      const ny = Number(bucket.node?.y || 0);
+      const fw = getFrameBounds(frameId)?.width || 0;
+      const fh = getFrameBounds(frameId)?.height || 0;
+      if (fw > 0 && fh > 0) {
+        const centerDist = Math.hypot((nx / fw) - 0.5, (ny / fh) - 0.5);
+        score += Math.max(0, 10 - centerDist * 12);
+      }
+      suggestions.push({ nodeId, action, score, label: `#${nodeId} ${action} (${Math.round(score)}pt)` });
+    }
+
+    suggestions.sort((a, b) => (b.score - a.score) || (a.nodeId - b.nodeId));
+    if (suggestions.length === 0) {
+      const fallbackNodeId = Number(overlayId || frameId || 0);
+      if (fallbackNodeId > 0) suggestions.push({ nodeId: fallbackNodeId, action: "CloseOverlay", score: 1, label: `#${fallbackNodeId} CloseOverlay (fallback)` });
+    }
+    return suggestions.slice(0, 3);
+  }
+
   function suggestOverlayExitPathFix(frameId: number, overlayId: number): { changed: boolean; targetNodeId: number } {
-    const addCloseInteractionIfNeeded = (nodeId: number): boolean => {
+    const addExitInteractionIfNeeded = (nodeId: number, action: "CloseOverlay" | "Back"): boolean => {
       if (!nodeId || nodeId <= 0) return false;
       try {
         const allInter: any[] = JSON.parse(editor.engine.get_all_interactions() || "[]") || [];
@@ -1828,20 +1879,22 @@ export function createPrototypeViewer(editor: Editor): {
         const interactions: any[] = Array.isArray(row?.interactions) ? row.interactions : [];
         const hasClose = interactions.some((inter) => {
           const trigger = String(inter?.trigger || "");
-          const action = String(inter?.action || "");
-          return (trigger === "OnClick" || trigger === "OnPress") && (action === "CloseOverlay" || action === "Back");
+          const interAction = String(inter?.action || "");
+          return (trigger === "OnClick" || trigger === "OnPress") && (interAction === "CloseOverlay" || interAction === "Back");
         });
         if (hasClose) return false;
-        editor.engine.add_interaction(BigInt(nodeId), "OnPress", "CloseOverlay", BigInt(0), BigInt(0), "Instant", 0, "ease_in_out");
+        editor.engine.add_interaction(BigInt(nodeId), "OnPress", action, BigInt(0), BigInt(0), "Instant", 0, "ease_in_out");
         return true;
       } catch {
         return false;
       }
     };
 
-    const focusables = listFocusableHotspots(overlayId);
-    const fallbackNodeId = Number(focusables[focusables.length - 1]?.nodeId || focusables[0]?.nodeId || overlayId || frameId || 0);
-    return { changed: addCloseInteractionIfNeeded(fallbackNodeId), targetNodeId: fallbackNodeId };
+    const suggestions = getOverlayExitSuggestions(frameId, overlayId);
+    const primary = suggestions[0];
+    const fallbackNodeId = Number(primary?.nodeId || overlayId || frameId || 0);
+    const action = primary?.action || "CloseOverlay";
+    return { changed: addExitInteractionIfNeeded(fallbackNodeId, action), targetNodeId: fallbackNodeId };
   }
 
   function renderFocusTrapSimulator() {
@@ -3209,12 +3262,15 @@ export function createPrototypeViewer(editor: Editor): {
             if (hasRequiredFail
               || (overlayGuardPreset.detectConditionalOnly && hasConditionalFail)
               || (overlayGuardPreset.detectSimulationDrift && hasSimFail)) {
+              const exitSuggestions = getOverlayExitSuggestions(node.id, route.overlayId).map((item) => item.label);
+              const suggestLabel = exitSuggestions.length > 0 ? ` · suggest ${exitSuggestions.slice(0, 2).join(", ")}` : "";
               issues.push({
                 type: "overlay-key-route",
                 frameId: node.id,
                 frameName: node.name,
                 overlayId: route.overlayId,
-                detail: `${route.overlayName}: ${parts.join(" + ")}`,
+                detail: `${route.overlayName}: ${parts.join(" + ")}${suggestLabel}`,
+                overlayExitSuggestions: exitSuggestions,
               });
             }
 
@@ -3647,6 +3703,9 @@ export function createPrototypeViewer(editor: Editor): {
         const suggestBtn = document.createElement("button");
         suggestBtn.style.cssText = "margin-top:4px;background:#7c2d12;border:1px solid #fb923c;border-radius:4px;color:#ffedd5;font-size:9px;padding:2px 6px;cursor:pointer;";
         suggestBtn.textContent = "Fix: suggest exit path";
+        if (issue.overlayExitSuggestions && issue.overlayExitSuggestions.length > 0) {
+          suggestBtn.title = `추천 타깃: ${issue.overlayExitSuggestions.slice(0, 3).join(" / ")}`;
+        }
         suggestBtn.onclick = (ev) => {
           ev.stopPropagation();
           editor.engine.push_undo();
