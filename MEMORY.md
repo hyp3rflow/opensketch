@@ -1806,6 +1806,7 @@
 - 지원 타입: `a11y-focus-trap`, `overlay-depth-budget`, `scroll-leak`
 - 동일 타입 이슈를 프레임 범위 단위로 일괄 수정하고 undo 스냅샷 1회로 롤백 가능
 - 배치 셀렉터에 타입별 이슈 카운트 표시, 대상 이슈가 없으면 실행 버튼 비활성화
+- 후속 개선: scope(Current/All) 기준으로 실행 가능 상태를 즉시 재평가하고, 실수정 대상이 없으면 undo 스냅샷을 남기지 않도록 정리
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
 - specs 반영: `specs/FEATURES.md`
 

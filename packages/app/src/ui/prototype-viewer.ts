@@ -355,6 +355,7 @@ export function createPrototypeViewer(editor: Editor): {
   const FLOW_OVERLAY_DEPTH_BUDGET = 3;
   const FLOW_OVERLAY_EXIT_LATENCY_BUDGET = 2;
   type FlowLintIssueType = "unreachable" | "dead-end" | "cycle" | "cycle-trap" | "overlay-leak" | "overlay-key-route" | "overlay-depth-budget" | "overlay-exit-latency" | "orphan-close" | "scroll-leak" | "a11y-missing-label" | "a11y-focus-gap" | "a11y-focus-trap" | "a11y-low-contrast" | "a11y-motion";
+  type FlowLintRunScope = "selection" | "page" | "flow";
   type FlowLintIssue = { type: FlowLintIssueType; frameId: number; frameName: string; detail: string; overlayId?: number; overlayPath?: number[]; overlayOffenders?: number[]; overlayBudget?: number; overlayRewritePlan?: string[]; overlayImpactNodeCount?: number };
   type FocusTrapSimIssue = {
     frameId: number;
@@ -374,6 +375,7 @@ export function createPrototypeViewer(editor: Editor): {
   };
   let flowLintWrap: HTMLDivElement | null = null;
   let flowLintPresetSel: HTMLSelectElement | null = null;
+  let flowLintScopeSel: HTMLSelectElement | null = null;
   let flowLintPresetInfo: HTMLDivElement | null = null;
   let keyboardOrderWrap: HTMLDivElement | null = null;
   let keyboardOrderInfo: HTMLDivElement | null = null;
@@ -1963,48 +1965,51 @@ export function createPrototypeViewer(editor: Editor): {
 
   const FLOW_LINT_BATCH_FIXABLE_TYPES: FlowLintIssueType[] = ["a11y-focus-trap", "overlay-depth-budget", "scroll-leak"];
 
-  function runFlowLintBatchQuickFix(issueType: FlowLintIssueType, scope: "current-frame" | "all-frames"): number {
+  function getFlowLintScopedIssues(issueType: FlowLintIssueType, scope: "current-frame" | "all-frames") {
     const issues = (flowLintSnapshot?.issues || []).filter((issue) => issue.type === issueType);
-    const scopedIssues = scope === "current-frame" && currentFrameId && currentFrameId > 0
-      ? issues.filter((issue) => issue.frameId === currentFrameId)
-      : issues;
+    if (scope === "current-frame" && currentFrameId && currentFrameId > 0) {
+      return issues.filter((issue) => issue.frameId === currentFrameId);
+    }
+    return issues;
+  }
+
+  function runFlowLintBatchQuickFix(issueType: FlowLintIssueType, scope: "current-frame" | "all-frames"): number {
+    const scopedIssues = getFlowLintScopedIssues(issueType, scope);
     if (scopedIssues.length === 0) return 0;
 
     let changed = 0;
-    let touched = false;
 
     if (issueType === "a11y-focus-trap") {
       const trapIssues = collectFocusTrapSimulationIssues(flowMinimapSnapshot || undefined);
       const scopedTrap = trapIssues.filter((row) => scopedIssues.some((issue) => issue.frameId === row.frameId && issue.overlayId === row.overlayId));
+      if (scopedTrap.length === 0) return 0;
       const seen = new Set<string>();
+      editor.engine.push_undo();
       for (const row of scopedTrap) {
         const key = `${row.frameId}:${row.overlayId}`;
         if (seen.has(key)) continue;
         seen.add(key);
-        if (!touched) {
-          editor.engine.push_undo();
-          touched = true;
-        }
         if (applyFocusTrapFix(row)) changed += 1;
       }
       return changed;
     }
 
-    if (!touched) {
-      editor.engine.push_undo();
-      touched = true;
-    }
-
     if (issueType === "scroll-leak") {
       const seen = new Set<string>();
+      const candidates: Array<{ frameId: number; overlayId: number }> = [];
       for (const issue of scopedIssues) {
         if (!issue.overlayId || issue.overlayId <= 0) continue;
         const key = `${issue.frameId}:${issue.overlayId}`;
         if (seen.has(key)) continue;
         seen.add(key);
-        const frame = flowMinimapSnapshot?.nodes.find((n) => n.id === issue.frameId);
+        candidates.push({ frameId: issue.frameId, overlayId: issue.overlayId });
+      }
+      if (candidates.length === 0) return 0;
+      editor.engine.push_undo();
+      for (const candidate of candidates) {
+        const frame = flowMinimapSnapshot?.nodes.find((n) => n.id === candidate.frameId);
         if (!frame) continue;
-        const lockKey = makeScrollLockRegionKey(issue.frameId, issue.overlayId);
+        const lockKey = makeScrollLockRegionKey(candidate.frameId, candidate.overlayId);
         try {
           editor.engine.set_scroll_lock_region(lockKey, Number(frame.x || 0), Number(frame.y || 0), Number(frame.width || 0), Number(frame.height || 0));
           scrollLockRegions = { ...scrollLockRegions, [lockKey]: true };
@@ -2016,24 +2021,24 @@ export function createPrototypeViewer(editor: Editor): {
     }
 
     if (issueType === "overlay-depth-budget") {
-      const seen = new Set<number>();
+      const targetSet = new Set<number>();
+      for (const issue of scopedIssues) {
+        const flattenTargets = [...(issue.overlayPath || []), issue.overlayId].filter((id): id is number => Number(id) > 0);
+        for (const targetId of flattenTargets) targetSet.add(targetId);
+      }
+      const targets = Array.from(targetSet);
+      if (targets.length === 0) return 0;
       const prevSelectionRaw = editor.engine.get_selection_json();
       let prevSelection: number[] = [];
       try {
         const parsed = JSON.parse(prevSelectionRaw || "[]");
-        if (Array.isArray(parsed)) {
-          prevSelection = parsed.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0);
-        }
+        if (Array.isArray(parsed)) prevSelection = parsed.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0);
       } catch {}
+      editor.engine.push_undo();
       try {
-        for (const issue of scopedIssues) {
-          const flattenTargets = Array.from(new Set([...(issue.overlayPath || []), issue.overlayId].filter((id): id is number => Number(id) > 0)));
-          for (const targetId of flattenTargets) {
-            if (seen.has(targetId)) continue;
-            seen.add(targetId);
-            editor.engine.set_selection(new BigUint64Array([BigInt(targetId)]));
-            changed += Number(editor.engine.flatten_selection() || 0);
-          }
+        for (const targetId of targets) {
+          editor.engine.set_selection(new BigUint64Array([BigInt(targetId)]));
+          changed += Number(editor.engine.flatten_selection() || 0);
         }
       } finally {
         if (prevSelection.length > 0) editor.engine.set_selection(new BigUint64Array(prevSelection.map((id) => BigInt(id))));
@@ -2839,6 +2844,11 @@ export function createPrototypeViewer(editor: Editor): {
     }
   }
 
+  function resolveFlowLintScope(value?: string | null): FlowLintRunScope {
+    if (value === "selection" || value === "page" || value === "flow") return value;
+    return "flow";
+  }
+
   function renderFlowLint() {
     if (!flowLintInfo || !flowLintList || !flowLintRiskInfo || !flowLintRiskList) return;
     const snapshot = flowMinimapSnapshot;
@@ -3495,7 +3505,8 @@ export function createPrototypeViewer(editor: Editor): {
       }
       if (FLOW_LINT_BATCH_FIXABLE_TYPES.includes(prevType as FlowLintIssueType)) flowLintBatchTypeSel.value = prevType;
       const selectedType = (flowLintBatchTypeSel.value || FLOW_LINT_BATCH_FIXABLE_TYPES[0]) as FlowLintIssueType;
-      const hasSelectedIssues = filteredIssues.some((issue) => issue.type === selectedType);
+      const scope = (flowLintBatchScopeSel?.value === "all-frames" ? "all-frames" : "current-frame") as "current-frame" | "all-frames";
+      const hasSelectedIssues = getFlowLintScopedIssues(selectedType, scope).length > 0;
       if (flowLintBatchRunBtn) {
         flowLintBatchRunBtn.disabled = !hasSelectedIssues;
         flowLintBatchRunBtn.style.opacity = hasSelectedIssues ? "1" : "0.55";
@@ -4560,11 +4571,13 @@ export function createPrototypeViewer(editor: Editor): {
       opt.textContent = type;
       flowLintBatchTypeSel.appendChild(opt);
     }
+    flowLintBatchTypeSel.onchange = () => renderFlowLint();
     flowLintBatchRow.appendChild(flowLintBatchTypeSel);
 
     flowLintBatchScopeSel = document.createElement("select");
     flowLintBatchScopeSel.style.cssText = "width:86px;background:#0f172a;color:#f8fafc;border:1px solid rgba(148,163,184,0.35);border-radius:6px;padding:3px 6px;font-size:10px;";
     flowLintBatchScopeSel.innerHTML = "<option value=\"current-frame\">Current</option><option value=\"all-frames\">All frames</option>";
+    flowLintBatchScopeSel.onchange = () => renderFlowLint();
     flowLintBatchRow.appendChild(flowLintBatchScopeSel);
     flowLintWrap.appendChild(flowLintBatchRow);
 

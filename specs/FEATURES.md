@@ -3106,6 +3106,8 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] 지원 타입: `a11y-focus-trap`, `overlay-depth-budget`, `scroll-leak`
 - [x] 동일 타입 lint 이슈를 선택 범위에서 일괄 수정하고 undo 스냅샷 1회로 롤백 가능
 - [x] 배치 타입 셀렉터에 `type (count)` 메타를 표시하고 대상이 없으면 실행 버튼 비활성화
+- [x] Scope(`Current`/`All frames`) 변경 시 선택 scope 기준으로 실행 가능 여부를 즉시 재평가
+- [x] 실제 수정 대상이 없으면 undo 스냅샷을 만들지 않아 no-op 실행 시 히스토리 오염 방지
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
 
 ### Overlay Route Risk Scoreboard (2026-04-20)
