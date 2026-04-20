@@ -474,6 +474,18 @@ export function createPrototypeViewer(editor: Editor): {
   type OverlayExitSuggestion = { nodeId: number; action: "CloseOverlay" | "Back"; score: number; label: string };
   type FlowLintRunScope = "selection" | "page" | "flow";
   type FlowLintIssue = { type: FlowLintIssueType; frameId: number; frameName: string; detail: string; overlayId?: number; overlayPath?: number[]; overlayOffenders?: number[]; overlayBudget?: number; overlayRewritePlan?: string[]; overlayImpactNodeCount?: number; overlayExitSuggestions?: string[]; overlayExitSuggestionCandidates?: OverlayExitSuggestion[] };
+  type EscapeReplayCase = {
+    id: string;
+    frameId: number;
+    frameName: string;
+    overlayId: number;
+    overlayName: string;
+    key: "Esc" | "Back";
+    expectedSuccess: boolean;
+    expectedSteps: number | null;
+    routeSummary: string;
+    snapshotLabel: string;
+  };
   type FocusTrapSimIssue = {
     frameId: number;
     frameName: string;
@@ -527,6 +539,9 @@ export function createPrototypeViewer(editor: Editor): {
   let escapeRouteWrap: HTMLDivElement | null = null;
   let escapeRouteInfo: HTMLDivElement | null = null;
   let escapeRouteList: HTMLDivElement | null = null;
+  let escapeReplayInfo: HTMLDivElement | null = null;
+  let escapeReplayList: HTMLDivElement | null = null;
+  let escapeReplayCases: EscapeReplayCase[] = [];
   let focusReturnWrap: HTMLDivElement | null = null;
   let focusReturnInfo: HTMLDivElement | null = null;
   let focusReturnList: HTMLDivElement | null = null;
@@ -2746,12 +2761,88 @@ export function createPrototypeViewer(editor: Editor): {
     return rows;
   }
 
+  function buildEscapeReplayCases(rows: ReturnType<typeof collectEscapeRouteRows>): EscapeReplayCase[] {
+    const cases: EscapeReplayCase[] = [];
+    for (const row of rows) {
+      const base = { frameId: row.frameId, frameName: row.frameName, overlayId: row.overlayId, overlayName: row.overlayName } as const;
+      cases.push({
+        id: `esc-${row.frameId}-${row.overlayId}`,
+        ...base,
+        key: "Esc",
+        expectedSuccess: !row.missingEsc && !row.escSimBroken,
+        expectedSteps: row.escSteps,
+        routeSummary: row.escRouteSummary,
+        snapshotLabel: `${!row.missingEsc && !row.escSimBroken ? "PASS" : "FAIL"} snapshot · Esc ${row.escRouteSummary} · Sim ${row.escSimSummary}`,
+      });
+      cases.push({
+        id: `back-${row.frameId}-${row.overlayId}`,
+        ...base,
+        key: "Back",
+        expectedSuccess: !row.missingBack && !row.backSimBroken,
+        expectedSteps: row.backSteps,
+        routeSummary: row.backRouteSummary,
+        snapshotLabel: `${!row.missingBack && !row.backSimBroken ? "PASS" : "FAIL"} snapshot · Back ${row.backRouteSummary} · Sim ${row.backSimSummary}`,
+      });
+    }
+    cases.sort((a, b) => Number(a.expectedSuccess) - Number(b.expectedSuccess));
+    return cases.slice(0, 16);
+  }
+
+  function runEscapeReplayCase(testCase: EscapeReplayCase, statusEl?: HTMLDivElement | null) {
+    navigateTo(testCase.frameId, "Instant", 0, "linear");
+    if (statusEl) statusEl.textContent = `Replay ${testCase.key} · ${testCase.frameName} → ${testCase.overlayName}`;
+    window.setTimeout(() => {
+      navigateTo(testCase.overlayId, "Instant", 0, "linear");
+      window.setTimeout(() => {
+        navigateTo(testCase.frameId, "Instant", 0, "linear");
+        if (statusEl) statusEl.textContent = `${testCase.key} replay done · expected ${testCase.expectedSuccess ? "PASS" : "FAIL"}`;
+      }, 320);
+    }, 320);
+  }
+
+  function renderEscapeReplayCases() {
+    if (!escapeReplayInfo || !escapeReplayList) return;
+    if (escapeReplayCases.length === 0) {
+      escapeReplayInfo.textContent = "Replay test cases not generated yet.";
+      escapeReplayList.innerHTML = "";
+      return;
+    }
+    const failCount = escapeReplayCases.filter((c) => !c.expectedSuccess).length;
+    escapeReplayInfo.textContent = `Cases ${escapeReplayCases.length} · Expected fail ${failCount}`;
+    escapeReplayList.innerHTML = "";
+    for (const testCase of escapeReplayCases.slice(0, 8)) {
+      const card = document.createElement("div");
+      card.style.cssText = `display:flex;flex-direction:column;gap:4px;border:1px solid ${testCase.expectedSuccess ? "rgba(34,197,94,0.35)" : "rgba(248,113,113,0.45)"};border-radius:6px;padding:6px;background:rgba(15,23,42,0.45);`;
+      const title = document.createElement("div");
+      title.style.cssText = `font-size:9px;line-height:1.35;color:${testCase.expectedSuccess ? "#86efac" : "#fca5a5"};`;
+      title.textContent = `[${testCase.key}] ${testCase.frameName} → ${testCase.overlayName}`;
+      card.appendChild(title);
+      const meta = document.createElement("div");
+      meta.style.cssText = "font-size:9px;color:#cbd5e1;line-height:1.35;";
+      meta.textContent = `${testCase.routeSummary} · steps ${testCase.expectedSteps ?? "?"}`;
+      card.appendChild(meta);
+      const snap = document.createElement("div");
+      snap.style.cssText = "font-size:9px;color:#93c5fd;line-height:1.35;";
+      snap.textContent = testCase.snapshotLabel;
+      card.appendChild(snap);
+      const btn = document.createElement("button");
+      btn.className = "prop-btn";
+      btn.textContent = "Replay case";
+      btn.style.cssText = "font-size:10px;padding:3px 6px;";
+      btn.onclick = () => runEscapeReplayCase(testCase, escapeReplayInfo);
+      card.appendChild(btn);
+      escapeReplayList.appendChild(card);
+    }
+  }
+
   function renderEscapeRouteMap() {
     if (!escapeRouteInfo || !escapeRouteList) return;
     const rows = collectEscapeRouteRows(flowMinimapSnapshot || undefined);
     if (rows.length === 0) {
       escapeRouteInfo.textContent = "No OpenOverlay routes in current flow.";
       escapeRouteList.innerHTML = "";
+      escapeReplayCases = [];
+      renderEscapeReplayCases();
       return;
     }
     const trapCount = rows.filter((row) => row.trapped).length;
@@ -2760,6 +2851,8 @@ export function createPrototypeViewer(editor: Editor): {
     const conditionalFailCount = rows.reduce((acc, row) => acc + row.conditionalFail, 0);
     escapeRouteInfo.textContent = `Routes ${rows.length} · Trap ${trapCount} · Missing key route ${warnCount} · Conditional fail ${conditionalFailCount}/${conditionalSampleCount}`;
     escapeRouteList.innerHTML = "";
+    escapeReplayCases = buildEscapeReplayCases(rows);
+    renderEscapeReplayCases();
 
     for (const row of rows.slice(0, 10)) {
       const warn = row.trapped || row.missingEsc || row.missingBack || row.escConditionalOnly || row.backConditionalOnly || row.escSimBroken || row.backSimBroken || row.conditionalMissSamples > 0;
@@ -5536,6 +5629,43 @@ export function createPrototypeViewer(editor: Editor): {
       renderEscapeRouteMap();
     };
     escapeRouteWrap.appendChild(escapeRouteFixBtn);
+    const escapeReplayBtnRow = document.createElement("div");
+    escapeReplayBtnRow.style.cssText = "display:flex;gap:4px;";
+    const escapeReplayGenBtn = document.createElement("button");
+    escapeReplayGenBtn.className = "prop-btn";
+    escapeReplayGenBtn.textContent = "Generate replay";
+    escapeReplayGenBtn.style.cssText = "flex:1;font-size:10px;padding:3px 6px;color:#93c5fd;";
+    escapeReplayGenBtn.onclick = () => {
+      escapeReplayCases = buildEscapeReplayCases(collectEscapeRouteRows(flowMinimapSnapshot || undefined));
+      renderEscapeReplayCases();
+      escapeReplayGenBtn.textContent = escapeReplayCases.length > 0 ? `Generated ${escapeReplayCases.length}` : "No cases";
+      window.setTimeout(() => { escapeReplayGenBtn.textContent = "Generate replay"; }, 1100);
+    };
+    escapeReplayBtnRow.appendChild(escapeReplayGenBtn);
+    const escapeReplayCopyBtn = document.createElement("button");
+    escapeReplayCopyBtn.className = "prop-btn";
+    escapeReplayCopyBtn.textContent = "Copy cases";
+    escapeReplayCopyBtn.style.cssText = "flex:1;font-size:10px;padding:3px 6px;color:#93c5fd;";
+    escapeReplayCopyBtn.onclick = async () => {
+      try {
+        if (escapeReplayCases.length === 0) escapeReplayCases = buildEscapeReplayCases(collectEscapeRouteRows(flowMinimapSnapshot || undefined));
+        const payload = { generatedAt: new Date().toISOString(), cases: escapeReplayCases };
+        await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+        escapeReplayCopyBtn.textContent = "Copied";
+      } catch {
+        escapeReplayCopyBtn.textContent = "Copy fail";
+      }
+      window.setTimeout(() => { escapeReplayCopyBtn.textContent = "Copy cases"; }, 1100);
+    };
+    escapeReplayBtnRow.appendChild(escapeReplayCopyBtn);
+    escapeRouteWrap.appendChild(escapeReplayBtnRow);
+    escapeReplayInfo = document.createElement("div");
+    escapeReplayInfo.style.cssText = "font-size:9px;color:#93c5fd;line-height:1.35;";
+    escapeReplayInfo.textContent = "Replay test cases not generated yet.";
+    escapeRouteWrap.appendChild(escapeReplayInfo);
+    escapeReplayList = document.createElement("div");
+    escapeReplayList.style.cssText = "display:flex;flex-direction:column;gap:4px;";
+    escapeRouteWrap.appendChild(escapeReplayList);
     escapeRouteList = document.createElement("div");
     escapeRouteList.style.cssText = "display:flex;flex-direction:column;gap:4px;";
     escapeRouteWrap.appendChild(escapeRouteList);

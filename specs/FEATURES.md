@@ -3172,3 +3172,11 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] CI JSON/Markdown export `issues[]`에 `ownerTag` 필드를 포함하고, Markdown 이슈 라인에도 `@owner`를 자동 부착
 - [x] owner 태그 설정은 localStorage(`opensketch-flow-lint-owner-tags-v1`)에 저장되어 세션 재진입 후에도 유지
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
+
+
+### Overlay Escape Replay Test Cases (2026-04-20)
+- [x] Overlay Escape Key Route Inspector에 `Generate replay` / `Copy cases` 액션을 추가해 Esc/Back 회귀 케이스를 자동 생성
+- [x] 케이스는 Esc/Back 각각 expected pass/fail, expected steps, route summary, snapshot label(PASS/FAIL) 메타를 포함
+- [x] 생성된 케이스 카드에서 `Replay case`로 frame → overlay → frame 자동 재생을 수행해 경로 검증 루프를 즉시 실행
+- [x] `Copy cases`는 JSON payload(generatedAt + cases[])를 클립보드로 내보내 CI/리뷰 코멘트에 바로 첨부 가능
+- 구현: `packages/app/src/ui/prototype-viewer.ts`

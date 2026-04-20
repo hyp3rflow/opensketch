@@ -1790,11 +1790,19 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Overlay Escape Replay Test Cases — Esc/Back 경로를 자동 재생하는 회귀 테스트 케이스 생성기(성공/실패 스냅샷 포함) (임팩트 중상, 난이도 중상)
 - Prototype Risk Trend Sparkline — 최근 lint 실행 N회 기준 risk score 추세 스파크라인 및 급증 경고 (임팩트 중, 난이도 중)
 - Flow Lint Owner SLA Timer — 이슈 owner 태그 기준으로 경과 시간(SLA) 배지/정렬 지원 (임팩트 중, 난이도 중)
 - Overlay Exit Suggestion A/B Presets — 추천 점수 가중치 preset(Conservative/Balanced/Aggressive) 전환 + 결과 비교 (임팩트 중, 난이도 중상)
 - Flow Lint Digest Composer — owner별 이슈를 묶어 Slack/Discord 공유용 digest 텍스트 자동 생성 (임팩트 중, 난이도 중)
+
+
+## 완료된 기능 (추가 — Overlay Escape Replay Test Cases, 2026-04-20)
+- Overlay Escape Key Route Inspector에 `Generate replay` / `Copy cases` 액션 추가
+- Esc/Back 회귀 케이스를 자동 생성하고 expected pass/fail, step 수, route summary, PASS/FAIL snapshot 라벨을 함께 기록
+- 생성 케이스별 `Replay case` 버튼으로 frame → overlay → frame 자동 재생 검증 지원
+- `Copy cases`로 JSON payload(generatedAt + cases[])를 클립보드 내보내기
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 
 ## 완료된 기능 (추가 — Flow Lint Owner Tagging, 2026-04-20)
