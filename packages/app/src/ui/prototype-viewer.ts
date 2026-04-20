@@ -462,16 +462,36 @@ function saveFlowLintOwnerSlaSortMode(mode: FlowLintOwnerSlaSortMode) {
 
 type FlowLintScopePresetMap = Record<string, FlowLintRunScope>;
 
+function makeFlowLintScopePresetKey(flowId: number, pageId?: number | null): string {
+  const safeFlowId = Number.isFinite(flowId) && flowId > 0 ? Math.floor(flowId) : 0;
+  const safePageId = Number.isFinite(Number(pageId || 0)) && Number(pageId || 0) > 0 ? Math.floor(Number(pageId || 0)) : 0;
+  if (safeFlowId <= 0) return "0";
+  return safePageId > 0 ? `${safeFlowId}@${safePageId}` : String(safeFlowId);
+}
+
+function parseFlowLintScopePresetKey(rawKey: string): { flowId: number; pageId: number | null } | null {
+  const key = String(rawKey || "").trim();
+  if (!key) return null;
+  const [flowPart, pagePart] = key.split("@");
+  const flowId = Number(flowPart || 0);
+  if (!Number.isFinite(flowId) || flowId <= 0) return null;
+  if (pagePart == null || pagePart === "") return { flowId: Math.floor(flowId), pageId: null };
+  const pageId = Number(pagePart);
+  if (!Number.isFinite(pageId) || pageId <= 0) return { flowId: Math.floor(flowId), pageId: null };
+  return { flowId: Math.floor(flowId), pageId: Math.floor(pageId) };
+}
+
 function loadFlowLintScopePresets(): FlowLintScopePresetMap {
   try {
     const raw = localStorage.getItem(PROTOTYPE_FLOW_LINT_SCOPE_PRESETS_KEY);
     const parsed = raw ? JSON.parse(raw) : {};
     if (!parsed || typeof parsed !== "object") return {};
     const out: FlowLintScopePresetMap = {};
-    for (const [rawFlowId, rawScope] of Object.entries(parsed as Record<string, unknown>)) {
-      const flowId = Number(rawFlowId);
-      if (!Number.isFinite(flowId) || flowId <= 0) continue;
-      out[String(Math.floor(flowId))] = resolveFlowLintScope(String(rawScope || ""));
+    for (const [rawKey, rawScope] of Object.entries(parsed as Record<string, unknown>)) {
+      const parsedKey = parseFlowLintScopePresetKey(rawKey);
+      if (!parsedKey) continue;
+      const key = makeFlowLintScopePresetKey(parsedKey.flowId, parsedKey.pageId);
+      out[key] = resolveFlowLintScope(String(rawScope || ""));
     }
     return out;
   } catch {
@@ -1780,7 +1800,7 @@ export function createPrototypeViewer(editor: Editor): {
       }
     }
 
-    applyFlowLintScopePresetForFlow(selectedFlowId);
+    applyFlowLintScopePresetForFlow(selectedFlowId, selectedFlow?.page_id);
   }
 
   function resolveInteractionCondition(inter: any): any | null {
@@ -3606,10 +3626,14 @@ export function createPrototypeViewer(editor: Editor): {
     return "flow";
   }
 
-  function applyFlowLintScopePresetForFlow(flowId: number | null | undefined) {
+  function applyFlowLintScopePresetForFlow(flowId: number | null | undefined, pageId?: number | null | undefined) {
     if (!flowLintScopeSel) return;
-    const key = String(Math.max(0, Math.floor(Number(flowId || 0))));
-    const nextScope = key !== "0" ? resolveFlowLintScope(flowLintScopePresets[key]) : "flow";
+    const safeFlowId = Number.isFinite(Number(flowId || 0)) && Number(flowId || 0) > 0 ? Math.floor(Number(flowId || 0)) : 0;
+    const scopedKey = makeFlowLintScopePresetKey(safeFlowId, pageId);
+    const flowKey = makeFlowLintScopePresetKey(safeFlowId);
+    const nextScope = safeFlowId > 0
+      ? resolveFlowLintScope(flowLintScopePresets[scopedKey] || flowLintScopePresets[flowKey])
+      : "flow";
     flowLintScopeSel.value = nextScope;
   }
 
@@ -3617,12 +3641,17 @@ export function createPrototypeViewer(editor: Editor): {
     if (!flowLintScopeSel) return;
     const flowId = Number(flowStartFlowSel?.value || 0);
     if (!Number.isFinite(flowId) || flowId <= 0) return;
-    const key = String(Math.floor(flowId));
+    const flows = listPrototypeFlows();
+    const selectedFlow = flows.find((flow) => flow.id === flowId) || null;
+    const pageId = Number(selectedFlow?.page_id || 0);
     const nextScope = resolveFlowLintScope(flowLintScopeSel.value);
-    if (flowLintScopePresets[key] === nextScope) return;
+    const flowKey = makeFlowLintScopePresetKey(flowId);
+    const scopedKey = makeFlowLintScopePresetKey(flowId, pageId);
+    if (flowLintScopePresets[flowKey] === nextScope && flowLintScopePresets[scopedKey] === nextScope) return;
     flowLintScopePresets = {
       ...flowLintScopePresets,
-      [key]: nextScope,
+      [flowKey]: nextScope,
+      [scopedKey]: nextScope,
     };
     saveFlowLintScopePresets(flowLintScopePresets);
   }
@@ -5834,9 +5863,10 @@ export function createPrototypeViewer(editor: Editor): {
 
     flowStartFlowSel.addEventListener("change", () => {
       const flowId = Number(flowStartFlowSel?.value || 0);
+      const flow = listPrototypeFlows().find((row) => row.id === flowId) || null;
       saveFlowLintLastFlowId(flowId);
       renderFlowStartManager();
-      applyFlowLintScopePresetForFlow(flowId);
+      applyFlowLintScopePresetForFlow(flowId, flow?.page_id);
       renderFlowLint();
     });
     flowStartFrameSel.addEventListener("change", () => {
@@ -6806,7 +6836,11 @@ export function createPrototypeViewer(editor: Editor): {
     // Build variables debug panel
     buildVarsPanel();
     renderFlowStartManager();
-    applyFlowLintScopePresetForFlow(Number(flowStartFlowSel?.value || 0));
+    {
+      const flowId = Number(flowStartFlowSel?.value || 0);
+      const flow = listPrototypeFlows().find((row) => row.id === flowId) || null;
+      applyFlowLintScopePresetForFlow(flowId, flow?.page_id);
+    }
     renderTimelineScrubber();
     lastTransitionPreview = null;
     if (stagePreviewScrubber) stagePreviewScrubber.value = "50";

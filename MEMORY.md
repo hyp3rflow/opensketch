@@ -1790,10 +1790,18 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Flow Lint Digest Delivery Presets — Discord/Slack 템플릿 프리셋 + owner mention 매핑 저장 (임팩트 중, 난이도 중)
-- Flow Lint Snapshot Pin/Lock — 중요한 baseline/run을 pin 처리해 자동 trim(최대 20개) 대상에서 제외 (임팩트 중, 난이도 중)
-- Flow Lint Delta Heatmap — frame별 이슈 증감량(New/Resolved/Regressed)을 미니 heatmap으로 시각화 (임팩트 중, 난이도 중상)
-- Flow Lint Compare to Any Run — 히스토리에서 A/B run 선택 후 서로 직접 diff하는 compare 모드 추가 (임팩트 중상, 난이도 중상)
+- Selection Scope Route Preview — Selection scope 실행 전 대상 frame 리스트/카운트를 미리 보여주는 preview 패널 (임팩트 중, 난이도 중)
+- Page Scope Cross-Page Leak Guard — page scope lint에서 타 페이지 overlay target을 leak 이슈로 분리 감지 (임팩트 중상, 난이도 중상)
+- Flow Lint Scope Preset Quick Slots — flow별 scope preset(Selection/Page/Flow) 3슬롯 저장/원클릭 전환 + 현재 슬롯 배지 표시 (임팩트 중, 난이도 중)
+- Flow Lint Scope Drift Alert — 마지막 실행 scope와 현재 scope가 다를 때 lint 실행 전 drift 경고 + one-click revert 제공 (임팩트 중, 난이도 중)
+- Flow Lint Scope Preset Cleanup — 삭제된 flow/page preset stale key 정리 툴과 usage 카운트 표시 (임팩트 중하, 난이도 중)
+
+## 완료된 기능 (추가 — Flow Lint Scope Preset Memory, 2026-04-21)
+- Flow Lint Scope를 flow별(localStorage)로 저장하고 Prototype Viewer 재진입 시 자동 복원되도록 연결
+- preset key를 `flowId@pageId` 스키마로 확장해 동일 flow의 페이지 컨텍스트 scope까지 안정적으로 복원
+- 기존 legacy key(`flowId`)와 하위 호환 유지, flow 전환/초기 렌더/scope 변경 이벤트 모두 preset 적용 경로 통일
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Owner SLA Escalation Rules, 2026-04-21)
 - Owner SLA 임계값을 24h/48h/72h 3단계(`watch/warn/critical`)로 확장하고 배지 색상/라벨을 단계별로 분리
