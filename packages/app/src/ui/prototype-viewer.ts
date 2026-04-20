@@ -387,6 +387,10 @@ export function createPrototypeViewer(editor: Editor): {
   let flowLintRiskWrap: HTMLDivElement | null = null;
   let flowLintRiskInfo: HTMLDivElement | null = null;
   let flowLintRiskList: HTMLDivElement | null = null;
+  let flowLintDiffWrap: HTMLDivElement | null = null;
+  let flowLintDiffInfo: HTMLDivElement | null = null;
+  let flowLintDiffList: HTMLDivElement | null = null;
+  let flowLintDiffCopyBtn: HTMLButtonElement | null = null;
   let flowLintFilterWrap: HTMLDivElement | null = null;
   let flowLintList: HTMLDivElement | null = null;
   let flowLintBatchTypeSel: HTMLSelectElement | null = null;
@@ -408,6 +412,7 @@ export function createPrototypeViewer(editor: Editor): {
   let condDebugInfo: HTMLDivElement | null = null;
   let condDebugList: HTMLDivElement | null = null;
   let flowLintSnapshot: { startFrameId: number | null; issues: FlowLintIssue[]; } | null = null;
+  let flowLintDiffBaseline: { at: number; scope: FlowLintRunScope; presetLabel: string; startFrameId: number | null; issues: FlowLintIssue[] } | null = null;
   let flowLintFilterTypes = new Set<FlowLintIssueType>();
   let flowLintRenderedIssues: FlowLintIssue[] = [];
   let flowLintNavIndex = -1;
@@ -2946,6 +2951,137 @@ export function createPrototypeViewer(editor: Editor): {
     return "flow";
   }
 
+  function makeFlowLintAnchorKey(issue: FlowLintIssue): string {
+    return `${issue.type}|${issue.frameId}|${issue.overlayId || 0}`;
+  }
+
+  function formatFlowLintDiffMarkdown(lines: string[]): string {
+    return [
+      "# Flow Lint Snapshot Diff",
+      ...lines,
+    ].join("\n");
+  }
+
+  function renderFlowLintDiffReport(lintScope: FlowLintRunScope, presetLabel: string) {
+    if (!flowLintDiffInfo || !flowLintDiffList || !flowLintSnapshot) return;
+    const currentIssues = flowLintSnapshot.issues || [];
+    if (!flowLintDiffBaseline) {
+      flowLintDiffInfo.textContent = "Diff baseline not set. Capture baseline to compare runs.";
+      flowLintDiffList.innerHTML = "";
+      const hint = document.createElement("div");
+      hint.style.cssText = "font-size:9px;color:#93c5fd;";
+      hint.textContent = "신규/해결/회귀 리포트는 baseline 캡처 후 표시됩니다.";
+      flowLintDiffList.appendChild(hint);
+      if (flowLintDiffCopyBtn) flowLintDiffCopyBtn.disabled = true;
+      return;
+    }
+
+    const baselineIssues = flowLintDiffBaseline.issues || [];
+    const currentByAnchor = new Map<string, FlowLintIssue[]>();
+    const baselineByAnchor = new Map<string, FlowLintIssue[]>();
+    for (const issue of currentIssues) {
+      const key = makeFlowLintAnchorKey(issue);
+      const list = currentByAnchor.get(key) || [];
+      list.push(issue);
+      currentByAnchor.set(key, list);
+    }
+    for (const issue of baselineIssues) {
+      const key = makeFlowLintAnchorKey(issue);
+      const list = baselineByAnchor.get(key) || [];
+      list.push(issue);
+      baselineByAnchor.set(key, list);
+    }
+
+    const newRows: string[] = [];
+    const resolvedRows: string[] = [];
+    const regressionRows: string[] = [];
+    const anchors = new Set<string>([...currentByAnchor.keys(), ...baselineByAnchor.keys()]);
+    for (const anchor of anchors) {
+      const curr = currentByAnchor.get(anchor) || [];
+      const prev = baselineByAnchor.get(anchor) || [];
+      const currCount = curr.length;
+      const prevCount = prev.length;
+      const sample = (curr[0] || prev[0]);
+      if (!sample) continue;
+      const label = `${sample.type} · ${sample.frameName} (#${sample.frameId})${sample.overlayId ? ` · overlay #${sample.overlayId}` : ""}`;
+      if (prevCount === 0 && currCount > 0) {
+        newRows.push(`${label} (+${currCount})`);
+      } else if (prevCount > 0 && currCount === 0) {
+        resolvedRows.push(`${label} (-${prevCount})`);
+      } else if (prevCount > 0 && currCount > prevCount) {
+        regressionRows.push(`${label} (${prevCount}→${currCount})`);
+      }
+    }
+
+    const summary = `Baseline ${new Date(flowLintDiffBaseline.at).toLocaleTimeString()} (${flowLintDiffBaseline.presetLabel}/${flowLintDiffBaseline.scope}) → Current (${presetLabel}/${lintScope}) · New ${newRows.length} · Resolved ${resolvedRows.length} · Regressed ${regressionRows.length}`;
+    flowLintDiffInfo.textContent = summary;
+    flowLintDiffList.innerHTML = "";
+
+    const renderBucket = (title: string, rows: string[], color: string) => {
+      const bucket = document.createElement("div");
+      bucket.style.cssText = "display:flex;flex-direction:column;gap:2px;";
+      const head = document.createElement("div");
+      head.style.cssText = `font-size:9px;font-weight:600;color:${color};`;
+      head.textContent = `${title} ${rows.length}`;
+      bucket.appendChild(head);
+      if (rows.length === 0) {
+        const empty = document.createElement("div");
+        empty.style.cssText = "font-size:9px;color:#64748b;";
+        empty.textContent = "없음";
+        bucket.appendChild(empty);
+      } else {
+        for (const row of rows.slice(0, 4)) {
+          const line = document.createElement("div");
+          line.style.cssText = "font-size:9px;color:#cbd5e1;line-height:1.3;";
+          line.textContent = `• ${row}`;
+          bucket.appendChild(line);
+        }
+        if (rows.length > 4) {
+          const more = document.createElement("div");
+          more.style.cssText = "font-size:9px;color:#64748b;";
+          more.textContent = `+${rows.length - 4} more`;
+          bucket.appendChild(more);
+        }
+      }
+      flowLintDiffList!.appendChild(bucket);
+    };
+
+    renderBucket("New", newRows, "#fca5a5");
+    renderBucket("Resolved", resolvedRows, "#86efac");
+    renderBucket("Regressed", regressionRows, "#fdba74");
+
+    if (flowLintDiffCopyBtn) {
+      flowLintDiffCopyBtn.disabled = false;
+      flowLintDiffCopyBtn.onclick = async () => {
+        const lines = [
+          "",
+          `- baseline: ${new Date(flowLintDiffBaseline!.at).toLocaleString()} (${flowLintDiffBaseline!.presetLabel}/${flowLintDiffBaseline!.scope})`,
+          `- current: ${new Date().toLocaleString()} (${presetLabel}/${lintScope})`,
+          `- summary: new ${newRows.length}, resolved ${resolvedRows.length}, regressed ${regressionRows.length}`,
+          "",
+          "## New",
+          ...(newRows.length > 0 ? newRows.map((row) => `- ${row}`) : ["- none"]),
+          "",
+          "## Resolved",
+          ...(resolvedRows.length > 0 ? resolvedRows.map((row) => `- ${row}`) : ["- none"]),
+          "",
+          "## Regressed",
+          ...(regressionRows.length > 0 ? regressionRows.map((row) => `- ${row}`) : ["- none"]),
+        ];
+        const payload = formatFlowLintDiffMarkdown(lines);
+        try {
+          await navigator.clipboard.writeText(payload);
+          flowLintDiffCopyBtn!.textContent = "Copied";
+        } catch {
+          flowLintDiffCopyBtn!.textContent = "Copy failed";
+        }
+        window.setTimeout(() => {
+          if (flowLintDiffCopyBtn) flowLintDiffCopyBtn.textContent = "Copy diff";
+        }, 1000);
+      };
+    }
+  }
+
   function renderFlowLint() {
     if (!flowLintInfo || !flowLintList || !flowLintRiskInfo || !flowLintRiskList) return;
     const snapshot = flowMinimapSnapshot;
@@ -2957,6 +3093,9 @@ export function createPrototypeViewer(editor: Editor): {
       flowLintSnapshot = { startFrameId: null, issues: [] };
       flowLintRenderedIssues = [];
       flowLintNavIndex = -1;
+      if (flowLintDiffInfo) flowLintDiffInfo.textContent = "No frames to diff.";
+      if (flowLintDiffList) flowLintDiffList.innerHTML = "";
+      if (flowLintDiffCopyBtn) flowLintDiffCopyBtn.disabled = true;
       renderFocusTrapSimulator();
       renderOverlayStackInspector();
       renderEscapeRouteMap();
@@ -3478,6 +3617,7 @@ export function createPrototypeViewer(editor: Editor): {
     const motionGuardrailCount = issues.filter((i) => i.type === "a11y-motion").length;
     const scopeLabel = lintScope === "selection" ? "Selection" : lintScope === "page" ? "Page" : "Flow";
     flowLintInfo.textContent = `Scope ${scopeLabel} · Preset ${overlayGuardPreset.label} · Start #${startFrameId} · Dead-end ${deadEndCount} · Unreachable ${unreachableCount} · Cycles ${cycleCount}/${cycleTrapCount} · Overlay ${overlayLeakCount}/${overlayKeyRouteCount}/${overlayDepthBudgetCount}/${overlayExitLatencyCount}/${orphanCloseCount}/Scroll ${scrollLeakCount} · A11y ${missingLabelCount}/${focusGapCount}/${focusTrapCount}/${lowContrastCount}/${motionGuardrailCount}`;
+    renderFlowLintDiffReport(lintScope, overlayGuardPreset.label);
 
     flowLintList.innerHTML = "";
     flowLintRiskList.innerHTML = "";
@@ -4723,6 +4863,57 @@ export function createPrototypeViewer(editor: Editor): {
     flowLintRiskList.style.cssText = "display:flex;flex-direction:column;gap:4px;";
     flowLintRiskWrap.appendChild(flowLintRiskList);
     flowLintWrap.appendChild(flowLintRiskWrap);
+
+    flowLintDiffWrap = document.createElement("div");
+    flowLintDiffWrap.style.cssText = "display:flex;flex-direction:column;gap:4px;padding:5px;border-radius:7px;border:1px solid rgba(125,211,252,0.32);background:rgba(12,74,110,0.14);";
+    const flowLintDiffHead = document.createElement("div");
+    flowLintDiffHead.style.cssText = "font-size:9px;font-weight:600;color:#bfdbfe;text-transform:uppercase;letter-spacing:0.04em;";
+    flowLintDiffHead.textContent = "Lint Snapshot Diff";
+    flowLintDiffWrap.appendChild(flowLintDiffHead);
+    const flowLintDiffBtnRow = document.createElement("div");
+    flowLintDiffBtnRow.style.cssText = "display:flex;gap:4px;";
+    const flowLintDiffCaptureBtn = document.createElement("button");
+    flowLintDiffCaptureBtn.className = "prop-btn";
+    flowLintDiffCaptureBtn.textContent = "Capture";
+    flowLintDiffCaptureBtn.style.cssText = "flex:1;font-size:9px;padding:2px 6px;";
+    flowLintDiffCaptureBtn.onclick = () => {
+      if (!flowLintSnapshot) return;
+      const lintScope = resolveFlowLintScope(flowLintScopeSel?.value);
+      const presetLabel = resolveOverlayGuardPreset(flowLintPresetSel?.value).label;
+      flowLintDiffBaseline = {
+        at: Date.now(),
+        scope: lintScope,
+        presetLabel,
+        startFrameId: flowLintSnapshot.startFrameId,
+        issues: flowLintSnapshot.issues.map((issue) => ({ ...issue, overlayPath: issue.overlayPath ? [...issue.overlayPath] : undefined, overlayOffenders: issue.overlayOffenders ? [...issue.overlayOffenders] : undefined, overlayRewritePlan: issue.overlayRewritePlan ? [...issue.overlayRewritePlan] : undefined, overlayExitSuggestions: issue.overlayExitSuggestions ? [...issue.overlayExitSuggestions] : undefined })),
+      };
+      renderFlowLint();
+    };
+    flowLintDiffBtnRow.appendChild(flowLintDiffCaptureBtn);
+    const flowLintDiffClearBtn = document.createElement("button");
+    flowLintDiffClearBtn.className = "prop-btn";
+    flowLintDiffClearBtn.textContent = "Clear";
+    flowLintDiffClearBtn.style.cssText = "font-size:9px;padding:2px 6px;";
+    flowLintDiffClearBtn.onclick = () => {
+      flowLintDiffBaseline = null;
+      renderFlowLint();
+    };
+    flowLintDiffBtnRow.appendChild(flowLintDiffClearBtn);
+    flowLintDiffCopyBtn = document.createElement("button");
+    flowLintDiffCopyBtn.className = "prop-btn";
+    flowLintDiffCopyBtn.textContent = "Copy diff";
+    flowLintDiffCopyBtn.style.cssText = "font-size:9px;padding:2px 6px;";
+    flowLintDiffCopyBtn.disabled = true;
+    flowLintDiffBtnRow.appendChild(flowLintDiffCopyBtn);
+    flowLintDiffWrap.appendChild(flowLintDiffBtnRow);
+    flowLintDiffInfo = document.createElement("div");
+    flowLintDiffInfo.style.cssText = "font-size:9px;line-height:1.35;color:#93c5fd;";
+    flowLintDiffInfo.textContent = "Diff baseline not set.";
+    flowLintDiffWrap.appendChild(flowLintDiffInfo);
+    flowLintDiffList = document.createElement("div");
+    flowLintDiffList.style.cssText = "display:flex;flex-direction:column;gap:4px;";
+    flowLintDiffWrap.appendChild(flowLintDiffList);
+    flowLintWrap.appendChild(flowLintDiffWrap);
 
     flowLintFilterWrap = document.createElement("div");
     flowLintFilterWrap.style.cssText = "display:flex;flex-wrap:wrap;gap:4px;";

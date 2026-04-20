@@ -3126,6 +3126,13 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] 상위 위험 overlay 카드 클릭 시 해당 overlay를 발생시킨 frame으로 즉시 네비게이션
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
 
+### Lint Snapshot Diff Report (2026-04-20)
+- [x] Flow Lint 패널에 `Lint Snapshot Diff` 섹션을 추가해 baseline 대비 `신규(New) / 해결(Resolved) / 회귀(Regressed)`를 요약
+- [x] `Capture` 버튼으로 현재 lint 결과를 baseline으로 고정하고, 이후 실행 결과와 anchor(type+frame+overlay) 단위로 증감 비교
+- [x] `Clear`로 baseline 초기화, `Copy diff`로 Markdown 리포트(요약 + bucket별 목록) 클립보드 복사 지원
+- [x] baseline이 없을 때 가이드 문구를 노출하고 copy 동작을 비활성화해 오동작 방지
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+
 ### Overlay Exit Path Auto-Suggest (2026-04-20)
 - [x] Flow Lint `overlay-key-route` 이슈 detail에 `CloseOverlay/Back` 후보 타깃을 점수 기반으로 자동 제안
 - [x] 후보 점수 산식: trigger 품질(OnPress/OnClick), 접근성 라벨 유무, 노드명 키워드(close/back/dismiss), 위치 힌트를 합산

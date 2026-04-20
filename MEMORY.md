@@ -1790,10 +1790,17 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Lint Snapshot Diff Report — Flow Lint 실행 간 이슈 증감(신규/해결/회귀) 비교 리포트 + copy export (임팩트 중, 난이도 중)
 - Flow Lint Severity Budget Profiles — 팀별 경고 임계값(overlay depth/latency/motion)을 preset으로 저장·공유하는 프로파일 시스템 (임팩트 중, 난이도 중)
 - Overlay Close Target Confidence Ranker — CloseOverlay 후보를 route 안정성·거리·조건부 분기 수 기준으로 점수화해 추천 순위를 제공 (임팩트 중상, 난이도 중상)
 - Flow Lint CI Export (JSON/Markdown) — lint 결과를 CI 아티팩트 형식(JSON/MD)으로 내보내고 PR 코멘트에 붙일 수 있는 요약 생성 (임팩트 중, 난이도 중)
+
+## 완료된 기능 (추가 — Lint Snapshot Diff Report, 2026-04-20)
+- Flow Lint 패널에 `Lint Snapshot Diff` 섹션 추가
+- `Capture` baseline 대비 현재 실행의 `New/Resolved/Regressed`를 anchor(type+frame+overlay) 단위로 비교
+- `Copy diff` 버튼으로 Markdown 리포트(요약 + bucket별 목록)를 클립보드로 내보내기
+- baseline 없음 상태 가이드 + copy 비활성화 처리
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Flow Lint Scope Runner (Selection/Page/Flow), 2026-04-20)
 - Flow Lint 패널에 `Scope` 셀렉터 추가: Selection / Page / Flow 실행 범위를 즉시 전환
