@@ -1796,10 +1796,9 @@
 - Flow Lint Scope Preset Cleanup — 삭제된 flow/page preset stale key 정리 툴과 usage 카운트 표시 (임팩트 중하, 난이도 중)
 
 ## 완료된 기능 (추가 — Selection Scope Route Preview, 2026-04-21)
-- Flow Lint 패널에 `Scope Route Preview` 카드 추가
-- Selection/Page/Flow scope 실행 전 대상 frame 수와 source 메타(선택 노드 수 / page id / start frame) 표시
-- 대상 frame 상위 6개를 chip으로 노출하고 나머지는 `+N more`로 축약 표시
-- scope 결과가 비어있거나 frame이 없을 때 preview 상태 메시지 제공
+- Flow Lint `Scope Route Preview`를 route depth/유입 경로(inbound) 메타 포함 리스트로 확장해 scope 실행 전 대상 frame 우선순위를 즉시 확인 가능
+- Selection scope 미리보기 메타에 `selected node 수 → 대상 frame 수`를 함께 표기해 실제 실행 범위를 실행 전 명확히 안내
+- start frame에서 도달 불가능한 대상은 `unlinked` 라벨로 분리해 page/selection 범위 내 route 단절 프레임을 사전 탐지
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
 - specs 반영: `specs/FEATURES.md`
 

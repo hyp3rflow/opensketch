@@ -3225,6 +3225,13 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] Flow selector 재구성 시 `이전 선택 flow → 저장된 last flow → 첫 flow` 우선순위로 복원하고, 복원된 flow에 맞는 scope preset을 자동 적용
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
 
+### Selection Scope Route Preview (2026-04-21)
+- [x] Flow Lint `Scope Route Preview`를 lint 실행 전에 대상 frame 리스트 + 총 카운트로 즉시 노출
+- [x] Preview row에 route depth(`dN`)와 scoped inbound count(`in N`)를 함께 표기해 selection/page/flow 범위의 경로 우선순위를 사전 확인 가능
+- [x] Selection scope 메타에 `selected node 수 → 대상 frame 수`를 표시해 non-frame selection에서도 실제 실행 범위를 명확히 안내
+- [x] start frame에서 도달 불가능한 대상은 `unlinked`로 표시해 route 단절 프레임을 lint 실행 전에 식별 가능
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+
 ### Overlay Escape Replay Test Cases (2026-04-20)
 - [x] Overlay Escape Key Route Inspector에 `Generate replay` / `Copy cases` 액션을 추가해 Esc/Back 회귀 케이스를 자동 생성
 - [x] 케이스는 Esc/Back 각각 expected pass/fail, expected steps, route summary, snapshot label(PASS/FAIL) 메타를 포함

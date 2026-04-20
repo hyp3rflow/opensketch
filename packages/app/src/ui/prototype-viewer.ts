@@ -4144,19 +4144,52 @@ export function createPrototypeViewer(editor: Editor): {
 
     const shouldInspectFrame = (frameId: number) => scopedFrameIds.has(frameId);
 
-    const previewFrameIds = [...scopedFrameIds].slice(0, 6);
-    const previewFrameLabels = previewFrameIds
+    const routeDepthByFrame = new Map<number, number>();
+    const routeQueue: number[] = [startFrameId];
+    routeDepthByFrame.set(startFrameId, 0);
+    while (routeQueue.length > 0) {
+      const cur = routeQueue.shift()!;
+      const curDepth = routeDepthByFrame.get(cur) ?? 0;
+      const next = adjacency.get(cur) || [];
+      for (const to of next) {
+        if (!routeDepthByFrame.has(to)) {
+          routeDepthByFrame.set(to, curDepth + 1);
+          routeQueue.push(to);
+        }
+      }
+    }
+
+    const inboundCountByFrame = new Map<number, number>();
+    for (const edge of snapshot.edges) {
+      if (!scopedFrameIds.has(edge.from) || !scopedFrameIds.has(edge.to)) continue;
+      inboundCountByFrame.set(edge.to, (inboundCountByFrame.get(edge.to) || 0) + 1);
+    }
+
+    const previewRows = [...scopedFrameIds]
       .map((id) => {
         const frame = frameById.get(id);
         if (!frame) return null;
-        return `#${id} ${frame.name || "Untitled"}`;
+        const depth = routeDepthByFrame.get(id);
+        return {
+          id,
+          label: frame.name || "Untitled",
+          depth,
+          inbound: inboundCountByFrame.get(id) || 0,
+        };
       })
-      .filter((label): label is string => !!label);
-    const previewOverflow = Math.max(0, scopedFrameIds.size - previewFrameLabels.length);
+      .filter((row): row is { id: number; label: string; depth: number | undefined; inbound: number } => !!row)
+      .sort((a, b) => {
+        const aDepth = Number.isFinite(a.depth) ? (a.depth as number) : Number.MAX_SAFE_INTEGER;
+        const bDepth = Number.isFinite(b.depth) ? (b.depth as number) : Number.MAX_SAFE_INTEGER;
+        if (aDepth !== bDepth) return aDepth - bDepth;
+        return a.id - b.id;
+      });
+    const previewTopRows = previewRows.slice(0, 6);
+    const previewOverflow = Math.max(0, previewRows.length - previewTopRows.length);
     if (flowLintScopePreviewInfo) {
       const scopeLabel = lintScope === "selection" ? "Selection" : lintScope === "page" ? "Page" : "Flow";
       const sourceMeta = lintScope === "selection"
-        ? `${selectedNodeIds.size} selected node(s)`
+        ? `${selectedNodeIds.size} selected node(s) → ${selectionFrameIds.size} frame(s)`
         : lintScope === "page"
           ? `page #${activePageId || "-"}`
           : `start #${startFrameId}`;
@@ -4164,16 +4197,19 @@ export function createPrototypeViewer(editor: Editor): {
     }
     if (flowLintScopePreviewList) {
       flowLintScopePreviewList.innerHTML = "";
-      if (previewFrameLabels.length === 0) {
+      if (previewTopRows.length === 0) {
         const empty = document.createElement("div");
         empty.style.cssText = "font-size:9px;color:#64748b;";
         empty.textContent = "No target frames in current scope.";
         flowLintScopePreviewList.appendChild(empty);
       } else {
-        for (const label of previewFrameLabels) {
+        for (const row of previewTopRows) {
           const chip = document.createElement("div");
           chip.style.cssText = "font-size:9px;color:#bfdbfe;border:1px solid rgba(125,211,252,0.25);border-radius:6px;padding:2px 5px;background:rgba(12,74,110,0.2);";
-          chip.textContent = label;
+          const routeMeta = Number.isFinite(row.depth)
+            ? `d${row.depth} · in ${row.inbound}`
+            : `unlinked · in ${row.inbound}`;
+          chip.textContent = `#${row.id} ${row.label} · ${routeMeta}`;
           flowLintScopePreviewList.appendChild(chip);
         }
         if (previewOverflow > 0) {
