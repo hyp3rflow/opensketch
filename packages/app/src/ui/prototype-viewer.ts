@@ -810,6 +810,8 @@ export function createPrototypeViewer(editor: Editor): {
   let flowLintScopeSel: HTMLSelectElement | null = null;
   let flowLintScopeSlotBadge: HTMLSpanElement | null = null;
   let flowLintScopeSlotButtons: HTMLButtonElement[] = [];
+  let flowLintScopeStorageInfo: HTMLDivElement | null = null;
+  let flowLintScopeStorageCleanupBtn: HTMLButtonElement | null = null;
   let flowLintScopePreviewInfo: HTMLDivElement | null = null;
   let flowLintScopePreviewList: HTMLDivElement | null = null;
   let flowLintScopeDriftWrap: HTMLDivElement | null = null;
@@ -3752,6 +3754,77 @@ export function createPrototypeViewer(editor: Editor): {
     saveFlowLintScopePresets(flowLintScopePresets);
   }
 
+  function collectFlowLintScopeStorageStats() {
+    const flows = listPrototypeFlows();
+    const validFlowIds = new Set<number>();
+    const validFlowScopeKeys = new Set<string>();
+    for (const flow of flows) {
+      const flowId = Number(flow.id || 0);
+      if (!Number.isFinite(flowId) || flowId <= 0) continue;
+      const safeFlowId = Math.floor(flowId);
+      validFlowIds.add(safeFlowId);
+      validFlowScopeKeys.add(makeFlowLintScopePresetKey(safeFlowId));
+      validFlowScopeKeys.add(makeFlowLintScopePresetKey(safeFlowId, Number(flow.page_id || 0)));
+    }
+
+    const stalePresetKeys = Object.keys(flowLintScopePresets).filter((key) => !validFlowScopeKeys.has(key));
+    const staleQuickSlotFlowIds = Object.keys(flowLintScopeQuickSlots)
+      .map((key) => Number(key))
+      .filter((flowId) => !Number.isFinite(flowId) || flowId <= 0 || !validFlowIds.has(Math.floor(flowId)));
+
+    const presetUsage: Record<FlowLintRunScope, number> = { selection: 0, page: 0, flow: 0 };
+    for (const scope of Object.values(flowLintScopePresets)) {
+      const safe = resolveFlowLintScope(scope);
+      presetUsage[safe] += 1;
+    }
+
+    const slotUsage: Record<FlowLintRunScope, number> = { selection: 0, page: 0, flow: 0 };
+    for (const bucket of Object.values(flowLintScopeQuickSlots)) {
+      for (const scope of bucket.slots) slotUsage[resolveFlowLintScope(scope)] += 1;
+    }
+
+    return {
+      stalePresetKeys,
+      staleQuickSlotFlowIds,
+      presetUsage,
+      slotUsage,
+      presetCount: Object.keys(flowLintScopePresets).length,
+      quickSlotBucketCount: Object.keys(flowLintScopeQuickSlots).length,
+    };
+  }
+
+  function cleanupFlowLintScopeStorage() {
+    const stats = collectFlowLintScopeStorageStats();
+    if (stats.stalePresetKeys.length === 0 && stats.staleQuickSlotFlowIds.length === 0) return 0;
+
+    if (stats.stalePresetKeys.length > 0) {
+      const nextPresets: FlowLintScopePresetMap = { ...flowLintScopePresets };
+      for (const key of stats.stalePresetKeys) delete nextPresets[key];
+      flowLintScopePresets = nextPresets;
+      saveFlowLintScopePresets(flowLintScopePresets);
+    }
+
+    if (stats.staleQuickSlotFlowIds.length > 0) {
+      const nextSlots: FlowLintScopeQuickSlotMap = { ...flowLintScopeQuickSlots };
+      for (const flowId of stats.staleQuickSlotFlowIds) delete nextSlots[String(Math.floor(flowId))];
+      flowLintScopeQuickSlots = nextSlots;
+      saveFlowLintScopeQuickSlots(flowLintScopeQuickSlots);
+    }
+
+    return stats.stalePresetKeys.length + stats.staleQuickSlotFlowIds.length;
+  }
+
+  function renderFlowLintScopeStorageInfo() {
+    if (!flowLintScopeStorageInfo || !flowLintScopeStorageCleanupBtn) return;
+    const stats = collectFlowLintScopeStorageStats();
+    const staleCount = stats.stalePresetKeys.length + stats.staleQuickSlotFlowIds.length;
+    flowLintScopeStorageInfo.textContent = `Preset ${stats.presetCount} · Slot buckets ${stats.quickSlotBucketCount} · Usage P[S/P/F] ${stats.presetUsage.selection}/${stats.presetUsage.page}/${stats.presetUsage.flow} · Q[S/P/F] ${stats.slotUsage.selection}/${stats.slotUsage.page}/${stats.slotUsage.flow} · Stale ${staleCount}`;
+    flowLintScopeStorageCleanupBtn.disabled = staleCount <= 0;
+    flowLintScopeStorageCleanupBtn.title = staleCount > 0
+      ? `삭제된 flow/page 참조 ${staleCount}개 정리`
+      : "정리할 stale key 없음";
+  }
+
   function ensureFlowLintScopeQuickSlotBucket(flowId: number): FlowLintScopeQuickSlotBucket {
     const key = String(Math.floor(flowId));
     const existing = flowLintScopeQuickSlots[key];
@@ -3788,6 +3861,7 @@ export function createPrototypeViewer(editor: Editor): {
       btn.style.background = idx === active ? "rgba(59,130,246,0.2)" : "#0f172a";
       btn.style.color = idx === active ? "#dbeafe" : "#e2e8f0";
     }
+    renderFlowLintScopeStorageInfo();
   }
 
   function applyFlowLintScopeQuickSlot(slotIndex: number, saveCurrent = false) {
@@ -6260,6 +6334,26 @@ export function createPrototypeViewer(editor: Editor): {
       flowLintScopeSlotRow.appendChild(slotBtn);
     }
     flowLintWrap.appendChild(flowLintScopeSlotRow);
+
+    const flowLintScopeStorageRow = document.createElement("div");
+    flowLintScopeStorageRow.style.cssText = "display:flex;gap:4px;align-items:center;";
+    flowLintScopeStorageInfo = document.createElement("div");
+    flowLintScopeStorageInfo.style.cssText = "flex:1;font-size:9px;line-height:1.3;color:#94a3b8;";
+    flowLintScopeStorageInfo.textContent = "Scope preset usage 계산 중…";
+    flowLintScopeStorageRow.appendChild(flowLintScopeStorageInfo);
+    flowLintScopeStorageCleanupBtn = document.createElement("button");
+    flowLintScopeStorageCleanupBtn.className = "prop-btn";
+    flowLintScopeStorageCleanupBtn.textContent = "Cleanup";
+    flowLintScopeStorageCleanupBtn.style.cssText = "font-size:9px;padding:3px 6px;white-space:nowrap;";
+    flowLintScopeStorageCleanupBtn.onclick = () => {
+      const removed = cleanupFlowLintScopeStorage();
+      if (removed > 0 && flowLintInfo) {
+        flowLintInfo.textContent = `Scope preset cleanup 완료 · stale key ${removed}개 제거`;
+      }
+      renderFlowLintScopeQuickSlots();
+    };
+    flowLintScopeStorageRow.appendChild(flowLintScopeStorageCleanupBtn);
+    flowLintWrap.appendChild(flowLintScopeStorageRow);
 
     flowLintScopeDriftWrap = document.createElement("div");
     flowLintScopeDriftWrap.style.cssText = "display:none;flex-direction:column;gap:4px;padding:5px;border-radius:7px;border:1px solid rgba(251,191,36,0.35);background:rgba(120,53,15,0.25);";
