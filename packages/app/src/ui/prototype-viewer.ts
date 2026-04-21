@@ -31,11 +31,13 @@ const PROTOTYPE_FLOW_LINT_OWNER_SLA_KEY = "opensketch-flow-lint-owner-sla-v1";
 const PROTOTYPE_FLOW_LINT_OWNER_SLA_SORT_KEY = "opensketch-flow-lint-owner-sla-sort-v1";
 const PROTOTYPE_FLOW_LINT_SCOPE_PRESETS_KEY = "opensketch-flow-lint-scope-presets-v1";
 const PROTOTYPE_FLOW_LINT_SCOPE_QUICK_SLOTS_KEY = "opensketch-flow-lint-scope-quick-slots-v1";
+const PROTOTYPE_FLOW_LINT_SCOPE_RUN_LOG_KEY = "opensketch-flow-lint-scope-run-log-v1";
 const PROTOTYPE_FLOW_LINT_LAST_FLOW_KEY = "opensketch-flow-lint-last-flow-id-v1";
 const PROTOTYPE_OVERLAY_EXIT_SUGGEST_PRESET_A_KEY = "opensketch-overlay-exit-suggest-preset-a-v1";
 const PROTOTYPE_OVERLAY_EXIT_SUGGEST_PRESET_B_KEY = "opensketch-overlay-exit-suggest-preset-b-v1";
 const FLOW_LINT_RISK_TREND_MAX_RUNS = 12;
 const FLOW_LINT_HISTORY_MAX_RUNS = 20;
+const FLOW_LINT_SCOPE_RUN_LOG_WINDOW_DAYS = 7;
 
 type FlowEntryPreset = { frameId: number; label: string; pageId?: number };
 type RingPresetSafetyBucket = "safe" | "watch" | "risky";
@@ -569,6 +571,45 @@ function saveFlowLintScopeQuickSlots(map: FlowLintScopeQuickSlotMap) {
   } catch {}
 }
 
+type FlowLintScopeRunLog = Record<FlowLintRunScope, number[]>;
+
+function makeEmptyFlowLintScopeRunLog(): FlowLintScopeRunLog {
+  return { selection: [], page: [], flow: [] };
+}
+
+function pruneFlowLintScopeRunLog(log: FlowLintScopeRunLog, now = Date.now()): FlowLintScopeRunLog {
+  const cutoff = now - FLOW_LINT_SCOPE_RUN_LOG_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+  return {
+    selection: log.selection.filter((ts) => Number.isFinite(ts) && ts >= cutoff),
+    page: log.page.filter((ts) => Number.isFinite(ts) && ts >= cutoff),
+    flow: log.flow.filter((ts) => Number.isFinite(ts) && ts >= cutoff),
+  };
+}
+
+function loadFlowLintScopeRunLog(): FlowLintScopeRunLog {
+  try {
+    const raw = localStorage.getItem(PROTOTYPE_FLOW_LINT_SCOPE_RUN_LOG_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    if (!parsed || typeof parsed !== "object") return makeEmptyFlowLintScopeRunLog();
+    const selection = Array.isArray((parsed as any).selection) ? (parsed as any).selection : [];
+    const page = Array.isArray((parsed as any).page) ? (parsed as any).page : [];
+    const flow = Array.isArray((parsed as any).flow) ? (parsed as any).flow : [];
+    return pruneFlowLintScopeRunLog({
+      selection: selection.map((v: unknown) => Number(v)),
+      page: page.map((v: unknown) => Number(v)),
+      flow: flow.map((v: unknown) => Number(v)),
+    });
+  } catch {
+    return makeEmptyFlowLintScopeRunLog();
+  }
+}
+
+function saveFlowLintScopeRunLog(log: FlowLintScopeRunLog) {
+  try {
+    localStorage.setItem(PROTOTYPE_FLOW_LINT_SCOPE_RUN_LOG_KEY, JSON.stringify(pruneFlowLintScopeRunLog(log)));
+  } catch {}
+}
+
 function loadFlowLintLastFlowId(): number {
   try {
     const value = Number(localStorage.getItem(PROTOTYPE_FLOW_LINT_LAST_FLOW_KEY) || 0);
@@ -831,6 +872,7 @@ export function createPrototypeViewer(editor: Editor): {
   let flowLintScopeSlotButtons: HTMLButtonElement[] = [];
   let flowLintScopeStorageInfo: HTMLDivElement | null = null;
   let flowLintScopeStorageCleanupBtn: HTMLButtonElement | null = null;
+  let flowLintScopeUsageChipButtons: HTMLButtonElement[] = [];
   let flowLintScopePreviewInfo: HTMLDivElement | null = null;
   let flowLintScopePreviewList: HTMLDivElement | null = null;
   let flowLintScopeDriftWrap: HTMLDivElement | null = null;
@@ -1005,6 +1047,7 @@ export function createPrototypeViewer(editor: Editor): {
   let flowLintOwnerSlaSortMode: FlowLintOwnerSlaSortMode = loadFlowLintOwnerSlaSortMode();
   let flowLintScopePresets: FlowLintScopePresetMap = loadFlowLintScopePresets();
   let flowLintScopeQuickSlots: FlowLintScopeQuickSlotMap = loadFlowLintScopeQuickSlots();
+  let flowLintScopeRunLog: FlowLintScopeRunLog = loadFlowLintScopeRunLog();
   let flowLintFilterTypes = new Set<FlowLintIssueType>();
   let flowLintRenderedIssues: FlowLintIssue[] = [];
   let flowLintNavIndex = -1;
@@ -3804,6 +3847,13 @@ export function createPrototypeViewer(editor: Editor): {
       for (const scope of bucket.slots) slotUsage[resolveFlowLintScope(scope)] += 1;
     }
 
+    flowLintScopeRunLog = pruneFlowLintScopeRunLog(flowLintScopeRunLog);
+    const recentRunCounts: Record<FlowLintRunScope, number> = {
+      selection: flowLintScopeRunLog.selection.length,
+      page: flowLintScopeRunLog.page.length,
+      flow: flowLintScopeRunLog.flow.length,
+    };
+
     return {
       stalePresetKeys,
       stalePresetFlowOnlyKeys,
@@ -3811,6 +3861,7 @@ export function createPrototypeViewer(editor: Editor): {
       staleQuickSlotFlowIds,
       presetUsage,
       slotUsage,
+      recentRunCounts,
       presetCount: Object.keys(flowLintScopePresets).length,
       quickSlotBucketCount: Object.keys(flowLintScopeQuickSlots).length,
     };
@@ -3851,7 +3902,20 @@ export function createPrototypeViewer(editor: Editor): {
     if (!flowLintScopeStorageInfo || !flowLintScopeStorageCleanupBtn) return;
     const stats = collectFlowLintScopeStorageStats();
     const staleCount = stats.stalePresetKeys.length + stats.staleQuickSlotFlowIds.length;
-    flowLintScopeStorageInfo.textContent = `Preset ${stats.presetCount} · Slot buckets ${stats.quickSlotBucketCount} · Usage P[S/P/F] ${stats.presetUsage.selection}/${stats.presetUsage.page}/${stats.presetUsage.flow} · Q[S/P/F] ${stats.slotUsage.selection}/${stats.slotUsage.page}/${stats.slotUsage.flow} · Stale ${staleCount}`;
+    flowLintScopeStorageInfo.textContent = `Preset ${stats.presetCount} · Slot buckets ${stats.quickSlotBucketCount} · Usage P[S/P/F] ${stats.presetUsage.selection}/${stats.presetUsage.page}/${stats.presetUsage.flow} · Q[S/P/F] ${stats.slotUsage.selection}/${stats.slotUsage.page}/${stats.slotUsage.flow} · Run7d[S/P/F] ${stats.recentRunCounts.selection}/${stats.recentRunCounts.page}/${stats.recentRunCounts.flow} · Stale ${staleCount}`;
+    const scopes: FlowLintRunScope[] = ["selection", "page", "flow"];
+    for (let idx = 0; idx < flowLintScopeUsageChipButtons.length; idx += 1) {
+      const btn = flowLintScopeUsageChipButtons[idx];
+      const scope = scopes[idx] || "flow";
+      const count = stats.recentRunCounts[scope];
+      const short = scope === "selection" ? "Sel" : scope === "page" ? "Page" : "Flow";
+      btn.textContent = `${short} ${count}`;
+      btn.disabled = count <= 0;
+      btn.title = count > 0
+        ? `최근 ${FLOW_LINT_SCOPE_RUN_LOG_WINDOW_DAYS}일 ${short} scope 실행 ${count}회 · 클릭 시 카운트 초기화`
+        : `최근 ${FLOW_LINT_SCOPE_RUN_LOG_WINDOW_DAYS}일 ${short} scope 실행 기록 없음`;
+      btn.style.opacity = count > 0 ? "1" : "0.55";
+    }
     flowLintScopeStorageCleanupBtn.disabled = staleCount <= 0;
     flowLintScopeStorageCleanupBtn.title = staleCount > 0
       ? `삭제된 flow/page 참조 ${staleCount}개 정리 (preset ${stats.stalePresetFlowOnlyKeys.length}+${stats.stalePresetScopedKeys.length}, slot ${stats.staleQuickSlotFlowIds.length})`
@@ -4378,6 +4442,11 @@ export function createPrototypeViewer(editor: Editor): {
       }
       renderFlowLintScopeDriftAlert();
     }
+    const runAt = Date.now();
+    const runLog = pruneFlowLintScopeRunLog(flowLintScopeRunLog, runAt);
+    runLog[lintScope] = [...runLog[lintScope], runAt];
+    flowLintScopeRunLog = runLog;
+    saveFlowLintScopeRunLog(flowLintScopeRunLog);
     const activePageId = Number(selectedFlow?.page_id || editor.engine.get_active_page_id?.() || 0);
     const pageFrameIds = new Set<number>(listFramesForPage(activePageId).map((row) => Number(row.id)).filter((id) => Number.isFinite(id) && id > 0));
     const framePageById = new Map<number, number>();
@@ -6420,6 +6489,32 @@ export function createPrototypeViewer(editor: Editor): {
 
     const flowLintScopeStorageRow = document.createElement("div");
     flowLintScopeStorageRow.style.cssText = "display:flex;gap:4px;align-items:center;";
+    const flowLintScopeUsageChipRow = document.createElement("div");
+    flowLintScopeUsageChipRow.style.cssText = "display:flex;gap:4px;";
+    const usageScopeRows: Array<{ key: FlowLintRunScope; label: string }> = [
+      { key: "selection", label: "Sel" },
+      { key: "page", label: "Page" },
+      { key: "flow", label: "Flow" },
+    ];
+    flowLintScopeUsageChipButtons = [];
+    for (const row of usageScopeRows) {
+      const chip = document.createElement("button");
+      chip.className = "prop-btn";
+      chip.style.cssText = "font-size:9px;padding:2px 6px;border:1px solid rgba(96,165,250,0.35);border-radius:999px;background:rgba(30,41,59,0.75);color:#bfdbfe;";
+      chip.textContent = `${row.label} 0`;
+      chip.title = `최근 ${FLOW_LINT_SCOPE_RUN_LOG_WINDOW_DAYS}일 ${row.label} scope 실행 기록 없음`;
+      chip.onclick = () => {
+        const prev = flowLintScopeRunLog[row.key].length;
+        if (prev <= 0) return;
+        flowLintScopeRunLog = { ...flowLintScopeRunLog, [row.key]: [] };
+        saveFlowLintScopeRunLog(flowLintScopeRunLog);
+        if (flowLintInfo) flowLintInfo.textContent = `${row.label} scope 최근 ${FLOW_LINT_SCOPE_RUN_LOG_WINDOW_DAYS}일 실행 기록 ${prev}개를 초기화했어요.`;
+        renderFlowLintScopeStorageInfo();
+      };
+      flowLintScopeUsageChipButtons.push(chip);
+      flowLintScopeUsageChipRow.appendChild(chip);
+    }
+    flowLintWrap.appendChild(flowLintScopeUsageChipRow);
     flowLintScopeStorageInfo = document.createElement("div");
     flowLintScopeStorageInfo.style.cssText = "flex:1;font-size:9px;line-height:1.3;color:#94a3b8;";
     flowLintScopeStorageInfo.textContent = "Scope preset usage 계산 중…";
