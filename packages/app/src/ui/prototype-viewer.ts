@@ -816,6 +816,7 @@ export function createPrototypeViewer(editor: Editor): {
   let flowLintScopeDriftInfo: HTMLDivElement | null = null;
   let flowLintLastExecutedScopeByFlow: Record<string, FlowLintRunScope> = {};
   let flowLintPendingScopeDrift: { flowId: number; previousScope: FlowLintRunScope; nextScope: FlowLintRunScope } | null = null;
+  let flowLintScopeDriftRunOverrideFlowId: number | null = null;
   let flowLintSeveritySel: HTMLSelectElement | null = null;
   let flowLintExitPresetASel: HTMLSelectElement | null = null;
   let flowLintExitPresetBSel: HTMLSelectElement | null = null;
@@ -3681,6 +3682,30 @@ export function createPrototypeViewer(editor: Editor): {
     return "flow";
   }
 
+  function shouldBlockFlowLintRunByScopeDrift(): boolean {
+    if (!flowLintScopeSel) return false;
+    const flowId = Number(flowStartFlowSel?.value || 0);
+    const safeFlowId = Number.isFinite(flowId) && flowId > 0 ? Math.floor(flowId) : 0;
+    if (safeFlowId <= 0) {
+      flowLintPendingScopeDrift = null;
+      flowLintScopeDriftRunOverrideFlowId = null;
+      return false;
+    }
+    const currentScope = resolveFlowLintScope(flowLintScopeSel.value);
+    const previousScope = flowLintLastExecutedScopeByFlow[String(safeFlowId)];
+    if (!previousScope || previousScope === currentScope) {
+      flowLintPendingScopeDrift = null;
+      return false;
+    }
+    if (flowLintScopeDriftRunOverrideFlowId === safeFlowId) {
+      flowLintScopeDriftRunOverrideFlowId = null;
+      flowLintPendingScopeDrift = null;
+      return false;
+    }
+    flowLintPendingScopeDrift = { flowId: safeFlowId, previousScope, nextScope: currentScope };
+    return true;
+  }
+
   function renderFlowLintScopeDriftAlert() {
     if (!flowLintScopeDriftWrap || !flowLintScopeDriftInfo) return;
     const drift = flowLintPendingScopeDrift;
@@ -3690,7 +3715,7 @@ export function createPrototypeViewer(editor: Editor): {
       return;
     }
     flowLintScopeDriftWrap.style.display = "flex";
-    flowLintScopeDriftInfo.textContent = `Scope drift: last ${drift.previousScope} → current ${drift.nextScope}`;
+    flowLintScopeDriftInfo.textContent = `Scope drift: last ${drift.previousScope} → current ${drift.nextScope} (lint 실행 전 확인 필요)`;
   }
 
   function applyFlowLintScopePresetForFlow(flowId: number | null | undefined, pageId?: number | null | undefined) {
@@ -3703,6 +3728,7 @@ export function createPrototypeViewer(editor: Editor): {
       : "flow";
     flowLintScopeSel.value = nextScope;
     flowLintPendingScopeDrift = null;
+    flowLintScopeDriftRunOverrideFlowId = null;
     syncFlowLintScopeQuickSlotWithCurrentScope();
     renderFlowLintScopeDriftAlert();
   }
@@ -4163,6 +4189,11 @@ export function createPrototypeViewer(editor: Editor): {
 
   function renderFlowLint() {
     if (!flowLintInfo || !flowLintList || !flowLintRiskInfo || !flowLintRiskList) return;
+    if (shouldBlockFlowLintRunByScopeDrift()) {
+      renderFlowLintScopeDriftAlert();
+      flowLintInfo.textContent = "Scope drift detected. Revert 또는 Run current를 선택하세요.";
+      return;
+    }
     const snapshot = flowMinimapSnapshot;
     if (!snapshot || snapshot.nodes.length === 0) {
       flowLintInfo.textContent = "No frames to lint";
@@ -6199,11 +6230,7 @@ export function createPrototypeViewer(editor: Editor): {
     flowLintScopeSel.onchange = () => {
       saveFlowLintScopePresetForCurrentFlow();
       syncFlowLintScopeQuickSlotWithCurrentScope();
-      const flowId = Number(flowStartFlowSel?.value || 0);
-      const currentScope = resolveFlowLintScope(flowLintScopeSel?.value || "flow");
-      const prevScope = flowLintLastExecutedScopeByFlow[String(Math.floor(flowId || 0))];
-      if (flowId > 0 && prevScope && prevScope !== currentScope) {
-        flowLintPendingScopeDrift = { flowId: Math.floor(flowId), previousScope: prevScope, nextScope: currentScope };
+      if (shouldBlockFlowLintRunByScopeDrift()) {
         renderFlowLintScopeDriftAlert();
         return;
       }
@@ -6251,6 +6278,7 @@ export function createPrototypeViewer(editor: Editor): {
       saveFlowLintScopePresetForCurrentFlow();
       syncFlowLintScopeQuickSlotWithCurrentScope();
       flowLintPendingScopeDrift = null;
+      flowLintScopeDriftRunOverrideFlowId = null;
       renderFlowLintScopeDriftAlert();
       renderFlowLint();
     };
@@ -6260,6 +6288,8 @@ export function createPrototypeViewer(editor: Editor): {
     flowLintScopeDriftRunBtn.textContent = "Run current";
     flowLintScopeDriftRunBtn.style.cssText = "flex:1;font-size:9px;padding:3px 5px;";
     flowLintScopeDriftRunBtn.onclick = () => {
+      const flowId = Number(flowStartFlowSel?.value || 0);
+      flowLintScopeDriftRunOverrideFlowId = Number.isFinite(flowId) && flowId > 0 ? Math.floor(flowId) : null;
       flowLintPendingScopeDrift = null;
       renderFlowLintScopeDriftAlert();
       renderFlowLint();
