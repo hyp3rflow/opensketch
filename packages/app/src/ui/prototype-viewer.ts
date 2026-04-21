@@ -41,6 +41,8 @@ const PROTOTYPE_OVERLAY_EXIT_SUGGEST_PRESET_B_KEY = "opensketch-overlay-exit-sug
 const FLOW_LINT_RISK_TREND_MAX_RUNS = 12;
 const FLOW_LINT_HISTORY_MAX_RUNS = 20;
 const FLOW_LINT_SCOPE_RUN_LOG_WINDOW_DAYS = 7;
+const FLOW_LINT_SCOPE_HEATMAP_DAYS = 14;
+const FLOW_LINT_SCOPE_RUN_LOG_RETENTION_DAYS = Math.max(FLOW_LINT_SCOPE_RUN_LOG_WINDOW_DAYS, FLOW_LINT_SCOPE_HEATMAP_DAYS);
 const FLOW_LINT_SCOPE_TIMELINE_MAX_ROWS = 24;
 
 type FlowEntryPreset = { frameId: number; label: string; pageId?: number };
@@ -588,7 +590,7 @@ function makeEmptyFlowLintScopeRunLog(): FlowLintScopeRunLog {
 }
 
 function pruneFlowLintScopeRunLog(log: FlowLintScopeRunLog, now = Date.now()): FlowLintScopeRunLog {
-  const cutoff = now - FLOW_LINT_SCOPE_RUN_LOG_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+  const cutoff = now - FLOW_LINT_SCOPE_RUN_LOG_RETENTION_DAYS * 24 * 60 * 60 * 1000;
   return {
     selection: log.selection.filter((ts) => Number.isFinite(ts) && ts >= cutoff),
     page: log.page.filter((ts) => Number.isFinite(ts) && ts >= cutoff),
@@ -1004,6 +1006,8 @@ export function createPrototypeViewer(editor: Editor): {
   let flowLintScopeStorageInfo: HTMLDivElement | null = null;
   let flowLintScopeStorageCleanupBtn: HTMLButtonElement | null = null;
   let flowLintScopeUsageChipButtons: HTMLButtonElement[] = [];
+  let flowLintScopeHeatmapInfo: HTMLDivElement | null = null;
+  let flowLintScopeHeatmapGrid: HTMLDivElement | null = null;
   let flowLintScopeTimelineInfo: HTMLDivElement | null = null;
   let flowLintScopeTimelineList: HTMLDivElement | null = null;
   let flowLintScopePreviewInfo: HTMLDivElement | null = null;
@@ -4066,6 +4070,65 @@ export function createPrototypeViewer(editor: Editor): {
     }
   }
 
+  function renderFlowLintScopeHeatmap() {
+    if (!flowLintScopeHeatmapInfo || !flowLintScopeHeatmapGrid) return;
+    flowLintScopeRunLog = pruneFlowLintScopeRunLog(flowLintScopeRunLog);
+    const now = Date.now();
+    const today = getDayBucket(now);
+    const dayMs = 86400000;
+    const buckets: Array<{ bucket: number; label: string; selection: number; page: number; flow: number; total: number }> = [];
+    for (let i = FLOW_LINT_SCOPE_HEATMAP_DAYS - 1; i >= 0; i -= 1) {
+      const bucket = today - i;
+      const at = bucket * dayMs;
+      buckets.push({
+        bucket,
+        label: new Date(at).toLocaleDateString(undefined, { month: "numeric", day: "numeric" }),
+        selection: 0,
+        page: 0,
+        flow: 0,
+        total: 0,
+      });
+    }
+    const byBucket = new Map<number, (typeof buckets)[number]>();
+    for (const row of buckets) byBucket.set(row.bucket, row);
+    const scopes: FlowLintRunScope[] = ["selection", "page", "flow"];
+    for (const scope of scopes) {
+      for (const ts of flowLintScopeRunLog[scope]) {
+        const target = byBucket.get(getDayBucket(ts));
+        if (!target) continue;
+        target[scope] += 1;
+        target.total += 1;
+      }
+    }
+    const maxTotal = buckets.reduce((acc, row) => Math.max(acc, row.total), 0);
+    const activeDays = buckets.filter((row) => row.total > 0).length;
+    const totalRuns = buckets.reduce((acc, row) => acc + row.total, 0);
+    flowLintScopeHeatmapInfo.textContent = `최근 ${FLOW_LINT_SCOPE_HEATMAP_DAYS}일 scope run heatmap · active ${activeDays}d / ${FLOW_LINT_SCOPE_HEATMAP_DAYS}d · total ${totalRuns} run`;
+    flowLintScopeHeatmapGrid.innerHTML = "";
+    for (const row of buckets) {
+      const cell = document.createElement("div");
+      const intensity = maxTotal > 0 ? row.total / maxTotal : 0;
+      const alpha = row.total > 0 ? (0.16 + intensity * 0.64) : 0.08;
+      const dominantScope: FlowLintRunScope | null = row.total <= 0
+        ? null
+        : (row.selection >= row.page && row.selection >= row.flow)
+          ? "selection"
+          : (row.page >= row.flow ? "page" : "flow");
+      const borderColor = dominantScope === "selection"
+        ? "rgba(56,189,248,0.65)"
+        : dominantScope === "page"
+          ? "rgba(167,139,250,0.65)"
+          : dominantScope === "flow"
+            ? "rgba(74,222,128,0.7)"
+            : "rgba(148,163,184,0.25)";
+      cell.style.cssText = `height:14px;border-radius:4px;border:1px solid ${borderColor};background:rgba(15,23,42,${alpha.toFixed(3)});display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:600;line-height:1;color:${row.total > 0 ? "#dbeafe" : "#64748b"};`;
+      const marker = dominantScope === "selection" ? "S" : dominantScope === "page" ? "P" : dominantScope === "flow" ? "F" : "·";
+      cell.textContent = row.total > 0 ? marker : "·";
+      cell.title = `${row.label} · total ${row.total} run · selection ${row.selection} / page ${row.page} / flow ${row.flow}`;
+      flowLintScopeHeatmapGrid.appendChild(cell);
+    }
+  }
+
   function collectFlowLintScopeStorageStats() {
     const flows = listPrototypeFlows();
     const validFlowIds = new Set<number>();
@@ -4098,10 +4161,11 @@ export function createPrototypeViewer(editor: Editor): {
     }
 
     flowLintScopeRunLog = pruneFlowLintScopeRunLog(flowLintScopeRunLog);
+    const run7dCutoff = Date.now() - FLOW_LINT_SCOPE_RUN_LOG_WINDOW_DAYS * 24 * 60 * 60 * 1000;
     const recentRunCounts: Record<FlowLintRunScope, number> = {
-      selection: flowLintScopeRunLog.selection.length,
-      page: flowLintScopeRunLog.page.length,
-      flow: flowLintScopeRunLog.flow.length,
+      selection: flowLintScopeRunLog.selection.filter((ts) => ts >= run7dCutoff).length,
+      page: flowLintScopeRunLog.page.filter((ts) => ts >= run7dCutoff).length,
+      flow: flowLintScopeRunLog.flow.filter((ts) => ts >= run7dCutoff).length,
     };
     const streaks: Record<FlowLintRunScope, FlowLintScopeRunStreak> = {
       selection: calcFlowLintScopeRunStreak(flowLintScopeRunLog.selection),
@@ -4181,6 +4245,7 @@ export function createPrototypeViewer(editor: Editor): {
     flowLintScopeStorageCleanupBtn.title = staleCount > 0
       ? `삭제된 flow/page 참조 ${staleCount}개 정리 (preset ${stats.stalePresetFlowOnlyKeys.length}+${stats.stalePresetScopedKeys.length}, slot ${stats.staleQuickSlotFlowIds.length})`
       : "정리할 stale key 없음";
+    renderFlowLintScopeHeatmap();
   }
 
   function ensureFlowLintScopeQuickSlotBucket(flowId: number): FlowLintScopeQuickSlotBucket {
@@ -6846,6 +6911,21 @@ export function createPrototypeViewer(editor: Editor): {
     };
     flowLintScopeStorageRow.appendChild(flowLintScopeStorageCleanupBtn);
     flowLintWrap.appendChild(flowLintScopeStorageRow);
+
+    const flowLintScopeHeatmapWrap = document.createElement("div");
+    flowLintScopeHeatmapWrap.style.cssText = "display:flex;flex-direction:column;gap:4px;padding:5px;border-radius:7px;border:1px solid rgba(56,189,248,0.3);background:rgba(8,47,73,0.22);";
+    const flowLintScopeHeatmapHead = document.createElement("div");
+    flowLintScopeHeatmapHead.style.cssText = "font-size:9px;font-weight:600;color:#bae6fd;text-transform:uppercase;letter-spacing:0.04em;";
+    flowLintScopeHeatmapHead.textContent = "Scope Heatmap Calendar";
+    flowLintScopeHeatmapWrap.appendChild(flowLintScopeHeatmapHead);
+    flowLintScopeHeatmapInfo = document.createElement("div");
+    flowLintScopeHeatmapInfo.style.cssText = "font-size:9px;line-height:1.35;color:#7dd3fc;";
+    flowLintScopeHeatmapInfo.textContent = "최근 scope 실행 패턴 계산 중…";
+    flowLintScopeHeatmapWrap.appendChild(flowLintScopeHeatmapInfo);
+    flowLintScopeHeatmapGrid = document.createElement("div");
+    flowLintScopeHeatmapGrid.style.cssText = `display:grid;grid-template-columns:repeat(${FLOW_LINT_SCOPE_HEATMAP_DAYS}, minmax(0,1fr));gap:3px;`;
+    flowLintScopeHeatmapWrap.appendChild(flowLintScopeHeatmapGrid);
+    flowLintWrap.appendChild(flowLintScopeHeatmapWrap);
 
     const flowLintScopeTimelineWrap = document.createElement("div");
     flowLintScopeTimelineWrap.style.cssText = "display:flex;flex-direction:column;gap:4px;padding:5px;border-radius:7px;border:1px solid rgba(167,139,250,0.32);background:rgba(76,29,149,0.16);";

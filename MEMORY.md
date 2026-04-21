@@ -1790,10 +1790,16 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Flow Lint Scope Heat History — slot/flow별 최근 실행 횟수·이슈수 미니 히트맵으로 자주 깨지는 scope 가시화 (임팩트 중하, 난이도 중)
 - Flow Lint Scope Slot Lock Audit Log — slot lock/unlock 및 overwrite 차단 이벤트를 최근 20건 로그로 노출 (임팩트 중하, 난이도 중)
 - Flow Lint Scope Preset Import/Export — flow별 scope preset/quick slot 설정 JSON 내보내기·가져오기 (임팩트 중, 난이도 중)
 - Flow Lint Scope Guardrail Defaults — 신규 flow 생성 시 팀 기본 scope policy(Selection/Page/Flow) 템플릿 자동 적용 (임팩트 중, 난이도 중상)
+
+## 완료된 기능 (추가 — Flow Lint Scope Heat History, 2026-04-21)
+- Flow Lint Scope 영역에 `Scope Heatmap Calendar` 미니 카드(14일)를 추가해 날짜별 실행 밀도와 주 scope(S/P/F)를 즉시 확인 가능
+- run log 보존 기간을 14일로 확장하고, 기존 usage chip의 `Run7d` 카운트는 별도 7일 cutoff로 유지해 지표 일관성 확보
+- heatmap 셀 tooltip에 날짜별 total run + Selection/Page/Flow 분해 카운트를 표시해 실행 패턴 진단 속도 개선
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Flow Lint Scope Auto-Apply on Flow Switch 안정화, 2026-04-21)
 - Flow 전환/Auto 토글 변경 시 실제 복원된 scope source(last run/preset/default)를 `flowLintInfo`에 즉시 표시
