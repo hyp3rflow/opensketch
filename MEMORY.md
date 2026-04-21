@@ -1792,6 +1792,9 @@
 ## 다음 할 것
 - Flow Lint Scope Auto-Run Guard — scope 변경 직후 auto-run 시 5초 유예 + 취소 버튼으로 오탐 실행 방지 (임팩트 중, 난이도 중)
 - Flow Lint Scope Heat History — slot/flow별 최근 실행 횟수·이슈수 미니 히트맵으로 자주 깨지는 scope 가시화 (임팩트 중하, 난이도 중)
+- Flow Lint Scope Slot Lock Audit Log — slot lock/unlock 및 overwrite 차단 이벤트를 최근 20건 로그로 노출 (임팩트 중하, 난이도 중)
+- Flow Lint Scope Preset Import/Export — flow별 scope preset/quick slot 설정 JSON 내보내기·가져오기 (임팩트 중, 난이도 중)
+- Flow Lint Scope Guardrail Defaults — 신규 flow 생성 시 팀 기본 scope policy(Selection/Page/Flow) 템플릿 자동 적용 (임팩트 중, 난이도 중상)
 
 ## 완료된 기능 (추가 — Flow Lint Scope Slot Rename & Lock, 2026-04-21)
 - Flow Lint Quick Slot(S1~S3)에 더블클릭 별칭 편집(label, 최대 20자)과 우클릭 lock 토글을 추가
