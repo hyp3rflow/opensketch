@@ -1804,7 +1804,8 @@
 
 ## 완료된 기능 (추가 — Flow Lint Scope Preset Quick Slots, 2026-04-21)
 - Flow Lint Scope에 flow별 Quick Slot 3개(S1~S3)를 추가해 Selection/Page/Flow preset을 one-click 전환 가능
-- Shift+클릭으로 현재 scope를 슬롯에 즉시 저장(overwrite)하고, active slot 배지(`S1~S3`)로 현재 프리셋을 명확히 표시
+- Shift+클릭(또는 Alt+Shift+1/2/3)으로 현재 scope를 슬롯에 즉시 저장(overwrite), Alt+1/2/3으로 슬롯 즉시 전환
+- 현재 활성 슬롯을 `Slot S1 · S` 형태의 배지로 상시 표시해 어떤 scope preset이 적용 중인지 즉시 확인 가능
 - slot 구성/active 상태를 localStorage(`opensketch-flow-lint-scope-quick-slots-v1`)에 저장해 Prototype Viewer 재진입 시 복원
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
 - specs 반영: `specs/FEATURES.md`
