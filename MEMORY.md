@@ -1790,11 +1790,17 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Flow Lint Scope Drift Alert — 마지막 실행 scope와 현재 scope가 다를 때 lint 실행 전 drift 경고 + one-click revert 제공 (임팩트 중, 난이도 중)
 - Flow Lint Scope Preset Cleanup — 삭제된 flow/page preset stale key 정리 툴과 usage 카운트 표시 (임팩트 중하, 난이도 중)
 - Flow Lint Scope Slot Rename & Lock — Quick Slot별 별칭(label) 편집 + lock 토글(실수 overwrite 방지) 지원 (임팩트 중, 난이도 중)
 - Flow Lint Scope Auto-Run Guard — scope 변경 직후 auto-run 시 5초 유예 + 취소 버튼으로 오탐 실행 방지 (임팩트 중, 난이도 중)
 - Flow Lint Scope Heat History — slot/flow별 최근 실행 횟수·이슈수 미니 히트맵으로 자주 깨지는 scope 가시화 (임팩트 중하, 난이도 중)
+
+## 완료된 기능 (추가 — Flow Lint Scope Drift Alert, 2026-04-21)
+- 마지막 lint 실행 scope와 현재 scope가 다르면 자동 실행 대신 `Scope drift` 경고 카드를 노출
+- 카드에서 `Revert`로 이전 scope 복원 또는 `Run current`로 현재 scope 유지 실행을 one-click으로 제공
+- Quick Slot 단축키/버튼으로 scope를 바꾼 경우에도 동일 drift guard를 적용해 의도치 않은 scope 실행을 방지
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Flow Lint Scope Preset Quick Slots, 2026-04-21)
 - Flow Lint Scope에 flow별 Quick Slot 3개(S1~S3)를 추가해 Selection/Page/Flow preset을 one-click 전환 가능

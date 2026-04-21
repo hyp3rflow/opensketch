@@ -812,6 +812,10 @@ export function createPrototypeViewer(editor: Editor): {
   let flowLintScopeSlotButtons: HTMLButtonElement[] = [];
   let flowLintScopePreviewInfo: HTMLDivElement | null = null;
   let flowLintScopePreviewList: HTMLDivElement | null = null;
+  let flowLintScopeDriftWrap: HTMLDivElement | null = null;
+  let flowLintScopeDriftInfo: HTMLDivElement | null = null;
+  let flowLintLastExecutedScopeByFlow: Record<string, FlowLintRunScope> = {};
+  let flowLintPendingScopeDrift: { flowId: number; previousScope: FlowLintRunScope; nextScope: FlowLintRunScope } | null = null;
   let flowLintSeveritySel: HTMLSelectElement | null = null;
   let flowLintExitPresetASel: HTMLSelectElement | null = null;
   let flowLintExitPresetBSel: HTMLSelectElement | null = null;
@@ -3677,6 +3681,18 @@ export function createPrototypeViewer(editor: Editor): {
     return "flow";
   }
 
+  function renderFlowLintScopeDriftAlert() {
+    if (!flowLintScopeDriftWrap || !flowLintScopeDriftInfo) return;
+    const drift = flowLintPendingScopeDrift;
+    if (!drift) {
+      flowLintScopeDriftWrap.style.display = "none";
+      flowLintScopeDriftInfo.textContent = "";
+      return;
+    }
+    flowLintScopeDriftWrap.style.display = "flex";
+    flowLintScopeDriftInfo.textContent = `Scope drift: last ${drift.previousScope} → current ${drift.nextScope}`;
+  }
+
   function applyFlowLintScopePresetForFlow(flowId: number | null | undefined, pageId?: number | null | undefined) {
     if (!flowLintScopeSel) return;
     const safeFlowId = Number.isFinite(Number(flowId || 0)) && Number(flowId || 0) > 0 ? Math.floor(Number(flowId || 0)) : 0;
@@ -3686,7 +3702,9 @@ export function createPrototypeViewer(editor: Editor): {
       ? resolveFlowLintScope(flowLintScopePresets[scopedKey] || flowLintScopePresets[flowKey])
       : "flow";
     flowLintScopeSel.value = nextScope;
+    flowLintPendingScopeDrift = null;
     syncFlowLintScopeQuickSlotWithCurrentScope();
+    renderFlowLintScopeDriftAlert();
   }
 
   function saveFlowLintScopePresetForCurrentFlow() {
@@ -3724,14 +3742,19 @@ export function createPrototypeViewer(editor: Editor): {
     const bucket = hasFlow ? ensureFlowLintScopeQuickSlotBucket(flowId) : null;
     const active = bucket?.activeSlot ?? -1;
     if (flowLintScopeSlotBadge) {
-      flowLintScopeSlotBadge.textContent = active >= 0 ? `S${active + 1}` : "S-";
+      const activeScope = active >= 0 && bucket ? bucket.slots[active] : null;
+      const activeScopeLabel = activeScope ? activeScope[0].toUpperCase() : "-";
+      flowLintScopeSlotBadge.textContent = active >= 0 ? `S${active + 1}·${activeScopeLabel}` : "S-";
+      flowLintScopeSlotBadge.title = active >= 0
+        ? `현재 quick slot: S${active + 1} (${activeScope})`
+        : "현재 scope와 매칭되는 quick slot 없음";
       flowLintScopeSlotBadge.style.color = active >= 0 ? "#93c5fd" : "#94a3b8";
     }
     for (let idx = 0; idx < flowLintScopeSlotButtons.length; idx += 1) {
       const btn = flowLintScopeSlotButtons[idx];
       const scope = bucket?.slots[idx] || makeDefaultFlowLintScopeQuickSlots()[idx];
       btn.textContent = `S${idx + 1} ${scope[0].toUpperCase()}`;
-      btn.title = `클릭: ${scope}로 전환 · Shift+클릭: 현재 scope 저장`;
+      btn.title = `클릭: ${scope}로 전환 · Shift+클릭: 현재 scope 저장 · Alt+${idx + 1}/Alt+Shift+${idx + 1}`;
       btn.disabled = !hasFlow;
       btn.style.borderColor = idx === active ? "rgba(96,165,250,0.9)" : "rgba(148,163,184,0.35)";
       btn.style.background = idx === active ? "rgba(59,130,246,0.2)" : "#0f172a";
@@ -4180,6 +4203,14 @@ export function createPrototypeViewer(editor: Editor): {
 
     const lintScope = resolveFlowLintScope(flowLintScopeSel?.value);
     if (flowLintScopeSel) flowLintScopeSel.value = lintScope;
+    const lintFlowId = Number(flowStartFlowSel?.value || 0);
+    if (lintFlowId > 0) {
+      flowLintLastExecutedScopeByFlow[String(Math.floor(lintFlowId))] = lintScope;
+      if (flowLintPendingScopeDrift && flowLintPendingScopeDrift.flowId === Math.floor(lintFlowId) && flowLintPendingScopeDrift.nextScope === lintScope) {
+        flowLintPendingScopeDrift = null;
+      }
+      renderFlowLintScopeDriftAlert();
+    }
     const activePageId = Number(selectedFlow?.page_id || editor.engine.get_active_page_id?.() || 0);
     const pageFrameIds = new Set<number>(listFramesForPage(activePageId).map((row) => Number(row.id)).filter((id) => Number.isFinite(id) && id > 0));
     const framePageById = new Map<number, number>();
@@ -6155,11 +6186,21 @@ export function createPrototypeViewer(editor: Editor): {
     flowLintScopeSel.onchange = () => {
       saveFlowLintScopePresetForCurrentFlow();
       syncFlowLintScopeQuickSlotWithCurrentScope();
+      const flowId = Number(flowStartFlowSel?.value || 0);
+      const currentScope = resolveFlowLintScope(flowLintScopeSel?.value || "flow");
+      const prevScope = flowLintLastExecutedScopeByFlow[String(Math.floor(flowId || 0))];
+      if (flowId > 0 && prevScope && prevScope !== currentScope) {
+        flowLintPendingScopeDrift = { flowId: Math.floor(flowId), previousScope: prevScope, nextScope: currentScope };
+        renderFlowLintScopeDriftAlert();
+        return;
+      }
+      flowLintPendingScopeDrift = null;
+      renderFlowLintScopeDriftAlert();
       renderFlowLint();
     };
     flowLintScopeRow.appendChild(flowLintScopeSel);
     flowLintScopeSlotBadge = document.createElement("span");
-    flowLintScopeSlotBadge.style.cssText = "font-size:9px;color:#94a3b8;border:1px solid rgba(148,163,184,0.35);border-radius:999px;padding:1px 5px;min-width:24px;text-align:center;";
+    flowLintScopeSlotBadge.style.cssText = "font-size:9px;color:#94a3b8;border:1px solid rgba(148,163,184,0.35);border-radius:999px;padding:1px 5px;min-width:44px;text-align:center;";
     flowLintScopeSlotBadge.textContent = "S-";
     flowLintScopeRow.appendChild(flowLintScopeSlotBadge);
     flowLintWrap.appendChild(flowLintScopeRow);
@@ -6177,6 +6218,40 @@ export function createPrototypeViewer(editor: Editor): {
       flowLintScopeSlotRow.appendChild(slotBtn);
     }
     flowLintWrap.appendChild(flowLintScopeSlotRow);
+
+    flowLintScopeDriftWrap = document.createElement("div");
+    flowLintScopeDriftWrap.style.cssText = "display:none;flex-direction:column;gap:4px;padding:5px;border-radius:7px;border:1px solid rgba(251,191,36,0.35);background:rgba(120,53,15,0.25);";
+    flowLintScopeDriftInfo = document.createElement("div");
+    flowLintScopeDriftInfo.style.cssText = "font-size:9px;line-height:1.35;color:#fcd34d;";
+    flowLintScopeDriftWrap.appendChild(flowLintScopeDriftInfo);
+    const flowLintScopeDriftBtnRow = document.createElement("div");
+    flowLintScopeDriftBtnRow.style.cssText = "display:flex;gap:4px;";
+    const flowLintScopeDriftRevertBtn = document.createElement("button");
+    flowLintScopeDriftRevertBtn.className = "prop-btn";
+    flowLintScopeDriftRevertBtn.textContent = "Revert";
+    flowLintScopeDriftRevertBtn.style.cssText = "flex:1;font-size:9px;padding:3px 5px;";
+    flowLintScopeDriftRevertBtn.onclick = () => {
+      if (!flowLintScopeSel || !flowLintPendingScopeDrift) return;
+      flowLintScopeSel.value = flowLintPendingScopeDrift.previousScope;
+      saveFlowLintScopePresetForCurrentFlow();
+      syncFlowLintScopeQuickSlotWithCurrentScope();
+      flowLintPendingScopeDrift = null;
+      renderFlowLintScopeDriftAlert();
+      renderFlowLint();
+    };
+    flowLintScopeDriftBtnRow.appendChild(flowLintScopeDriftRevertBtn);
+    const flowLintScopeDriftRunBtn = document.createElement("button");
+    flowLintScopeDriftRunBtn.className = "prop-btn";
+    flowLintScopeDriftRunBtn.textContent = "Run current";
+    flowLintScopeDriftRunBtn.style.cssText = "flex:1;font-size:9px;padding:3px 5px;";
+    flowLintScopeDriftRunBtn.onclick = () => {
+      flowLintPendingScopeDrift = null;
+      renderFlowLintScopeDriftAlert();
+      renderFlowLint();
+    };
+    flowLintScopeDriftBtnRow.appendChild(flowLintScopeDriftRunBtn);
+    flowLintScopeDriftWrap.appendChild(flowLintScopeDriftBtnRow);
+    flowLintWrap.appendChild(flowLintScopeDriftWrap);
 
     const flowLintScopePreviewWrap = document.createElement("div");
     flowLintScopePreviewWrap.style.cssText = "display:flex;flex-direction:column;gap:4px;padding:5px;border-radius:7px;border:1px solid rgba(125,211,252,0.28);background:rgba(12,74,110,0.14);";
@@ -7242,6 +7317,14 @@ export function createPrototypeViewer(editor: Editor): {
     interactiveVisualState.clear();
   }
 
+  function isEditableEventTarget(target: EventTarget | null): boolean {
+    const el = target as HTMLElement | null;
+    if (!el) return false;
+    const tag = (el.tagName || "").toLowerCase();
+    if (tag === "input" || tag === "textarea" || tag === "select") return true;
+    return !!el.closest("input, textarea, select, [contenteditable='true']");
+  }
+
   function onKeyDown(e: KeyboardEvent) {
     if (transitioning) return;
     if (e.key === "Escape") {
@@ -7264,6 +7347,17 @@ export function createPrototypeViewer(editor: Editor): {
       e.preventDefault();
       jumpFlowLintIssue(-1);
       if (recorderEnabled) recordEvent({ kind: "input", frameId: currentFrameId, inputType: "key", key: "Shift+P" });
+      return;
+    }
+
+    const slotIdx = Number(e.key) - 1;
+    if (slotIdx >= 0 && slotIdx <= 2 && e.altKey && !e.metaKey && !e.ctrlKey && !isEditableEventTarget(e.target)) {
+      e.preventDefault();
+      applyFlowLintScopeQuickSlot(slotIdx, e.shiftKey);
+      if (recorderEnabled) {
+        const label = e.shiftKey ? `Alt+Shift+${slotIdx + 1}` : `Alt+${slotIdx + 1}`;
+        recordEvent({ kind: "input", frameId: currentFrameId, inputType: "key", key: label });
+      }
       return;
     }
 
