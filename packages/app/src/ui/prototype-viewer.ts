@@ -33,6 +33,8 @@ const PROTOTYPE_FLOW_LINT_SCOPE_PRESETS_KEY = "opensketch-flow-lint-scope-preset
 const PROTOTYPE_FLOW_LINT_SCOPE_QUICK_SLOTS_KEY = "opensketch-flow-lint-scope-quick-slots-v1";
 const PROTOTYPE_FLOW_LINT_SCOPE_RUN_LOG_KEY = "opensketch-flow-lint-scope-run-log-v1";
 const PROTOTYPE_FLOW_LINT_LAST_FLOW_KEY = "opensketch-flow-lint-last-flow-id-v1";
+const PROTOTYPE_FLOW_LINT_LAST_EXEC_SCOPE_KEY = "opensketch-flow-lint-last-executed-scope-v1";
+const PROTOTYPE_FLOW_LINT_SCOPE_AUTO_APPLY_SWITCH_KEY = "opensketch-flow-lint-scope-auto-apply-on-switch-v1";
 const PROTOTYPE_OVERLAY_EXIT_SUGGEST_PRESET_A_KEY = "opensketch-overlay-exit-suggest-preset-a-v1";
 const PROTOTYPE_OVERLAY_EXIT_SUGGEST_PRESET_B_KEY = "opensketch-overlay-exit-suggest-preset-b-v1";
 const FLOW_LINT_RISK_TREND_MAX_RUNS = 12;
@@ -626,6 +628,46 @@ function saveFlowLintLastFlowId(flowId: number) {
   } catch {}
 }
 
+function loadFlowLintLastExecutedScopeMap(): Record<string, FlowLintRunScope> {
+  try {
+    const raw = localStorage.getItem(PROTOTYPE_FLOW_LINT_LAST_EXEC_SCOPE_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    if (!parsed || typeof parsed !== "object") return {};
+    const out: Record<string, FlowLintRunScope> = {};
+    for (const [rawFlowId, rawScope] of Object.entries(parsed as Record<string, unknown>)) {
+      const flowId = Number(rawFlowId);
+      if (!Number.isFinite(flowId) || flowId <= 0) continue;
+      out[String(Math.floor(flowId))] = resolveFlowLintScope(String(rawScope || ""));
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+function saveFlowLintLastExecutedScopeMap(map: Record<string, FlowLintRunScope>) {
+  try {
+    localStorage.setItem(PROTOTYPE_FLOW_LINT_LAST_EXEC_SCOPE_KEY, JSON.stringify(map));
+  } catch {}
+}
+
+function loadFlowLintScopeAutoApplyOnSwitch(): boolean {
+  try {
+    const raw = localStorage.getItem(PROTOTYPE_FLOW_LINT_SCOPE_AUTO_APPLY_SWITCH_KEY);
+    if (raw == null) return true;
+    const normalized = String(raw).trim().toLowerCase();
+    return !(normalized === "0" || normalized === "false" || normalized === "off");
+  } catch {
+    return true;
+  }
+}
+
+function saveFlowLintScopeAutoApplyOnSwitch(enabled: boolean) {
+  try {
+    localStorage.setItem(PROTOTYPE_FLOW_LINT_SCOPE_AUTO_APPLY_SWITCH_KEY, enabled ? "1" : "0");
+  } catch {}
+}
+
 function parseFlowLintOwnerTagsInput(raw: string): FlowLintOwnerTagMap {
   const out: FlowLintOwnerTagMap = {};
   const chunks = String(raw || "").split(/[\n,]+/);
@@ -868,6 +910,7 @@ export function createPrototypeViewer(editor: Editor): {
   let flowLintWrap: HTMLDivElement | null = null;
   let flowLintPresetSel: HTMLSelectElement | null = null;
   let flowLintScopeSel: HTMLSelectElement | null = null;
+  let flowLintScopeAutoApplyCheck: HTMLInputElement | null = null;
   let flowLintScopeSlotBadge: HTMLSpanElement | null = null;
   let flowLintScopeSlotButtons: HTMLButtonElement[] = [];
   let flowLintScopeStorageInfo: HTMLDivElement | null = null;
@@ -877,9 +920,12 @@ export function createPrototypeViewer(editor: Editor): {
   let flowLintScopePreviewList: HTMLDivElement | null = null;
   let flowLintScopeDriftWrap: HTMLDivElement | null = null;
   let flowLintScopeDriftInfo: HTMLDivElement | null = null;
-  let flowLintLastExecutedScopeByFlow: Record<string, FlowLintRunScope> = {};
+  let flowLintLastExecutedScopeByFlow: Record<string, FlowLintRunScope> = loadFlowLintLastExecutedScopeMap();
+  let flowLintScopeAutoApplyOnFlowSwitch = loadFlowLintScopeAutoApplyOnSwitch();
   let flowLintPendingScopeDrift: { flowId: number; previousScope: FlowLintRunScope; nextScope: FlowLintRunScope } | null = null;
   let flowLintScopeDriftRunOverrideFlowId: number | null = null;
+  let flowLintScopeAutoRunGuardTimer: number | null = null;
+  let flowLintScopeAutoRunCancelBtn: HTMLButtonElement | null = null;
   let flowLintSeveritySel: HTMLSelectElement | null = null;
   let flowLintExitPresetASel: HTMLSelectElement | null = null;
   let flowLintExitPresetBSel: HTMLSelectElement | null = null;
@@ -3782,14 +3828,38 @@ export function createPrototypeViewer(editor: Editor): {
     flowLintScopeDriftInfo.textContent = `Scope drift: last ${drift.previousScope} → current ${drift.nextScope} (lint 실행 전 확인 필요)`;
   }
 
-  function applyFlowLintScopePresetForFlow(flowId: number | null | undefined, pageId?: number | null | undefined) {
+  function clearFlowLintScopeAutoRunGuard(message?: string) {
+    if (flowLintScopeAutoRunGuardTimer != null) {
+      window.clearTimeout(flowLintScopeAutoRunGuardTimer);
+      flowLintScopeAutoRunGuardTimer = null;
+    }
+    if (flowLintScopeAutoRunCancelBtn) flowLintScopeAutoRunCancelBtn.style.display = "none";
+    if (message && flowLintInfo) flowLintInfo.textContent = message;
+  }
+
+  function scheduleFlowLintScopeAutoRunGuard() {
+    clearFlowLintScopeAutoRunGuard();
+    if (flowLintScopeAutoRunCancelBtn) flowLintScopeAutoRunCancelBtn.style.display = "inline-flex";
+    if (flowLintInfo) flowLintInfo.textContent = "Scope 변경됨 · lint auto-run 5초 대기 중 (Cancel 가능)";
+    flowLintScopeAutoRunGuardTimer = window.setTimeout(() => {
+      flowLintScopeAutoRunGuardTimer = null;
+      if (flowLintScopeAutoRunCancelBtn) flowLintScopeAutoRunCancelBtn.style.display = "none";
+      renderFlowLint();
+    }, 5000);
+  }
+
+  function applyFlowLintScopePresetForFlow(flowId: number | null | undefined, pageId?: number | null | undefined, preferLastExecuted = false) {
     if (!flowLintScopeSel) return;
     const safeFlowId = Number.isFinite(Number(flowId || 0)) && Number(flowId || 0) > 0 ? Math.floor(Number(flowId || 0)) : 0;
     const scopedKey = makeFlowLintScopePresetKey(safeFlowId, pageId);
     const flowKey = makeFlowLintScopePresetKey(safeFlowId);
-    const nextScope = safeFlowId > 0
+    const lastExecutedScope = safeFlowId > 0 ? flowLintLastExecutedScopeByFlow[String(safeFlowId)] : null;
+    const presetScope = safeFlowId > 0
       ? resolveFlowLintScope(flowLintScopePresets[scopedKey] || flowLintScopePresets[flowKey])
       : "flow";
+    const nextScope = preferLastExecuted && lastExecutedScope
+      ? lastExecutedScope
+      : presetScope;
     flowLintScopeSel.value = nextScope;
     flowLintPendingScopeDrift = null;
     flowLintScopeDriftRunOverrideFlowId = null;
@@ -3902,7 +3972,7 @@ export function createPrototypeViewer(editor: Editor): {
     if (!flowLintScopeStorageInfo || !flowLintScopeStorageCleanupBtn) return;
     const stats = collectFlowLintScopeStorageStats();
     const staleCount = stats.stalePresetKeys.length + stats.staleQuickSlotFlowIds.length;
-    flowLintScopeStorageInfo.textContent = `Preset ${stats.presetCount} · Slot buckets ${stats.quickSlotBucketCount} · Usage P[S/P/F] ${stats.presetUsage.selection}/${stats.presetUsage.page}/${stats.presetUsage.flow} · Q[S/P/F] ${stats.slotUsage.selection}/${stats.slotUsage.page}/${stats.slotUsage.flow} · Run7d[S/P/F] ${stats.recentRunCounts.selection}/${stats.recentRunCounts.page}/${stats.recentRunCounts.flow} · Stale ${staleCount}`;
+    flowLintScopeStorageInfo.textContent = `Preset ${stats.presetCount} · Slot buckets ${stats.quickSlotBucketCount} · Usage P[S/P/F] ${stats.presetUsage.selection}/${stats.presetUsage.page}/${stats.presetUsage.flow} · Q[S/P/F] ${stats.slotUsage.selection}/${stats.slotUsage.page}/${stats.slotUsage.flow} · Run7d[S/P/F] ${stats.recentRunCounts.selection}/${stats.recentRunCounts.page}/${stats.recentRunCounts.flow} · Auto ${flowLintScopeAutoApplyOnFlowSwitch ? "ON" : "OFF"} · Stale ${staleCount}`;
     const scopes: FlowLintRunScope[] = ["selection", "page", "flow"];
     for (let idx = 0; idx < flowLintScopeUsageChipButtons.length; idx += 1) {
       const btn = flowLintScopeUsageChipButtons[idx];
@@ -3942,6 +4012,7 @@ export function createPrototypeViewer(editor: Editor): {
     const hasFlow = Number.isFinite(flowId) && flowId > 0;
     const bucket = hasFlow ? ensureFlowLintScopeQuickSlotBucket(flowId) : null;
     const active = bucket?.activeSlot ?? -1;
+    if (flowLintScopeAutoApplyCheck) flowLintScopeAutoApplyCheck.checked = flowLintScopeAutoApplyOnFlowSwitch;
     if (flowLintScopeSlotBadge) {
       const activeScope = active >= 0 && bucket ? bucket.slots[active] : null;
       const activeScopeLabel = activeScope ? activeScope[0].toUpperCase() : "-";
@@ -4432,11 +4503,13 @@ export function createPrototypeViewer(editor: Editor): {
       for (const to of next) if (!visited.has(to)) stack.push(to);
     }
 
+    clearFlowLintScopeAutoRunGuard();
     const lintScope = resolveFlowLintScope(flowLintScopeSel?.value);
     if (flowLintScopeSel) flowLintScopeSel.value = lintScope;
     const lintFlowId = Number(flowStartFlowSel?.value || 0);
     if (lintFlowId > 0) {
       flowLintLastExecutedScopeByFlow[String(Math.floor(lintFlowId))] = lintScope;
+      saveFlowLintLastExecutedScopeMap(flowLintLastExecutedScopeByFlow);
       if (flowLintPendingScopeDrift && flowLintPendingScopeDrift.flowId === Math.floor(lintFlowId) && flowLintPendingScopeDrift.nextScope === lintScope) {
         flowLintPendingScopeDrift = null;
       }
@@ -6389,7 +6462,8 @@ export function createPrototypeViewer(editor: Editor): {
       const flow = listPrototypeFlows().find((row) => row.id === flowId) || null;
       saveFlowLintLastFlowId(flowId);
       renderFlowStartManager();
-      applyFlowLintScopePresetForFlow(flowId, flow?.page_id);
+      clearFlowLintScopeAutoRunGuard();
+      applyFlowLintScopePresetForFlow(flowId, flow?.page_id, flowLintScopeAutoApplyOnFlowSwitch);
       renderFlowLintScopeQuickSlots();
       renderFlowLint();
     });
@@ -6423,14 +6497,29 @@ export function createPrototypeViewer(editor: Editor): {
       saveFlowLintScopePresetForCurrentFlow();
       syncFlowLintScopeQuickSlotWithCurrentScope();
       if (shouldBlockFlowLintRunByScopeDrift()) {
+        clearFlowLintScopeAutoRunGuard();
         renderFlowLintScopeDriftAlert();
         return;
       }
       flowLintPendingScopeDrift = null;
       renderFlowLintScopeDriftAlert();
-      renderFlowLint();
+      scheduleFlowLintScopeAutoRunGuard();
     };
     flowLintScopeRow.appendChild(flowLintScopeSel);
+    const flowLintScopeAutoApplyLabel = document.createElement("label");
+    flowLintScopeAutoApplyLabel.style.cssText = "display:flex;align-items:center;gap:3px;font-size:9px;color:#bfdbfe;white-space:nowrap;";
+    flowLintScopeAutoApplyCheck = document.createElement("input");
+    flowLintScopeAutoApplyCheck.type = "checkbox";
+    flowLintScopeAutoApplyCheck.checked = flowLintScopeAutoApplyOnFlowSwitch;
+    flowLintScopeAutoApplyCheck.title = "Flow 전환 시 마지막 lint 실행 scope를 우선 복원";
+    flowLintScopeAutoApplyCheck.onchange = () => {
+      flowLintScopeAutoApplyOnFlowSwitch = Boolean(flowLintScopeAutoApplyCheck?.checked);
+      saveFlowLintScopeAutoApplyOnSwitch(flowLintScopeAutoApplyOnFlowSwitch);
+      renderFlowLintScopeQuickSlots();
+    };
+    flowLintScopeAutoApplyLabel.appendChild(flowLintScopeAutoApplyCheck);
+    flowLintScopeAutoApplyLabel.appendChild(document.createTextNode("Auto"));
+    flowLintScopeRow.appendChild(flowLintScopeAutoApplyLabel);
     flowLintScopeSlotBadge = document.createElement("span");
     flowLintScopeSlotBadge.style.cssText = "font-size:9px;color:#94a3b8;border:1px solid rgba(148,163,184,0.35);border-radius:999px;padding:1px 6px;min-width:72px;text-align:center;background:rgba(15,23,42,0.5);cursor:pointer;user-select:none;";
     flowLintScopeSlotBadge.textContent = "Slot -";
@@ -6486,6 +6575,13 @@ export function createPrototypeViewer(editor: Editor): {
       flowLintScopeSlotRow.appendChild(slotBtn);
     }
     flowLintWrap.appendChild(flowLintScopeSlotRow);
+
+    flowLintScopeAutoRunCancelBtn = document.createElement("button");
+    flowLintScopeAutoRunCancelBtn.className = "prop-btn";
+    flowLintScopeAutoRunCancelBtn.textContent = "Cancel pending auto-run";
+    flowLintScopeAutoRunCancelBtn.style.cssText = "font-size:9px;padding:3px 6px;display:none;border:1px solid rgba(248,113,113,0.45);color:#fecaca;background:rgba(127,29,29,0.35);";
+    flowLintScopeAutoRunCancelBtn.onclick = () => clearFlowLintScopeAutoRunGuard("Scope auto-run 취소됨");
+    flowLintWrap.appendChild(flowLintScopeAutoRunCancelBtn);
 
     const flowLintScopeStorageRow = document.createElement("div");
     flowLintScopeStorageRow.style.cssText = "display:flex;gap:4px;align-items:center;";
@@ -6745,7 +6841,8 @@ export function createPrototypeViewer(editor: Editor): {
     flowLintDiffCaptureBtn.style.cssText = "flex:1;font-size:9px;padding:2px 6px;";
     flowLintDiffCaptureBtn.onclick = () => {
       if (!flowLintSnapshot) return;
-      const lintScope = resolveFlowLintScope(flowLintScopeSel?.value);
+      clearFlowLintScopeAutoRunGuard();
+    const lintScope = resolveFlowLintScope(flowLintScopeSel?.value);
       const presetLabel = `${resolveOverlayGuardPreset(flowLintPresetSel?.value).label}/${resolveFlowLintSeverityProfile(flowLintSeveritySel?.value).label}`;
       const at = Date.now();
       flowLintDiffBaseline = {
@@ -6896,7 +6993,8 @@ export function createPrototypeViewer(editor: Editor): {
     flowLintDigestSlackBtn.style.cssText = "flex:1;font-size:9px;padding:2px 6px;";
     flowLintDigestSlackBtn.textContent = "Copy Digest Slack";
     flowLintDigestSlackBtn.onclick = async () => {
-      const lintScope = resolveFlowLintScope(flowLintScopeSel?.value);
+      clearFlowLintScopeAutoRunGuard();
+    const lintScope = resolveFlowLintScope(flowLintScopeSel?.value);
       const presetLabel = `${resolveOverlayGuardPreset(flowLintPresetSel?.value).label}/${resolveFlowLintSeverityProfile(flowLintSeveritySel?.value).label}`;
       const payload = buildFlowLintOwnerDigest("slack", lintScope, presetLabel);
       try {
@@ -6916,7 +7014,8 @@ export function createPrototypeViewer(editor: Editor): {
     flowLintDigestDiscordBtn.style.cssText = "flex:1;font-size:9px;padding:2px 6px;";
     flowLintDigestDiscordBtn.textContent = "Copy Digest Discord";
     flowLintDigestDiscordBtn.onclick = async () => {
-      const lintScope = resolveFlowLintScope(flowLintScopeSel?.value);
+      clearFlowLintScopeAutoRunGuard();
+    const lintScope = resolveFlowLintScope(flowLintScopeSel?.value);
       const presetLabel = `${resolveOverlayGuardPreset(flowLintPresetSel?.value).label}/${resolveFlowLintSeverityProfile(flowLintSeveritySel?.value).label}`;
       const payload = buildFlowLintOwnerDigest("discord", lintScope, presetLabel);
       try {
@@ -6941,7 +7040,8 @@ export function createPrototypeViewer(editor: Editor): {
     flowLintExportJsonBtn.textContent = "Copy CI JSON";
     flowLintExportJsonBtn.style.cssText = "flex:1;font-size:9px;padding:2px 6px;";
     flowLintExportJsonBtn.onclick = async () => {
-      const lintScope = resolveFlowLintScope(flowLintScopeSel?.value);
+      clearFlowLintScopeAutoRunGuard();
+    const lintScope = resolveFlowLintScope(flowLintScopeSel?.value);
       const presetLabel = `${resolveOverlayGuardPreset(flowLintPresetSel?.value).label}/${resolveFlowLintSeverityProfile(flowLintSeveritySel?.value).label}`;
       const payload = buildFlowLintExportPayload(lintScope, presetLabel);
       try {
@@ -6960,7 +7060,8 @@ export function createPrototypeViewer(editor: Editor): {
     flowLintExportMdBtn.textContent = "Copy CI MD";
     flowLintExportMdBtn.style.cssText = "flex:1;font-size:9px;padding:2px 6px;";
     flowLintExportMdBtn.onclick = async () => {
-      const lintScope = resolveFlowLintScope(flowLintScopeSel?.value);
+      clearFlowLintScopeAutoRunGuard();
+    const lintScope = resolveFlowLintScope(flowLintScopeSel?.value);
       const presetLabel = `${resolveOverlayGuardPreset(flowLintPresetSel?.value).label}/${resolveFlowLintSeverityProfile(flowLintSeveritySel?.value).label}`;
       const payload = buildFlowLintExportPayload(lintScope, presetLabel);
       try {
@@ -7523,7 +7624,7 @@ export function createPrototypeViewer(editor: Editor): {
     {
       const flowId = Number(flowStartFlowSel?.value || 0);
       const flow = listPrototypeFlows().find((row) => row.id === flowId) || null;
-      applyFlowLintScopePresetForFlow(flowId, flow?.page_id);
+      applyFlowLintScopePresetForFlow(flowId, flow?.page_id, flowLintScopeAutoApplyOnFlowSwitch);
     }
     renderTimelineScrubber();
     lastTransitionPreview = null;
