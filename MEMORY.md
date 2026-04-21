@@ -1790,9 +1790,15 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Flow Lint Scope Slot Rename & Lock — Quick Slot별 별칭(label) 편집 + lock 토글(실수 overwrite 방지) 지원 (임팩트 중, 난이도 중)
 - Flow Lint Scope Auto-Run Guard — scope 변경 직후 auto-run 시 5초 유예 + 취소 버튼으로 오탐 실행 방지 (임팩트 중, 난이도 중)
 - Flow Lint Scope Heat History — slot/flow별 최근 실행 횟수·이슈수 미니 히트맵으로 자주 깨지는 scope 가시화 (임팩트 중하, 난이도 중)
+
+## 완료된 기능 (추가 — Flow Lint Scope Slot Rename & Lock, 2026-04-21)
+- Flow Lint Quick Slot(S1~S3)에 더블클릭 별칭 편집(label, 최대 20자)과 우클릭 lock 토글을 추가
+- lock된 슬롯은 Shift+클릭 overwrite를 차단하고 안내 메시지를 노출해 실수 저장을 방지
+- 슬롯 상태를 `labels[]`, `locks[]`로 localStorage에 함께 저장/복원해 flow별 설정 지속성 유지
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Flow Lint Scope Preset Cleanup, 2026-04-21)
 - Flow Lint Scope 영역에 preset/quick slot usage 카운트(Preset·Quick Slot별 S/P/F 분포) + stale key 수를 노출

@@ -462,7 +462,12 @@ function saveFlowLintOwnerSlaSortMode(mode: FlowLintOwnerSlaSortMode) {
 }
 
 type FlowLintScopePresetMap = Record<string, FlowLintRunScope>;
-type FlowLintScopeQuickSlotBucket = { slots: [FlowLintRunScope, FlowLintRunScope, FlowLintRunScope]; activeSlot: number };
+type FlowLintScopeQuickSlotBucket = {
+  slots: [FlowLintRunScope, FlowLintRunScope, FlowLintRunScope];
+  labels: [string, string, string];
+  locks: [boolean, boolean, boolean];
+  activeSlot: number;
+};
 type FlowLintScopeQuickSlotMap = Record<string, FlowLintScopeQuickSlotBucket>;
 
 function makeFlowLintScopePresetKey(flowId: number, pageId?: number | null): string {
@@ -512,6 +517,10 @@ function makeDefaultFlowLintScopeQuickSlots(): [FlowLintRunScope, FlowLintRunSco
   return ["selection", "page", "flow"];
 }
 
+function makeDefaultFlowLintScopeQuickSlotLabels(): [string, string, string] {
+  return ["S1", "S2", "S3"];
+}
+
 function sanitizeFlowLintScopeQuickSlotBucket(raw: unknown): FlowLintScopeQuickSlotBucket {
   const input = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
   const rawSlots = Array.isArray(input.slots) ? input.slots : [];
@@ -520,9 +529,19 @@ function sanitizeFlowLintScopeQuickSlotBucket(raw: unknown): FlowLintScopeQuickS
     resolveFlowLintScope(String(rawSlots[1] || "page")),
     resolveFlowLintScope(String(rawSlots[2] || "flow")),
   ];
+  const rawLabels = Array.isArray(input.labels) ? input.labels : [];
+  const baseLabels = makeDefaultFlowLintScopeQuickSlotLabels();
+  const labels: [string, string, string] = [0, 1, 2].map((idx) => {
+    const next = String(rawLabels[idx] || baseLabels[idx]).trim().slice(0, 20);
+    return next || baseLabels[idx];
+  }) as [string, string, string];
+  const rawLocks = Array.isArray(input.locks) ? input.locks : [];
+  const locks: [boolean, boolean, boolean] = [0, 1, 2].map((idx) => Boolean(rawLocks[idx])) as [boolean, boolean, boolean];
   const activeSlot = Number(input.activeSlot);
   return {
     slots,
+    labels,
+    locks,
     activeSlot: Number.isFinite(activeSlot) && activeSlot >= 0 && activeSlot < 3 ? Math.floor(activeSlot) : -1,
   };
 }
@@ -3768,6 +3787,8 @@ export function createPrototypeViewer(editor: Editor): {
     }
 
     const stalePresetKeys = Object.keys(flowLintScopePresets).filter((key) => !validFlowScopeKeys.has(key));
+    const stalePresetFlowOnlyKeys = stalePresetKeys.filter((key) => !key.includes("@"));
+    const stalePresetScopedKeys = stalePresetKeys.filter((key) => key.includes("@"));
     const staleQuickSlotFlowIds = Object.keys(flowLintScopeQuickSlots)
       .map((key) => Number(key))
       .filter((flowId) => !Number.isFinite(flowId) || flowId <= 0 || !validFlowIds.has(Math.floor(flowId)));
@@ -3785,6 +3806,8 @@ export function createPrototypeViewer(editor: Editor): {
 
     return {
       stalePresetKeys,
+      stalePresetFlowOnlyKeys,
+      stalePresetScopedKeys,
       staleQuickSlotFlowIds,
       presetUsage,
       slotUsage,
@@ -3795,7 +3818,12 @@ export function createPrototypeViewer(editor: Editor): {
 
   function cleanupFlowLintScopeStorage() {
     const stats = collectFlowLintScopeStorageStats();
-    if (stats.stalePresetKeys.length === 0 && stats.staleQuickSlotFlowIds.length === 0) return 0;
+    if (stats.stalePresetKeys.length === 0 && stats.staleQuickSlotFlowIds.length === 0) {
+      return {
+        removedPresetCount: 0,
+        removedQuickSlotCount: 0,
+      };
+    }
 
     if (stats.stalePresetKeys.length > 0) {
       const nextPresets: FlowLintScopePresetMap = { ...flowLintScopePresets };
@@ -3811,7 +3839,12 @@ export function createPrototypeViewer(editor: Editor): {
       saveFlowLintScopeQuickSlots(flowLintScopeQuickSlots);
     }
 
-    return stats.stalePresetKeys.length + stats.staleQuickSlotFlowIds.length;
+    return {
+      removedPresetCount: stats.stalePresetKeys.length,
+      removedPresetFlowOnlyCount: stats.stalePresetFlowOnlyKeys.length,
+      removedPresetScopedCount: stats.stalePresetScopedKeys.length,
+      removedQuickSlotCount: stats.staleQuickSlotFlowIds.length,
+    };
   }
 
   function renderFlowLintScopeStorageInfo() {
@@ -3821,7 +3854,7 @@ export function createPrototypeViewer(editor: Editor): {
     flowLintScopeStorageInfo.textContent = `Preset ${stats.presetCount} · Slot buckets ${stats.quickSlotBucketCount} · Usage P[S/P/F] ${stats.presetUsage.selection}/${stats.presetUsage.page}/${stats.presetUsage.flow} · Q[S/P/F] ${stats.slotUsage.selection}/${stats.slotUsage.page}/${stats.slotUsage.flow} · Stale ${staleCount}`;
     flowLintScopeStorageCleanupBtn.disabled = staleCount <= 0;
     flowLintScopeStorageCleanupBtn.title = staleCount > 0
-      ? `삭제된 flow/page 참조 ${staleCount}개 정리`
+      ? `삭제된 flow/page 참조 ${staleCount}개 정리 (preset ${stats.stalePresetFlowOnlyKeys.length}+${stats.stalePresetScopedKeys.length}, slot ${stats.staleQuickSlotFlowIds.length})`
       : "정리할 stale key 없음";
   }
 
@@ -3829,7 +3862,12 @@ export function createPrototypeViewer(editor: Editor): {
     const key = String(Math.floor(flowId));
     const existing = flowLintScopeQuickSlots[key];
     if (existing) return existing;
-    const created: FlowLintScopeQuickSlotBucket = { slots: makeDefaultFlowLintScopeQuickSlots(), activeSlot: -1 };
+    const created: FlowLintScopeQuickSlotBucket = {
+      slots: makeDefaultFlowLintScopeQuickSlots(),
+      labels: makeDefaultFlowLintScopeQuickSlotLabels(),
+      locks: [false, false, false],
+      activeSlot: -1,
+    };
     flowLintScopeQuickSlots = { ...flowLintScopeQuickSlots, [key]: created };
     saveFlowLintScopeQuickSlots(flowLintScopeQuickSlots);
     return created;
@@ -3854,12 +3892,14 @@ export function createPrototypeViewer(editor: Editor): {
     for (let idx = 0; idx < flowLintScopeSlotButtons.length; idx += 1) {
       const btn = flowLintScopeSlotButtons[idx];
       const scope = bucket?.slots[idx] || makeDefaultFlowLintScopeQuickSlots()[idx];
-      btn.textContent = `S${idx + 1} ${scope[0].toUpperCase()}`;
-      btn.title = `클릭: ${scope}로 전환 · Shift+클릭: 현재 scope 저장 · Alt+${idx + 1}/Alt+Shift+${idx + 1}`;
+      const label = String(bucket?.labels[idx] || `S${idx + 1}`).trim() || `S${idx + 1}`;
+      const locked = Boolean(bucket?.locks[idx]);
+      btn.textContent = `${label} ${scope[0].toUpperCase()}${locked ? " 🔒" : ""}`;
+      btn.title = `클릭: ${scope}로 전환 · Shift+클릭: 현재 scope 저장${locked ? "(잠금)" : ""} · Alt+${idx + 1}/Alt+Shift+${idx + 1} · 더블클릭: 이름 변경 · 우클릭: 잠금`; 
       btn.disabled = !hasFlow;
       btn.style.borderColor = idx === active ? "rgba(96,165,250,0.9)" : "rgba(148,163,184,0.35)";
       btn.style.background = idx === active ? "rgba(59,130,246,0.2)" : "#0f172a";
-      btn.style.color = idx === active ? "#dbeafe" : "#e2e8f0";
+      btn.style.color = idx === active ? "#dbeafe" : (locked ? "#cbd5e1" : "#e2e8f0");
     }
     renderFlowLintScopeStorageInfo();
   }
@@ -3872,12 +3912,21 @@ export function createPrototypeViewer(editor: Editor): {
     const key = String(Math.floor(flowId));
     const bucket = ensureFlowLintScopeQuickSlotBucket(flowId);
     const slots: [FlowLintRunScope, FlowLintRunScope, FlowLintRunScope] = [...bucket.slots] as [FlowLintRunScope, FlowLintRunScope, FlowLintRunScope];
-    if (saveCurrent) slots[slotIndex] = resolveFlowLintScope(flowLintScopeSel.value);
+    const labels: [string, string, string] = [...bucket.labels] as [string, string, string];
+    const locks: [boolean, boolean, boolean] = [...bucket.locks] as [boolean, boolean, boolean];
+    if (saveCurrent) {
+      if (locks[slotIndex]) {
+        if (flowLintInfo) flowLintInfo.textContent = `Quick Slot ${labels[slotIndex] || `S${slotIndex + 1}`} 잠금 상태라 overwrite할 수 없어요`;
+        renderFlowLintScopeQuickSlots();
+        return;
+      }
+      slots[slotIndex] = resolveFlowLintScope(flowLintScopeSel.value);
+    }
     const nextScope = slots[slotIndex];
     flowLintScopeSel.value = nextScope;
     flowLintScopeQuickSlots = {
       ...flowLintScopeQuickSlots,
-      [key]: { slots, activeSlot: slotIndex },
+      [key]: { slots, labels, locks, activeSlot: slotIndex },
     };
     saveFlowLintScopeQuickSlots(flowLintScopeQuickSlots);
     saveFlowLintScopePresetForCurrentFlow();
@@ -6330,6 +6379,40 @@ export function createPrototypeViewer(editor: Editor): {
       slotBtn.style.cssText = "flex:1;font-size:9px;padding:3px 4px;border:1px solid rgba(148,163,184,0.35);border-radius:6px;background:#0f172a;color:#e2e8f0;";
       slotBtn.textContent = `S${idx + 1}`;
       slotBtn.onclick = (event) => applyFlowLintScopeQuickSlot(idx, Boolean((event as MouseEvent).shiftKey));
+      slotBtn.ondblclick = () => {
+        const flowId = Number(flowStartFlowSel?.value || 0);
+        if (!Number.isFinite(flowId) || flowId <= 0) return;
+        const key = String(Math.floor(flowId));
+        const bucket = ensureFlowLintScopeQuickSlotBucket(flowId);
+        const prev = String(bucket.labels[idx] || `S${idx + 1}`).trim();
+        const nextRaw = window.prompt(`Quick Slot S${idx + 1} 별칭`, prev);
+        if (nextRaw == null) return;
+        const next = String(nextRaw).trim().slice(0, 20) || `S${idx + 1}`;
+        const labels: [string, string, string] = [...bucket.labels] as [string, string, string];
+        labels[idx] = next;
+        flowLintScopeQuickSlots = {
+          ...flowLintScopeQuickSlots,
+          [key]: { ...bucket, labels },
+        };
+        saveFlowLintScopeQuickSlots(flowLintScopeQuickSlots);
+        renderFlowLintScopeQuickSlots();
+      };
+      slotBtn.oncontextmenu = (event) => {
+        event.preventDefault();
+        const flowId = Number(flowStartFlowSel?.value || 0);
+        if (!Number.isFinite(flowId) || flowId <= 0) return;
+        const key = String(Math.floor(flowId));
+        const bucket = ensureFlowLintScopeQuickSlotBucket(flowId);
+        const locks: [boolean, boolean, boolean] = [...bucket.locks] as [boolean, boolean, boolean];
+        locks[idx] = !locks[idx];
+        flowLintScopeQuickSlots = {
+          ...flowLintScopeQuickSlots,
+          [key]: { ...bucket, locks },
+        };
+        saveFlowLintScopeQuickSlots(flowLintScopeQuickSlots);
+        if (flowLintInfo) flowLintInfo.textContent = `Quick Slot ${bucket.labels[idx] || `S${idx + 1}`} ${locks[idx] ? "잠금" : "잠금 해제"}`;
+        renderFlowLintScopeQuickSlots();
+      };
       flowLintScopeSlotButtons.push(slotBtn);
       flowLintScopeSlotRow.appendChild(slotBtn);
     }
@@ -6347,8 +6430,9 @@ export function createPrototypeViewer(editor: Editor): {
     flowLintScopeStorageCleanupBtn.style.cssText = "font-size:9px;padding:3px 6px;white-space:nowrap;";
     flowLintScopeStorageCleanupBtn.onclick = () => {
       const removed = cleanupFlowLintScopeStorage();
-      if (removed > 0 && flowLintInfo) {
-        flowLintInfo.textContent = `Scope preset cleanup 완료 · stale key ${removed}개 제거`;
+      const removedTotal = removed.removedPresetCount + removed.removedQuickSlotCount;
+      if (removedTotal > 0 && flowLintInfo) {
+        flowLintInfo.textContent = `Scope preset cleanup 완료 · preset ${removed.removedPresetCount}개(flow ${removed.removedPresetFlowOnlyCount} / flow@page ${removed.removedPresetScopedCount}) · slot ${removed.removedQuickSlotCount}개 제거`;
       }
       renderFlowLintScopeQuickSlots();
     };
