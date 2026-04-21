@@ -576,6 +576,12 @@ function saveFlowLintScopeQuickSlots(map: FlowLintScopeQuickSlotMap) {
 }
 
 type FlowLintScopeRunLog = Record<FlowLintRunScope, number[]>;
+type FlowLintScopeRunStreak = {
+  days: number;
+  runs: number;
+  broken: boolean;
+  gapDays: number;
+};
 
 function makeEmptyFlowLintScopeRunLog(): FlowLintScopeRunLog {
   return { selection: [], page: [], flow: [] };
@@ -587,6 +593,33 @@ function pruneFlowLintScopeRunLog(log: FlowLintScopeRunLog, now = Date.now()): F
     selection: log.selection.filter((ts) => Number.isFinite(ts) && ts >= cutoff),
     page: log.page.filter((ts) => Number.isFinite(ts) && ts >= cutoff),
     flow: log.flow.filter((ts) => Number.isFinite(ts) && ts >= cutoff),
+  };
+}
+
+function getDayBucket(ts: number): number {
+  return Math.floor(ts / 86400000);
+}
+
+function calcFlowLintScopeRunStreak(timestamps: number[], now = Date.now()): FlowLintScopeRunStreak {
+  const uniqueDays = Array.from(new Set(timestamps.filter((ts) => Number.isFinite(ts)).map((ts) => getDayBucket(ts)))).sort((a, b) => b - a);
+  if (uniqueDays.length === 0) {
+    return { days: 0, runs: 0, broken: false, gapDays: 0 };
+  }
+  const today = getDayBucket(now);
+  const latest = uniqueDays[0]!;
+  const gapDays = Math.max(0, today - latest);
+  let streakDays = 1;
+  for (let i = 1; i < uniqueDays.length; i += 1) {
+    if (uniqueDays[i - 1]! - uniqueDays[i]! !== 1) break;
+    streakDays += 1;
+  }
+  const streakDaySet = new Set(uniqueDays.slice(0, streakDays));
+  const runCount = timestamps.filter((ts) => streakDaySet.has(getDayBucket(ts))).length;
+  return {
+    days: streakDays,
+    runs: runCount,
+    broken: gapDays > 1,
+    gapDays,
   };
 }
 
@@ -4070,6 +4103,11 @@ export function createPrototypeViewer(editor: Editor): {
       page: flowLintScopeRunLog.page.length,
       flow: flowLintScopeRunLog.flow.length,
     };
+    const streaks: Record<FlowLintRunScope, FlowLintScopeRunStreak> = {
+      selection: calcFlowLintScopeRunStreak(flowLintScopeRunLog.selection),
+      page: calcFlowLintScopeRunStreak(flowLintScopeRunLog.page),
+      flow: calcFlowLintScopeRunStreak(flowLintScopeRunLog.flow),
+    };
 
     return {
       stalePresetKeys,
@@ -4079,6 +4117,7 @@ export function createPrototypeViewer(editor: Editor): {
       presetUsage,
       slotUsage,
       recentRunCounts,
+      streaks,
       presetCount: Object.keys(flowLintScopePresets).length,
       quickSlotBucketCount: Object.keys(flowLintScopeQuickSlots).length,
     };
@@ -4119,17 +4158,22 @@ export function createPrototypeViewer(editor: Editor): {
     if (!flowLintScopeStorageInfo || !flowLintScopeStorageCleanupBtn) return;
     const stats = collectFlowLintScopeStorageStats();
     const staleCount = stats.stalePresetKeys.length + stats.staleQuickSlotFlowIds.length;
-    flowLintScopeStorageInfo.textContent = `Preset ${stats.presetCount} · Slot buckets ${stats.quickSlotBucketCount} · Usage P[S/P/F] ${stats.presetUsage.selection}/${stats.presetUsage.page}/${stats.presetUsage.flow} · Q[S/P/F] ${stats.slotUsage.selection}/${stats.slotUsage.page}/${stats.slotUsage.flow} · Run7d[S/P/F] ${stats.recentRunCounts.selection}/${stats.recentRunCounts.page}/${stats.recentRunCounts.flow} · Auto ${flowLintScopeAutoApplyOnFlowSwitch ? "ON" : "OFF"} · Stale ${staleCount}`;
+    flowLintScopeStorageInfo.textContent = `Preset ${stats.presetCount} · Slot buckets ${stats.quickSlotBucketCount} · Usage P[S/P/F] ${stats.presetUsage.selection}/${stats.presetUsage.page}/${stats.presetUsage.flow} · Q[S/P/F] ${stats.slotUsage.selection}/${stats.slotUsage.page}/${stats.slotUsage.flow} · Run7d[S/P/F] ${stats.recentRunCounts.selection}/${stats.recentRunCounts.page}/${stats.recentRunCounts.flow} · Streak[d/r] S ${stats.streaks.selection.days}/${stats.streaks.selection.runs} · P ${stats.streaks.page.days}/${stats.streaks.page.runs} · F ${stats.streaks.flow.days}/${stats.streaks.flow.runs} · Auto ${flowLintScopeAutoApplyOnFlowSwitch ? "ON" : "OFF"} · Stale ${staleCount}`;
     const scopes: FlowLintRunScope[] = ["selection", "page", "flow"];
     for (let idx = 0; idx < flowLintScopeUsageChipButtons.length; idx += 1) {
       const btn = flowLintScopeUsageChipButtons[idx];
       const scope = scopes[idx] || "flow";
       const count = stats.recentRunCounts[scope];
+      const streak = stats.streaks[scope];
       const short = scope === "selection" ? "Sel" : scope === "page" ? "Page" : "Flow";
-      btn.textContent = `${short} ${count}`;
+      const streakBadge = streak.days > 0 ? `🔥${streak.days}d/${streak.runs}r` : "-";
+      btn.textContent = `${short} ${count} · ${streakBadge}`;
       btn.disabled = count <= 0;
+      const breakText = streak.broken
+        ? `streak break: 마지막 실행 후 ${streak.gapDays}일 공백(1일 초과) 발생`
+        : `streak 유지 중: 최근 연속 ${streak.days}일 (${streak.runs}회)`;
       btn.title = count > 0
-        ? `최근 ${FLOW_LINT_SCOPE_RUN_LOG_WINDOW_DAYS}일 ${short} scope 실행 ${count}회 · 클릭 시 카운트 초기화`
+        ? `최근 ${FLOW_LINT_SCOPE_RUN_LOG_WINDOW_DAYS}일 ${short} scope 실행 ${count}회 · ${breakText} · 클릭 시 카운트 초기화`
         : `최근 ${FLOW_LINT_SCOPE_RUN_LOG_WINDOW_DAYS}일 ${short} scope 실행 기록 없음`;
       btn.style.opacity = count > 0 ? "1" : "0.55";
     }
