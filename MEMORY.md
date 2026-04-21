@@ -1795,6 +1795,13 @@
 - Flow Lint Scope Preset Import/Export — flow별 scope preset/quick slot 설정 JSON 내보내기·가져오기 (임팩트 중, 난이도 중)
 - Flow Lint Scope Guardrail Defaults — 신규 flow 생성 시 팀 기본 scope policy(Selection/Page/Flow) 템플릿 자동 적용 (임팩트 중, 난이도 중상)
 
+## 완료된 기능 (추가 — Flow Lint Scope Auto-Apply on Flow Switch 안정화, 2026-04-21)
+- Flow 전환/Auto 토글 변경 시 실제 복원된 scope source(last run/preset/default)를 `flowLintInfo`에 즉시 표시
+- `applyFlowLintScopePresetForFlow()`가 적용 결과(scope + source)를 반환하도록 확장해 flow switch와 Auto 토글 경로의 복원 로직/메시지 일관화
+- Auto 토글 변경 즉시 현재 flow scope를 재적용해 설정 ON/OFF 체감 지연 제거
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
+
 ## 완료된 기능 (추가 — Flow Lint Scope Auto-Run Guard, 2026-04-21)
 - Flow Lint scope 변경 시 즉시 재실행 대신 5초 유예 타이머를 두고 `Cancel pending auto-run` 버튼으로 취소 가능하도록 개선
 - 유예 중 flow 전환/수동 lint 실행/드리프트 경고 진입 시 pending auto-run을 자동 해제해 중복 실행과 오탐 실행을 방지

@@ -3848,8 +3848,12 @@ export function createPrototypeViewer(editor: Editor): {
     }, 5000);
   }
 
-  function applyFlowLintScopePresetForFlow(flowId: number | null | undefined, pageId?: number | null | undefined, preferLastExecuted = false) {
-    if (!flowLintScopeSel) return;
+  function applyFlowLintScopePresetForFlow(
+    flowId: number | null | undefined,
+    pageId?: number | null | undefined,
+    preferLastExecuted = false,
+  ): { scope: FlowLintRunScope; source: "last-executed" | "preset" | "default" } {
+    if (!flowLintScopeSel) return { scope: "flow", source: "default" };
     const safeFlowId = Number.isFinite(Number(flowId || 0)) && Number(flowId || 0) > 0 ? Math.floor(Number(flowId || 0)) : 0;
     const scopedKey = makeFlowLintScopePresetKey(safeFlowId, pageId);
     const flowKey = makeFlowLintScopePresetKey(safeFlowId);
@@ -3857,14 +3861,18 @@ export function createPrototypeViewer(editor: Editor): {
     const presetScope = safeFlowId > 0
       ? resolveFlowLintScope(flowLintScopePresets[scopedKey] || flowLintScopePresets[flowKey])
       : "flow";
-    const nextScope = preferLastExecuted && lastExecutedScope
-      ? lastExecutedScope
-      : presetScope;
+    const source = preferLastExecuted && lastExecutedScope
+      ? "last-executed"
+      : safeFlowId > 0
+        ? "preset"
+        : "default";
+    const nextScope = source === "last-executed" ? lastExecutedScope! : presetScope;
     flowLintScopeSel.value = nextScope;
     flowLintPendingScopeDrift = null;
     flowLintScopeDriftRunOverrideFlowId = null;
     syncFlowLintScopeQuickSlotWithCurrentScope();
     renderFlowLintScopeDriftAlert();
+    return { scope: nextScope, source };
   }
 
   function saveFlowLintScopePresetForCurrentFlow() {
@@ -6463,7 +6471,15 @@ export function createPrototypeViewer(editor: Editor): {
       saveFlowLintLastFlowId(flowId);
       renderFlowStartManager();
       clearFlowLintScopeAutoRunGuard();
-      applyFlowLintScopePresetForFlow(flowId, flow?.page_id, flowLintScopeAutoApplyOnFlowSwitch);
+      const applied = applyFlowLintScopePresetForFlow(flowId, flow?.page_id, flowLintScopeAutoApplyOnFlowSwitch);
+      if (flowLintInfo) {
+        const sourceLabel = applied.source === "last-executed"
+          ? "last run"
+          : applied.source === "preset"
+            ? "preset"
+            : "default";
+        flowLintInfo.textContent = "Scope restored: " + applied.scope + " (" + sourceLabel + ")";
+      }
       renderFlowLintScopeQuickSlots();
       renderFlowLint();
     });
@@ -6515,7 +6531,19 @@ export function createPrototypeViewer(editor: Editor): {
     flowLintScopeAutoApplyCheck.onchange = () => {
       flowLintScopeAutoApplyOnFlowSwitch = Boolean(flowLintScopeAutoApplyCheck?.checked);
       saveFlowLintScopeAutoApplyOnSwitch(flowLintScopeAutoApplyOnFlowSwitch);
+      const flowId = Number(flowStartFlowSel?.value || 0);
+      const flow = listPrototypeFlows().find((row) => row.id === flowId) || null;
+      const applied = applyFlowLintScopePresetForFlow(flowId, flow?.page_id, flowLintScopeAutoApplyOnFlowSwitch);
+      if (flowLintInfo) {
+        const sourceLabel = applied.source === "last-executed"
+          ? "last run"
+          : applied.source === "preset"
+            ? "preset"
+            : "default";
+        flowLintInfo.textContent = "Auto apply " + (flowLintScopeAutoApplyOnFlowSwitch ? "ON" : "OFF") + " · scope " + applied.scope + " (" + sourceLabel + ")";
+      }
       renderFlowLintScopeQuickSlots();
+      renderFlowLintScopeDriftAlert();
     };
     flowLintScopeAutoApplyLabel.appendChild(flowLintScopeAutoApplyCheck);
     flowLintScopeAutoApplyLabel.appendChild(document.createTextNode("Auto"));
