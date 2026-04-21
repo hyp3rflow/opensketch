@@ -30,6 +30,7 @@ const PROTOTYPE_FLOW_LINT_HISTORY_KEY = "opensketch-flow-lint-history-v1";
 const PROTOTYPE_FLOW_LINT_OWNER_SLA_KEY = "opensketch-flow-lint-owner-sla-v1";
 const PROTOTYPE_FLOW_LINT_OWNER_SLA_SORT_KEY = "opensketch-flow-lint-owner-sla-sort-v1";
 const PROTOTYPE_FLOW_LINT_SCOPE_PRESETS_KEY = "opensketch-flow-lint-scope-presets-v1";
+const PROTOTYPE_FLOW_LINT_SCOPE_QUICK_SLOTS_KEY = "opensketch-flow-lint-scope-quick-slots-v1";
 const PROTOTYPE_FLOW_LINT_LAST_FLOW_KEY = "opensketch-flow-lint-last-flow-id-v1";
 const PROTOTYPE_OVERLAY_EXIT_SUGGEST_PRESET_A_KEY = "opensketch-overlay-exit-suggest-preset-a-v1";
 const PROTOTYPE_OVERLAY_EXIT_SUGGEST_PRESET_B_KEY = "opensketch-overlay-exit-suggest-preset-b-v1";
@@ -461,6 +462,8 @@ function saveFlowLintOwnerSlaSortMode(mode: FlowLintOwnerSlaSortMode) {
 }
 
 type FlowLintScopePresetMap = Record<string, FlowLintRunScope>;
+type FlowLintScopeQuickSlotBucket = { slots: [FlowLintRunScope, FlowLintRunScope, FlowLintRunScope]; activeSlot: number };
+type FlowLintScopeQuickSlotMap = Record<string, FlowLintScopeQuickSlotBucket>;
 
 function makeFlowLintScopePresetKey(flowId: number, pageId?: number | null): string {
   const safeFlowId = Number.isFinite(flowId) && flowId > 0 ? Math.floor(flowId) : 0;
@@ -502,6 +505,48 @@ function loadFlowLintScopePresets(): FlowLintScopePresetMap {
 function saveFlowLintScopePresets(presets: FlowLintScopePresetMap) {
   try {
     localStorage.setItem(PROTOTYPE_FLOW_LINT_SCOPE_PRESETS_KEY, JSON.stringify(presets));
+  } catch {}
+}
+
+function makeDefaultFlowLintScopeQuickSlots(): [FlowLintRunScope, FlowLintRunScope, FlowLintRunScope] {
+  return ["selection", "page", "flow"];
+}
+
+function sanitizeFlowLintScopeQuickSlotBucket(raw: unknown): FlowLintScopeQuickSlotBucket {
+  const input = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  const rawSlots = Array.isArray(input.slots) ? input.slots : [];
+  const slots: [FlowLintRunScope, FlowLintRunScope, FlowLintRunScope] = [
+    resolveFlowLintScope(String(rawSlots[0] || "selection")),
+    resolveFlowLintScope(String(rawSlots[1] || "page")),
+    resolveFlowLintScope(String(rawSlots[2] || "flow")),
+  ];
+  const activeSlot = Number(input.activeSlot);
+  return {
+    slots,
+    activeSlot: Number.isFinite(activeSlot) && activeSlot >= 0 && activeSlot < 3 ? Math.floor(activeSlot) : -1,
+  };
+}
+
+function loadFlowLintScopeQuickSlots(): FlowLintScopeQuickSlotMap {
+  try {
+    const raw = localStorage.getItem(PROTOTYPE_FLOW_LINT_SCOPE_QUICK_SLOTS_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    if (!parsed || typeof parsed !== "object") return {};
+    const out: FlowLintScopeQuickSlotMap = {};
+    for (const [rawKey, value] of Object.entries(parsed as Record<string, unknown>)) {
+      const flowId = Number(rawKey);
+      if (!Number.isFinite(flowId) || flowId <= 0) continue;
+      out[String(Math.floor(flowId))] = sanitizeFlowLintScopeQuickSlotBucket(value);
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+function saveFlowLintScopeQuickSlots(map: FlowLintScopeQuickSlotMap) {
+  try {
+    localStorage.setItem(PROTOTYPE_FLOW_LINT_SCOPE_QUICK_SLOTS_KEY, JSON.stringify(map));
   } catch {}
 }
 
@@ -763,6 +808,8 @@ export function createPrototypeViewer(editor: Editor): {
   let flowLintWrap: HTMLDivElement | null = null;
   let flowLintPresetSel: HTMLSelectElement | null = null;
   let flowLintScopeSel: HTMLSelectElement | null = null;
+  let flowLintScopeSlotBadge: HTMLSpanElement | null = null;
+  let flowLintScopeSlotButtons: HTMLButtonElement[] = [];
   let flowLintScopePreviewInfo: HTMLDivElement | null = null;
   let flowLintScopePreviewList: HTMLDivElement | null = null;
   let flowLintSeveritySel: HTMLSelectElement | null = null;
@@ -931,6 +978,7 @@ export function createPrototypeViewer(editor: Editor): {
   let flowLintOwnerSlaMap: FlowLintOwnerSlaMap = loadFlowLintOwnerSlaMap();
   let flowLintOwnerSlaSortMode: FlowLintOwnerSlaSortMode = loadFlowLintOwnerSlaSortMode();
   let flowLintScopePresets: FlowLintScopePresetMap = loadFlowLintScopePresets();
+  let flowLintScopeQuickSlots: FlowLintScopeQuickSlotMap = loadFlowLintScopeQuickSlots();
   let flowLintFilterTypes = new Set<FlowLintIssueType>();
   let flowLintRenderedIssues: FlowLintIssue[] = [];
   let flowLintNavIndex = -1;
@@ -1803,6 +1851,7 @@ export function createPrototypeViewer(editor: Editor): {
     }
 
     applyFlowLintScopePresetForFlow(selectedFlowId, selectedFlow?.page_id);
+    renderFlowLintScopeQuickSlots();
   }
 
   function resolveInteractionCondition(inter: any): any | null {
@@ -3637,6 +3686,7 @@ export function createPrototypeViewer(editor: Editor): {
       ? resolveFlowLintScope(flowLintScopePresets[scopedKey] || flowLintScopePresets[flowKey])
       : "flow";
     flowLintScopeSel.value = nextScope;
+    syncFlowLintScopeQuickSlotWithCurrentScope();
   }
 
   function saveFlowLintScopePresetForCurrentFlow() {
@@ -3656,6 +3706,81 @@ export function createPrototypeViewer(editor: Editor): {
       [scopedKey]: nextScope,
     };
     saveFlowLintScopePresets(flowLintScopePresets);
+  }
+
+  function ensureFlowLintScopeQuickSlotBucket(flowId: number): FlowLintScopeQuickSlotBucket {
+    const key = String(Math.floor(flowId));
+    const existing = flowLintScopeQuickSlots[key];
+    if (existing) return existing;
+    const created: FlowLintScopeQuickSlotBucket = { slots: makeDefaultFlowLintScopeQuickSlots(), activeSlot: -1 };
+    flowLintScopeQuickSlots = { ...flowLintScopeQuickSlots, [key]: created };
+    saveFlowLintScopeQuickSlots(flowLintScopeQuickSlots);
+    return created;
+  }
+
+  function renderFlowLintScopeQuickSlots() {
+    const flowId = Number(flowStartFlowSel?.value || 0);
+    const hasFlow = Number.isFinite(flowId) && flowId > 0;
+    const bucket = hasFlow ? ensureFlowLintScopeQuickSlotBucket(flowId) : null;
+    const active = bucket?.activeSlot ?? -1;
+    if (flowLintScopeSlotBadge) {
+      flowLintScopeSlotBadge.textContent = active >= 0 ? `S${active + 1}` : "S-";
+      flowLintScopeSlotBadge.style.color = active >= 0 ? "#93c5fd" : "#94a3b8";
+    }
+    for (let idx = 0; idx < flowLintScopeSlotButtons.length; idx += 1) {
+      const btn = flowLintScopeSlotButtons[idx];
+      const scope = bucket?.slots[idx] || makeDefaultFlowLintScopeQuickSlots()[idx];
+      btn.textContent = `S${idx + 1} ${scope[0].toUpperCase()}`;
+      btn.title = `클릭: ${scope}로 전환 · Shift+클릭: 현재 scope 저장`;
+      btn.disabled = !hasFlow;
+      btn.style.borderColor = idx === active ? "rgba(96,165,250,0.9)" : "rgba(148,163,184,0.35)";
+      btn.style.background = idx === active ? "rgba(59,130,246,0.2)" : "#0f172a";
+      btn.style.color = idx === active ? "#dbeafe" : "#e2e8f0";
+    }
+  }
+
+  function applyFlowLintScopeQuickSlot(slotIndex: number, saveCurrent = false) {
+    if (!flowLintScopeSel) return;
+    const flowId = Number(flowStartFlowSel?.value || 0);
+    if (!Number.isFinite(flowId) || flowId <= 0) return;
+    if (slotIndex < 0 || slotIndex > 2) return;
+    const key = String(Math.floor(flowId));
+    const bucket = ensureFlowLintScopeQuickSlotBucket(flowId);
+    const slots: [FlowLintRunScope, FlowLintRunScope, FlowLintRunScope] = [...bucket.slots] as [FlowLintRunScope, FlowLintRunScope, FlowLintRunScope];
+    if (saveCurrent) slots[slotIndex] = resolveFlowLintScope(flowLintScopeSel.value);
+    const nextScope = slots[slotIndex];
+    flowLintScopeSel.value = nextScope;
+    flowLintScopeQuickSlots = {
+      ...flowLintScopeQuickSlots,
+      [key]: { slots, activeSlot: slotIndex },
+    };
+    saveFlowLintScopeQuickSlots(flowLintScopeQuickSlots);
+    saveFlowLintScopePresetForCurrentFlow();
+    renderFlowLintScopeQuickSlots();
+    renderFlowLint();
+  }
+
+  function syncFlowLintScopeQuickSlotWithCurrentScope() {
+    if (!flowLintScopeSel) return;
+    const flowId = Number(flowStartFlowSel?.value || 0);
+    if (!Number.isFinite(flowId) || flowId <= 0) {
+      renderFlowLintScopeQuickSlots();
+      return;
+    }
+    const key = String(Math.floor(flowId));
+    const bucket = ensureFlowLintScopeQuickSlotBucket(flowId);
+    const scope = resolveFlowLintScope(flowLintScopeSel.value);
+    const activeSlot = bucket.slots.findIndex((row) => row === scope);
+    if (bucket.activeSlot === activeSlot) {
+      renderFlowLintScopeQuickSlots();
+      return;
+    }
+    flowLintScopeQuickSlots = {
+      ...flowLintScopeQuickSlots,
+      [key]: { ...bucket, activeSlot },
+    };
+    saveFlowLintScopeQuickSlots(flowLintScopeQuickSlots);
+    renderFlowLintScopeQuickSlots();
   }
 
   function makeFlowLintAnchorKey(issue: FlowLintIssue): string {
@@ -5998,6 +6123,7 @@ export function createPrototypeViewer(editor: Editor): {
       saveFlowLintLastFlowId(flowId);
       renderFlowStartManager();
       applyFlowLintScopePresetForFlow(flowId, flow?.page_id);
+      renderFlowLintScopeQuickSlots();
       renderFlowLint();
     });
     flowStartFrameSel.addEventListener("change", () => {
@@ -6028,10 +6154,29 @@ export function createPrototypeViewer(editor: Editor): {
     flowLintScopeSel.value = "flow";
     flowLintScopeSel.onchange = () => {
       saveFlowLintScopePresetForCurrentFlow();
+      syncFlowLintScopeQuickSlotWithCurrentScope();
       renderFlowLint();
     };
     flowLintScopeRow.appendChild(flowLintScopeSel);
+    flowLintScopeSlotBadge = document.createElement("span");
+    flowLintScopeSlotBadge.style.cssText = "font-size:9px;color:#94a3b8;border:1px solid rgba(148,163,184,0.35);border-radius:999px;padding:1px 5px;min-width:24px;text-align:center;";
+    flowLintScopeSlotBadge.textContent = "S-";
+    flowLintScopeRow.appendChild(flowLintScopeSlotBadge);
     flowLintWrap.appendChild(flowLintScopeRow);
+
+    const flowLintScopeSlotRow = document.createElement("div");
+    flowLintScopeSlotRow.style.cssText = "display:flex;gap:4px;";
+    flowLintScopeSlotButtons = [];
+    for (let idx = 0; idx < 3; idx += 1) {
+      const slotBtn = document.createElement("button");
+      slotBtn.className = "prop-btn";
+      slotBtn.style.cssText = "flex:1;font-size:9px;padding:3px 4px;border:1px solid rgba(148,163,184,0.35);border-radius:6px;background:#0f172a;color:#e2e8f0;";
+      slotBtn.textContent = `S${idx + 1}`;
+      slotBtn.onclick = (event) => applyFlowLintScopeQuickSlot(idx, Boolean((event as MouseEvent).shiftKey));
+      flowLintScopeSlotButtons.push(slotBtn);
+      flowLintScopeSlotRow.appendChild(slotBtn);
+    }
+    flowLintWrap.appendChild(flowLintScopeSlotRow);
 
     const flowLintScopePreviewWrap = document.createElement("div");
     flowLintScopePreviewWrap.style.cssText = "display:flex;flex-direction:column;gap:4px;padding:5px;border-radius:7px;border:1px solid rgba(125,211,252,0.28);background:rgba(12,74,110,0.14);";
