@@ -3746,8 +3746,8 @@ export function createPrototypeViewer(editor: Editor): {
       const activeScopeLabel = activeScope ? activeScope[0].toUpperCase() : "-";
       flowLintScopeSlotBadge.textContent = active >= 0 ? `Slot S${active + 1} · ${activeScopeLabel}` : "Slot -";
       flowLintScopeSlotBadge.title = active >= 0
-        ? `현재 quick slot: S${active + 1} (${activeScope})`
-        : "현재 scope와 매칭되는 quick slot 없음";
+        ? `현재 quick slot: S${active + 1} (${activeScope}) · 클릭: 다음 slot · Shift+클릭: 이전 slot`
+        : "현재 scope와 매칭되는 quick slot 없음 · 클릭: 다음 slot · Shift+클릭: 이전 slot";
       flowLintScopeSlotBadge.style.color = active >= 0 ? "#bfdbfe" : "#94a3b8";
       flowLintScopeSlotBadge.style.borderColor = active >= 0 ? "rgba(96,165,250,0.8)" : "rgba(148,163,184,0.35)";
       flowLintScopeSlotBadge.style.background = active >= 0 ? "rgba(59,130,246,0.18)" : "rgba(15,23,42,0.5)";
@@ -3783,6 +3783,17 @@ export function createPrototypeViewer(editor: Editor): {
     saveFlowLintScopePresetForCurrentFlow();
     renderFlowLintScopeQuickSlots();
     renderFlowLint();
+  }
+
+  function cycleFlowLintScopeQuickSlot(reverse = false) {
+    const flowId = Number(flowStartFlowSel?.value || 0);
+    if (!Number.isFinite(flowId) || flowId <= 0) return;
+    const bucket = ensureFlowLintScopeQuickSlotBucket(flowId);
+    const base = bucket.activeSlot >= 0 ? bucket.activeSlot : 0;
+    const next = reverse
+      ? (base + 2) % 3
+      : (base + 1) % 3;
+    applyFlowLintScopeQuickSlot(next, false);
   }
 
   function syncFlowLintScopeQuickSlotWithCurrentScope() {
@@ -6202,8 +6213,10 @@ export function createPrototypeViewer(editor: Editor): {
     };
     flowLintScopeRow.appendChild(flowLintScopeSel);
     flowLintScopeSlotBadge = document.createElement("span");
-    flowLintScopeSlotBadge.style.cssText = "font-size:9px;color:#94a3b8;border:1px solid rgba(148,163,184,0.35);border-radius:999px;padding:1px 6px;min-width:72px;text-align:center;background:rgba(15,23,42,0.5);";
+    flowLintScopeSlotBadge.style.cssText = "font-size:9px;color:#94a3b8;border:1px solid rgba(148,163,184,0.35);border-radius:999px;padding:1px 6px;min-width:72px;text-align:center;background:rgba(15,23,42,0.5);cursor:pointer;user-select:none;";
     flowLintScopeSlotBadge.textContent = "Slot -";
+    flowLintScopeSlotBadge.title = "클릭: 다음 quick slot · Shift+클릭: 이전 quick slot";
+    flowLintScopeSlotBadge.onclick = (event) => cycleFlowLintScopeQuickSlot(Boolean((event as MouseEvent).shiftKey));
     flowLintScopeRow.appendChild(flowLintScopeSlotBadge);
     flowLintWrap.appendChild(flowLintScopeRow);
 
