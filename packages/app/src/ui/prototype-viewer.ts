@@ -4464,18 +4464,32 @@ export function createPrototypeViewer(editor: Editor): {
   }
 
   function renderFlowLintScopeHeatmap() {
-    if (!flowLintScopeHeatmapInfo || !flowLintScopeHeatmapGrid) return;
+    if (!flowLintScopeHeatmapInfo || !flowLintScopeHeatmapGrid || !flowLintScopeHeatmapWeekdayRow) return;
     flowLintScopeRunLog = pruneFlowLintScopeRunLog(flowLintScopeRunLog);
     const now = Date.now();
     const today = getDayBucket(now);
     const dayMs = 86400000;
-    const buckets: Array<{ bucket: number; label: string; selection: number; page: number; flow: number; total: number }> = [];
+    const buckets: Array<{
+      bucket: number;
+      label: string;
+      weekdayLabel: string;
+      dayOfWeek: number;
+      isToday: boolean;
+      selection: number;
+      page: number;
+      flow: number;
+      total: number;
+    }> = [];
     for (let i = FLOW_LINT_SCOPE_HEATMAP_DAYS - 1; i >= 0; i -= 1) {
       const bucket = today - i;
       const at = bucket * dayMs;
+      const date = new Date(at);
       buckets.push({
         bucket,
-        label: new Date(at).toLocaleDateString(undefined, { month: "numeric", day: "numeric" }),
+        label: date.toLocaleDateString(undefined, { month: "numeric", day: "numeric" }),
+        weekdayLabel: date.toLocaleDateString(undefined, { weekday: "short" }),
+        dayOfWeek: date.getDay(),
+        isToday: i === 0,
         selection: 0,
         page: 0,
         flow: 0,
@@ -4496,9 +4510,18 @@ export function createPrototypeViewer(editor: Editor): {
     const maxTotal = buckets.reduce((acc, row) => Math.max(acc, row.total), 0);
     const activeDays = buckets.filter((row) => row.total > 0).length;
     const totalRuns = buckets.reduce((acc, row) => acc + row.total, 0);
-    flowLintScopeHeatmapInfo.textContent = `최근 ${FLOW_LINT_SCOPE_HEATMAP_DAYS}일 scope run heatmap · active ${activeDays}d / ${FLOW_LINT_SCOPE_HEATMAP_DAYS}d · total ${totalRuns} run`;
+    const topBucket = buckets.reduce((best, row) => (row.total > best.total ? row : best), buckets[0]!);
+    flowLintScopeHeatmapInfo.textContent = `최근 ${FLOW_LINT_SCOPE_HEATMAP_DAYS}일 scope run heatmap · active ${activeDays}d / ${FLOW_LINT_SCOPE_HEATMAP_DAYS}d · total ${totalRuns} run · peak ${topBucket.label} (${topBucket.total})`;
+
+    flowLintScopeHeatmapWeekdayRow.innerHTML = "";
     flowLintScopeHeatmapGrid.innerHTML = "";
     for (const row of buckets) {
+      const weekCell = document.createElement("div");
+      weekCell.style.cssText = "font-size:8px;line-height:1;color:#7dd3fc;text-align:center;opacity:0.8;";
+      weekCell.textContent = row.weekdayLabel.slice(0, 1).toUpperCase();
+      weekCell.title = `${row.label} · ${row.weekdayLabel}`;
+      flowLintScopeHeatmapWeekdayRow.appendChild(weekCell);
+
       const cell = document.createElement("div");
       const intensity = maxTotal > 0 ? row.total / maxTotal : 0;
       const alpha = row.total > 0 ? (0.16 + intensity * 0.64) : 0.08;
@@ -4514,10 +4537,12 @@ export function createPrototypeViewer(editor: Editor): {
           : dominantScope === "flow"
             ? "rgba(74,222,128,0.7)"
             : "rgba(148,163,184,0.25)";
-      cell.style.cssText = `height:14px;border-radius:4px;border:1px solid ${borderColor};background:rgba(15,23,42,${alpha.toFixed(3)});display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:600;line-height:1;color:${row.total > 0 ? "#dbeafe" : "#64748b"};`;
+      const weekSeparator = row.dayOfWeek === 1 ? "box-shadow:inset 1px 0 0 rgba(125,211,252,0.35);" : "";
+      const todayRing = row.isToday ? "outline:1px solid rgba(125,211,252,0.9);outline-offset:1px;" : "";
+      cell.style.cssText = `height:14px;border-radius:4px;border:1px solid ${borderColor};background:rgba(15,23,42,${alpha.toFixed(3)});display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:600;line-height:1;color:${row.total > 0 ? "#dbeafe" : "#64748b"};${weekSeparator}${todayRing}`;
       const marker = dominantScope === "selection" ? "S" : dominantScope === "page" ? "P" : dominantScope === "flow" ? "F" : "·";
       cell.textContent = row.total > 0 ? marker : "·";
-      cell.title = `${row.label} · total ${row.total} run · selection ${row.selection} / page ${row.page} / flow ${row.flow}`;
+      cell.title = `${row.label} · total ${row.total} run · selection ${row.selection} / page ${row.page} / flow ${row.flow}${row.isToday ? " · today" : ""}`;
       flowLintScopeHeatmapGrid.appendChild(cell);
     }
   }
@@ -7577,6 +7602,9 @@ export function createPrototypeViewer(editor: Editor): {
     flowLintScopeHeatmapInfo.style.cssText = "font-size:9px;line-height:1.35;color:#7dd3fc;";
     flowLintScopeHeatmapInfo.textContent = "최근 scope 실행 패턴 계산 중…";
     flowLintScopeHeatmapWrap.appendChild(flowLintScopeHeatmapInfo);
+    flowLintScopeHeatmapWeekdayRow = document.createElement("div");
+    flowLintScopeHeatmapWeekdayRow.style.cssText = `display:grid;grid-template-columns:repeat(${FLOW_LINT_SCOPE_HEATMAP_DAYS}, minmax(0,1fr));gap:3px;`;
+    flowLintScopeHeatmapWrap.appendChild(flowLintScopeHeatmapWeekdayRow);
     flowLintScopeHeatmapGrid = document.createElement("div");
     flowLintScopeHeatmapGrid.style.cssText = `display:grid;grid-template-columns:repeat(${FLOW_LINT_SCOPE_HEATMAP_DAYS}, minmax(0,1fr));gap:3px;`;
     flowLintScopeHeatmapWrap.appendChild(flowLintScopeHeatmapGrid);
