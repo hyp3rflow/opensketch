@@ -1790,9 +1790,19 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Flow Lint Scope Slot Lock Audit Log — slot lock/unlock 및 overwrite 차단 이벤트를 최근 20건 로그로 노출 (임팩트 중하, 난이도 중)
 - Flow Lint Scope Preset Import/Export — flow별 scope preset/quick slot 설정 JSON 내보내기·가져오기 (임팩트 중, 난이도 중)
 - Flow Lint Scope Guardrail Defaults — 신규 flow 생성 시 팀 기본 scope policy(Selection/Page/Flow) 템플릿 자동 적용 (임팩트 중, 난이도 중상)
+- Flow Lint Scope Preset Diff Preview — import 전 현재/유입 preset 차이를 scope·slot 단위 diff 테이블로 미리보기 (임팩트 중, 난이도 중)
+- Flow Lint Scope Lock Coverage Meter — flow별 quick slot lock 커버리지(잠금 슬롯 비율)와 권장 액션 배지 표시 (임팩트 중하, 난이도 중하)
+- Flow Lint Scope Policy Enforcement Hint — Guardrail 기본 정책과 현재 scope 불일치 시 lint 실행 전 교정 힌트 제공 (임팩트 중하, 난이도 중)
+
+## 완료된 기능 (추가 — Flow Lint Scope Slot Lock Audit Log, 2026-04-24)
+- Flow Lint Scope 영역에 `Scope Slot Lock Audit` 카드 추가: slot lock/unlock + 잠금 상태 overwrite 차단 이벤트를 최근 20건까지 로그로 노출
+- audit row에 시각(시:분:초), slot label/scope, action(lock/unlock/overwrite blocked)을 표시해 왜 overwrite가 막혔는지 즉시 추적 가능
+- 로그를 flow별로 필터링해 현재 선택 flow의 slot 운영 이력만 집중 확인 가능
+- localStorage 키 `opensketch-flow-lint-scope-slot-audit-log-v1` 도입, 최근 20개 이벤트 유지
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Flow Lint Scope Heat History, 2026-04-21)
 - Flow Lint Scope 영역에 `Scope Heatmap Calendar` 미니 카드(14일)를 추가해 날짜별 실행 밀도와 주 scope(S/P/F)를 즉시 확인 가능

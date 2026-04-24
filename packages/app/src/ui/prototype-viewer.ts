@@ -31,6 +31,7 @@ const PROTOTYPE_FLOW_LINT_OWNER_SLA_KEY = "opensketch-flow-lint-owner-sla-v1";
 const PROTOTYPE_FLOW_LINT_OWNER_SLA_SORT_KEY = "opensketch-flow-lint-owner-sla-sort-v1";
 const PROTOTYPE_FLOW_LINT_SCOPE_PRESETS_KEY = "opensketch-flow-lint-scope-presets-v1";
 const PROTOTYPE_FLOW_LINT_SCOPE_QUICK_SLOTS_KEY = "opensketch-flow-lint-scope-quick-slots-v1";
+const PROTOTYPE_FLOW_LINT_SCOPE_SLOT_AUDIT_LOG_KEY = "opensketch-flow-lint-scope-slot-audit-log-v1";
 const PROTOTYPE_FLOW_LINT_SCOPE_RUN_LOG_KEY = "opensketch-flow-lint-scope-run-log-v1";
 const PROTOTYPE_FLOW_LINT_SCOPE_TIMELINE_KEY = "opensketch-flow-lint-scope-timeline-v1";
 const PROTOTYPE_FLOW_LINT_LAST_FLOW_KEY = "opensketch-flow-lint-last-flow-id-v1";
@@ -44,6 +45,7 @@ const FLOW_LINT_SCOPE_RUN_LOG_WINDOW_DAYS = 7;
 const FLOW_LINT_SCOPE_HEATMAP_DAYS = 14;
 const FLOW_LINT_SCOPE_RUN_LOG_RETENTION_DAYS = Math.max(FLOW_LINT_SCOPE_RUN_LOG_WINDOW_DAYS, FLOW_LINT_SCOPE_HEATMAP_DAYS);
 const FLOW_LINT_SCOPE_TIMELINE_MAX_ROWS = 24;
+const FLOW_LINT_SCOPE_SLOT_AUDIT_MAX_ROWS = 20;
 
 type FlowEntryPreset = { frameId: number; label: string; pageId?: number };
 type RingPresetSafetyBucket = "safe" | "watch" | "risky";
@@ -577,6 +579,59 @@ function saveFlowLintScopeQuickSlots(map: FlowLintScopeQuickSlotMap) {
   } catch {}
 }
 
+type FlowLintScopeSlotAuditAction = "lock" | "unlock" | "overwrite-blocked";
+type FlowLintScopeSlotAuditEntry = {
+  id: string;
+  at: number;
+  flowId: number;
+  slotIndex: number;
+  slotLabel: string;
+  slotScope: FlowLintRunScope;
+  action: FlowLintScopeSlotAuditAction;
+};
+
+function resolveFlowLintScopeSlotAuditAction(input: unknown): FlowLintScopeSlotAuditAction {
+  const safe = String(input || "");
+  if (safe === "lock") return "lock";
+  if (safe === "unlock") return "unlock";
+  return "overwrite-blocked";
+}
+
+function loadFlowLintScopeSlotAuditLog(): FlowLintScopeSlotAuditEntry[] {
+  try {
+    const raw = localStorage.getItem(PROTOTYPE_FLOW_LINT_SCOPE_SLOT_AUDIT_LOG_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(parsed)) return [];
+    const out: FlowLintScopeSlotAuditEntry[] = [];
+    for (const row of parsed) {
+      if (!row || typeof row !== "object") continue;
+      const at = Number((row as any).at || 0);
+      const flowId = Number((row as any).flowId || 0);
+      const slotIndex = Number((row as any).slotIndex);
+      if (!Number.isFinite(at) || at <= 0 || !Number.isFinite(flowId) || flowId <= 0) continue;
+      if (!Number.isFinite(slotIndex) || slotIndex < 0 || slotIndex > 2) continue;
+      out.push({
+        id: String((row as any).id || `${Math.floor(flowId)}-${Math.floor(at)}-${Math.floor(slotIndex)}`),
+        at,
+        flowId: Math.floor(flowId),
+        slotIndex: Math.floor(slotIndex),
+        slotLabel: String((row as any).slotLabel || `S${Math.floor(slotIndex) + 1}`).trim().slice(0, 20) || `S${Math.floor(slotIndex) + 1}`,
+        slotScope: resolveFlowLintScope((row as any).slotScope),
+        action: resolveFlowLintScopeSlotAuditAction((row as any).action),
+      });
+    }
+    return out.slice(-FLOW_LINT_SCOPE_SLOT_AUDIT_MAX_ROWS);
+  } catch {
+    return [];
+  }
+}
+
+function saveFlowLintScopeSlotAuditLog(rows: FlowLintScopeSlotAuditEntry[]) {
+  try {
+    localStorage.setItem(PROTOTYPE_FLOW_LINT_SCOPE_SLOT_AUDIT_LOG_KEY, JSON.stringify(rows.slice(-FLOW_LINT_SCOPE_SLOT_AUDIT_MAX_ROWS)));
+  } catch {}
+}
+
 type FlowLintScopeRunLog = Record<FlowLintRunScope, number[]>;
 type FlowLintScopeRunStreak = {
   days: number;
@@ -1007,9 +1062,12 @@ export function createPrototypeViewer(editor: Editor): {
   let flowLintScopeStorageCleanupBtn: HTMLButtonElement | null = null;
   let flowLintScopeUsageChipButtons: HTMLButtonElement[] = [];
   let flowLintScopeHeatmapInfo: HTMLDivElement | null = null;
+  let flowLintScopeHeatmapWeekdayRow: HTMLDivElement | null = null;
   let flowLintScopeHeatmapGrid: HTMLDivElement | null = null;
   let flowLintScopeTimelineInfo: HTMLDivElement | null = null;
   let flowLintScopeTimelineList: HTMLDivElement | null = null;
+  let flowLintScopeSlotAuditInfo: HTMLDivElement | null = null;
+  let flowLintScopeSlotAuditList: HTMLDivElement | null = null;
   let flowLintScopePreviewInfo: HTMLDivElement | null = null;
   let flowLintScopePreviewList: HTMLDivElement | null = null;
   let flowLintScopeDriftWrap: HTMLDivElement | null = null;
@@ -1187,6 +1245,7 @@ export function createPrototypeViewer(editor: Editor): {
   let flowLintOwnerSlaSortMode: FlowLintOwnerSlaSortMode = loadFlowLintOwnerSlaSortMode();
   let flowLintScopePresets: FlowLintScopePresetMap = loadFlowLintScopePresets();
   let flowLintScopeQuickSlots: FlowLintScopeQuickSlotMap = loadFlowLintScopeQuickSlots();
+  let flowLintScopeSlotAuditLog: FlowLintScopeSlotAuditEntry[] = loadFlowLintScopeSlotAuditLog();
   let flowLintScopeRunLog: FlowLintScopeRunLog = loadFlowLintScopeRunLog();
   let flowLintScopeTimeline: FlowLintScopeTimelineEntry[] = loadFlowLintScopeTimeline();
   let flowLintFilterTypes = new Set<FlowLintIssueType>();
@@ -4070,6 +4129,65 @@ export function createPrototypeViewer(editor: Editor): {
     }
   }
 
+  function recordFlowLintScopeSlotAudit(slotIndex: number, action: FlowLintScopeSlotAuditAction, slotLabel?: string, slotScope?: FlowLintRunScope) {
+    const flowId = Number(flowStartFlowSel?.value || 0);
+    if (!Number.isFinite(flowId) || flowId <= 0) return;
+    if (!Number.isFinite(slotIndex) || slotIndex < 0 || slotIndex > 2) return;
+    const bucket = ensureFlowLintScopeQuickSlotBucket(flowId);
+    const safeSlotIndex = Math.floor(slotIndex);
+    const label = String(slotLabel || bucket.labels[safeSlotIndex] || `S${safeSlotIndex + 1}`).trim().slice(0, 20) || `S${safeSlotIndex + 1}`;
+    const scope = resolveFlowLintScope(slotScope || bucket.slots[safeSlotIndex]);
+    const safeAction = resolveFlowLintScopeSlotAuditAction(action);
+    const now = Date.now();
+    const prev = flowLintScopeSlotAuditLog[flowLintScopeSlotAuditLog.length - 1];
+    if (prev && prev.flowId === Math.floor(flowId) && prev.slotIndex === safeSlotIndex && prev.action === safeAction && (now - prev.at) < 600) return;
+    flowLintScopeSlotAuditLog = [
+      ...flowLintScopeSlotAuditLog,
+      {
+        id: `${Math.floor(flowId)}-${now}-${safeSlotIndex}-${Math.random().toString(36).slice(2, 6)}`,
+        at: now,
+        flowId: Math.floor(flowId),
+        slotIndex: safeSlotIndex,
+        slotLabel: label,
+        slotScope: scope,
+        action: safeAction,
+      },
+    ].slice(-FLOW_LINT_SCOPE_SLOT_AUDIT_MAX_ROWS);
+    saveFlowLintScopeSlotAuditLog(flowLintScopeSlotAuditLog);
+    renderFlowLintScopeSlotAuditLog();
+  }
+
+  function renderFlowLintScopeSlotAuditLog() {
+    if (!flowLintScopeSlotAuditInfo || !flowLintScopeSlotAuditList) return;
+    const flowId = Number(flowStartFlowSel?.value || 0);
+    const safeFlowId = Number.isFinite(flowId) && flowId > 0 ? Math.floor(flowId) : 0;
+    const rows = safeFlowId > 0
+      ? flowLintScopeSlotAuditLog.filter((row) => row.flowId === safeFlowId)
+      : [];
+    flowLintScopeSlotAuditInfo.textContent = rows.length > 0
+      ? `최근 slot lock audit ${rows.length}건 · lock/unlock + overwrite block`
+      : "slot lock audit 이력이 없습니다.";
+    flowLintScopeSlotAuditList.innerHTML = "";
+    if (rows.length <= 0) {
+      const empty = document.createElement("div");
+      empty.style.cssText = "font-size:9px;color:#64748b;";
+      empty.textContent = "No slot audit rows yet.";
+      flowLintScopeSlotAuditList.appendChild(empty);
+      return;
+    }
+    for (const row of [...rows].reverse().slice(0, 6)) {
+      const line = document.createElement("div");
+      line.style.cssText = "font-size:9px;line-height:1.25;color:#fcd34d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
+      const actionLabel = row.action === "lock"
+        ? "lock"
+        : row.action === "unlock"
+          ? "unlock"
+          : "overwrite blocked";
+      line.textContent = `${new Date(row.at).toLocaleTimeString()} · ${row.slotLabel}(${row.slotScope[0].toUpperCase()}) ${actionLabel}`;
+      flowLintScopeSlotAuditList.appendChild(line);
+    }
+  }
+
   function renderFlowLintScopeHeatmap() {
     if (!flowLintScopeHeatmapInfo || !flowLintScopeHeatmapGrid) return;
     flowLintScopeRunLog = pruneFlowLintScopeRunLog(flowLintScopeRunLog);
@@ -4294,6 +4412,7 @@ export function createPrototypeViewer(editor: Editor): {
     }
     renderFlowLintScopeStorageInfo();
     renderFlowLintScopeTimeline();
+    renderFlowLintScopeSlotAuditLog();
   }
 
   function applyFlowLintScopeQuickSlot(slotIndex: number, saveCurrent = false) {
@@ -4309,6 +4428,7 @@ export function createPrototypeViewer(editor: Editor): {
     if (saveCurrent) {
       if (locks[slotIndex]) {
         if (flowLintInfo) flowLintInfo.textContent = `Quick Slot ${labels[slotIndex] || `S${slotIndex + 1}`} 잠금 상태라 overwrite할 수 없어요`;
+        recordFlowLintScopeSlotAudit(slotIndex, "overwrite-blocked", labels[slotIndex], slots[slotIndex]);
         renderFlowLintScopeQuickSlots();
         return;
       }
@@ -6851,12 +6971,28 @@ export function createPrototypeViewer(editor: Editor): {
         };
         saveFlowLintScopeQuickSlots(flowLintScopeQuickSlots);
         if (flowLintInfo) flowLintInfo.textContent = `Quick Slot ${bucket.labels[idx] || `S${idx + 1}`} ${locks[idx] ? "잠금" : "잠금 해제"}`;
+        recordFlowLintScopeSlotAudit(idx, locks[idx] ? "lock" : "unlock", bucket.labels[idx], bucket.slots[idx]);
         renderFlowLintScopeQuickSlots();
       };
       flowLintScopeSlotButtons.push(slotBtn);
       flowLintScopeSlotRow.appendChild(slotBtn);
     }
     flowLintWrap.appendChild(flowLintScopeSlotRow);
+
+    const flowLintScopeSlotAuditWrap = document.createElement("div");
+    flowLintScopeSlotAuditWrap.style.cssText = "display:flex;flex-direction:column;gap:4px;padding:5px;border-radius:7px;border:1px solid rgba(250,204,21,0.35);background:rgba(113,63,18,0.2);";
+    const flowLintScopeSlotAuditHead = document.createElement("div");
+    flowLintScopeSlotAuditHead.style.cssText = "font-size:9px;font-weight:600;color:#fde68a;text-transform:uppercase;letter-spacing:0.04em;";
+    flowLintScopeSlotAuditHead.textContent = "Scope Slot Lock Audit";
+    flowLintScopeSlotAuditWrap.appendChild(flowLintScopeSlotAuditHead);
+    flowLintScopeSlotAuditInfo = document.createElement("div");
+    flowLintScopeSlotAuditInfo.style.cssText = "font-size:9px;line-height:1.35;color:#fcd34d;";
+    flowLintScopeSlotAuditInfo.textContent = "slot lock audit 로딩 중…";
+    flowLintScopeSlotAuditWrap.appendChild(flowLintScopeSlotAuditInfo);
+    flowLintScopeSlotAuditList = document.createElement("div");
+    flowLintScopeSlotAuditList.style.cssText = "display:flex;flex-direction:column;gap:3px;";
+    flowLintScopeSlotAuditWrap.appendChild(flowLintScopeSlotAuditList);
+    flowLintWrap.appendChild(flowLintScopeSlotAuditWrap);
 
     flowLintScopeAutoRunCancelBtn = document.createElement("button");
     flowLintScopeAutoRunCancelBtn.className = "prop-btn";
