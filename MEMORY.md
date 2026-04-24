@@ -1790,10 +1790,17 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Flow Lint Scope Guardrail Defaults — 신규 flow 생성 시 팀 기본 scope policy(Selection/Page/Flow) 템플릿 자동 적용 (임팩트 중, 난이도 중상)
 - Flow Lint Scope Preset Diff Preview — import 전 현재/유입 preset 차이를 scope·slot 단위 diff 테이블로 미리보기 (임팩트 중, 난이도 중)
 - Flow Lint Scope Lock Coverage Meter — flow별 quick slot lock 커버리지(잠금 슬롯 비율)와 권장 액션 배지 표시 (임팩트 중하, 난이도 중하)
 - Flow Lint Scope Policy Enforcement Hint — Guardrail 기본 정책과 현재 scope 불일치 시 lint 실행 전 교정 힌트 제공 (임팩트 중하, 난이도 중)
+
+## 완료된 기능 (추가 — Flow Lint Scope Guardrail Defaults, 2026-04-24)
+- 신규 flow가 처음 렌더될 때 Flow Lint Scope 기본 정책 템플릿(`defaultScope: page`, quick slot `selection/page/flow`)을 자동 시드
+- scope preset key(`flowId`, `flowId@pageId`)가 비어 있으면 기본 scope를 즉시 저장하고, quick slot bucket이 없으면 기본 슬롯/active slot까지 생성
+- Flow Start Manager 렌더 경로에 guardrail defaults 적용을 연결해 flow 생성 직후 Scope/Quick Slot UI가 일관된 초기값으로 시작
+- guardrail template localStorage 키 `opensketch-flow-lint-scope-guardrail-template-v1` 추가 + sanitize 로드
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Flow Lint Scope Preset Import/Export, 2026-04-24)
 - Flow Lint Scope 영역에 `Export Scope JSON` / `Import Scope JSON` 버튼을 추가해 flow별 scope preset(`flowId`/`flowId@pageId`) + quick slot bucket을 JSON으로 백업/복원 가능

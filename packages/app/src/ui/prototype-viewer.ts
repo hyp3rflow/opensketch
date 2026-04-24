@@ -37,6 +37,7 @@ const PROTOTYPE_FLOW_LINT_SCOPE_TIMELINE_KEY = "opensketch-flow-lint-scope-timel
 const PROTOTYPE_FLOW_LINT_LAST_FLOW_KEY = "opensketch-flow-lint-last-flow-id-v1";
 const PROTOTYPE_FLOW_LINT_LAST_EXEC_SCOPE_KEY = "opensketch-flow-lint-last-executed-scope-v1";
 const PROTOTYPE_FLOW_LINT_SCOPE_AUTO_APPLY_SWITCH_KEY = "opensketch-flow-lint-scope-auto-apply-on-switch-v1";
+const PROTOTYPE_FLOW_LINT_SCOPE_GUARDRAIL_TEMPLATE_KEY = "opensketch-flow-lint-scope-guardrail-template-v1";
 const PROTOTYPE_OVERLAY_EXIT_SUGGEST_PRESET_A_KEY = "opensketch-overlay-exit-suggest-preset-a-v1";
 const PROTOTYPE_OVERLAY_EXIT_SUGGEST_PRESET_B_KEY = "opensketch-overlay-exit-suggest-preset-b-v1";
 const FLOW_LINT_RISK_TREND_MAX_RUNS = 12;
@@ -529,6 +530,35 @@ function makeDefaultFlowLintScopeQuickSlots(): [FlowLintRunScope, FlowLintRunSco
 
 function makeDefaultFlowLintScopeQuickSlotLabels(): [string, string, string] {
   return ["S1", "S2", "S3"];
+}
+
+type FlowLintScopeGuardrailTemplate = {
+  defaultScope: FlowLintRunScope;
+  quickSlots: [FlowLintRunScope, FlowLintRunScope, FlowLintRunScope];
+};
+
+function sanitizeFlowLintScopeGuardrailTemplate(raw: unknown): FlowLintScopeGuardrailTemplate {
+  const input = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  const quickSlotsRaw = Array.isArray(input.quickSlots) ? input.quickSlots : makeDefaultFlowLintScopeQuickSlots();
+  const quickSlots: [FlowLintRunScope, FlowLintRunScope, FlowLintRunScope] = [
+    resolveFlowLintScope(String(quickSlotsRaw[0] || "selection")),
+    resolveFlowLintScope(String(quickSlotsRaw[1] || "page")),
+    resolveFlowLintScope(String(quickSlotsRaw[2] || "flow")),
+  ];
+  return {
+    defaultScope: resolveFlowLintScope(String(input.defaultScope || "page")),
+    quickSlots,
+  };
+}
+
+function loadFlowLintScopeGuardrailTemplate(): FlowLintScopeGuardrailTemplate {
+  try {
+    const raw = localStorage.getItem(PROTOTYPE_FLOW_LINT_SCOPE_GUARDRAIL_TEMPLATE_KEY);
+    if (!raw) return sanitizeFlowLintScopeGuardrailTemplate(null);
+    return sanitizeFlowLintScopeGuardrailTemplate(JSON.parse(raw));
+  } catch {
+    return sanitizeFlowLintScopeGuardrailTemplate(null);
+  }
 }
 
 function sanitizeFlowLintScopeQuickSlotBucket(raw: unknown): FlowLintScopeQuickSlotBucket {
@@ -2178,6 +2208,9 @@ export function createPrototypeViewer(editor: Editor): {
       }
     }
 
+    if (selectedFlowId > 0) {
+      ensureFlowLintScopeGuardrailDefaults(selectedFlowId, selectedFlow?.page_id);
+    }
     applyFlowLintScopePresetForFlow(selectedFlowId, selectedFlow?.page_id);
     renderFlowLintScopeQuickSlots();
   }
@@ -4425,6 +4458,42 @@ export function createPrototypeViewer(editor: Editor): {
       ? `삭제된 flow/page 참조 ${staleCount}개 정리 (preset ${stats.stalePresetFlowOnlyKeys.length}+${stats.stalePresetScopedKeys.length}, slot ${stats.staleQuickSlotFlowIds.length})`
       : "정리할 stale key 없음";
     renderFlowLintScopeHeatmap();
+  }
+
+  function ensureFlowLintScopeGuardrailDefaults(flowId: number, pageId?: number | null): boolean {
+    const safeFlowId = Number.isFinite(flowId) && flowId > 0 ? Math.floor(flowId) : 0;
+    if (safeFlowId <= 0) return false;
+    const template = loadFlowLintScopeGuardrailTemplate();
+    const flowKey = makeFlowLintScopePresetKey(safeFlowId);
+    const scopedKey = makeFlowLintScopePresetKey(safeFlowId, pageId);
+    let changed = false;
+
+    if (!flowLintScopePresets[flowKey]) {
+      flowLintScopePresets = { ...flowLintScopePresets, [flowKey]: template.defaultScope };
+      changed = true;
+    }
+    if (!flowLintScopePresets[scopedKey]) {
+      flowLintScopePresets = { ...flowLintScopePresets, [scopedKey]: template.defaultScope };
+      changed = true;
+    }
+    if (changed) saveFlowLintScopePresets(flowLintScopePresets);
+
+    const bucketKey = String(safeFlowId);
+    const existingBucket = flowLintScopeQuickSlots[bucketKey];
+    if (!existingBucket) {
+      const defaultScopeIndex = template.quickSlots.findIndex((scope) => scope === template.defaultScope);
+      const bucket: FlowLintScopeQuickSlotBucket = {
+        slots: [...template.quickSlots] as [FlowLintRunScope, FlowLintRunScope, FlowLintRunScope],
+        labels: makeDefaultFlowLintScopeQuickSlotLabels(),
+        locks: [false, false, false],
+        activeSlot: defaultScopeIndex,
+      };
+      flowLintScopeQuickSlots = { ...flowLintScopeQuickSlots, [bucketKey]: bucket };
+      saveFlowLintScopeQuickSlots(flowLintScopeQuickSlots);
+      changed = true;
+    }
+
+    return changed;
   }
 
   function ensureFlowLintScopeQuickSlotBucket(flowId: number): FlowLintScopeQuickSlotBucket {
