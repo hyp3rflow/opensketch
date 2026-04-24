@@ -79,8 +79,22 @@ const PROTOTYPE_REDUCED_MOTION_KEY = "opensketch-prototype-reduced-motion-v1";
 const INTERACTIVE_PREVIEW_EVENT = "opensketch:interactive-preview-state";
 const COMPONENT_PROP_FORMULA_KEY = "opensketch-component-prop-formulas-v1";
 const STROKE_STYLE_PRESET_KEY = "opensketch-stroke-style-presets-v1";
+const PROTOTYPE_FLOW_LINT_SCOPE_PRESETS_KEY = "opensketch-flow-lint-scope-presets-v1";
+const PROTOTYPE_FLOW_LINT_SCOPE_QUICK_SLOTS_KEY = "opensketch-flow-lint-scope-quick-slots-v1";
+const PROTOTYPE_FLOW_LINT_SCOPE_GUARDRAIL_TEMPLATE_KEY = "opensketch-flow-lint-scope-guardrail-template-v1";
 
 type ComponentPropFormulaStore = Record<string, Record<string, string>>;
+type FlowLintRunScope = "selection" | "page" | "flow";
+type FlowLintScopeQuickSlotBucket = {
+  slots: [FlowLintRunScope, FlowLintRunScope, FlowLintRunScope];
+  labels: [string, string, string];
+  locks: [boolean, boolean, boolean];
+  activeSlot: number;
+};
+type FlowLintScopeGuardrailTemplate = {
+  defaultScope: FlowLintRunScope;
+  quickSlots: [FlowLintRunScope, FlowLintRunScope, FlowLintRunScope];
+};
 
 function loadComponentPropFormulaStore(): ComponentPropFormulaStore {
   try {
@@ -119,6 +133,81 @@ function setComponentPropFormula(instanceId: number, propName: string, formula: 
   }
   store[key] = { ...prev, [propName]: next };
   saveComponentPropFormulaStore(store);
+}
+
+function resolveFlowLintScope(value: unknown): FlowLintRunScope {
+  return value === "selection" || value === "page" || value === "flow" ? value : "flow";
+}
+
+function makeFlowLintScopePresetKey(flowId: number, pageId?: number | null): string {
+  const safeFlowId = Number.isFinite(flowId) && flowId > 0 ? Math.floor(flowId) : 0;
+  const safePageId = Number.isFinite(Number(pageId || 0)) && Number(pageId || 0) > 0 ? Math.floor(Number(pageId || 0)) : 0;
+  if (safeFlowId <= 0) return "0";
+  return safePageId > 0 ? `${safeFlowId}@${safePageId}` : String(safeFlowId);
+}
+
+function makeDefaultFlowLintScopeQuickSlots(): [FlowLintRunScope, FlowLintRunScope, FlowLintRunScope] {
+  return ["selection", "page", "flow"];
+}
+
+function makeDefaultFlowLintScopeQuickSlotLabels(): [string, string, string] {
+  return ["S1", "S2", "S3"];
+}
+
+function loadFlowLintScopeGuardrailTemplate(): FlowLintScopeGuardrailTemplate {
+  try {
+    const raw = localStorage.getItem(PROTOTYPE_FLOW_LINT_SCOPE_GUARDRAIL_TEMPLATE_KEY);
+    if (!raw) return { defaultScope: "page", quickSlots: makeDefaultFlowLintScopeQuickSlots() };
+    const parsed = JSON.parse(raw || "{}");
+    const quickSlotsRaw = Array.isArray((parsed as any)?.quickSlots) ? (parsed as any).quickSlots : [];
+    const quickSlots: [FlowLintRunScope, FlowLintRunScope, FlowLintRunScope] = [
+      resolveFlowLintScope(quickSlotsRaw[0] || "selection"),
+      resolveFlowLintScope(quickSlotsRaw[1] || "page"),
+      resolveFlowLintScope(quickSlotsRaw[2] || "flow"),
+    ];
+    return {
+      defaultScope: resolveFlowLintScope((parsed as any)?.defaultScope || "page"),
+      quickSlots,
+    };
+  } catch {
+    return { defaultScope: "page", quickSlots: makeDefaultFlowLintScopeQuickSlots() };
+  }
+}
+
+function applyFlowLintScopeGuardrailDefaultsForFlow(flowId: number, pageId: number | null | undefined): void {
+  const safeFlowId = Number.isFinite(flowId) && flowId > 0 ? Math.floor(flowId) : 0;
+  if (safeFlowId <= 0) return;
+  const safePageId = Number.isFinite(Number(pageId || 0)) && Number(pageId || 0) > 0 ? Math.floor(Number(pageId || 0)) : null;
+  const defaults = loadFlowLintScopeGuardrailTemplate();
+
+  try {
+    const rawPresets = localStorage.getItem(PROTOTYPE_FLOW_LINT_SCOPE_PRESETS_KEY);
+    const prevPresets = rawPresets ? JSON.parse(rawPresets) : {};
+    const nextPresets = { ...(prevPresets || {}) };
+    nextPresets[makeFlowLintScopePresetKey(safeFlowId)] = defaults.defaultScope;
+    if (safePageId) nextPresets[makeFlowLintScopePresetKey(safeFlowId, safePageId)] = defaults.defaultScope;
+    localStorage.setItem(PROTOTYPE_FLOW_LINT_SCOPE_PRESETS_KEY, JSON.stringify(nextPresets));
+  } catch {}
+
+  try {
+    const rawSlots = localStorage.getItem(PROTOTYPE_FLOW_LINT_SCOPE_QUICK_SLOTS_KEY);
+    const prevSlots = rawSlots ? JSON.parse(rawSlots) : {};
+    const flowKey = String(safeFlowId);
+    const existing = prevSlots?.[flowKey] || {};
+    const nextBucket: FlowLintScopeQuickSlotBucket = {
+      slots: defaults.quickSlots,
+      labels: Array.isArray(existing?.labels)
+        ? [
+          String(existing.labels[0] || "S1").trim().slice(0, 20) || "S1",
+          String(existing.labels[1] || "S2").trim().slice(0, 20) || "S2",
+          String(existing.labels[2] || "S3").trim().slice(0, 20) || "S3",
+        ] as [string, string, string]
+        : makeDefaultFlowLintScopeQuickSlotLabels(),
+      locks: Array.isArray(existing?.locks) ? [Boolean(existing.locks[0]), Boolean(existing.locks[1]), Boolean(existing.locks[2])] : [false, false, false],
+      activeSlot: Number.isFinite(Number(existing?.activeSlot)) ? Math.max(-1, Math.min(2, Math.floor(Number(existing.activeSlot)))) : -1,
+    };
+    localStorage.setItem(PROTOTYPE_FLOW_LINT_SCOPE_QUICK_SLOTS_KEY, JSON.stringify({ ...(prevSlots || {}), [flowKey]: nextBucket }));
+  } catch {}
 }
 
 function buildComponentPropFormulaContext(editor: Editor, baseValue: any): Record<string, string | number | boolean> {
@@ -10839,7 +10928,9 @@ export function setupPropertiesPanel(container: HTMLElement, editor: Editor) {
       addFlowBtn.textContent = "+ Add flow";
       addFlowBtn.addEventListener("click", () => {
         ensureUndo();
-        editor.engine.add_flow("Flow " + (flows.length + 1));
+        const newFlowId = Number(editor.engine.add_flow("Flow " + (flows.length + 1)) || 0);
+        const pageIdNow = Number((editor as any).currentPageId || 0);
+        applyFlowLintScopeGuardrailDefaultsForFlow(newFlowId, pageIdNow > 0 ? pageIdNow : null);
         editor.requestRender();
         refresh(ids);
       });

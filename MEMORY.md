@@ -1795,11 +1795,10 @@
 - Flow Lint Scope Policy Enforcement Hint — Guardrail 기본 정책과 현재 scope 불일치 시 lint 실행 전 교정 힌트 제공 (임팩트 중하, 난이도 중)
 
 ## 완료된 기능 (추가 — Flow Lint Scope Guardrail Defaults, 2026-04-24)
-- 신규 flow가 처음 렌더될 때 Flow Lint Scope 기본 정책 템플릿(`defaultScope: page`, quick slot `selection/page/flow`)을 자동 시드
-- scope preset key(`flowId`, `flowId@pageId`)가 비어 있으면 기본 scope를 즉시 저장하고, quick slot bucket이 없으면 기본 슬롯/active slot까지 생성
-- Flow Start Manager 렌더 경로에 guardrail defaults 적용을 연결해 flow 생성 직후 Scope/Quick Slot UI가 일관된 초기값으로 시작
-- guardrail template localStorage 키 `opensketch-flow-lint-scope-guardrail-template-v1` 추가 + sanitize 로드
-- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- Properties > Prototype Flows의 `+ Add flow` 시점에 새 flow id를 받아 팀 Guardrail template(`opensketch-flow-lint-scope-guardrail-template-v1`) 기본값을 즉시 주입
+- 새 flow에 대해 scope preset key `flowId` + `flowId@pageId`를 생성하고 `defaultScope`를 동시 저장해 Prototype Viewer 진입 전에도 기본 정책 일관성 유지
+- quick slot bucket도 템플릿 `quickSlots`로 초기화하면서 기존 label/lock/activeSlot 값은 보존해 팀 정책 + 개인 slot 운영정보를 함께 유지
+- 구현: `packages/app/src/ui/properties-panel.ts`
 - specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Flow Lint Scope Preset Import/Export, 2026-04-24)
