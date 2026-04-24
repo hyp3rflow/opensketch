@@ -667,6 +667,66 @@ function parseFlowLintScopePresetExchangePayload(raw: string): FlowLintScopePres
   }
 }
 
+type FlowLintScopePresetImportDiffRow = {
+  scope: "preset" | "slot";
+  key: string;
+  currentValue: string;
+  incomingValue: string;
+  status: "add" | "update" | "same";
+};
+
+function flowLintScopeLabel(scope: FlowLintRunScope): string {
+  if (scope === "selection") return "Selection";
+  if (scope === "page") return "Page";
+  return "Flow";
+}
+
+function formatFlowLintScopeQuickSlotCell(bucket: FlowLintScopeQuickSlotBucket | null, idx: number): string {
+  if (!bucket) return "(없음)";
+  const label = String(bucket.labels[idx] || `S${idx + 1}`).trim() || `S${idx + 1}`;
+  const scope = flowLintScopeLabel(resolveFlowLintScope(bucket.slots[idx]));
+  const lock = bucket.locks[idx] ? "🔒" : "🔓";
+  return `${label}: ${scope} ${lock}`;
+}
+
+function buildFlowLintScopePresetImportDiffRows(
+  currentPresets: FlowLintScopePresetMap,
+  currentSlots: FlowLintScopeQuickSlotMap,
+  incomingPresets: FlowLintScopePresetMap,
+  incomingSlots: FlowLintScopeQuickSlotMap,
+): FlowLintScopePresetImportDiffRow[] {
+  const rows: FlowLintScopePresetImportDiffRow[] = [];
+  for (const key of Object.keys(incomingPresets).sort((a, b) => a.localeCompare(b, "en"))) {
+    const current = currentPresets[key];
+    const incoming = resolveFlowLintScope(incomingPresets[key]);
+    const parsed = parseFlowLintScopePresetKey(key);
+    const keyLabel = parsed ? `flow ${parsed.flowId}${parsed.pageId ? `@page ${parsed.pageId}` : ""}` : key;
+    rows.push({
+      scope: "preset",
+      key: keyLabel,
+      currentValue: current ? flowLintScopeLabel(resolveFlowLintScope(current)) : "(없음)",
+      incomingValue: flowLintScopeLabel(incoming),
+      status: !current ? "add" : resolveFlowLintScope(current) === incoming ? "same" : "update",
+    });
+  }
+  for (const flowKey of Object.keys(incomingSlots).sort((a, b) => Number(a) - Number(b))) {
+    const incomingBucket = sanitizeFlowLintScopeQuickSlotBucket(incomingSlots[flowKey]);
+    const currentBucket = currentSlots[flowKey] ? sanitizeFlowLintScopeQuickSlotBucket(currentSlots[flowKey]) : null;
+    for (let idx = 0; idx < 3; idx += 1) {
+      const cur = formatFlowLintScopeQuickSlotCell(currentBucket, idx);
+      const next = formatFlowLintScopeQuickSlotCell(incomingBucket, idx);
+      rows.push({
+        scope: "slot",
+        key: `flow ${flowKey} · S${idx + 1}`,
+        currentValue: cur,
+        incomingValue: next,
+        status: !currentBucket ? "add" : cur === next ? "same" : "update",
+      });
+    }
+  }
+  return rows;
+}
+
 type FlowLintScopeSlotAuditAction = "lock" | "unlock" | "overwrite-blocked";
 type FlowLintScopeSlotAuditEntry = {
   id: string;
@@ -1150,6 +1210,11 @@ export function createPrototypeViewer(editor: Editor): {
   let flowLintScopeStorageInfo: HTMLDivElement | null = null;
   let flowLintScopeStorageCleanupBtn: HTMLButtonElement | null = null;
   let flowLintScopeUsageChipButtons: HTMLButtonElement[] = [];
+  let flowLintScopePresetImportDiffWrap: HTMLDivElement | null = null;
+  let flowLintScopePresetImportDiffInfo: HTMLDivElement | null = null;
+  let flowLintScopePresetImportDiffTable: HTMLDivElement | null = null;
+  let flowLintScopePresetImportApplyBtn: HTMLButtonElement | null = null;
+  let flowLintScopePresetImportCancelBtn: HTMLButtonElement | null = null;
   let flowLintScopeHeatmapInfo: HTMLDivElement | null = null;
   let flowLintScopeHeatmapWeekdayRow: HTMLDivElement | null = null;
   let flowLintScopeHeatmapGrid: HTMLDivElement | null = null;
@@ -1334,6 +1399,7 @@ export function createPrototypeViewer(editor: Editor): {
   let flowLintOwnerSlaSortMode: FlowLintOwnerSlaSortMode = loadFlowLintOwnerSlaSortMode();
   let flowLintScopePresets: FlowLintScopePresetMap = loadFlowLintScopePresets();
   let flowLintScopeQuickSlots: FlowLintScopeQuickSlotMap = loadFlowLintScopeQuickSlots();
+  let flowLintScopePresetPendingImport: FlowLintScopePresetExchangePayload | null = null;
   let flowLintScopeSlotAuditLog: FlowLintScopeSlotAuditEntry[] = loadFlowLintScopeSlotAuditLog();
   let flowLintScopeRunLog: FlowLintScopeRunLog = loadFlowLintScopeRunLog();
   let flowLintScopeTimeline: FlowLintScopeTimelineEntry[] = loadFlowLintScopeTimeline();
@@ -4430,6 +4496,78 @@ export function createPrototypeViewer(editor: Editor): {
     };
   }
 
+  function applyFlowLintScopePresetImport(parsed: FlowLintScopePresetExchangePayload) {
+    const mergedPresets = { ...flowLintScopePresets, ...parsed.presets };
+    const mergedSlots = { ...flowLintScopeQuickSlots, ...parsed.quickSlots };
+    flowLintScopePresets = mergedPresets;
+    flowLintScopeQuickSlots = mergedSlots;
+    saveFlowLintScopePresets(flowLintScopePresets);
+    saveFlowLintScopeQuickSlots(flowLintScopeQuickSlots);
+    const flowId = Number(flowStartFlowSel?.value || 0);
+    const flow = listPrototypeFlows().find((row) => row.id === flowId) || null;
+    if (flowId > 0) {
+      const applied = applyFlowLintScopePresetForFlow(flowId, flow?.page_id, flowLintScopeAutoApplyOnFlowSwitch);
+      recordFlowLintScopeTimeline(applied.scope, "preset-import");
+    }
+    flowLintScopePresetPendingImport = null;
+    renderFlowLintScopePresetImportDiffPreview();
+    renderFlowLintScopeQuickSlots();
+    renderFlowLintScopeStorageInfo();
+    renderFlowLintScopeDriftAlert();
+    if (flowLintInfo) {
+      flowLintInfo.textContent = `Scope preset JSON import 완료 · preset +${Object.keys(parsed.presets).length} · quick slot +${Object.keys(parsed.quickSlots).length}`;
+    }
+  }
+
+  function renderFlowLintScopePresetImportDiffPreview() {
+    if (!flowLintScopePresetImportDiffWrap || !flowLintScopePresetImportDiffInfo || !flowLintScopePresetImportDiffTable || !flowLintScopePresetImportApplyBtn || !flowLintScopePresetImportCancelBtn) return;
+    const pending = flowLintScopePresetPendingImport;
+    if (!pending) {
+      flowLintScopePresetImportDiffWrap.style.display = "none";
+      flowLintScopePresetImportDiffTable.innerHTML = "";
+      flowLintScopePresetImportDiffInfo.textContent = "";
+      flowLintScopePresetImportApplyBtn.disabled = true;
+      return;
+    }
+    const rows = buildFlowLintScopePresetImportDiffRows(flowLintScopePresets, flowLintScopeQuickSlots, pending.presets, pending.quickSlots);
+    const changedCount = rows.filter((row) => row.status !== "same").length;
+    flowLintScopePresetImportDiffWrap.style.display = "flex";
+    flowLintScopePresetImportDiffInfo.textContent = `Import 미리보기 · ${rows.length}개 항목 (변경 ${changedCount}개)`;
+    flowLintScopePresetImportApplyBtn.disabled = rows.length <= 0;
+    flowLintScopePresetImportDiffTable.innerHTML = "";
+
+    const header = document.createElement("div");
+    header.style.cssText = "display:grid;grid-template-columns:72px 1fr 1fr 1fr 58px;gap:4px;font-size:9px;font-weight:600;color:#c4b5fd;";
+    ["Scope", "Key", "Current", "Incoming", "Δ"].forEach((text) => {
+      const cell = document.createElement("div");
+      cell.textContent = text;
+      header.appendChild(cell);
+    });
+    flowLintScopePresetImportDiffTable.appendChild(header);
+
+    rows.slice(0, 40).forEach((row) => {
+      const line = document.createElement("div");
+      line.style.cssText = "display:grid;grid-template-columns:72px 1fr 1fr 1fr 58px;gap:4px;font-size:9px;line-height:1.3;color:#ddd6fe;border-top:1px solid rgba(167,139,250,0.18);padding-top:3px;";
+      const statusColor = row.status === "add" ? "#86efac" : row.status === "update" ? "#fcd34d" : "#94a3b8";
+      const statusLabel = row.status === "add" ? "ADD" : row.status === "update" ? "UPDATE" : "SAME";
+      const cells = [row.scope, row.key, row.currentValue, row.incomingValue, statusLabel];
+      cells.forEach((text, idx) => {
+        const cell = document.createElement("div");
+        cell.textContent = text;
+        if (idx === 4) cell.style.color = statusColor;
+        line.appendChild(cell);
+      });
+      flowLintScopePresetImportDiffTable.appendChild(line);
+    });
+
+    if (rows.length > 40) {
+      const foot = document.createElement("div");
+      foot.style.cssText = "font-size:9px;color:#a78bfa;";
+      foot.textContent = `… 외 ${rows.length - 40}개 항목`;
+      flowLintScopePresetImportDiffTable.appendChild(foot);
+    }
+  }
+
   function renderFlowLintScopeStorageInfo() {
     if (!flowLintScopeStorageInfo || !flowLintScopeStorageCleanupBtn) return;
     const stats = collectFlowLintScopeStorageStats();
@@ -7218,29 +7356,52 @@ export function createPrototypeViewer(editor: Editor): {
           if (flowLintInfo) flowLintInfo.textContent = "Scope preset import 실패: 지원하지 않는 JSON 형식";
           return;
         }
-        const mergedPresets = { ...flowLintScopePresets, ...parsed.presets };
-        const mergedSlots = { ...flowLintScopeQuickSlots, ...parsed.quickSlots };
-        flowLintScopePresets = mergedPresets;
-        flowLintScopeQuickSlots = mergedSlots;
-        saveFlowLintScopePresets(flowLintScopePresets);
-        saveFlowLintScopeQuickSlots(flowLintScopeQuickSlots);
-        const flowId = Number(flowStartFlowSel?.value || 0);
-        const flow = listPrototypeFlows().find((row) => row.id === flowId) || null;
-        if (flowId > 0) {
-          const applied = applyFlowLintScopePresetForFlow(flowId, flow?.page_id, flowLintScopeAutoApplyOnFlowSwitch);
-          recordFlowLintScopeTimeline(applied.scope, "preset-import");
-        }
-        renderFlowLintScopeQuickSlots();
-        renderFlowLintScopeStorageInfo();
-        renderFlowLintScopeDriftAlert();
+        flowLintScopePresetPendingImport = parsed;
+        renderFlowLintScopePresetImportDiffPreview();
         if (flowLintInfo) {
-          flowLintInfo.textContent = `Scope preset JSON import 완료 · preset +${Object.keys(parsed.presets).length} · quick slot +${Object.keys(parsed.quickSlots).length}`;
+          flowLintInfo.textContent = "Scope preset import 미리보기 생성됨 · Diff 테이블에서 확인 후 Apply";
         }
       };
       input.click();
     };
     flowLintScopePresetIOButtons.appendChild(flowLintScopePresetImportBtn);
     flowLintWrap.appendChild(flowLintScopePresetIOButtons);
+
+    flowLintScopePresetImportDiffWrap = document.createElement("div");
+    flowLintScopePresetImportDiffWrap.style.cssText = "display:none;flex-direction:column;gap:4px;padding:5px;border-radius:7px;border:1px solid rgba(167,139,250,0.35);background:rgba(76,29,149,0.2);";
+    const flowLintScopePresetImportDiffHead = document.createElement("div");
+    flowLintScopePresetImportDiffHead.style.cssText = "font-size:9px;font-weight:600;color:#ddd6fe;text-transform:uppercase;letter-spacing:0.04em;";
+    flowLintScopePresetImportDiffHead.textContent = "Scope Preset Diff Preview";
+    flowLintScopePresetImportDiffWrap.appendChild(flowLintScopePresetImportDiffHead);
+    flowLintScopePresetImportDiffInfo = document.createElement("div");
+    flowLintScopePresetImportDiffInfo.style.cssText = "font-size:9px;line-height:1.35;color:#c4b5fd;";
+    flowLintScopePresetImportDiffWrap.appendChild(flowLintScopePresetImportDiffInfo);
+    flowLintScopePresetImportDiffTable = document.createElement("div");
+    flowLintScopePresetImportDiffTable.style.cssText = "display:flex;flex-direction:column;gap:3px;max-height:180px;overflow:auto;";
+    flowLintScopePresetImportDiffWrap.appendChild(flowLintScopePresetImportDiffTable);
+    const flowLintScopePresetImportDiffBtnRow = document.createElement("div");
+    flowLintScopePresetImportDiffBtnRow.style.cssText = "display:flex;gap:4px;";
+    flowLintScopePresetImportApplyBtn = document.createElement("button");
+    flowLintScopePresetImportApplyBtn.className = "prop-btn";
+    flowLintScopePresetImportApplyBtn.textContent = "Apply Import";
+    flowLintScopePresetImportApplyBtn.style.cssText = "flex:1;font-size:9px;padding:3px 6px;";
+    flowLintScopePresetImportApplyBtn.onclick = () => {
+      if (!flowLintScopePresetPendingImport) return;
+      applyFlowLintScopePresetImport(flowLintScopePresetPendingImport);
+    };
+    flowLintScopePresetImportDiffBtnRow.appendChild(flowLintScopePresetImportApplyBtn);
+    flowLintScopePresetImportCancelBtn = document.createElement("button");
+    flowLintScopePresetImportCancelBtn.className = "prop-btn";
+    flowLintScopePresetImportCancelBtn.textContent = "Cancel";
+    flowLintScopePresetImportCancelBtn.style.cssText = "flex:1;font-size:9px;padding:3px 6px;";
+    flowLintScopePresetImportCancelBtn.onclick = () => {
+      flowLintScopePresetPendingImport = null;
+      renderFlowLintScopePresetImportDiffPreview();
+      if (flowLintInfo) flowLintInfo.textContent = "Scope preset import 미리보기를 취소했어요.";
+    };
+    flowLintScopePresetImportDiffBtnRow.appendChild(flowLintScopePresetImportCancelBtn);
+    flowLintScopePresetImportDiffWrap.appendChild(flowLintScopePresetImportDiffBtnRow);
+    flowLintWrap.appendChild(flowLintScopePresetImportDiffWrap);
 
     const flowLintScopeHeatmapWrap = document.createElement("div");
     flowLintScopeHeatmapWrap.style.cssText = "display:flex;flex-direction:column;gap:4px;padding:5px;border-radius:7px;border:1px solid rgba(56,189,248,0.3);background:rgba(8,47,73,0.22);";

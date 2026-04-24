@@ -1790,9 +1790,20 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Flow Lint Scope Preset Diff Preview — import 전 현재/유입 preset 차이를 scope·slot 단위 diff 테이블로 미리보기 (임팩트 중, 난이도 중)
 - Flow Lint Scope Lock Coverage Meter — flow별 quick slot lock 커버리지(잠금 슬롯 비율)와 권장 액션 배지 표시 (임팩트 중하, 난이도 중하)
 - Flow Lint Scope Policy Enforcement Hint — Guardrail 기본 정책과 현재 scope 불일치 시 lint 실행 전 교정 힌트 제공 (임팩트 중하, 난이도 중)
+- Flow Lint Scope Import Conflict Filter — Diff Preview에서 ADD/UPDATE/SAME 필터 + 검색으로 대규모 import 충돌 탐색 개선 (임팩트 중, 난이도 중)
+- Flow Lint Scope Import Selective Apply — Diff 테이블 row 단위 체크박스로 선택 적용(import partial merge) 지원 (임팩트 중상, 난이도 중상)
+- Flow Lint Scope Template Versioning Badge — guardrail template 버전/변경일 표시 + 구버전 preset 업그레이드 제안 배지 (임팩트 중하, 난이도 중)
+
+
+## 완료된 기능 (추가 — Flow Lint Scope Preset Diff Preview, 2026-04-24)
+- `Import Scope JSON` 실행 시 즉시 merge하지 않고 `Scope Preset Diff Preview` 카드를 먼저 표시해 import 전 영향 범위를 확인하도록 개선
+- diff 테이블에서 scope preset(flow / flow@page) + quick slot(S1~S3) 기준으로 `Current / Incoming / ADD·UPDATE·SAME` 상태를 표시
+- `Apply Import` 확정 시에만 실제 merge 저장(localStorage) + 현재 flow scope 재적용 + timeline `preset-import` 기록 수행
+- `Cancel`로 pending import를 폐기해 실수 반영을 방지
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Flow Lint Scope Guardrail Defaults, 2026-04-24)
 - Properties > Prototype Flows의 `+ Add flow` 시점에 새 flow id를 받아 팀 Guardrail template(`opensketch-flow-lint-scope-guardrail-template-v1`) 기본값을 즉시 주입
