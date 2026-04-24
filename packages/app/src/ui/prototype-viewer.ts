@@ -675,6 +675,8 @@ type FlowLintScopePresetImportDiffRow = {
   status: "add" | "update" | "same";
 };
 
+type FlowLintScopePresetImportDiffFilter = "all" | "add" | "update" | "same";
+
 function flowLintScopeLabel(scope: FlowLintRunScope): string {
   if (scope === "selection") return "Selection";
   if (scope === "page") return "Page";
@@ -1212,9 +1214,13 @@ export function createPrototypeViewer(editor: Editor): {
   let flowLintScopeUsageChipButtons: HTMLButtonElement[] = [];
   let flowLintScopePresetImportDiffWrap: HTMLDivElement | null = null;
   let flowLintScopePresetImportDiffInfo: HTMLDivElement | null = null;
+  let flowLintScopePresetImportDiffFilterSel: HTMLSelectElement | null = null;
+  let flowLintScopePresetImportDiffSearchInput: HTMLInputElement | null = null;
   let flowLintScopePresetImportDiffTable: HTMLDivElement | null = null;
   let flowLintScopePresetImportApplyBtn: HTMLButtonElement | null = null;
   let flowLintScopePresetImportCancelBtn: HTMLButtonElement | null = null;
+  let flowLintScopePresetImportDiffFilter: FlowLintScopePresetImportDiffFilter = "all";
+  let flowLintScopePresetImportDiffSearchQuery = "";
   let flowLintScopeHeatmapInfo: HTMLDivElement | null = null;
   let flowLintScopeHeatmapWeekdayRow: HTMLDivElement | null = null;
   let flowLintScopeHeatmapGrid: HTMLDivElement | null = null;
@@ -4660,19 +4666,30 @@ export function createPrototypeViewer(editor: Editor): {
   }
 
   function renderFlowLintScopePresetImportDiffPreview() {
-    if (!flowLintScopePresetImportDiffWrap || !flowLintScopePresetImportDiffInfo || !flowLintScopePresetImportDiffTable || !flowLintScopePresetImportApplyBtn || !flowLintScopePresetImportCancelBtn) return;
+    if (!flowLintScopePresetImportDiffWrap || !flowLintScopePresetImportDiffInfo || !flowLintScopePresetImportDiffFilterSel || !flowLintScopePresetImportDiffSearchInput || !flowLintScopePresetImportDiffTable || !flowLintScopePresetImportApplyBtn || !flowLintScopePresetImportCancelBtn) return;
     const pending = flowLintScopePresetPendingImport;
     if (!pending) {
       flowLintScopePresetImportDiffWrap.style.display = "none";
       flowLintScopePresetImportDiffTable.innerHTML = "";
       flowLintScopePresetImportDiffInfo.textContent = "";
       flowLintScopePresetImportApplyBtn.disabled = true;
+      flowLintScopePresetImportDiffFilter = "all";
+      flowLintScopePresetImportDiffSearchQuery = "";
+      flowLintScopePresetImportDiffFilterSel.value = "all";
+      flowLintScopePresetImportDiffSearchInput.value = "";
       return;
     }
     const rows = buildFlowLintScopePresetImportDiffRows(flowLintScopePresets, flowLintScopeQuickSlots, pending.presets, pending.quickSlots);
     const changedCount = rows.filter((row) => row.status !== "same").length;
+    const query = flowLintScopePresetImportDiffSearchQuery.trim().toLowerCase();
+    const filteredRows = rows.filter((row) => {
+      if (flowLintScopePresetImportDiffFilter !== "all" && row.status !== flowLintScopePresetImportDiffFilter) return false;
+      if (!query) return true;
+      const haystack = `${row.scope} ${row.key} ${row.currentValue} ${row.incomingValue} ${row.status}`.toLowerCase();
+      return haystack.includes(query);
+    });
     flowLintScopePresetImportDiffWrap.style.display = "flex";
-    flowLintScopePresetImportDiffInfo.textContent = `Import 미리보기 · ${rows.length}개 항목 (변경 ${changedCount}개)`;
+    flowLintScopePresetImportDiffInfo.textContent = `Import 미리보기 · 전체 ${rows.length}개 (변경 ${changedCount}개) · 표시 ${filteredRows.length}개`;
     flowLintScopePresetImportApplyBtn.disabled = rows.length <= 0;
     flowLintScopePresetImportDiffTable.innerHTML = "";
 
@@ -4685,7 +4702,14 @@ export function createPrototypeViewer(editor: Editor): {
     });
     flowLintScopePresetImportDiffTable.appendChild(header);
 
-    rows.slice(0, 40).forEach((row) => {
+    if (filteredRows.length <= 0) {
+      const empty = document.createElement("div");
+      empty.style.cssText = "font-size:9px;color:#94a3b8;padding:4px 0;";
+      empty.textContent = "조건과 일치하는 diff 항목이 없어요.";
+      flowLintScopePresetImportDiffTable.appendChild(empty);
+    }
+
+    filteredRows.slice(0, 40).forEach((row) => {
       const line = document.createElement("div");
       line.style.cssText = "display:grid;grid-template-columns:72px 1fr 1fr 1fr 58px;gap:4px;font-size:9px;line-height:1.3;color:#ddd6fe;border-top:1px solid rgba(167,139,250,0.18);padding-top:3px;";
       const statusColor = row.status === "add" ? "#86efac" : row.status === "update" ? "#fcd34d" : "#94a3b8";
@@ -4700,10 +4724,10 @@ export function createPrototypeViewer(editor: Editor): {
       flowLintScopePresetImportDiffTable.appendChild(line);
     });
 
-    if (rows.length > 40) {
+    if (filteredRows.length > 40) {
       const foot = document.createElement("div");
       foot.style.cssText = "font-size:9px;color:#a78bfa;";
-      foot.textContent = `… 외 ${rows.length - 40}개 항목`;
+      foot.textContent = `… 외 ${filteredRows.length - 40}개 항목`;
       flowLintScopePresetImportDiffTable.appendChild(foot);
     }
   }
@@ -7565,6 +7589,40 @@ export function createPrototypeViewer(editor: Editor): {
     flowLintScopePresetImportDiffInfo = document.createElement("div");
     flowLintScopePresetImportDiffInfo.style.cssText = "font-size:9px;line-height:1.35;color:#c4b5fd;";
     flowLintScopePresetImportDiffWrap.appendChild(flowLintScopePresetImportDiffInfo);
+    const flowLintScopePresetImportDiffControlRow = document.createElement("div");
+    flowLintScopePresetImportDiffControlRow.style.cssText = "display:flex;gap:4px;align-items:center;";
+    flowLintScopePresetImportDiffFilterSel = document.createElement("select");
+    flowLintScopePresetImportDiffFilterSel.className = "prop-select";
+    flowLintScopePresetImportDiffFilterSel.style.cssText = "width:108px;font-size:9px;padding:2px 4px;";
+    [
+      { value: "all", label: "Status: ALL" },
+      { value: "add", label: "Status: ADD" },
+      { value: "update", label: "Status: UPDATE" },
+      { value: "same", label: "Status: SAME" },
+    ].forEach((opt) => {
+      const option = document.createElement("option");
+      option.value = opt.value;
+      option.textContent = opt.label;
+      flowLintScopePresetImportDiffFilterSel?.appendChild(option);
+    });
+    flowLintScopePresetImportDiffFilterSel.value = flowLintScopePresetImportDiffFilter;
+    flowLintScopePresetImportDiffFilterSel.onchange = () => {
+      flowLintScopePresetImportDiffFilter = (flowLintScopePresetImportDiffFilterSel?.value as FlowLintScopePresetImportDiffFilter) || "all";
+      renderFlowLintScopePresetImportDiffPreview();
+    };
+    flowLintScopePresetImportDiffControlRow.appendChild(flowLintScopePresetImportDiffFilterSel);
+    flowLintScopePresetImportDiffSearchInput = document.createElement("input");
+    flowLintScopePresetImportDiffSearchInput.className = "prop-input";
+    flowLintScopePresetImportDiffSearchInput.type = "text";
+    flowLintScopePresetImportDiffSearchInput.placeholder = "검색: key / scope / 값";
+    flowLintScopePresetImportDiffSearchInput.style.cssText = "flex:1;font-size:9px;padding:3px 5px;";
+    flowLintScopePresetImportDiffSearchInput.value = flowLintScopePresetImportDiffSearchQuery;
+    flowLintScopePresetImportDiffSearchInput.oninput = () => {
+      flowLintScopePresetImportDiffSearchQuery = flowLintScopePresetImportDiffSearchInput?.value || "";
+      renderFlowLintScopePresetImportDiffPreview();
+    };
+    flowLintScopePresetImportDiffControlRow.appendChild(flowLintScopePresetImportDiffSearchInput);
+    flowLintScopePresetImportDiffWrap.appendChild(flowLintScopePresetImportDiffControlRow);
     flowLintScopePresetImportDiffTable = document.createElement("div");
     flowLintScopePresetImportDiffTable.style.cssText = "display:flex;flex-direction:column;gap:3px;max-height:180px;overflow:auto;";
     flowLintScopePresetImportDiffWrap.appendChild(flowLintScopePresetImportDiffTable);

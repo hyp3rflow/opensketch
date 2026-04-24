@@ -3257,3 +3257,10 @@ Scan scene for hardcoded styles and suggest migrations to shared StyleStore styl
 - [x] 생성된 케이스 카드에서 `Replay case`로 frame → overlay → frame 자동 재생을 수행해 경로 검증 루프를 즉시 실행
 - [x] `Copy cases`는 JSON payload(generatedAt + cases[])를 클립보드로 내보내 CI/리뷰 코멘트에 바로 첨부 가능
 - 구현: `packages/app/src/ui/prototype-viewer.ts`
+
+### Flow Lint Scope Import Conflict Filter (2026-04-25)
+- [x] `Scope Preset Diff Preview`에 status 필터(`ALL/ADD/UPDATE/SAME`)를 추가해 대량 import diff에서 변경 타입별로 빠르게 좁혀볼 수 있도록 개선
+- [x] diff 검색 입력창을 추가해 key/현재값/유입값/status 텍스트 기준으로 즉시 필터링 지원
+- [x] 미리보기 요약 문구를 `전체/변경/표시` 카운트로 확장해 필터 조건에 따른 탐색 범위를 즉시 파악
+- [x] 필터 조건에 맞는 결과가 없을 때 empty state 메시지를 노출해 오해 방지
+- 구현: `packages/app/src/ui/prototype-viewer.ts`

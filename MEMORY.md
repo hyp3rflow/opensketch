@@ -1790,10 +1790,15 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Flow Lint Scope Import Conflict Filter — Diff Preview에서 ADD/UPDATE/SAME 필터 + 검색으로 대규모 import 충돌 탐색 개선 (임팩트 중, 난이도 중)
 - Flow Lint Scope Import Selective Apply — Diff 테이블 row 단위 체크박스로 선택 적용(import partial merge) 지원 (임팩트 중상, 난이도 중상)
 - Flow Lint Scope Template Versioning Badge — guardrail template 버전/변경일 표시 + 구버전 preset 업그레이드 제안 배지 (임팩트 중하, 난이도 중)
 
+## 완료된 기능 (추가 — Flow Lint Scope Import Conflict Filter, 2026-04-25)
+- Scope Preset Diff Preview에 status 필터(ALL/ADD/UPDATE/SAME) + 검색 입력을 추가해 대규모 import diff에서 충돌 탐색 속도 개선
+- 필터 조건은 key/current/incoming/status 텍스트까지 포함해 즉시 매칭하고, 요약 정보에 전체/변경/표시 카운트를 함께 노출
+- 결과가 없을 때 empty state(`조건과 일치하는 diff 항목이 없어요.`)를 표시해 필터 상태를 명확히 안내
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Flow Lint Scope Policy Enforcement Hint, 2026-04-24)
 - Flow Lint Scope 영역에 `Policy Enforcement Hint` 카드를 추가해 Guardrail 기본 scope(defaultScope)와 현재 선택 scope가 다를 때 lint 실행 전에 교정 가이드를 노출
