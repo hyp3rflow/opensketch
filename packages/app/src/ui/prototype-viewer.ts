@@ -579,6 +579,64 @@ function saveFlowLintScopeQuickSlots(map: FlowLintScopeQuickSlotMap) {
   } catch {}
 }
 
+type FlowLintScopePresetExchangePayload = {
+  version: 1;
+  exportedAt: number;
+  presets: FlowLintScopePresetMap;
+  quickSlots: FlowLintScopeQuickSlotMap;
+};
+
+function buildFlowLintScopePresetExchangePayload(
+  presets: FlowLintScopePresetMap,
+  quickSlots: FlowLintScopeQuickSlotMap,
+): FlowLintScopePresetExchangePayload {
+  return {
+    version: 1,
+    exportedAt: Date.now(),
+    presets: { ...presets },
+    quickSlots: Object.fromEntries(
+      Object.entries(quickSlots).map(([flowId, bucket]) => [flowId, sanitizeFlowLintScopeQuickSlotBucket(bucket)]),
+    ),
+  };
+}
+
+function parseFlowLintScopePresetExchangePayload(raw: string): FlowLintScopePresetExchangePayload | null {
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+    const version = Number((parsed as any).version || 0);
+    if (version !== 1) return null;
+    const exportedAt = Number((parsed as any).exportedAt || Date.now());
+    const presetsRaw = (parsed as any).presets;
+    const quickSlotsRaw = (parsed as any).quickSlots;
+    const presets: FlowLintScopePresetMap = {};
+    if (presetsRaw && typeof presetsRaw === "object") {
+      for (const [rawKey, rawScope] of Object.entries(presetsRaw as Record<string, unknown>)) {
+        const parsedKey = parseFlowLintScopePresetKey(rawKey);
+        if (!parsedKey) continue;
+        const key = makeFlowLintScopePresetKey(parsedKey.flowId, parsedKey.pageId);
+        presets[key] = resolveFlowLintScope(String(rawScope || ""));
+      }
+    }
+    const quickSlots: FlowLintScopeQuickSlotMap = {};
+    if (quickSlotsRaw && typeof quickSlotsRaw === "object") {
+      for (const [rawFlowId, bucket] of Object.entries(quickSlotsRaw as Record<string, unknown>)) {
+        const flowId = Number(rawFlowId);
+        if (!Number.isFinite(flowId) || flowId <= 0) continue;
+        quickSlots[String(Math.floor(flowId))] = sanitizeFlowLintScopeQuickSlotBucket(bucket);
+      }
+    }
+    return {
+      version: 1,
+      exportedAt: Number.isFinite(exportedAt) && exportedAt > 0 ? Math.floor(exportedAt) : Date.now(),
+      presets,
+      quickSlots,
+    };
+  } catch {
+    return null;
+  }
+}
+
 type FlowLintScopeSlotAuditAction = "lock" | "unlock" | "overwrite-blocked";
 type FlowLintScopeSlotAuditEntry = {
   id: string;
@@ -704,7 +762,7 @@ function saveFlowLintScopeRunLog(log: FlowLintScopeRunLog) {
   } catch {}
 }
 
-type FlowLintScopeTimelineSource = "manual" | "quick-slot" | "flow-switch" | "auto-apply" | "rollback";
+type FlowLintScopeTimelineSource = "manual" | "quick-slot" | "flow-switch" | "auto-apply" | "rollback" | "preset-import";
 type FlowLintScopeTimelineEntry = {
   id: string;
   at: number;
@@ -754,6 +812,7 @@ function resolveFlowLintScopeTimelineSource(input: unknown): FlowLintScopeTimeli
   if (safe === "flow-switch") return "flow-switch";
   if (safe === "auto-apply") return "auto-apply";
   if (safe === "rollback") return "rollback";
+  if (safe === "preset-import") return "preset-import";
   return "manual";
 }
 
@@ -4119,7 +4178,9 @@ export function createPrototypeViewer(editor: Editor): {
             ? "auto"
             : row.source === "rollback"
               ? "rollback"
-              : "manual";
+              : row.source === "preset-import"
+                ? "import"
+                : "manual";
       const label = document.createElement("div");
       label.style.cssText = "font-size:9px;color:#bfdbfe;line-height:1.25;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
       label.textContent = `${new Date(row.at).toLocaleTimeString()} · ${row.scope} (${sourceLabel})`;
@@ -7047,6 +7108,70 @@ export function createPrototypeViewer(editor: Editor): {
     };
     flowLintScopeStorageRow.appendChild(flowLintScopeStorageCleanupBtn);
     flowLintWrap.appendChild(flowLintScopeStorageRow);
+
+    const flowLintScopePresetIOButtons = document.createElement("div");
+    flowLintScopePresetIOButtons.style.cssText = "display:flex;gap:4px;";
+    const flowLintScopePresetExportBtn = document.createElement("button");
+    flowLintScopePresetExportBtn.className = "prop-btn";
+    flowLintScopePresetExportBtn.textContent = "Export Scope JSON";
+    flowLintScopePresetExportBtn.style.cssText = "flex:1;font-size:9px;padding:3px 6px;";
+    flowLintScopePresetExportBtn.onclick = () => {
+      const payload = buildFlowLintScopePresetExchangePayload(flowLintScopePresets, flowLintScopeQuickSlots);
+      const stamp = new Date(payload.exportedAt).toISOString().replace(/[:.]/g, "-");
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `flow-lint-scope-presets-${stamp}.json`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      if (flowLintInfo) {
+        flowLintInfo.textContent = `Scope preset JSON export 완료 · preset ${Object.keys(payload.presets).length}개 / quick slot ${Object.keys(payload.quickSlots).length}개`;
+      }
+    };
+    flowLintScopePresetIOButtons.appendChild(flowLintScopePresetExportBtn);
+    const flowLintScopePresetImportBtn = document.createElement("button");
+    flowLintScopePresetImportBtn.className = "prop-btn";
+    flowLintScopePresetImportBtn.textContent = "Import Scope JSON";
+    flowLintScopePresetImportBtn.style.cssText = "flex:1;font-size:9px;padding:3px 6px;";
+    flowLintScopePresetImportBtn.onclick = () => {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = "application/json,.json";
+      input.onchange = async () => {
+        const file = input.files?.[0];
+        if (!file) return;
+        const raw = await file.text();
+        const parsed = parseFlowLintScopePresetExchangePayload(raw);
+        if (!parsed) {
+          if (flowLintInfo) flowLintInfo.textContent = "Scope preset import 실패: 지원하지 않는 JSON 형식";
+          return;
+        }
+        const mergedPresets = { ...flowLintScopePresets, ...parsed.presets };
+        const mergedSlots = { ...flowLintScopeQuickSlots, ...parsed.quickSlots };
+        flowLintScopePresets = mergedPresets;
+        flowLintScopeQuickSlots = mergedSlots;
+        saveFlowLintScopePresets(flowLintScopePresets);
+        saveFlowLintScopeQuickSlots(flowLintScopeQuickSlots);
+        const flowId = Number(flowStartFlowSel?.value || 0);
+        const flow = listPrototypeFlows().find((row) => row.id === flowId) || null;
+        if (flowId > 0) {
+          const applied = applyFlowLintScopePresetForFlow(flowId, flow?.page_id, flowLintScopeAutoApplyOnFlowSwitch);
+          recordFlowLintScopeTimeline(applied.scope, "preset-import");
+        }
+        renderFlowLintScopeQuickSlots();
+        renderFlowLintScopeStorageInfo();
+        renderFlowLintScopeDriftAlert();
+        if (flowLintInfo) {
+          flowLintInfo.textContent = `Scope preset JSON import 완료 · preset +${Object.keys(parsed.presets).length} · quick slot +${Object.keys(parsed.quickSlots).length}`;
+        }
+      };
+      input.click();
+    };
+    flowLintScopePresetIOButtons.appendChild(flowLintScopePresetImportBtn);
+    flowLintWrap.appendChild(flowLintScopePresetIOButtons);
 
     const flowLintScopeHeatmapWrap = document.createElement("div");
     flowLintScopeHeatmapWrap.style.cssText = "display:flex;flex-direction:column;gap:4px;padding:5px;border-radius:7px;border:1px solid rgba(56,189,248,0.3);background:rgba(8,47,73,0.22);";

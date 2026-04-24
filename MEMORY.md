@@ -1790,11 +1790,18 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Flow Lint Scope Preset Import/Export — flow별 scope preset/quick slot 설정 JSON 내보내기·가져오기 (임팩트 중, 난이도 중)
 - Flow Lint Scope Guardrail Defaults — 신규 flow 생성 시 팀 기본 scope policy(Selection/Page/Flow) 템플릿 자동 적용 (임팩트 중, 난이도 중상)
 - Flow Lint Scope Preset Diff Preview — import 전 현재/유입 preset 차이를 scope·slot 단위 diff 테이블로 미리보기 (임팩트 중, 난이도 중)
 - Flow Lint Scope Lock Coverage Meter — flow별 quick slot lock 커버리지(잠금 슬롯 비율)와 권장 액션 배지 표시 (임팩트 중하, 난이도 중하)
 - Flow Lint Scope Policy Enforcement Hint — Guardrail 기본 정책과 현재 scope 불일치 시 lint 실행 전 교정 힌트 제공 (임팩트 중하, 난이도 중)
+
+## 완료된 기능 (추가 — Flow Lint Scope Preset Import/Export, 2026-04-24)
+- Flow Lint Scope 영역에 `Export Scope JSON` / `Import Scope JSON` 버튼을 추가해 flow별 scope preset(`flowId`/`flowId@pageId`) + quick slot bucket을 JSON으로 백업/복원 가능
+- Export 시 `version: 1`, `exportedAt`, `presets`, `quickSlots` 구조로 파일 다운로드하고, 현재 저장된 preset/slot 개수를 info 메시지로 즉시 피드백
+- Import 시 JSON 스키마 검증 + scope/sanitize 처리 후 기존 localStorage와 merge 저장(`opensketch-flow-lint-scope-presets-v1`, `opensketch-flow-lint-scope-quick-slots-v1`)
+- Import 직후 현재 flow scope를 재적용하고 quick slot/storage/drift UI를 즉시 rerender하며 timeline에 `preset-import` source 기록
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Flow Lint Scope Slot Lock Audit Log, 2026-04-24)
 - Flow Lint Scope 영역에 `Scope Slot Lock Audit` 카드 추가: slot lock/unlock + 잠금 상태 overwrite 차단 이벤트를 최근 20건까지 로그로 노출
