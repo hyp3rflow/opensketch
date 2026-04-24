@@ -1792,6 +1792,9 @@
 ## 다음 할 것
 - Flow Lint Scope Import Selective Apply — Diff 테이블 row 단위 체크박스로 선택 적용(import partial merge) 지원 (임팩트 중상, 난이도 중상)
 - Flow Lint Scope Template Versioning Badge — guardrail template 버전/변경일 표시 + 구버전 preset 업그레이드 제안 배지 (임팩트 중하, 난이도 중)
+- Flow Lint Scope Import Conflict Grouping — Diff Preview를 flow 단위로 그룹/접기하여 대규모 preset 충돌 탐색 가독성 개선 (임팩트 중, 난이도 중)
+- Flow Lint Scope Import Dry-Run Impact KPI — Apply 전 preset/slot 영향 범위(덮어쓰기·추가·변경 없음) KPI 카드 제공 (임팩트 중, 난이도 중)
+- Flow Lint Scope Import Rule Guard — lock된 quick slot/정책 scope 침범 시 적용 전 경고 및 예외 항목 목록 제공 (임팩트 중상, 난이도 중상)
 
 ## 완료된 기능 (추가 — Flow Lint Scope Import Conflict Filter, 2026-04-25)
 - Scope Preset Diff Preview에 status 필터(ALL/ADD/UPDATE/SAME) + 검색 입력을 추가해 대규모 import diff에서 충돌 탐색 속도 개선
