@@ -1790,12 +1790,18 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Flow Lint Scope Lock Coverage Meter — flow별 quick slot lock 커버리지(잠금 슬롯 비율)와 권장 액션 배지 표시 (임팩트 중하, 난이도 중하)
 - Flow Lint Scope Policy Enforcement Hint — Guardrail 기본 정책과 현재 scope 불일치 시 lint 실행 전 교정 힌트 제공 (임팩트 중하, 난이도 중)
 - Flow Lint Scope Import Conflict Filter — Diff Preview에서 ADD/UPDATE/SAME 필터 + 검색으로 대규모 import 충돌 탐색 개선 (임팩트 중, 난이도 중)
 - Flow Lint Scope Import Selective Apply — Diff 테이블 row 단위 체크박스로 선택 적용(import partial merge) 지원 (임팩트 중상, 난이도 중상)
 - Flow Lint Scope Template Versioning Badge — guardrail template 버전/변경일 표시 + 구버전 preset 업그레이드 제안 배지 (임팩트 중하, 난이도 중)
 
+
+## 완료된 기능 (추가 — Flow Lint Scope Lock Coverage Meter, 2026-04-24)
+- Flow Lint Scope 영역에 `Scope Lock Coverage Meter` 카드 추가: flow별 quick slot 잠금 비율(locked/3, %)을 즉시 확인
+- 현재 선택 flow의 잠금 커버리지를 요약하고, 최대 6개 flow를 잠금 비율 순으로 표시해 운영 편차를 빠르게 점검
+- 상태별 권장 액션 배지 제공: `최소 1개 잠금 권장` / `1개 잠금 해제 권장` / `적정` / `팀 정책 확인`
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Flow Lint Scope Preset Diff Preview, 2026-04-24)
 - `Import Scope JSON` 실행 시 즉시 merge하지 않고 `Scope Preset Diff Preview` 카드를 먼저 표시해 import 전 영향 범위를 확인하도록 개선

@@ -1222,6 +1222,8 @@ export function createPrototypeViewer(editor: Editor): {
   let flowLintScopeTimelineList: HTMLDivElement | null = null;
   let flowLintScopeSlotAuditInfo: HTMLDivElement | null = null;
   let flowLintScopeSlotAuditList: HTMLDivElement | null = null;
+  let flowLintScopeLockCoverageInfo: HTMLDivElement | null = null;
+  let flowLintScopeLockCoverageList: HTMLDivElement | null = null;
   let flowLintScopePreviewInfo: HTMLDivElement | null = null;
   let flowLintScopePreviewList: HTMLDivElement | null = null;
   let flowLintScopeDriftWrap: HTMLDivElement | null = null;
@@ -4348,6 +4350,90 @@ export function createPrototypeViewer(editor: Editor): {
     }
   }
 
+  function renderFlowLintScopeLockCoverageMeter() {
+    if (!flowLintScopeLockCoverageInfo || !flowLintScopeLockCoverageList) return;
+    const flowRows = listPrototypeFlows();
+    const flowNameMap = new Map<number, string>();
+    for (const flow of flowRows) {
+      const id = Number(flow.id || 0);
+      if (!Number.isFinite(id) || id <= 0) continue;
+      const name = String(flow.name || `Flow ${Math.floor(id)}`).trim() || `Flow ${Math.floor(id)}`;
+      flowNameMap.set(Math.floor(id), name);
+    }
+    const rows = Object.entries(flowLintScopeQuickSlots)
+      .map(([flowIdRaw, bucket]) => {
+        const flowId = Number(flowIdRaw);
+        if (!Number.isFinite(flowId) || flowId <= 0) return null;
+        const lockedCount = bucket.locks.filter(Boolean).length;
+        const total = bucket.locks.length || 3;
+        const ratio = total > 0 ? Math.round((lockedCount / total) * 100) : 0;
+        const action = lockedCount <= 0
+          ? "최소 1개 잠금 권장"
+          : lockedCount >= total
+            ? "1개 잠금 해제 권장"
+            : lockedCount === 1
+              ? "적정"
+              : "팀 정책 확인";
+        const tone = lockedCount <= 0
+          ? "warn"
+          : lockedCount >= total
+            ? "tight"
+            : lockedCount === 1
+              ? "good"
+              : "neutral";
+        return {
+          flowId: Math.floor(flowId),
+          flowName: flowNameMap.get(Math.floor(flowId)) || `Flow ${Math.floor(flowId)}`,
+          lockedCount,
+          total,
+          ratio,
+          action,
+          tone,
+        };
+      })
+      .filter((row): row is NonNullable<typeof row> => Boolean(row))
+      .sort((a, b) => (b.ratio - a.ratio) || (a.flowId - b.flowId));
+
+    const currentFlowId = Number(flowStartFlowSel?.value || 0);
+    const current = Number.isFinite(currentFlowId) && currentFlowId > 0
+      ? rows.find((row) => row.flowId === Math.floor(currentFlowId))
+      : null;
+    flowLintScopeLockCoverageInfo.textContent = rows.length > 0
+      ? (current
+        ? `현재 flow 잠금 ${current.lockedCount}/${current.total} (${current.ratio}%) · quick slot lock coverage`
+        : `flow별 quick slot lock coverage ${rows.length}개`)
+      : "잠금 커버리지 데이터가 없습니다. flow별 quick slot을 먼저 생성하세요.";
+
+    flowLintScopeLockCoverageList.innerHTML = "";
+    if (rows.length <= 0) {
+      const empty = document.createElement("div");
+      empty.style.cssText = "font-size:9px;color:#64748b;";
+      empty.textContent = "No lock coverage rows yet.";
+      flowLintScopeLockCoverageList.appendChild(empty);
+      return;
+    }
+
+    for (const row of rows.slice(0, 6)) {
+      const line = document.createElement("div");
+      line.style.cssText = "display:flex;align-items:center;gap:4px;";
+      const name = document.createElement("div");
+      name.style.cssText = "font-size:9px;color:#cbd5e1;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
+      name.textContent = `${row.flowName} · ${row.lockedCount}/${row.total} (${row.ratio}%)`;
+      const badge = document.createElement("span");
+      const badgeStyle = row.tone === "good"
+        ? "border:1px solid rgba(74,222,128,0.55);background:rgba(22,101,52,0.35);color:#bbf7d0;"
+        : row.tone === "warn"
+          ? "border:1px solid rgba(250,204,21,0.55);background:rgba(120,53,15,0.35);color:#fde68a;"
+          : row.tone === "tight"
+            ? "border:1px solid rgba(248,113,113,0.55);background:rgba(127,29,29,0.35);color:#fecaca;"
+            : "border:1px solid rgba(148,163,184,0.5);background:rgba(30,41,59,0.6);color:#e2e8f0;";
+      badge.style.cssText = `font-size:8px;padding:1px 5px;border-radius:999px;white-space:nowrap;${badgeStyle}`;
+      badge.textContent = row.action;
+      line.append(name, badge);
+      flowLintScopeLockCoverageList.appendChild(line);
+    }
+  }
+
   function renderFlowLintScopeHeatmap() {
     if (!flowLintScopeHeatmapInfo || !flowLintScopeHeatmapGrid) return;
     flowLintScopeRunLog = pruneFlowLintScopeRunLog(flowLintScopeRunLog);
@@ -4681,6 +4767,7 @@ export function createPrototypeViewer(editor: Editor): {
     renderFlowLintScopeStorageInfo();
     renderFlowLintScopeTimeline();
     renderFlowLintScopeSlotAuditLog();
+    renderFlowLintScopeLockCoverageMeter();
   }
 
   function applyFlowLintScopeQuickSlot(slotIndex: number, saveCurrent = false) {
@@ -7261,6 +7348,21 @@ export function createPrototypeViewer(editor: Editor): {
     flowLintScopeSlotAuditList.style.cssText = "display:flex;flex-direction:column;gap:3px;";
     flowLintScopeSlotAuditWrap.appendChild(flowLintScopeSlotAuditList);
     flowLintWrap.appendChild(flowLintScopeSlotAuditWrap);
+
+    const flowLintScopeLockCoverageWrap = document.createElement("div");
+    flowLintScopeLockCoverageWrap.style.cssText = "display:flex;flex-direction:column;gap:4px;padding:5px;border-radius:7px;border:1px solid rgba(96,165,250,0.35);background:rgba(30,64,175,0.16);";
+    const flowLintScopeLockCoverageHead = document.createElement("div");
+    flowLintScopeLockCoverageHead.style.cssText = "font-size:9px;font-weight:600;color:#bfdbfe;text-transform:uppercase;letter-spacing:0.04em;";
+    flowLintScopeLockCoverageHead.textContent = "Scope Lock Coverage Meter";
+    flowLintScopeLockCoverageWrap.appendChild(flowLintScopeLockCoverageHead);
+    flowLintScopeLockCoverageInfo = document.createElement("div");
+    flowLintScopeLockCoverageInfo.style.cssText = "font-size:9px;line-height:1.35;color:#93c5fd;";
+    flowLintScopeLockCoverageInfo.textContent = "lock coverage 계산 중…";
+    flowLintScopeLockCoverageWrap.appendChild(flowLintScopeLockCoverageInfo);
+    flowLintScopeLockCoverageList = document.createElement("div");
+    flowLintScopeLockCoverageList.style.cssText = "display:flex;flex-direction:column;gap:3px;";
+    flowLintScopeLockCoverageWrap.appendChild(flowLintScopeLockCoverageList);
+    flowLintWrap.appendChild(flowLintScopeLockCoverageWrap);
 
     flowLintScopeAutoRunCancelBtn = document.createElement("button");
     flowLintScopeAutoRunCancelBtn.className = "prop-btn";
