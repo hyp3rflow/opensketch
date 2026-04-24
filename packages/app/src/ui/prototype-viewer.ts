@@ -1226,6 +1226,9 @@ export function createPrototypeViewer(editor: Editor): {
   let flowLintScopeLockCoverageList: HTMLDivElement | null = null;
   let flowLintScopePreviewInfo: HTMLDivElement | null = null;
   let flowLintScopePreviewList: HTMLDivElement | null = null;
+  let flowLintScopePolicyHintWrap: HTMLDivElement | null = null;
+  let flowLintScopePolicyHintInfo: HTMLDivElement | null = null;
+  let flowLintScopePolicyHintApplyBtn: HTMLButtonElement | null = null;
   let flowLintScopeDriftWrap: HTMLDivElement | null = null;
   let flowLintScopeDriftInfo: HTMLDivElement | null = null;
   let flowLintLastExecutedScopeByFlow: Record<string, FlowLintRunScope> = loadFlowLintLastExecutedScopeMap();
@@ -4106,6 +4109,31 @@ export function createPrototypeViewer(editor: Editor): {
     return "flow";
   }
 
+  function resolveFlowLintScopePolicyMismatch(): { flowId: number; currentScope: FlowLintRunScope; policyScope: FlowLintRunScope } | null {
+    if (!flowLintScopeSel) return null;
+    const flowId = Number(flowStartFlowSel?.value || 0);
+    const safeFlowId = Number.isFinite(flowId) && flowId > 0 ? Math.floor(flowId) : 0;
+    if (safeFlowId <= 0) return null;
+    const currentScope = resolveFlowLintScope(flowLintScopeSel.value);
+    const policyScope = loadFlowLintScopeGuardrailTemplate().defaultScope;
+    if (currentScope === policyScope) return null;
+    return { flowId: safeFlowId, currentScope, policyScope };
+  }
+
+  function renderFlowLintScopePolicyHint() {
+    if (!flowLintScopePolicyHintWrap || !flowLintScopePolicyHintInfo || !flowLintScopePolicyHintApplyBtn) return;
+    const mismatch = resolveFlowLintScopePolicyMismatch();
+    if (!mismatch) {
+      flowLintScopePolicyHintWrap.style.display = "none";
+      flowLintScopePolicyHintInfo.textContent = "";
+      flowLintScopePolicyHintApplyBtn.style.display = "none";
+      return;
+    }
+    flowLintScopePolicyHintWrap.style.display = "flex";
+    flowLintScopePolicyHintInfo.textContent = `Guardrail 기본 scope(${mismatch.policyScope})와 현재 scope(${mismatch.currentScope})가 달라요. lint 실행 전 정책 scope로 교정하세요.`;
+    flowLintScopePolicyHintApplyBtn.style.display = "inline-flex";
+  }
+
   function shouldBlockFlowLintRunByScopeDrift(): boolean {
     if (!flowLintScopeSel) return false;
     const flowId = Number(flowStartFlowSel?.value || 0);
@@ -4185,6 +4213,7 @@ export function createPrototypeViewer(editor: Editor): {
     flowLintPendingScopeDrift = null;
     flowLintScopeDriftRunOverrideFlowId = null;
     syncFlowLintScopeQuickSlotWithCurrentScope();
+    renderFlowLintScopePolicyHint();
     renderFlowLintScopeDriftAlert();
     return { scope: nextScope, source };
   }
@@ -4768,6 +4797,7 @@ export function createPrototypeViewer(editor: Editor): {
     renderFlowLintScopeTimeline();
     renderFlowLintScopeSlotAuditLog();
     renderFlowLintScopeLockCoverageMeter();
+    renderFlowLintScopePolicyHint();
   }
 
   function applyFlowLintScopeQuickSlot(slotIndex: number, saveCurrent = false) {
@@ -5184,6 +5214,11 @@ export function createPrototypeViewer(editor: Editor): {
       renderFlowLintScopeDriftAlert();
       flowLintInfo.textContent = "Scope drift detected. Revert 또는 Run current를 선택하세요.";
       return;
+    }
+    renderFlowLintScopePolicyHint();
+    const policyMismatch = resolveFlowLintScopePolicyMismatch();
+    if (policyMismatch) {
+      flowLintInfo.textContent = `Guardrail scope hint: 현재 ${policyMismatch.currentScope} · 정책 ${policyMismatch.policyScope} (원하면 Use policy scope)`;
     }
     const snapshot = flowMinimapSnapshot;
     if (!snapshot || snapshot.nodes.length === 0) {
@@ -7239,6 +7274,7 @@ export function createPrototypeViewer(editor: Editor): {
       const nextScope = resolveFlowLintScope(flowLintScopeSel?.value || "flow");
       saveFlowLintScopePresetForCurrentFlow();
       syncFlowLintScopeQuickSlotWithCurrentScope();
+      renderFlowLintScopePolicyHint();
       recordFlowLintScopeTimeline(nextScope, "manual");
       if (shouldBlockFlowLintRunByScopeDrift()) {
         clearFlowLintScopeAutoRunGuard();
@@ -7272,6 +7308,7 @@ export function createPrototypeViewer(editor: Editor): {
       }
       recordFlowLintScopeTimeline(applied.scope, "auto-apply");
       renderFlowLintScopeQuickSlots();
+      renderFlowLintScopePolicyHint();
       renderFlowLintScopeDriftAlert();
     };
     flowLintScopeAutoApplyLabel.appendChild(flowLintScopeAutoApplyCheck);
@@ -7284,6 +7321,31 @@ export function createPrototypeViewer(editor: Editor): {
     flowLintScopeSlotBadge.onclick = (event) => cycleFlowLintScopeQuickSlot(Boolean((event as MouseEvent).shiftKey));
     flowLintScopeRow.appendChild(flowLintScopeSlotBadge);
     flowLintWrap.appendChild(flowLintScopeRow);
+
+    flowLintScopePolicyHintWrap = document.createElement("div");
+    flowLintScopePolicyHintWrap.style.cssText = "display:none;flex-direction:column;gap:4px;padding:5px;border-radius:7px;border:1px solid rgba(251,191,36,0.38);background:rgba(120,53,15,0.22);";
+    flowLintScopePolicyHintInfo = document.createElement("div");
+    flowLintScopePolicyHintInfo.style.cssText = "font-size:9px;line-height:1.35;color:#fde68a;";
+    flowLintScopePolicyHintWrap.appendChild(flowLintScopePolicyHintInfo);
+    flowLintScopePolicyHintApplyBtn = document.createElement("button");
+    flowLintScopePolicyHintApplyBtn.className = "prop-btn";
+    flowLintScopePolicyHintApplyBtn.style.cssText = "align-self:flex-start;font-size:9px;padding:2px 6px;";
+    flowLintScopePolicyHintApplyBtn.textContent = "Use policy scope";
+    flowLintScopePolicyHintApplyBtn.onclick = () => {
+      if (!flowLintScopeSel) return;
+      const mismatch = resolveFlowLintScopePolicyMismatch();
+      if (!mismatch) return;
+      flowLintScopeSel.value = mismatch.policyScope;
+      saveFlowLintScopePresetForCurrentFlow();
+      syncFlowLintScopeQuickSlotWithCurrentScope();
+      recordFlowLintScopeTimeline(mismatch.policyScope, "manual");
+      renderFlowLintScopePolicyHint();
+      renderFlowLintScopeDriftAlert();
+      if (flowLintInfo) flowLintInfo.textContent = `Scope policy 교정: ${mismatch.currentScope} → ${mismatch.policyScope}`;
+      scheduleFlowLintScopeAutoRunGuard();
+    };
+    flowLintScopePolicyHintWrap.appendChild(flowLintScopePolicyHintApplyBtn);
+    flowLintWrap.appendChild(flowLintScopePolicyHintWrap);
 
     const flowLintScopeSlotRow = document.createElement("div");
     flowLintScopeSlotRow.style.cssText = "display:flex;gap:4px;";

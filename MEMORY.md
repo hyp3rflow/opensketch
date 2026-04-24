@@ -1790,11 +1790,17 @@
 - scroll-animation.ts: UI 패널 + 오버라이드 계산 유틸리티
 
 ## 다음 할 것
-- Flow Lint Scope Policy Enforcement Hint — Guardrail 기본 정책과 현재 scope 불일치 시 lint 실행 전 교정 힌트 제공 (임팩트 중하, 난이도 중)
 - Flow Lint Scope Import Conflict Filter — Diff Preview에서 ADD/UPDATE/SAME 필터 + 검색으로 대규모 import 충돌 탐색 개선 (임팩트 중, 난이도 중)
 - Flow Lint Scope Import Selective Apply — Diff 테이블 row 단위 체크박스로 선택 적용(import partial merge) 지원 (임팩트 중상, 난이도 중상)
 - Flow Lint Scope Template Versioning Badge — guardrail template 버전/변경일 표시 + 구버전 preset 업그레이드 제안 배지 (임팩트 중하, 난이도 중)
 
+
+## 완료된 기능 (추가 — Flow Lint Scope Policy Enforcement Hint, 2026-04-24)
+- Flow Lint Scope 영역에 `Policy Enforcement Hint` 카드를 추가해 Guardrail 기본 scope(defaultScope)와 현재 선택 scope가 다를 때 lint 실행 전에 교정 가이드를 노출
+- 힌트 카드에 `Use policy scope` 버튼을 제공해 현재 flow scope를 정책값으로 즉시 맞추고 preset/quick slot/timeline(수동 변경)을 동기화
+- lint 계산 시작 직전에 정책 불일치 여부를 재평가해 info 영역에도 보조 힌트를 표시, scope drift 가드와 함께 사전 점검 가능
+- 구현: `packages/app/src/ui/prototype-viewer.ts`
+- specs 반영: `specs/FEATURES.md`
 
 ## 완료된 기능 (추가 — Flow Lint Scope Lock Coverage Meter, 2026-04-24)
 - Flow Lint Scope 영역에 `Scope Lock Coverage Meter` 카드 추가: flow별 quick slot 잠금 비율(locked/3, %)을 즉시 확인
